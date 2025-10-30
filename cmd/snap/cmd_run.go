@@ -1056,9 +1056,12 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	// wait for the child process executing gdb helper to raise SIGSTOP
 	// signalling readiness to attach a gdbserver process
 	var status syscall.WaitStatus
-	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
+	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WUNTRACED, nil)
 	if err != nil {
 		return err
+	}
+	if status.StopSignal() != syscall.SIGSTOP {
+		return fmt.Errorf("child terminated prematurely with unexpected status: %v", status)
 	}
 
 	addr := x.Gdbserver
