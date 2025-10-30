@@ -538,10 +538,7 @@ func (e unknownCommandError) Error() string {
 }
 
 func loggerWithJournalMaybe() {
-	// unset so that it doesn't trickle down to the snap application
-	defer os.Unsetenv("SNAP_LOG_TO_JOURNAL")
-
-	if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
+	if !osutil.GetenvBool("SNAPD_LOG_SNAP_TO_JOURNAL") {
 		return
 	}
 
@@ -556,6 +553,12 @@ func loggerWithJournalMaybe() {
 		return
 	}
 
+	err = os.Setenv("SNAPD_JSON_LOGGING", "1")
+	if err != nil {
+		logger.Noticef("WARNING: could not set json logging variable %v", err)
+		return
+	}
+	defer os.Unsetenv("SNAPD_JSON_LOGGING")
 	l := logger.New(journalWriter, logger.DefaultFlags, nil)
 	logger.SetLogger(l)
 }

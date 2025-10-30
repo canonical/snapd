@@ -135,9 +135,8 @@ environment:
     # Set the following to SPREAD_TAG_FEATURES by default
     # since the following are required to log snap commands
     # to the journal
-    SNAP_LOG_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAP_LOG_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
+    SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
-    SNAPD_JSON_LOGGING: '$(HOST: echo "${SPREAD_SNAPD_JSON_LOGGING:-$SPREAD_TAG_FEATURES}")'
 
 backends:
     google:
