@@ -1,6 +1,7 @@
 {
     "include": [
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-18.04",
         "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
@@ -9,6 +10,7 @@
         "rules": "nested"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-20.04",
         "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
@@ -17,6 +19,7 @@
         "rules": "nested"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-22.04",
         "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
@@ -25,6 +28,7 @@
         "rules": "nested"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-24.04",
         "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
@@ -33,6 +37,7 @@
         "rules": "nested"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-24.04-arm64",
         "backend": "openstack-arm-ext-ps7",
         "alternative-backend": "google-nested-arm",
