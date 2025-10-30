@@ -309,7 +309,7 @@ func retryBadStatus(t *state.Task, nTentatives int, reason string, resp *http.Re
 	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
 }
 
-func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig, hookMgr *hookstate.HookManager) (string, error) {
+func (m *DeviceManager) prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	// limit tentatives starting from scratch before going to
 	// slower full retries
 	var nTentatives int
@@ -391,47 +391,42 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	}
 
 	st.Lock()
-	var hasPrepareSerialRequestHook bool
-	err = st.Get("has-prepare-serial-request-hook", &hasPrepareSerialRequestHook)
+	gadgetInfo, err := snapstate.CurrentInfo(st, regCtx.GadgetForSerialRequestConfig())
 	st.Unlock()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil {
 		return "", err
 	}
+	hasPrepareSerialRequestHook := (gadgetInfo.Hooks["prepare-serial-request"] != nil)
 
 	if hasPrepareSerialRequestHook {
 		hooksup := &hookstate.HookSetup{
-			//we can be confident this value is non-nil because we checked if the hook exists in the first place
 			Snap: regCtx.GadgetForSerialRequestConfig(),
 			Hook: "prepare-serial-request",
 		}
 
-		// Add requset id to config for hook to use
-		st.Lock()
-		tr1 := config.NewTransaction(st)
-		err = tr1.Set(regCtx.GadgetForSerialRequestConfig(), "registration.request-id", requestID.RequestID)
+		// Add request id to config for hook to use
+		err = setRequestIDinGadget(st, requestID.RequestID, regCtx.GadgetForSerialRequestConfig())
 		if err != nil {
 			return "", fmt.Errorf("cannot set request id: %v", err)
 		}
-		tr1.Commit()
-		st.Unlock()
 
-		_, err := hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
+		_, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
 		if err != nil {
 			return "", fmt.Errorf("cannot run prepare serial request hook: %v", err)
 		}
 
 		// update registration body again after hook has been run
 		st.Lock()
-		tr2 := config.NewTransaction(st)
+		tr := config.NewTransaction(st)
 
 		var bodyStr string
-		err = tr2.GetMaybe(regCtx.GadgetForSerialRequestConfig(), "registration.body", &bodyStr)
+		err = tr.GetMaybe(regCtx.GadgetForSerialRequestConfig(), "registration.body", &bodyStr)
+		st.Unlock()
 		if err != nil {
 			return "", fmt.Errorf("failed to update registration body: %v", err)
 		}
 
 		cfg.body = []byte(bodyStr)
-		st.Unlock()
 	}
 
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
@@ -544,7 +539,7 @@ var httputilNewHTTPClient = httputil.NewHTTPClient
 
 var errStoreOffline = errors.New("snap store is marked offline")
 
-func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer, hookMgr *hookstate.HookManager) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
+func (m *DeviceManager) getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -595,7 +590,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		var serialRequest string
 		var err error
 		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
-			serialRequest, err = prepareSerialRequest(t, regCtx, privKey, device, client, cfg, hookMgr)
+			serialRequest, err = m.prepareSerialRequest(t, regCtx, privKey, device, client, cfg)
 		})
 		if err != nil { // errors & retries
 			return nil, nil, err
@@ -859,7 +854,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	var serial *asserts.Serial
 	var ancillaryBatch *asserts.Batch
 	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
-		serial, ancillaryBatch, err = getSerial(t, regCtx, privKey, device, tm, m.hookMgr)
+		serial, ancillaryBatch, err = m.getSerial(t, regCtx, privKey, device, tm)
 	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
@@ -978,4 +973,19 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 		}
 	}
 	return nil, nil
+}
+
+func setRequestIDinGadget(st *state.State, requestID, gadgetName string) error {
+	// Add request id to config for hook to use
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+	err := tr.Set(gadgetName, "registration.request-id", requestID)
+	if err != nil {
+		return fmt.Errorf("cannot set request id: %v", err)
+	}
+
+	tr.Commit()
+
+	return nil
 }
