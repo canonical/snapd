@@ -170,8 +170,8 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	logEverywhere := func(format string, args ...any) {
-		t.Logf(format, args)
-		logger.Noticef(format, args)
+		t.Logf(format, args...)
+		logger.Noticef(format, args...)
 	}
 
 	// and finish (this will set the new model), note that changes done in
