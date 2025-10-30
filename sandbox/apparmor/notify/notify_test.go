@@ -349,12 +349,87 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
 }
 
+func (s *notifySuite) TestRegisterFileDescriptorNoAccess(c *C) {
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
+
+	var (
+		expectedVersion = notify.ProtocolVersion(7)
+
+		fakeFD      uintptr = 1234
+		fakeReady   uint32  = 0xf00
+		fakePending uint32  = 0xba4
+		listenerID  uint64  = 0x1234
+	)
+
+	var initialIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
+
+	var expectedIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(expectedIDBytes[:], listenerID)
+
+	ioctlCalls := 0
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+
+		ioctlCalls++
+
+		// Expect version 7, but we'll be registering listeners twice, so
+		// expect each request twice.
+		switch ioctlCalls {
+		case 1:
+			// v7 APPARMOR_NOTIF_REGISTER first time
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0x11235813, set listener ID
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0x11235813, 0x12345678)
+			// Return EACCES, as if policy denied access to listener
+			return respBuf, unix.EACCES
+		case 2:
+			// v7 APPARMOR_NOTIF_REGISTER second time
+			// Check that the listener ID file no longer exists
+			c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0, set listener ID
+			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID)
+			return respBuf, nil
+		case 3:
+			// v7 APPARMOR_NOTIF_RESEND
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
+			// Expect the saved listener ID, set fakeReady/fakePending
+			respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, fakeReady, fakePending)
+			return respBuf, nil
+		case 4:
+			// v7 APPARMOR_NOTIF_SET_FILTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+			return respBuf, nil
+		default:
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+			return buf, nil
+		}
+	})
+	defer restore()
+
+	// Write listener ID to disk
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
+	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, IsNil)
+	c.Check(receivedVersion, Equals, expectedVersion)
+	c.Check(pendingCount, Equals, pendingCount)
+
+	// Check that the new listener ID stored
+	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
+}
+
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restore()
 
 	var fakeFD uintptr = 1234
 
+	// EINVAL during registration
 	ioctlCalls := 0
 	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
@@ -385,6 +460,37 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 	c.Check(pendingCount, Equals, 0)
 
+	// EACCES during registration
+	ioctlCalls = 0
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+
+		ioctlCalls++
+
+		// First expect check for version 7, then for version 3
+		switch ioctlCalls {
+		case 1:
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0, set arbitrary ID/ready/pending
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
+			// On v7, return an error on the APPARMOR_NOTIF_REGISTER
+			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EACCES))
+		case 2:
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, notify.ProtocolVersion(3))
+			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPROTONOSUPPORT, unix.ErrnoName(unix.EPROTONOSUPPORT))
+		default:
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+			return buf, fmt.Errorf("called Ioctl more than twice")
+		}
+	})
+	defer restore()
+
+	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, ErrorMatches, "cannot register notify socket: no mutually supported protocol versions")
+	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
+	c.Check(pendingCount, Equals, 0)
+
 	// A non-recoverable error occurs during REGISTER
 	calledIoctl := false
 	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
@@ -396,12 +502,12 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 		c.Assert(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
 		// Expect listener ID 0, reply with arbitrary values
 		respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
-		return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPERM, unix.ErrnoName(unix.EPERM))
+		return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.ENODATA, unix.ErrnoName(unix.ENODATA))
 	})
 	defer restore()
 
 	receivedVersion, pendingCount, err = notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_REGISTER: operation not permitted \(EPERM\)`)
+	c.Check(err, ErrorMatches, `cannot perform IOCTL request APPARMOR_NOTIF_REGISTER: no data available \(ENODATA\)`)
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 	c.Check(pendingCount, Equals, 0)
 
