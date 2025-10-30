@@ -212,6 +212,9 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 /sys/devices/virtual/kfd/kfd/uevent r,
 /sys/devices/virtual/kfd/kfd/topology/{,generation_id,system_properties} r,
 /sys/devices/virtual/kfd/kfd/topology/nodes/[0-9]*/{,gpu_id,properties,io_links/[0-9]*/properties,caches/[0-9]*/properties,mem_banks/[0-9]*/properties} r,
+
+# DCGM keeps GPU driver initialized and handles client communication for persistence mode
+/run/nvidia-persistenced/socket rw,
 `
 
 type openglInterface struct {
