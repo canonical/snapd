@@ -41,19 +41,6 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local prompt-requester
     snap connect prompt-requester:home
 
-    # Enable prompting
-    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
-
-    echo "Enable AppArmor prompting experimental feature"
-    snap set system experimental.apparmor-prompting=true
-
-    echo "Wait for snapd to begin restart"
-    #shellcheck disable=SC2016
-    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
-
-    echo "Wait until snapd is active"
-    retry --wait 1 -n 300 systemctl is-active snapd
-
 restore: |
     tests.exec is-skipped && exit 0
 
@@ -68,6 +55,8 @@ restore: |
 
     echo "Wait until snapd is active"
     retry --wait 1 -n 300 systemctl is-active snapd
+
+    snap remove test-snapd-prompt-handler
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -84,8 +73,19 @@ debug: |
 execute: |
     tests.exec is-skipped && exit 0
 
-    echo "Precondition check that snapd is active"
-    systemctl is-active snapd.service snapd.socket
+    # Enable prompting
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Enable AppArmor prompting experimental feature"
+    snap set system experimental.apparmor-prompting=true
+
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 300 systemctl is-active snapd
+
     echo "Check that there are no prompts initially"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
