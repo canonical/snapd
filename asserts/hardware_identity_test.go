@@ -21,12 +21,17 @@ package asserts_test
 
 import (
 	"crypto"
+	"crypto/dsa"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -106,7 +111,7 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 
 	hardwareIDKey := fmt.Sprintf("hardware-id-key: %s\n", s.encodedHardwareIDKey)
 	// create hardware key with algorithm not supported by go crypto library
-	elGamalhardwareKey := "hardware-id-key: TUZNd09BWUdLdzRIQWdFQk1DNENGUUR0Z0dwZGNhdXkraExpSFF2TzFVV240ck90Q3dJVkFPdmg2OEZYNjBHVQo1TllFOW05MzJESDhYOFpvQXhjQUFoUU5PdEFNYktUazdqQi9FSlgvaWJ3bGVpWFpDZz09\n"
+	elGamalHardwareKey := "hardware-id-key: TUZNd09BWUdLdzRIQWdFQk1DNENGUUR0Z0dwZGNhdXkraExpSFF2TzFVV240ck90Q3dJVkFPdmg2OEZYNjBHVQo1TllFOW05MzJESDhYOFpvQXhjQUFoUU5PdEFNYktUazdqQi9FSlgvaWJ3bGVpWFpDZz09\n"
 	hardwareIDKeySha3384 := fmt.Sprintf("hardware-id-key-sha3-384: %s\n", s.hashedHardwareIDKey)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
@@ -125,7 +130,7 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{hardwareIDKey, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
 		{hardwareIDKey, "hardware-id-key: something\n", `no PEM block was found`},
 		{hardwareIDKey, "hardware-id-key: TUlHZU1BMEdDU3FH\n", `cannot parse public key: .*`},
-		{hardwareIDKey, elGamalhardwareKey, `cannot parse public key: .*`},
+		{hardwareIDKey, elGamalHardwareKey, `cannot parse public key: .*`},
 		{hardwareIDKeySha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
 		{hardwareIDKeySha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
 		{hardwareIDKeySha3384, "hardware-id-key-sha3-384: random\n", `hardware id key does not match provided hash`},
@@ -137,4 +142,133 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Assert(err, ErrorMatches, errPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
+}
+
+func (s *hardwareIdentitySuite) TestVerifySignatureRSA(c *C) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	c.Assert(err, IsNil)
+
+	h, err := buildHardwareIdentityAssertion(&privKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	nonce := []byte("test nonce")
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA384, hashed)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, signature)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, append(signature, 0))
+	c.Assert(err, NotNil)
+}
+
+func (s *hardwareIdentitySuite) TestVerifySignatureDSA(c *C) {
+	var params dsa.Parameters
+	err := dsa.GenerateParameters(&params, rand.Reader, dsa.L1024N160)
+	c.Assert(err, IsNil)
+
+	privKey := new(dsa.PrivateKey)
+	privKey.Parameters = params
+	err = dsa.GenerateKey(privKey, rand.Reader)
+	c.Assert(err, IsNil)
+
+	h, err := buildHardwareIdentityAssertion(&privKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	nonce := []byte("test nonce")
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	r, ss, err := dsa.Sign(rand.Reader, privKey, hashed)
+	c.Assert(err, IsNil)
+
+	signature, err := asn1.Marshal(struct{ R, S *big.Int }{r, ss})
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, signature)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, append(signature, 0))
+	c.Assert(err, NotNil)
+}
+
+func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	c.Assert(err, IsNil)
+
+	h, err := buildHardwareIdentityAssertion(&privKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	nonce := []byte("test nonce")
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	r, ss, err := ecdsa.Sign(rand.Reader, privKey, hashed)
+	c.Assert(err, IsNil)
+
+	signature, err := asn1.Marshal(struct{ R, S *big.Int }{r, ss})
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, signature)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(append(nonce, 1), signature)
+	c.Assert(err, NotNil)
+}
+
+func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	c.Assert(err, IsNil)
+
+	h, err := buildHardwareIdentityAssertion(pubKey)
+	c.Assert(err, IsNil)
+
+	nonce := []byte("test nonce")
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	signature := ed25519.Sign(privKey, hashed)
+
+	err = h.VerifyNonceSignature(nonce, signature)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, append(signature, 1))
+	c.Assert(err, NotNil)
+}
+
+func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {
+
+	pubBytes, err := x509.MarshalPKIXPublicKey(hardwareKey)
+	if err != nil {
+		return nil, err
+	}
+
+	base64Body := base64.StdEncoding.EncodeToString(pubBytes)
+
+	hash := sha3.New384()
+
+	hash.Write([]byte(base64Body))
+	hashed := hash.Sum(nil)
+
+	hashedHardwareIDKey, err := asserts.EncodeDigest(crypto.SHA3_384, hashed)
+	if err != nil {
+		return nil, err
+	}
+
+	encoded := strings.Replace(hardwareIdentityExample, "HARDWAREIDKEY", base64Body, 1)
+	encoded = strings.ReplaceAll(encoded, "HARDWAREIDKEYSHA3384", hashedHardwareIDKey)
+
+	a, err := asserts.Decode([]byte(encoded))
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.HardwareIdentity), nil
 }

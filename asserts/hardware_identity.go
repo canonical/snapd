@@ -165,32 +165,29 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 // It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
 // All data is expected to use the SHA3-384 hash.
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte) error {
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
 	switch keyType := h.hardwareKey.(type) {
 	case *rsa.PublicKey:
-		return verifySignatureWithRSAKey(nonce, signature, h.hardwareKey.(*rsa.PublicKey))
+		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey))
 	case *dsa.PublicKey:
-		return verifySignatureWithDSAKey(nonce, signature, h.hardwareKey.(*dsa.PublicKey))
+		return verifySignatureWithDSAKey(hashed, signature, h.hardwareKey.(*dsa.PublicKey))
 	case *ecdsa.PublicKey:
-		return verifySignatureWithECDSAKey(nonce, signature, h.hardwareKey.(*ecdsa.PublicKey))
+		return verifySignatureWithECDSAKey(hashed, signature, h.hardwareKey.(*ecdsa.PublicKey))
 	case ed25519.PublicKey:
-		return verifySignatureWithED25519Key(nonce, signature, h.hardwareKey.(ed25519.PublicKey))
+		return verifySignatureWithED25519Key(hashed, signature, h.hardwareKey.(ed25519.PublicKey))
 	default:
 		return fmt.Errorf("unsupported algorithm type: %s", keyType)
 	}
 }
 
-func verifySignatureWithRSAKey(nonce, signature []byte, pubKey *rsa.PublicKey) error {
-	hash := sha3.New384()
-	hash.Write(nonce)
-	hashed := hash.Sum(nil)
+func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey) error {
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA384, hashed, signature)
 }
 
-func verifySignatureWithDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) error {
-	hash := sha3.New384()
-	hash.Write(nonce)
-	hashed := hash.Sum(nil)
-
+func verifySignatureWithDSAKey(hashed, signature []byte, pubKey *dsa.PublicKey) error {
 	// DsaSignature struct defines ASN.1 layout of DSA signature
 	type DsaSignature struct {
 		R, S *big.Int
@@ -209,11 +206,7 @@ func verifySignatureWithDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) e
 	return nil
 }
 
-func verifySignatureWithECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
-	hash := sha3.New384()
-	hash.Write(nonce)
-	hashed := hash.Sum(nil)
-
+func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicKey) error {
 	// DsaSignature struct defines ASN.1 layout of ECDSA signature
 	type EcdsaSignature struct {
 		R, S *big.Int
@@ -232,10 +225,7 @@ func verifySignatureWithECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKe
 	return nil
 }
 
-func verifySignatureWithED25519Key(nonce, signature []byte, pubKey ed25519.PublicKey) error {
-	hash := sha3.New384()
-	hash.Write(nonce)
-	hashed := hash.Sum(nil)
+func verifySignatureWithED25519Key(hashed, signature []byte, pubKey ed25519.PublicKey) error {
 	if !ed25519.Verify(pubKey, hashed, signature) {
 		return errors.New("signature invalid")
 	}
