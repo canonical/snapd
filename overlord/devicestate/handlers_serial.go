@@ -390,43 +390,13 @@ func (m *DeviceManager) prepareSerialRequest(t *state.Task, regCtx registrationC
 		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
-	st.Lock()
-	gadgetInfo, err := snapstate.CurrentInfo(st, regCtx.GadgetForSerialRequestConfig())
-	st.Unlock()
+	cfgBody, err := m.checkAndRunPrepareSerialRequestHook(st, requestID.RequestID, regCtx.GadgetForSerialRequestConfig())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to run prepare serial request hook: %v", err)
 	}
-	hasPrepareSerialRequestHook := (gadgetInfo.Hooks["prepare-serial-request"] != nil)
 
-	if hasPrepareSerialRequestHook {
-		hooksup := &hookstate.HookSetup{
-			Snap: regCtx.GadgetForSerialRequestConfig(),
-			Hook: "prepare-serial-request",
-		}
-
-		// Add request id to config for hook to use
-		err = setRequestIDinGadget(st, requestID.RequestID, regCtx.GadgetForSerialRequestConfig())
-		if err != nil {
-			return "", fmt.Errorf("cannot set request id: %v", err)
-		}
-
-		_, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
-		if err != nil {
-			return "", fmt.Errorf("cannot run prepare serial request hook: %v", err)
-		}
-
-		// update registration body again after hook has been run
-		st.Lock()
-		tr := config.NewTransaction(st)
-
-		var bodyStr string
-		err = tr.GetMaybe(regCtx.GadgetForSerialRequestConfig(), "registration.body", &bodyStr)
-		st.Unlock()
-		if err != nil {
-			return "", fmt.Errorf("failed to update registration body: %v", err)
-		}
-
-		cfg.body = []byte(bodyStr)
+	if cfgBody != nil {
+		cfg.body = cfgBody
 	}
 
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
@@ -975,17 +945,53 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	return nil, nil
 }
 
-func setRequestIDinGadget(st *state.State, requestID, gadgetName string) error {
-	// Add request id to config for hook to use
+// This function checks if the prepare serial request hook is present and then
+// injects the request ID to run the hook. The function returns the new modified registration body if present
+func (m *DeviceManager) checkAndRunPrepareSerialRequestHook(st *state.State, requestID, gadgetName string) ([]byte, error) {
 	st.Lock()
 	defer st.Unlock()
-	tr := config.NewTransaction(st)
-	err := tr.Set(gadgetName, "registration.request-id", requestID)
-	if err != nil {
-		return fmt.Errorf("cannot set request id: %v", err)
+
+	if gadgetName == "" {
+		return nil, nil
 	}
 
-	tr.Commit()
+	gadgetInfo, err := snapstate.CurrentInfo(st, gadgetName)
+	if err != nil {
+		return nil, err
+	}
+	hasPrepareSerialRequestHook := (gadgetInfo.Hooks["prepare-serial-request"] != nil)
 
-	return nil
+	if hasPrepareSerialRequestHook {
+		hooksup := &hookstate.HookSetup{
+			Snap: gadgetName,
+			Hook: "prepare-serial-request",
+		}
+
+		// Add request id to config for hook to use
+		tr := config.NewTransaction(st)
+		err := tr.Set(gadgetName, "registration.request-id", requestID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot set request id: %v", err)
+		}
+		tr.Commit()
+
+		st.Unlock()
+		_, err = m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
+		st.Lock()
+		if err != nil {
+			return nil, fmt.Errorf("cannot run prepare serial request hook: %v", err)
+		}
+
+		// update registration body again after hook has been run
+		tr = config.NewTransaction(st)
+		var bodyStr string
+		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update registration body: %v", err)
+		}
+
+		return []byte(bodyStr), nil
+	}
+
+	return nil, nil
 }
