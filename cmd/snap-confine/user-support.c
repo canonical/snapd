@@ -29,9 +29,9 @@ void setup_user_data(void) {
 
     if (user_data == NULL) return;
 
-    // Only support absolute paths.
-    if (user_data[0] != '/') {
-        die("user data directory must be an absolute path");
+    // Only support 'canonicalized' paths.
+    if (!sc_is_path_canonical(user_data)) {
+        die("user data directory must be an absolute canonical path");
     }
 
     debug("creating user data directory: %s", user_data);
