@@ -169,4 +169,13 @@ __attribute__((warn_unused_result)) int sc_ensure_mkdirat(int fd, const char *na
  */
 __attribute__((warn_unused_result)) int sc_ensure_mkdir(const char *name, mode_t mode, uid_t uid, uid_t gid);
 
+/**
+ * Checks whether a path is canonical, starts with /, and has no relative path
+ * elements such as '.' or '..' and does not end with a /. Note, this is only a
+ * lexical check, in contrast to realpath(), symbolic links are not resolved.
+ *
+ * Returns false if not.
+ **/
+bool sc_is_path_canonical(const char *path);
+
 #endif
