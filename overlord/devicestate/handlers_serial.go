@@ -987,7 +987,7 @@ func (m *DeviceManager) checkAndRunPrepareSerialRequestHook(st *state.State, req
 		var bodyStr string
 		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update registration body: %v", err)
+			return nil, fmt.Errorf("failed to get updated registration body: %v", err)
 		}
 
 		return []byte(bodyStr), nil
