@@ -36,10 +36,14 @@ type ClusterManager struct {
 }
 
 // Manager returns a new ClusterManager.
-func Manager(st *state.State) *ClusterManager {
-	return &ClusterManager{
+func Manager(st *state.State, runner *state.TaskRunner) *ClusterManager {
+	m := ClusterManager{
 		state: st,
 	}
+
+	runner.AddHandler("assemble-cluster", m.doAssembleCluster, nil)
+
+	return &m
 }
 
 // Ensure ensures that the device state matches the expectations defined by the
