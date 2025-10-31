@@ -1,2 +1,5 @@
-PATH=$PATH:@SNAP_MOUNT_DIR@/bin
+m4_changequote([,])m4_dnl
+m4_define([INJECT_DIR],[PATH=$PATH:$1/bin])m4_dnl
+m4_ifelse(USE_CANONICAL_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/snap])])
+m4_ifelse(USE_ALT_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/var/lib/snapd/snap])])
 XDG_DATA_DIRS=${XDG_DATA_DIRS:-/usr/local/share/:/usr/share/}:/var/lib/snapd/desktop
