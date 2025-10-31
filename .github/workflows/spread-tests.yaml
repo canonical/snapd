@@ -311,40 +311,14 @@ jobs:
         done
         echo "SPREAD_USE_PREBUILT_PACKAGES=$SPREAD_USE_PREBUILT_PACKAGES" >> $GITHUB_ENV
 
-    - name: Download built snap (amd64)
-      uses: actions/download-artifact@v5
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !contains(inputs.group, '-fips') }}"
+    - name: Download snapd snap
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      uses: ./.github/actions/download-snapd-snap
       with:
-        name: snap-files-amd64-default-test
-        # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
-        pattern: snapd_1337.*.snap
-        path: "${{ github.workspace }}/built-snap"
-
-    - name: Download built snap (arm64)
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !contains(inputs.group, '-fips') }}"
-      uses: actions/download-artifact@v5
-      with:
-        name: snap-files-arm64-default-test
-        pattern: snapd_1337.*.snap
-        # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
-        path: "${{ github.workspace }}/built-snap"
-
-    - name: Download built FIPS snap (amd64)
-      uses: actions/download-artifact@v5
-      # eg. ubuntu-fips-deb, ubuntu-fips-snap
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && contains(inputs.group, '-fips-') }}"
-      with:
-        name: snap-files-amd64-FIPS-test
-        # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
-        pattern: snapd_1337.*-fips_*.snap
-        path: "${{ github.workspace }}/built-snap"
-
-    - name: Rename imported snap
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master }}"
-      run: |
-        for snap in built-snap/snapd_1337.*.snap; do
-          mv -v "${snap}" "${snap}.keep"
-        done
+        use-master-push: ${{ inputs.use-snapd-snap-from-master }}
+        is-amd64: ${{ !contains(inputs.group, '-arm64') }}
+        is-arm64: ${{ contains(inputs.group, '-arm64') }}
+        is-fips: ${{ contains(inputs.group, '-fips') }}
 
     - name: Run spread tests
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
@@ -361,16 +335,6 @@ jobs:
           fi
 
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
-          
-          if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
-            if [[ "${{ inputs.group }}" == *"-arm64"* ]]; then
-              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_arm64.snap
-            elif [[ "${{ inputs.group }}" =~ "-fips-" ]]; then
-              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64-fips.snap
-            else
-              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
-            fi
-          fi
 
           # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
