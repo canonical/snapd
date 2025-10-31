@@ -47,23 +47,3 @@ void setup_user_data(void) {
         die("cannot create user data directory: %s", user_data);
     };
 }
-
-void setup_user_xdg_runtime_dir(void) {
-    const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-
-    if (xdg_runtime_dir == NULL) return;
-    // Only support absolute paths.
-    if (xdg_runtime_dir[0] != '/') {
-        die("XDG_RUNTIME_DIR must be an absolute path");
-    }
-
-    errno = 0;
-    debug("creating user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
-    if (sc_nonfatal_mkpath(xdg_runtime_dir, 0755, -1, -1) < 0) {
-        die("cannot create user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
-    }
-    // if successfully created the directory (ie, not EEXIST), then chmod it.
-    if (errno == 0 && chmod(xdg_runtime_dir, 0700) != 0) {
-        die("cannot change permissions of user XDG_RUNTIME_DIR directory to 0700");
-    }
-}
