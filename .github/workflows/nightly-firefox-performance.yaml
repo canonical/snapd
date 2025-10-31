@@ -28,7 +28,7 @@ jobs:
         results-file: /tmp/snap-results.json
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: snap-results
         path: /tmp/snap-results.json
@@ -52,7 +52,7 @@ jobs:
         results-file: /tmp/bin-results.json
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: bin-results
         path: /tmp/bin-results.json
@@ -65,12 +65,12 @@ jobs:
     runs-on: [self-hosted, spread-enabled]
     steps:
     - name: Download snap results
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: snap-results
     
     - name: Download bin results
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: bin-results
 
