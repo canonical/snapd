@@ -2000,6 +2000,22 @@ apps:
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }
 
+func (s *YamlSuite) TestSnapYamlSuccessExitStatus(c *C) {
+	ySuccessExitStatus := []byte(`name: wat
+version: 42
+apps:
+ foo:
+  command: bin/foo
+  daemon: simple
+  success-exit-status: [42, 250]
+`)
+	info, err := snap.InfoFromSnapYaml(ySuccessExitStatus)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Assert(app, NotNil)
+	c.Check(app.SuccessExitStatus, DeepEquals, []string{"42", "250"})
+}
+
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0
