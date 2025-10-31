@@ -311,70 +311,25 @@ int sc_ensure_mkdir(const char *path, mode_t mode, uid_t uid, uid_t gid) {
     return sc_ensure_mkdirat(AT_FDCWD, path, mode, uid, gid);
 }
 
-static bool sc_is_path_canonical_len(const char *path, size_t path_len) {
-    if (path == NULL || path_len == 0) {
+bool sc_is_path_canonical(const char *path) {
+    if (path == NULL) {
+        return false;
+    }
+
+    size_t len = strlen(path);
+    if (len == 0) {
         return false;
     }
 
     if (path[0] != '/') {
-        /* does not start with / */
         return false;
     }
 
-    ssize_t len = path_len;
-    ssize_t last_sep_idx = 0;
-
-    for (ssize_t i = 1; i < len; i++) {
-        char c = path[i];
-
-        switch (c) {
-            case '/':
-                last_sep_idx = i;
-
-                if (i < (len - 1) && path[i + 1] == '/') {
-                    /* multiple / */
-                    return false;
-                }
-
-                if (i > 0 && i == len - 1) {
-                    /* trailing / */
-                    return false;
-                }
-                break;
-            case '.': {
-                bool preceded_by_sep = last_sep_idx == i - 1;
-
-                /* is it maybe ./ or /./ or /../ or ../ or /.. or . or .. */
-                if (preceded_by_sep) {
-                    if (i < (len - 1) && path[i + 1] == '/') {
-                        /* ./ or /./ */
-                        return false;
-                    }
-
-                    if (i < (len - 2) && path[i + 1] == '.' && path[i + 2] == '/') {
-                        /* ../ or /../ */
-                        return false;
-                    }
-
-                    if (i == len - 1) {
-                        /* trailing . or /. */
-                        return false;
-                    }
-
-                    if (i == len - 2 && path[i + 1] == '.') {
-                        /* trailing .. or /.. */
-                        return false;
-                    }
-                }
-                break;
-            }
-            default:
-                break;
-        }
+    if (len == 1) {
+        /* just '/'  */
+        return true;
     }
-    return true;
-}
 
-bool sc_is_path_canonical(const char *path) {
-    return sc_is_path_canonical_len(path, (path != NULL) ? strlen(path) : 0);
+    return !sc_endswith(path, "/.") && !sc_endswith(path, "/..") && !sc_endswith(path, "/") &&
+           strstr(path, "/../") == NULL && strstr(path, "/./") == NULL && strstr(path, "//") == NULL;
 }
