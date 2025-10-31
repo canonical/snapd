@@ -1,0 +1,58 @@
+summary: Check that restarting snapd in various ways works as expected
+
+details: |
+    This test checks that snapd can be restarted using various permutations
+    of `systemctl restart` or `systemctl {stop,start}` without hanging.
+
+environment:
+    SYSTEMCTL_COMMANDS/restart_snapd: "systemctl restart snapd"
+    SYSTEMCTL_COMMANDS/restart_snapd_service: "systemctl restart snapd.service"
+    SYSTEMCTL_COMMANDS/restart_snapd_service_socket: "systemctl restart snapd.service snapd.socket"
+    SYSTEMCTL_COMMANDS/stop_start_snapd: "systemctl stop snapd; systemctl start snapd"
+    SYSTEMCTL_COMMANDS/stop_start_snapd_service: "systemctl stop snapd.service; systemctl start snapd.service"
+    SYSTEMCTL_COMMANDS/stop_start_snapd_service_socket: "systemctl stop snapd.service snapd.socket; systemctl start snapd.service snapd.socket"
+    SYSTEMCTL_COMMANDS/reload_restart_snapd: "systemctl daemon-reload; systemctl restart snapd"
+    SYSTEMCTL_COMMANDS/reload_restart_snapd_service: "systemctl daemon-reload; systemctl restart snapd.service"
+    SYSTEMCTL_COMMANDS/reload_restart_snapd_service_socket: "systemctl daemon-reload; systemctl restart snapd.service snapd.socket"
+    SYSTEMCTL_COMMANDS/reload_stop_start_snapd: "systemctl daemon-reload; systemctl stop snapd; systemctl start snapd"
+    SYSTEMCTL_COMMANDS/reload_stop_start_snapd_service: "systemctl daemon-reload; systemctl stop snapd.service; systemctl start snapd.service"
+    SYSTEMCTL_COMMANDS/reload_stop_start_snapd_service_socket: "systemctl daemon-reload; systemctl stop snapd.service snapd.socket; systemctl start snapd.service snapd.socket"
+    SYSTEMCTL_COMMANDS/restart_snapd_reload: "systemctl restart snapd; systemctl daemon-reload"
+    SYSTEMCTL_COMMANDS/restart_snapd_service_reload: "systemctl restart snapd.service; systemctl daemon-reload"
+    SYSTEMCTL_COMMANDS/restart_snapd_service_socket_reload: "systemctl restart snapd.service snapd.socket; systemctl daemon-reload"
+    SYSTEMCTL_COMMANDS/stop_start_snapd_reload: "systemctl stop snapd; systemctl start snapd; systemctl daemon-reload"
+    SYSTEMCTL_COMMANDS/stop_start_snapd_service_reload: "systemctl stop snapd.service; systemctl start snapd.service; systemctl daemon-reload"
+    SYSTEMCTL_COMMANDS/stop_start_snapd_service_socket_reload: "systemctl stop snapd.service snapd.socket; systemctl start snapd.service snapd.socket; systemctl daemon-reload"
+
+restore: |
+    echo "Wait so we don't hit start limit on repeat runs"
+    sleep 10
+
+debug: |
+    echo "Debug: Check if snapd service and socket are running"
+    systemctl is-active snapd.service snapd.socket || true
+    systemctl status snapd.service || true
+    echo "Debug: Check if snapd has start-limit-hit"
+    systemctl show --property=Result snapd.service snapd.socket || true
+
+execute: |
+    echo "Precondition check that snapd is active"
+    systemctl is-active snapd.service snapd.socket
+
+    echo "Check that we can query the snapd api"
+    snap warnings || true
+
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Run systemctl command(s): '$SYSTEMCTL_COMMANDS'"
+    sh -c "$SYSTEMCTL_COMMANDS"
+
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 30 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 30 systemctl is-active snapd.service
+
+    echo "Check that we can query the snapd api"
+    snap warnings || true
