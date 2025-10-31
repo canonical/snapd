@@ -1346,7 +1346,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 			// The last thing that snap-exec does is to
 			// execve() something inside the snap dir so
 			// we know that from that point on the output
-			// will be interessting to the user.
+			// will be interesting to the user.
 			//
 			// We need check both /snap (which is where snaps
 			// are located inside the mount namespace) and the
