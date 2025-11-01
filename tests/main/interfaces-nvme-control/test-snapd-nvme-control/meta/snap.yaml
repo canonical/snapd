@@ -1,0 +1,9 @@
+name: test-snapd-nvme-control
+version: 1.0
+summary: Test snap to access the nvme-control interface
+description: A basic snap to access the nvme-control interface
+
+apps:
+    with-nvme-control-plug:
+        command: bin/sh
+        plugs: [nvme-control]
