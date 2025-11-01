@@ -33,6 +33,14 @@
         "rules": "nested"
       },
       {
+        "group": "nested-ubuntu-26.04",
+        "backend": "openstack-ext-ps7",
+        "alternative-backend": "google-nested",
+        "systems": "ubuntu-26.04-64",
+        "tasks": "tests/nested/...",
+        "rules": "nested"
+      },
+      {
         "group": "nested-ubuntu-24.04-arm64",
         "backend": "openstack-arm-ext-ps7",
         "alternative-backend": "google-nested-arm",

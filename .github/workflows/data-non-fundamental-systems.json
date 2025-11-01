@@ -81,6 +81,14 @@
         "rules": "main"
       },
       {
+        "group": "ubuntu-core-26",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google-core",
+        "systems": "ubuntu-core-26-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
         "group": "ubuntu-arm64",
         "backend": "openstack-arm-ps7",
         "alternative-backend": "google-arm",
