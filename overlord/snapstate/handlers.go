@@ -2165,14 +2165,23 @@ func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 }
 
 func determineUnlinkTask(t *state.Task) *state.Task {
-	for _, wt := range t.WaitTasks() {
-		switch wt.Kind() {
+	stack := append([]*state.Task(nil), t.WaitTasks()...)
+	seen := make(map[*state.Task]bool, len(stack))
+	for len(stack) > 0 {
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if seen[cur] {
+			continue
+		}
+		seen[cur] = true
+
+		switch cur.Kind() {
 		case "unlink-current-snap", "unlink-snap":
-			return wt
+			return cur
 		}
-		if ut := determineUnlinkTask(wt); ut != nil {
-			return ut
-		}
+
+		stack = append(stack, cur.WaitTasks()...)
 	}
 	return nil
 }
