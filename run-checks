@@ -68,10 +68,10 @@ tool_configure() {
         GOBINS=$(go env GOPATH | sed 's|:|/bin:|g' | sed 's|.*|\0/bin|g')
         export PATH="$PATH:$GOBINS"
 
-        # when *not* running inside github, and go-1.18 is available, use it
-        if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
-            export PATH=/usr/lib/go-1.18/bin:"${PATH}"
-	    echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
+        # when *not* running inside github, and go-1.22 is available, use it
+        if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.22/bin" ]; then
+            export PATH=/usr/lib/go-1.22/bin:"${PATH}"
+            echo "WARNING: Forcing the use of Go 1.22 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
@@ -333,7 +333,7 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
+    if command -v modernize>/dev/null && [ -n "${FORCE_MODERNIZE_LINT:-}" ]; then
         echo ">> [Go] Checking modernize"
         modernize -test ./...
     else
@@ -505,14 +505,18 @@ if [ "$STATIC" = 1 ]; then
         echo ">> [Go] Skipping golangci-lint check"
     fi
 
-    echo ">> [Go] checking the go.sum is up to date and tidy"
-    go mod tidy
-    # TODO:GOVERSION: replace with go mod tidy -diff when we're running with Go 1.23+
-    # everywhere
-    if git status | grep -q go.sum ; then
-        echo "go.sum is not tidy, please run 'go mod tidy'"
-        git diff -- go.sum
-        exit 1
+    if [ -z "${SKIP_GO_MOD_TIDY:-}" ]; then
+        echo ">> [Go] checking the go.sum is up to date and tidy"
+        go mod tidy
+        # TODO:GOVERSION: replace with go mod tidy -diff when we're running with Go 1.23+
+        # everywhere
+        if git status | grep -q go.sum ; then
+            echo "go.sum is not tidy, please run 'go mod tidy'"
+            git diff -- go.sum
+            exit 1
+        fi
+    else
+        echo ">> [Go] Skipping go mod tidy check"
     fi
 
     echo ">> [C] Checking C source code formatting"

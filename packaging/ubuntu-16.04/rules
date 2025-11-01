@@ -27,7 +27,7 @@ endif
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
-export PATH:=/usr/lib/go-1.18/bin:${PATH}
+export PATH:=/usr/lib/go-1.22/bin:/usr/lib/go-1.18/bin:${PATH}
 ifeq (${FIPSBUILD},1)
 	# when building with FIPS, use Go 1.23 which is also declared in build
 	# dependencies; during testing it is manually installed, but during LP builds
