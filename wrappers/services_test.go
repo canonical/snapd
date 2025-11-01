@@ -2858,7 +2858,7 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailure(c *C) {
+func (s *servicesTestSuite) testRemoveSnapPackageUserDaemonStopFailure(c *C, reason snap.ServiceStopReason) {
 	var sysdLog [][]string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl --user show" that
@@ -2890,11 +2890,24 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
-	c.Check(err, ErrorMatches, "some user services failed to stop")
+	opts := &wrappers.StopServicesOptions{}
+	err = wrappers.StopServices(info.Services(), opts, reason, progress.Null, s.perfTimings)
+	if reason != snap.StopReasonRemove {
+		c.Check(err, ErrorMatches, "some user services failed to stop")
+	} else {
+		c.Check(err, IsNil)
+	}
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", svcFName},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureManual(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, snap.StopReasonRemove)
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureNoError(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, "")
 }
 
 func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
