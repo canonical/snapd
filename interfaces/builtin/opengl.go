@@ -159,6 +159,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/dma_heap/linux,cma rw,
 /dev/dma_heap/system rw,
 
+# Apple Asahi DRM driver (Apple Silicon M-series)
+/sys/devices/platform/soc/[0-9a-f]*.gpu/** r,
+/sys/devices/platform/soc@*/[0-9a-f]*.gpu/** r,
+
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
 /dev/galcore rw,
