@@ -397,6 +397,38 @@ jobs:
           find tests/ -name 'requirements.txt' -exec pip install -r {} \;
           pytest tests
 
+  unit-tests-fuzzing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install go
+        run: sudo snap install go --classic --channel=latest/stable
+      - name: Fuzz tests
+        run: |
+          files=()
+          for test in $(find . -name '*_test.go'); do
+            if grep -q 'func.* Fuzz' "$test"; then
+              files+=("$test")
+            fi
+          done
+          echo "files found with fuzzing tests: ${fuzz_targets[@]}"
+          for file in ${files[@]}; do
+            echo "Fuzzing tests in $file"
+            for func in $(grep -oP 'func.* \KFuzz.*(?=\()' "$file"); do
+              (
+                cd $(dirname "$file")
+                echo "Fuzzing test $func"
+                go test -fuzz "^$func\$" -fuzztime 3m || touch "${{ github.workspace }}/fuzzingfailed"
+              )
+            done
+          done
+      - name: Show failures
+        run: |
+          find . -wholename '**/testdata/fuzz/*' -type f -exec sh -c 'echo "{}"; cat "{}"' \;
+          if [ -f "${{ github.workspace }}/fuzzingfailed" ]; then
+            exit 1
+          fi
+
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
