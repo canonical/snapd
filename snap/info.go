@@ -1469,9 +1469,19 @@ func (app *AppInfo) SecurityTag() string {
 func (app *AppInfo) DesktopFile() string {
 	desktopFileIDs, err := app.Snap.DesktopPlugFileIDs()
 	if err != nil || len(desktopFileIDs) == 0 {
-		// fallback to a simple heuristic "$PREFIX_$APP.desktop"
-		return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
+		return app.fallbackDesktopFile()
 	}
+
+	if app.CommonID != "" {
+		desktopID := strings.TrimSuffix(app.CommonID, ".desktop")
+
+		if !strutil.ListContains(desktopFileIDs, desktopID) {
+			return app.fallbackDesktopFile()
+		}
+
+		desktopFileIDs = []string{desktopID}
+	}
+
 	// Loop through desktop-file-ids desktop interface plug attribute in order to
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
@@ -1494,7 +1504,12 @@ func (app *AppInfo) DesktopFile() string {
 			return desktopFile
 		}
 	}
-	// fallback to a simple heuristic "$PREFIX_$APP.desktop"
+	return app.fallbackDesktopFile()
+}
+
+// fallbackDesktopFile returns the fallback desktop file using the simple
+// heuristic "$PREFIX_$APP.desktop".
+func (app *AppInfo) fallbackDesktopFile() string {
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 
