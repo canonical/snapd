@@ -272,6 +272,48 @@ static void test_sc_array_size(void) {
 #endif
 }
 
+static void test_sc_is_path_clean(void) {
+    g_assert_true(sc_is_path_canonical("/"));
+    g_assert_true(sc_is_path_canonical("/.foo/bar"));
+    g_assert_true(sc_is_path_canonical("/.foo/..bar"));
+    g_assert_true(sc_is_path_canonical("/.foo../..bar"));
+    g_assert_true(sc_is_path_canonical("/.../..bar"));
+    g_assert_true(sc_is_path_canonical("/bar."));
+    g_assert_true(sc_is_path_canonical("/bar."));
+    g_assert_true(sc_is_path_canonical("/bar.."));
+    g_assert_true(sc_is_path_canonical("/bar../..."));
+    g_assert_true(sc_is_path_canonical("/b..a..r.."));
+    g_assert_true(sc_is_path_canonical("/foo/.../bar"));
+    g_assert_true(sc_is_path_canonical("/.bar."));
+    g_assert_true(sc_is_path_canonical("/.bar"));
+    g_assert_true(sc_is_path_canonical("/..bar"));
+    g_assert_true(sc_is_path_canonical("/bar..foo../baz"));
+    g_assert_true(sc_is_path_canonical("/.f"));
+
+    g_assert_false(sc_is_path_canonical(NULL));
+    g_assert_false(sc_is_path_canonical("."));
+    g_assert_false(sc_is_path_canonical("./"));
+    g_assert_false(sc_is_path_canonical("/."));
+    g_assert_false(sc_is_path_canonical(".f"));
+    g_assert_false(sc_is_path_canonical(".."));
+    g_assert_false(sc_is_path_canonical("../"));
+    g_assert_false(sc_is_path_canonical("/.."));
+    g_assert_false(sc_is_path_canonical("/../"));
+    g_assert_false(sc_is_path_canonical("/./"));
+    g_assert_false(sc_is_path_canonical("////"));
+    g_assert_false(sc_is_path_canonical("/foo//bar"));
+    g_assert_false(sc_is_path_canonical("/foo/bar/"));
+    g_assert_false(sc_is_path_canonical("/foo/bar//"));
+    g_assert_false(sc_is_path_canonical("/foo/./bar"));
+    g_assert_false(sc_is_path_canonical("/foo/bar/.."));
+    g_assert_false(sc_is_path_canonical("/foo/bar/../"));
+    g_assert_false(sc_is_path_canonical("/foo/bar/./"));
+    g_assert_false(sc_is_path_canonical("/foo/bar/."));
+    g_assert_false(sc_is_path_canonical("/.bar..//.."));
+    g_assert_false(sc_is_path_canonical("/.bar../.."));
+    g_assert_false(sc_is_path_canonical("/.bar../."));
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/utils/parse_bool", test_parse_bool);
     g_test_add_func("/utils/sc_is_expected_path", test_sc_is_expected_path);
@@ -285,4 +327,5 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/utils/sc_is_in_container/long", test_sc_is_container__long);
     g_test_add_func("/utils/sc_is_in_container/lxc_newline", test_sc_is_container__lxc_with_newline);
     g_test_add_func("/utils/sc_array_size", test_sc_array_size);
+    g_test_add_func("/utils/sc_is_path_clean", test_sc_is_path_clean);
 }
