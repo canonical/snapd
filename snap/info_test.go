@@ -2617,7 +2617,7 @@ version: 1.0
 		desktopAppYaml += "\nplugs:\n  desktop:"
 	}
 	if hasDesktopFileIDs {
-		desktopAppYaml += "\n    desktop-file-ids: [org.example, org.example.Foo]"
+		desktopAppYaml += "\n    desktop-file-ids: [org.example.desktop, org.example.Foo.desktop, org.example.Foo.WithoutDesktopSuffix]"
 	}
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
@@ -2629,7 +2629,7 @@ version: 1.0
 	c.Assert(err, IsNil)
 
 	if hasDesktopFileIDs {
-		c.Assert(desktopFileIDs, DeepEquals, []string{"org.example", "org.example.Foo"})
+		c.Assert(desktopFileIDs, DeepEquals, []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Foo.WithoutDesktopSuffix.desktop"})
 	} else {
 		c.Assert(desktopFileIDs, IsNil)
 	}
