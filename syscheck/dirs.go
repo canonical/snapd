@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- f* Copyright (C) 2025 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
-*/
+ */
 
 package syscheck
 
@@ -53,6 +53,11 @@ var (
 		"manjaro",
 		"manjaro-arm",
 	}
+
+	// distributions which support migration from /snap to /var/lib/snapd/snap
+	migratedAltDirDistros = []string{
+		"opensuse", // openSUSE Tumbleweed, Slowroll, Leap, but not SLE
+	}
 )
 
 func checkSnapMountDir() error {
@@ -62,6 +67,8 @@ func checkSnapMountDir() error {
 
 	smd := dirs.StripRootDir(dirs.SnapMountDir)
 	switch {
+	case release.DistroLike(migratedAltDirDistros...) && smd == dirs.AltSnapMountDir:
+		// some distributions support migration from /snap -> /var/lib/snapd/snap/
 	case release.DistroLike(defaultDirDistros...) && smd != dirs.DefaultSnapMountDir:
 		fallthrough
 	case release.DistroLike(altDirDistros...) && smd != dirs.AltSnapMountDir:
