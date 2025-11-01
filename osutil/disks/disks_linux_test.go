@@ -179,10 +179,6 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
-	// for udevadm trigger and udevadm settle which are called on the partitions
-	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
-	defer mockUdevadm.Restore()
-
 	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
 	fullSysPath := filepath.Join("/sys", vdaSysfsPath)
 	n := 0
@@ -307,13 +303,6 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	})
 
 	c.Assert(n, Equals, 4)
-
-	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--name-match=vdb1"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vdb2"},
-		{"udevadm", "settle", "--timeout=180"},
-	})
 }
 
 func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
@@ -534,10 +523,6 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
-	// for udevadm trigger and udevadm settle which are called on the partitions
-	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
-	defer mockUdevadm.Restore()
-
 	restore := osutil.MockMountInfo(`130 30 47:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
 	defer restore()
@@ -639,11 +624,6 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "ubuntu-boot",
-	})
-
-	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--name-match=vda4"},
-		{"udevadm", "settle", "--timeout=180"},
 	})
 }
 
@@ -831,10 +811,6 @@ fi
 }
 
 func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
-	// for udevadm trigger and udevadm settle which are called on the partitions
-	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
-	defer mockUdevadm.Restore()
-
 	restore := osutil.MockMountInfo(`130 30 42:4 / /run/mnt/data rw,relatime shared:54 - ext4 /dev/vda4 rw
  130 30 42:4 / /run/mnt/ubuntu-boot rw,relatime shared:54 - ext4 /dev/vda3 rw
 `)
@@ -1001,32 +977,9 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		SearchType:  "partition-label",
 		SearchQuery: "NOT BIOS Boot",
 	})
-
-	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--name-match=vda1"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda2"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda3"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda4"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda1"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda2"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda3"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda4"},
-		{"udevadm", "settle", "--timeout=180"},
-	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
-	// for udevadm trigger and udevadm settle which are called on the partitions
-	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
-	defer mockUdevadm.Restore()
-
 	restore := osutil.MockMountInfo(`130 30 252:0 / /run/mnt/data rw,relatime shared:54 - ext4 /dev/mapper/ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4 rw
  130 30 42:4 / /run/mnt/ubuntu-boot rw,relatime shared:54 - ext4 /dev/vda3 rw
 `)
@@ -1265,25 +1218,6 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", opts)
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
-
-	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--name-match=vda1"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda2"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda3"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda4"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda1"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda2"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda3"},
-		{"udevadm", "settle", "--timeout=180"},
-		{"udevadm", "trigger", "--name-match=vda4"},
-		{"udevadm", "settle", "--timeout=180"},
-	})
 }
 
 func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {

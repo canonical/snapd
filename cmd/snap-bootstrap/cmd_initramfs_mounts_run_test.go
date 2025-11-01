@@ -752,6 +752,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-boot-partuuid")
 	defer restore()
+	s.mockBlkidDisk("gpt")
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-boot-partuuid")
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda3")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -763,7 +770,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		{
-			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+			"/dev/sda3",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
 			nil,
