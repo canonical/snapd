@@ -244,6 +244,12 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 # kde theming support
 owner @{HOME}/.config/kdeglobals r,
 
+# lxqt theming support
+owner @{HOME}/.config/lxqt/** r,
+
+# kvantum theming support
+owner @{HOME}/.config/Kvantum/** r,
+
 /usr/share/icons/                          r,
 /usr/share/icons/**                        r,
 /usr/share/icons/*/index.theme             rk,
