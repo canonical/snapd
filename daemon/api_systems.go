@@ -370,6 +370,11 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 
 	switch req.Step {
 	case client.InstallStepSetupStorageEncryption:
+		if req.VolumesAuth != nil {
+			if err := req.VolumesAuth.Validate(); err != nil {
+				return BadRequest("invalid volume authentication options: %v", err)
+			}
+		}
 		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth)
 		if err != nil {
 			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)

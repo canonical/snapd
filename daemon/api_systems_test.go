@@ -1327,6 +1327,7 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 		"volumes-auth": map[string]any{
 			"mode":       "passphrase",
 			"passphrase": "1234",
+			"kdf-type":   "argon2id",
 		},
 	}
 	b, err := json.Marshal(body)
@@ -1352,9 +1353,38 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	c.Check(gotVolumesAuth, check.DeepEquals, &device.VolumesAuthOptions{
 		Mode:       device.AuthModePassphrase,
 		Passphrase: "1234",
+		KDFType:    "argon2id",
 	})
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKDFTimeError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "setup-storage-encryption",
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
+				"bootloader": "grub",
+			},
+		},
+		"volumes-auth": map[string]any{
+			"mode":       "passphrase",
+			"passphrase": "1234",
+			"kdf-time":   2 * time.Second,
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `invalid volume authentication options: kdf time cannot be set`)
 }
 
 func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
