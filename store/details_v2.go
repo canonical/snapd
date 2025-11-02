@@ -133,9 +133,13 @@ type storeInfo struct {
 }
 
 type storeIntegrity struct {
-	Type          string        `json:"type"`
-	Version       string        `json:"version"`
-	HashAlg       string        `json:"hash-algorithm"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+	HashAlg string `json:"hash-algorithm"`
+	// the store side stores these fields using uint max size. Keeping these
+	// sizes here for consistency. snapd's side uses uint64 for these parameters
+	// in other structs, since these are dm-verity parameters and the kernel
+	// doesn't enforce any size limit on them.
 	DataBlockSize uint          `json:"data-block-size"`
 	HashBlockSize uint          `json:"hash-block-size"`
 	Digest        string        `json:"digest"`
