@@ -624,6 +624,12 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
 		isIndexPlaceholder := validIndexPlaceholder.MatchString(subkey)
 
+		for field, filter := range part.filters {
+			if !validSubkey.Match([]byte(field)) || !validSubkey.Match([]byte(filter)) {
+				return nil, fmt.Errorf("invalid field filter [.%s={%s}]: both field and placeholder name must conform to %s", field, filter, validSubkey.String())
+			}
+		}
+
 		switch {
 		case isKey:
 			accessors = append(accessors, newKey(subkey, part.filters))

@@ -3713,6 +3713,14 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 			path: "foo[{n}][.bar={baz}",
 			err:  "field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]",
 		},
+		{
+			path: "foo[{n}][._foo={abc}].some",
+			err:  "invalid field filter [._foo={abc}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+		},
+		{
+			path: "foo[{n}][.foo={0foo}].some",
+			err:  "invalid field filter [.foo={0foo}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+		},
 	}
 
 	for i, tc := range tcs {
