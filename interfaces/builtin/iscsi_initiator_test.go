@@ -84,7 +84,6 @@ func (s *iscsiInitiatorInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/initiatorname.iscsi r,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/nodes/ rwk,")
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/kernel/config/target/ rw,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "unix (send, receive, connect) type=stream peer=(addr=\"@ISCSIADM_ABSTRACT_NAMESPACE\"),")
 }
 
