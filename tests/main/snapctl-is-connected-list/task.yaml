@@ -13,14 +13,7 @@ restore: |
 execute: |
   snap connect test-snap:network
   snap connect test-snap:camera
-  OUT=""
-  if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
-    # When structured trace logging is active, the output
-    # will contain debug logs so filter out all logs
-    OUT=$(test-snap.listconn 2>&1 | grep -v '"level":' || true)
-  else
-    OUT=$(test-snap.listconn 2>&1 || true)
-  fi
+  OUT=$(test-snap.listconn 2>&1 || true)
   EXPECTED=$(printf "camera\nnetwork\n")
   if [ "$OUT" != "$EXPECTED" ]; then
     echo "List connections doesn't show expected plugs/slots: $OUT"
@@ -28,13 +21,7 @@ execute: |
   fi
 
   snap disconnect test-snap:camera
-  if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
-    # When structured trace logging is active, the output
-    # will contain debug logs so filter out all logs
-    OUT=$(test-snap.listconn 2>&1 | grep -v '"level":' || true)
-  else
-    OUT=$(test-snap.listconn 2>&1 || true)
-  fi
+  OUT=$(test-snap.listconn 2>&1 || true)
   EXPECTED=$(printf "network\n")
   if [ "$OUT" != "$EXPECTED" ]; then
     echo "List connections doesn't show expected plugs/slots: $OUT"

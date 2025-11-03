@@ -45,7 +45,7 @@ execute: |
         kerberos-tickets-consumer | MATCH "cannot write to ticket"
 
         export KRB5CCNAME=FILE:/a/b/c
-        if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
+        if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_LOG_SNAP_TO_JOURNAL" ]; then
             kerberos-tickets-consumer
             "$TESTSTOOLS"/journal-state get-log --no-pager | MATCH "will not expose Kerberos tickets"
         else

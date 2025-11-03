@@ -86,19 +86,11 @@ execute: |
     fi
     # XXX: any tests that execute strace should be added below this point
 
-    # When trace logging on activated for snap commands, trace-level messages
-    # will appear in snap command output, which is unexpected for this test.
-    # This variable is used to skip those checks where necessary.
-    SKIP_NO_EXTRA_MSG_CHECKS=false
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
-        SKIP_NO_EXTRA_MSG_CHECKS=true
-    fi
-
     echo "Test snap run --strace"
     snap run --strace test-snapd-sh-core22.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH hello-world < stdout
     MATCH 'write\(1, \"hello-world\\n\",' < stderr
-    if grep "snap-confine" stderr && [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "false" ]; then
+    if grep "snap-confine" stderr; then
        echo "the snap-confine calls should be filtered out, something is wrong
        cat stderr"
        exit 1
@@ -109,9 +101,7 @@ execute: |
     MATCH "strace -- version" < stdout
     # We don't want to test for an empty stderr should there be unrelated errors with
     # strace. Instead we look for a keyword
-    if [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "false" ]; then
-        NOMATCH 'exec' < stderr
-    fi
+    NOMATCH 'exec' < stderr
 
     snap run --trace-exec test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
     MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
@@ -121,7 +111,7 @@ execute: |
 
     snapd.tool exec snap-discard-ns test-snapd-sh-core22
     snap run --debug-log test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
-    if [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "true" ]; then
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_LOG_SNAP_TO_JOURNAL" ]; then
         # If logging to journal is active, then grab the entires in the journal for snap
         # and add them to the head of the stderr output
         mv stderr tmp
