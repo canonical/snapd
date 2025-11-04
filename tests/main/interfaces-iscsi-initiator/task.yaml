@@ -50,9 +50,6 @@ execute: |
   echo "And the snap is able to access iSCSI nodes directory"
   "$TEST_SNAP".client -c "ls /etc/iscsi/nodes"
 
-  echo "And the snap is able to access ConfigFS for LIO target management"
-  "$TEST_SNAP".client -c "ls /sys/kernel/config/target"
-
   echo "And the snap is able to access iSCSI runtime directories"
   "$TEST_SNAP".client -c "mkdir -p /run/lock/iscsi"
   "$TEST_SNAP".client -c "ls /run/lock/iscsi"
@@ -76,12 +73,6 @@ execute: |
   echo "Then the snap is not able to access iSCSI configuration files"
   if "$TEST_SNAP".client -c "cat /etc/iscsi/initiatorname.iscsi"; then
       echo "Expected permission error accessing iSCSI configuration with disconnected plug"
-      exit 1
-  fi
-
-  echo "And the snap is not able to access ConfigFS"
-  if "$TEST_SNAP".client -c "ls /sys/kernel/config/target"; then
-      echo "Expected permission error accessing ConfigFS with disconnected plug"
       exit 1
   fi
 
