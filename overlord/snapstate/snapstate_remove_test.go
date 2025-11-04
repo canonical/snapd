@@ -2163,7 +2163,45 @@ func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 			"discard-snap",
 		})
 	}
+}
 
+func (s *snapmgrTestSuite) TestEnsureDependencyRemovalBaseSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "some-base",
+			SnapID:   "some-base-id",
+			Revision: snap.R(1),
+		}}),
+		Flags: snapstate.Flags{
+			ImplicitlyInstalled: true,
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+		Active:   true,
+	})
+
+	removedSnaps, taskSets, err := snapstate.CreateDependencyRemovalTasks(s.snapmgr)
+
+	c.Check(removedSnaps, DeepEquals, []string{"some-base"})
+	c.Assert(err, IsNil)
+	c.Check(taskSets, NotNil)
+	c.Assert(len(taskSets), Equals, 1)
+
+	for _, set := range taskSets {
+		c.Assert(taskKinds(set.Tasks()), DeepEquals, []string{
+			"stop-snap-services",
+			"run-hook[remove]",
+			"auto-disconnect",
+			"remove-aliases",
+			"unlink-snap",
+			"remove-profiles",
+			"clear-snap",
+			"discard-snap",
+		})
+	}
 }
 
 func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
