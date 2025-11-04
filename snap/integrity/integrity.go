@@ -76,7 +76,7 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 
 	encSalt := vsb.EncodedSalt()
 	if encSalt != params.Salt {
-		return fmt.Errorf("unexpected salt: %s != %s", vsb.EncodedSalt(), params.Salt)
+		return fmt.Errorf("unexpected salt: %s != %s", encSalt, params.Salt)
 	}
 
 	return nil
