@@ -32,6 +32,12 @@ prepare: |
 
   snap install "$TEST_SNAP" --channel=latest/edge
 
+  # Stop iscsid socket if running to avoid interference with the test
+  if systemctl is-active --quiet iscsid.socket; then
+      systemctl stop iscsid.socket
+      tests.cleanup defer systemctl start iscsid.socket
+  fi
+
   tests.pkgs install socat
   systemd-run --unit socat-for-test.service --collect -- socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork -
   tests.cleanup defer systemctl stop socat-for-test.service
