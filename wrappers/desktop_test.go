@@ -633,10 +633,14 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileIcon(c *C) {
 X-SnapInstanceName=snap
 Icon=${SNAP}/icon.png
 `)
-	desktopExpected := []byte(`[Desktop Entry]
+
+	desktopExpected := append(
+		[]byte(`[Desktop Entry]
 X-SnapInstanceName=snap
-Icon=/snap/snap/current/icon.png
-`)
+Icon=`), []byte(dirs.SnapMountDir)...)
+
+    desktopExpected = append(desktopExpected, []byte(`/snap/current/icon.png
+`)...)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, string(desktopExpected))
