@@ -14,7 +14,9 @@ details: |
   and communicate with the iSCSI daemon.
 
 # Disable tests for core environments, needs to install additional packages
-systems: [-ubuntu-core-*]
+# Disable tests for ubuntu 1* environments, as they are not a target of this change
+# and `--collect` argument to systemd-run is not supported there.
+systems: [-ubuntu-core-*, -ubuntu-1*]
 
 environment:
   TEST_SNAP: test-iscsi-initiator-interfaces
