@@ -390,7 +390,7 @@ func (m *DeviceManager) prepareSerialRequest(t *state.Task, regCtx registrationC
 		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
-	cfgBody, err := m.checkAndRunPrepareSerialRequestHook(st, requestID.RequestID, regCtx.GadgetForSerialRequestConfig())
+	cfgBody, err := m.maybeRunPrepareSerialRequestHook(st, requestID.RequestID, regCtx.GadgetForSerialRequestConfig())
 	if err != nil {
 		return "", fmt.Errorf("failed to run prepare serial request hook: %v", err)
 	}
@@ -947,7 +947,7 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 
 // This function checks if the prepare serial request hook is present and then
 // injects the request ID to run the hook. The function returns the new modified registration body if present
-func (m *DeviceManager) checkAndRunPrepareSerialRequestHook(st *state.State, requestID, gadgetName string) ([]byte, error) {
+func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, requestID, gadgetName string) ([]byte, error) {
 	st.Lock()
 	defer st.Unlock()
 
