@@ -137,10 +137,10 @@ func (c *Client) Associate(email string, password string, otp string, isLogged b
 		return err
 	}
 
-	var response struct {
-		Email    string `json:"email"`
-		Macaroon string `json:"macaroon"`
-	}
+	// var response struct {
+	// 	Email    string `json:"email"`
+	// 	Macaroon string `json:"macaroon"`
+	// }
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("could not associate device with url %q: %s", url+TelemGWPrefix, string(body))
