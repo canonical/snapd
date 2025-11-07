@@ -205,18 +205,18 @@ func (s *selector) Complete(size int) (bool, error) {
 }
 
 type testClient struct {
-	TrustedFunc   func(ctx context.Context, addr string, cert []byte, kind string, message any) error
-	UntrustedFunc func(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
+	TrustedFunc   func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error
+	UntrustedFunc func(ctx context.Context, addr string, kind string, message any) (Fingerprint, error)
 }
 
-func (m *testClient) Trusted(ctx context.Context, addr string, cert []byte, kind string, msg any) error {
+func (m *testClient) Trusted(ctx context.Context, addr string, fp Fingerprint, kind string, msg any) error {
 	if m.TrustedFunc == nil {
 		panic("unexpected call")
 	}
-	return m.TrustedFunc(ctx, addr, cert, kind, msg)
+	return m.TrustedFunc(ctx, addr, fp, kind, msg)
 }
 
-func (m *testClient) Untrusted(ctx context.Context, addr, kind string, msg any) ([]byte, error) {
+func (m *testClient) Untrusted(ctx context.Context, addr, kind string, msg any) (Fingerprint, error) {
 	if m.UntrustedFunc == nil {
 		panic("unexpected call")
 	}
@@ -313,7 +313,7 @@ func createTestCertAndKey(c *check.C) (certPEM []byte, keyPEM []byte) {
 	return certPEM, keyPEM
 }
 
-func newAssembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate, asserts.PrivateKey, *assertstest.StoreStack) {
+func newAssembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, Fingerprint, asserts.PrivateKey, *assertstest.StoreStack) {
 	certPEM, keyPEM := createTestCertAndKey(c)
 
 	cfg.TLSCert = certPEM
@@ -333,7 +333,7 @@ func newAssembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig)
 	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
 	c.Assert(err, check.IsNil)
 
-	return as, cm, cert, key, signing
+	return as, cm, CalculateFP(cert.Certificate[0]), key, signing
 }
 
 func statelessSelector() *selector {
@@ -354,14 +354,16 @@ func statelessSelector() *selector {
 }
 
 func (s *clusterSuite) TestPublishAuthAndCommit(c *check.C) {
-	as, cm, cert, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
 
+	peerFP := CalculateFP([]byte("peer-certificate"))
+
 	var called int
 	client := testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (Fingerprint, error) {
 			called++
 
 			c.Assert(addr, check.Equals, "127.0.0.1:8002")
@@ -369,11 +371,11 @@ func (s *clusterSuite) TestPublishAuthAndCommit(c *check.C) {
 
 			auth := message.(Auth)
 
-			expectedHMAC := CalculateHMAC("rdt", CalculateFP(cert.Certificate[0]), "secret")
+			expectedHMAC := CalculateHMAC("rdt", localFP, "secret")
 			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
 			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
 
-			return []byte("peer-certificate"), nil
+			return peerFP, nil
 		},
 	}
 
@@ -383,7 +385,7 @@ func (s *clusterSuite) TestPublishAuthAndCommit(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
-		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8002",
+		encodeFP(peerFP): "127.0.0.1:8002",
 	})
 	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{"127.0.0.1:8002"})
 
@@ -396,31 +398,33 @@ func (s *clusterSuite) TestPublishAuthAndCommit(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 2)
 	c.Assert(cm.commits[1].Addresses, check.DeepEquals, map[string]string{
-		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8002",
+		encodeFP(peerFP): "127.0.0.1:8002",
 	})
 	c.Assert(cm.commits[1].Discovered, check.DeepEquals, []string{"127.0.0.1:8002"})
 }
 
 func (s *clusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *check.C) {
-	as, cm, cert, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
 
+	peerFP := CalculateFP([]byte("peer-certificate"))
+
 	var calls int
 	client := testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (Fingerprint, error) {
 			calls++
 
 			c.Assert(kind, check.Equals, "auth")
 
 			auth := message.(Auth)
-			expectedHMAC := CalculateHMAC("rdt", CalculateFP(cert.Certificate[0]), "secret")
+			expectedHMAC := CalculateHMAC("rdt", localFP, "secret")
 			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
 			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
 
 			// return the same certificate regardless of address
-			return []byte("peer-certificate"), nil
+			return peerFP, nil
 		},
 	}
 
@@ -431,7 +435,7 @@ func (s *clusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *che
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
-		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8001",
+		encodeFP(peerFP): "127.0.0.1:8001",
 	})
 	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{"127.0.0.1:8001"})
 
@@ -449,8 +453,7 @@ func (s *clusterSuite) TestAuthenticate(c *check.C) {
 		RDT:    "rdt",
 	})
 
-	peerCert := []byte("peer-certificate")
-	peerFP := CalculateFP(peerCert)
+	peerFP := CalculateFP([]byte("peer-certificate"))
 	peerRDT := DeviceToken("peer-rdt")
 
 	// valid case
@@ -458,15 +461,12 @@ func (s *clusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err := as.AuthenticateAndCommit(auth, peerCert)
+	err := as.AuthenticateAndCommit(auth, peerFP)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
-	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
-		encodeCertAsFP(peerCert): {
-			RDT:  peerRDT,
-			Cert: peerCert,
-		},
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
+		encodeFP(peerFP): peerRDT,
 	})
 }
 
@@ -476,14 +476,13 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 		RDT:    "rdt",
 	})
 
-	peerCert := []byte("peer-certificate")
-	peerFP := CalculateFP(peerCert)
+	peerFP := CalculateFP([]byte("peer-certificate"))
 	peerRDT := DeviceToken("peer-rdt")
 
 	cases := []struct {
 		name string
 		auth Auth
-		cert []byte
+		fp   Fingerprint
 		err  string
 	}{
 		{
@@ -492,8 +491,8 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 				HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
 				RDT:  peerRDT,
 			},
-			cert: peerCert,
-			err:  "received invalid HMAC from peer",
+			fp:  peerFP,
+			err: "received invalid HMAC from peer",
 		},
 		{
 			name: "wrong RDT in message",
@@ -501,8 +500,8 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 				HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 				RDT:  "wrong-rdt",
 			},
-			cert: peerCert,
-			err:  "received invalid HMAC from peer",
+			fp:  peerFP,
+			err: "received invalid HMAC from peer",
 		},
 		{
 			name: "wrong FP in HMAC",
@@ -510,8 +509,8 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 				HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
 				RDT:  peerRDT,
 			},
-			cert: peerCert,
-			err:  "received invalid HMAC from peer",
+			fp:  peerFP,
+			err: "received invalid HMAC from peer",
 		},
 		{
 			name: "wrong cert from transport layer",
@@ -519,8 +518,8 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 				HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 				RDT:  peerRDT,
 			},
-			cert: []byte("wrong-cert"),
-			err:  "received invalid HMAC from peer",
+			fp:  CalculateFP([]byte("wrong-cert")),
+			err: "received invalid HMAC from peer",
 		},
 		{
 			name: "wrong secret",
@@ -528,13 +527,13 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 				HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
 				RDT:  peerRDT,
 			},
-			cert: peerCert,
-			err:  "received invalid HMAC from peer",
+			fp:  peerFP,
+			err: "received invalid HMAC from peer",
 		},
 	}
 
 	for _, tc := range cases {
-		err := as.AuthenticateAndCommit(tc.auth, tc.cert)
+		err := as.AuthenticateAndCommit(tc.auth, tc.fp)
 		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
 		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
 		c.Assert(cm.commits, check.HasLen, 0)
@@ -550,22 +549,20 @@ func (s *clusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 	peerRDT := DeviceToken("peer-rdt")
 
 	// first, add a device identity with a specific fingerprint
-	correctCert := []byte("correct-certificate")
-	correctFP := CalculateFP(correctCert)
+	correctFP := CalculateFP([]byte("correct-certificate"))
 	identity := createTestIdentity(c, signing, peerRDT, correctFP, "secret")
 	err := as.devices.RecordIdentity(identity)
 	c.Assert(err, check.IsNil)
 
 	// now try to authenticate with the same RDT but different certificate
-	wrongCert := []byte("wrong-certificate")
-	wrongFP := CalculateFP(wrongCert)
+	wrongFP := CalculateFP([]byte("wrong-certificate"))
 
 	auth := Auth{
 		HMAC: CalculateHMAC(peerRDT, wrongFP, "secret"),
 		RDT:  peerRDT,
 	}
 
-	err = as.AuthenticateAndCommit(auth, wrongCert)
+	err = as.AuthenticateAndCommit(auth, wrongFP)
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 
 	// verify commit was not called on fingerprint mismatch
@@ -578,29 +575,25 @@ func (s *clusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 		RDT:    "rdt",
 	})
 
-	cert := []byte("certificate")
-	fp := CalculateFP(cert)
+	fp := CalculateFP([]byte("certificate"))
 
 	// first peer authenticates successfully
 	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-one", fp, "secret"),
 		RDT:  "peer-one",
-	}, cert)
+	}, fp)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
-	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
-		encodeCertAsFP(cert): {
-			RDT:  "peer-one",
-			Cert: cert,
-		},
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
+		encodeFP(fp): "peer-one",
 	})
 
 	// second peer tries to use the same certificate - should fail
 	err = as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-two", fp, "secret"),
 		RDT:  "peer-two",
-	}, cert)
+	}, fp)
 	c.Assert(err, check.ErrorMatches, `peer "peer-one" and "peer-two" are using the same TLS certificate`)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
@@ -613,29 +606,24 @@ func (s *clusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	})
 
 	// first authentication with first certificate
-	cert := []byte("certificate-one")
-	fp := CalculateFP(cert)
+	peerFP := CalculateFP([]byte("certificate-one"))
 	err := as.AuthenticateAndCommit(Auth{
-		HMAC: CalculateHMAC("peer", fp, "secret"),
+		HMAC: CalculateHMAC("peer", peerFP, "secret"),
 		RDT:  "peer",
-	}, cert)
+	}, peerFP)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
-	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
-		encodeCertAsFP(cert): {
-			RDT:  "peer",
-			Cert: cert,
-		},
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
+		encodeFP(peerFP): "peer",
 	})
 
 	// second authentication with different certificate - should fail
-	cert = []byte("certificate-two")
-	fp = CalculateFP(cert)
+	peerFP = CalculateFP([]byte("certificate-two"))
 	err = as.AuthenticateAndCommit(Auth{
-		HMAC: CalculateHMAC("peer", fp, "secret"),
+		HMAC: CalculateHMAC("peer", peerFP, "secret"),
 		RDT:  "peer",
-	}, cert)
+	}, peerFP)
 	c.Assert(err, check.ErrorMatches, `peer "peer" is using a new TLS certificate`)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
@@ -661,15 +649,14 @@ func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 
 	const peerRDT = DeviceToken("peer")
 	const peerAddr = "127.0.0.1:8002"
-	peerCert := []byte("peer-certificate")
-	peerFP := CalculateFP(peerCert)
+	peerFP := CalculateFP([]byte("peer-certificate"))
 
 	// first, use publishAuth to discover the peer's address
 	client := &testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (Fingerprint, error) {
 			c.Assert(addr, check.Equals, peerAddr)
 			c.Assert(kind, check.Equals, "auth")
-			return peerCert, nil
+			return peerFP, nil
 		},
 	}
 
@@ -678,7 +665,7 @@ func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
-		encodeCertAsFP(peerCert): peerAddr,
+		encodeFP(peerFP): peerAddr,
 	})
 	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{peerAddr})
 
@@ -691,18 +678,15 @@ func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerFP)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 2)
-	c.Assert(cm.commits[1].Trusted, check.DeepEquals, map[string]Peer{
-		encodeCertAsFP(peerCert): {
-			RDT:  peerRDT,
-			Cert: peerCert,
-		},
+	c.Assert(cm.commits[1].Trusted, check.DeepEquals, map[string]DeviceToken{
+		encodeFP(peerFP): peerRDT,
 	})
 	c.Assert(cm.commits[1].Addresses, check.DeepEquals, map[string]string{
-		encodeCertAsFP(peerCert): peerAddr,
+		encodeFP(peerFP): peerAddr,
 	})
 
 	// since we have discovered the route from us to the peer and the peer has
@@ -718,17 +702,16 @@ func (s *clusterSuite) TestVerifyPeer(c *check.C) {
 		RDT:    "rdt",
 	})
 
-	peerCert := []byte("peer-certificate")
-	peerFP := CalculateFP(peerCert)
+	peerFP := CalculateFP([]byte("peer-certificate"))
 	peerRDT := DeviceToken("peer-rdt")
 
 	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
-	}, peerCert)
+	}, peerFP)
 	c.Assert(err, check.IsNil)
 
-	vp, err := as.VerifyPeer(peerCert)
+	vp, err := as.VerifyPeer(peerFP)
 	c.Assert(err, check.IsNil)
 
 	h := vp.(*peerHandle)
@@ -742,53 +725,50 @@ func (s *clusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
 	})
 
 	// try to verify a certificate that was never authenticated
-	handle, err := as.VerifyPeer([]byte("untrusted-certificate"))
+	handle, err := as.VerifyPeer(CalculateFP([]byte("untrusted-certificate")))
 	c.Assert(err, check.ErrorMatches, "given TLS certificate is not associated with a trusted RDT")
 	c.Assert(handle, check.IsNil)
 }
 
-func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (vp VerifiedPeer, address string, cert []byte) {
-	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
-	peerFP := CalculateFP(peerCert)
+func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (vp VerifiedPeer, address string, fp Fingerprint) {
+	peerFP := CalculateFP([]byte(fmt.Sprintf("%s-certificate", rdt)))
 
 	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
-	}, peerCert)
+	}, peerFP)
 	c.Assert(err, check.IsNil)
 
-	handle, err := as.VerifyPeer(peerCert)
+	handle, err := as.VerifyPeer(peerFP)
 	c.Assert(err, check.IsNil)
 
 	peerAddr := fmt.Sprintf("%s-addr", rdt)
 	client := testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (cert []byte, err error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (Fingerprint, error) {
 			c.Assert(addr, check.Equals, peerAddr)
 			c.Assert(kind, check.Equals, "auth")
-			return peerCert, nil
+			return peerFP, nil
 		},
 	}
 
 	err = as.publishAuthAndCommit(context.Background(), []string{peerAddr}, &client)
 	c.Assert(err, check.IsNil)
 
-	return handle, peerAddr, peerCert
+	return handle, peerAddr, peerFP
 }
 
-func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (vp VerifiedPeer, cert []byte) {
-	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
-	peerFP := CalculateFP(peerCert)
-
+func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (vp VerifiedPeer, fp Fingerprint) {
+	peerFP := CalculateFP([]byte(fmt.Sprintf("%s-certificate", rdt)))
 	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
-	}, peerCert)
+	}, peerFP)
 	c.Assert(err, check.IsNil)
 
-	handle, err := as.VerifyPeer(peerCert)
+	handle, err := as.VerifyPeer(peerFP)
 	c.Assert(err, check.IsNil)
 
-	return handle, peerCert
+	return handle, peerFP
 }
 
 func (s *clusterSuite) TestPublishDeviceQueries(c *check.C) {
@@ -798,7 +778,7 @@ func (s *clusterSuite) TestPublishDeviceQueries(c *check.C) {
 	})
 
 	peerRDT := DeviceToken("peer")
-	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, peerRDT)
+	peer, peerAddr, peerFP := trustedAndDiscoveredPeer(c, as, peerRDT)
 
 	// this tells us that this peer has knowledge of one and two.
 	err := peer.CommitRoutes(Routes{
@@ -807,9 +787,9 @@ func (s *clusterSuite) TestPublishDeviceQueries(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	client := testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			c.Assert(addr, check.Equals, peerAddr)
-			c.Assert(cert, check.DeepEquals, peerCert)
+			c.Assert(fp, check.Equals, peerFP)
 			c.Assert(kind, check.Equals, "unknown")
 
 			unknown := message.(UnknownDevices)
@@ -830,9 +810,9 @@ func (s *clusterSuite) TestPublishDeviceQueries(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// now, we should expect to see a query for just "two"
-	client.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+	client.TrustedFunc = func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 		c.Assert(addr, check.Equals, peerAddr)
-		c.Assert(cert, check.DeepEquals, peerCert)
+		c.Assert(fp, check.Equals, peerFP)
 		c.Assert(kind, check.Equals, "unknown")
 
 		unknown := message.(UnknownDevices)
@@ -862,7 +842,7 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	threeRDT := DeviceToken("three")
-	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, as, threeRDT)
+	three, threeAddr, threeFP := trustedAndDiscoveredPeer(c, as, threeRDT)
 
 	baseline := len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &testClient{})
@@ -875,10 +855,10 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 
 	var called int
 	client := testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			called++
 			c.Assert(addr, check.Equals, threeAddr)
-			c.Assert(cert, check.DeepEquals, threeCert)
+			c.Assert(fp, check.Equals, threeFP)
 			c.Assert(kind, check.Equals, "devices")
 
 			devices := message.(Devices)
@@ -903,10 +883,10 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 	})
 
 	called = 0
-	client.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+	client.TrustedFunc = func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 		called++
 		c.Assert(addr, check.Equals, threeAddr)
-		c.Assert(cert, check.DeepEquals, threeCert)
+		c.Assert(fp, check.Equals, threeFP)
 		c.Assert(kind, check.Equals, "devices")
 
 		devices := message.(Devices)
@@ -995,17 +975,17 @@ func (s *clusterSuite) TestPublishDevicesIncludesAccountAndAccountKey(c *check.C
 	}, cm.commit, assertDB)
 	c.Assert(err, check.IsNil)
 
-	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, DeviceToken("peer"))
+	peer, peerAddr, peerFP := trustedAndDiscoveredPeer(c, as, DeviceToken("peer"))
 	peer.CommitDeviceQueries(UnknownDevices{
 		Devices: []DeviceToken{"self"},
 	})
 
 	var called int
 	client := testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			called++
 			c.Assert(addr, check.Equals, peerAddr)
-			c.Assert(cert, check.DeepEquals, peerCert)
+			c.Assert(fp, check.Equals, peerFP)
 			c.Assert(kind, check.Equals, "devices")
 
 			devices := message.(Devices)
@@ -1323,10 +1303,10 @@ func (s *clusterSuite) TestPublishRoutes(c *check.C) {
 	})
 
 	oneRDT := DeviceToken("one")
-	_, oneAddr, oneCert := trustedAndDiscoveredPeer(c, as, oneRDT)
+	_, oneAddr, oneFP := trustedAndDiscoveredPeer(c, as, oneRDT)
 
 	twoRDT := DeviceToken("two")
-	_, twoAddr, twoCert := trustedAndDiscoveredPeer(c, as, twoRDT)
+	_, twoAddr, twoFP := trustedAndDiscoveredPeer(c, as, twoRDT)
 
 	threeRDT := DeviceToken("three")
 	trustedPeer(c, as, threeRDT)
@@ -1344,12 +1324,12 @@ func (s *clusterSuite) TestPublishRoutes(c *check.C) {
 		}, true
 	}
 
-	msg.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+	msg.TrustedFunc = func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 		switch addr {
 		case oneAddr:
-			c.Assert(cert, check.DeepEquals, oneCert)
+			c.Assert(fp, check.Equals, oneFP)
 		case twoAddr:
-			c.Assert(cert, check.DeepEquals, twoCert)
+			c.Assert(fp, check.Equals, twoFP)
 		default:
 			c.Fatalf("unexpected address: %s", addr)
 		}
@@ -1449,15 +1429,9 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	// create pre-populated session with various data
 	session := AssembleSession{
 		Initiated: now.Add(-30 * time.Minute),
-		Trusted: map[string]Peer{
-			base64.StdEncoding.EncodeToString(peers[0].fp[:]): {
-				RDT:  peers[0].rdt,
-				Cert: peers[0].cert,
-			},
-			base64.StdEncoding.EncodeToString(peers[1].fp[:]): {
-				RDT:  peers[1].rdt,
-				Cert: peers[1].cert,
-			},
+		Trusted: map[string]DeviceToken{
+			base64.StdEncoding.EncodeToString(peers[0].fp[:]): peers[0].rdt,
+			base64.StdEncoding.EncodeToString(peers[1].fp[:]): peers[1].rdt,
 		},
 		Addresses: map[string]string{
 			base64.StdEncoding.EncodeToString(peers[0].fp[:]): "127.0.0.2:8001",
@@ -1564,15 +1538,15 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	// test publishing auth messages; should skip already discovered address
 	var publications []string
 	client := &testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (Fingerprint, error) {
 			publications = append(publications, addr)
 			switch addr {
 			case "127.0.0.3:8001":
-				return peers[1].cert, nil
+				return peers[1].fp, nil
 			case "127.0.0.5:8001":
-				return []byte("new-peer-cert"), nil
+				return CalculateFP([]byte("new-peer-cert")), nil
 			}
-			return nil, errors.New("unexpected address")
+			return Fingerprint{}, errors.New("unexpected address")
 		},
 	}
 
@@ -1588,14 +1562,14 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	// test publishing routes - should only send to trusted peers with addresses
 	publications = nil
 	client = &testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			publications = append(publications, addr)
 			// verify we're using the correct certificate
 			switch addr {
 			case "127.0.0.2:8001":
-				c.Assert(cert, check.DeepEquals, peers[0].cert)
+				c.Assert(fp, check.Equals, peers[0].fp)
 			case "127.0.0.3:8001":
-				c.Assert(cert, check.DeepEquals, peers[1].cert)
+				c.Assert(fp, check.Equals, peers[1].fp)
 			}
 			return nil
 		},
@@ -1607,7 +1581,7 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	// test publishing devices - respond to device queries that were imported
 	publications = nil
 	client = &testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			publications = append(publications, addr)
 
 			devices := message.(Devices)
@@ -1642,7 +1616,7 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 
 	publications = nil
 	client = &testClient{
-		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error {
 			publications = append(publications, addr)
 			unknowns := message.(UnknownDevices)
 			c.Assert(unknowns.Devices, check.DeepEquals, []DeviceToken{"unknown-rdt"})
@@ -1770,11 +1744,8 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 		{
 			name: "invalid base64 fingerprint in trusted peers",
 			session: AssembleSession{
-				Trusted: map[string]Peer{
-					"not-valid-base64!!!": {
-						RDT:  "peer-rdt",
-						Cert: []byte("cert"),
-					},
+				Trusted: map[string]DeviceToken{
+					"not-valid-base64!!!": "peer-rdt",
 				},
 			},
 			err: "invalid session data: .*illegal base64.*",
@@ -1791,11 +1762,8 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 		{
 			name: "wrong size fingerprint in trusted peers",
 			session: AssembleSession{
-				Trusted: map[string]Peer{
-					base64.StdEncoding.EncodeToString([]byte("too-short")): {
-						RDT:  "peer-rdt",
-						Cert: []byte("cert"),
-					},
+				Trusted: map[string]DeviceToken{
+					base64.StdEncoding.EncodeToString([]byte("too-short")): "peer-rdt",
 				},
 			},
 			err: "invalid session data: invalid fingerprint in trusted peers: certificate fingerprint expected to be 64 bytes",
@@ -2138,7 +2106,6 @@ func (s *clusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func encodeCertAsFP(fingerprint []byte) string {
-	fp := CalculateFP(fingerprint)
+func encodeFP(fp Fingerprint) string {
 	return base64.StdEncoding.EncodeToString(fp[:])
 }

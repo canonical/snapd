@@ -59,24 +59,25 @@ type Transport interface {
 // Client is used to communicate with our peers.
 type Client interface {
 	// Trusted sends a message to a trusted peer. Implementations must verify
-	// that the peer is using the given certificate.
-	Trusted(ctx context.Context, addr string, cert []byte, kind string, message any) error
+	// that the peer is using the given certificate fingerprint.
+	Trusted(ctx context.Context, addr string, fp Fingerprint, kind string, message any) error
 
 	// Untrusted sends a message to a peer that we do not yet trust. The
-	// certificate that the peer used to communicate is returned.
-	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
+	// fingerprint of the certificate that the peer used to communicate is
+	// returned.
+	Untrusted(ctx context.Context, addr string, kind string, message any) (Fingerprint, error)
 }
 
 // PeerAuthenticator enables a [Transport] to authenticate peers.
 type PeerAuthenticator interface {
 	// AuthenticateAndCommit checks that the given [Auth] message is valid and
 	// proves knowledge of the shared secret.
-	AuthenticateAndCommit(auth Auth, cert []byte) error
-	// VerifyPeer returns a [VerifiedPeer] if the given certificate has
-	// previously been authenticated via a call to
+	AuthenticateAndCommit(auth Auth, fp Fingerprint) error
+	// VerifyPeer returns a [VerifiedPeer] if the given certificate fingerprint
+	// has previously been authenticated via a call to
 	// [PeerAuthenticator.AuthenticateAndCommit]. The [VerifiedPeer] allows that
 	// peer to change the state of the assemble session.
-	VerifyPeer(cert []byte) (VerifiedPeer, error)
+	VerifyPeer(fp Fingerprint) (VerifiedPeer, error)
 }
 
 // VerifiedPeer represents a peer that has been authenticated and is allowed to
@@ -240,8 +241,8 @@ func (t *HTTPSTransport) handleAuth(w http.ResponseWriter, r *http.Request, pa P
 		return
 	}
 
-	cert := r.TLS.PeerCertificates[0].Raw
-	if err := pa.AuthenticateAndCommit(auth, cert); err != nil {
+	fp := CalculateFP(r.TLS.PeerCertificates[0].Raw)
+	if err := pa.AuthenticateAndCommit(auth, fp); err != nil {
 		w.WriteHeader(403)
 		logger.Debugf("cannot authenticate peer: %v", err)
 		return
@@ -260,8 +261,8 @@ func (t *HTTPSTransport) trustedHandler(next func(http.ResponseWriter, *http.Req
 			return
 		}
 
-		cert := r.TLS.PeerCertificates[0].Raw
-		peer, err := pa.VerifyPeer(cert)
+		fp := CalculateFP(r.TLS.PeerCertificates[0].Raw)
+		peer, err := pa.VerifyPeer(fp)
 		if err != nil {
 			logger.Debug("dropping message from untrusted peer")
 			w.WriteHeader(403)
@@ -353,14 +354,14 @@ func NewHTTPSClient(cert tls.Certificate, stats *TransportStats, limiter *rate.L
 }
 
 // Trusted sends a message to a trusted peer, verifying that the peer presents
-// the expected TLS certificate during the connection.
-func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kind string, data any) error {
+// the expected TLS certificate fingerprint during the connection.
+func (c *HTTPSClient) Trusted(ctx context.Context, addr string, fp Fingerprint, kind string, data any) error {
 	verify := func(certs [][]byte, chains [][]*x509.Certificate) error {
 		if len(certs) != 1 {
 			return fmt.Errorf("exactly one peer certificate expected, got %d", len(certs))
 		}
 
-		if !bytes.Equal(certs[0], cert) {
+		if CalculateFP(certs[0]) != fp {
 			return errors.New("refusing to communicate with unexpected peer certificate")
 		}
 
@@ -399,10 +400,10 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 	return nil
 }
 
-// Untrusted sends a message to an untrusted peer and returns the TLS
-// certificate that the peer presented. This is used for initial authentication
-// exchanges where the peer's identity hasn't been verified yet.
-func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, data any) ([]byte, error) {
+// Untrusted sends a message to an untrusted peer and returns the fingerprint of
+// the TLS certificate that the peer presented. This is used for initial
+// authentication exchanges where the peer's identity hasn't been verified yet.
+func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, data any) (Fingerprint, error) {
 	// TODO: consider connection pooling and rate limiting by number of
 	// concurrent peers in addition to the existing bytes/second rate limit
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
@@ -419,12 +420,12 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return nil, err
+		return Fingerprint{}, err
 	}
 
 	res, tx, err := sendWithResponse(ctx, client, addr, kind, payload, c.limiter)
 	if err != nil {
-		return nil, err
+		return Fingerprint{}, err
 	}
 	defer res.Body.Close()
 
@@ -433,20 +434,20 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 	}
 
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("got non-200 status code in response to auth message: %d", res.StatusCode)
+		return Fingerprint{}, fmt.Errorf("got non-200 status code in response to auth message: %d", res.StatusCode)
 	}
 
 	// this should not be possible since we specify https in the URL and disable
 	// redirects
 	if res.TLS == nil {
-		return nil, errors.New("peer attempting to communicate over unencrypted connection")
+		return Fingerprint{}, errors.New("peer attempting to communicate over unencrypted connection")
 	}
 
 	if len(res.TLS.PeerCertificates) != 1 {
-		return nil, fmt.Errorf("exactly one peer certificate expected, got %d", len(res.TLS.PeerCertificates))
+		return Fingerprint{}, fmt.Errorf("exactly one peer certificate expected, got %d", len(res.TLS.PeerCertificates))
 	}
 
-	return res.TLS.PeerCertificates[0].Raw, nil
+	return CalculateFP(res.TLS.PeerCertificates[0].Raw), nil
 }
 
 func send(
