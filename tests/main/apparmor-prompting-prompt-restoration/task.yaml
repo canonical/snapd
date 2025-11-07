@@ -12,8 +12,8 @@ systems:
   - ubuntu-2*
 
 prepare: |
-    if os.query is-ubuntu-lt 25.10; then
-        tests.exec skip-test "Requires AppArmor notification protocol v5+ which is only in 25.10+ (kernel 6.16+)" && exit 0
+    if os.query is-kernel-lt 6.16; then
+        tests.exec skip-test "Requires AppArmor notification protocol v5+ which is only in ubuntu kernels 6.16+" && exit 0
     fi
 
     echo "Check that the system AppArmor supports notification protocol v5"
@@ -46,6 +46,9 @@ restore: |
 
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
+    echo "Remove any new listener ID file"
+    rm -f /run/snapd/interfaces-requests/listener-id
+
     echo "Disable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=false
 
@@ -73,6 +76,9 @@ debug: |
 execute: |
     tests.exec is-skipped && exit 0
 
+    echo "Remove any existing listener ID file so snapd will register new listener"
+    rm -f /run/snapd/interfaces-requests/listener-id
+
     # Enable prompting
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
@@ -97,6 +103,7 @@ execute: |
 
     echo "Trigger first prompt"
     tests.session -u test exec prompt-requester.cat /home/test/foo &
+    REQUESTER_PID="$!"
 
     # To disambiguate prompting vs notice failures, wait for the prompt directly first
     echo "Wait for prompt to appear"
@@ -176,6 +183,9 @@ execute: |
 
     echo "Reply to the prompt with an allow which handles both"
     echo '{"action": "allow", "lifespan": "timespan", "duration": "1ms", "constraints": {"path-pattern": "/**", "permissions": ["read"]}}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID_1" | MATCH '"status-code": 200'
+
+    echo "Wait for requester process to finish"
+    wait "$REQUESTER_PID"
 
     echo "Wait for notices for replied prompts"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
