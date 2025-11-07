@@ -203,7 +203,7 @@ func NewAssembleState(
 		return nil, fmt.Errorf("cannot build serial bundle: %w", err)
 	}
 
-	if err := ensureLocalDevicePresent(&validated.devices, assertDB, config.Secret, Identity{
+	if err := ensureLocalDevicePresent(&validated, assertDB, config.Secret, Identity{
 		RDT:          config.RDT,
 		FP:           CalculateFP(cert.Certificate[0]),
 		SerialBundle: bundle,
@@ -865,10 +865,19 @@ func buildSerialBundle(serial *asserts.Serial, db asserts.RODatabase) (string, e
 	return buf.String(), nil
 }
 
-// ensureLocalDevicePresent adds the local device identity to the IDs slice if
-// not present, or validates consistency if already present.
-func ensureLocalDevicePresent(data *DeviceQueryTrackerData, db asserts.RODatabase, secret string, self Identity) error {
-	for _, unverifiedID := range data.IDs {
+// ensureLocalDevicePresent ensures that the local device identity is present in
+// our internal representation of authenticated devices and device identities.
+func ensureLocalDevicePresent(
+	session *validatedSession,
+	db asserts.RODatabase,
+	secret string,
+	self Identity,
+) error {
+	if err := ensureLocalDeviceAuthenticated(session, self); err != nil {
+		return err
+	}
+
+	for _, unverifiedID := range session.devices.IDs {
 		if unverifiedID.RDT == self.RDT {
 			if unverifiedID.FP != self.FP {
 				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
@@ -898,8 +907,22 @@ func ensureLocalDevicePresent(data *DeviceQueryTrackerData, db asserts.RODatabas
 		}
 	}
 
-	data.IDs = append(data.IDs, self)
+	session.devices.IDs = append(session.devices.IDs, self)
 
+	return nil
+}
+
+func ensureLocalDeviceAuthenticated(session *validatedSession, self Identity) error {
+	if rdt, ok := session.trusted[self.FP]; ok && rdt != self.RDT {
+		return errors.New("current device fingerprint changed when resuming session")
+	}
+
+	if fp, ok := session.fingerprints[self.RDT]; ok && fp != self.FP {
+		return errors.New("current device fingerprint changed when resuming session")
+	}
+
+	session.trusted[self.FP] = self.RDT
+	session.fingerprints[self.RDT] = self.FP
 	return nil
 }
 
