@@ -505,10 +505,7 @@ func MetadataTagsSupportedByKernel() bool {
 	if err != nil {
 		return false
 	}
-	if !strutil.ListContains(kernelFeatures, "policy:notify:user:tags") {
-		return false
-	}
-	return true
+	return strutil.ListContains(kernelFeatures, "policy:notify:user:tags")
 }
 
 // MetadataTagsSupportedByParser returns true if metadata tags are supported by
@@ -518,10 +515,7 @@ func MetadataTagsSupportedByParser() bool {
 	if err != nil {
 		return false
 	}
-	if !strutil.ListContains(parserFeatures, "tags") {
-		return false
-	}
-	return true
+	return strutil.ListContains(parserFeatures, "tags")
 }
 
 // probe related code
