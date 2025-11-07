@@ -639,7 +639,7 @@ Icon=${SNAP}/icon.png
 X-SnapInstanceName=snap
 Icon=`), []byte(dirs.SnapMountDir)...)
 
-    desktopExpected = append(desktopExpected, []byte(`/snap/current/icon.png
+	desktopExpected = append(desktopExpected, []byte(`/snap/current/icon.png
 `)...)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
