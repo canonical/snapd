@@ -21,11 +21,17 @@ include $(SNAPD_DEFINES_DIR)/snapd.defines.mk
 # 1) variables defining various directory names
 vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir unitdir builddir
 # 2) variables defining build options:
-#   with_testkeys: set to 1 to build snapd with test key built in
+#   with_testkeys: set to 1 to build snapd with test key built in and additional testing build tags
 #   with_apparmor: set to 1 to build snapd with apparmor support
 #   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
 #   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
+#   with_boot: set 1 to to build snap-bootstrap
+#   with_fde: set to 1 to enable FDE support
+#   with_fips: set to 1 to enable FIPS support (assumes FIPS enabled Go toolchain is available)
+#   with_static_pie: set 1 to enable statically built binaries to use PIE
 vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir
+vars += with_boot with_fips with_static_pie
+vars += with_vendor
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
@@ -53,22 +59,52 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
+go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor snap-preseed)
 
-GO_TAGS = nosecboot
+ifeq ($(with_boot),1)
+go_binaries += $(addprefix $(builddir)/, snap-bootstrap)
+endif
+
+ifeq ($(with_core_bits),1)
+go_binaries += $(addprefix $(builddir)/, snap-repair snap-failure)
+endif
+
+ifeq ($(with_fde),1)
+go_binaries += $(addprefix $(builddir)/, snap-fde-keymgr)
+endif
+
+GO_TAGS =
+
+ifneq ($(with_fde),1)
+GO_TAGS += nosecboot
+endif
+
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
 GO_TAGS += structuredlogging
+GO_TAGS += faultinject
+GO_TAGS += statelocktrace
+GO_TAGS += withbootassetstesting
+endif
+
+ifeq ($(with_fips),1)
+GO_TAGS += goexperiment.opensslcrypto
+GO_TAGS += snapdfips
 endif
 
 # Any additional tags common to all targets
 GO_TAGS += $(EXTRA_GO_BUILD_TAGS)
 
-GO_MOD=-mod=vendor
+GO_MOD = -mod=vendor
 ifeq ($(with_vendor),0)
-GO_MOD=-mod=readonly
+GO_MOD = -mod=readonly
 endif
 
+# Assume PIE builds, unless instructed otherwise
+GO_BUILDMODE ?= pie
+
+# For static binaries assume default build mode, unless the configuration
+# indicates the PIE static builds are possible
 GO_STATIC_BUILDMODE = default
 GO_STATIC_EXTLDFLAG = -static
 ifeq ($(with_static_pie),1)
@@ -90,9 +126,9 @@ all: $(go_binaries)
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
 $(builddir)/snap: GO_TAGS += nomanagers
-$(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
+$(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor $(builddir)/snap-bootstrap $(builddir)/snap-failure $(builddir)/snap-repair $(builddir)/snap-fde-keymgr $(builddir)/snap-preseed:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-buildmode=pie \
+		-buildmode=$(GO_BUILDMODE) \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		$(GO_MOD) \
 		$(EXTRA_GO_BUILD_FLAGS) \
@@ -113,7 +149,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
-	go build -o $@ -buildmode=pie \
+	go build -o $@ -buildmode=$(GO_BUILDMODE) \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
@@ -130,8 +166,8 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
-# Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+# Install snapd and tools into /usr/lib/snapd/
+install:: $(filter-out $(builddir)/snap,$(go_binaries)) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
@@ -175,7 +211,7 @@ install:: | $(DESTDIR)/$(sharedstatedir)/snapd
 install:: | $(DESTDIR)$(localstatedir)/cache/snapd
 	touch $|/sections
 	touch $|/names
-	touch $|/commands
+	touch $|/commands.db
 
 install:: | $(DESTDIR)$(snap_mount_dir)
 	touch $|/README
@@ -190,11 +226,11 @@ install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
 
-# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
-# for preseeding of ubuntu cloud images due to certain assumptions about
-# runtime environment of the host and of the preseeded image.
-install::
-	rm -f $(DESTDIR)$(bindir)/snap-preseed
+# # Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
+# # for preseeding of ubuntu cloud images due to certain assumptions about
+# # runtime environment of the host and of the preseeded image.
+# install::
+# 	rm -f $(DESTDIR)$(bindir)/snap-preseed
 
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
