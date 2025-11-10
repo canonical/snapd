@@ -1,0 +1,83 @@
+summary: Ensure that the nvme-control interface works.
+
+details: |
+  The nvme-control interface allows snaps to manage NVMe devices and
+  access NVMe-specific functionality for storage administration.
+
+  A snap which defines a nvme-control plug must be shown in the interfaces
+  list. The plug must not be auto-connected on install and, as usual, must be
+  able to be reconnected.
+
+  A snap declaring a plug on this interface must be able to access NVMe
+  device files, control interfaces, and management paths.
+
+# Disable tests for core environments, needs nvme support
+systems: [-ubuntu-core-*]
+
+environment:
+  TEST_SNAP: test-snapd-nvme-control
+
+prepare: |
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-nvme-control
+
+  mock() {
+    set -e
+    "$TESTSTOOLS"/fs-state mock-file "$1"
+    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file "$1"
+    echo "mocked" > "$1"
+  }
+
+  # Create mock NVMe configuration files
+  mock /etc/nvme/discovery.conf
+  mock /etc/nvme/hostid
+  mock /etc/nvme/hostnqn
+
+  # Create mock NVMe files
+  # These are not actual devices nodes
+  mock /dev/nvme0
+  mock /dev/nvme0n1
+  mock /dev/nvme-fabrics
+
+execute: |
+  echo "The interface is not connected by default"
+  snap interfaces -i nvme-control | MATCH "\\- +$TEST_SNAP:nvme-control"
+
+  echo "When the interface is connected"
+  snap connect "$TEST_SNAP":nvme-control
+
+  echo "Then the snap is able to access NVMe configuration files"
+  for file in /etc/nvme/discovery.conf /etc/nvme/hostid /etc/nvme/hostnqn; do
+    "$TEST_SNAP".with-nvme-control-plug -c "grep -q 'mocked' $file"
+  done
+
+  echo "and the snap is able to access NVMe device files"
+  for dev in /dev/nvme0 /dev/nvme0n1 /dev/nvme-fabrics; do
+    "$TEST_SNAP".with-nvme-control-plug -c "echo 'test' > $dev"
+    "$TEST_SNAP".with-nvme-control-plug -c "grep -q 'test' $dev"
+  done
+
+  if [ "$(snap debug confinement)" = partial ] ; then
+      exit 0
+  fi
+
+  echo "When the plug is disconnected"
+  snap disconnect "$TEST_SNAP":nvme-control
+
+  echo "Then the snap is not able to access NVMe configuration files"
+  for file in /etc/nvme/discovery.conf /etc/nvme/hostid /etc/nvme/hostnqn; do
+    if "$TEST_SNAP".with-nvme-control-plug -c "cat $file"; then
+      echo "Expected permission error accessing $file"
+      exit 1
+    fi
+  done
+
+  echo "Then the snap is not able to access NVMe device files"
+  for dev in /dev/nvme0 /dev/nvme0n1 /dev/nvme-fabrics; do
+    if "$TEST_SNAP".with-nvme-control-plug -c "cat $dev"; then
+      echo "Expected permission error accessing $dev"
+      exit 1
+    fi
+  done
+
+  echo "Then the interface can be connected again"
+  snap connect "$TEST_SNAP":nvme-control
