@@ -154,29 +154,12 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 	}
 }
 
-func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	authRequester sb.AuthRequestor, options *sb.ActivateVolumeOptions) error) (restore func()) {
-	old := sbActivateVolumeWithRecoveryKey
-	sbActivateVolumeWithRecoveryKey = f
-	return func() {
-		sbActivateVolumeWithRecoveryKey = old
-	}
-}
-
 func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
 	options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithKey
 	sbActivateVolumeWithKey = f
 	return func() {
 		sbActivateVolumeWithKey = old
-	}
-}
-
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
-	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
-	sbActivateVolumeWithKeyData = f
-	return func() {
-		sbActivateVolumeWithKeyData = oldSbActivateVolumeWithKeyData
 	}
 }
 
@@ -572,4 +555,24 @@ func MockSbKeyDataPlatformName(f func(d *sb.KeyData) string) (restore func()) {
 
 func MockSbPCRPolicyCounterHandle(f func(skd *sb_tpm2.SealedKeyData) tpm2.Handle) (restore func()) {
 	return testutil.Mock(&sbPCRPolicyCounterHandle, f)
+}
+
+func MockSbFindStorageContainer(f func(ctx context.Context, path string) (sb.StorageContainer, error)) (restore func()) {
+	return testutil.Mock(&sbFindStorageContainer, f)
+}
+
+func MockSbWithVolumeName(f func(name string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithVolumeName, f)
+}
+
+func MockSbWithExternalKeyData(f func(keys ...*sb.ExternalKeyData) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalKeyData, f)
+}
+
+func MockSbWithLegacyKeyringKeyDescriptionPaths(f func(paths ...string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithLegacyKeyringKeyDescriptionPaths, f)
+}
+
+func MockSbWithRecoveryKeyTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithRecoveryKeyTries, f)
 }

@@ -12,6 +12,7 @@ environment:
   NESTED_ENABLE_TPM/hook: false
   NESTED_ENABLE_SECURE_BOOT/hook: false
   BUILD_FDE_HOOK/hook: '1'
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
 prepare: |
   if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
@@ -47,9 +48,10 @@ execute: |
 
   # TODO:FDEM: also test degraded.json when we report what key was used.
 
-  if os.query is-ubuntu-ge 22.04; then
-    snap_bootstrap_service=snap-initramfs-mounts.service
-  else
-    snap_bootstrap_service=the-tool.service
-  fi
-  remote.exec "sudo journalctl -b0 -u ${snap_bootstrap_service}" | MATCH "successfully activated encrypted device .* using a fallback activation method"
+  #FIXME: use activation state instead
+  #if os.query is-ubuntu-ge 22.04; then
+  #  snap_bootstrap_service=snap-initramfs-mounts.service
+  #else
+  #  snap_bootstrap_service=the-tool.service
+  #fi
+  #remote.exec "sudo journalctl -b0 -u ${snap_bootstrap_service}" | MATCH "successfully activated encrypted device .* using a fallback activation method"

@@ -32,6 +32,8 @@ environment:
   # a specific vulnerable core version we can base our image on
   VULN_SNAP_REV_URL/core: https://storage.googleapis.com/snapd-spread-tests/snaps/core_12603.snap
 
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
+
 prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
