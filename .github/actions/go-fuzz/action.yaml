@@ -1,0 +1,70 @@
+name: 'Fuzz go tests'
+description: 'Fuzz go tests'
+inputs:
+  fuzzing-search-dir:
+    description: 'The snapd sub directory path where to look for fuzzing tests'
+    required: true
+    type: string
+  fuzz-only-if-package-has-changed-files:
+    description: 'Only run fuzz tests if some file in the package has changed'
+    required: false
+    type: bool
+    default: true
+  
+runs:
+  using: "composite"
+  steps:
+    - name: Get changed files
+      if: inputs.fuzz-only-if-package-has-changed-files
+      id: changed-files
+      uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+    
+    - name: Check changed files
+      shell: bash
+      run: |
+        if [[ "${{ inputs.fuzz-only-if-package-has-changed-files }}" = "false" ]]; then
+          echo "FUZZ=true" >> $GITHUB_ENV
+          exit 0
+        fi 
+        echo "FUZZ=false" >> $GITHUB_ENV
+        read -ra files <<< "${{ steps.changed-files.outputs.all_modified_files }}"
+        for file in "${files[@]}"; do
+          if grep -qE "^(./|)${{ inputs.fuzzing-search-dir }}/" <<<"$file"; then 
+            echo "FUZZ=true" >> $GITHUB_ENV
+          fi
+        done
+
+    
+    - name: Install go
+      if: env.FUZZ == 'true'
+      shell: bash
+      run: sudo snap install go --classic --channel=latest/stable
+    
+    - name: Fuzz tests
+      if: env.FUZZ == 'true'
+      shell: bash
+      run: |
+        files=()
+        for test in $(find "${{ inputs.fuzzing-search-dir }}" -name '*_test.go'); do
+          if grep -q 'func.* Fuzz' "$test"; then
+            files+=("$test")
+          fi
+        done
+        for file in ${files[@]}; do
+          echo "Fuzzing tests in $file"
+          for func in $(grep -oP 'func.* \KFuzz.*(?=\()' "$file"); do
+            (
+              cd $(dirname "$file")
+              echo "Fuzzing test $func"
+              go test -fuzz "^$func\$" -fuzztime 3m || touch "${{ github.workspace }}/fuzzingfailed"
+            )
+          done
+        done
+    
+    - name: Show failures
+      shell: bash
+      run: |
+        find . -wholename '**/testdata/fuzz/*' -type f -exec sh -c 'echo "{}"; cat "{}"' \;
+        if [ -f "${{ github.workspace }}/fuzzingfailed" ]; then
+          exit 1
+        fi
