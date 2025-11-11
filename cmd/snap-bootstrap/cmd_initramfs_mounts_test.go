@@ -495,7 +495,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 		c.Check(f, NotNil)
 		return nil
 	}))
-	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		return foundUnencrypted(name), nil
 	}))
 	s.AddCleanup(main.MockSecbootLockSealedKeys(func() error {

@@ -222,29 +222,6 @@ func lockTPMSealedKeys() error {
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
-func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ...string) *sb.ActivateVolumeOptions {
-	passphraseTry := 0
-	if allowPassphrase {
-		passphraseTry = 1
-	}
-	options := sb.ActivateVolumeOptions{
-		PassphraseTries: passphraseTry,
-		// disable recovery key by default
-		RecoveryKeyTries:  0,
-		KeyringPrefix:     keyringPrefix,
-		LegacyDevicePaths: legacyPaths,
-	}
-	if allowRecoveryKey {
-		// enable recovery key only when explicitly allowed
-		options.RecoveryKeyTries = 3
-	}
-	return &options
-}
-
-func newAuthRequestor() sb.AuthRequestor {
-	return NewSystemdAuthRequestor()
-}
-
 func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
 	kdReader, err := sb.NewLUKS2KeyDataReader(devicePath, slotName)
 	if err != nil {
