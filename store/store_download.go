@@ -106,7 +106,7 @@ func (s *Store) useDeltas() (use bool) {
 	}
 
 	var err error
-	s.deltaFormat, _, _, _, err = squashfs.CheckSupportedDetlaFormats(nil)
+	s.deltaFormats, _, _, _, err = squashfs.CheckSupportedDetlaFormats(nil)
 	if err != nil {
 		logger.Noticef("snap delta not supported: %v", err)
 		return false
@@ -820,7 +820,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 
 	deltaInfo := downloadInfo.Deltas[0]
 
-	if !strings.Contains(s.deltaFormat, deltaInfo.Format) {
+	if !strings.Contains(s.deltaFormats, deltaInfo.Format) {
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
@@ -844,7 +844,8 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
-	if deltaInfo.Format != s.deltaFormat {
+	// check is store format is among the supported ones
+	if !strings.Contains(s.deltaFormats, deltaInfo.Format) {
 		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 

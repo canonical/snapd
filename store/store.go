@@ -106,8 +106,8 @@ type Config struct {
 	DetailFields []string
 	InfoFields   []string
 	// search v2 fields
-	FindFields  []string
-	DeltaFormat string
+	FindFields   []string
+	DeltaFormats string
 
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
@@ -153,7 +153,7 @@ type Store struct {
 	detailFields []string
 	infoFields   []string
 	findFields   []string
-	deltaFormat  string
+	deltaFormats string
 
 	auth Authorizer
 	// reused http client
@@ -384,9 +384,9 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		series = release.Series
 	}
 
-	deltaFormat := cfg.DeltaFormat
-	if deltaFormat == "" {
-		deltaFormat = squashfs.DeltaFormat()
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == "" {
+		deltaFormats = squashfs.SupportedDeltaFormats()
 	}
 
 	userAgent := snapdenv.UserAgent()
@@ -402,7 +402,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields:         infoFields,
 		findFields:         findFields,
 		dauthCtx:           dauthCtx,
-		deltaFormat:        deltaFormat,
+		deltaFormats:       deltaFormats,
 		proxy:              cfg.Proxy,
 		proxyConnectHeader: proxyConnectHeader,
 		userAgent:          userAgent,

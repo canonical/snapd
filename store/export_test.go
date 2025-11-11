@@ -198,8 +198,8 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func (sto *Store) SetDeltaFormat(dfmt string) {
-	sto.deltaFormat = dfmt
+func (sto *Store) SetDeltaFormats(dfmt string) {
+	sto.deltaFormats = dfmt
 }
 
 func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
