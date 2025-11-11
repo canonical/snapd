@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -49,6 +50,8 @@ type initramfsMountsState struct {
 
 	verifiedModel gadget.Model
 	seeds         map[string]seed.Seed
+
+	activateContext secboot.ActivateContext
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
