@@ -70,7 +70,7 @@ set -x
 shopt -s nullglob
 
 if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
-    run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status = "completed") | .databaseId)')"
+    run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status == "completed") | .databaseId)')"
     filename="snap-files-amd64-default-test"
     if uname -m | grep -Eq '(aarch64.*|armv8.*)'; then
         filename="snap-files-arm64-default-test"
@@ -78,7 +78,7 @@ if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
     tmpdir="$(mktemp -d)"
     gh run download "$run" -n "$filename" --dir "$tmpdir"
     mkdir -p built-snap
-    find "$tmpdir" -name "snapd*.snap" -exec sh -c 'mv "$1" "built-snap/$(basename "$1").keep"' _ {} \;
+    find "$tmpdir" -name "snapd*.snap" -exec mv {} built-snap/{}.keep \;
 
 elif [ "${NO_REBUILD:-0}" = "1" ] || [ "$no_rebuild" = "1" ]; then
     echo "-- $(date) -- requested no snap rebuild"
