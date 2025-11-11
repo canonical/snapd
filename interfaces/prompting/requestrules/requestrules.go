@@ -770,7 +770,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// expired.
 			continue
 
-			// XXX: shouldn't there be a notice here recorded here?
+			// XXX: shouldn't there be a notice recorded here?
 		}
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
