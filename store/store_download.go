@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -105,56 +105,11 @@ func (s *Store) useDeltas() (use bool) {
 		return false
 	}
 
-	// TODO: have a per-format checker instead, we currently only support
-	// xdelta3 as a format for deltas
-
-	// check if the xdelta3 config command works from the system snap
-	cmd, err := commandFromSystemSnap("/usr/bin/xdelta3", "config")
-	if err == nil {
-		// we have a xdelta3 from the system snap, make sure it works
-		if runErr := cmd.Run(); runErr == nil {
-			// success using the system snap provided one, setup the callback to
-			// use the cmd we got from CommandFromSystemSnap, but with a small
-			// tweak - this cmd to run xdelta3 from the system snap will likely
-			// have other arguments and a different main exe usually, so
-			// use it exactly as we got it from CommandFromSystemSnap,
-			// but drop the last arg which we know is "config"
-			exe := cmd.Path
-			args := cmd.Args[:len(cmd.Args)-1]
-			env := cmd.Env
-			dir := cmd.Dir
-			s.xdelta3CmdFunc = func(xDelta3args ...string) *exec.Cmd {
-				return &exec.Cmd{
-					Path: exe,
-					Args: append(args, xDelta3args...),
-					Env:  env,
-					Dir:  dir,
-				}
-			}
-			return true
-		} else {
-			logger.Noticef("unable to use system snap provided xdelta3, running config command failed: %v", runErr)
-		}
-	}
-
-	// we didn't have one from a system snap or it didn't work, fallback to
-	// trying xdelta3 from the system
-	loc, err := exec.LookPath("xdelta3")
+	var err error
+	s.deltaFormat, _, _, _, err = squashfs.CheckSupportedDetlaFormats(nil)
 	if err != nil {
-		// no xdelta3 in the env, so no deltas
-		logger.Noticef("no host system xdelta3 available to use deltas")
+		logger.Noticef("snap delta not supported: %v", err)
 		return false
-	}
-
-	if err := exec.Command(loc, "config").Run(); err != nil {
-		// xdelta3 in the env failed to run, so no deltas
-		logger.Noticef("unable to use host system xdelta3, running config command failed: %v", err)
-		return false
-	}
-
-	// the xdelta3 in the env worked, so use that one
-	s.xdelta3CmdFunc = func(args ...string) *exec.Cmd {
-		return exec.Command(loc, args...)
 	}
 	return true
 }
@@ -865,7 +820,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 
 	deltaInfo := downloadInfo.Deltas[0]
 
-	if deltaInfo.Format != s.deltaFormat {
+	if !strings.Contains(s.deltaFormat, deltaInfo.Format) {
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
@@ -879,6 +834,8 @@ var applyDelta = func(s *Store, name string, deltaPath string, deltaInfo *snap.D
 	return s.applyDeltaImpl(name, deltaPath, deltaInfo, targetPath, targetSha3_384)
 }
 
+var squashfsApplySnapDelta = squashfs.ApplySnapDelta
+
 func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
@@ -887,13 +844,11 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
-	if deltaInfo.Format != "xdelta3" {
+	if deltaInfo.Format != s.deltaFormat {
 		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
 	partialTargetPath := targetPath + ".partial"
-
-	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
 
 	// validity check that deltas are available and that the path for the xdelta3
 	// command is set
@@ -901,8 +856,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 
-	// run the xdelta3 command, cleaning up if we fail and logging about it
-	if runErr := s.xdelta3CmdFunc(xdelta3Args...).Run(); runErr != nil {
+	if runErr := squashfsApplySnapDelta(snapPath, deltaPath, partialTargetPath); runErr != nil {
 		logger.Noticef("encountered error applying delta: %v", runErr)
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)
