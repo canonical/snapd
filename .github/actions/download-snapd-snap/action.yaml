@@ -72,7 +72,7 @@ runs:
         echo "There are no snapd builds with the specified combination"
         exit 1
       fi
-      run="$(gh run list -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status = "completed") | .databaseId)')"
+      run="$(gh run list -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status == "completed") | .databaseId)')"
       gh run download "$run" -n "$filename"
       mkdir -p built-snap
       mv snapd*.snap built-snap
