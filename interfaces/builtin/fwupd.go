@@ -130,10 +130,12 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/{,**/} r,
   # allow access to fwupd* and fw/ under boot/ for core systems
   /boot/efi/EFI/*/fwupd*.efi* rw,
-  # allow access to the shim and fallback shim
-  /boot/efi/EFI/*/shim*.efi* r,
-  /boot/efi/EFI/BOOT/BOOT*.EFI r,
-  /boot/efi/EFI/*/grub*.efi* r,
+  # there's a naming convention listed in UEFI 2.11, 3.5 Boot Mechanisms,
+  # the reality of VFAT and everyone having a different idea of what the name should be
+  # and lastly the UEFI 2.11, 13.3.1.2 File Names mentions that names are case insensitive,
+  # which means we need to handle all variations of the EFI/BOOT/BOOT*.EFI as well as
+  # the shim and grub efi binaries
+  /boot/efi/EFI/{,**} r,
   /boot/efi/EFI/*/ rw,
   /boot/efi/EFI/*/fw/ rw,
   /boot/efi/EFI/*/fw/** rw,
