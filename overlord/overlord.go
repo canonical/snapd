@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/healthstate"
@@ -198,6 +199,14 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+
+	deviceMgmtMgr, err := devicemgmtstate.Manager(s, o.runner, deviceMgr)
+	logger.Noticef("adding device management mgmr")
+	if err != nil {
+		logger.Noticef("failed to add device management mgmr: %v", err)
+		return nil, err
+	}
+	o.addManager(deviceMgmtMgr)
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
