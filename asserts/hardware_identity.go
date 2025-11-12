@@ -179,7 +179,7 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 
 	switch keyType := h.hardwareKey.(type) {
 	case *rsa.PublicKey:
-		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey))
+		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey), hashAlg)
 	case *dsa.PublicKey:
 		return verifySignatureWithDSAKey(hashed, signature, h.hardwareKey.(*dsa.PublicKey))
 	case *ecdsa.PublicKey:
@@ -191,8 +191,8 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 	}
 }
 
-func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey) error {
-	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA384, hashed, signature)
+func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, hashAlg crypto.Hash) error {
+	return rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature)
 }
 
 func verifySignatureWithDSAKey(hashed, signature []byte, pubKey *dsa.PublicKey) error {
@@ -202,9 +202,14 @@ func verifySignatureWithDSAKey(hashed, signature []byte, pubKey *dsa.PublicKey) 
 	}
 
 	var sig DsaSignature
-	_, err := asn1.Unmarshal(signature, &sig)
+	rest, err := asn1.Unmarshal(signature, &sig)
 	if err != nil {
 		return err
+	}
+
+	// Ensure all bytes were consumed
+	if len(rest) > 0 {
+		return errors.New("signature invalid: trailing bytes")
 	}
 
 	if !dsa.Verify(pubKey, hashed, sig.R, sig.S) {
@@ -221,9 +226,14 @@ func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicK
 	}
 
 	var sig EcdsaSignature
-	_, err := asn1.Unmarshal(signature, &sig)
+	rest, err := asn1.Unmarshal(signature, &sig)
 	if err != nil {
 		return err
+	}
+
+	// Ensure all bytes were consumed
+	if len(rest) > 0 {
+		return errors.New("signature invalid: trailing bytes")
 	}
 
 	if !ecdsa.Verify(pubKey, hashed, sig.R, sig.S) {

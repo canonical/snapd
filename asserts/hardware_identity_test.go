@@ -156,13 +156,13 @@ func (s *hardwareIdentitySuite) TestVerifySignatureRSA(c *C) {
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
 
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA384, hashed)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA3_384, hashed)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, signature)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, append(signature, 0))
+	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
 	c.Assert(err, NotNil)
 }
 
@@ -190,10 +190,10 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDSA(c *C) {
 	signature, err := asn1.Marshal(struct{ R, S *big.Int }{r, ss})
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, signature)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, append(signature, 0))
+	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
 	c.Assert(err, NotNil)
 }
 
@@ -215,10 +215,10 @@ func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
 	signature, err := asn1.Marshal(struct{ R, S *big.Int }{r, ss})
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, signature)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(append(nonce, 1), signature)
+	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
 	c.Assert(err, NotNil)
 }
 
@@ -236,16 +236,60 @@ func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
 
 	signature := ed25519.Sign(privKey, hashed)
 
-	err = h.VerifyNonceSignature(nonce, signature)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, append(signature, 1))
+	err = h.VerifyNonceSignature(nonce, append(signature, 1), crypto.SHA3_384)
 	c.Assert(err, NotNil)
 }
 
-func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {
+func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	c.Assert(err, IsNil)
 
-	pubBytes, err := x509.MarshalPKIXPublicKey(hardwareKey)
+	h, err := buildHardwareIdentityAssertion(&privKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	nonce := []byte("test nonce")
+	// Sign with SHA3-384
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA3_384, hashed)
+	c.Assert(err, IsNil)
+
+	// Verify with correct hash algorithm - should pass
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+
+	// Verify with different hash algorithm (SHA2-384) - should fail
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA384)
+	c.Assert(err, NotNil)
+
+	// Sign with SHA2-512 and verify with SHA2-512 - should pass
+	hash512 := crypto.SHA512.New()
+	hash512.Write(nonce)
+	hashed512 := hash512.Sum(nil)
+
+	signature512, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA512, hashed512)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nonce, signature512, crypto.SHA512)
+	c.Assert(err, IsNil)
+}
+
+func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {
+	var pubBytes []byte
+	var err error
+
+	// DSA keys need special handling since x509.MarshalPKIXPublicKey doesn't support them
+	if dsaKey, ok := hardwareKey.(*dsa.PublicKey); ok {
+		pubBytes, err = marshalDSAPublicKey(dsaKey)
+	} else {
+		pubBytes, err = x509.MarshalPKIXPublicKey(hardwareKey)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -271,4 +315,54 @@ func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.Hard
 	}
 
 	return a.(*asserts.HardwareIdentity), nil
+}
+
+// marshalDSAPublicKey marshals a DSA public key in PKIX format.
+// DSA keys are not supported by x509.MarshalPKIXPublicKey, so we need custom marshaling.
+// PKIX format: SEQUENCE { AlgorithmIdentifier, BIT STRING (public key) }
+func marshalDSAPublicKey(pubKey *dsa.PublicKey) ([]byte, error) {
+	// DSA algorithm OID: 1.2.840.10040.4.1
+	dsaOID := asn1.ObjectIdentifier{1, 2, 840, 10040, 4, 1}
+
+	// Marshal DSA parameters (p, q, g)
+	params := struct {
+		P, Q, G *big.Int
+	}{
+		P: pubKey.P,
+		Q: pubKey.Q,
+		G: pubKey.G,
+	}
+	paramBytes, err := asn1.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Marshal the public key value Y as an INTEGER
+	yBytes, err := asn1.Marshal(pubKey.Y)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the PKIX structure
+	pkixKey := struct {
+		Algorithm struct {
+			OID    asn1.ObjectIdentifier
+			Params asn1.RawValue
+		}
+		PublicKey asn1.BitString
+	}{
+		Algorithm: struct {
+			OID    asn1.ObjectIdentifier
+			Params asn1.RawValue
+		}{
+			OID:    dsaOID,
+			Params: asn1.RawValue{FullBytes: paramBytes},
+		},
+		PublicKey: asn1.BitString{
+			Bytes:     yBytes,
+			BitLength: len(yBytes) * 8,
+		},
+	}
+
+	return asn1.Marshal(pkixKey)
 }
