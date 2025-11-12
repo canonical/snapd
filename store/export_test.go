@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -179,6 +180,14 @@ func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *s
 	applyDelta = f
 	return func() {
 		applyDelta = origApplyDelta
+	}
+}
+
+func MockSquashfsApplySnapDelta(f func(xdelta3Cmd, mksquashfsCmd, unsquashfsCmd squashfs.SquashfsCommand, sourceSnap, deltaFile, targetSnap string) error) (restore func()) {
+	origSquashfsApplySnapDelta := squashfsApplySnapDelta
+	squashfsApplySnapDelta = f
+	return func() {
+		squashfsApplySnapDelta = origSquashfsApplySnapDelta
 	}
 }
 

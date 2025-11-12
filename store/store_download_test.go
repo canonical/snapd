@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -646,6 +647,11 @@ var applyDeltaTests = []struct {
 	currentRevision: 24,
 	error:           "",
 }, {
+	// A supported delta format can be applied.
+	deltaInfo:       snap.DeltaInfo{Format: "snapDeltaV1", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "",
+}, {
 	// An error is returned if the expected current snap does not exist on disk.
 	deltaInfo:       snap.DeltaInfo{Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 	currentRevision: 23,
@@ -682,6 +688,12 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		// make a fresh store object to circumvent the caching of xdelta3 info
 		// between test cases
 		sto := &store.Store{}
+		sto.UseDeltas()
+		restore := store.MockSquashfsApplySnapDelta(func(xdelta3Cmd, mksquashfsCmd, unsquashfsCmd squashfs.SquashfsCommand, sourceSnap, deltaFile, targetSnap string) error {
+			return nil
+		})
+		defer restore()
+
 		err = store.ApplyDelta(sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
 
 		if testCase.error == "" {
