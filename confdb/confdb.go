@@ -864,41 +864,43 @@ type expandedMatch struct {
 }
 
 // maxValueDepth is the limit on a value's nestedness. Creating a highly nested
-// JSON value only requires a few bytes per level, but when recursively traversing
-// such a value, each level requires about 2Kb stack. Prevent excessive stack
-// usage by limiting the recursion depth.
+// JSON value only requires a couple of bytes per level (e.g., {{...}}) but each
+// of those would cause us allocate a frame on the stack.
 var maxValueDepth = 64
 
-// validateSetValue checks that map keys conform to the same format as path sub-keys.
-func validateSetValue(v any, depth int) error {
-	if depth > maxValueDepth {
-		return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
-	}
+// validateSetValue performs some basic checks on the value being set:
+//   - map keys conform to the path sub-key regex
+//   - containers must contain a scalar either directly or indirectly
+//   - nestedness is limited.
+func validateSetValue(initial any) error {
+	for depth, values := 1, []any{initial}; len(values) > 0; depth++ {
+		if depth > maxValueDepth {
+			return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
+		}
 
-	var nestedVals []any
-	switch typedVal := v.(type) {
-	case map[string]any:
-		for k, v := range typedVal {
-			if !validSubkey.Match([]byte(k)) {
-				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+		upto := len(values)
+		for i := 0; i < upto; i++ {
+			switch typed := values[i].(type) {
+			case []any:
+				if len(typed) == 0 {
+					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
+				}
+				values = append(values, typed...)
+			case map[string]any:
+				if len(typed) == 0 {
+					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
+				}
+
+				for k, v := range typed {
+					if !validSubkey.MatchString(k) {
+						return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+					}
+
+					values = append(values, v)
+				}
 			}
-
-			nestedVals = append(nestedVals, v)
 		}
-
-	case []any:
-		nestedVals = typedVal
-	}
-
-	for _, v := range nestedVals {
-		if v == nil {
-			// the value can be nil (used to unset values for compatibility w/ options)
-			continue
-		}
-
-		if err := validateSetValue(v, depth+1); err != nil {
-			return err
-		}
+		values = values[upto:]
 	}
 
 	return nil
@@ -916,8 +918,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
-	depth := 1
-	if err := validateSetValue(value, depth); err != nil {
+	if err := validateSetValue(value); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
@@ -936,7 +937,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
 	getAccs := func(i int) []Accessor { return matches[i].storagePath }
-	sort.Slice(matches, byAccessor(matches, getAccs))
+	sort.Slice(matches, byAccessor(getAccs))
 
 	var expandedMatches []expandedMatch
 	suffixes := make(map[string]struct{}, len(matches))
@@ -968,7 +969,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	// sort again since we may have unpacked a list into many expanded matches.
 	// Since list Set()s depend on the length of the existing list, the order matters
 	getAccs = func(i int) []Accessor { return expandedMatches[i].storagePath }
-	sort.Slice(expandedMatches, byAccessor(expandedMatches, getAccs))
+	sort.Slice(expandedMatches, byAccessor(getAccs))
 
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
@@ -991,10 +992,9 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	return nil
 }
 
-type match interface{ expandedMatch | requestMatch }
 type accGetter func(i int) []Accessor
 
-func byAccessor[T match](matches []T, getAccs accGetter) func(x, y int) bool {
+func byAccessor(getAccs accGetter) func(x, y int) bool {
 	return func(x, y int) bool {
 		xPath := getAccs(x)
 		yPath := getAccs(y)
@@ -1751,7 +1751,7 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
 	// are read after
 	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
-	sort.Slice(matches, byAccessor(matches, getAccs))
+	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil
 }

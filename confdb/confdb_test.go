@@ -829,17 +829,6 @@ func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentMap(c *C) {
 	value, err = view.Get(databag, "a.c")
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(value, IsNil)
-
-	err = view.Set(databag, "a.c", map[string]any{})
-	c.Assert(err, IsNil)
-
-	value, err = view.Get(databag, "a.c")
-	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]any{})
-
-	value, err = view.Get(databag, "a")
-	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]any{"c": map[string]any{}})
 }
 
 func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentList(c *C) {
@@ -1303,8 +1292,6 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
-				map[string]any{"request": "b.{b}", "storage": "b.{b}"},
-				map[string]any{"request": "c[{b}]", "storage": "c[{b}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -1347,18 +1334,6 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 		},
 	}
 	c.Assert(value, DeepEquals, expected)
-
-	err = databag.Set(parsePath(c, "b"), map[string]any{})
-	c.Assert(err, IsNil)
-
-	_, err = view.Get(databag, "b")
-	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
-
-	err = databag.Set(parsePath(c, "c"), []any{})
-	c.Assert(err, IsNil)
-
-	_, err = view.Get(databag, "c")
-	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
@@ -2703,7 +2678,7 @@ func (*viewSuite) TestViewSeveralNestedContentRules(c *C) {
 	c.Assert(val, Equals, "value")
 }
 
-func (*viewSuite) TestViewInvalidMapKeys(c *C) {
+func (*viewSuite) TestSetValidateValue(c *C) {
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"bar": map[string]any{
 			"rules": []any{
@@ -2720,49 +2695,74 @@ func (*viewSuite) TestViewInvalidMapKeys(c *C) {
 	view := schema.View("bar")
 
 	type testcase struct {
-		value      any
-		invalidKey string
+		value any
+		error string
 	}
 
 	tcs := []testcase{
 		{
-			value:      map[string]any{"-foo": 2},
-			invalidKey: "-foo",
+			value: map[string]any{"-foo": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-foo" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo--bar": 2},
-			invalidKey: "foo--bar",
+			value: map[string]any{"foo--bar": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo--bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo-": 2},
-			invalidKey: "foo-",
+			value: map[string]any{"foo-": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": map[string]any{"-bar": 2}},
-			invalidKey: "-bar",
+			value: map[string]any{"foo": map[string]any{"-bar": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": map[string]any{"bar": map[string]any{"baz-": 2}}},
-			invalidKey: "baz-",
+			value: map[string]any{"foo": map[string]any{"bar": map[string]any{"baz-": 2}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "baz-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      []any{map[string]any{"foo": 2}, map[string]any{"bar-": 2}},
-			invalidKey: "bar-",
+			value: []any{map[string]any{"foo": 2}, map[string]any{"bar-": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      []any{nil, map[string]any{"bar-": 2}},
-			invalidKey: "bar-",
+			value: []any{nil, map[string]any{"bar-": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": nil, "bar": map[string]any{"-baz": 2}},
-			invalidKey: "-baz",
+			value: map[string]any{"foo": nil, "bar": map[string]any{"-baz": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-baz" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+		},
+		{
+			value: map[string]any{},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: []any{},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: map[string]any{"foo": []any{map[string]any{}}, "bar": map[string]any{"baz": []any{}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: map[string]any{"foo": []any{map[string]any{"bar": nil}}, "bar": map[string]any{"baz": []any{}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			// having a nil value counts because it may be used to unset that path
+			value: map[string]any{"foo": []any{map[string]any{"bar": nil}}, "bar": map[string]any{"baz": []any{"foo"}}},
 		},
 	}
 
 	for _, tc := range tcs {
 		cmt := Commentf("expected invalid key err for value: %v", tc.value)
 		err = view.Set(databag, "foo", tc.value)
-		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" through confdb view acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
+		if tc.error != "" {
+			c.Assert(err, NotNil, cmt)
+			c.Assert(err.Error(), Equals, tc.error, cmt)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }
 
