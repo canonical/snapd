@@ -66,7 +66,9 @@ network netlink raw,
 /sys/**/sound/** r,
 
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
+owner /run/user/[0-9]*/pipewire-[0-9].lock rwk,
 owner /run/user/[0-9]*/pipewire-[0-9]-manager rwk,
+owner /run/user/[0-9]*/pipewire-[0-9]-manager.lock rwk,
 `
 
 const pipewirePermanentSlotSecComp = `
