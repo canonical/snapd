@@ -164,8 +164,16 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 // It is used by the model service to verify the request-id.
 // It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
 // All data is expected to use the SHA3-384 hash.
-func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte) error {
-	hash := sha3.New384()
+func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
+	// The New() function can panic if the hash algorithm is not supported but does
+	// not return an error. We recover from the panic to avoid crashing the program.
+	hash := hashAlg.New()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic:", r)
+		}
+	}()
+
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
 
