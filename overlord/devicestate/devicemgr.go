@@ -2044,6 +2044,32 @@ func (m *DeviceManager) SignConfdbControl(groups []any, revision int) (*asserts.
 	return a.(*asserts.ConfdbControl), nil
 }
 
+// SignResponseMessage signs a response-message assertion using the device's key.
+func (m *DeviceManager) SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+	serial, err := m.Serial()
+	if err != nil {
+		return nil, fmt.Errorf("cannot sign request-message without a serial")
+	}
+
+	privKey, err := m.keyPair()
+	if err != nil {
+		return nil, fmt.Errorf("cannot sign response-message without device key")
+	}
+
+	deviceID := fmt.Sprintf("%s.%s.%s", serial.Serial(), serial.Model(), serial.BrandID())
+	a, err := asserts.SignWithoutAuthority(asserts.ResponseMessageType, map[string]any{
+		"account-id": accountID,
+		"message-id": messageID,
+		"device":     deviceID,
+		"status":     status,
+	}, body, privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.ResponseMessage), nil
+}
+
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
