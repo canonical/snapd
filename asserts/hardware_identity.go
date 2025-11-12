@@ -163,7 +163,7 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 // VerifySignature checks the signature of a given nonce against the hardware id key.
 // It is used by the model service to verify the request-id.
 // It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
-// All data is expected to use the SHA3-384 hash.
+// The hash algorithm used is also specified as a parameter.
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
 	// The New() function can panic if the hash algorithm is not supported but does
 	// not return an error. We recover from the panic to avoid crashing the program.
