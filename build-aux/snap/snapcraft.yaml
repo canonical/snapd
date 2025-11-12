@@ -68,6 +68,7 @@ parts:
               - DYNAMIC_LINKER: ld-linux-riscv64-lp64d.so.1
           - to ppc64el:
               - DYNAMIC_LINKER: ld64.so.2
+              - EXTRA_CONFIGURE: --with-cpu=power8
     override-pull: |
       craftctl default
       QUILT_PATCHES=debian/patches quilt push -a
@@ -85,7 +86,7 @@ parts:
       slibdir=/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
       rtldir=/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
       EOF
-      "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr
+      "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr ${EXTRA_CONFIGURE-}
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}" -C .. objdir="${PWD}" "${PWD}/linkobj/libc_pic.a"
       make elf/ldso_install DESTDIR="${CRAFT_PART_INSTALL}"
       strip "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
