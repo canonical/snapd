@@ -325,11 +325,11 @@ func (rdb *RuleDB) load() (retErr error) {
 	}
 
 	rdb.notifyRules(partiallyExpiredRules, nil)
-	expiredData := map[string]string{"removed": "expired"}
-	if l := len(expiredRules); l > 0 {
-		logger.Debugf("calling notifyRules() for %d rules which were expired during load", l)
+	if len(expiredRules) > 0 {
+		data := map[string]string{"removed": "expired"}
+		logger.Debugf("calling notifyRules() for %d rules which were expired during load", len(expiredRules))
+		rdb.notifyRules(expiredRules, data)
 	}
-	rdb.notifyRules(expiredRules, expiredData)
 	for rule, newID := range mergedRules {
 		data := map[string]string{
 			"removed":     "merged",
@@ -742,7 +742,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		return conflicts
 	}
 
-	expiredData := map[string]string{"removed": "expired"}
+	expiredRules := make([]*Rule, 0, len(partiallyExpiredRules))
 	for ruleID := range partiallyExpiredRules {
 		maybeExpired, err := rdb.lookupRuleByIDForUser(rule.User, ruleID)
 		if err != nil {
@@ -766,11 +766,13 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
-			logger.Debugf("calling notifyRules() for rule with ID %s because it was expired when another rule was added", maybeExpired.ID)
-			rdb.notifyRules([]*Rule{maybeExpired}, expiredData)
-		} else {
-			logger.Debugf("not calling notifyRules() for rule with ID %s because an error occurred when trying to remove it", maybeExpired.ID)
+			expiredRules = append(expiredRules, maybeExpired)
 		}
+	}
+	if len(expiredRules) > 0 {
+		logger.Debugf("calling notifyRules() for %d rules which were expired when adding new rule", len(expiredRules))
+		data := map[string]string{"removed": "expired"}
+		rdb.notifyRules(expiredRules, data)
 	}
 
 	for variantStr, variantEntry := range newVariantEntries {
