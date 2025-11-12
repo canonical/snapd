@@ -305,7 +305,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 		// Being merged is more important than being partially expired, so only
 		// check this after first adding the rule to the DB.
-		if status == prompting.AnyPermsExpired {
+		if status == prompting.SomePermsExpired {
 			partiallyExpiredRules = append(partiallyExpiredRules, rule)
 		}
 	}
