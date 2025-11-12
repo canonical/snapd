@@ -4493,19 +4493,7 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 			t.Errorf("unexpected number of accessors %d vs. %d", len(accessors), len(expected))
 		}
 		for i, e := range expected {
-			if strings.HasPrefix(e, "[{") {
-				if accessors[i].Type() != confdb.IndexPlaceholderType {
-					t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
-				}
-			} else if strings.HasPrefix(e, "[") {
-				if accessors[i].Type() != confdb.ListIndexType {
-					t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
-				}
-			} else if strings.HasPrefix(e, "{") {
-				if accessors[i].Type() != confdb.KeyPlaceholderType {
-					t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
-				}
-			} else if accessors[i].Type() != confdb.MapKeyType {
+			if accessors[i].Access() != e {
 				t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
 			}
 		}
