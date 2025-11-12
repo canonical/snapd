@@ -22,6 +22,8 @@ package confdb_test
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -3644,4 +3646,125 @@ func (*viewSuite) TestUnsetNestedList(c *C) {
 	val, err = view.Get(bag, "a")
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{[]any{"foo", "baz"}})
+}
+
+// Match three different substrings:
+//  1. what begins with a '[' and '.', followed by a series of characters that are not in {'.', '['}, and ends with a ']'
+//  2. what begins with a '[', followed by a series of characters that are not in {'.', '['}
+//  3. what does not contain a '.' or a '['
+//  4. what is a '.'
+var subkeyDivide = regexp.MustCompile(`\[\.[^.\[]*\]|\[[^.\[]*|\[[^.\[]*|[^.\[]+|[.]`)
+
+// Same as the above regex but doesn't match a lone '.'
+var subkeyOnly = regexp.MustCompile(`\[\.[^.\[]*\]|\[[^.\[]*|\[[^.\[]*|[^.\[]+`)
+
+func (*viewSuite) TestSubkeyRegex(c *C) {
+	s := "[∀.∃*-l}].[][.]][..[.{e}]"
+	d := subkeyDivide.FindAllString(s, -1)
+	c.Check(len(d), Equals, 10)
+	c.Check(d[0], Equals, "[∀")
+	c.Check(d[1], Equals, ".")
+	c.Check(d[2], Equals, "∃*-l}]")
+	c.Check(d[3], Equals, ".")
+	c.Check(d[4], Equals, "[]")
+	c.Check(d[5], Equals, "[.]]")
+	c.Check(d[6], Equals, "[")
+	c.Check(d[7], Equals, ".")
+	c.Check(d[8], Equals, ".")
+	c.Check(d[9], Equals, "[.{e}]")
+	d = subkeyOnly.FindAllString(s, -1)
+	c.Check(len(d), Equals, 6)
+	c.Check(d[0], Equals, "[∀")
+	c.Check(d[1], Equals, "∃*-l}]")
+	c.Check(d[2], Equals, "[]")
+	c.Check(d[3], Equals, "[.]]")
+	c.Check(d[4], Equals, "[")
+	c.Check(d[5], Equals, "[.{e}]")
+}
+
+func hasValidSubkeys(s string, o confdb.ParseOptions) bool {
+	subStrings := subkeyOnly.FindAllString(s, -1)
+	for _, ss := range subStrings {
+		// If the substring doesn't match the generic case
+		if !confdb.ValidSubkey.MatchString(ss) &&
+			// if it doesn't match the placeholder case when placeholders are allowed
+			!(o.AllowPlaceholders && confdb.ValidPlaceholder.MatchString(ss)) &&
+			// if it doesn't match the index case when partial paths are allowed and indices are not forbidden
+			!(!o.ForbidIndexes && o.AllowPartialPath && confdb.ValidIndexSubkey.MatchString(ss)) &&
+			// if it doesn't match index placeholders when placeholders and partial paths are allowed
+			!(o.AllowPlaceholders && o.AllowPartialPath && confdb.ValidIndexPlaceholder.MatchString(ss)) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
+	subStrings := subkeyDivide.FindAllString(s, -1)
+	if len(subStrings) == 0 {
+		return true
+	}
+	if subStrings[0] == "." || subStrings[len(subStrings)-1] == "." {
+		return true
+	}
+	// Only if partial paths are allowed can a path begin with '['
+	if strings.HasPrefix(subStrings[0], "[") && !o.AllowPartialPath {
+		return true
+	}
+	for i, ss := range subStrings {
+		// A subkey can never begin with a '[' unless it's the first rune
+		// Two successive '.' means an empty string subkey
+		if i > 0 && subStrings[i-1] == "." && (strings.HasPrefix(ss, "[") || ss == ".") {
+			return true
+		}
+	}
+	return false
+}
+
+func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
+	wrapper := func(s string) ([]confdb.Accessor, error) {
+		return confdb.ParsePathIntoAccessors(s, o)
+	}
+	f.Add(seed)
+	f.Fuzz(func(t *testing.T, s string) {
+		accessors, err := wrapper(s)
+		if err != nil && strings.Contains(err.Error(), "invalid subkey") && !hasValidSubkeys(s, o) {
+			t.Skip()
+		}
+		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s, o) {
+			t.Skip()
+		}
+		if err != nil {
+			t.Errorf("encountered error %s with input %s", err, s)
+		}
+		expected := subkeyOnly.FindAllString(s, -1)
+		if len(accessors) != len(expected) {
+			t.Errorf("unexpected number of accessors %d vs. %d", len(accessors), len(expected))
+		}
+		for i, e := range expected {
+			if accessors[i].Access() != e {
+				t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
+			}
+		}
+	})
+}
+
+func FuzzParsePathIntoAccessors(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: false, AllowPartialPath: false, ForbidIndexes: false}
+	fuzzHelper(f, o, "foo-bar.baz[3][2]")
+}
+
+func FuzzParsePathIntoAccessorsAllowPlaceholders(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: false}
+	fuzzHelper(f, o, "foo-bar[.status={status}].{baz}[{n}].foo[3][{m}]")
+}
+
+func FuzzParsePathIntoAccessorsAllowPlaceholdersAllowPartialPath(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: true, ForbidIndexes: false}
+	fuzzHelper(f, o, "[{n}].foo-bar[.status={status}].{baz}[{n}].foo[3][{m}]")
+}
+
+func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: true}
+	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
 }
