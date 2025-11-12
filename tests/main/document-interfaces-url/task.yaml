@@ -7,6 +7,8 @@ details: |
 
 systems: [ubuntu-24.04-64]
 
+manual: true
+
 execute: |
     # Checks to see if the url supplied as the first argument returns an OK HTML status code
     webpage_exists() {
