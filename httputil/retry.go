@@ -196,7 +196,7 @@ func NoNetwork(err error) (b bool) {
 		logger.Debugf("NoNetwork: %v %T -> %v", err, err, b)
 	}()
 
-	return isNetworkDown(err) || isDnsUnavailable(err)
+	return isNetworkDown(err) || isDnsUnavailable(err) || isTimeout(err)
 }
 
 func isNetworkDown(err error) bool {
@@ -250,6 +250,14 @@ func isDnsUnavailable(err error) bool {
 	// a temporary error so there is no way to distiguish it other
 	// than a fugly string compare on a (potentially) localized string
 	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
+}
+
+func isTimeout(err error) bool {
+	if neterr, ok := err.(net.Error); ok {
+		return neterr.Timeout()
+	}
+
+	return false
 }
 
 // RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
