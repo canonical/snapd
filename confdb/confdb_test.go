@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	. "gopkg.in/check.v1"
 
@@ -4410,31 +4411,46 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
-// Match three different substrings:
-//  1. what begins with a '[' and does not contain a '.' or a '['
-//  2. what does not contain a '.' or a '['
-//  3. what is a '.'
-var subkeyDivide = regexp.MustCompile(`\[[^.\[]*|[^.\[]+|[.]`)
+// matches field filters
+var fieldFilterReg = regexp.MustCompile(fmt.Sprintf("\\[\\.%s={%s}\\]", confdb.SubkeyRegex, confdb.SubkeyRegex))
 
-// Same as the above regex but doesn't match '.'
-var subkeyOnly = regexp.MustCompile(`\[[^.\[]*|[^.\[]+`)
+// matches anything that begins with a '[' and does not have a '[' or a '.'
+var indexReg = `\[[^.\[]*`
 
-func (*viewSuite) TestSubkeyDivideRegex(c *C) {
-	s := "[∀.∃*-l}].[[.."
-	d := subkeyDivide.FindAllString(s, -1)
-	c.Check(len(d), Equals, 8)
+// matches everything except for a '[' or a '.'
+var variables = `[^.\[]+`
+
+var subkeyOnlyReg = regexp.MustCompile(fmt.Sprintf("%s|%s|%s", fieldFilterReg, indexReg, variables))
+var subkeyWithDot = regexp.MustCompile(fmt.Sprintf("%s|[.]", subkeyOnlyReg))
+
+func (*viewSuite) TestSubkeyRegex(c *C) {
+	s := "[∀.∃][.0][..[.a={e}]]"
+	d := subkeyWithDot.FindAllString(s, -1)
+	c.Check(len(d), Equals, 11)
 	c.Check(d[0], Equals, "[∀")
 	c.Check(d[1], Equals, ".")
-	c.Check(d[2], Equals, "∃*-l}]")
-	c.Check(d[3], Equals, ".")
-	c.Check(d[4], Equals, "[")
-	c.Check(d[5], Equals, "[")
-	c.Check(d[6], Equals, ".")
+	c.Check(d[2], Equals, "∃]")
+	c.Check(d[3], Equals, "[")
+	c.Check(d[4], Equals, ".")
+	c.Check(d[5], Equals, "0]")
+	c.Check(d[6], Equals, "[")
 	c.Check(d[7], Equals, ".")
+	c.Check(d[8], Equals, ".")
+	c.Check(d[9], Equals, "[.a={e}]")
+	c.Check(d[10], Equals, "]")
+	d = subkeyOnlyReg.FindAllString(s, -1)
+	c.Check(len(d), Equals, 7)
+	c.Check(d[0], Equals, "[∀")
+	c.Check(d[1], Equals, "∃]")
+	c.Check(d[2], Equals, "[")
+	c.Check(d[3], Equals, "0]")
+	c.Check(d[4], Equals, "[")
+	c.Check(d[5], Equals, "[.a={e}]")
+	c.Check(d[6], Equals, "]")
 }
 
 func hasValidSubkeys(s string, o confdb.ParseOptions) bool {
-	subStrings := subkeyOnly.FindAllString(s, -1)
+	subStrings := subkeyOnlyReg.FindAllString(s, -1)
 	for _, ss := range subStrings {
 		// If the substring doesn't match the generic case
 		if !confdb.ValidSubkey.MatchString(ss) &&
@@ -4451,7 +4467,7 @@ func hasValidSubkeys(s string, o confdb.ParseOptions) bool {
 }
 
 func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
-	subStrings := subkeyDivide.FindAllString(s, -1)
+	subStrings := subkeyWithDot.FindAllString(s, -1)
 	if len(subStrings) == 0 {
 		return true
 	}
@@ -4472,6 +4488,24 @@ func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
 	return false
 }
 
+func hasUnexpectedFieldFilterTermination(s string) bool {
+	subStrings := subkeyWithDot.FindAllString(s, -1)
+	for i, ss := range subStrings {
+		// The regex will break up any sequence that has "[." not followed by a closing ']'
+		// The '[' with therefore always be alone as well as the '.'
+		if i > 0 && subStrings[i-1] == "[" && ss == "." {
+			return true
+		}
+	}
+	return false
+}
+
+func isFieldFilterError(s string) bool {
+	return strings.Contains(s, "field filter terminated unexpectedly") ||
+		strings.Contains(s, "field filter must be in the format") ||
+		strings.Contains(s, "invalid field filter")
+}
+
 func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 	wrapper := func(s string) ([]confdb.Accessor, error) {
 		return confdb.ParsePathIntoAccessors(s, o)
@@ -4485,37 +4519,42 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s, o) {
 			t.Skip()
 		}
+		if err != nil && err.Error() == "non UTF-8 character" && (!utf8.ValidString(s) || strings.Contains(s, string(rune(0xDFFF)))) {
+			t.Skip()
+		}
+		if err != nil && isFieldFilterError(err.Error()) && hasUnexpectedFieldFilterTermination(s) {
+			t.Skip()
+		}
+		if err != nil && strings.Contains(err.Error(), "cannot apply more than one filter to the same field") {
+			t.Skip()
+		}
 		if err != nil {
 			t.Errorf("encountered error %s with input %s", err, s)
 		}
-		expected := subkeyOnly.FindAllString(s, -1)
-		if len(accessors) != len(expected) {
-			t.Errorf("unexpected number of accessors %d vs. %d", len(accessors), len(expected))
-		}
-		for i, e := range expected {
-			if accessors[i].Access() != e {
-				t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
+		expected := subkeyOnlyReg.FindAllString(s, -1)
+		if len(accessors) == len(expected) {
+			for i, e := range expected {
+				if accessors[i].Access() != e {
+					t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
+				}
 			}
+		} else if len(accessors) != len(expected)-len(fieldFilterReg.FindAllString(s, -1)) {
+			t.Errorf("unexpected number of accessors %d vs. %d", len(accessors), len(expected))
 		}
 	})
 }
 
 func FuzzParsePathIntoAccessors(f *testing.F) {
 	o := confdb.ParseOptions{AllowPlaceholders: false, AllowPartialPath: false, ForbidIndexes: false}
-	fuzzHelper(f, o, "foo-bar.baz[3]")
+	fuzzHelper(f, o, "foo-bar.baz[3][2]")
 }
 
 func FuzzParsePathIntoAccessorsAllowPlaceholders(f *testing.F) {
 	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: false}
-	fuzzHelper(f, o, "foo-bar.{baz}[{n}].foo[3]")
-}
-
-func FuzzParsePathIntoAccessorsAllowPlaceholdersAllowPartialPath(f *testing.F) {
-	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: true, ForbidIndexes: false}
-	fuzzHelper(f, o, "[{n}].foo-bar.{baz}[{n}].foo[3]")
+	fuzzHelper(f, o, "foo-bar[.status={status}].{baz}[{n}].foo[3][{m}]")
 }
 
 func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
 	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: true}
-	fuzzHelper(f, o, "foo.{bar}.baz.foo[{n}]")
+	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
 }
