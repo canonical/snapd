@@ -71,7 +71,7 @@ func Assemble(st *state.State, opts AssembleOptions) (*state.TaskSet, error) {
 
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return nil, errors.New("invalid IP address in address")
+		return nil, fmt.Errorf("invalid ip in given address: %s", host)
 	}
 
 	certPEM, keyPEM, err := createCertAndKey(ip)

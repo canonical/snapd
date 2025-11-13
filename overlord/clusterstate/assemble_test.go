@@ -119,7 +119,7 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 				Secret:  "secret",
 				Address: "127.0.0.1",
 			},
-			pattern: ".*missing port in address",
+			pattern: `address 127\.0\.0\.1: missing port in address`,
 		},
 		{
 			name: "invalid ip",
@@ -127,7 +127,7 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 				Secret:  "secret",
 				Address: "example.com:1234",
 			},
-			pattern: "invalid IP address in address",
+			pattern: `invalid ip in given address: example\.com`,
 		},
 		{
 			name: "invalid port",
