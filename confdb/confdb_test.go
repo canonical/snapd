@@ -294,37 +294,37 @@ func (*viewSuite) TestGetAndSetViews(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	wsView := schema.View("wifi-setup")
+	view := schema.View("wifi-setup")
 
 	// nested string value
-	err = wsView.Set(databag, "ssid", "my-ssid")
+	err = view.Set(databag, "ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	ssid, err := wsView.Get(databag, "ssid")
+	ssid, err := view.Get(databag, "ssid")
 	c.Assert(err, IsNil)
 	c.Check(ssid, DeepEquals, "my-ssid")
 
 	// nested list value
-	err = wsView.Set(databag, "ssids", []string{"one", "two"})
+	err = view.Set(databag, "ssids", []string{"one", "two"})
 	c.Assert(err, IsNil)
 
-	ssids, err := wsView.Get(databag, "ssids")
+	ssids, err := view.Get(databag, "ssids")
 	c.Assert(err, IsNil)
 	c.Check(ssids, DeepEquals, []any{"one", "two"})
 
 	// top-level string
-	err = wsView.Set(databag, "top-level", "randomValue")
+	err = view.Set(databag, "top-level", "randomValue")
 	c.Assert(err, IsNil)
 
-	topLevel, err := wsView.Get(databag, "top-level")
+	topLevel, err := view.Get(databag, "top-level")
 	c.Assert(err, IsNil)
 	c.Check(topLevel, DeepEquals, "randomValue")
 
 	// dotted request paths are permitted
-	err = wsView.Set(databag, "dotted.path", 3)
+	err = view.Set(databag, "dotted.path", 3)
 	c.Assert(err, IsNil)
 
-	num, err := wsView.Get(databag, "dotted.path")
+	num, err := view.Get(databag, "dotted.path")
 	c.Assert(err, IsNil)
 	c.Check(num, DeepEquals, float64(3))
 }
@@ -340,15 +340,15 @@ func (*viewSuite) TestSetWithNilValueFail(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	wsView := schema.View("test")
+	view := schema.View("test")
 
-	err = wsView.Set(databag, "foo", "value")
+	err = view.Set(databag, "foo", "value")
 	c.Assert(err, IsNil)
 
-	err = wsView.Set(databag, "foo", nil)
+	err = view.Set(databag, "foo", nil)
 	c.Assert(err, ErrorMatches, `internal error: Set value cannot be nil`)
 
-	ssid, err := wsView.Get(databag, "foo")
+	ssid, err := view.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	c.Check(ssid, DeepEquals, "value")
 }
@@ -680,6 +680,14 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		{
 			testName: "invalid whitespace character",
 			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": invalid subkey " "`,
+		},
+		{
+			testName: "invalid terminating [ character",
+			request:  "a[", storage: "a.b", err: `invalid request "a[": invalid subkey "["`,
+		},
+		{
+			testName: "invalid terminating [ character",
+			request:  "a[.foo", storage: "a.b", err: `invalid request "a[.foo": field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]`,
 		},
 	} {
 		_, err := confdb.NewSchema("acc", "foo", map[string]any{
@@ -3401,8 +3409,7 @@ func (*viewSuite) TestSetListSetsOrAppends(c *C) {
 
 	// cannot append if index is not next one
 	err = view.Set(bag, "a[9]", "foo")
-	c.Assert(err, testutil.ErrorIs, confdb.PathError(""))
-	c.Assert(err.Error(), Equals, `cannot access "a[9]": list has length 2`)
+	c.Assert(err, ErrorMatches, `cannot access "a\[9\]": list has length 2`)
 }
 
 func (*viewSuite) TestSetListNested(c *C) {
@@ -3644,4 +3651,125 @@ func (*viewSuite) TestUnsetNestedList(c *C) {
 	val, err = view.Get(bag, "a")
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{[]any{"foo", "baz"}})
+}
+
+func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
+	type testcase struct {
+		path    string
+		filters []map[string]string
+		err     string
+	}
+
+	tcs := []testcase{
+		{
+			path:    "snaps.{snap}[.status={status}][.version={version}]",
+			filters: []map[string]string{nil, {"status": "status", "version": "version"}},
+		},
+		{
+			path:    "foo[{n}][.bar={baz}]",
+			filters: []map[string]string{nil, {"bar": "baz"}},
+		},
+		{
+			path: "foo[{n}][.]",
+			err:  "field filter must be in the format [.<field>={<param_name>}]",
+		},
+		{
+			path: "foo[{n}][.foo]",
+			err:  "field filter must be in the format [.<field>={<param_name>}]",
+		},
+		{
+			path: "foo[{n}][.foo={}]",
+			err:  "field filter must be in the format [.<field>={<param_name>}]",
+		},
+		{
+			path: "foo[{n}][.={}]",
+			err:  "field filter must be in the format [.<field>={<param_name>}]",
+		},
+		{
+			path: "foo[{n}][.bar={abc}][.bar={cba}]",
+			err:  "cannot apply more than one filter to the same field: [.bar={abc}] and [.bar={cba}]",
+		},
+		{
+			path:    "foo[{n}][.bar={abc}].some[.bar={cba}]",
+			filters: []map[string]string{nil, {"bar": "abc"}, {"bar": "cba"}},
+		},
+		{
+			path: "foo[",
+			err:  `invalid subkey "["`,
+		},
+		{
+			path: "foo" + string(rune(0xDFFF)),
+			err:  "non UTF-8 character",
+		},
+		{
+			path: "foo[" + string(rune(0xDFFF)),
+			err:  "non UTF-8 character",
+		},
+		{
+			path: "foo[." + string(rune(0xDFFF)),
+			err:  "non UTF-8 character",
+		},
+		{
+			path: "foo[{n}][.bar={baz}",
+			err:  "field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]",
+		},
+		{
+			path: "foo[{n}][._foo={abc}].some",
+			err:  "invalid field filter [._foo={abc}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+		},
+		{
+			path: "foo[{n}][.foo={0foo}].some",
+			err:  "invalid field filter [.foo={0foo}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+
+		opts := confdb.ParseOptions{AllowPlaceholders: true}
+		accs, err := confdb.ParsePathIntoAccessors(tc.path, opts)
+		if tc.err != "" {
+			c.Assert(err, NotNil, cmt)
+			c.Assert(err.Error(), Equals, tc.err, cmt)
+			continue
+		}
+		c.Assert(err, IsNil, cmt)
+		c.Assert(accs, HasLen, len(tc.filters), cmt)
+
+		for e, acc := range accs {
+			c.Assert(acc.FieldFilters(), DeepEquals, tc.filters[e], cmt)
+		}
+	}
+}
+
+func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
+	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo[{m}]", "storage": "foo[.bar={bar}][{m}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot define view "foo": can only apply field filters to maps but "foo[.bar={bar}][{m}]" expects list after filters`)
+
+	schema, err := confdb.ParseStorageSchema([]byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "bool"
+		}
+	}
+}`))
+	c.Assert(err, IsNil)
+
+	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo[{m}]", "storage": "foo[{m}][.bar={bar}]"},
+			},
+		},
+	}, schema)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot define view "foo": field filters can only be applied to maps but schema at foo[{m}][.bar={bar}] expects bool`)
 }
