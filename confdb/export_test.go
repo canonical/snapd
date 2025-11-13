@@ -30,6 +30,7 @@ var (
 	ValidIndexSubkey      = validIndexSubkey
 	ValidPlaceholder      = validPlaceholder
 	ValidIndexPlaceholder = validIndexPlaceholder
+	SubkeyRegex           = subkeyRegex
 )
 
 type Authentication = authentication
