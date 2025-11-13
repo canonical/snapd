@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type setSuite struct {
@@ -537,7 +538,7 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	c.Check(stderr, IsNil)
 
 	_, err = tx.Get(parsePath(c, "wifi.psk"))
-	c.Assert(err, ErrorMatches, "no value was found under path \"wifi.psk\"")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)

@@ -1,0 +1,19 @@
+name: test-snapd-rsync-core26
+version: 3.4.1
+summary: Copying and synchronizing files and directories in Linux/Unix systems.  
+description: |
+  Rsync (Remote Sync) is a most commonly used command for copying and synchronizing files and 
+  directories remotely as well as locally in Linux/Unix systems. 
+grade: devel
+confinement: strict
+base: core26
+build-base: devel
+
+apps:
+    rsync:
+        command: usr/bin/rsync
+parts:
+    rsync:
+        plugin: dump
+        source: .
+        stage-packages: [rsync]

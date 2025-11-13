@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -136,6 +137,8 @@ type fakeState struct {
 	isUnlocked          bool
 	hasUnlocked         int
 	EncryptedContainers []backend.EncryptedContainer
+	brokenPrimaryKey    bool
+	policyCounterHandle uint32
 }
 
 func (fs *fakeState) Update(role string, containerRole string, params *backend.SealingParameters) error {
@@ -160,6 +163,18 @@ func (fs *fakeState) Get(role string, containerRole string) (params *backend.Sea
 	return p, nil
 }
 
+func (fs *fakeState) RoleInfo(role string) (info *backend.RoleInfo, err error) {
+	info = &backend.RoleInfo{
+		PrimaryKeyID:                   0,
+		TPM2PCRPolicyRevocationCounter: fs.policyCounterHandle,
+	}
+	return info, nil
+}
+
+func (fs *fakeState) VerifyPrimaryKeyAgainstState(primaryKeyID int, primaryKey []byte) bool {
+	return !fs.brokenPrimaryKey
+}
+
 func (fs *fakeState) Unlock() (relock func()) {
 	fs.isUnlocked = true
 	fs.hasUnlocked++
@@ -179,7 +194,18 @@ type fakeSealedKey struct {
 	num int
 }
 
-func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRunParams bool, missingRecoverParams bool, onClassic bool) {
+type tpmResealHappyCase struct {
+	revokeOldKeys             bool
+	missingRunParams          bool
+	missingRecoverParams      bool
+	onClassic                 bool
+	brokenPrimaryKey          bool
+	brokenRevocationCounter   bool
+	multipleRevocationCounter bool
+	noPrimaryKey              bool
+}
+
+func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	bl := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
@@ -221,11 +247,11 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 		bootIsResealNeededCalls++
 		switch bootIsResealNeededCalls {
 		case 1:
-			if missingRunParams {
+			if tc.missingRunParams {
 				return false, 0, nil
 			}
 		case 2:
-			if missingRecoverParams {
+			if tc.missingRecoverParams {
 				return false, 0, nil
 			}
 		}
@@ -234,7 +260,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	})()
 
 	var model *asserts.Model
-	if onClassic {
+	if tc.onClassic {
 		model = boottest.MakeMockClassicWithModesModel()
 	} else {
 		model = boottest.MakeMockUC20Model()
@@ -360,14 +386,14 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, !onClassic)
+		c.Check(allowInsufficientDmaProtection, Equals, !tc.onClassic)
 
 		c.Assert(modelParams, HasLen, 1)
 		mp := modelParams[0]
 		c.Check(mp.Model.Model(), Equals, model.Model())
 		switch buildProfileCalls {
 		case 1:
-			if !missingRunParams {
+			if !tc.missingRunParams {
 				c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 					secboot.NewLoadChain(shimBf,
 						secboot.NewLoadChain(assetBf,
@@ -411,6 +437,9 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 		c.Logf("key: %v", key)
 
 		tpmPCRProfile, profileErr := params.GetTpmPCRProfile()
+		if !tc.noPrimaryKey {
+			params.VerifyPrimaryKey([]byte{1, 2, 3, 4})
+		}
 
 		switch resealCalls {
 		case 1:
@@ -420,7 +449,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
 			})
-			if missingRunParams {
+			if tc.missingRunParams {
 				c.Assert(profileErr, NotNil)
 				return nil, profileErr
 			}
@@ -433,7 +462,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default-fallback",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 			})
-			if missingRecoverParams {
+			if tc.missingRecoverParams {
 				c.Assert(profileErr, NotNil)
 				return nil, profileErr
 			}
@@ -446,7 +475,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default-fallback",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 			})
-			if missingRecoverParams {
+			if tc.missingRecoverParams {
 				c.Assert(profileErr, NotNil)
 				return nil, profileErr
 			}
@@ -459,7 +488,14 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	})
 	defer restore()
 
-	myState := &fakeState{}
+	myState := &fakeState{
+		brokenPrimaryKey:    tc.brokenPrimaryKey,
+		policyCounterHandle: 42,
+	}
+	if tc.brokenRevocationCounter {
+		myState.policyCounterHandle = 43
+	}
+
 	myState.EncryptedContainers = []backend.EncryptedContainer{
 		&encryptedContainer{
 			uuid:          "123",
@@ -479,7 +515,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	}
 
 	defer backend.MockSecbootRevokeOldKeys(func(uk *secboot.UpdatedKeys, primaryKey []byte) error {
-		if !revokeOldKeys {
+		if !tc.revokeOldKeys {
 			c.Errorf("unexpected call")
 			return fmt.Errorf("unexpected call")
 		}
@@ -503,9 +539,40 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, RevokeOldKeys: revokeOldKeys}
+	backend.MockSecbootPCRPolicyCounterHandles(func(uk secboot.UpdatedKeys) []uint32 {
+		if tc.multipleRevocationCounter {
+			return []uint32{41, 42}
+		} else {
+			return []uint32{42}
+		}
+	})
+
+	loggerBuf, restore := logger.MockLogger()
+	defer restore()
+
+	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, RevokeOldKeys: tc.revokeOldKeys}
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
+	if tc.noPrimaryKey && tc.revokeOldKeys {
+		c.Assert(err, ErrorMatches, `Missing primary key`)
+		return
+	}
 	c.Assert(err, IsNil)
+
+	if tc.brokenPrimaryKey {
+		c.Check(loggerBuf.String(), testutil.Contains, "WARNING: primary key is not matching the FDE state")
+	} else {
+		c.Check(loggerBuf.String(), Not(testutil.Contains), "WARNING: primary key is not matching the FDE state")
+	}
+	if tc.brokenRevocationCounter {
+		c.Check(loggerBuf.String(), testutil.Contains, "WARNING: policy counter handle 42 is not matching the FDE state")
+	} else {
+		c.Check(loggerBuf.String(), Not(testutil.Contains), "WARNING: policy counter handle .* is not matching the FDE state")
+	}
+	if tc.multipleRevocationCounter {
+		c.Check(loggerBuf.String(), testutil.Contains, "WARNING: policy counter handle 41 is not matching the FDE state")
+	} else {
+		c.Check(loggerBuf.String(), Not(testutil.Contains), "WARNING: policy counter handle .* is not matching the FDE state")
+	}
 
 	c.Assert(bootIsResealNeededCalls, Equals, 2)
 
@@ -513,65 +580,106 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
-	if !missingRunParams {
+	if !tc.missingRunParams {
 		c.Assert(cnt, Equals, 1)
 		c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))))
 	}
 
 	recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
 	c.Assert(err, IsNil)
-	if !missingRecoverParams {
+	if !tc.missingRecoverParams {
 		c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(bootChains.RecoveryBootChains)))
 		c.Assert(cnt, Equals, 1)
 	}
 }
 
 func (s *resealTestSuite) TestTPMResealHappy(c *C) {
-	const revokeOldKeys = false
-	const missingRunParams = false
-	const missingRecoverParams = false
-	const onClassic = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{
+		onClassic: true,
+	}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyCore(c *C) {
-	const revokeOldKeys = false
-	const missingRunParams = false
-	const missingRecoverParams = false
-	const onClassic = false
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevoke(c *C) {
-	const revokeOldKeys = true
-	const missingRunParams = false
-	const missingRecoverParams = false
-	const onClassic = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{
+		onClassic:     true,
+		revokeOldKeys: true,
+	}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingRunParams(c *C) {
-	const revokeOldKeys = true
-	const missingRunParams = true
-	const missingRecoverParams = false
-	const onClassic = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{
+		onClassic:        true,
+		revokeOldKeys:    true,
+		missingRunParams: true,
+	}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingRecoverParams(c *C) {
-	const revokeOldKeys = true
-	const missingRunParams = false
-	const missingRecoverParams = true
-	const onClassic = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{
+		onClassic:            true,
+		revokeOldKeys:        true,
+		missingRecoverParams: true,
+	}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingParams(c *C) {
-	const revokeOldKeys = true
-	const missingRunParams = true
-	const missingRecoverParams = true
-	const onClassic = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+	tc := tpmResealHappyCase{
+		onClassic:            true,
+		revokeOldKeys:        true,
+		missingRunParams:     true,
+		missingRecoverParams: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyBrokenPrimaryKey(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:        true,
+		brokenPrimaryKey: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyNoPrimaryKey(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:    true,
+		noPrimaryKey: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyNoPrimaryKeyRevoke(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:     true,
+		revokeOldKeys: true,
+		noPrimaryKey:  true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyBrokenRevocationCounter(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:               true,
+		brokenRevocationCounter: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyMultiplePolicyCounters(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:                 true,
+		multipleRevocationCounter: true,
+	}
+	s.testTPMResealHappy(c, tc)
 }
 
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {

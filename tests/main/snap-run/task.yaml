@@ -9,9 +9,6 @@ systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
   - -*-s390x
-  # TODO fix this on questing - strace and trace-exec
-  # currently don't work due to sudo-rs not accepting -E
-  - -ubuntu-25.10-64
 
 environment:
     STRACE_STATIC_CHANNEL: candidate
@@ -20,9 +17,7 @@ prepare: |
     tests.exec is-skipped && exit 0
 
     "$TESTSTOOLS"/snaps-state install-local basic-run
-    # TODO use test-snapd-sh-core24 once we have a fix for snap run --strace on
-    # Fedora or other systems registering sudo sessions with logind
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core22
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -33,7 +28,7 @@ execute: |
     tests.exec is-skipped && exit 0
 
     echo "Running a trivial command causes no DENIED messages"
-    test-snapd-sh-core22.sh -c 'echo hello'
+    test-snapd-sh-core24.sh -c 'echo hello'
     if os.query is-arch-linux && [ "$SNAP_REEXEC" != "1" ]; then
         dmesg | grep DENIED > arch-denied.log
         # due to Go 1.25 poking /proc/self/mountinfo we get a denial from
@@ -51,7 +46,7 @@ execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
 
-    snap run --gdb test-snapd-sh-core22.sh -c 'echo hello' 2>stderr || true
+    snap run --gdb test-snapd-sh-core24.sh -c 'echo hello' 2>stderr || true
     MATCH '\-\-gdb is no longer supported: use \-\-gdbserver option instead' < stderr
 
     # the strace on 14.04 is too old
@@ -68,7 +63,7 @@ execute: |
     fi
 
     echo "Test snap --strace invalid works"
-    if snap run --strace="invalid" test-snapd-sh-core22.sh -c 'echo hello' 2>stderr ; then
+    if snap run --strace="invalid" test-snapd-sh-core24.sh -c 'echo hello' 2>stderr ; then
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
@@ -86,42 +81,42 @@ execute: |
     fi
     # XXX: any tests that execute strace should be added below this point
 
-    # When trace logging on activated for snap commands, trace-level messages
-    # will appear in snap command output, which is unexpected for this test.
-    # This variable is used to skip those checks where necessary.
-    SKIP_NO_EXTRA_MSG_CHECKS=false
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
-        SKIP_NO_EXTRA_MSG_CHECKS=true
-    fi
-
     echo "Test snap run --strace"
-    snap run --strace test-snapd-sh-core22.sh -c 'echo hello-world' >stdout 2>stderr
+    snap run --strace test-snapd-sh-core24.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH hello-world < stdout
     MATCH 'write\(1, \"hello-world\\n\",' < stderr
-    if grep "snap-confine" stderr && [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "false" ]; then
+    if grep "snap-confine" stderr; then
        echo "the snap-confine calls should be filtered out, something is wrong
        cat stderr"
        exit 1
     fi
 
     echo "Test snap run --strace with options works"
-    snap run --strace="-V" test-snapd-sh-core22.sh -c 'echo hello-world' >stdout 2>stderr
+    # this is not a sensible way of getting strace's version, but at least it
+    # does not hang or break, strace when passed --version exits unexpectedly
+    not snap run --strace="-V" test-snapd-sh-core24.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
     # We don't want to test for an empty stderr should there be unrelated errors with
     # strace. Instead we look for a keyword
-    if [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "false" ]; then
-        NOMATCH 'exec' < stderr
-    fi
+    NOMATCH 'exec' < stderr
 
-    snap run --trace-exec test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
+    # more sensible method by expecting timestamps
+    snap run --strace="-ttt" test-snapd-sh-core24.sh -c true >stdout 2>stderr
+    # we're guaranteed there will be at least one read() system call, passing
+    # -ttt makes the output lines appear like this:
+    # 1761714896.503787 read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\220\243\2\0\0\0\0\0"..., 832) = 832
+    MATCH "^[0-9]+\.[0-9]+ read\(" < stderr
+
+    echo "Test snap run --trace-exec for execution timings"
+    snap run --trace-exec test-snapd-sh-core24.sh -c 'echo hello' 2> stderr
     MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
     MATCH "  [0-9.]+s .*/snap-exec" < stderr
     MATCH "  [0-9.]+s .*/snap-confine" < stderr
     MATCH "Total time: [0-9.]+s" < stderr
 
-    snapd.tool exec snap-discard-ns test-snapd-sh-core22
-    snap run --debug-log test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
-    if [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "true" ]; then
+    snapd.tool exec snap-discard-ns test-snapd-sh-core24
+    snap run --debug-log test-snapd-sh-core24.sh -c 'echo hello' 2> stderr
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_LOG_SNAP_TO_JOURNAL" ]; then
         # If logging to journal is active, then grab the entires in the journal for snap
         # and add them to the head of the stderr output
         mv stderr tmp

@@ -33,12 +33,4 @@ execute: |
 
     $ALIAS "$SNAP/bin/cat"
     $ALIAS "$SNAP/bin/cat" > new.txt 2>&1
-
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
-        # When structured trace logging is active, the output
-        # files will contain debug logs with timestamps that
-        # will cause diff to fail so exit early
-        exit 0
-    fi
-
     diff -u orig.txt new.txt

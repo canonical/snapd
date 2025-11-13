@@ -28,7 +28,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,7 +66,8 @@ apps:
 const openglesDriverLibsProvider = `name: opengles-provider
 version: 0
 slots:
-  opengles-driver-libs:
+  opengles-slot:
+    interface: opengles-driver-libs
     compatibility: opengles-2-0-ubuntu-2510
     library-source:
       - $SNAP/lib1
@@ -81,7 +84,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, openglesDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "opengles")
 	s.slot, s.slotInfo = MockConnectedSlot(c, openglesDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "opengles-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "opengles-slot")
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestName(c *C) {
@@ -89,7 +92,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
-	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/opengles-provider/5/lib1")
+	libDir1 := filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1")
 	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libDir1, "libOPENGLES_nvidia.so.0"), []byte(``), 0644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
@@ -106,7 +109,7 @@ slots:
       - /snap/opengles-provider/current/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`opengles-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`opengles-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: opengles-provider
 version: 0
@@ -162,9 +165,21 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "opengles-provider", SlotName: "opengles-driver-libs"}: {
-			filepath.Join(dirs.GlobalRootDir, "snap/opengles-provider/5/lib1"),
-			filepath.Join(dirs.GlobalRootDir, "snap/opengles-provider/5/lib2")}})
+		{SnapName: "opengles-provider", SlotName: "opengles-slot"}: {
+			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
+			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2")}})
+}
+
+func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_opengles-provider_opengles-slot_opengles-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestStaticInfo(c *C) {

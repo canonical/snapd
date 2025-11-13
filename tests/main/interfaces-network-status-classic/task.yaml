@@ -15,6 +15,11 @@ systems:
   # Amazon-linux does not include Python 3 D-Bus bindings
   - -amazon-linux-2-*
   - -amazon-linux-2023-*
+  # TODO: reenable these two systems when apparmor 5 support is added
+  # currently the dbus we have and the dbus in the upstream kernel
+  # are different features.
+  - -arch-linux-64
+  - -opensuse-tumbleweed-64
 
 prepare: |
     echo "Start the stub xdg-desktop-portal NetworkMonitor provider"

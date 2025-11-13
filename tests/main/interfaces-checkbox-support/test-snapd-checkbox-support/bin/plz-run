@@ -1,0 +1,10 @@
+#!/bin/sh
+set -xeu
+if [ ! -x "$SNAP_COMMON"/plz-run ]; then
+  # We need a pre-built copy of plz-run from before ubuntu-core was reflashed.
+  # The user needs to arrange for the binary to be copied to "$SNAP_COMMON".
+  echo "Please copy plz-run to this snap's SNAP_COMMON directory and make it executable"
+  exit 1
+fi
+
+exec "$SNAP_COMMON"/plz-run "$@"

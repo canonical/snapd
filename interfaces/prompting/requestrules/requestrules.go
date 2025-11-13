@@ -63,11 +63,37 @@ type Rule struct {
 	Constraints *prompting.RuleConstraints `json:"constraints"`
 }
 
+func (rule *Rule) UnmarshalJSON(data []byte) error {
+	type ruleJSON struct {
+		ID          prompting.IDType          `json:"id"`
+		Timestamp   time.Time                 `json:"timestamp"`
+		User        uint32                    `json:"user"`
+		Snap        string                    `json:"snap"`
+		Interface   string                    `json:"interface"`
+		Constraints prompting.ConstraintsJSON `json:"constraints"`
+	}
+	var intermediate ruleJSON
+	if err := json.Unmarshal(data, &intermediate); err != nil {
+		return err
+	}
+	constraints, err := prompting.UnmarshalRuleConstraints(intermediate.Interface, intermediate.Constraints)
+	if err != nil {
+		return err
+	}
+	rule.ID = intermediate.ID
+	rule.Timestamp = intermediate.Timestamp
+	rule.User = intermediate.User
+	rule.Snap = intermediate.Snap
+	rule.Interface = intermediate.Interface
+	rule.Constraints = constraints
+	return nil
+}
+
 // Validate verifies internal correctness of the rule's constraints and
-// permissions and prunes any expired permissions. If all permissions are
-// expired at the given point in time, then returns true. If the rule is
-// invalid, returns an error.
-func (rule *Rule) validate(at prompting.At) (expired bool, err error) {
+// permissions and prunes any expired permissions. Returns a
+// [prompting.PermExpirationStatus] indicating whether all, any, or no
+// permissions were expired. If the rule is invalid, returns an error.
+func (rule *Rule) validate(at prompting.At) (status prompting.PermExpirationStatus, err error) {
 	return rule.Constraints.ValidateForInterface(rule.Interface, at)
 }
 
@@ -217,6 +243,7 @@ func (rdb *RuleDB) load() (retErr error) {
 	rdb.perUser = make(map[uint32]*userDB)
 
 	expiredRules := make(map[prompting.IDType]bool)
+	partiallyExpiredRules := make(map[prompting.IDType]bool)
 	// Store map of merged rules, where the original merged (removed) rule ID
 	// maps to the ID of the rule into which it was merged.
 	mergedRules := make(map[prompting.IDType]prompting.IDType)
@@ -233,12 +260,11 @@ func (rdb *RuleDB) load() (retErr error) {
 	err = json.NewDecoder(f).Decode(&wrapped)
 	f.Close() // Close now since we're done reading and might need to save later
 	if err != nil {
-		// TODO: store rules separately per-user, so a corrupted rule for one
-		// user can't impact rules for another user.
-		loadErr := fmt.Errorf("cannot read stored request rules: %w", err)
 		// Save the empty rule DB to disk to overwrite the previous one which
 		// could not be decoded.
-		return strutil.JoinErrors(loadErr, rdb.save())
+		// TODO: store rules separately per-user, so a corrupted rule for one
+		// user can't impact rules for another user.
+		return strutil.JoinErrors(err, rdb.save())
 	}
 
 	// Use the same point in time for every rule
@@ -254,13 +280,13 @@ func (rdb *RuleDB) load() (retErr error) {
 		if err != nil {
 			return err
 		}
-		expired, err := rule.validate(at)
+		status, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
-			errInvalid = fmt.Errorf("internal error: %w", err)
+			errInvalid = err
 			break
 		}
-		if expired {
+		if status == prompting.AllPermsExpired {
 			expiredRules[rule.ID] = true
 			continue
 		}
@@ -274,6 +300,13 @@ func (rdb *RuleDB) load() (retErr error) {
 		}
 		if merged {
 			mergedRules[rule.ID] = mergedRule.ID
+			continue
+		}
+
+		// Being merged is more important than being partially expired, so only
+		// check this after first adding the rule to the DB.
+		if status == prompting.AnyPermsExpired {
+			partiallyExpiredRules[rule.ID] = true
 		}
 	}
 
@@ -281,6 +314,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		// The DB on disk was invalid, so drop every rule and start over
 		data := map[string]string{"removed": "dropped"}
 		for _, rule := range wrapped.Rules {
+			logger.Debugf("calling notifyRule(%d, %s, %v) because DB was invalid and all rules dropped", rule.User, rule.ID, data)
 			rdb.notifyRule(rule.User, rule.ID, data)
 		}
 		rdb.indexByID = make(map[prompting.IDType]int)
@@ -297,16 +331,24 @@ func (rdb *RuleDB) load() (retErr error) {
 		var data map[string]string
 		if expiredRules[rule.ID] {
 			data = expiredData
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired on load", rule.User, rule.ID, data)
 		} else if newID, exists := mergedRules[rule.ID]; exists {
 			data = map[string]string{
 				"removed":     "merged",
 				"merged-into": newID.String(),
 			}
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it merged into rule %s on load", rule.User, rule.ID, data, newID)
+		} else if partiallyExpiredRules[rule.ID] {
+			// no-op, want to record notice with empty data
+			logger.Debugf("calling notifyRule(%d, %s, %v) on load because some (but not all) permissions were expired", rule.User, rule.ID, data)
+		} else {
+			// not expired or merged, so don't record notice
+			continue
 		}
 		rdb.notifyRule(rule.User, rule.ID, data)
 	}
 
-	if len(expiredRules) > 0 || len(mergedRules) > 0 {
+	if len(expiredRules) > 0 || len(partiallyExpiredRules) > 0 || len(mergedRules) > 0 {
 		return rdb.save()
 	}
 
@@ -337,7 +379,7 @@ func (rdb *RuleDB) lookupRuleByPathPattern(user uint32, snap string, iface strin
 	if interfaceDB == nil {
 		return nil, false, nil
 	}
-	ruleID, exists := interfaceDB.PathPatterns[constraints.PathPattern.String()]
+	ruleID, exists := interfaceDB.PathPatterns[constraints.PathPattern().String()]
 	if !exists {
 		return nil, false, nil
 	}
@@ -441,7 +483,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, at prompting.At, save bool) (added
 			// New entry outcome conflicts with outcome of existing entry
 			conflicts = append(conflicts, prompting_errors.RuleConflict{
 				Permission:    perm,
-				Variant:       rule.Constraints.PathPattern.String(), // XXX: we're mis-using the full path pattern in place of the variant
+				Variant:       rule.Constraints.PathPattern().String(), // XXX: we're mis-using the full path pattern in place of the variant
 				ConflictingID: existingRule.ID.String(),
 			})
 			continue
@@ -470,8 +512,8 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, at prompting.At, save bool) (added
 	// and we want to set the constraints to use the new permissions without
 	// mutating existingRule.Constraints.
 	newRule.Constraints = &prompting.RuleConstraints{
-		PathPattern: existingRule.Constraints.PathPattern,
-		Permissions: newPermissions,
+		InterfaceSpecific: existingRule.Constraints.InterfaceSpecific,
+		Permissions:       newPermissions,
 	}
 
 	// Remove the existing rule from the tree. An error should not occur, since
@@ -628,7 +670,7 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule, at prompting.At) *prompting_errors.
 	// Add rule to the interfaceDB's map of path patterns to rule IDs. We know
 	// the interfaceDB exists, since we just modified a rule there.
 	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
-	interfaceDB.PathPatterns[rule.Constraints.PathPattern.String()] = rule.ID
+	interfaceDB.PathPatterns[rule.Constraints.PathPattern().String()] = rule.ID
 
 	return nil
 }
@@ -660,7 +702,7 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule, at prompting.At) *prompting_errors.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permissionEntry *prompting.RulePermissionEntry, at prompting.At) []prompting_errors.RuleConflict {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
-	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
+	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern().NumVariants())
 	partiallyExpiredRules := make(map[prompting.IDType]bool)
 	var conflicts []prompting_errors.RuleConflict
 
@@ -701,7 +743,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			})
 		}
 	}
-	rule.Constraints.PathPattern.RenderAllVariants(addVariant)
+	rule.Constraints.PathPattern().RenderAllVariants(addVariant)
 
 	if len(conflicts) > 0 {
 		// If there are any conflicts, discard all changes, and do nothing
@@ -727,11 +769,16 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// a new rule which overlaps with another rule which has partially
 			// expired.
 			continue
+
+			// XXX: shouldn't there be a notice recorded here?
 		}
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired when another rule was added", maybeExpired.User, maybeExpired.ID, expiredData)
 			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
+		} else {
+			logger.Debugf("not calling notifyRule(%d, %s, %v) because an error occurred when trying to remove the maybe expired rule", maybeExpired.User, maybeExpired.ID, expiredData)
 		}
 	}
 
@@ -766,7 +813,7 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	// and regardless, the path pattern doesn't exist in its map anymore.
 	interfaceDB := rdb.interfaceDBForUserSnapInterface(rule.User, rule.Snap, rule.Interface)
 	if interfaceDB != nil {
-		delete(interfaceDB.PathPatterns, rule.Constraints.PathPattern.String())
+		delete(interfaceDB.PathPatterns, rule.Constraints.PathPattern().String())
 	}
 
 	return joinInternalErrors(errs)
@@ -787,7 +834,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) e
 		err := fmt.Errorf("internal error: no rules in the rule tree for user %d, snap %q, interface %q, permission %q", rule.User, rule.Snap, rule.Interface, permission)
 		return err
 	}
-	seenVariants := make(map[string]bool, rule.Constraints.PathPattern.NumVariants())
+	seenVariants := make(map[string]bool, rule.Constraints.PathPattern().NumVariants())
 	removeVariant := func(index int, variant patterns.PatternVariant) {
 		variantStr := variant.String()
 		if seenVariants[variantStr] {
@@ -806,7 +853,7 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) e
 			delete(permVariants.VariantEntries, variantStr)
 		}
 	}
-	rule.Constraints.PathPattern.RenderAllVariants(removeVariant)
+	rule.Constraints.PathPattern().RenderAllVariants(removeVariant)
 	return nil
 }
 
@@ -1015,6 +1062,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was first added", user, newRule.ID, nil)
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
@@ -1263,6 +1311,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, id, data)
 	rdb.notifyRule(user, id, data)
 	return rule, nil
 }
@@ -1318,6 +1367,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree, and no other
 		// rule was affected. We want the rule fully removed, so this is fine.
+		logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, rule.ID, data)
 		rdb.notifyRule(user, rule.ID, data)
 	}
 	return nil
@@ -1444,6 +1494,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was patched", newRule.User, newRule.ID, nil)
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
 }

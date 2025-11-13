@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -73,12 +75,31 @@ func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 		return err
 	}
 	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+const openglDriverLibs = "opengl-driver-libs"
+
+func (t *openglDriverLibsInterface) PathPatterns() []string {
+	return []string{systemLibrarySourcePath("*", "*", openglDriverLibs)}
+}
+
+func (iface *openglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
+
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesForSystemLibrarySourcePaths(openglDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (iface *openglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -90,7 +111,7 @@ func (iface *openglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotIn
 func init() {
 	registerIface(&openglDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "opengl-driver-libs",
+			name:                 openglDriverLibs,
 			summary:              openglDriverLibsSummary,
 			baseDeclarationPlugs: openglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: openglDriverLibsBaseDeclarationSlots,

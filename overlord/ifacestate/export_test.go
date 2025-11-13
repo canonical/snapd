@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -128,7 +129,7 @@ func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.Dev
 	}
 }
 
-func MockCreateInterfacesRequestsManager(new func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
+func MockCreateInterfacesRequestsManager(new func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
 	return testutil.Mock(&createInterfacesRequestsManager, new)
 }
 
@@ -219,4 +220,8 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 
 func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
 	return m.setupSecurityByBackend(task, appSets, opts, tm)
+}
+
+func MockIsSnapVerified(new func(st *state.State, snapID string) bool) (restore func()) {
+	return testutil.Mock(&isSnapVerified, new)
 }

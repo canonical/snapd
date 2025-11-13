@@ -261,5 +261,5 @@ func (s *VerityTestSuite) TestVeritySuperblockEncodedSalt(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	c.Check(sb.EncodedSalt(), Equals, "46aee3affbd0455623e907bb7fc62299")
+	c.Check(sb.EncodedSalt(), Equals, "46aee3affbd0455623e907bb7fc622999bac4c86fa263808ac15240b16286458")
 }

@@ -41,14 +41,10 @@ type Cluster struct {
 type ClusterDevice struct {
 	// ID is the unique identifier referenced from subclusters.
 	ID int
-	// BrandID is the device's owning brand.
-	BrandID string
-	// Model is the device's snap model name.
-	Model string
-	// Serial is the device's serial identifier.
-	Serial string
 	// Addresses contains this device's known IP addresses.
 	Addresses []string
+	// DeviceID contains a unique tuple of identifiers for this device.
+	DeviceID
 }
 
 // Subcluster holds the details about a subcluster in a cluster
@@ -119,19 +115,16 @@ func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 		return ClusterDevice{}, err
 	}
 
-	// TODO: revisit how we represent/parse this information once the
-	// request-message assertion has been merged
-	brandID, err := checkStringMatches(device, "brand-id", validAccountID)
+	if id <= 0 {
+		return ClusterDevice{}, fmt.Errorf(`"id" header must be >=1: %d`, id)
+	}
+
+	dev, err := checkNotEmptyString(device, "device")
 	if err != nil {
 		return ClusterDevice{}, err
 	}
 
-	model, err := checkModel(device)
-	if err != nil {
-		return ClusterDevice{}, err
-	}
-
-	serial, err := checkNotEmptyString(device, "serial")
+	deviceID, err := newDeviceIDFromString(dev)
 	if err != nil {
 		return ClusterDevice{}, err
 	}
@@ -143,10 +136,8 @@ func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 
 	return ClusterDevice{
 		ID:        id,
-		BrandID:   brandID,
-		Model:     model,
-		Serial:    serial,
 		Addresses: addresses,
+		DeviceID:  deviceID,
 	}, nil
 }
 
@@ -244,6 +235,9 @@ func checkClusterSubcluster(subcluster map[string]any) (Subcluster, error) {
 		if err != nil {
 			return Subcluster{}, err
 		}
+		if id <= 0 {
+			return Subcluster{}, fmt.Errorf("device id must be >=1: %d", id)
+		}
 		ids = append(ids, id)
 	}
 
@@ -266,6 +260,7 @@ func checkClusterSubcluster(subcluster map[string]any) (Subcluster, error) {
 
 func checkClusterSubclusters(subclusters []any) ([]Subcluster, error) {
 	result := make([]Subcluster, 0, len(subclusters))
+	names := make(map[string]bool, len(subclusters))
 	for _, entry := range subclusters {
 		subcluster, ok := entry.(map[string]any)
 		if !ok {
@@ -276,6 +271,11 @@ func checkClusterSubclusters(subclusters []any) ([]Subcluster, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if names[s.Name] {
+			return nil, fmt.Errorf(`"subclusters" field contains duplicate subcluster name %q`, s.Name)
+		}
+		names[s.Name] = true
 
 		result = append(result, s)
 	}

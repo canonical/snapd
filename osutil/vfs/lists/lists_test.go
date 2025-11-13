@@ -20,6 +20,7 @@
 package lists_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/snapcore/snapd/osutil/vfs/lists"
@@ -387,4 +388,115 @@ func Test_LastToFirst(t *testing.T) {
 			t.Error("Node of r1 is not unlinked")
 		}
 	})
+}
+
+type Word struct {
+	Name  string
+	Chain lists.HeadlessList[Word]
+}
+type viaWords struct{}
+
+func (viaWords) HeadlessListPointer(w *Word) *lists.HeadlessList[Word] { return &w.Chain }
+
+func WordsForward(w *Word) string {
+	var sb strings.Builder
+	w.Chain.Forward()(func(w *Word) bool {
+		if sb.Len() > 0 {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(w.Name)
+		return true
+	})
+	return sb.String()
+}
+
+func WordsBackward(w *Word) string {
+	var sb strings.Builder
+	w.Chain.Backward()(func(w *Word) bool {
+		if sb.Len() > 0 {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(w.Name)
+		return true
+	})
+	return sb.String()
+}
+
+func TestHeadlessList_Unlink(t *testing.T) {
+	foo := Word{Name: "foo"}
+	bar := Word{Name: "bar"}
+	foo.Chain.LinkBefore(lists.ContainedHeadlessList[viaWords](&bar))
+	if foo.Chain.Unlinked() {
+		t.Error("Linked foo is unlinked")
+	}
+	if bar.Chain.Unlinked() {
+		t.Error("Linked bar is unlinked")
+	}
+	foo.Chain.Unlink()
+	if !foo.Chain.Unlinked() {
+		t.Error("Unlinked foo is not unlinked")
+	}
+	if !bar.Chain.Unlinked() {
+		t.Error("Unlinked bar is not unlinked")
+	}
+}
+
+func TestHeadlessList_Smoke(t *testing.T) {
+	var (
+		marry  = Word{Name: "Marry"}
+		had    = Word{Name: "had"}
+		a      = Word{Name: "a"}
+		little = Word{Name: "little"}
+		lamb   = Word{Name: "lamb"}
+	)
+
+	if v := marry.Chain.Len(); v != 1 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+
+	marry.Chain.LinkAfter(lists.ContainedHeadlessList[viaWords](&marry))
+
+	if v := marry.Chain.Len(); v != 1 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+
+	if v := WordsForward(&marry); v != "Marry" {
+		t.Errorf("Unexpected sentence: %q", v)
+	}
+
+	marry.Chain.LinkBefore(lists.ContainedHeadlessList[viaWords](&marry))
+
+	if v := marry.Chain.Len(); v != 1 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+
+	if v := WordsForward(&marry); v != "Marry" {
+		t.Errorf("Unexpected sentence: %q", v)
+	}
+
+	marry.Chain.LinkBefore(
+		lists.ContainedHeadlessList[viaWords](&had)).LinkBefore(
+		lists.ContainedHeadlessList[viaWords](&a)).LinkBefore(
+		lists.ContainedHeadlessList[viaWords](&little)).LinkBefore(
+		lists.ContainedHeadlessList[viaWords](&lamb))
+
+	if v := marry.Chain.Len(); v != 5 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+	if v := a.Chain.Len(); v != 5 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+	if v := lamb.Chain.Len(); v != 5 {
+		t.Errorf("Unexpected length: %d", v)
+	}
+
+	if v := WordsForward(&marry); v != "Marry had a little lamb" {
+		t.Errorf("Unexpected sentence: %q", v)
+	}
+	if v := WordsForward(&a); v != "a little lamb Marry had" {
+		t.Errorf("Unexpected sentence: %q", v)
+	}
+	if v := WordsBackward(&lamb); v != "lamb little a had Marry" {
+		t.Errorf("Unexpected sentence: %q", v)
+	}
 }

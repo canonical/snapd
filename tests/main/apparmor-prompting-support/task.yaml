@@ -23,6 +23,10 @@ prepare: |
 restore: |
     snap set system experimental.apparmor-prompting=false
 
+debug: |
+    uname -a
+    snap debug api /v2/system-info
+
 execute: |
     echo "Precondition check that snapd is active"
     systemctl is-active snapd.service snapd.socket
@@ -32,19 +36,35 @@ execute: |
         not snap set system experimental.apparmor-prompting=true >& err.out
         MATCH "cannot enable prompting feature as it is not supported on Ubuntu Core systems" < err.out
 
-    # Ubuntu 16.04, 18.04 and 20.04 have kernels which don't support prompting.
-    # For Ubuntu 22.04, the kernel doesn't support prompting except on google,
-    # and the system AppArmor parser never supports it, so if we are not on
-    # google or not using the snapd-vendored AppArmor via reexec, prompting is
-    # not supported on jammy. This can occur because reexec is manually
-    # disabled, or if the native snapd package on the system is of equal
-    # version or newer than the tracked snapd snap.
-    elif not os.query is-ubuntu || os.query is-ubuntu-le 20.04 || ( os.query is-ubuntu 22.04 && ( not tests.info is-reexec-in-use || ! [[ "$SPREAD_BACKEND" =~ google ]] ) ); then
+    # Prompting is not yet support outside of Ubuntu
+    elif not os.query is-ubuntu ; then
+        echo "Expect failure to enable prompting on non-Ubuntu systems"
         not snap set system experimental.apparmor-prompting=true >& err.out
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
 
-    # The rest of the ubuntu systems shouldn't show any errors
+    # For Ubuntu prior to 22.04, the kernel does not support prompting
+    elif os.query is-ubuntu-lt 22.04 ; then
+        echo "Expect failure to enable prompting on Ubuntu prior to 22.04"
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+
+    # For Ubuntu 22.04, the system AppArmor parser does not support prompting,
+    # so expect failure when reexec is not in use.
+    elif os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use ; then
+        echo "Expect failure to enable prompting on Ubuntu 22.04 without reexec"
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+
+    # For Ubuntu 22.04, prompting is only supported if the kernel is at least 6.7"
+    elif os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7 ; then
+        echo "Expect failure to enable prompting on Ubuntu 22.04 with kernel < 6.7"
+        not snap set system experimental.apparmor-prompting=true >& err.out
+        MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
+
+    # The rest of the ubuntu systems shouldn't show any errors, since they
+    # should all have kernel > 6.7 and parser support.
     else
+        echo "Expect prompting support"
         snap set system experimental.apparmor-prompting=true >& err.out
         test -z "$(cat err.out)"
     fi

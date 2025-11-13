@@ -75,29 +75,21 @@ type Prompt struct {
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
 type jsonPrompt struct {
-	ID          prompting.IDType       `json:"id"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Snap        string                 `json:"snap"`
-	PID         int32                  `json:"pid"`
-	Cgroup      string                 `json:"cgroup"`
-	Interface   string                 `json:"interface"`
-	Constraints *jsonPromptConstraints `json:"constraints"`
-}
-
-// jsonPromptConstraints defines the marshalled json structure of promptConstraints.
-type jsonPromptConstraints struct {
-	Path                 string   `json:"path"`
-	RequestedPermissions []string `json:"requested-permissions"`
-	AvailablePermissions []string `json:"available-permissions"`
+	ID          prompting.IDType `json:"id"`
+	Timestamp   time.Time        `json:"timestamp"`
+	Snap        string           `json:"snap"`
+	PID         int32            `json:"pid"`
+	Cgroup      string           `json:"cgroup"`
+	Interface   string           `json:"interface"`
+	Constraints json.RawMessage  `json:"constraints"`
 }
 
 // MarshalJSON marshals the Prompt to JSON.
 // TODO: consider having instead a MarshalForClient -> json.RawMessage method
 func (p *Prompt) MarshalJSON() ([]byte, error) {
-	constraints := &jsonPromptConstraints{
-		Path:                 p.Constraints.path,
-		RequestedPermissions: p.Constraints.outstandingPermissions,
-		AvailablePermissions: p.Constraints.availablePermissions,
+	constraintsJSON, err := p.Constraints.marshalForInterface(p.Interface)
+	if err != nil {
+		return nil, err
 	}
 	toMarshal := &jsonPrompt{
 		ID:          p.ID,
@@ -106,7 +98,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		PID:         p.PID,
 		Cgroup:      p.Cgroup,
 		Interface:   p.Interface,
-		Constraints: constraints,
+		Constraints: constraintsJSON,
 	}
 	return json.Marshal(toMarshal)
 }
@@ -213,6 +205,49 @@ type promptConstraints struct {
 	// explicitly allowed by the user, even if some of those permissions were
 	// allowed by rules instead of by the direct reply to the prompt.
 	originalPermissions []string
+}
+
+// promptConstraintsJSONHome defines the marshalled json structure of
+// promptConstraints for the home interface.
+type promptConstraintsJSONHome struct {
+	Path                 string   `json:"path"`
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+// promptConstraintsJSONCamera defines the marshalled json structure of
+// promptConstraints for the camera interface.
+type promptConstraintsJSONCamera struct {
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
+	panic("programmer error: cannot marshal promptConstraints directly; must use marshalForInterface with a given interface")
+}
+
+// marshalForInterface marshals the prompt constraints into JSON with fields
+// corresponding to the given interface.
+func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
+	switch iface {
+	case "home":
+		constraintsJSON := &promptConstraintsJSONHome{
+			Path:                 pc.path,
+			RequestedPermissions: pc.outstandingPermissions,
+			AvailablePermissions: pc.availablePermissions,
+		}
+		return json.Marshal(constraintsJSON)
+	case "camera":
+		constraintsJSON := &promptConstraintsJSONCamera{
+			RequestedPermissions: pc.outstandingPermissions,
+			AvailablePermissions: pc.availablePermissions,
+		}
+		return json.Marshal(constraintsJSON)
+	default:
+		// This should never occur, as prompts can only be created with known
+		// good interfaces.
+		return nil, fmt.Errorf("internal error: invalid interface: %q", iface)
+	}
 }
 
 // equals returns true if the two prompt constraints apply to the same path and
@@ -390,6 +425,7 @@ func (udb *userPromptDB) remove(id prompting.IDType) (*Prompt, error) {
 // called directly outside of a `time.AfterFunc` call which initializes the
 // timer for the user prompt DB when it is first created.
 func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
+	logger.Debugf("prompt timeout callback triggered")
 	pdb.mutex.Lock()
 	// We don't defer Unlock() since we may need to manually unlock later in
 	// the function in order to record a notice and send a reply without
@@ -399,6 +435,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// expiration timer when the DB has been closed, since the timer will fire
 	// and do nothing.
 	if pdb.isClosed() {
+		logger.Debugf("prompt timeout callback returning early because prompt DB is closed")
 		pdb.mutex.Unlock()
 		return
 	}
@@ -412,6 +449,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 		// and the lock being released and subsequently acquired by this
 		// function. So reset the timer to activityTimeout, and do not
 		// purge prompts.
+		logger.Debugf("prompt timeout callback returning early because the timeout was reset before the callback acquired the DB lock")
 		udb.activityResetExpiration()
 		pdb.mutex.Unlock()
 		return
@@ -433,6 +471,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	pdb.mutex.Unlock()
 	data := map[string]string{"resolved": "expired"}
 	for _, p := range expiredPrompts {
+		logger.Debugf("calling notifyPrompt(%d, %s, %v)", user, p.ID, data)
 		pdb.notifyPrompt(user, p.ID, data)
 		p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
 	}
@@ -621,7 +660,14 @@ func (pdb *PromptDB) HandleReadying() error {
 	for requestID, entry := range requestIDsToPrune {
 		delete(pdb.requestIDMap, requestID)
 		if !existingPrompts[entry.PromptID] {
+			// XXX: shouldn't we collect all the prompts which don't exist, then
+			// record a single notice each, rather than recording a notice for
+			// every request which mapped to a prompt which has had no matching
+			// requests re-received?
+			logger.Debugf("calling notifyPrompt(%d, %s, %v) because request %d was not re-received before readying", entry.UserID, entry.PromptID, data, requestID)
 			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
+		} else {
+			logger.Debugf("not calling notifyPrompt(%d, %s, %v) for request %d because another request mapping to this prompt was re-received and the prompt was re-created", entry.UserID, entry.PromptID, data, requestID)
 		}
 		// No need to send a reply to the kernel, since the request is gone
 	}
@@ -708,6 +754,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		existingPrompt.addListenerRequest(listenerReq)
 		// Although the prompt itself has not changed from client POV,
 		// re-record a notice to re-notify clients to respond to this request.
+		logger.Debugf("calling notifyPrompt(%d, %s, %v) because new request %d matches existing prompt", metadata.User, existingPrompt.ID, nil, listenerReq.ID)
 		pdb.notifyPrompt(metadata.User, existingPrompt.ID, nil)
 		return existingPrompt, true, nil
 	}
@@ -748,6 +795,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.add(prompt)
+	logger.Debugf("calling notifyPrompt(%d, %s, %v) because new prompt was created for request %d", metadata.User, promptID, nil, listenerReq.ID)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
 }
@@ -917,6 +965,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	userEntry.remove(id)
 
 	data := map[string]string{"resolved": "replied"}
+	logger.Debugf("calling notifyPrompt(%d, %s, %v) because it received a direct reply", user, id, data)
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
 }
@@ -979,6 +1028,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !respond {
 			// No response necessary, though the prompt constraints were
 			// modified, so just record a notice for the prompt.
+			logger.Debugf("calling notifyPrompt(%d, %s, %v) because it was partially handled a new rule, but not resolved", metadata.User, prompt.ID, nil)
 			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
 			continue
 		}
@@ -1017,6 +1067,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 
 		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
 		data := map[string]string{"resolved": "satisfied"}
+		logger.Debugf("calling notifyPrompt(%d, %s, %v) because prompt was satisfied by new rule", metadata.User, prompt.ID, data)
 		pdb.notifyPrompt(metadata.User, prompt.ID, data)
 	}
 	return satisfiedPromptIDs, nil

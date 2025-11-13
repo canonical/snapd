@@ -81,6 +81,9 @@ execute: |
   # check that a change was triggered and it's a pre-download
   changeAfterID "$OLD_CHANGE"
   if ! retry -n 15 sh -c 'snap changes | tail -n 2 | grep "Done.*Pre-download \"test-snapd-sh\" for auto-refresh"'; then
+    snap changes
+    LAST_CHG=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+    snap change "$LAST_CHG"
     err_and_exit "expected a completed pre-download change"
   fi
 

@@ -23,6 +23,7 @@ package naming
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -233,7 +234,7 @@ var ValidProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 // DefaultProvenance is the default value for provenance, i.e the provenance for snaps uplodaded through the global store pipeline.
 const DefaultProvenance = "global-upload"
 
-// ValidateProvenance checks fi the given string is valid non-empty provenance value.
+// ValidateProvenance checks if the given string is valid non-empty provenance value.
 func ValidateProvenance(prov string) error {
 	if prov == "" {
 		return fmt.Errorf("invalid provenance: must not be empty")
@@ -241,5 +242,117 @@ func ValidateProvenance(prov string) error {
 	if !ValidProvenance.MatchString(prov) {
 		return fmt.Errorf("invalid provenance: %q", prov)
 	}
+	return nil
+}
+
+// regular expression which matches a version expressed as groups of digits
+// separated with dots, with optional non-numbers afterwards
+var snapdVersionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
+
+// validateAssumedSnapdVersion checks if the snapd version requirement is valid
+// and satisfied by the current snapd version.
+func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, error) {
+	// double check that the input looks like a snapd version
+	reqVersionNumMatch := snapdVersionExp.FindStringSubmatch(assumedVersion)
+	if reqVersionNumMatch == nil {
+		return false, nil
+	}
+
+	if currentVersion == "" {
+		// Skip checking the assumed version against the current snapd version
+		return true, nil
+	}
+
+	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
+	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
+	// to be relied on for snaps via assumes, however the check against the real
+	// snapd version number below allows such non-numeric modifiers since real
+	// snapds do have versions like that (for example debian pkg of snapd)
+	if reqVersionNumMatch[0] != assumedVersion {
+		return false, nil
+	}
+
+	req := strings.Split(reqVersionNumMatch[0], ".")
+
+	if currentVersion == "unknown" {
+		return true, nil // Development tree.
+	}
+
+	// We could (should?) use strutil.VersionCompare here and simplify
+	// this code (see PR#7344). However this would change current
+	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
+	// (which the code below does).
+	curVersionNumMatch := snapdVersionExp.FindStringSubmatch(currentVersion)
+	if curVersionNumMatch == nil {
+		return false, nil
+	}
+	cur := strings.Split(curVersionNumMatch[0], ".")
+
+	for i := range req {
+		if i == len(cur) {
+			// we hit the end of the elements of the current version number and have
+			// more required version numbers left, so this doesn't match, if the
+			// previous element was higher we would have broken out already, so the
+			// only case left here is where we have version requirements that are
+			// not met
+			return false, nil
+		}
+		reqN, err1 := strconv.Atoi(req[i])
+		curN, err2 := strconv.Atoi(cur[i])
+		if err1 != nil || err2 != nil {
+			// error not possible unless someone has messed up the regex
+			return false, fmt.Errorf("version regexp is broken")
+		}
+		if curN != reqN {
+			return curN > reqN, nil
+		}
+	}
+
+	return true, nil
+}
+
+// assumeFormat matches the expected string format for assume flags.
+var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+// ValidateAssumes checks if `assumes` lists features that are all supported.
+// Pass empty currentSnapdVersion to skip checking the assumed version against the current snap version.
+// Pass nil/empty featureSet to only validate assumes format & not feature support.
+func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool) error {
+	var failed []string
+	for _, flag := range assumes {
+		if strings.HasPrefix(flag, "snapd") {
+			validVersion, err := validateAssumedSnapdVersion(flag[5:], currentSnapdVersion)
+			if err != nil {
+				// error not possible unless someone has messed up the regex
+				return err
+			}
+
+			if validVersion {
+				continue
+			}
+		}
+
+		// if featureSet is provided, check feature support;
+		// otherwise only validate format
+		isValid := false
+		if len(featureSet) > 0 {
+			isValid = featureSet[flag]
+		} else {
+			isValid = assumeFormat.MatchString(flag)
+		}
+
+		if !isValid {
+			failed = append(failed, flag)
+		}
+	}
+
+	if len(failed) > 0 {
+		if currentSnapdVersion == "" && len(featureSet) == 0 {
+			return fmt.Errorf("invalid features: %s", strings.Join(failed, ", "))
+		}
+
+		return fmt.Errorf("unsupported features: %s", strings.Join(failed, ", "))
+	}
+
 	return nil
 }

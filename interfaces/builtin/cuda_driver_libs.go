@@ -24,7 +24,9 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,12 +73,33 @@ func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) err
 		return err
 	}
 	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+var _ = interfaces.ConfigfilesUser(&cudaDriverLibsInterface{})
+
+const cudaDriverLibs = "cuda-driver-libs"
+
+func (t *cudaDriverLibsInterface) PathPatterns() []string {
+	return []string{systemLibrarySourcePath("*", "*", cudaDriverLibs)}
+}
+
+func (iface *cudaDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
+
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesForSystemLibrarySourcePaths(cudaDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -88,7 +111,7 @@ func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo
 func init() {
 	registerIface(&cudaDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "cuda-driver-libs",
+			name:                 cudaDriverLibs,
 			summary:              cudaDriverLibsSummary,
 			baseDeclarationPlugs: cudaDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: cudaDriverLibsBaseDeclarationSlots,

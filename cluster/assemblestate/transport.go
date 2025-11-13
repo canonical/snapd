@@ -367,6 +367,8 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 		return nil
 	}
 
+	// TODO: consider connection pooling and rate limiting by number of
+	// concurrent peers in addition to the existing bytes/second rate limit
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout: time.Minute,
 		TLSConfig: &tls.Config{
@@ -378,6 +380,7 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return errors.New("redirects are not expected")
 	}
+	defer client.CloseIdleConnections()
 
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -400,6 +403,8 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 // certificate that the peer presented. This is used for initial authentication
 // exchanges where the peer's identity hasn't been verified yet.
 func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, data any) ([]byte, error) {
+	// TODO: consider connection pooling and rate limiting by number of
+	// concurrent peers in addition to the existing bytes/second rate limit
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout: time.Minute,
 		TLSConfig: &tls.Config{
@@ -410,6 +415,7 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return errors.New("redirects are not expected")
 	}
+	defer client.CloseIdleConnections()
 
 	payload, err := json.Marshal(data)
 	if err != nil {

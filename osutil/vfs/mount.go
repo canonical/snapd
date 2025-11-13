@@ -65,7 +65,14 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 		isDir:      true,
 		fsFS:       fsFS,
 	}
+	m.initLinkage()
 	v.attachMount(pd.mount, m)
+
+	// If the parent mount is shared then the new mount becomes shared.
+	if pd.mount.shared {
+		const recursive = false
+		v.changePropagationToShared(m, recursive)
+	}
 
 	return nil
 }
@@ -133,7 +140,18 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
 	}
+	m.initLinkage()
 	v.attachMount(pd.mount, m)
+
+	// If the source mount was shared then the new mount is a new member of the existing peer group.
+	if !m.shared && sourcePd.mount.shared {
+		m.joinPeerGroupOf(sourcePd.mount)
+	}
+	// If the parent mount is shared then the new mount becomes shared.
+	if !m.shared && pd.mount.shared {
+		const recursive = false
+		v.changePropagationToShared(m, recursive)
+	}
 
 	return m, nil
 }
@@ -163,6 +181,7 @@ func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
 func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 	pd := v.pathDominator(sourcePoint)
 	// TODO(propagation): fail loudly if source point is unbindable.
+	// TODO: replace this with lists.DepthFirstSearch on the original mount tree.
 
 	// Create the initial bind mount from source to mount point.
 	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
@@ -235,12 +254,14 @@ func (v *VFS) Unmount(mountPoint string) error {
 		return &fs.PathError{Op: op, Path: mountPoint, Err: errNotMounted}
 	}
 
-	// Is this mount point a parent of any other mount? By special case of the
-	// rootfs mount, it cannot ever be unmounted as it is its own parent.
-	for _, m := range v.mounts {
-		if m.parentID == pd.mount.mountID {
-			return &fs.PathError{Op: op, Path: mountPoint, Err: errMountBusy}
-		}
+	// Prevent unmounting mounts that have children.
+	if !pd.mount.children.Empty() {
+		return &fs.PathError{Op: op, Path: mountPoint, Err: errMountBusy}
+	}
+
+	// As a special-case, prevent unmounting the rootfs.
+	if pd.mount.parentID == pd.mount.mountID {
+		return &fs.PathError{Op: op, Path: mountPoint, Err: errMountBusy}
 	}
 
 	// Detach the mount from linked lists.

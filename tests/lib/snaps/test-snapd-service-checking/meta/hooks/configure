@@ -1,0 +1,3 @@
+#!/bin/sh -ex
+
+echo "configure hook"

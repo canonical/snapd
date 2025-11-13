@@ -87,6 +87,8 @@ build_deb(){
         # dpkg-buildpackage choke later.
         mv packaging/debian-sid debian
 
+        apt build-dep -y ./
+
         # ensure we really build without vendored packages
         mv ./vendor /tmp
     fi
@@ -616,6 +618,7 @@ prepare_project() {
     # Build additional utilities we need for testing
     go install ./tests/lib/fakedevicesvc
     go install ./tests/lib/systemd-escape
+    go install ./tests/lib/plz-run
 
     # Build the tool for signing model assertions
     go install ./tests/lib/gendeveloper1
@@ -688,11 +691,13 @@ prepare_suite_each() {
     echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
-    systemctl reset-failed systemd-journald.service
-    if ! systemctl restart systemd-journald.service; then
-        systemctl status systemd-journald.service || true
-        echo "Failed to restart systemd-journald.service, exiting..."
-        exit 1
+    if systemctl is-failed systemd-journald.service; then
+        systemctl reset-failed systemd-journald.service
+        if ! systemctl restart systemd-journald.service; then
+            systemctl status systemd-journald.service || true
+            echo "Failed to restart systemd-journald.service, exiting..."
+            exit 1
+        fi
     fi
     "$TESTSTOOLS"/journal-state start-new-log
 

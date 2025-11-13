@@ -324,28 +324,45 @@ func updateParameters(st *state.State, role string, containerRole string, bootMo
 	return nil
 }
 
-func (s *FdeState) getParameters(role string, containerRole string) (hasParamters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
-	roleInfo, hasRole := s.KeyslotRoles[role]
+func (s *FdeState) getParameters(role string, containerRole string) (roleParams *backend.SealingParameters, err error) {
+	info, hasRole := s.KeyslotRoles[role]
 	if !hasRole {
-		return false, nil, nil, nil, fmt.Errorf("cannot find keyslot role %s", role)
+		return nil, fmt.Errorf("cannot find keyslot role %s", role)
 	}
 
-	if roleInfo.Parameters == nil {
-		return false, nil, nil, nil, nil
+	if info.Parameters == nil {
+		return nil, nil
 	}
-	parameters, hasContainerRole := roleInfo.Parameters[containerRole]
+	parameters, hasContainerRole := info.Parameters[containerRole]
 	if !hasContainerRole {
-		parameters, hasContainerRole = roleInfo.Parameters["all"]
+		parameters, hasContainerRole = info.Parameters["all"]
 	}
 	if !hasContainerRole {
-		return false, nil, nil, nil, nil
+		return nil, nil
+	}
+
+	roleParams = &backend.SealingParameters{
+		BootModes:     parameters.BootModes,
+		TpmPCRProfile: parameters.TPM2PCRProfile,
 	}
 
 	for _, model := range parameters.Models {
-		models = append(models, model)
+		roleParams.Models = append(roleParams.Models, model)
 	}
 
-	return true, parameters.BootModes, models, parameters.TPM2PCRProfile, nil
+	return roleParams, nil
+}
+
+func (s *FdeState) getRoleInfo(role string) (roleInfo *backend.RoleInfo, err error) {
+	info, hasRole := s.KeyslotRoles[role]
+	if !hasRole {
+		return nil, fmt.Errorf("cannot find keyslot role %s", role)
+	}
+	roleInfo = &backend.RoleInfo{
+		PrimaryKeyID:                   info.PrimaryKeyID,
+		TPM2PCRPolicyRevocationCounter: info.TPM2PCRPolicyRevocationCounter,
+	}
+	return roleInfo, nil
 }
 
 func withFdeState(st *state.State, op func(fdeSt *FdeState) (modified bool, err error)) error {
@@ -434,15 +451,6 @@ func (k KeyslotRef) Validate() error {
 	return nil
 }
 
-const tmpKeyslotPrefix = "snapd-tmp"
-
-func tmpKeyslotRef(ref KeyslotRef) KeyslotRef {
-	return KeyslotRef{
-		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, ref.Name),
-		ContainerRole: ref.ContainerRole,
-	}
-}
-
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
@@ -461,6 +469,8 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	}
 	return nil
 }
+
+const tmpKeyslotPrefix = "snapd-tmp"
 
 // ReplaceRecoveryKey creates a taskset that replaces the
 // recovery key for the specified target key slots using
@@ -482,8 +492,6 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		)
 	}
 
-	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
-	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslotRef := range keyslotRefs {
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
@@ -492,10 +500,6 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		if keyslotRef.Name != "default-recovery" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslotRef.String())
 		}
-
-		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
-		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
-		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
 	}
 
 	// Note: checking that there are no ongoing conflicting changes and that the
@@ -520,10 +524,21 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	if len(missing) != 0 {
 		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
 	}
+
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslot := range currentKeyslots {
 		if keyslot.Type != KeyslotTypeRecovery {
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
 		}
+
+		tmpKeyslotRef, err := fdemgr.NextUniqueKeyslot(keyslot.ContainerRole, tmpKeyslotPrefix)
+		if err != nil {
+			return nil, err
+		}
+
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 	}
 
 	ts := state.NewTaskSet()
@@ -688,8 +703,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		)
 	}
 
-	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
-	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslotRef := range keyslotRefs {
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
@@ -698,10 +711,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
-
-		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
-		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
-		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
 	}
 
 	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
@@ -737,6 +746,8 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
 	}
 
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	tmpKeyslotRoles := make(map[string][]string, len(keyslots))
 	for _, keyslot := range keyslots {
 		if keyslot.Type != KeyslotTypePlatform {
@@ -752,7 +763,13 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
 		}
 
-		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())
+		tmpKeyslotRef, err := mgr.NextUniqueKeyslot(keyslot.ContainerRole, tmpKeyslotPrefix)
+		if err != nil {
+			return nil, err
+		}
+
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
 	}
 

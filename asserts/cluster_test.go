@@ -48,17 +48,13 @@ sequence: 3
 devices:
   -
     id: 1
-    brand-id: canonical
-    model: ubuntu-core-24-amd64
-    serial: 9cc45ad6-d01b-4efd-9f76-db55b76c076b
+    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical
     addresses:
       - 192.168.1.10
       - 10.0.0.10
   -
     id: 2
-    brand-id: canonical
-    model: ubuntu-core-24-amd64
-    serial: bc3c0a19-cdad-4cfc-a6f0-85e917bc6280
+    device: bc3c0a19-cdad-4cfc-a6f0-85e917bc6280.ubuntu-core-24-amd64.canonical
     addresses:
       - 192.168.1.20
 subclusters:
@@ -77,7 +73,7 @@ subclusters:
         instance: evacuated-snap
         channel: edge
   -
-    name: additional-cluter
+    name: additional-cluster
     devices:
       - 2
     snaps:
@@ -132,7 +128,7 @@ func (cs *clusterSuite) TestDecodeOK(c *C) {
 	c.Check(subclusters[0].Snaps[1].Instance, Equals, "evacuated-snap")
 	c.Check(subclusters[0].Snaps[1].Channel, Equals, "edge")
 
-	c.Check(subclusters[1].Name, Equals, "additional-cluter")
+	c.Check(subclusters[1].Name, Equals, "additional-cluster")
 	c.Check(subclusters[1].Devices, DeepEquals, []int{2})
 	c.Assert(subclusters[1].Snaps, HasLen, 1)
 	c.Check(subclusters[1].Snaps[0].State, Equals, asserts.ClusterSnapStateRemoved)
@@ -147,8 +143,8 @@ func (cs *clusterSuite) TestDecodeInvalidTopLevel(c *C) {
 		{"cluster-id: bf3675f5-cffa-40f4-a119-7492ccc08e04\n", "", `"cluster-id" header is mandatory`},
 		{"cluster-id: bf3675f5-cffa-40f4-a119-7492ccc08e04\n", "cluster-id: \n", `"cluster-id" header should not be empty`},
 		{"sequence: 3\n", "sequence: 0\n", `"sequence" must be >=1: 0`},
-		{"devices:\n  -\n    id: 1\n    brand-id: canonical\n    model: ubuntu-core-24-amd64\n    serial: 9cc45ad6-d01b-4efd-9f76-db55b76c076b\n    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n  -\n    id: 2\n    brand-id: canonical\n    model: ubuntu-core-24-amd64\n    serial: bc3c0a19-cdad-4cfc-a6f0-85e917bc6280\n    addresses:\n      - 192.168.1.20\n", "devices: not-a-list\n", `"devices" header must be a list`},
-		{"subclusters:\n  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n  -\n    name: additional-cluter\n    devices:\n      - 2\n    snaps:\n      -\n        state: removed\n        instance: removed-snap\n        channel: 24/stable\n", "subclusters: not-a-list\n", `"subclusters" header must be a list`},
+		{"devices:\n  -\n    id: 1\n    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n  -\n    id: 2\n    device: bc3c0a19-cdad-4cfc-a6f0-85e917bc6280.ubuntu-core-24-amd64.canonical\n    addresses:\n      - 192.168.1.20\n", "devices: not-a-list\n", `"devices" header must be a list`},
+		{"subclusters:\n  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n  -\n    name: additional-cluster\n    devices:\n      - 2\n    snaps:\n      -\n        state: removed\n        instance: removed-snap\n        channel: 24/stable\n", "subclusters: not-a-list\n", `"subclusters" header must be a list`},
 	}
 
 	for _, test := range invalidTests {
@@ -163,13 +159,14 @@ func (cs *clusterSuite) TestDecodeInvalidDevices(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"    id: 1\n", "    id: not-an-integer\n", `"id" header is not an integer: not-an-integer`},
-		{"    brand-id: canonical\n", "", `"brand-id" header is mandatory`},
-		{"    brand-id: canonical\n", "    brand-id: Canonical\n", `"brand-id" header contains invalid characters: "Canonical"`},
-		{"    model: ubuntu-core-24-amd64\n", "", `"model" header is mandatory`},
-		{"    model: ubuntu-core-24-amd64\n", "    model: Ubuntu-Core\n", `"model" header cannot contain uppercase letters`},
-		{"    serial: 9cc45ad6-d01b-4efd-9f76-db55b76c076b\n", "", `"serial" header is mandatory`},
+		{"    id: 1\n", "    id: 0\n", `"id" header must be >=1: 0`},
+		{"    id: 1\n", "    id: -1\n", `"id" header must be >=1: -1`},
+		{"    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n", "", `"device" header is mandatory`},
+		{"    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n", "    device: \n", `"device" header should not be empty`},
+		{"    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n", "    device: invalid\n", `invalid device id format: expected 3 parts separated by '.', got 1: invalid`},
+		{"    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n", "    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.Canonical\n", `invalid brand-id "Canonical" in device id "9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.Canonical"`},
 		{"    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n", "    addresses: not-a-list\n", `"addresses" header must be a list of strings`},
-		{"  -\n    id: 1\n    brand-id: canonical\n    model: ubuntu-core-24-amd64\n    serial: 9cc45ad6-d01b-4efd-9f76-db55b76c076b\n    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n", "  - device-string\n", `"devices" field must be a list of maps`},
+		{"  -\n    id: 1\n    device: 9cc45ad6-d01b-4efd-9f76-db55b76c076b.ubuntu-core-24-amd64.canonical\n    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n", "  - device-string\n", `"devices" field must be a list of maps`},
 		{"    id: 2\n", "    id: 1\n", `"devices" field contains duplicate device id 1`},
 	}
 
@@ -186,6 +183,8 @@ func (cs *clusterSuite) TestDecodeInvalidSubclusters(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"        state: clustered\n", "        state: invalid-state\n", `snap state must be one of: "clustered", "evacuated", "removed"`},
 		{"      - 1\n", "      - not-a-number\n", `device id "not-a-number" is not an integer: not-a-number`},
+		{"      - 1\n", "      - 0\n", `device id must be >=1: 0`},
+		{"      - 1\n", "      - -1\n", `device id must be >=1: -1`},
 		{"    name: default\n", "", `"name" header is mandatory`},
 		{"        state: clustered\n", "", `"state" header is mandatory`},
 		{"        instance: clustered-snap\n", "", `"instance" header is mandatory`},
@@ -194,6 +193,7 @@ func (cs *clusterSuite) TestDecodeInvalidSubclusters(c *C) {
 		{"        channel: stable\n", "        channel: invalid//channel\n", `invalid channel name "invalid//channel": invalid risk in channel name: invalid//channel`},
 		{"      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n", "      - snap-string\n", `"snaps" field must be a list of maps`},
 		{"  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n", "  - subcluster-string\n", `"subclusters" field must be a list of maps`},
+		{"    name: additional-cluster\n", "    name: default\n", `"subclusters" field contains duplicate subcluster name "default"`},
 		{"    devices:\n      - 1\n      - 2\n", "    devices: not-a-list\n", `"devices" header must be a list of strings`},
 		{"    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n", "    snaps: not-a-list\n", `"snaps" header must be a list`},
 		{"      - 2\n    snaps:", "      - 999\n    snaps:", `"subclusters" references unknown device id 999`},

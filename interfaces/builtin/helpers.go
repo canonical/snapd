@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -30,33 +29,37 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-// validateSnapDir checks that dir starts with either $SNAP or ${SNAP}.
-func validateSnapDir(dir string) error {
-	if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
-		return fmt.Errorf("source directory %q must start with $SNAP/ or ${SNAP}/", dir)
-	}
-	return nil
+// sourceDirAttr contains information about a *-source interface attribute.
+type sourceDirAttr struct {
+	// attribute naem
+	attrName string
+	// set if the attribute is optional for the interface
+	isOptional bool
 }
 
-// validateLdconfigLibDirs checks that the list of directories in the
-// "library-source" attribute of some slots (which is used by some interfaces
-// that pass them to the ldconfig backend) is valid.
-func validateLdconfigLibDirs(slot *snap.SlotInfo) error {
+// validateSourceDirs checks that the list of directories in the "*-source"
+// slot attribute specified in sda is valid. sda.isOptional should be set if
+// the attribute is optional, so no error is returned if it is not found.
+func validateSourceDirs(slot *snap.SlotInfo, sda sourceDirAttr) error {
 	// Validate directories and make sure the client driver is around
 	libDirs := []string{}
-	if err := slot.Attr("library-source", &libDirs); err != nil {
+	if err := slot.Attr(sda.attrName, &libDirs); err != nil {
+		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
+			return nil
+		}
 		return err
 	}
 	for _, dir := range libDirs {
 		if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
 			return fmt.Errorf(
-				"%s source directory %q must start with $SNAP/ or ${SNAP}/",
-				slot.Interface, dir)
+				"%s %s directory %q must start with $SNAP/ or ${SNAP}/",
+				slot.Interface, sda.attrName, dir)
 		}
 	}
 
@@ -70,12 +73,30 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
-	expandedDirs := make([]string, 0, len(libDirs))
-	for _, dir := range libDirs {
-		expandedDirs = append(expandedDirs, filepath.Clean(slot.Snap().ExpandSnapVariables(
-			filepath.Join(dirs.GlobalRootDir, dir))))
+	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs))
+}
+
+// systemLibrarySourcePath returns the path for files containing directories
+// specified in system library-source fields. The file names have instance name
+// / slot name and interface name as different interfaces will write to the
+// export dir, for different instances and slots.
+func systemLibrarySourcePath(instance, slotName, ifaceName string) string {
+	return filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
+		"system_%s_%s_%s.library-source", instance, slotName, ifaceName))
+}
+
+// addConfigfilesForSystemLibrarySourcePaths adds a file containing a list with
+// the system library sources for an interface to the /var/lib/snapd/export
+// directory. These files are used by snap-confine on classic for snaps
+// connected to the opengl interface.
+func addConfigfilesForSystemLibrarySourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
+	libDirs := []string{}
+	if err := slot.Attr("library-source", &libDirs); err != nil {
+		return err
 	}
-	return spec.AddLibDirs(expandedDirs)
+	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
+	return spec.AddPathContent(systemLibrarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
+		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 
 // filePathInLibDirs returns the path of the first occurrence of fileName in the
@@ -95,19 +116,22 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
 }
 
-// icdSourceDirsCheck returns a list of file paths found in the icd-source
-// directories of the slot, after checking that the library_path in these files
+// sourceDirsCheck returns a list of file paths found in the directories
+// specified by sda, after checking that the library_path in these files
 // matches a file found in the directories specified by library-source.
-func icdSourceDirsCheck(slot *interfaces.ConnectedSlot) (checked []string, err error) {
-	var icdDir []string
-	if err := slot.Attr("icd-source", &icdDir); err != nil {
+func sourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []string, err error) {
+	var sourceDir []string
+	if err := slot.Attr(sda.attrName, &sourceDir); err != nil {
+		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
+			return checked, nil
+		}
 		return nil, err
 	}
 
-	for _, icdDir := range icdDir {
-		icdDir = filepath.Join(dirs.GlobalRootDir,
-			slot.AppSet().Info().ExpandSnapVariables(icdDir))
-		paths, err := icdSourceDirFilesCheck(slot, icdDir)
+	for _, dir := range sourceDir {
+		dir = filepath.Join(dirs.GlobalRootDir,
+			slot.AppSet().Info().ExpandSnapVariables(dir))
+		paths, err := sourceDirFilesCheck(slot, dir, checker)
 		if err != nil {
 			return nil, err
 		}
@@ -116,9 +140,9 @@ func icdSourceDirsCheck(slot *interfaces.ConnectedSlot) (checked []string, err e
 	return checked, nil
 }
 
-// icdSourceDirFilesCheck does the checks of all icd files in a single directory.
-func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string) (checked []string, err error) {
-	icdFiles, err := os.ReadDir(icdDir)
+// sourceDirFilesCheck does the checks of all source files in a single directory.
+func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []string, err error) {
+	sourceFiles, err := os.ReadDir(sourceDir)
 	if err != nil {
 		// We do not care if the directory does not exist
 		if errors.Is(err, fs.ErrNotExist) {
@@ -128,7 +152,7 @@ func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string) (chec
 		}
 	}
 
-	for _, entry := range icdFiles {
+	for _, entry := range sourceFiles {
 		// Only regular files are considered - note that even symlinks
 		// are ignored as we eventually will want to use apparmor to
 		// allow access to these paths.
@@ -140,30 +164,16 @@ func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string) (chec
 			continue
 		}
 
-		icdContent, err := os.ReadFile(filepath.Join(icdDir, entry.Name()))
+		content, err := os.ReadFile(filepath.Join(sourceDir, entry.Name()))
 		if err != nil {
 			return nil, err
 		}
-		// We will check only library_path
-		// TODO check api_version when this gets to be used by icd
-		// files for vulkan or others that use this field.
-		var icdJson struct {
-			Icd struct {
-				LibraryPath string `json:"library_path"`
-			} `json:"ICD"`
+		if err := checker(slot, content); err != nil {
+			return nil, fmt.Errorf("%s: %w", entry.Name(), err)
 		}
-		err = json.Unmarshal(icdContent, &icdJson)
-		if err != nil {
-			return nil, fmt.Errorf("while unmarshalling %s: %w", entry.Name(), err)
-		}
-		// Here we are implicitly limiting library_path to be a file
-		// name instead of a full path.
-		_, err = filePathInLibDirs(slot, icdJson.Icd.LibraryPath)
-		if err != nil {
-			return nil, err
-		}
+
 		// Good enough
-		checked = append(checked, filepath.Join(icdDir, entry.Name()))
+		checked = append(checked, filepath.Join(sourceDir, entry.Name()))
 	}
 
 	return checked, nil

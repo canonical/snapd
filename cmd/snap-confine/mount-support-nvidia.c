@@ -21,10 +21,12 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -33,19 +35,30 @@
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support.h"
-
-#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
 #define SC_LIBGL_DIR SC_EXTRA_LIB_DIR "/gl"
 #define SC_LIBGL32_DIR SC_EXTRA_LIB_DIR "/gl32"
 #define SC_VULKAN_DIR SC_EXTRA_LIB_DIR "/vulkan"
 #define SC_GLVND_DIR SC_EXTRA_LIB_DIR "/glvnd"
+#define SC_VULKAN_ICD_DIR SC_VULKAN_DIR "/icd.d"
+#define SC_GLVND_EGL_DIR SC_GLVND_DIR "/egl_vendor.d"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
+
+#define SC_SNAPD_EXPORT "/var/lib/snapd/export"
+#define SC_SNAP_DIR "/snap"
+#define SC_LIBGPU_DIR SC_EXTRA_LIB_DIR "/system/gpu"
+
+// Globs for files to copy when exporting configuration from snaps
+#define SC_ETC_GLVND_EGL_SOURCE_DIR "/etc/glvnd/egl_vendor.d"
+#define SC_SNAP_EGL_VENDOR_GLOB SC_ETC_GLVND_EGL_SOURCE_DIR "/*_snap_*_*_*.json"
+#define SC_ETC_VULKAN_ICD_SOURCE_DIR "/etc/vulkan/icd.d"
+#define SC_SNAP_VULKAN_ICD_GLOB SC_ETC_VULKAN_ICD_SOURCE_DIR "/snap_*_*_*.json"
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
@@ -60,6 +73,14 @@ static const char *egl_vendor_globs[] = {
 };
 
 static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
+
+static const char *nvidia_driver_version_file(void) {
+    const char *path = getenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
+    if (path != NULL) {
+        return path;
+    }
+    return "/sys/module/nvidia/version";
+}
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -271,6 +292,20 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir, const 
     }
 }
 
+static void sc_mkdir_and_mount_tpmfs(const char *dir) {
+    if (sc_ensure_mkdir(dir, 0755, 0, 0) != 0) {
+        die("cannot create tmpfs target %s", dir);
+    }
+
+    debug("mounting tmpfs at %s", dir);
+    sc_do_mount("none", dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL);
+}
+
+static void sc_remount_ro(const char *mount_point) {
+    debug("remounting as read-only %s", mount_point);
+    sc_do_mount(NULL, mount_point, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+}
+
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char *source_dir[], size_t source_dir_len,
                                               const char *tgt_dir, const char *glob_list[], size_t glob_list_len) {
     // Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
@@ -278,24 +313,15 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char
     sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
     const char *libgl_dir = buf;
 
-    if (sc_ensure_mkdir(libgl_dir, 0755, 0, 0) != 0) {
-        die("cannot create tmpfs target %s", libgl_dir);
-    }
-
-    debug("mounting tmpfs at %s", libgl_dir);
-    if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
-        die("cannot mount tmpfs at %s", libgl_dir);
-    };
+    sc_mkdir_and_mount_tpmfs(libgl_dir);
 
     for (size_t i = 0; i < source_dir_len; i++) {
         // Populate libgl_dir with symlinks to libraries from hostfs
         sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i], glob_list, glob_list_len);
     }
+
     // Remount $tgt_dir (i.e. .../lib/gl) read only
-    debug("remounting tmpfs as read-only %s", libgl_dir);
-    if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
-        die("cannot remount %s as read-only", buf);
-    }
+    sc_remount_ro(libgl_dir);
 }
 
 #ifdef NVIDIA_BIARCH
@@ -359,7 +385,7 @@ static void sc_probe_nvidia_driver(sc_nv_version *version) {
 
     FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
     debug("opening file describing nvidia driver version");
-    file = fopen(SC_NVIDIA_DRIVER_VERSION_FILE, "rt");
+    file = fopen(nvidia_driver_version_file(), "rt");
     if (file == NULL) {
         if (errno == ENOENT) {
             debug("nvidia driver version file doesn't exist");
@@ -413,9 +439,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir, const char *src_
     }
     // Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
     debug("bind mounting nvidia driver %s -> %s", src, dst);
-    if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-        die("cannot bind mount nvidia driver %s -> %s", src, dst);
-    }
+    sc_do_mount(src, dst, NULL, MS_BIND, NULL);
 }
 
 static int sc_mount_nvidia_is_driver_in_dir(const char *dir) {
@@ -477,6 +501,163 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
     }
 }
 
+static int sc_mount_exported_paths(const char *rootfs_dir) {
+    // We are interested only in exports from GPU related interfaces to the
+    // system, so we check the interface name in the files.
+    // TODO we need to think what would happen if at some point these
+    // interfaces are used by some GPU that is not Nvidia.
+    static const char *export_globs[] = {
+        SC_SNAPD_EXPORT "/system_*_egl-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_gbm-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_cuda-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_opengl-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_opengles-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_vulkan-driver-libs.library-source",
+    };
+    size_t export_globs_len = SC_ARRAY_SIZE(export_globs);
+    glob_t glob_res SC_CLEANUP(globfree) = {.gl_pathv = NULL};
+
+    for (size_t i = 0; i < export_globs_len; ++i) {
+        const char *glob_pattern = export_globs[i];
+        int err = glob(glob_pattern, i ? GLOB_APPEND : 0, NULL, &glob_res);
+        if (err != 0 && err != GLOB_NOMATCH) {
+            die("cannot search using glob pattern %s: %d", glob_pattern, err);
+        }
+    }
+    if (glob_res.gl_pathc == 0) {
+        debug("no relevant sources in snaps export folder");
+        return 0;
+    }
+
+    debug("sources in export folder, nvidia libraries from snaps");
+
+    // Create tmpfs - here we will create subdirectories and mount the paths
+    // exported by other snaps.
+    char tmpfs_path[PATH_MAX] = {0};
+    sc_must_snprintf(tmpfs_path, sizeof tmpfs_path, "%s%s", rootfs_dir, SC_LIBGPU_DIR);
+    // There are 2 new dirs here, so we have to create before sc_mkdir_and_mount_tpmfs
+    if (sc_nonfatal_mkpath(tmpfs_path, 0755, 0, 0) != 0) {
+        die("cannot create %s", tmpfs_path);
+    }
+    sc_mkdir_and_mount_tpmfs(tmpfs_path);
+
+    // Libs exported by snaps, bind mount them
+    char path[PATH_MAX] = {0};
+    char dest_path[PATH_MAX] = {0};
+    for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+        debug("reading sources from %s", glob_res.gl_pathv[i]);
+        FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
+        file = fopen(glob_res.gl_pathv[i], "r");
+        if (file == NULL) {
+            die("cannot open file %s", glob_res.gl_pathv[i]);
+        }
+
+        while (fgets(path, sizeof path, file) != NULL) {
+            // Remove trailing \n if present
+            sc_str_chomp(path);
+            if (!sc_startswith(path, SC_SNAP_DIR)) {
+                debug("WARNING: unexpectedly %s does not start with %s, not mounting", path, SC_SNAP_DIR);
+                continue;
+            }
+
+            size_t path_start = 0;
+            path_start = sizeof SC_SNAP_DIR - 1;
+            sc_must_snprintf(dest_path, sizeof dest_path, "%s" SC_LIBGPU_DIR "%s", rootfs_dir, &path[path_start]);
+
+            // If the path exists that implies that it has been mounted already
+            // and that this is a repeated entry.
+            struct stat stat_buf;
+            int res = stat(dest_path, &stat_buf);
+            if (res == 0) {
+                debug("%s is already mounted, skipping", dest_path);
+                continue;
+            }
+
+            debug("mounting %s at %s", path, dest_path);
+            if (sc_nonfatal_mkpath(dest_path, 0755, 0, 0) != 0) {
+                die("failed to create mount path: %s", dest_path);
+            }
+            sc_do_mount(path, dest_path, NULL, MS_BIND | MS_RDONLY, NULL);
+        }
+    }
+
+    // Make the tmpfs read-only
+    sc_remount_ro(tmpfs_path);
+
+    return 1;
+}
+
+// TODO move to utils.c and add some unit tests
+static void sc_copy_file(const char *src, const char *dest) {
+    int fd_in SC_CLEANUP(sc_cleanup_close) = -1;
+    int fd_out SC_CLEANUP(sc_cleanup_close) = -1;
+    if ((fd_in = open(src, O_RDONLY)) == -1) {
+        die("cannot open %s", src);
+    }
+    struct stat f_stat = {0};
+    if (fstat(fd_in, &f_stat) == -1) {
+        die("cannot stat %s", src);
+    }
+    if ((fd_out = creat(dest, f_stat.st_mode)) == -1) {
+        die("cannot create %s", dest);
+    }
+
+    off_t copied = 0;
+    while (copied < f_stat.st_size) {
+        ssize_t written = sendfile(fd_out, fd_in, &copied, SSIZE_MAX);
+        if (written == -1) {
+            die("while copying %s to %s", src, dest);
+        }
+        copied += written;
+    }
+}
+
+// Copy files matching path_glob to the target directory.
+static void sc_copy_glob_files(const char *rootfs_dir, const char *mnt_dir, const char *path_glob,
+                               const char *target_dir) {
+    char glob_pattern[PATH_MAX] = {0};
+    sc_must_snprintf(glob_pattern, sizeof glob_pattern, "%s%s", rootfs_dir, path_glob);
+    debug("copying files defined by glob %s", glob_pattern);
+
+    // Find matching files
+    glob_t glob_res SC_CLEANUP(globfree) = {.gl_pathv = NULL};
+    int err = glob(glob_pattern, 0, NULL, &glob_res);
+    if (err != 0 && err != GLOB_NOMATCH) {
+        die("while searching using glob pattern %s: %d", glob_pattern, err);
+    }
+    if (glob_res.gl_pathc == 0) {
+        return;
+    }
+
+    // Create tmpfs on the directory where we will copy the files
+    char tmpfs_path[PATH_MAX] = {0};
+    sc_must_snprintf(tmpfs_path, sizeof tmpfs_path, "%s%s", rootfs_dir, mnt_dir);
+    sc_mkdir_and_mount_tpmfs(tmpfs_path);
+
+    // Ensure target, which is a subdirectory of mnt_dir, exists
+    char dir[PATH_MAX] = {0};
+    sc_must_snprintf(dir, sizeof(dir), "%s%s", rootfs_dir, target_dir);
+    if (sc_ensure_mkdir(dir, 0755, 0, 0) != 0) {
+        die("cannot create vendor directory %s", dir);
+    }
+
+    // Copy over the configuration files created by snapd
+    for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+        // Copy needed as basename() might modify its argument
+        char *src_dup SC_CLEANUP(sc_cleanup_string) = sc_strdup(glob_res.gl_pathv[i]);
+        const char *filename = basename(src_dup);
+
+        char target[PATH_MAX] = {0};
+        sc_must_snprintf(target, sizeof target, "%s%s/%s", rootfs_dir, target_dir, filename);
+
+        debug("copying %s to %s", glob_res.gl_pathv[i], target);
+        sc_copy_file(glob_res.gl_pathv[i], target);
+    }
+
+    // Make the tmpfs read-only
+    sc_remount_ro(tmpfs_path);
+}
+
 #endif  // ifdef NVIDIA_MULTIARCH
 
 static void sc_mount_vulkan(const char *rootfs_dir) {
@@ -499,7 +680,7 @@ static void sc_mount_egl(const char *rootfs_dir) {
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) {
     /* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
-    if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
+    if (access(nvidia_driver_version_file(), F_OK) != 0) {
         return;
     }
 
@@ -532,14 +713,29 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) 
     }
 #endif
 
+    int exported_paths = 0;
 #ifdef NVIDIA_MULTIARCH
-    sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
+    // For hybrid we might have exported paths from snaps, otherwise do the
+    // regular multiarch.
+    exported_paths = sc_mount_exported_paths(rootfs_dir);
+    if (exported_paths > 0) {
+        // Copy configuration files created by {egl,vulkan}-driver-libs. The
+        // sources are symlinks to files shipped by snaps, so we cannot just
+        // symlink from the export folder, instead we copy in the tmpfs. The
+        // files are actually very small so this is ok.
+        sc_copy_glob_files(rootfs_dir, SC_GLVND_DIR, SC_SNAP_EGL_VENDOR_GLOB, SC_GLVND_EGL_DIR);
+        sc_copy_glob_files(rootfs_dir, SC_VULKAN_DIR, SC_SNAP_VULKAN_ICD_GLOB, SC_VULKAN_ICD_DIR);
+    } else {
+        sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
+    }
 #endif  // ifdef NVIDIA_MULTIARCH
 #ifdef NVIDIA_BIARCH
     sc_mount_nvidia_driver_biarch(rootfs_dir, globs, globs_len);
 #endif  // ifdef NVIDIA_BIARCH
 
-    // Common for both driver mechanisms
-    sc_mount_vulkan(rootfs_dir);
-    sc_mount_egl(rootfs_dir);
+    if (exported_paths == 0) {
+        // Common for both driver mechanisms
+        sc_mount_vulkan(rootfs_dir);
+        sc_mount_egl(rootfs_dir);
+    }
 }

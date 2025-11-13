@@ -2,33 +2,58 @@ summary: Test interfaces exposing nvidia libraries on classic userspace
 
 details: Test interfaces exposing nvidia libraries on classic userspace
 
-systems: [ubuntu-24*]
+systems: [ubuntu-24.04-64]
 
 environment:
   NVIDIA_TEST_SNAP: test-nvidia-interfaces
+  NVIDIA_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/test-nvidia-interfaces_1.1_amd64.snap
 
 prepare: |
-  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
-  (cd "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP" && snapcraft)
+  # TODO: install snap from the store once it is uploaded
+  wget -q "$NVIDIA_SNAP_URL"
+  snap install --dangerous test-nvidia-interfaces_1.1_amd64.snap
+  snap pack test-nvidia-libs
 
 restore: |
-  snap remove --purge snapcraft || true
   rm -f "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
+  rm -f test-nvidia-libs_*.snap
 
 execute: |
-  snap install --dangerous "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
-
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
-  for iface in cuda egl gbm opengl opengles; do
+  for iface in cuda egl gbm opengl opengles vulkan; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
       MATCH "$iface" < "$SNAP_LDCONF_P"
   done
 
   EGL_VENDOR_P=/etc/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl_usr-share-glvnd-egl_vendor.d-nvidia.json
   MATCH libEGL_nvidia.so.0 < "$EGL_VENDOR_P"
+
   ARCH_TRIPLET=$(gcc -dumpmachine)
   GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
   [[ "$GBM_LIB_P" = /snap/"$NVIDIA_TEST_SNAP"/x1/usr/lib/"$ARCH_TRIPLET"/libnvidia-allocator.* ]]
+
+  VULKAN_SNAP_P=/snap/"$NVIDIA_TEST_SNAP"/x1/usr/share/vulkan
+  VULKAN_ICD_P=/etc/vulkan/icd.d/snap_"$NVIDIA_TEST_SNAP"_vulkan-dl_usr-share-vulkan-icd.d-nvidia_icd.json
+  VULKAN_IMPLICIT_P=/etc/vulkan/implicit_layer.d/snap_"$NVIDIA_TEST_SNAP"_vulkan-dl_usr-share-vulkan-implicit_layer.d-nvidia_layers.json
+  MATCH libGLX_nvidia.so.0 < "$VULKAN_ICD_P"
+  MATCH VK_LAYER_NV_optimus < "$VULKAN_IMPLICIT_P"
+  test "$(realpath "$VULKAN_ICD_P")" = "$VULKAN_SNAP_P"/icd.d/nvidia_icd.json
+  test "$(realpath "$VULKAN_IMPLICIT_P")" = "$VULKAN_SNAP_P"/implicit_layer.d/nvidia_layers.json
+
+  # Check libraries are accessible
+  snap_lib_dir=/snap/test-nvidia-interfaces/x1/usr/lib
+  snap_x86_dir="$snap_lib_dir"/x86_64-linux-gnu
+  ldd "$snap_x86_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_x86_dir/libnvidia-glsi.so.*"
+
+  # Check that snaps connected to the opengl interface can use the libraries
+  snap install --dangerous test-nvidia-libs_*.snap
+  NVIDIA_FILE=$PWD/nvidia
+  printf "570.133.07\n" > "$NVIDIA_FILE"
+  SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
+
+  # Re-install to test case similar to a refresh
+  snap install --dangerous test-nvidia-libs_*.snap
+  SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
 
   snap remove --purge "$NVIDIA_TEST_SNAP"
   not test -f "$SNAP_LDCONF_P"

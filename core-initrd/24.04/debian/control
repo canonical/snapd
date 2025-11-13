@@ -3,7 +3,6 @@ Section: utils
 Priority: optional
 Maintainer: Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>
 Build-Depends: debhelper-compat (= 13), dh-python,
-               cpio,
                fakeroot,
                fonts-ubuntu,
                libblkid-dev,
@@ -16,8 +15,8 @@ Homepage: https://launchpad.net/ubuntu-core-initramfs
 Package: ubuntu-core-initramfs
 Architecture: amd64 arm64 armhf riscv64
 Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
+         cpio,
          python3:any,
-         dracut-core,
          busybox-initramfs,
          zstd,
          sbsigntool,

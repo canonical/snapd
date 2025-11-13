@@ -45,7 +45,7 @@ environment:
     LXD_SNAP_CHANNEL: "latest/candidate"
     OLD_UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
     UBUNTU_IMAGE_SNAP_CHANNEL: "latest/beta"
-    SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
+    SNAPCRAFT_SNAP_CHANNEL: "latest/stable"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
@@ -120,7 +120,6 @@ environment:
 
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
-    USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
     SNAPD_USE_PROXY: '$(HOST: echo "${SPREAD_SNAPD_USE_PROXY:-}")'
 
     # Whether we should use pre-built packages in the ./built-pkgs/ directory
@@ -135,9 +134,8 @@ environment:
     # Set the following to SPREAD_TAG_FEATURES by default
     # since the following are required to log snap commands
     # to the journal
-    SNAP_LOG_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAP_LOG_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
+    SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
-    SNAPD_JSON_LOGGING: '$(HOST: echo "${SPREAD_SNAPD_JSON_LOGGING:-$SPREAD_TAG_FEATURES}")'
 
 backends:
     google:
@@ -604,11 +602,17 @@ backends:
             CORE_CHANNEL: stable
         systems:
             - ubuntu-22.04-64:
-                  workers: 8
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
             - ubuntu-24.04-64:
-                  workers: 8
+                image: snapd-spread/ubuntu-24.04-64
+                workers: 8
+            - ubuntu-25.04-64:
+                image: snapd-spread/ubuntu-25.04-64
+                workers: 8
             - ubuntu-25.10-64:
-                  workers: 8
+                image: snapd-spread/ubuntu-25.10-64
+                workers: 8
 
     qemu-nested:
         memory: 4G

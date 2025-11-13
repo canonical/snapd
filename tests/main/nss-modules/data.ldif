@@ -1,0 +1,33 @@
+dn: ou=People,${ldap_suffix}
+ou: People
+objectClass: organizationalUnit
+
+dn: ou=Group,${ldap_suffix}
+ou: Group
+objectClass: organizationalUnit
+
+dn: uid=${nss_user},ou=People,${ldap_suffix}
+uid: ${nss_user}
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: ${nss_user}
+sn: ${nss_user}
+givenName: ${nss_user}
+mail: ${nss_user}@${domain_name}
+userPassword: ${nss_user_pw}
+uidNumber: 10001
+gidNumber: 10001
+loginShell: /bin/bash
+homeDirectory: /home/${nss_user}
+
+dn: cn=${nss_user},ou=Group,${ldap_suffix}
+cn: ${nss_user}
+objectClass: posixGroup
+gidNumber: 10001
+memberUid: ${nss_user}
+
+dn: cn=${ldap_group},ou=Group,${ldap_suffix}
+cn: ${ldap_group}
+objectClass: posixGroup
+gidNumber: 10100
+memberUid: ${nss_user}

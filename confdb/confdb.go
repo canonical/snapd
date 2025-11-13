@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -267,7 +268,7 @@ func pathChangeAffects(modified, affected []Accessor) bool {
 			return true
 		}
 
-		if modified[i] != affectedKey {
+		if modified[i].Name() != affectedKey.Name() {
 			return false
 		}
 	}
@@ -326,7 +327,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	view := &View{
 		Name:   name,
-		rules:  make([]*viewRule, 0, len(viewRules)),
+		rules:  make([]viewRule, 0, len(viewRules)),
 		schema: dbSchema,
 	}
 
@@ -351,17 +352,41 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 		}
 	}
 
-	// check that the rules matching a given request can be satisfied with some
-	// data type (otherwise, no data can ever be written there)
-	pathToRules := make(map[string][]*viewRule)
+	pathToRules := make(map[string][]viewRule)
 	for _, rule := range view.rules {
-		// TODO: once the paths support list index placeholders, also add mapping
-		// for the prefixes of each path and their implied types (Map or Array)
+		// check that the rules matching a given request can be satisfied with some
+		// data type (otherwise, no data can ever be written there)
 		path := rule.originalRequest
 		pathToRules[path] = append(pathToRules[path], rule)
+
+		// check the field filters in the last accessor against the schema
+		if rule.storage[len(rule.storage)-1].FieldFilters() != nil {
+			schemaAlts, err := dbSchema.DatabagSchema.SchemaAt(rule.storage)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, schema := range schemaAlts {
+				if schema.Type() != Map && schema.Type() != Any {
+					return nil, fmt.Errorf("field filters can only be applied to maps but schema at %s expects %s", rule.originalStorage, schema.Type())
+				}
+			}
+		}
+
+		// check field filters in the remaining accessors are consistent with the rest
+		// of the path (i.e., if there's a field filter then the next accessor
+		// must be key accessor)
+		for i, acc := range rule.storage[1:] {
+			if rule.storage[i].FieldFilters() != nil && acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
+				return nil, fmt.Errorf("can only apply field filters to maps but %q expects list after filters", rule.originalStorage)
+			}
+		}
 	}
 
 	for _, rules := range pathToRules {
+		// this also implicitly checks that the paths are consistent with the schema.
+		// For instance, if the schema expects foo.bar to be a boolean, the path
+		// "foo.bar.baz" would fail because it cannot key a boolean
 		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
@@ -370,7 +395,7 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	return view, nil
 }
 
-func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
+func parseRule(parent *viewRule, ruleRaw any) ([]viewRule, error) {
 	ruleMap, ok := ruleRaw.(map[string]any)
 	if !ok {
 		return nil, errors.New("each view rule should be a map")
@@ -441,12 +466,24 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 	}
 
-	rule, err := newViewRule(reqAccessors, storageAccessors, access)
-	if err != nil {
-		return nil, err
+	requestMatchers := make([]requestMatcher, 0, len(reqAccessors))
+	for _, acc := range reqAccessors {
+		matcher, ok := acc.(requestMatcher)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
+		}
+		requestMatchers = append(requestMatchers, matcher)
 	}
 
-	rules := []*viewRule{rule}
+	rule := viewRule{
+		originalRequest: request,
+		originalStorage: storage,
+		request:         requestMatchers,
+		storage:         storageAccessors,
+		access:          access,
+	}
+
+	rules := []viewRule{rule}
 	if contentRaw, ok := ruleMap["content"]; ok {
 		contentRulesRaw, ok := contentRaw.([]any)
 		if !ok || len(contentRulesRaw) == 0 {
@@ -454,7 +491,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 
 		for _, contentRule := range contentRulesRaw {
-			nestedRules, err := parseRule(rule, contentRule)
+			nestedRules, err := parseRule(&rule, contentRule)
 			if err != nil {
 				return nil, err
 			}
@@ -573,26 +610,34 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 		return nil, nil
 	}
 
-	subkeys, err := splitViewPath(path, opts)
+	pathParts, err := splitViewPath(path, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	accessors := make([]Accessor, 0, len(subkeys))
-	for _, subkey := range subkeys {
+	accessors := make([]Accessor, 0, len(pathParts))
+	for _, part := range pathParts {
+		// TODO: check field filters against parameters, when we add those
+		subkey := part.key
 		isKey := validSubkey.MatchString(subkey)
 		isIndex := validIndexSubkey.MatchString(subkey)
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
 		isIndexPlaceholder := validIndexPlaceholder.MatchString(subkey)
 
+		for field, filter := range part.filters {
+			if !validSubkey.Match([]byte(field)) || !validSubkey.Match([]byte(filter)) {
+				return nil, fmt.Errorf("invalid field filter [.%s={%s}]: both field and placeholder name must conform to %s", field, filter, validSubkey.String())
+			}
+		}
+
 		switch {
 		case isKey:
-			accessors = append(accessors, key(subkey))
+			accessors = append(accessors, newKey(subkey, part.filters))
 		case isIndex:
 			if opts.ForbidIndexes {
 				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
 			}
-			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
+			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], part.filters))
 
 		case !opts.AllowPlaceholders:
 			// user supplied paths cannot contain placeholders
@@ -603,9 +648,9 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 			return nil, fmt.Errorf("invalid subkey %q%s", subkey, errSuffix)
 
 		case isKeyPlaceholder:
-			accessors = append(accessors, keyPlaceholder(subkey[1:len(subkey)-1]))
+			accessors = append(accessors, newKeyPlaceholder(subkey[1:len(subkey)-1], part.filters))
 		case isIndexPlaceholder:
-			accessors = append(accessors, indexPlaceholder(subkey[2:len(subkey)-2]))
+			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], part.filters))
 		default:
 			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		}
@@ -634,10 +679,22 @@ type Accessor interface {
 
 	// Type returns a type that represents the kind of path sub-key the accessor is.
 	Type() AccessorType
+
+	// FieldFilters returns a mapping of field names to filters to which
+	// constraints may be applied.
+	FieldFilters() map[string]string
 }
 
-func splitViewPath(path string, opts ParseOptions) ([]string, error) {
-	var subkeys []string
+// subKey holds information about a piece split out of a path, including the
+// actual path part and any field filters attached to it.
+type subKey struct {
+	key     string
+	filters map[string]string
+}
+
+func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
+	var subkeys []subKey
+	var rawFilters map[string]string
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
@@ -649,28 +706,71 @@ func splitViewPath(path string, opts ParseOptions) ([]string, error) {
 			}
 			return errors.New("cannot have empty subkeys")
 		}
-		subkeys = append(subkeys, sb.String())
+		subkeys = append(subkeys, subKey{
+			key:     sb.String(),
+			filters: rawFilters,
+		})
+
 		sb.Reset()
+		rawFilters = nil
 		return nil
 	}
 
-	for _, c := range path {
-		switch c {
+	pathBytes := bytes.NewBufferString(path)
+	for pathBytes.Len() > 0 {
+		// ReadRune can only return EOF errors and we already checked Len() so the
+		// error can be safely ignored here
+		char, _, _ := pathBytes.ReadRune()
+		if char == utf8.RuneError {
+			return nil, fmt.Errorf("non UTF-8 character")
+		}
+
+		switch char {
 		case '.':
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
 
 		case '[':
+			if pathBytes.Len() == 0 {
+				return nil, fmt.Errorf(`invalid subkey "["`)
+			}
+
+			// both field filters and list accesses start with '[', check the next character
+			nextChar, _, _ := pathBytes.ReadRune()
+			if nextChar == utf8.RuneError {
+				return nil, fmt.Errorf("non UTF-8 character")
+			}
+
+			if nextChar == '.' {
+				// we're parsing a field filter [.foo={foo}], let's parse the entire thing
+				field, filter, err := parseFieldFilter(pathBytes)
+				if err != nil {
+					return nil, err
+				}
+
+				if rawFilters == nil {
+					rawFilters = make(map[string]string)
+				}
+
+				if prevFilter, ok := rawFilters[field]; ok {
+					return nil, fmt.Errorf("cannot apply more than one filter to the same field: [.%[1]s={%[2]s}] and [.%[1]s={%[3]s}]", field, prevFilter, filter)
+				}
+
+				rawFilters[field] = filter
+				continue
+			}
+
+			// we're parsing a new list accessor (e.g, [{n}]), save the previous
+			// sub-key and continue
+			pathBytes.UnreadRune()
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
-
-			// include the square brackets as they imply a different type of placeholder
 			fallthrough
 
 		default:
-			sb.WriteRune(c)
+			sb.WriteRune(char)
 		}
 	}
 
@@ -680,6 +780,40 @@ func splitViewPath(path string, opts ParseOptions) ([]string, error) {
 	}
 
 	return subkeys, nil
+}
+
+func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error) {
+	constraintSb := &strings.Builder{}
+	var char rune
+	for pathBytes.Len() > 0 {
+		// ReadRune can only return EOF errors and we already checked Len() so the
+		// error can be safely ignored here
+		char, _, _ = pathBytes.ReadRune()
+		if char == utf8.RuneError {
+			return "", "", fmt.Errorf("non UTF-8 character")
+		}
+
+		if char == ']' {
+			// we're done reading the field filter, don't store the terminating ']'
+			break
+		}
+		constraintSb.WriteRune(char)
+	}
+
+	if char != ']' {
+		return "", "", fmt.Errorf("field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]")
+	}
+
+	constraintPair := constraintSb.String()
+	parts := strings.Split(constraintPair, "=")
+	if len(parts) != 2 ||
+		!strings.HasPrefix(parts[1], "{") || !strings.HasSuffix(parts[1], "}") ||
+		len(parts[1]) <= 2 {
+		return "", "", fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
+	}
+
+	field, filter = parts[0], strings.Trim(parts[1], "{}")
+	return field, filter, nil
 }
 
 // countAccessorsOfType returns the number of occurrences of path sub-keys of
@@ -712,7 +846,7 @@ func (s *Schema) View(view string) *View {
 // View carries access rules for a particular view in a confdb schema.
 type View struct {
 	Name   string
-	rules  []*viewRule
+	rules  []viewRule
 	schema *Schema
 }
 
@@ -723,9 +857,6 @@ func (v *View) Schema() *Schema {
 type expandedMatch struct {
 	// storagePath is a parsed storage path with all placeholders filled in.
 	storagePath []Accessor
-
-	// request is the original request field that the request was matched with.
-	request string
 
 	// value is the nested value obtained after removing the original values' outer
 	// layers that correspond to the unmatched suffix.
@@ -818,7 +949,6 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		for _, pathValuePair := range pathValuePairs {
 			expandedMatches = append(expandedMatches, expandedMatch{
 				storagePath: pathValuePair.path,
-				request:     match.request,
 				value:       pathValuePair.value,
 			})
 		}
@@ -945,7 +1075,7 @@ func (v *View) matchWriteRequest(request []Accessor) ([]requestMatch, error) {
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
 // If not, then no data can satisfy these rules and the view should be rejected.
-func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
+func checkSchemaMismatch(schema DatabagSchema, rules []viewRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, rule := range rules {
@@ -1055,7 +1185,10 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 			// suffix has an unmatched placeholder, try all possible values to fill it and
 			// find the corresponding nested value.
 			for cand, candVal := range mapVal {
-				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), KeyPlaceholderType, key(cand))
+				// we're using the possible paths to extract the relevant values from an
+				// object to set so the field filters don't matter since these accessors
+				// won't be used to traverse the databag
+				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), KeyPlaceholderType, newKey(cand, nil))
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], candVal)
 				if err != nil {
 					return nil, err
@@ -1079,7 +1212,7 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart, mapVal)
+				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
 			}
 
 		case IndexPlaceholderType:
@@ -1092,7 +1225,8 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 			// match-aware instead of using these values to expand the matches?
 			var pathValuePairs []pathValuePair
 			for i, el := range list {
-				cand := index(strconv.Itoa(i))
+				// constraints don't matter here (see comment under KeyPlaceholderType case)
+				cand := newIndex(strconv.Itoa(i), nil)
 				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), IndexPlaceholderType, cand)
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], el)
 				if err != nil {
@@ -1256,7 +1390,7 @@ func prunePathInValue(parts []Accessor, val any) (any, error) {
 		nested, ok := mapVal[parts[0].Name()]
 		if !ok {
 			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0], mapVal)
+			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0].Name(), mapVal)
 		}
 
 		newValue, err := prunePathInValue(parts[1:], nested)
@@ -1373,7 +1507,7 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath)
 		if err != nil {
-			if errors.Is(err, PathError("")) {
+			if errors.Is(err, &NoDataError{}) {
 				continue
 			}
 			return nil, err
@@ -1624,25 +1758,6 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
-func newViewRule(request, storage []Accessor, access accessType) (*viewRule, error) {
-	requestMatchers := make([]requestMatcher, 0, len(request))
-	for _, acc := range request {
-		matcher, ok := acc.(requestMatcher)
-		if !ok {
-			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
-		}
-		requestMatchers = append(requestMatchers, matcher)
-	}
-
-	return &viewRule{
-		originalRequest: JoinAccessors(request),
-		originalStorage: JoinAccessors(storage),
-		request:         requestMatchers,
-		storage:         storage,
-		access:          access,
-	}, nil
-}
-
 func JoinAccessors(parts []Accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
@@ -1672,7 +1787,7 @@ type viewRule struct {
 // If placeholders are "filled in" when matching, those are returned in "matched"
 // according to which kind of placeholder they are. If the subkeys match as a
 // prefix, the remaining suffix is returned.
-func (p *viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
+func (p viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
@@ -1695,18 +1810,18 @@ func (p *viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, u
 // storagePath takes a matchedPlaceholders struct mapping key and index
 // placeholder names to their values in the view name and returns the path with
 // its placeholder values filled in with the map's values.
-func (p *viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
+func (p viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
 	var accessors []Accessor
 	for _, acc := range p.storage {
 		switch acc.Type() {
 		case KeyPlaceholderType:
 			if match, ok := matched.key[acc.Name()]; ok {
-				acc = key(match)
+				acc = newKey(match, acc.FieldFilters())
 			}
 
 		case IndexPlaceholderType:
 			if match, ok := matched.index[acc.Name()]; ok {
-				acc = index(match)
+				acc = newIndex(match, acc.FieldFilters())
 			}
 		}
 		accessors = append(accessors, acc)
@@ -1733,7 +1848,17 @@ type requestMatcher interface {
 
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
 // with any value and map it from the input name to the path.
-type keyPlaceholder string
+type keyPlaceholder struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newKeyPlaceholder(value string, fieldFilters map[string]string) keyPlaceholder {
+	return keyPlaceholder{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match adds an entry to matchedPlaceholders mapping this placeholder key to the
 // supplied name subkey and returns true (a placeholder matches with any value).
@@ -1742,16 +1867,17 @@ func (p keyPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) boo
 		return false
 	}
 
-	matched.setKey(string(p), subkey.Name())
+	matched.setKey(p.Name(), subkey.Name())
 	return true
 }
 
 func (p keyPlaceholder) Access() string {
-	return "{" + string(p) + "}"
+	return "{" + p.Name() + "}"
 }
 
-func (p keyPlaceholder) Name() string       { return string(p) }
-func (p keyPlaceholder) Type() AccessorType { return KeyPlaceholderType }
+func (p keyPlaceholder) Name() string                    { return p.value }
+func (p keyPlaceholder) Type() AccessorType              { return KeyPlaceholderType }
+func (p keyPlaceholder) FieldFilters() map[string]string { return p.fieldFilters }
 
 type matchedPlaceholders struct {
 	index map[string]string
@@ -1774,7 +1900,17 @@ func (m *matchedPlaceholders) setIndex(placeholderName, indexValue string) {
 
 // indexPlaceholder represents a subkey of a name/path (e.g., "[{n}]") that can
 // match an index value and map it from the input name to the path.
-type indexPlaceholder string
+type indexPlaceholder struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newIndexPlaceholder(value string, fieldFilters map[string]string) indexPlaceholder {
+	return indexPlaceholder{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match checks if the subkey can be used to index a list. If so, it adds an
 // entry to matchedPlaceholders mapping this placeholder key to the supplied
@@ -1784,46 +1920,54 @@ func (p indexPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) b
 		return false
 	}
 
-	matched.setIndex(string(p), subkey.Name())
+	matched.setIndex(p.Name(), subkey.Name())
 	return true
 }
 
-func (p indexPlaceholder) Access() string     { return "[{" + string(p) + "}]" }
-func (p indexPlaceholder) Name() string       { return string(p) }
-func (p indexPlaceholder) Type() AccessorType { return IndexPlaceholderType }
+func (p indexPlaceholder) Access() string                  { return "[{" + p.Name() + "}]" }
+func (p indexPlaceholder) Name() string                    { return p.value }
+func (p indexPlaceholder) Type() AccessorType              { return IndexPlaceholderType }
+func (p indexPlaceholder) FieldFilters() map[string]string { return p.fieldFilters }
 
 // key is a non-placeholder object key.
-type key string
+type key struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newKey(value string, fieldFilters map[string]string) key {
+	return key{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match returns true if the subkey is equal to the literal key.
 func (k key) match(subkey Accessor, _ *matchedPlaceholders) bool {
-	return subkey.Type() == MapKeyType && string(k) == subkey.Name()
+	return subkey.Type() == MapKeyType && k.Name() == subkey.Name()
 }
 
-func (k key) Access() string     { return k.Name() }
-func (k key) Name() string       { return string(k) }
-func (k key) Type() AccessorType { return MapKeyType }
+func (k key) Access() string                  { return k.Name() }
+func (k key) Name() string                    { return k.value }
+func (k key) Type() AccessorType              { return MapKeyType }
+func (p key) FieldFilters() map[string]string { return p.fieldFilters }
 
-type index string
-
-func (i index) Access() string     { return "[" + i.Name() + "]" }
-func (i index) Name() string       { return string(i) }
-func (i index) Type() AccessorType { return ListIndexType }
-
-type PathError string
-
-func (e PathError) Error() string {
-	return string(e)
+type index struct {
+	value        string
+	fieldFilters map[string]string
 }
 
-func (e PathError) Is(err error) bool {
-	_, ok := err.(PathError)
-	return ok
+func newIndex(value string, fieldFilters map[string]string) index {
+	return index{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
 }
 
-func pathErrorf(str string, v ...any) PathError {
-	return PathError(fmt.Sprintf(str, v...))
-}
+func (i index) Access() string                  { return "[" + i.Name() + "]" }
+func (i index) Name() string                    { return i.value }
+func (i index) Type() AccessorType              { return ListIndexType }
+func (i index) FieldFilters() map[string]string { return i.fieldFilters }
 
 // JSONDatabag is a simple Databag implementation that keeps JSON in-memory.
 type JSONDatabag map[string]json.RawMessage
@@ -1865,7 +2009,7 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
 		path := JoinAccessors(subKeys[:index+1])
-		return pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+		return fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 	}
 }
 
@@ -1877,7 +2021,6 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
 func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, result *any) error {
-	curPath := JoinAccessors(subKeys[:index+1])
 	key := subKeys[index]
 
 	var matchAll bool
@@ -1886,7 +2029,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		var ok bool
 		rawLevel, ok = node[key.Name()]
 		if !ok {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 	} else if key.Type() == KeyPlaceholderType {
 		matchAll = true
@@ -1937,7 +2080,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 			// is found under any path
 			var res any
 			if err := get(subKeys, index+1, level, &res); err != nil {
-				if errors.Is(err, PathError("")) {
+				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
 			}
@@ -1948,7 +2091,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 
 		*result = results
@@ -1984,9 +2127,8 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
 	}
 
-	curPath := JoinAccessors(subKeys[:keyIndex+1])
 	if listIndex >= len(list) {
-		return pathErrorf("no value was found under path %q", curPath)
+		return &NoDataError{}
 	}
 
 	// read the final value
@@ -2031,7 +2173,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 			// is found under any path
 			var res any
 			if err := get(subKeys, keyIndex+1, level, &res); err != nil {
-				if errors.Is(err, PathError("")) {
+				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
 			}
@@ -2042,7 +2184,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 
 		*result = results
@@ -2150,7 +2292,7 @@ func set(subKeys []Accessor, index int, node any, value any) (json.RawMessage, e
 
 	// should be impossible since we handle terminal cases in the type specific functions
 	path := JoinAccessors(subKeys[:index+1])
-	return nil, pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
 func setMap(subKeys []Accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
@@ -2215,7 +2357,7 @@ func setList(subKeys []Accessor, keyIndex int, list []json.RawMessage, value any
 	// append the entry, extending the list)
 	if listIndex > len(list) {
 		curPath := JoinAccessors(subKeys[:keyIndex+1])
-		return nil, pathErrorf("cannot access %q: list has length %d", curPath, len(list))
+		return nil, fmt.Errorf("cannot access %q: list has length %d", curPath, len(list))
 	}
 
 	if keyIndex == len(subKeys)-1 {
@@ -2297,7 +2439,7 @@ func unset(subKeys []Accessor, index int, node any) (json.RawMessage, error) {
 
 	// should be impossible since we handle terminal cases in the type specific functions
 	path := JoinAccessors(subKeys[:index+1])
-	return nil, pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
 func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {

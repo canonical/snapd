@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -57,6 +58,7 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(healthstate.MockCheckTimeout(time.Second))
 	dirs.SetRootDir(c.MkDir())
+	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()

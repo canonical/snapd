@@ -23,6 +23,7 @@ package fdestate_test
 import (
 	"bytes"
 	"crypto"
+	"crypto/hmac"
 	"errors"
 	"fmt"
 	"os"
@@ -601,43 +602,67 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 		&mockModel{"other"},
 	}
 
-	err := manager.UpdateParameters("recover", "something", []string{"recover"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover`))
+	// Let's insert special values for primary and counter handles
+	var fdeSt fdestate.FdeState
+	err := st.Get("fde", &fdeSt)
+	c.Assert(err, IsNil)
+	runRole := fdeSt.KeyslotRoles["run"]
+	runRole.PrimaryKeyID = 1
+	runRole.TPM2PCRPolicyRevocationCounter = 2
+	fdeSt.KeyslotRoles["run"] = runRole
+	recoverRole := fdeSt.KeyslotRoles["recover"]
+	recoverRole.PrimaryKeyID = 3
+	recoverRole.TPM2PCRPolicyRevocationCounter = 4
+	fdeSt.KeyslotRoles["recover"] = recoverRole
+	s.st.Set("fde", fdeSt)
+
+	err = manager.UpdateParameters("recover", "something", []string{"recover"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover`))
 	c.Assert(err, IsNil)
 	err = manager.UpdateParameters("recover", "all", []string{"recover-all"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover-all`))
 	c.Assert(err, IsNil)
 	err = manager.UpdateParameters("run", "something", []string{"run"}, models, secboot.SerializedPCRProfile(`serialized-profile-run`))
 	c.Assert(err, IsNil)
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err := manager.GetParameters("recover", "something")
+	params, err := manager.GetParameters("recover", "something")
 	c.Assert(err, IsNil)
-	c.Check(hasParameters, Equals, true)
-	c.Check(foundRunModes, DeepEquals, []string{"recover"})
-	c.Assert(foundModels, HasLen, 2)
-	c.Check(foundModels[0].Model(), Equals, "mock-model")
-	c.Check(foundModels[1].Model(), Equals, "other")
-	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover`))
+	c.Assert(params, NotNil)
+	c.Check(params.BootModes, DeepEquals, []string{"recover"})
+	c.Assert(params.Models, HasLen, 2)
+	c.Check(params.Models[0].Model(), Equals, "mock-model")
+	c.Check(params.Models[1].Model(), Equals, "other")
+	c.Check(params.TpmPCRProfile, DeepEquals, []byte(`serialized-profile-recover`))
+	info, err := manager.GetRoleInfo("recover")
+	c.Assert(err, IsNil)
+	c.Assert(info, NotNil)
+	c.Check(info.PrimaryKeyID, Equals, 3)
+	c.Check(info.TPM2PCRPolicyRevocationCounter, Equals, uint32(4))
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("recover", "something-that-is-not-specific")
+	params, err = manager.GetParameters("recover", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
-	c.Check(hasParameters, Equals, true)
-	c.Check(foundRunModes, DeepEquals, []string{"recover-all"})
-	c.Assert(foundModels, HasLen, 2)
-	c.Check(foundModels[0].Model(), Equals, "mock-model")
-	c.Check(foundModels[1].Model(), Equals, "other")
-	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover-all`))
+	c.Assert(params, NotNil)
+	c.Check(params.BootModes, DeepEquals, []string{"recover-all"})
+	c.Assert(params.Models, HasLen, 2)
+	c.Check(params.Models[0].Model(), Equals, "mock-model")
+	c.Check(params.Models[1].Model(), Equals, "other")
+	c.Check(params.TpmPCRProfile, DeepEquals, []byte(`serialized-profile-recover-all`))
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("run", "something")
+	params, err = manager.GetParameters("run", "something")
 	c.Assert(err, IsNil)
-	c.Check(hasParameters, Equals, true)
-	c.Check(foundRunModes, DeepEquals, []string{"run"})
-	c.Assert(foundModels, HasLen, 2)
-	c.Check(foundModels[0].Model(), Equals, "mock-model")
-	c.Check(foundModels[1].Model(), Equals, "other")
-	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-run`))
+	c.Assert(params, NotNil)
+	c.Check(params.BootModes, DeepEquals, []string{"run"})
+	c.Assert(params.Models, HasLen, 2)
+	c.Check(params.Models[0].Model(), Equals, "mock-model")
+	c.Check(params.Models[1].Model(), Equals, "other")
+	c.Check(params.TpmPCRProfile, DeepEquals, []byte(`serialized-profile-run`))
+	info, err = manager.GetRoleInfo("run")
+	c.Assert(err, IsNil)
+	c.Assert(info, NotNil)
+	c.Check(info.PrimaryKeyID, Equals, 1)
+	c.Check(info.TPM2PCRPolicyRevocationCounter, Equals, uint32(2))
 
-	hasParameters, _, _, _, err = manager.GetParameters("run", "something-that-is-not-specific")
+	params, err = manager.GetParameters("run", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
-	c.Check(hasParameters, Equals, false)
+	c.Check(params, IsNil)
 }
 
 func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
@@ -1345,4 +1370,214 @@ func (s *fdeMgrSuite) TestAddPlatformKeysTaskAffectedSnaps(c *C) {
 	snaps, err := snapstate.SnapsAffectedByTask(tsk)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
+}
+
+func (s *fdeMgrSuite) TestManagerVerifyPrimaryKey(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+
+	salt := []byte{1, 2, 3, 4}
+	primaryKey := []byte{5, 6, 7, 8}
+
+	h := hmac.New(crypto.Hash(crypto.SHA256).New, salt[:])
+	h.Write(primaryKey)
+	digest := h.Sum(nil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var fdeSt fdestate.FdeState
+	err := st.Get("fde", &fdeSt)
+	c.Assert(err, IsNil)
+	fdeSt.PrimaryKeys[1] = fdestate.PrimaryKeyInfo{fdestate.KeyDigest{
+		Algorithm: secboot.HashAlg(crypto.SHA256),
+		Salt:      salt,
+		Digest:    digest,
+	}}
+	st.Set("fde", &fdeSt)
+
+	c.Assert(mgr.VerifyPrimaryKeyAgainstState(1, primaryKey), Equals, true)
+	c.Assert(mgr.VerifyPrimaryKeyAgainstState(1, []byte{2, 2, 2, 2}), Equals, false)
+	c.Assert(mgr.VerifyPrimaryKeyAgainstState(2, primaryKey), Equals, false)
+}
+
+func (s *fdeMgrSuite) testNextUniqueKeyslot(c *C, chgReady bool) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+
+	rkeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-save", Name: "reprovision-2"},
+	}
+	unlockKeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "tmp-1"},
+		{ContainerRole: "system-save", Name: "tmp-2"},
+	}
+	s.mockCurrentKeys(c, rkeys, unlockKeys)
+
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+
+	// fde task with keyslots attribute
+	t1 := st.NewTask("fde-op-1", "fde-op-1") // has fde- prefix
+	t1.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-3"}})
+	// fde task without keyslots attribute
+	t2 := st.NewTask("fde-op-2", "fde-op-2") // has fde- prefix
+	// non-fde task with keyslots attribute doesn't count
+	t3 := st.NewTask("non-fde-op-3", "fde-op-3") // no fde- prefix
+	t3.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-4"}})
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	if chgReady {
+		chg.SetStatus(state.DoneStatus)
+	}
+
+	var keyslots []fdestate.KeyslotRef
+	for i := 0; i < 3; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
+
+		ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
+
+		ref, err = mgr.NextUniqueKeyslot("system-data", "reprovision")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
+
+		ref, err = mgr.NextUniqueKeyslot("system-save", "reprovision")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
+	}
+
+	if chgReady {
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+			// 1st iteration
+			{ContainerRole: "system-data", Name: "tmp-2"},
+			{ContainerRole: "system-save", Name: "tmp-1"},
+			{ContainerRole: "system-data", Name: "reprovision-1"},
+			{ContainerRole: "system-save", Name: "reprovision-1"},
+			// 2nd iteration
+			{ContainerRole: "system-data", Name: "tmp-3"},
+			{ContainerRole: "system-save", Name: "tmp-3"},
+			{ContainerRole: "system-data", Name: "reprovision-2"},
+			{ContainerRole: "system-save", Name: "reprovision-3"},
+			// 3rd iteration
+			{ContainerRole: "system-data", Name: "tmp-4"},
+			{ContainerRole: "system-save", Name: "tmp-4"},
+			{ContainerRole: "system-data", Name: "reprovision-3"},
+			{ContainerRole: "system-save", Name: "reprovision-4"},
+		})
+	} else {
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+			// 1st iteration
+			{ContainerRole: "system-data", Name: "tmp-2"},
+			{ContainerRole: "system-save", Name: "tmp-1"},
+			{ContainerRole: "system-data", Name: "reprovision-1"},
+			{ContainerRole: "system-save", Name: "reprovision-1"},
+			// 2nd iteration
+			{ContainerRole: "system-data", Name: "tmp-4"},
+			{ContainerRole: "system-save", Name: "tmp-3"},
+			{ContainerRole: "system-data", Name: "reprovision-2"},
+			{ContainerRole: "system-save", Name: "reprovision-3"},
+			// 3rd iteration
+			{ContainerRole: "system-data", Name: "tmp-5"},
+			{ContainerRole: "system-save", Name: "tmp-4"},
+			{ContainerRole: "system-data", Name: "reprovision-3"},
+			{ContainerRole: "system-save", Name: "reprovision-4"},
+		})
+	}
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
+	const chgReady = false
+	s.testNextUniqueKeyslot(c, chgReady)
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslotChangeReady(c *C) {
+	const chgReady = true
+	s.testNextUniqueKeyslot(c, chgReady)
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslotCacheInvalidation(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, nil, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+	// FDE task with keyslots attribute
+	t := st.NewTask("fde-op", "fde-op") // has fde- prefix
+	t.Set("keyslots", []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "tmp-1"},
+		{ContainerRole: "system-save", Name: "tmp-1"},
+	})
+	chg.AddTask(t)
+
+	// - maxID = 128 before cache is invalidated again
+	// - Starting from i=2 because tmp-1 is already present in a non-ready change
+	for i := 2; i <= 128; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-data", Name: fmt.Sprintf("tmp-%d", i)})
+
+		ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+		c.Assert(err, IsNil)
+		c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-save", Name: fmt.Sprintf("tmp-%d", i)})
+	}
+
+	// Mark change as ready
+	chg.SetStatus(state.ErrorStatus)
+	// The next call to NextUniqueKeyslot will clear the cache and
+	// and re-compute from ground truth (system keyslots + non-ready changes) because
+	// we exceeded maxID = 128.
+
+	ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+	c.Assert(err, IsNil)
+	c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "tmp-1"})
+
+	ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+	c.Assert(err, IsNil)
+	c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-1"})
+}
+
+// This test checks that the cache invalidation retry logic is only
+// triggered once to avoid accidental infinite loops.
+func (s *fdeMgrSuite) TestNextUniqueKeyslotNoSlotsAvailableError(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, nil, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	// Initialize the cache
+	var refs []fdestate.KeyslotRef
+	for i := 1; i <= 128; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		refs = append(refs, ref)
+	}
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+	// FDE task with keyslots attribute
+	t := st.NewTask("fde-op", "fde-op") // has fde- prefix
+	t.Set("keyslots", refs)
+	chg.AddTask(t)
+
+	for i := 0; i < 10; i++ {
+		_, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, ErrorMatches, `internal error: cannot find a unique keyslot for container role "system-data" with prefix "tmp"`)
+	}
 }

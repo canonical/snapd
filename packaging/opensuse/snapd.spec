@@ -126,6 +126,7 @@ BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libseccomp)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(systemd)
+BuildRequires:  pkgconfig(udev)
 BuildRequires:  systemd-rpm-macros
 %if %{with valgrind}
 BuildRequires:  valgrind
@@ -403,6 +404,9 @@ install -pm 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -pm 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Install the NEWS file
+install -pm 644 -D %{indigo_srcdir}/NEWS.md %{buildroot}%{_defaultdocdir}/snapd/NEWS.md
+
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
@@ -535,6 +539,8 @@ fi
 # similar case for fish
 %dir %{_datadir}/fish
 %dir %{_datadir}/fish/vendor_conf.d
+%dir %{_defaultdocdir}/snapd
+%{_defaultdocdir}/snapd/NEWS.md
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -570,8 +576,8 @@ fi
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
-%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
+%{_libexecdir}/snapd/snap-strace-shim
 %{_libexecdir}/snapd/snap-mgmt
 %if %{with selinux}
 %{_libexecdir}/snapd/snap-mgmt-selinux

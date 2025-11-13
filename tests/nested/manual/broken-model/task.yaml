@@ -33,7 +33,7 @@ execute: |
 
   sent_recovery=0
   for (( i=0 ; i < 100 ; i++ )); do
-    if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Please enter the recovery key for volume")" ]; then
+    if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Enter recovery key for")" ]; then
       sent_recovery=$((sent_recovery+1))
       echo "${recovery_key}" | nc -q 0 127.0.0.1 7777
       break

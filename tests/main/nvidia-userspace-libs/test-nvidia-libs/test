@@ -1,0 +1,27 @@
+#!/bin/bash -ex
+
+snap_lib_dir=/var/lib/snapd/lib/system/gpu/test-nvidia-interfaces/x1/usr/lib
+snap_x86_dir="$snap_lib_dir"/x86_64-linux-gnu
+snap_x86_gbm_dir="$snap_x86_dir"/gbm
+snap_i386_dir="$snap_lib_dir"/i386-linux-gnu
+
+# SNAP_LIBRARY_PATH is properly set
+echo "$SNAP_LIBRARY_PATH" | grep ^"$snap_x86_dir":"$snap_i386_dir":"$snap_x86_gbm_dir"$
+
+# Libraries are accessible
+stat "$snap_x86_dir"/libEGL_nvidia.so.0
+stat "$snap_i386_dir"/libEGL_nvidia.so.0
+
+# Dependencies should be found as LD_LIBRARY_PATH includes SNAP_LIBRARY_PATH
+ldd "$snap_x86_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_x86_dir/libnvidia-glsi.so.*"
+ldd "$snap_i386_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_i386_dir/libnvidia-glsi.so.*"
+
+# We can access EGL configuration
+egl_file=10_snap_test-nvidia-interfaces_egl-dl_usr-share-glvnd-egl_vendor.d-nvidia.json
+egl_cfg_path=/var/lib/snapd/lib/glvnd/egl_vendor.d/"$egl_file"
+grep '"library_path" *: *"libEGL_nvidia.so.0"' "$egl_cfg_path"
+
+# and vulkan configuration
+vulkan_file=snap_test-nvidia-interfaces_vulkan-dl_usr-share-vulkan-icd.d-nvidia_icd.json
+vulkan_cfg_path=/var/lib/snapd/lib/vulkan/icd.d/"$vulkan_file"
+grep '"library_path" *: *"libGLX_nvidia.so.0"' "$vulkan_cfg_path"

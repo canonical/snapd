@@ -38,11 +38,11 @@ import (
 // AppActivator is a thing that activates the app that is a service in the
 // system.
 type AppActivator struct {
-	Name string
-	// Type describes the type of the unit, either timer or socket
-	Type    string
-	Active  bool
-	Enabled bool
+	Name string `json:"name"`
+	// Type describes the type of the unit, either dbus, socket, or timer
+	Type    string `json:"type"`
+	Active  bool   `json:"active"`
+	Enabled bool   `json:"enabled"`
 }
 
 // AppInfo describes a single snap application.
@@ -56,6 +56,29 @@ type AppInfo struct {
 	Active      bool             `json:"active,omitempty"`
 	CommonID    string           `json:"common-id,omitempty"`
 	Activators  []AppActivator   `json:"activators,omitempty"`
+}
+
+// MarshalJSON marshals the AppActivator in such a way to retain
+// backward-compatibility with the convention-breaking previous format as well.
+// TODO remove legacy format in a future release
+func (aa AppActivator) MarshalJSON() ([]byte, error) {
+	type appActivator AppActivator
+
+	type activatorWrapper struct {
+		appActivator
+		NameLegacy    string `json:"Name"`
+		TypeLegacy    string `json:"Type"`
+		ActiveLegacy  bool   `json:"Active"`
+		EnabledLegacy bool   `json:"Enabled"`
+	}
+
+	return json.Marshal(activatorWrapper{
+		appActivator:  appActivator(aa),
+		NameLegacy:    aa.Name,
+		TypeLegacy:    aa.Type,
+		ActiveLegacy:  aa.Active,
+		EnabledLegacy: aa.Enabled,
+	})
 }
 
 // IsService returns true if the application is a background daemon.

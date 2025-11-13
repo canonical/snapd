@@ -1045,6 +1045,10 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
 	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
+
+	// filterGatedSnaps validates the update plan against refresh control and, if
+	// applicable, filters out gated snaps.
+	filterGatedSnaps(*state.State, *updatePlan, Options) error
 }
 
 // UpdateOne is a convenience wrapper for UpdateWithGoal that ensures that a
@@ -1120,10 +1124,8 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		updateRefreshCandidates(st, hints, plan.requested)
 	}
 
-	// validate snaps to be refreshed against validation sets. if we are
-	// refreshing all snaps, then we filter out the snaps that cannot be
-	// validated and log them
-	if err := plan.validateAndFilterTargets(st, opts); err != nil {
+	// filter out snaps that have been gated by refresh control
+	if err := goal.filterGatedSnaps(st, &plan, opts); err != nil {
 		return nil, nil, err
 	}
 
@@ -1189,7 +1191,7 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	return updated, uts, nil
 }
 
-// storeInstallGoal implements the UpdateGoal interface and represents a group
+// storeUpdateGoal implements the UpdateGoal interface and represents a group
 // of snaps that are to be updated from the store.
 type storeUpdateGoal struct {
 	// snaps is a mapping of snap names to StoreUpdate structs.
@@ -1249,6 +1251,13 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	return plan, nil
+}
+
+func (*storeUpdateGoal) filterGatedSnaps(st *state.State, plan *updatePlan, opts Options) error {
+	// validate snaps to be refreshed against refresh control assertions. If we
+	// are refreshing all snaps, then we filter out the snaps that cannot be
+	// validated and log them
+	return plan.validateAndFilterTargets(st, opts)
 }
 
 func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
@@ -1394,6 +1403,11 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 		targets:   targets,
 		requested: names,
 	}, nil
+}
+
+func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) error {
+	// local installs ignore refresh control by design
+	return nil
 }
 
 func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {

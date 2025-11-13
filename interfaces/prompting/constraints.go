@@ -20,6 +20,7 @@
 package prompting
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -31,12 +32,205 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ConstraintsJSON hold permissions and any additional interface-specific
+// fields. Specific constraints type (e.g. ReplyConstraints, RuleConstraints,
+// and RuleConstraintsPatch) should be capable of parsing from ConstraintsJSON.
+// This type exists as a helper so that the daemon can unmarshal POST request
+// bodies containing constraints without knowing which interface relates to
+// those constraints.
+type ConstraintsJSON map[string]json.RawMessage
+
+// InterfaceSpecificConstraints hold additional constraints fields which vary
+// depending on the interface associated with the constraints. For a given
+// interface, these fields should be identical in Constraints, RuleConstraints,
+// and RuleConstraintsPatch, and each of those structs should contain a field
+// with this type.
+type InterfaceSpecificConstraints interface {
+	// parseJSON populates the interface-specific constraints according to the
+	// given json.
+	parseJSON(constraintsJSON ConstraintsJSON) error
+	// parsePatchJSON populates the interface-specific constraints according to
+	// the given json, treating the result as a constraints patch, where missing
+	// fields are not treated as an error, but instead left empty.
+	parsePatchJSON(constraintsJSON ConstraintsJSON) error
+	// toJSON returns a ConstraintsJSON so the caller can add the permissions
+	// to it and then marshal the result into json.
+	toJSON() (ConstraintsJSON, error)
+	// pathPattern returns a path pattern which can be used to match incoming
+	// requests against these constraints.
+	// XXX: Not all interfaces care about path patterns. For those that don't,
+	// this should return a placeholder designed to match any path, such as /**
+	pathPattern() *patterns.PathPattern
+	// patch returns a new InterfaceSpecificConstraints with the receiver used
+	// to patch the given existing constraints.
+	patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints
+}
+
+// parseInterfaceSpecificConstraints parses the given constraints from json
+// according to the given interface. If isPatch is true, then the constraints
+// should be treated as a patch, where fields may be omitted to indicate that
+// they should be left unchanged from the rule which will be patched.
+func parseInterfaceSpecificConstraints(iface string, constraintsJSON ConstraintsJSON, isPatch bool) (InterfaceSpecificConstraints, error) {
+	var interfaceSpecific InterfaceSpecificConstraints
+	switch iface {
+	case "home":
+		interfaceSpecific = &InterfaceSpecificConstraintsHome{}
+	case "camera":
+		interfaceSpecific = &InterfaceSpecificConstraintsCamera{}
+	default:
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	var err error
+	if isPatch {
+		err = interfaceSpecific.parsePatchJSON(constraintsJSON)
+	} else {
+		err = interfaceSpecific.parseJSON(constraintsJSON)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return interfaceSpecific, nil
+}
+
+type InterfaceSpecificConstraintsHome struct {
+	Pattern *patterns.PathPattern
+}
+
+func (constraints *InterfaceSpecificConstraintsHome) parseJSON(constraintsJSON ConstraintsJSON) error {
+	// Expect fields: "path-pattern"
+	pathPatternJSON, ok := constraintsJSON["path-pattern"]
+	if !ok {
+		return prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+	}
+	var pathPattern patterns.PathPattern
+	if err := pathPattern.UnmarshalJSON(pathPatternJSON); err != nil {
+		return err
+	}
+	constraints.Pattern = &pathPattern
+	return nil
+}
+
+func (constraints *InterfaceSpecificConstraintsHome) parsePatchJSON(constraintsJSON ConstraintsJSON) error {
+	// Optional fields: "path-pattern"
+	pathPatternJSON, ok := constraintsJSON["path-pattern"]
+	if !ok || pathPatternJSON == nil {
+		constraints.Pattern = nil
+		return nil
+	}
+	var pathPattern patterns.PathPattern
+	if err := pathPattern.UnmarshalJSON(pathPatternJSON); err != nil {
+		return err
+	}
+	constraints.Pattern = &pathPattern
+	return nil
+}
+
+func (constraints *InterfaceSpecificConstraintsHome) toJSON() (ConstraintsJSON, error) {
+	constraintsJSON := make(ConstraintsJSON)
+	pathPatternJSON, err := json.Marshal(constraints.Pattern)
+	if err != nil {
+		return nil, err
+	}
+	constraintsJSON["path-pattern"] = pathPatternJSON
+	return constraintsJSON, nil
+}
+
+func (constraints *InterfaceSpecificConstraintsHome) pathPattern() *patterns.PathPattern {
+	return constraints.Pattern
+}
+
+func (constraints *InterfaceSpecificConstraintsHome) patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints {
+	newConstraints := &InterfaceSpecificConstraintsHome{}
+	if existing != nil {
+		// Should never attempt to patch nil existing constraints
+		existingHome, ok := existing.(*InterfaceSpecificConstraintsHome)
+		if ok {
+			// Existing constraints should always be of the matching interface
+			newConstraints.Pattern = existingHome.Pattern
+		}
+	}
+	if constraints != nil && constraints.Pattern != nil {
+		newConstraints.Pattern = constraints.Pattern
+	}
+	return newConstraints
+}
+
+// InterfaceSpecificConstraintsCamera don't have any fields. All camera prompts,
+// replies, and rules concern access to all cameras.
+type InterfaceSpecificConstraintsCamera struct{}
+
+func (constraints *InterfaceSpecificConstraintsCamera) parseJSON(constraintsJSON ConstraintsJSON) error {
+	// Don't expect any fields
+	return nil
+}
+
+func (constraints *InterfaceSpecificConstraintsCamera) parsePatchJSON(constraintsJSON ConstraintsJSON) error {
+	// Don't expect any fields
+	return nil
+}
+
+func (constraints *InterfaceSpecificConstraintsCamera) toJSON() (ConstraintsJSON, error) {
+	return make(ConstraintsJSON), nil
+}
+
+func (constraints *InterfaceSpecificConstraintsCamera) pathPattern() *patterns.PathPattern {
+	pathPattern, _ := patterns.ParsePathPattern("/**")
+	// Error cannot occur, this is a known good pattern.
+	return pathPattern
+}
+
+func (constraints *InterfaceSpecificConstraintsCamera) patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints {
+	return &InterfaceSpecificConstraintsCamera{}
+}
+
 // Constraints hold information about the applicability of a new rule to
-// particular paths and permissions. When creating a new rule, snapd converts
-// Constraints to RuleConstraints.
+// particular requests and permissions. When creating a new rule, snapd
+// converts Constraints to RuleConstraints.
 type Constraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions PermissionMap         `json:"permissions"`
+	InterfaceSpecific InterfaceSpecificConstraints
+	Permissions       PermissionMap
+}
+
+func (c *Constraints) UnmarshalJSON([]byte) error {
+	panic("programmer error: cannot unmarshal Constraints directly; must use UnmarshalConstraints with a given interface")
+}
+
+// UnmarshalConstraints parses constraints from the given json according to the
+// given interface.
+//
+// This should only ever be called when unmarshalling API request content;
+// never data from disk.
+func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
+	const isPatch = false
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	if err != nil {
+		return nil, err
+	}
+	availablePerms, ok := interfacePermissionsAvailable[iface]
+	if !ok {
+		// All the available interfaces should be checked above, so this error
+		// should never occur here.
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	permissionsJSON, ok := constraintsJSON["permissions"]
+	if !ok {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	}
+	var permissionMap PermissionMap
+	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+		return nil, err
+	}
+	// Permissions must be validated later via ToRuleConstraints to check if
+	// any permission entries are invalid.
+	// TODO: validate permissions here while unmarshalling, rather than later,
+	// and leave the later checks to just be for expiration. That would better
+	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
+	// could occur as part of unmarshalling the PermissionMap itself.
+	constraints := &Constraints{
+		InterfaceSpecific: interfaceSpecific,
+		Permissions:       permissionMap,
+	}
+	return constraints, nil
 }
 
 // Match returns true if the constraints match the given path, otherwise false.
@@ -46,15 +240,24 @@ type Constraints struct {
 // This method is only intended to be called on constraints which have just
 // been created from a reply, to check that the reply covers the request.
 func (c *Constraints) Match(path string) (bool, error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	match, err := c.PathPattern.Match(path)
+	// XXX: what if path is a placeholder, not a real path, due to an interface
+	// not using paths/patterns, and thus the placeholder pattern doesn't match
+	// it? It would be nicer if Match() were a method on the interface-specific
+	// constraints, but then the path pattern is still used to match incoming
+	// requests against rules, so having a separate Match method is confusing.
+	// For now, requests all have a path field, so this isn't a problem yet.
+	match, err := c.InterfaceSpecific.pathPattern().Match(path)
 	if err != nil {
 		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
+		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.pathPattern().String(), err.Error())
 	}
 	return match, nil
+}
+
+// PathPattern returns the PathPattern provided by the interface-specific
+// constraints.
+func (c *Constraints) PathPattern() *patterns.PathPattern {
+	return c.InterfaceSpecific.pathPattern()
 }
 
 // ContainPermissions returns true if the permission map in the constraints
@@ -75,39 +278,103 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 // RuleConstraints. If the constraints are not valid with respect to the given
 // interface, returns an error.
 func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
-	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
 	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
 	if err != nil {
 		return nil, err
 	}
 	ruleConstraints := &RuleConstraints{
-		PathPattern: c.PathPattern,
-		Permissions: rulePermissions,
+		InterfaceSpecific: c.InterfaceSpecific,
+		Permissions:       rulePermissions,
 	}
 	return ruleConstraints, nil
 }
 
 // RuleConstraints hold information about the applicability of an existing rule
-// to particular paths and permissions. A request will be matched by the rule
+// to particular requests and permissions. A request will be matched by the rule
 // constraints if the requested path is matched by the path pattern (according
 // to bash's globstar matching) and one or more requested permissions are denied
 // in the permission map, or all of the requested permissions are allowed in the
 // map.
 type RuleConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions RulePermissionMap     `json:"permissions"`
+	InterfaceSpecific InterfaceSpecificConstraints
+	Permissions       RulePermissionMap
 }
 
-// ValidateForInterface checks that the rule constraints are valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// rule is If the rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+func (c *RuleConstraints) UnmarshalJSON([]byte) error {
+	panic("programmer error: cannot unmarshal RuleConstraints directly; must use UnmarshalRuleConstraints with a given interface")
+}
+
+// UnmarshalRuleConstraints parses rule constraints from the given json
+// according to the given interface.
+//
+// This should only ever be called when unmarshalling rules from disk; never
+// API request content.
+func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*RuleConstraints, error) {
+	const isPatch = false
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	if err != nil {
+		return nil, err
 	}
+	availablePerms, ok := interfacePermissionsAvailable[iface]
+	if !ok {
+		// All the available interfaces should be checked above, so this error
+		// should never occur here.
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	permissionsJSON, ok := constraintsJSON["permissions"]
+	if !ok {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	}
+	var permissionMap RulePermissionMap
+	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+		return nil, err
+	}
+	// Permissions must be validated later via ValidateForInterface to check if
+	// any/all permission entries are invalid or expired.
+	// TODO: validate permissions here while unmarshalling, rather than later,
+	// and leave the later checks to just be for expiration. That would better
+	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
+	// could occur as part of unmarshalling the RulePermissionMap itself.
+	constraints := &RuleConstraints{
+		InterfaceSpecific: interfaceSpecific,
+		Permissions:       permissionMap,
+	}
+	return constraints, nil
+}
+
+func (c *RuleConstraints) MarshalJSON() ([]byte, error) {
+	constraintsJSON, err := c.InterfaceSpecific.toJSON()
+	if err != nil {
+		return nil, err
+	}
+	permissionsJSON, err := json.Marshal(c.Permissions)
+	if err != nil {
+		return nil, err
+	}
+	constraintsJSON["permissions"] = permissionsJSON
+	return json.Marshal(constraintsJSON)
+}
+
+// PermExpirationStatus is used to indicate whether all, some, or no permissions
+// within a rule permission map expired.
+type PermExpirationStatus int
+
+const (
+	NoPermsExpired PermExpirationStatus = iota
+	AnyPermsExpired
+	AllPermsExpired
+)
+
+// ValidateForInterface checks that the rule constraints are valid for the
+// given interface. If any permissions have expired at the given point in time,
+// they are pruned. Returns a [PermExpirationStatus] indicating whether all,
+// any, or no permissions were expired. If the rule is invalid, returns an
+// error.
+func (c *RuleConstraints) ValidateForInterface(iface string, at At) (status PermExpirationStatus, err error) {
+	// XXX: this is called only when loading rules from disk. Any interface-
+	// specific fields were validated while unmarshalling, but we don't have
+	// the means to properly handle expired rules then, so this method is still
+	// necessary.
 	return c.Permissions.validateForInterface(iface, at)
 }
 
@@ -115,29 +382,27 @@ func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired boo
 //
 // If the constraints or path are invalid, returns an error.
 func (c *RuleConstraints) Match(path string) (bool, error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	match, err := c.PathPattern.Match(path)
+	match, err := c.InterfaceSpecific.pathPattern().Match(path)
 	if err != nil {
 		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
+		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.pathPattern().String(), err.Error())
 	}
 	return match, nil
 }
 
-// ReplyConstraints hold information about the applicability of a reply to
-// particular paths and permissions. Upon receiving the reply, snapd converts
-// ReplyConstraints to Constraints.
-type ReplyConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions []string              `json:"permissions"`
+// PathPattern returns the PathPattern provided by the interface-specific
+// constraints.
+func (c *RuleConstraints) PathPattern() *patterns.PathPattern {
+	return c.InterfaceSpecific.pathPattern()
 }
 
-// ToConstraints validates the receiving ReplyConstraints with respect to the
-// given interface, along with the given outcome, lifespan, and duration, and
-// constructs an equivalent Constraints from the ReplyConstraints.
-func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, lifespan LifespanType, duration string) (*Constraints, error) {
+// UnmarshalReplyConstraints validates the given reply parameters, parses the
+// constraints from json according to the given interface, and returns an
+// equivalent Constraints.
+//
+// This should only ever be called when unmarshalling API request content;
+// never data from disk.
+func UnmarshalReplyConstraints(iface string, outcome OutcomeType, lifespan LifespanType, duration string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
 	if _, err := outcome.AsBool(); err != nil {
 		// Should not occur, as outcome is validated when unmarshalled
 		return nil, err
@@ -145,19 +410,32 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	if _, err := lifespan.ParseDuration(duration, time.Now()); err != nil {
 		return nil, err
 	}
-	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+	// Parse interface-specific reply details
+	const isPatch = false
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	if err != nil {
+		return nil, err
 	}
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
+		// All the available interfaces should be checked above, so this error
+		// should never occur here.
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
-	if len(c.Permissions) == 0 {
+	permissionsJSON, ok := constraintsJSON["permissions"]
+	if !ok {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	}
+	var permissionsList []string
+	if err := json.Unmarshal(permissionsJSON, &permissionsList); err != nil {
+		return nil, err
+	}
+	if len(permissionsList) == 0 {
 		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var invalidPerms []string
-	permissionMap := make(PermissionMap, len(c.Permissions))
-	for _, perm := range c.Permissions {
+	permissionMap := make(PermissionMap, len(permissionsList))
+	for _, perm := range permissionsList {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
 			continue
@@ -172,8 +450,8 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 		return nil, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms)
 	}
 	constraints := &Constraints{
-		PathPattern: c.PathPattern,
-		Permissions: permissionMap,
+		InterfaceSpecific: interfaceSpecific,
+		Permissions:       permissionMap,
 	}
 	return constraints, nil
 }
@@ -188,8 +466,47 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 // unchanged from the existing rule. To remove an existing permission from the
 // rule, the permission should map to null.
 type RuleConstraintsPatch struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
-	Permissions PermissionMap         `json:"permissions,omitempty"`
+	InterfaceSpecific InterfaceSpecificConstraints
+	Permissions       PermissionMap
+}
+
+func (c *RuleConstraintsPatch) UnmarshalJSON([]byte) error {
+	panic("programmer error: cannot unmarshal RuleConstraintsPatch directly; must use UnmarshalRuleConstraintsPatch with a given interface")
+}
+
+// UnmarshalRuleConstraintsPatch parses rule constraints from the given json
+// according to the given interface.
+//
+// This should only ever be called when unmarshalling API request content;
+// never data from disk.
+func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON) (*RuleConstraintsPatch, error) {
+	constraints := &RuleConstraintsPatch{}
+
+	const isPatch = true
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	if err != nil {
+		return nil, err
+	}
+	constraints.InterfaceSpecific = interfaceSpecific
+
+	permissionsJSON, ok := constraintsJSON["permissions"]
+	if ok {
+		var permissionMap PermissionMap
+		if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+			return nil, err
+		}
+		constraints.Permissions = permissionMap
+		// Permissions must be validated later via ValidateForInterface to check
+		// if any/all permission entries are invalid or expired.
+		// TODO: validate permissions here while unmarshalling, rather than later.
+		// That would better match the behavior of UnmarshalReplyConstraints.
+		// Furthermore, validation could occur as part of unmarshalling the
+		// PermissionMap itself, though this needs to be slightly different from
+		// that in UnmarshalConstraints, since we want to allow and preserve any
+		// permissions which map to nil.
+	}
+
+	return constraints, nil
 }
 
 // PatchRuleConstraints validates the receiving RuleConstraintsPatch and uses
@@ -208,10 +525,10 @@ type RuleConstraintsPatch struct {
 // The existing rule constraints are not mutated.
 func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, at At) (*RuleConstraints, error) {
 	ruleConstraints := &RuleConstraints{
-		PathPattern: c.PathPattern,
+		InterfaceSpecific: existing.InterfaceSpecific,
 	}
-	if c.PathPattern == nil {
-		ruleConstraints.PathPattern = existing.PathPattern
+	if c.InterfaceSpecific != nil {
+		ruleConstraints.InterfaceSpecific = c.InterfaceSpecific.patch(existing.InterfaceSpecific)
 	}
 	if c.Permissions == nil {
 		ruleConstraints.Permissions = existing.Permissions
@@ -278,15 +595,16 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
-	if len(pm) == 0 {
-		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
-	}
 	var errs []error
 	var invalidPerms []string
 	rulePermissionMap := make(RulePermissionMap, len(pm))
 	for perm, entry := range pm {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
+			continue
+		}
+		if entry == nil {
+			// treat permissions with nil entries as if they were not present
 			continue
 		}
 		rulePermissionEntry, err := entry.toRulePermissionEntry(at)
@@ -302,6 +620,9 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 	if len(errs) > 0 {
 		return nil, strutil.JoinErrors(errs...)
 	}
+	if len(rulePermissionMap) == 0 {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	}
 	return rulePermissionMap, nil
 }
 
@@ -311,16 +632,17 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 type RulePermissionMap map[string]*RulePermissionEntry
 
 // validateForInterface checks that the rule permission map is valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// permission map is invalid, returns an error.
-func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
+// given interface. If any permissions have expired at the given point in time,
+// they are pruned. Returns a [PermExpirationStatus] indicating whether all,
+// any, or no permissions were expired. If the permission map is invalid,
+// returns an error.
+func (pm RulePermissionMap) validateForInterface(iface string, at At) (status PermExpirationStatus, err error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+		return NoPermsExpired, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	if len(pm) == 0 {
-		return false, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+		return NoPermsExpired, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var errs []error
 	var invalidPerms []string
@@ -328,6 +650,12 @@ func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired b
 	for perm, entry := range pm {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
+			continue
+		}
+		if entry == nil {
+			// This should never occur unless rules on disk corrupted.
+			// Treat this as if the permission had expired.
+			expiredPerms = append(expiredPerms, perm)
 			continue
 		}
 		if err := entry.validate(); err != nil {
@@ -343,16 +671,19 @@ func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired b
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return false, strutil.JoinErrors(errs...)
+		return NoPermsExpired, strutil.JoinErrors(errs...)
 	}
 	for _, perm := range expiredPerms {
 		delete(pm, perm)
 	}
 	if len(pm) == 0 {
 		// All permissions expired
-		return true, nil
+		return AllPermsExpired, nil
 	}
-	return false, nil
+	if len(expiredPerms) > 0 {
+		return AnyPermsExpired, nil
+	}
+	return NoPermsExpired, nil
 }
 
 // Expired returns true if all permissions in the map have expired at the given
@@ -577,6 +908,7 @@ func availableInterfaces() []string {
 func AvailablePermissions(iface string) ([]string, error) {
 	available, exist := interfacePermissionsAvailable[iface]
 	if !exist {
+		// XXX: should this be NewInvalidInterfaceError instead?
 		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %s", iface)
 	}
 	return available, nil

@@ -434,13 +434,11 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 				Mode:       device.AuthModePassphrase,
 				Passphrase: "passw0rd",
 				KDFType:    "argon2id",
-				KDFTime:    1001,
 			})
 		case device.AuthModePIN:
 			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
 				// TODO:FDEM: check PIN is passed
-				Mode:    device.AuthModePIN,
-				KDFTime: 1002,
+				Mode: device.AuthModePIN,
 			})
 		default:
 			c.Errorf("unexpected auth-mode %q", authMode)
@@ -471,14 +469,12 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 		bodyRaw = fmt.Sprintf(bodyTemplate, `
 	"auth-mode": "passphrase",
 	"passphrase": "passw0rd",
-	"kdf-type": "argon2id",
-	"kdf-time": 1001
+	"kdf-type": "argon2id"
 `)
 	case device.AuthModePIN:
 		bodyRaw = fmt.Sprintf(bodyTemplate, `
 	"auth-mode": "pin",
-	"pin": "p1n",
-	"kdf-time": 1002
+	"pin": "p1n"
 `)
 	}
 
@@ -523,6 +519,30 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePa
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePIN(c *C) {
 	const authMode = device.AuthModePIN
 	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyKDFTimeError(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{
+	"action": "replace-platform-key",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"}
+	],
+	"auth-mode": "passphrase",
+	"passphrase": "passw0rd",
+	"kdf-type": "argon2id",
+	"kdf-time": 1001
+}`)
+
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Equals, `invalid platform key options: kdf time cannot be set`)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyError(c *C) {

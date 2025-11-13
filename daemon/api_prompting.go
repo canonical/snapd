@@ -53,21 +53,26 @@ var (
 	}
 
 	requestsRulesCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules",
-		GET:         getRules,
-		POST:        postRules,
-		Actions:     []string{"add", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
+		Path:       "/v2/interfaces/requests/rules",
+		GET:        getRules,
+		POST:       postRules,
+		Actions:    []string{"add", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// postRules can only operate on rules associated with the user making
+		// the API request, so there is no need for polkit authentication.
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	requestsRuleCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules/{id}",
-		GET:         getRule,
-		POST:        postRule,
-		Actions:     []string{"patch", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
+		Path:       "/v2/interfaces/requests/rules/{id}",
+		GET:        getRule,
+		POST:       postRule,
+		Actions:    []string{"patch", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// postRule can only operate on a rule if the rule is associated with
+		// the user making the API request, so there is no need for polkit
+		// authentication.
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 )
 
@@ -299,16 +304,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType       `json:"action"`
-	Lifespan    prompting.LifespanType      `json:"lifespan"`
-	Duration    string                      `json:"duration,omitempty"`
-	Constraints *prompting.ReplyConstraints `json:"constraints"`
+	Outcome     prompting.OutcomeType     `json:"action"`
+	Lifespan    prompting.LifespanType    `json:"lifespan"`
+	Duration    string                    `json:"duration,omitempty"`
+	Constraints prompting.ConstraintsJSON `json:"constraints"`
 }
 
 type addRuleContents struct {
-	Snap        string                 `json:"snap"`
-	Interface   string                 `json:"interface"`
-	Constraints *prompting.Constraints `json:"constraints"`
+	Snap        string                    `json:"snap"`
+	Interface   string                    `json:"interface"`
+	Constraints prompting.ConstraintsJSON `json:"constraints"`
 }
 
 type removeRulesSelector struct {
@@ -317,7 +322,8 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
+	// The fields within the constraints patch need to be optional
+	Constraints prompting.ConstraintsJSON `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {

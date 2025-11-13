@@ -48,7 +48,7 @@ execute: |
 
     echo "Snap will use existing files"
     SNAPD_DEBUG=1 snap download test-snapd-control-consumer &>out
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_LOG_SNAP_TO_JOURNAL" ]; then
         # If logging to journal is active, then grab the entires in the journal for snap
         # and append them to the debug log
         "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snap\[\d+\]: \K.*' >> out

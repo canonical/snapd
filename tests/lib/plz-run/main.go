@@ -31,13 +31,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
@@ -57,23 +55,6 @@ func (e *EnvList) Set(value string) error {
 	return nil
 }
 
-// LogLevelBridge bridges flag.Var with slog.LevelVar
-//
-// This masks over the incompatible signature of Set between the interface and the type.
-type LogLevelBridge struct{ Var *slog.LevelVar }
-
-func (b LogLevelBridge) String() string {
-	if b.Var == nil {
-		return "?"
-	}
-	return b.Var.String()
-}
-
-func (b LogLevelBridge) Set(s string) error { return b.Var.UnmarshalText([]byte(s)) }
-
-// Global log level variable.
-var logLevel slog.LevelVar
-
 func plz(ctx context.Context, args []string) error {
 	// Constants related to systemd D-Bus interfaces.
 	// Sadly most cannot be strongly typed with go-dbus, as the API relies on untyped strings.
@@ -86,6 +67,7 @@ func plz(ctx context.Context, args []string) error {
 		fdoSystemd1ManagerIface                             = fdoSystemd1BusName + ".Manager"
 		fdoSystemd1ServiceIface                             = fdoSystemd1BusName + ".Service"
 		fdoSystemd1StartTransientUnitMethod                 = fdoSystemd1ManagerIface + ".StartTransientUnit"
+		fdoSystemd1ResetFailedUnitMethod                    = fdoSystemd1ManagerIface + ".ResetFailedUnit"
 		fdoSystemd1ManagerJobRemovedMember                  = "JobRemoved"
 		fdoSystemd1ManagerJobRemovedSignal                  = fdoSystemd1ManagerIface + "." + fdoSystemd1ManagerJobRemovedMember
 	)
@@ -105,7 +87,6 @@ func plz(ctx context.Context, args []string) error {
 	fl.StringVar(&pamName, "pam", "", "Ask systemd to use given name as PAMName=")
 	fl.StringVar(&workingDir, "C", "", "Ask systemd to use the given WorkingDirectory=")
 	fl.BoolVar(&sameDir, "same-dir", false, "Same as -C=$CURDIR")
-	fl.Var(&LogLevelBridge{Var: &logLevel}, "log-level", "Set internal logging level")
 	fl.Usage = func() {
 		fmt.Fprintf(fl.Output(), "Usage: %s [OPTIONS] PROG [ARGS]\n", fl.Name())
 		fl.PrintDefaults()
@@ -191,7 +172,8 @@ func plz(ctx context.Context, args []string) error {
 	props := []Prop{
 		{Name: "Description", Value: dbus.MakeVariant("potato")},
 		{Name: "Type", Value: dbus.MakeVariant("oneshot")},
-		{Name: "CollectMode", Value: dbus.MakeVariant("inactive-or-failed")},
+		// We cannot rely on CollectMode as it is not available on old systemd.
+		// {Name: "CollectMode", Value: dbus.MakeVariant("inactive-or-failed")},
 		{Name: "StandardInputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdin.Fd()))},
 		{Name: "StandardOutputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdout.Fd()))},
 		{Name: "StandardErrorFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stderr.Fd()))},
@@ -257,27 +239,18 @@ func plz(ctx context.Context, args []string) error {
 
 				// Certain properties are interesting to us.
 				type nameStorage struct {
-					iface   string
-					name    string
-					storage any
+					iface     string
+					name      string
+					storage   any
+					storeZero func()
 				}
 				var (
 					interestingProps []nameStorage = []nameStorage{
-						{fdoSystemd1ServiceIface, "ExecMainCode", &execMainCode},
-						{fdoSystemd1ServiceIface, "ExecMainStatus", &execMainStatus},
-						{fdoSystemd1ServiceIface, "Result", &result},
+						{fdoSystemd1ServiceIface, "ExecMainCode", &execMainCode, func() { execMainCode = 0 }},
+						{fdoSystemd1ServiceIface, "ExecMainStatus", &execMainStatus, func() { execMainStatus = 0 }},
+						{fdoSystemd1ServiceIface, "Result", &result, func() { result = "" }},
 					}
 				)
-
-				// Log what we're seeing.
-				for p, v := range propsChanged {
-					slog.Debug("property changed", slog.String("object", string(sig.Path)),
-						slog.String("interface", propsIface), slog.String("property", p), slog.Any("value", v.Value()))
-				}
-				for _, p := range propsInvalidated {
-					slog.Debug("property invalidated", slog.String("object", string(sig.Path)),
-						slog.String("interface", propsIface), slog.String("property", p))
-				}
 
 				// Store the subset of properties we are interested in.
 				for _, prop := range interestingProps {
@@ -288,12 +261,10 @@ func plz(ctx context.Context, args []string) error {
 						if err := val.Store(prop.storage); err != nil {
 							return fmt.Errorf("cannot store %s: %w", prop.name, err)
 						}
-						slog.Debug("stored interesting property",
-							slog.String("interface", propsIface), slog.String("property", prop.name), slog.Any("value", val.Value()))
 					}
 					for _, p := range propsInvalidated {
 						if prop.name == p {
-							reflect.ValueOf(prop.storage).Elem().SetZero()
+							prop.storeZero()
 						}
 					}
 				}
@@ -311,7 +282,6 @@ func plz(ctx context.Context, args []string) error {
 				if err := dbus.Store(sig.Body, &jobId, &jobPath, &jobUnit, &jobResult); err != nil {
 					return err
 				}
-				slog.Debug("job removed", slog.String("object", string(jobPath)))
 				if jobPath == ourJobPath {
 					jobRemoved = true
 				}
@@ -321,15 +291,14 @@ func plz(ctx context.Context, args []string) error {
 		}
 	}
 
-	slog.Info("done waiting for job result",
-		slog.String("Result", result),
-		slog.Int64("ExecMainCode", int64(execMainCode)),
-		slog.Int64("ExecMainStatus", int64(execMainStatus)))
-
 	// Relay ExecMainStatus exit code back to the caller.
 	switch result {
 	case "exit-code":
 		if execMainStatus > 0 {
+			if err := obj.CallWithContext(ctx, fdoSystemd1ResetFailedUnitMethod, flags, name).Store(); err != nil {
+				return fmt.Errorf("cannot call ResetFailedUnit: %w", err)
+			}
+
 			return SilentError(uint8(execMainStatus))
 		}
 		return nil
@@ -348,10 +317,6 @@ func plz(ctx context.Context, args []string) error {
 }
 
 func main() {
-	logLevel.Set(slog.LevelWarn)
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel})))
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -361,7 +326,8 @@ func main() {
 			os.Exit(int(err))
 		}
 
-		fmt.Fprintf(os.Stderr, "%s error: %s", filepath.Base(os.Args[0]), err.Error())
+		fmt.Fprintf(os.Stderr, "%s error: %s\n", filepath.Base(os.Args[0]), err)
+		os.Exit(1)
 	}
 }
 

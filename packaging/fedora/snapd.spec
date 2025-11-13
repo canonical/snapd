@@ -693,6 +693,9 @@ install -m 644 -D data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/sn
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -m 644 -D data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Install the NEWS file
+install -pm 644 -D NEWS.md %{buildroot}%{_defaultdocdir}/snapd/NEWS.md
+
 # Install snap-confine
 pushd ./cmd
 %make_install
@@ -890,6 +893,9 @@ make -C data -k check
 # similar case for fish
 %dir %{_datadir}/fish/vendor_conf.d
 
+%dir %{_defaultdocdir}/snapd
+%{_defaultdocdir}/snapd/NEWS.md
+
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
 %license COPYING
@@ -899,8 +905,8 @@ make -C data -k check
 %{_libexecdir}/snapd/snap-confine.v2-only.caps
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
-%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
+%{_libexecdir}/snapd/snap-strace-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_mandir}/man8/snap-confine.8*

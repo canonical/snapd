@@ -86,12 +86,6 @@ execute: |
     # we are ready
     touch /var/snap/test-strict-cgroup/common/ready
     wait || true
-
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
-        # When structured trace logging is active, the output
-        # will contain debug logs so filter out all those logs
-        sed -i '/\"level\"\:/d' run.log
-    fi
     # nothing was logged, i.e. /dev/zero access was successful
     MATCH "^$" < run.log
     # dumps are the same, because the event action was 'change', so /dev/full

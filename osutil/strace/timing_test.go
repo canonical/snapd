@@ -82,7 +82,9 @@ func (s *timingSuite) TestExecveTimingPrunes(c *C) {
 // generated with:
 //
 //	sudo /usr/lib/snapd/snap-discard-ns test-snapd-tools && sudo strace -u $USER -o strace.log -f -e trace=execve,execveat -ttt test-snapd-tools.echo foo && cat strace.log
-var sampleStraceSimple = []byte(`21616 1542882400.198907 execve("/snap/bin/test-snapd-tools.echo", ["test-snapd-tools.echo", "foo"], 0x7fff7f275f48 /* 27 vars */) = 0
+var sampleStraceSimple = []byte(`
+21616 1542882400.198905 --- stopped by SIGSTOP ---
+21616 1542882400.198907 execve("/snap/bin/test-snapd-tools.echo", ["test-snapd-tools.echo", "foo"], 0x7fff7f275f48 /* 27 vars */) = 0
 21616 1542882400.204710 execve("/snap/core/current/usr/bin/snap", ["test-snapd-tools.echo", "foo"], 0xc42011c8c0 /* 27 vars */ <unfinished ...>
 21621 1542882400.204845 +++ exited with 0 +++
 21620 1542882400.204853 +++ exited with 0 +++
@@ -114,7 +116,7 @@ var sampleStraceSimple = []byte(`21616 1542882400.198907 execve("/snap/bin/test-
 21635 1542882400.383890 +++ exited with 0 +++
 21616 1542882400.384105 <... execve resumed> ) = 0
 21616 1542882400.384974 +++ exited with 0 +++
-`)
+`[1:])
 
 func (s *timingSuite) TestTraceExecveTimings(c *C) {
 	f, err := os.CreateTemp("", "strace-extract-test-")
@@ -124,7 +126,10 @@ func (s *timingSuite) TestTraceExecveTimings(c *C) {
 	c.Assert(err, IsNil)
 	f.Sync()
 
-	st, err := strace.TraceExecveTimings(f.Name(), 10)
+	attachedCalled := 0
+	st, err := strace.TraceExecveTimings(f.Name(), 10, func() {
+		attachedCalled++
+	})
 	c.Assert(err, IsNil)
 	c.Assert(st.TotalTime, Equals, 0.1860671043395996)
 	c.Assert(st.ExeRuntimes(), DeepEquals, []strace.ExeRuntime{
@@ -134,4 +139,5 @@ func (s *timingSuite) TestTraceExecveTimings(c *C) {
 		{Exe: "/snap/core/5976/usr/lib/snapd/snap-confine", TotalSec: 0.15650391578674316},
 		{Exe: "/usr/lib/snapd/snap-exec", TotalSec: 0.006349086761474609},
 	})
+	c.Check(attachedCalled, Equals, 1)
 }

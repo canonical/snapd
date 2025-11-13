@@ -173,7 +173,7 @@ class MongoRetriever(Retriever):
         self.client.close()
 
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
-        results = self.collection.find()
+        results = self.collection.find({}, {'timestamp': 1, 'system': 1, 'all_features': 1})
         dictionary = defaultdict(list)
         for result in results:
             if 'all_features' in result and result['all_features'] == True:

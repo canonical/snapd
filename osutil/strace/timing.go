@@ -165,7 +165,7 @@ func handleSignalMatch(trace *ExecveTiming, pt *pidTracker, match []string) erro
 	return nil
 }
 
-func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
+func TraceExecveTimings(straceLog string, nSlowest int, notifyTraceAttached func()) (*ExecveTiming, error) {
 	slog, err := os.Open(straceLog)
 	if err != nil {
 		return nil, err
@@ -179,6 +179,21 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 	var start, end, tmp float64
 	trace := NewExecveTiming(nSlowest)
 	r := bufio.NewScanner(slog)
+
+	// part 1, wait for strace to attach
+	for r.Scan() {
+		line = r.Text()
+
+		if StraceAttachedStart(line) {
+			// notify the caller that strace has attached to the child
+			if notifyTraceAttached != nil {
+				notifyTraceAttached()
+			}
+			break
+		}
+	}
+
+	// part 2, strace is attached, ready to parse the outputs
 	for r.Scan() {
 		line = r.Text()
 		if start == 0.0 {
@@ -186,6 +201,7 @@ func TraceExecveTimings(straceLog string, nSlowest int) (*ExecveTiming, error) {
 				return nil, fmt.Errorf("cannot parse start of exec profile: %s", err)
 			}
 		}
+
 		// handleExecMatch looks for execve{,at}() calls and
 		// uses the pidTracker to keep track of execution of
 		// things. Because of fork() we may see many pids and

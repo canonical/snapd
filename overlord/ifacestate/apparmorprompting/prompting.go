@@ -26,12 +26,13 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
@@ -60,12 +61,12 @@ var (
 type Manager interface {
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
-	HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
+	HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON prompting.ConstraintsJSON, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
 	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
-	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error)
 	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
-	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON prompting.ConstraintsJSON) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
 
@@ -93,33 +94,16 @@ type InterfacesRequestsManager struct {
 	// would be a race between the method calls unblocking and the manager
 	// actually getting the chance to handle the request.
 	ready chan struct{}
-
-	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
-	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 }
 
-func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
-	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyPrompt calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
-		options := state.AddNoticeOptions{
-			Data: data,
-		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
-		return err
-	}
-	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyRule calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
-		options := state.AddNoticeOptions{
-			Data: data,
-		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
-		return err
+func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr error) {
+	// First initialize notice backends to load notices from disk and allow
+	// prompting managers to record notices. Don't register the notice backends
+	// with the state until we're sure initialization was successful and
+	// prompting will be enabled.
+	noticeBackends, err := newNoticeBackends(noticeMgr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
 	}
 
 	listenerBackend, err := listenerRegister()
@@ -132,7 +116,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(notifyPrompt)
+	promptsBackend, err := requestprompts.New(noticeBackends.promptBackend.addNotice)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -142,7 +126,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(notifyRule)
+	rulesBackend, err := requestrules.New(noticeBackends.ruleBackend.addNotice)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
@@ -152,13 +136,18 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		}
 	}()
 
+	// Now that all prompting managers were successfully initialized, register
+	// the notice backends with the state as notice providers.
+	if err = noticeBackends.registerWithManager(noticeMgr); err != nil {
+		// This should never occur
+		return nil, fmt.Errorf("cannot register notice backends for prompting manager: %w", err)
+	}
+
 	m = &InterfacesRequestsManager{
-		listener:     listenerBackend,
-		prompts:      promptsBackend,
-		rules:        rulesBackend,
-		ready:        make(chan struct{}),
-		notifyPrompt: notifyPrompt,
-		notifyRule:   notifyRule,
+		listener: listenerBackend,
+		prompts:  promptsBackend,
+		rules:    rulesBackend,
+		ready:    make(chan struct{}),
 	}
 
 	m.tomb.Go(m.run)
@@ -272,8 +261,14 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	if err != nil {
 		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
 			// There were no tags registered with a snapd interface, so we
-			// default to the "home" interface.
-			iface = "home"
+			// look at the path to decide whether it's "home" or "camera".
+			// XXX: this is a temporary workaround until metadata tags are
+			// supported by the AppArmor parser and kernel.
+			if builtin.DetectCameraFromPath(req.Path) {
+				iface = "camera"
+			} else {
+				iface = "home"
+			}
 		} else {
 			// There was either more than one interface associated with tags, or
 			// none which applied to all requested permissions. Since we can't
@@ -410,7 +405,7 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 //
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
-func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON prompting.ConstraintsJSON, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
@@ -427,9 +422,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// dedicated PermissionEntry values for each permission in the reply.
 	// Outcome and lifespan are validated while unmarshalling, and duration is
 	// validated against the given lifespan when constructing the Constraints.
-	constraints, err := replyConstraints.ToConstraints(prompt.Interface, outcome, lifespan, duration)
+	constraints, err := prompting.UnmarshalReplyConstraints(prompt.Interface, outcome, lifespan, duration, replyConstraintsJSON)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode request body into prompt reply: %w", err)
 	}
 
 	// Check that constraints matches original requested path.
@@ -439,14 +434,14 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// constraints, such as check that the path pattern does not match
 	// any paths not granted by the interface.
 	// TODO: Should this be reconsidered?
-	matches, err := constraints.Match(prompt.Constraints.Path())
+	matches, err := constraints.PathPattern().Match(prompt.Constraints.Path())
 	if err != nil {
 		return nil, err
 	}
 	if !matches {
 		return nil, &prompting_errors.RequestedPathNotMatchedError{
 			Requested: prompt.Constraints.Path(),
-			Replied:   constraints.PathPattern.String(),
+			Replied:   constraints.PathPattern().String(),
 		}
 	}
 
@@ -454,9 +449,16 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.OutstandingPermissions())
 	if !contained {
+		// We never expose the original list of permissions in the reply,
+		// so we need to reconstruct it from the keys in the permission map.
+		// Thus, the permissions will no longer be in their original order.
+		replyPermissions := make([]string, 0, len(constraints.Permissions))
+		for perm := range constraints.Permissions {
+			replyPermissions = append(replyPermissions, perm)
+		}
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
 			Requested: prompt.Constraints.OutstandingPermissions(),
-			Replied:   replyConstraints.Permissions, // equivalent to keys of constraints.Permissions
+			Replied:   replyPermissions,
 		}
 	}
 
@@ -537,7 +539,7 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
@@ -545,11 +547,15 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	constraints, err := prompting.UnmarshalConstraints(iface, constraintsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode request body for rules endpoint: %w", err)
+	}
+
 	newRule, err := m.rules.AddRule(userID, snap, iface, constraints)
 	if err != nil {
 		return nil, err
 	}
-	// Apply new rule to outstanding prompts.
 	m.applyRuleToOutstandingPrompts(newRule)
 	return newRule, nil
 }
@@ -592,13 +598,25 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	// Lookup existing rule only so we can get its interface, so we can
+	// unmarshal the constraints patch from json.
+	origRule, err := m.rules.RuleWithID(userID, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	constraintsPatch, err := prompting.UnmarshalRuleConstraintsPatch(origRule.Interface, constraintsPatchJSON)
+	if err != nil {
+		// XXX: should this say "... or deletion" like daemon does?
+		return nil, fmt.Errorf("cannot decode request body into request rule modification: %w", err)
+	}
 
 	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)
 	if err != nil {

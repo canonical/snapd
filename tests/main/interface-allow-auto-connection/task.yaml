@@ -1,0 +1,74 @@
+summary: Verify that the interface.x11.allow-auto-connection setting works
+
+details: |
+    Using different snaps that require interface connections, check each of the options
+    for interface.x11.allow-auto-connection works like they are expected.
+
+systems:
+    # ubuntu-core: no x11
+    - -ubuntu-core*
+
+environment:
+  VARIANT/unset: unset
+  VARIANT/false: false
+  VARIANT/true: true
+  VARIANT/verified: verified
+
+restore: |
+    snap set system interface.x11.allow-auto-connection=true
+
+execute: |
+    # We can install a snap with an interface by default, install an older revision
+    # so we can try refreshing it
+    revision=
+    if os.query is_arm; then
+        revision=973
+    else
+        revision=972
+    fi
+    snap install gnome-calculator --revision="$revision"
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
+
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+
+    if [ "$SPREAD_VARIANT" != "unset" ]; then
+        snap set system interface.x11.allow-auto-connection="$VARIANT"
+    else
+        # stop here, just to verify default behaviour
+        exit 0
+    fi
+
+    # Changing the state of auto-connections for that interface does not break it
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+
+    # Refreshing keeps the connection, and does not break it
+    if os.query is_arm; then
+        revision=976
+    else
+        revision=975
+    fi
+    snap refresh gnome-calculator --revision="$revision"
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
+
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+
+    # Reinstall and make sure it now honors the option set
+    snap remove --purge gnome-calculator
+    snap remove --purge x11-consumer
+
+    snap install gnome-calculator
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
+
+    if [ "$SPREAD_VARIANT" = "true" ]; then
+        snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+    elif [ "$SPREAD_VARIANT" = "false" ]; then
+        snap connections x11-consumer | tr -s ' ' | NOMATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | NOMATCH "gnome-calculator:x11 :x11"
+    elif [ "$SPREAD_VARIANT" = "verified" ]; then
+        snap connections x11-consumer | tr -s ' ' | NOMATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+    fi

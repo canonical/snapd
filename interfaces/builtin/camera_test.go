@@ -82,7 +82,7 @@ func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/video[0-9]* rw")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "###PROMPT### /dev/video[0-9]* rw")
 }
 
 func (s *CameraInterfaceSuite) TestUDevSpec(c *C) {
@@ -112,4 +112,24 @@ func (s *CameraInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *CameraInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *CameraInterfaceSuite) TestDetectCameraFromPath(c *C) {
+	for _, path := range []string{
+		"/dev/video0",
+		"/dev/video1",
+		"/dev/video99",
+		"/dev/vchiq",
+	} {
+		c.Check(builtin.DetectCameraFromPath(path), Equals, true, Commentf("%q should be detected as camera path"))
+	}
+
+	for _, path := range []string{
+		"/foo/bar",
+		"/dev/vid",
+		"/dev/vhci",
+		"/home/ubuntu",
+	} {
+		c.Check(builtin.DetectCameraFromPath(path), Equals, false, Commentf("%q should not be detected as camera path"))
+	}
 }

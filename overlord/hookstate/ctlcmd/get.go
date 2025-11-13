@@ -99,7 +99,24 @@ This requests the "usb-vendor" setting from the slot that is connected to
 "myplug".
 `)
 
+var longConfdbGetHelp = i18n.G(`
+If the --view flag is used, 'snapctl get' expects the name of a connected
+interface plug referencing a confdb view. In that case, the command returns the
+data at the provided paths according to the view referenced by the plug.
+
+When using 'snacptl get' in a confdb hook, the --previous flag can be used to
+return confdb data disregarding the changes being committed in the transaction
+that invoked the hook.
+
+The --default flag can be used to provide a default value to be returned if no
+value is stored.
+`)
+
 func init() {
+	if features.Confdb.IsEnabled() {
+		longGetHelp += longConfdbGetHelp
+	}
+
 	addCommand("get", shortGetHelp, longGetHelp, func() command {
 		return &getCommand{}
 	})
@@ -194,7 +211,7 @@ func (c *getCommand) Execute(args []string) error {
 		}
 
 		if c.View {
-			if err := validateConfdbsFeatureFlag(context.State()); err != nil {
+			if err := validateConfdbFeatureFlag(context.State()); err != nil {
 				return err
 			}
 
@@ -483,9 +500,9 @@ func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.P
 	return plug, nil
 }
 
-// validateConfdbsFeatureFlag checks whether the confdb experimental flag
+// validateConfdbFeatureFlag checks whether the confdb experimental flag
 // is enabled. The state should not be locked by the caller.
-func validateConfdbsFeatureFlag(st *state.State) error {
+func validateConfdbFeatureFlag(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 

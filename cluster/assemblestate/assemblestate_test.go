@@ -122,7 +122,7 @@ func (s *assembleSuite) TestRun(c *check.C) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := as.Run(
+			_, _, err := as.Run(
 				ctx,
 				listeners[rdt],
 				assemblestate.NewHTTPSTransport(),
@@ -158,7 +158,7 @@ func (s *assembleSuite) TestRun(c *check.C) {
 	disco := make(chan []string, 1)
 	disco <- addrs
 
-	routes, err := as.Run(
+	ids, routes, err := as.Run(
 		ctx,
 		listeners[rdt],
 		assemblestate.NewHTTPSTransport(),
@@ -174,6 +174,12 @@ func (s *assembleSuite) TestRun(c *check.C) {
 	c.Assert(routes.Addresses, testutil.DeepUnsortedMatches, addrs)
 	c.Assert(routes.Devices, testutil.DeepUnsortedMatches, rdts)
 	c.Assert(len(routes.Routes)/3, check.Equals, count*(count-1))
+
+	deviceRDTs := make([]assemblestate.DeviceToken, 0, len(ids))
+	for _, id := range ids {
+		deviceRDTs = append(deviceRDTs, id.RDT)
+	}
+	c.Assert(deviceRDTs, testutil.DeepUnsortedMatches, rdts)
 }
 
 func privateKeySigner(pk asserts.PrivateKey) func([]byte) ([]byte, error) {

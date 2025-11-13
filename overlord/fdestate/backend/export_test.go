@@ -47,3 +47,11 @@ func MockBootIsResealNeeded(f func(pbc boot.PredictableBootChains, bootChainsFil
 		bootIsResealNeeded = old
 	}
 }
+
+func MockSecbootPCRPolicyCounterHandles(f func(uk secboot.UpdatedKeys) []uint32) (restore func()) {
+	old := secbootPCRPolicyCounterHandles
+	secbootPCRPolicyCounterHandles = f
+	return func() {
+		secbootPCRPolicyCounterHandles = old
+	}
+}

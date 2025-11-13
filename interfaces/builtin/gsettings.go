@@ -43,7 +43,7 @@ owner @{HOME}/.config/dconf/user w,
 dbus (receive, send)
     bus=session
     interface="ca.desrt.dconf.Writer"
-    peer=(label=unconfined),
+    peer=(label="{dconf-service,unconfined}"),
 `
 
 func init() {

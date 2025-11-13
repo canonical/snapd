@@ -56,9 +56,9 @@ Nested values may be retrieved via a dotted path:
 
 var longConfdbGetHelp = i18n.G(`
 If the first argument passed into get is a confdb identifier matching the
-format <account-id>/<confdb>/<view>, get will use the confdb API. In this
-case, the command returns the data retrieved from the requested dot-separated
-view paths.
+format <account-id>/<schema>/<view>, get will use the confdb API. In this
+case, the command returns the data retrieved from the requested view paths.
+Use --default to provide a default value to be used if no value is stored.
 `)
 
 type cmdGet struct {

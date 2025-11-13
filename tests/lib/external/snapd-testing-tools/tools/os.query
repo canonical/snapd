@@ -2,12 +2,13 @@
 
 show_help() {
     echo "usage: os.query is-core, is-classic"
-    echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24"
+    echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24, is-core26"
     echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
     echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy, is-noble"
     echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux [ID], is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
     echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
+    echo "       os.query is-kernel-gt [VER], is-kernel-ge [VER], is-kernel-lt [VER], is-kernel-le [VER]"
     echo ""
     echo "Get general information about the current system"
 }
@@ -251,6 +252,72 @@ is_s390x() {
     uname -m | grep -qFx 's390x'
 }
 
+is_kernel_gt() {
+    compare_kernel "${1:-}" "-gt"
+}
+
+is_kernel_ge() {
+    compare_kernel "${1:-}" "-ge"
+}
+
+is_kernel_lt() {
+    compare_kernel "${1:-}" "-lt"
+}
+
+is_kernel_le() {
+    compare_kernel "${1:-}" "-le"
+}
+
+compare_kernel() {
+    VERSION=$1
+    OPERAND=$2
+
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version is expected"
+        exit 1
+    fi
+
+    # Kernel version must match one of the following:
+    KER_RE1='^[0-9]+$'
+    KER_RE2='^[0-9]+\.[0-9]*$'
+    KER_RE3='^[0-9]+\.[0-9]*\.[0-9]*$'
+    KER_RE4='^[0-9]+\.[0-9]*\.[0-9]*(\.|-).*'
+    if ! [[ "$VERSION" =~ $KER_RE1 ]] && ! [[ "$VERSION" =~ $KER_RE2 ]] && ! [[ "$VERSION" =~ $KER_RE3 ]] && ! [[ "$VERSION" =~ $KER_RE4 ]] ; then
+        echo "os.query: invalid kernel version format \"$VERSION\" provided"
+        exit 1
+    fi
+
+    SYS_VERSION="$(uname -r)"
+
+    # TO_SORT will hold the versions we will check to see if they're sorted
+    TO_SORT=
+    case "$OPERAND" in
+        -gt)
+            if [ "$VERSION" = "$SYS_VERSION" ] ; then
+                return 1
+            fi
+            TO_SORT="$VERSION\n$SYS_VERSION"
+            ;;
+        -ge)
+            TO_SORT="$VERSION\n$SYS_VERSION"
+            ;;
+        -lt)
+            if [ "$VERSION" = "$SYS_VERSION" ] ; then
+                return 1
+            fi
+            TO_SORT="$SYS_VERSION\n$VERSION"
+            ;;
+        -le)
+            TO_SORT="$SYS_VERSION\n$VERSION"
+            ;;
+        *)
+            echo "os.query: invalid operand: \"$OPERAND\""
+            exit 1
+            ;;
+    esac
+
+    echo -e "$TO_SORT" | sort -CV
+}
 
 main() {
     if [ $# -eq 0 ]; then

@@ -33,7 +33,7 @@ execute: |
             ! os.query is-ubuntu 14.04
             ! os.query is-core
             os.query is-pc-i386
-            ;;       
+            ;;
         ubuntu-18.04-64)
             os.query is-bionic
             os.query is-classic
@@ -55,6 +55,57 @@ execute: |
             ! os.query is-ubuntu-lt 18.04
             os.query is-ubuntu-lt 2>&1 | MATCH "os.query: version id is expected"
             os.query is-ubuntu-lt 20.04-64 2>&1 | MATCH 'os.query: invalid version format "20.04-64" provided'
+
+            # Check kernel comparisons
+            os.query is-kernel-gt 4
+            os.query is-kernel-gt 4.15
+            os.query is-kernel-gt 4.15.0
+            # 18.04 kernel might be something like 4.15.0.213.196 so don't
+            # assume 4.15.0.X or 4.15.0-X necessarily work (ordering of . vs -)
+            os.query is-kernel-gt 4.14.1.2
+            os.query is-kernel-gt 4.14.1-2
+            os.query is-kernel-gt 4.14.1-foo
+            os.query is-kernel-ge 4
+            os.query is-kernel-ge 4.15
+            os.query is-kernel-ge 4.15.0
+            os.query is-kernel-ge 4.14.1.2
+            os.query is-kernel-ge 4.14.1-2
+            os.query is-kernel-ge 4.14.1-foo
+            os.query is-kernel-lt 6
+            os.query is-kernel-lt 5.5
+            os.query is-kernel-lt 5.4.1
+            os.query is-kernel-lt 5.4.1.0
+            os.query is-kernel-lt 5.4.1-0
+            os.query is-kernel-lt 5.4.1-foo
+            os.query is-kernel-le 6
+            os.query is-kernel-le 5.5
+            os.query is-kernel-le 5.4.1
+            os.query is-kernel-le 5.4.1.0
+            os.query is-kernel-le 5.4.1-0
+            os.query is-kernel-le 5.4.1-foo
+
+            ! os.query is-kernel-lt 4
+            ! os.query is-kernel-lt 4.15
+            ! os.query is-kernel-lt 4.15.0
+            ! os.query is-kernel-le 4
+            ! os.query is-kernel-le 4.15
+            ! os.query is-kernel-le 4.15.0
+            ! os.query is-kernel-gt 6
+            ! os.query is-kernel-gt 5.5
+            ! os.query is-kernel-gt 5.4.1
+            ! os.query is-kernel-ge 6
+            ! os.query is-kernel-ge 5.5
+            ! os.query is-kernel-ge 5.4.1
+
+            # Check that the exact kernel version works for -ge and -le
+            os.query is-kernel-ge "$(uname -r)"
+            os.query is-kernel-le "$(uname -r)"
+
+            os.query is-kernel-le | MATCH 'os.query: version is expected'
+            os.query is-kernel-le foo | MATCH 'os.query: invalid kernel version format "foo" provided'
+            os.query is-kernel-le 1.foo | MATCH 'os.query: invalid kernel version format "1.foo" provided'
+            os.query is-kernel-le 1.2.foo | MATCH 'os.query: invalid kernel version format "1.2.foo" provided'
+            os.query is-kernel-le 1.2.3foo | MATCH 'os.query: invalid kernel version format "1.2.3foo" provided'
             ;;
         ubuntu-20.04-64)
             os.query is-focal
@@ -85,6 +136,36 @@ execute: |
             os.query is-ubuntu 24.04
             ! os.query is-ubuntu 21.04
             ! os.query is-core
+
+            # Check kernel comparison
+            os.query is-kernel-gt 6
+            os.query is-kernel-gt 6.8
+            os.query is-kernel-gt 6.8.0
+            os.query is-kernel-ge 6
+            os.query is-kernel-ge 6.8
+            os.query is-kernel-ge 6.8.0
+            ! os.query is-kernel-lt 6
+            ! os.query is-kernel-lt 6.8
+            ! os.query is-kernel-lt 6.8.0
+            ! os.query is-kernel-le 6
+            ! os.query is-kernel-le 6.8
+            ! os.query is-kernel-le 6.8.0
+            # Assume that the noble kernel will never exceed 8.0.0
+            os.query is-kernel-lt 8
+            os.query is-kernel-lt 8.0
+            os.query is-kernel-lt 8.0.0
+            os.query is-kernel-le 8
+            os.query is-kernel-le 8.0
+            os.query is-kernel-le 8.0.0
+            ! os.query is-kernel-gt 8
+            ! os.query is-kernel-gt 8.0
+            ! os.query is-kernel-gt 8.0.0
+            ! os.query is-kernel-ge 8
+            ! os.query is-kernel-ge 8.0
+            ! os.query is-kernel-ge 8.0.0
+            # Check that the exact kernel version works for -ge and -le
+            os.query is-kernel-ge "$(uname -r)"
+            os.query is-kernel-le "$(uname -r)"
             ;;
         debian-11-64)
             os.query is-debian
@@ -129,6 +210,35 @@ execute: |
             os.query is-arch-linux
             os.query is-classic
             ! os.query is-core
+
+            os.query is-kernel-gt 6
+            os.query is-kernel-gt 6.11
+            os.query is-kernel-gt 6.11.1
+            os.query is-kernel-ge 6
+            os.query is-kernel-ge 6.11
+            os.query is-kernel-ge 6.11.1
+            ! os.query is-kernel-lt 6
+            ! os.query is-kernel-lt 6.11
+            ! os.query is-kernel-lt 6.11.1
+            ! os.query is-kernel-le 6
+            ! os.query is-kernel-le 6.11
+            ! os.query is-kernel-le 6.11.1
+            # Kernel 45.0.0 should take a very long time...
+            os.query is-kernel-lt 45
+            os.query is-kernel-lt 45.1
+            os.query is-kernel-lt 45.1.2
+            os.query is-kernel-le 45
+            os.query is-kernel-le 45.1
+            os.query is-kernel-le 45.1.2
+            ! os.query is-kernel-gt 45
+            ! os.query is-kernel-gt 45.1
+            ! os.query is-kernel-gt 45.1.2
+            ! os.query is-kernel-ge 45
+            ! os.query is-kernel-ge 45.1
+            ! os.query is-kernel-ge 45.1.2
+            # Check that the exact kernel version works for -ge and -le
+            os.query is-kernel-ge "$(uname -r)"
+            os.query is-kernel-le "$(uname -r)"
             ;;
         amazon-linux-2-64)
             os.query is-amazon-linux
@@ -144,7 +254,7 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-9-64)            
+        centos-9-64)
             os.query is-centos 9
             os.query is-centos
             ! os.query is-core
@@ -168,7 +278,7 @@ execute: |
             ! os.query is-core
             ;;
         *)
-            echo "System $SPREAD_SYSTEM not supported" 
+            echo "System $SPREAD_SYSTEM not supported"
             exit 1
             ;;
     esac

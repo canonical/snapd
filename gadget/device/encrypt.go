@@ -210,8 +210,8 @@ func (o *VolumesAuthOptions) Validate() error {
 		return fmt.Errorf("invalid kdf type %q, only \"argon2i\", \"argon2id\" and \"pbkdf2\" are supported", o.KDFType)
 	}
 
-	if o.KDFTime < 0 {
-		return fmt.Errorf("kdf time cannot be negative")
+	if o.KDFTime != 0 {
+		return fmt.Errorf("kdf time cannot be set")
 	}
 
 	return nil

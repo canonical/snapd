@@ -212,7 +212,7 @@ func NewAssembleState(
 		return nil, fmt.Errorf("cannot build serial bundle: %w", err)
 	}
 
-	if err := ensureLocalDevicePresent(&validated.devices, Identity{
+	if err := ensureLocalDevicePresent(&validated.devices, assertDB, config.Secret, Identity{
 		RDT:          config.RDT,
 		FP:           CalculateFP(cert.Certificate[0]),
 		SerialBundle: bundle,
@@ -548,24 +548,22 @@ type RunOptions struct {
 	Period time.Duration
 }
 
-// Run starts the assembly process, managing both the server and periodic client operations.
-// It returns when the context is cancelled, returning the final routes discovered.
-//
-// TODO: a good chunk of this method is missing coverage, this should be
-// addressed once a real [Transport] is merged.
+// Run starts the assembly process, managing both the server and periodic client
+// operations. It returns when the context is cancelled, returning the
+// discovered device identities and routes.
 func (as *AssembleState) Run(
 	ctx context.Context,
 	ln net.Listener,
 	transport Transport,
 	discoveries <-chan []string,
 	opts RunOptions,
-) (Routes, error) {
+) ([]Identity, Routes, error) {
 	if as.initiated.IsZero() {
 		as.initiated = as.clock()
 	}
 
 	if as.clock().Sub(as.initiated) > AssembleSessionLength {
-		return Routes{}, errors.New("cannot resume an assembly session that began more than an hour ago")
+		return nil, Routes{}, errors.New("cannot resume an assembly session that began more than an hour ago")
 	}
 
 	addr := ln.Addr().String()
@@ -670,7 +668,7 @@ func (as *AssembleState) Run(
 
 	select {
 	case err := <-serverError:
-		return Routes{}, fmt.Errorf("server failed: %w", err)
+		return nil, Routes{}, fmt.Errorf("server failed: %w", err)
 	default:
 	}
 
@@ -685,7 +683,7 @@ func (as *AssembleState) Run(
 	for _, identity := range devices.IDs {
 		if fp, ok := as.fingerprints[identity.RDT]; ok {
 			if fp != identity.FP {
-				return Routes{}, fmt.Errorf("consistency check failed: fingerprint mismatch for device %s", identity.RDT)
+				return nil, Routes{}, fmt.Errorf("consistency check failed: fingerprint mismatch for device %s", identity.RDT)
 			}
 		}
 	}
@@ -696,7 +694,7 @@ func (as *AssembleState) Run(
 		rounds, stats.Sent, stats.Tx, stats.Received, stats.Rx,
 	)
 
-	return as.selector.Routes(), nil
+	return devices.IDs, as.selector.Routes(), nil
 }
 
 func periodic(
@@ -887,18 +885,30 @@ func buildSerialBundle(serial *asserts.Serial, db asserts.RODatabase) (string, e
 
 // ensureLocalDevicePresent adds the local device identity to the IDs slice if
 // not present, or validates consistency if already present.
-func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error {
-	for _, existing := range data.IDs {
-		if existing.RDT == self.RDT {
-			if existing.FP != self.FP {
+func ensureLocalDevicePresent(data *DeviceQueryTrackerData, db asserts.RODatabase, secret string, self Identity) error {
+	for _, unverifiedID := range data.IDs {
+		if unverifiedID.RDT == self.RDT {
+			if unverifiedID.FP != self.FP {
 				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
 			}
 
-			if !bytes.Equal(existing.SerialProof, self.SerialProof) {
-				return fmt.Errorf("serial proof mismatch for local device %q", self.RDT)
+			// proof signatures will not be byte-identical across runs. thus, to
+			// check for consistency, we need to validate the existing proof
+			// instead of requiring equality
+			serial, err := verifySerialBundle(unverifiedID.SerialBundle, db)
+			if err != nil {
+				return fmt.Errorf("cannot validate serial bundle for local device %q: %w", self.RDT, err)
 			}
 
-			if existing.SerialBundle != self.SerialBundle {
+			expectedHMAC := CalculateHMAC(unverifiedID.RDT, unverifiedID.FP, secret)
+			if err := asserts.RawVerifyWithKey(expectedHMAC, unverifiedID.SerialProof, serial.DeviceKey()); err != nil {
+				return fmt.Errorf("serial proof mismatch for local device %q: %w", self.RDT, err)
+			}
+
+			// this shouldn't really be possible, since above we've shown that
+			// the existing and new proof were both signed using the same
+			// private key, which is derived from the serial bundle.
+			if unverifiedID.SerialBundle != self.SerialBundle {
 				return fmt.Errorf("serial bundle mismatch for local device %q", self.RDT)
 			}
 

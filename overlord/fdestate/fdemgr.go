@@ -22,6 +22,8 @@
 package fdestate
 
 import (
+	"crypto"
+	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
 	"errors"
@@ -207,16 +209,30 @@ func (m *unlockedStateManager) Update(role string, containerRole string, paramet
 }
 
 func (m *unlockedStateManager) Get(role string, containerRole string) (parameters *backend.SealingParameters, err error) {
-	hasParamters, bootModes, models, tpmPCRProfile, err := m.GetParameters(role, containerRole)
-	if err != nil || !hasParamters {
-		return nil, err
+	return m.GetParameters(role, containerRole)
+}
+
+func (m *unlockedStateManager) RoleInfo(role string) (roleInfo *backend.RoleInfo, err error) {
+	return m.GetRoleInfo(role)
+}
+
+// VerifyPrimaryKeyAgainstState takes a primary key ID and verifies the
+// digest associated to that primary key ID in the state matches the
+// given primary key
+func (m *FDEManager) VerifyPrimaryKeyAgainstState(primaryKeyID int, primaryKey []byte) bool {
+	var s FdeState
+	if err := m.state.Get(fdeStateKey, &s); err != nil {
+		return false
 	}
 
-	return &backend.SealingParameters{
-		BootModes:     bootModes,
-		Models:        models,
-		TpmPCRProfile: tpmPCRProfile,
-	}, nil
+	primaryKeyInfo, hasID := s.PrimaryKeys[primaryKeyID]
+	if !hasID {
+		return false
+	}
+
+	h := hmac.New(crypto.Hash(primaryKeyInfo.Digest.Algorithm).New, primaryKeyInfo.Digest.Salt[:])
+	h.Write(primaryKey)
+	return hmac.Equal(h.Sum(nil), primaryKeyInfo.Digest.Digest)
 }
 
 func (m *unlockedStateManager) Unlock() (relock func()) {
@@ -456,6 +472,104 @@ func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot,
 	return mgr.GetKeyslots(keyslotRefs)
 }
 
+func keyslotsAffectedByTask(t *state.Task) ([]KeyslotRef, error) {
+	if !isFDETask(t) {
+		return nil, nil
+	}
+
+	var keyslots []KeyslotRef
+	err := t.Get("keyslots", &keyslots)
+	if errors.Is(err, state.ErrNoState) {
+		// This is fine, not all FDE tasks should carry the
+		// keyslots attribute.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain keyslots from task %s (%s): %v", t.ID(), t.Summary(), err)
+	}
+
+	return keyslots, nil
+}
+
+// NextUniqueKeyslot returns a unique keyslot reference given a
+// container role and a prefix which  can be used for conflict
+// free ephemeral key names. This can be used for temporary
+// key names during key replacement or re-provisioning.
+// The returned keyslot is only unique within the specified
+// container and is formatted as `<prefix>-XX`.
+//
+// The state needs to be locked by the caller.
+func (m *FDEManager) NextUniqueKeyslot(containerRole, prefix string) (ref KeyslotRef, err error) {
+	cacheInvalidated := false
+	for {
+		var reservedKeyslots map[string]bool
+
+		type fdeReservedKeyslotsKey struct{}
+		cached := m.state.Cached(fdeReservedKeyslotsKey{})
+		if cached == nil {
+			// Cache was already empty, no need to invalidate it again
+			// below.
+			cacheInvalidated = true
+
+			// Mark current keyslots as reserved.
+			keyslots, _, err := m.GetKeyslots(nil)
+			if err != nil {
+				return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q: %v", containerRole, prefix, err)
+			}
+			reservedKeyslots = make(map[string]bool, len(keyslots))
+			for _, keyslot := range keyslots {
+				reservedKeyslots[keyslot.Ref().String()] = true
+			}
+			// Also, Mark keyslots in non-ready changes as reserved as well.
+			for _, chg := range m.state.Changes() {
+				if chg.Status().Ready() {
+					continue
+				}
+				for _, t := range chg.Tasks() {
+					tKeyslotRefs, err := keyslotsAffectedByTask(t)
+					if err != nil {
+						return KeyslotRef{}, err
+					}
+					for _, ref := range tKeyslotRefs {
+						reservedKeyslots[ref.String()] = true
+					}
+				}
+			}
+		} else {
+			reservedKeyslots = cached.(map[string]bool)
+		}
+
+		// We should run out of real LUKS2 keyslots ages before we hit this
+		// artificial limit. Realistically LUKS2 allows a maximum of 32 keyslots,
+		// and since we are aggressively reusing available postfix numbers, all
+		// should be good.
+		const maxID = 128
+		for i := 1; i <= maxID; i++ {
+			ref = KeyslotRef{ContainerRole: containerRole, Name: fmt.Sprintf("%s-%d", prefix, i)}
+			if !reservedKeyslots[ref.String()] {
+				// Mark as reserved even if it is still not used yet to
+				// avoid the name being used twice causing a conflict
+				// (or worse, incorrect behaviour) later in task
+				// handlers.
+				reservedKeyslots[ref.String()] = true
+				m.state.Cache(fdeReservedKeyslotsKey{}, reservedKeyslots)
+				return ref, nil
+			}
+		}
+		// No slots available, try to invalidate the cache and re-populate
+		// it from the system and non-ready changes to reuse stale keyslots
+		// that were reserved and no longer relevant.
+		if cacheInvalidated {
+			// Invalidating the cache once is enough.
+			break
+		}
+		m.state.Cache(fdeReservedKeyslotsKey{}, nil)
+		cacheInvalidated = true
+	}
+
+	return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q", containerRole, prefix)
+}
+
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
@@ -478,14 +592,24 @@ func (m *FDEManager) UpdateParameters(role string, containerRole string, bootMod
 	return updateParameters(m.state, role, containerRole, bootModes, models, tpmPCRProfile)
 }
 
-func (m *FDEManager) GetParameters(role string, containerRole string) (hasParameters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
+func (m *FDEManager) GetParameters(role string, containerRole string) (roleParams *backend.SealingParameters, err error) {
 	var s FdeState
 	err = m.state.Get(fdeStateKey, &s)
 	if err != nil {
-		return false, nil, nil, nil, err
+		return nil, err
 	}
 
 	return s.getParameters(role, containerRole)
+}
+
+func (m *FDEManager) GetRoleInfo(role string) (roleInfo *backend.RoleInfo, err error) {
+	var s FdeState
+	err = m.state.Get(fdeStateKey, &s)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.getRoleInfo(role)
 }
 
 // ensureParametersLoadedWithMaybeReseal will force a reseal if the
@@ -500,11 +624,11 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 //
 // Note: The state will be unlocked/relocked if a reseal is attempted.
 func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole string) error {
-	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
+	roleParams, err := m.GetParameters(role, containerRole)
 	if err != nil {
 		return err
 	}
-	if hasParameters {
+	if roleParams != nil {
 		// nothing to do
 		return nil
 	}

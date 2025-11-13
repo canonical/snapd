@@ -31,6 +31,11 @@ pushd ..
 SNAPD_VERSION=$VERSION
 popd
 
+if [[ $SNAPD_VERSION == *"-dirty"* ]] && [ -z "${TEST_BUILD-}" ]; then
+    printf "repo is dirty, please clean-up before building the initramfs source packages\n"
+    exit 1
+fi
+
 contains_element() {
     local e match="$1"
     shift
@@ -68,24 +73,29 @@ sed 's#@libexecdir@#/usr/lib#' ../../data/systemd/snapd.recovery-chooser-trigger
     snapd/snapd.recovery-chooser-trigger.service
 popd
 
+deb_dir=(*/debian)
+# Find out the latest release
+latest=${deb_dir[${#deb_dir[@]} - 1]}
+latest=${latest%/debian}
+
 # Go through the different supported Ubuntu releases, creating source
 # packages for them.
 no_link=(debian go.mod go.sum cmd snapd vendor)
 if [ "$#" -eq 0 ]; then
     # If no explicit releases are given, build all releases in the directory
-    deb_dir=(*/debian)
     set -- "${deb_dir[@]%/debian}"
 fi
 for rel; do
-    series=$(dpkg-parsechangelog --file "$rel"/debian/changelog --show-field Distribution)
-    if [ "$rel" = latest ]; then
-        ubuntu_ver=$(ubuntu-distro-info --series="$series" -r)
-        # We might have "xx.xx LTS"
-        ubuntu_ver=${ubuntu_ver%% *}
-    else
-        ubuntu_ver=$rel
-        for p in latest/*; do
-            file=${p#latest/}
+    # We cannot use dpkg-parsechangelog as latest entry might be "UNRELEASED".
+    # Instead, get first not-unreleased entry and get distro from there
+    # (removing comma at the end).
+    series=$(grep ^ubuntu-core-initramfs "$rel"/debian/changelog |
+                 grep -v UNRELEASED |
+                 head -n1 |
+                 awk '{print substr($3, 1, length($3)-1)}')
+    if [ "$rel" != "$latest" ]; then
+        for p in "$latest"/*; do
+            file=${p#"$latest"/}
             if contains_element "$file" "${no_link[@]}"; then
                 continue
             fi
@@ -98,7 +108,7 @@ for rel; do
 
     curr_ver=$(dpkg-parsechangelog --show-field Version)
     initrd_ver=${curr_ver%%+*}
-    next_ver="$initrd_ver"+"$SNAPD_VERSION"+"$ubuntu_ver"
+    next_ver="$initrd_ver"+"$SNAPD_VERSION"+"$rel"
     dch -v "$next_ver" "Update to snapd version $SNAPD_VERSION"
     dch --distribution "$series" -r ""
     dpkg-buildpackage -S -sa -d

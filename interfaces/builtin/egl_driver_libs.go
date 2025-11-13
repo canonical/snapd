@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -28,8 +29,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -72,17 +75,6 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return fmt.Errorf("priority must be a positive integer")
 	}
 
-	var icdDirs []string
-	if err := slot.Attr("icd-source", &icdDirs); err != nil {
-		return fmt.Errorf("invalid icd-source: %w", err)
-	}
-	// Directories in icd-source must start with $SNAP
-	for _, icdDir := range icdDirs {
-		if err := validateSnapDir(icdDir); err != nil {
-			return err
-		}
-	}
-
 	var compatField string
 	if err := slot.Attr("compatibility", &compatField); err != nil {
 		return err
@@ -97,8 +89,11 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return err
 	}
 
-	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	// Validate *-source directories
+	if err := validateSourceDirs(slot, sourceDirAttr{attrName: "icd-source", isOptional: false}); err != nil {
+		return err
+	}
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -107,11 +102,37 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 }
 
 var _ = symlinks.ConnectedPlugCallback(&eglDriverLibsInterface{})
+var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
 
-const eglVendorPath = "/etc/glvnd/egl_vendor.d"
+const (
+	eglDriverLibs = "egl-driver-libs"
+	eglVendorPath = "/etc/glvnd/egl_vendor.d"
+)
 
 func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
 	return []string{eglVendorPath}
+}
+
+func checkEglIcdFile(slot *interfaces.ConnectedSlot, icdContent []byte) error {
+	var icdJson struct {
+		Icd struct {
+			LibraryPath string `json:"library_path"`
+		} `json:"ICD"`
+	}
+	err := json.Unmarshal(icdContent, &icdJson)
+	if err != nil {
+		return fmt.Errorf("while unmarshalling: %w", err)
+	}
+	if icdJson.Icd.LibraryPath == "" {
+		return fmt.Errorf("no library_path value found")
+	}
+	// Here we are implicitly limiting library_path to be a file
+	// name instead of a full path.
+	_, err = filePathInLibDirs(slot, icdJson.Icd.LibraryPath)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -120,7 +141,8 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid priority: %w", err)
 	}
 
-	icdPaths, err := icdSourceDirsCheck(slot)
+	icdPaths, err := sourceDirsCheck(slot,
+		sourceDirAttr{attrName: "icd-source", isOptional: false}, checkEglIcdFile)
 	if err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)
 	}
@@ -149,6 +171,20 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	return nil
 }
 
+func (t *eglDriverLibsInterface) PathPatterns() []string {
+	return []string{systemLibrarySourcePath("*", "*", eglDriverLibs)}
+}
+
+func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesForSystemLibrarySourcePaths(eglDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// TODO This might need changes when we support plugs in non-system
 	// snaps for this interface.
@@ -158,7 +194,7 @@ func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 func init() {
 	registerIface(&eglDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "egl-driver-libs",
+			name:                 eglDriverLibs,
 			summary:              eglDriverLibsSummary,
 			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,

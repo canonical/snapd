@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -167,7 +166,6 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 			Mode:       device.AuthModePassphrase,
 			Passphrase: "1234",
 			KDFType:    kdfType,
-			KDFTime:    2 * time.Second,
 		}
 		c.Assert(opts.Validate(), IsNil)
 	}
@@ -198,9 +196,9 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Bad kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
-	// Negative kdf time
+	// Setting kdf time is not supported
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
-	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be negative")
+	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be set")
 }
 
 func (s *deviceSuite) TestValidatePassphrase(c *C) {

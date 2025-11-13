@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
@@ -66,7 +67,8 @@ apps:
 const gbmDriverLibsProvider = `name: gbm-provider
 version: 0
 slots:
-  gbm-driver-libs:
+  gbm-slot:
+    interface: gbm-driver-libs
     client-driver: nvidia-drm_gbm.so
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
     library-source:
@@ -84,7 +86,7 @@ func (s *GbmDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, gbmDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "gbm")
 	s.slot, s.slotInfo = MockConnectedSlot(c, gbmDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "gbm-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "gbm-slot")
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestName(c *C) {
@@ -92,7 +94,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
-	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib1")
+	libDir1 := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1")
 	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libDir1, "libnvidia-allocator.so.1"), []byte(``), 0644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
@@ -110,7 +112,7 @@ slots:
       - /snap/gbm-provider/current/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`gbm-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`gbm-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
@@ -249,9 +251,9 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "gbm-provider", SlotName: "gbm-driver-libs"}: {
-			filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib1"),
-			filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib2")}})
+		{SnapName: "gbm-provider", SlotName: "gbm-slot"}: {
+			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
+			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -295,6 +297,18 @@ func (s *GbmDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
 	symlinksUser := builtin.SymlinksUserIfaceFromGbmIface(s.iface)
 	c.Assert(symlinksUser.TrackedDirectories(), DeepEquals, []string{
 		fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())})
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_gbm-provider_gbm-slot_gbm-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
