@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -104,6 +105,8 @@ type fakeOp struct {
 
 	snapLocked bool
 	isUndo     bool
+
+	integrityDigest string
 }
 
 type fakeOps []fakeOp
@@ -445,6 +448,22 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Attrs: map[string]any{
 					"desktop-file-ids": []any{"org.example.Foo"},
 				},
+			},
+		}
+	case "channel-with-integrity-data":
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+				Size:        100,
 			},
 		}
 	}
@@ -817,6 +836,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				sar.Resources = f.snapResources(info)
 			}
 
+			// TODO by default fakestore returns a snap info for a snap with integrity data
+			// if the "channel-with-integrity-data" is used in tests. This should actually
+			// be made configurable to respect a new option in the opts field which the actual
+			// store will use and that will indicate whether it should return integrity data
+			// information.
+
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
@@ -1096,14 +1121,21 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if si != nil {
 		revno = si.Revision
 	}
-	f.appendOp(&fakeOp{
+	fop := &fakeOp{
 		op:    "setup-snap",
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
 
 		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
-	})
+	}
+
+	if opts != nil {
+		fop.integrityDigest = opts.IntegrityRootHash
+	}
+
+	f.appendOp(fop)
+
 	snapType := snap.TypeApp
 	switch si.RealName {
 	case "core":
