@@ -44,14 +44,14 @@ func (s *assembleSuite) TestAssembleSuccess(c *check.C) {
 	done := st.NewChange("assemble-cluster", "previous assembly")
 	done.SetStatus(state.DoneStatus)
 
-	cfg := clusterstate.AssembleConfig{
+	opts := clusterstate.AssembleOptions{
 		Secret:       "secret",
 		Address:      "10.0.0.5:8081",
 		ExpectedSize: 4,
 		Period:       15 * time.Second,
 	}
 
-	ts, err := clusterstate.Assemble(st, cfg)
+	ts, err := clusterstate.Assemble(st, opts)
 	c.Assert(err, check.IsNil)
 
 	tasks := ts.Tasks()
@@ -65,12 +65,12 @@ func (s *assembleSuite) TestAssembleSuccess(c *check.C) {
 	err = task.Get("assemble-cluster-setup", &setup)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(setup.Secret, check.Equals, cfg.Secret)
+	c.Assert(setup.Secret, check.Equals, opts.Secret)
 	c.Assert(setup.RDT, check.Not(check.Equals), "")
 	c.Assert(setup.IP, check.Equals, "10.0.0.5")
 	c.Assert(setup.Port, check.Equals, 8081)
-	c.Assert(setup.ExpectedSize, check.Equals, cfg.ExpectedSize)
-	c.Assert(setup.Period, check.Equals, cfg.Period)
+	c.Assert(setup.ExpectedSize, check.Equals, opts.ExpectedSize)
+	c.Assert(setup.Period, check.Equals, opts.Period)
 	c.Assert(len(setup.TLSCert) > 0, check.Equals, true)
 	c.Assert(len(setup.TLSKey) > 0, check.Equals, true)
 
@@ -96,26 +96,26 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 
 	cases := []struct {
 		name    string
-		cfg     clusterstate.AssembleConfig
+		opts    clusterstate.AssembleOptions
 		pattern string
 	}{
 		{
 			name: "missing secret",
-			cfg: clusterstate.AssembleConfig{
+			opts: clusterstate.AssembleOptions{
 				Address: "127.0.0.1:1234",
 			},
 			pattern: "secret is required",
 		},
 		{
 			name: "missing address",
-			cfg: clusterstate.AssembleConfig{
+			opts: clusterstate.AssembleOptions{
 				Secret: "secret",
 			},
 			pattern: "address is required",
 		},
 		{
 			name: "missing port",
-			cfg: clusterstate.AssembleConfig{
+			opts: clusterstate.AssembleOptions{
 				Secret:  "secret",
 				Address: "127.0.0.1",
 			},
@@ -123,7 +123,7 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 		},
 		{
 			name: "invalid ip",
-			cfg: clusterstate.AssembleConfig{
+			opts: clusterstate.AssembleOptions{
 				Secret:  "secret",
 				Address: "example.com:1234",
 			},
@@ -131,7 +131,7 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 		},
 		{
 			name: "invalid port",
-			cfg: clusterstate.AssembleConfig{
+			opts: clusterstate.AssembleOptions{
 				Secret:  "secret",
 				Address: "127.0.0.1:notaport",
 			},
@@ -142,7 +142,7 @@ func (s *assembleSuite) TestAssembleInputValidation(c *check.C) {
 	for _, tc := range cases {
 		c.Logf("case: %s", tc.name)
 
-		_, err := clusterstate.Assemble(st, tc.cfg)
+		_, err := clusterstate.Assemble(st, tc.opts)
 		c.Assert(err, check.ErrorMatches, tc.pattern)
 	}
 }
@@ -156,7 +156,7 @@ func (s *assembleSuite) TestAssembleInProgress(c *check.C) {
 	chg := st.NewChange("assemble-cluster", "existing assembly")
 	chg.SetStatus(state.DoStatus)
 
-	ts, err := clusterstate.Assemble(st, clusterstate.AssembleConfig{
+	ts, err := clusterstate.Assemble(st, clusterstate.AssembleOptions{
 		Secret:  "secret",
 		Address: "127.0.0.1:1234",
 	})

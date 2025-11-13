@@ -36,8 +36,8 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
-// AssembleConfig contains the configuration for creating a new cluster.
-type AssembleConfig struct {
+// AssembleOptions contains the parameters for creating a new cluster.
+type AssembleOptions struct {
 	// Secret is the shared secret used for cluster assembly authentication.
 	Secret string
 	// Address, in the format <ip>:<port>, is the address that this device binds
@@ -50,20 +50,21 @@ type AssembleConfig struct {
 	Period time.Duration
 }
 
-func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
+// Assemble creates the set of tasks needed to assemble a snapd cluster.
+func Assemble(st *state.State, opts AssembleOptions) (*state.TaskSet, error) {
 	if err := assembleInProgress(st); err != nil {
 		return nil, err
 	}
 
-	if config.Secret == "" {
+	if opts.Secret == "" {
 		return nil, errors.New("secret is required")
 	}
 
-	if config.Address == "" {
+	if opts.Address == "" {
 		return nil, errors.New("address is required")
 	}
 
-	host, port, err := net.SplitHostPort(config.Address)
+	host, port, err := net.SplitHostPort(opts.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +90,12 @@ func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
 	}
 
 	setup := &assembleClusterSetup{
-		Secret:       config.Secret,
+		Secret:       opts.Secret,
 		RDT:          rdt,
 		IP:           ip.String(),
 		Port:         p,
-		ExpectedSize: config.ExpectedSize,
-		Period:       config.Period,
+		ExpectedSize: opts.ExpectedSize,
+		Period:       opts.Period,
 		TLSCert:      certPEM,
 		TLSKey:       keyPEM,
 	}
