@@ -653,11 +653,7 @@ build_snapd_snap() {
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
             if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-                if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-                    wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
-                else
-                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
-                fi
+                cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
             else
                 # This is not reliable across classic releases so only allow on
                 # ARM variants as a special case since we cannot cross build
@@ -690,11 +686,7 @@ _get_snapd() {
     mkdir -p "${TARGET}"
 
     if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
-        if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-            wget -q "$USE_SNAPD_SNAP_URL" -O "${TARGET}"/snapd_from_snapcraft.snap
-        else
-            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${TARGET}/snapd_from_snapcraft.snap"
-        fi
+        cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${TARGET}/snapd_from_snapcraft.snap"
     else
         touch "${PROJECT_PATH}"/test-build
         chmod -R go+r "${PROJECT_PATH}/tests"

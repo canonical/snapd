@@ -120,7 +120,6 @@ environment:
 
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
-    USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
     SNAPD_USE_PROXY: '$(HOST: echo "${SPREAD_SNAPD_USE_PROXY:-}")'
 
     # Whether we should use pre-built packages in the ./built-pkgs/ directory
