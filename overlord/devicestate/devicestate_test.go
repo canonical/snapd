@@ -2965,3 +2965,54 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
 }
+
+func (s *deviceMgrSuite) TestSignResponseMessageOK(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	resAs, err := s.mgr.SignResponseMessage("landscape", "someId", asserts.MessageStatusSuccess, []byte("{}"))
+	c.Assert(err, IsNil)
+	c.Assert(resAs.AccountID(), Equals, "landscape")
+	c.Assert(resAs.ID(), Equals, "someId")
+	c.Assert(resAs.Status(), Equals, asserts.MessageStatusSuccess)
+	c.Assert(resAs.Device().String(), Equals, "serialserialserial.pc.canonical")
+}
+
+func (s *deviceMgrSuite) TestSignResponseMessageNoSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := s.mgr.SignResponseMessage("landscape", "someId", asserts.MessageStatusSuccess, []byte("{}"))
+	c.Assert(err, ErrorMatches, "cannot sign response-message without a serial")
+}
+
+func (s *deviceMgrSuite) TestSignResponseMessageNoKey(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+
+	_, err := s.mgr.SignResponseMessage("landscape", "someId", asserts.MessageStatusSuccess, []byte("{}"))
+	c.Assert(err, ErrorMatches, "cannot sign response-message without device key")
+}
+
+func (s *deviceMgrSuite) TestSignResponseMessageInvalid(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	_, err := s.mgr.SignResponseMessage("🤫", "someId", asserts.MessageStatusSuccess, []byte("{}"))
+	c.Assert(
+		err,
+		ErrorMatches,
+		"cannot assemble assertion response-message: invalid account id: 🤫",
+	)
+}
