@@ -12,6 +12,7 @@ environment:
   NESTED_ENABLE_TPM/hook: false
   NESTED_ENABLE_SECURE_BOOT/hook: false
   BUILD_FDE_HOOK/hook: '1'
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
 prepare: |
   if [ "${BUILD_FDE_HOOK-}" = 1 ]; then
