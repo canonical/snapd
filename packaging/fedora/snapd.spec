@@ -905,7 +905,6 @@ make -C data -k check
 %{_libexecdir}/snapd/snap-confine.v2-only.caps
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
-%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-strace-shim
 %{_libexecdir}/snapd/snap-seccomp

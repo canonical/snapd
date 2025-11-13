@@ -185,7 +185,6 @@ var templateCommon = `
   /usr/lib/snapd/snap-exec m,
 
   # For gdb support
-  /usr/lib/snapd/snap-gdb-shim ixr,
   /usr/lib/snapd/snap-gdbserver-shim ixr,
 
   # For in-snap tab completion
