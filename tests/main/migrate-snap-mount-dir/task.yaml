@@ -12,6 +12,8 @@ environment:
 
 prepare: |
     snap set system experimental.user-daemons=true
+    # although state reset should clean that up
+    tests.cleanup defer snap unset system experimental.user-daemons
 
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
     # install twice
@@ -19,22 +21,14 @@ prepare: |
     
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
+    tests.cleanup defer snap remove --purge test-snapd-user-service
 
     if [ "$PARALLEL_INSTANCES" = "true" ]; then
         snap set system experimental.parallel-instances=true
+        tests.cleanup defer snap unset system experimental.parallel-instances
 
         "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service test-snapd-service_foo
-    fi
-
-restore: |
-    snap remove --purge test-snapd-user-service
-
-    # although state reset should clean that up
-    snap unset system experimental.user-daemons
-
-    if [ "$PARALLEL_INSTANCES" = "true" ]; then
-        snap remove --purge test-snapd-service_foo
-        snap unset system experimental.parallel-instances
+        tests.cleanup defer snap remove --purge test-snapd-service_foo
     fi
 
 execute: |
