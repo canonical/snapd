@@ -68,7 +68,7 @@ parts:
               - DYNAMIC_LINKER: ld-linux-riscv64-lp64d.so.1
           - to ppc64el:
               - DYNAMIC_LINKER: ld64.so.2
-              - EXTRA_CONFIGURE: --with-cpu=power8
+              - EXTRA_CONFIGURE: --with-cpu=power8 libc_extra_cflags='-O0 -fno-tree-vectorize'
     override-pull: |
       craftctl default
       QUILT_PATCHES=debian/patches quilt push -a
