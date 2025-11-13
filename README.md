@@ -2,6 +2,8 @@
 
 # Welcome to snapd
 
+> **Note:** This fork's `master` branch is dedicated to **TelemAgent** development. For the upstream snapd project, please visit the [official snapd repository](https://github.com/snapcore/snapd).
+
 This is the code repository for **snapd**, the background service that manages
 and maintains installed snaps.
 
@@ -16,6 +18,18 @@ Alongside its various service and management functions, snapd:
   and from each other
 - governs the interfaces that allow snaps to access specific system resources
   outside of their confinement
+
+## TelemAgent
+
+TelemAgent is an MQTT-based telemetry agent integrated into snapd that enables secure communication between snaps and remote MQTT brokers. It acts as a local MQTT broker proxy that:
+
+- Automatically manages snap-to-broker authentication and authorization
+- Converts local namespace topics to global namespaces with snap identity information
+- Enforces topic access control based on snap publisher and name
+- Provides TLS/SSL encrypted connections to upstream brokers
+- Integrates with snapd's security model to ensure isolated communication
+
+TelemAgent allows snaps to publish and subscribe to MQTT topics without requiring direct credentials or network configuration, while maintaining security boundaries between snaps.
 
 For general details, including
 [installation](https://snapcraft.io/docs/installing-snapd) and [Getting
