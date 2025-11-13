@@ -70,7 +70,7 @@ set -x
 shopt -s nullglob
 
 if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
-    run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status == "completed") | .databaseId)')"
+    run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,conclusion --jq 'first(.[] | select(.conclusion == "success") | .databaseId)')"
     filename="snap-files-amd64-default-test"
     if uname -m | grep -Eq '(aarch64.*|armv8.*)'; then
         filename="snap-files-arm64-default-test"
