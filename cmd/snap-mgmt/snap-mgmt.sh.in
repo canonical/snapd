@@ -16,13 +16,15 @@ Usage: snap-mgmt.sh [OPTIONS]
 
 A simple script to cleanup snap installations.
 
-optional arguments:
+Options:
   --help                           Show this help message and exit
   --snap-tooling-dir=<path>        Override default path to snapd tooling dir
+  --force                          Force operation (relevant for mount directory migration)
+
+Actions:
   --purge                          Purge all snaps and their data
   --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
   --check-mount-dir-migration      Check system state required to run mount directory migration
-  --force                          Force operation (relevant for mount directory migration)
 EOF
 }
 
@@ -601,7 +603,7 @@ while [ -n "$1" ]; do
             shift
             ;;
         *)
-            echo "Unknown command: $1, see --help" >&2
+                echo "Unknown command: $1, see --help" >&2
             exit 1
             ;;
     esac
@@ -618,7 +620,11 @@ case "$action" in
         mount_dir_migrate_check
         ;;
     *)
-        echo "Unknown action '$action'" >&2
+        if [ -z "$action" ]; then
+            echo "No action specified, see --help" >&2
+        else
+            echo "Unknown action '$action'" >&2
+        fi
         exit 1
         ;;
 esac
