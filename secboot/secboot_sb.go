@@ -111,7 +111,7 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
-	context, err := sb.NewActivateContext(ctx, nil, sb.WithAuthRequestor(NewSystemdAuthRequestor()))
+	context, err := sb.NewActivateContext(ctx, nil, sb.WithAuthRequestor(NewSystemdAuthRequestor()), sb.WithRecoveryKeyTries(3))
 	if err != nil {
 		return nil, err
 	}
