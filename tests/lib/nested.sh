@@ -809,6 +809,16 @@ EOF
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
             cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
             rm -f "pc.snap" "pc.assert" "$snakeoil_key" "$snakeoil_cert"
+        else
+            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
+            unsquashfs -d pc-gadget pc.snap
+            rm pc.snap pc.assert
+            sed 's/^\(set cmdline=".*\)\("\)$/\1 systemd.journald.forward_to_console=1\2/' -i grub.cfg
+            sed 's/^\(set cmdline=".*\)\("\)$/\1 systemd.journald.forward_to_console=1\2/' -i grub.conf
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+            rm -rf pc-gadget/
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then

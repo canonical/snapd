@@ -26,6 +26,8 @@ environment:
     SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
+    echo "Modified to trigger run"
+
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
