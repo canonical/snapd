@@ -126,3 +126,7 @@ func (Store) LoginUser(username, password, otp string) (string, string, error) {
 func (Store) UserInfo(email string) (userinfo *store.User, err error) {
 	panic("UserInfo not expected")
 }
+
+func (Store) PollMessages(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
+	panic("PollMessages not expected")
+}
