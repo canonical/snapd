@@ -925,8 +925,9 @@ func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error)
 		len(parts[1]) <= 2 {
 		return "", "", fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
 	}
+	s := strings.TrimPrefix(parts[1], "{")
 
-	field, filter = parts[0], strings.Trim(parts[1], "{}")
+	field, filter = parts[0], strings.TrimSuffix(s, "}")
 	return field, filter, nil
 }
 
