@@ -4,50 +4,43 @@ details: |
   This test checks that we are able to perform a single-boot installation of
   Azure CVM kernel
 
-# Limit to noble+
-systems: [ubuntu-2*]
-
-environment:
-  NESTED_ENABLE_TPM/none: false
-  NESTED_ENABLE_SECURE_BOOT/none: false
+# Run this test for jammy+
+systems: [ubuntu-22.04, ubuntu-24*]
 
 prepare: |
-  # only test on Noble and more
+  # Build the initramfs package from the project if possible
   if os.query is-ubuntu-lt 24.04; then
-      echo "test only run on Noble and more recent"
-      return
+    # carries ubuntu-core-initramfs
+    quiet add-apt-repository ppa:snappy-dev/image -y
+    quiet apt update -y
+    quiet apt install ubuntu-core-initramfs -y
   fi
 
-  # carries ubuntu-core-initramfs
-  quiet add-apt-repository ppa:snappy-dev/image -y
-
-  # TODO: install the linux-firmware as the current version of
+  # install the linux-firmware as the current version of
   # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
   # to build the initrd, also install the linux-azure kernel
-  quiet apt install ubuntu-core-initramfs linux-firmware linux-azure -y
+  quiet apt install linux-firmware linux-azure -y
 
   if [ "$SPREAD_REBOOT" = "0" ]; then
-      REBOOT
+    REBOOT
   fi
 
   # verify after the first reboot that we are now running an Azure kernel
   if [ "$SPREAD_REBOOT" = "1" ]; then
     KERNEL_TYPE=$(uname -r | rev | cut -d'-' -f1 | rev)
     if [ "$KERNEL_TYPE" != "azure" ]; then
-        echo "not running expected -azure kernel"
-        exit 1
+      echo "not running expected -azure kernel"
+      exit 1
     fi
   fi
 
-execute: |  
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB"/nested.sh
-  
+execute: |
   # build initramfs
   ubuntu-core-initramfs create-initrd --kernelver "$(uname -r)"
 
   # build UKI
-  ubuntu-core-initramfs create-efi --unsigned --kernelver "$(uname -r)" --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+  ubuntu-core-initramfs create-efi --unsigned --kernelver "$(uname -r)" \
+    --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
 
   UKI_FILE="$(ls /boot/kernel.efi*-azure)"
 
@@ -58,17 +51,14 @@ execute: |
   efibootmgr --create --disk /dev/sda --part 15 --label "CVM UKI" --loader "\EFI\ubuntu\$(basename $UKI_FILE)"
 
   if [ "$SPREAD_REBOOT" = "0" ]; then
-      REBOOT
+    REBOOT
   fi
 
   # verify that we are still running an Azure kernel
   if [ "$SPREAD_REBOOT" = "1" ]; then
     KERNEL_TYPE=$(uname -r | rev | cut -d'-' -f1 | rev)
     if [ "$KERNEL_TYPE" != "azure" ]; then
-        echo "not running expected -azure kernel"
-        exit 1
+      echo "not running expected -azure kernel"
+      exit 1
     fi
   fi
-
-  # tests.nested build-image core
-  # tests.nested create-vm core
