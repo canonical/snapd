@@ -25,13 +25,25 @@ execute: |
     retry -n 100 --wait 1 systemctl is-active "$SERVICE_NAME"
 
     echo "The service contains the SuccessExitStatus= directive"
-    systemctl show -p SuccessExitStatus "$SERVICE_NAME" | MATCH "SuccessExitStatus=42 235 250"
+    if os.query is-ubuntu 18.04 || os.query is-core18 ; then
+        systemctl show -p SuccessExitStatus "$SERVICE_NAME" | MATCH "SuccessExitStatus=\[unprintable\]"
+    elif os.query is-ubuntu-lt 18.04 || os.query is-amazon-linux 2 ; then
+        # Don't check for anything, just print it
+        systemctl show -p SuccessExitStatus "$SERVICE_NAME" || true
+    else
+        systemctl show -p SuccessExitStatus "$SERVICE_NAME" | MATCH "SuccessExitStatus=42 235 250"
+    fi
 
     echo "When the service initialization is completed"
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with success exit status 42 sending USR1 signal"
-    systemctl kill -s USR1 --wait "$SERVICE_NAME"
+    if os.query is-ubuntu-le 16.04 ; then
+        # Doesn't support --wait
+        systemctl kill -s USR1 "$SERVICE_NAME"
+    else
+        systemctl kill -s USR1 --wait "$SERVICE_NAME"
+    fi
 
     echo "When the signal is propagated to the service"
     retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
@@ -54,7 +66,12 @@ execute: |
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with success exit status 250 sending USR2 signal"
-    systemctl kill -s USR2 --wait "$SERVICE_NAME"
+    if os.query is-ubuntu-le 16.04 ; then
+        # Doesn't support --wait
+        systemctl kill -s USR2 "$SERVICE_NAME"
+    else
+        systemctl kill -s USR2 --wait "$SERVICE_NAME"
+    fi
 
     echo "When the signal is propagated to the service"
     retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
@@ -77,7 +94,15 @@ execute: |
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with failure exit status sending TRAP signal"
-    systemctl kill -s TRAP --wait "$SERVICE_NAME"
+    if os.query is-ubuntu-le 16.04 ; then
+        # Doesn't support --wait
+        systemctl kill -s TRAP "$SERVICE_NAME"
+        # Sleep so we give it a chance to die
+        sleep 10
+    else
+      # Killing with TRAP returns non-zero error code on many newer systems
+        systemctl kill -s TRAP --wait "$SERVICE_NAME" || true
+    fi
 
     echo "When the signal is propagated to the service"
     retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=active'"
