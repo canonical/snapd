@@ -12,6 +12,7 @@ details: |
 
 execute: |
     snap version > version.out
+    snap version --verbose > version-verbose.out
 
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
@@ -39,3 +40,11 @@ execute: |
 
     echo "Ensure version output includes architecture"
     MATCH "architecture *(amd64|arm64|armel|armhf|i386|ppc64el|riscv64|s390x)" < version.out
+
+    if tests.info is-reexec-in-use; then
+        MATCH "snapd-bin-origin .*snapd-snap" < version-verbose.out
+        MATCH "snap-bin-origin .*snapd-snap" < version-verbose.out
+    else
+        MATCH "snapd-bin-origin .*native-package" < version-verbose.out
+        MATCH "snap-bin-origin .*native-package" < version-verbose.out
+    fi
