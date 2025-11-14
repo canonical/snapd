@@ -4738,7 +4738,9 @@ func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaButIgnoredValidatio
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `validation sets assertions are not met:
+- snaps at wrong revisions:
+  - pc-kernel \(required at revision 6 by sets canonical/base-set\)`)
 
 	// ensure download actions were invoked with the validation-sets
 	// described in the model.

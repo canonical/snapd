@@ -1535,10 +1535,14 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 	return seq.Resolve(w.db.Find)
 }
 
-func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+func (w *Writer) validationSetAsserts(modelEnforcedOnly bool) (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
 	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
+		if modelEnforcedOnly && vs.Mode != asserts.ModelValidationSetModeEnforced {
+			continue
+		}
+
 		atSeq, err := w.finalValidationSetAtSequence(vs)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: %v", err)
@@ -1552,8 +1556,8 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	return vsAsserts, nil
 }
 
-func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
-	vss, err := w.validationSetAsserts()
+func (w *Writer) validationSets(modelEnforcedOnly bool) (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts(modelEnforcedOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -1592,7 +1596,7 @@ func (w *Writer) checkStepCompleted(step writerStep) bool {
 // CheckValidationSets validates all snaps that are to be seeded against any
 // specified validation set. Info for all seed snaps must have been derived prior
 // to this call.
-func (w *Writer) CheckValidationSets() error {
+func (w *Writer) CheckValidationSets(modelEnforcedOnly bool) error {
 	// It makes no sense to check validation-sets before all required snaps
 	// have been resolved and downloaded. Ensure that this is not called before
 	// the Downloaded step has completed.
@@ -1600,7 +1604,7 @@ func (w *Writer) CheckValidationSets() error {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
 	}
 
-	valsets, err := w.validationSets()
+	valsets, err := w.validationSets(modelEnforcedOnly)
 	if err != nil {
 		return err
 	}
@@ -1693,7 +1697,8 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 }
 
 func (w *Writer) markValidationSetsSeeded() error {
-	vsm, err := w.validationSetAsserts()
+	const modelEnforcedOnly = false
+	vsm, err := w.validationSetAsserts(modelEnforcedOnly)
 	if err != nil {
 		return err
 	}
