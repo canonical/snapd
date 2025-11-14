@@ -11,11 +11,10 @@ prepare: |
 
 restore: |
     snap remove --purge test-snapd-sh-core24
-    tests.session restore -u test
 
 execute: |
     ...
-    tests.session exec -u test sh -c 'test-snapd-sh-core24.sh -c \'snapctl refresh --tracking\'' > user-tracking.log
-    MATCH '^latest/stable$' < user-tracking.log
-    not tests.session exec -u test sh -c 'test-snapd-sh-core24.sh -c \'snapctl refresh --pending\'' > user-err-tracking.log
-    MATCH '^non-root user only supports --tracking' < user-err-tracking.log
+    tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c \'snapctl refresh --tracking\'" > user-tracking.log
+    MATCH "^latest/stable$" < user-tracking.log
+    not tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-tracking.log
+    MATCH "^non-root user only supports --tracking$" < user-err-tracking.log
