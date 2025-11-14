@@ -109,16 +109,15 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 	notifyPrompt := noticeBackends.promptBackend.addNotice
 
 	notifyRules := func(rules []*requestrules.Rule, data map[string]string) error {
-		// XXX: currently this is pointless since each notice is added and
-		// written to disk individually.
-		var errs []error
+		infos := make([]addNoticesInfo, 0, len(rules))
 		for _, rule := range rules {
-			if err := noticeBackends.ruleBackend.addNotice(rule.User, rule.ID, data); err != nil {
-				errs = append(errs, err)
-			}
+			infos = append(infos, addNoticesInfo{
+				UserID: rule.User,
+				ID:     rule.ID,
+				Data:   data,
+			})
 		}
-		// TODO:GOVERSION: replace with errors.Join() once we're on golang v1.20+
-		return strutil.JoinErrors(errs...)
+		return noticeBackends.ruleBackend.addNotices(infos)
 	}
 
 	listenerBackend, err := listenerRegister()
