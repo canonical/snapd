@@ -67,6 +67,13 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+type mockActivateOption struct {
+	name string
+}
+
+func (m *mockActivateOption) ApplyOptionToConfig(config sb.ActivateConfig) {
+}
+
 type mockActivateContext struct {
 	activateContainer func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
 }
@@ -80,6 +87,7 @@ func (m *mockActivateContext) ActivateContainer(ctx context.Context, container s
 }
 
 type mockStorageContainer struct {
+	name string
 }
 
 func (m *mockStorageContainer) Path() string {
@@ -474,6 +482,22 @@ func (s *secbootSuite) TestProvisionForCVMTPMNotEnabled(c *C) {
 	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
 }
 
+type mockKeyDataWriter struct {
+	data *bytes.Buffer
+}
+
+func (w *mockKeyDataWriter) Write(data []byte) (int, error) {
+	return w.data.Write(data)
+}
+
+func (w *mockKeyDataWriter) Cancel() error {
+	return nil
+}
+
+func (w *mockKeyDataWriter) Commit() error {
+	return nil
+}
+
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
@@ -638,7 +662,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			}
 
 			devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
-			//devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
+			devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
 			var keyPath string
 			var expectedKeyPath fs.FileInfo
@@ -733,8 +757,56 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			})
 			defer restore()
 
+			volumeNameOption := &mockActivateOption{name: "volume"}
+			defer secboot.MockSbWithVolumeName(func(name string) sb.ActivateOption {
+				c.Check(name, Equals, "name-"+randomUUID)
+				return volumeNameOption
+			})()
+
+			externalKeys := &mockActivateOption{name: "external-keys"}
+			defer secboot.MockSbWithExternalKeyData(func(keys ...*sb.ExternalKeyData) sb.ActivateOption {
+				if tc.noKeyFile || tc.errorReadKeyFile {
+					c.Check(keys, HasLen, 0)
+				} else {
+					c.Assert(keys, HasLen, 1)
+
+					var buf bytes.Buffer
+
+					_, err := buf.ReadFrom(keys[0])
+					c.Assert(err, IsNil)
+
+					expectedWriter := &mockKeyDataWriter{data: &bytes.Buffer{}}
+					err = expectedKeyData.WriteAtomic(expectedWriter)
+					c.Assert(err, IsNil)
+
+					c.Check(buf.Bytes(), DeepEquals, expectedWriter.data.Bytes())
+				}
+
+				return externalKeys
+			})()
+
+			legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
+			defer secboot.MockSbWithLegacyKeyringKeyDescriptionPaths(func(paths... string) sb.ActivateOption {
+				c.Assert(paths, HasLen, 2)
+				c.Check(paths[0], Equals, "/dev/disk/by-partuuid/enc-dev-partuuid")
+				c.Check(paths[1], Equals, devicePathUUID)
+
+				return legacyKeyringPaths
+			})()
+
+			storage := &mockStorageContainer{name: "storage"}
+			defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
+				c.Check(path, Equals, devicePathUUID)
+				return storage, nil
+			})()
+
 			activateContext := &mockActivateContext{
 				activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
+					c.Check(container, Equals, storage)
+					c.Assert(opts, HasLen, 3)
+					c.Check(opts[0], Equals, volumeNameOption)
+					c.Check(opts[1], Equals, externalKeys)
+					c.Check(opts[2], Equals, legacyKeyringPaths)
 					return tc.activateErr
 				},
 			}
@@ -760,9 +832,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				},
 				BootMode: "some-weird-mode",
 			}
-			defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-				return &mockStorageContainer{}, nil
-			})()
 			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, tc.disk, defaultDevice, keyPath, opts)
 			if tc.errorReadKeyFile {
 				c.Check(logbuf.String(), testutil.Contains, `WARNING: there was an error loading key /some/path: some other error`)
@@ -1743,13 +1812,15 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 		}
 	})
 
+	storage := &mockStorageContainer{name: "storage"}
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
+			c.Check(container, Equals, storage)
 			return nil
 		},
 	}
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(activateContext, disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, IsNil)
@@ -2169,10 +2240,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 		},
 	}
 
+	storage := &mockStorageContainer{name: "storage"}
 	activated := 0
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
+			c.Check(container, Equals, storage)
 			return nil
 		},
 	}
@@ -2184,7 +2257,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	}
 
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, "device-name", keyPath, opts)
@@ -2229,9 +2302,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	//expectedKey := makeMockDiskKey()
 	//expectedAuxKey := makeMockAuxKey()
 	activated := 0
+	storage := &mockStorageContainer{name: "storage"}
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
+			c.Check(container, Equals, storage)
 			return nil
 		},
 	}
@@ -2246,7 +2321,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		},
 	}
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 	c.Assert(err, IsNil)
@@ -2280,10 +2355,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 		},
 	}
 
+	storage := &mockStorageContainer{name: "storage"}
 	activated := 0
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
+			c.Check(container, Equals, storage)
 			return fmt.Errorf("some activation error")
 		},
 	}
@@ -2299,7 +2376,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 	}
 
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
@@ -2339,10 +2416,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		},
 	}
 
+	storage := &mockStorageContainer{name: "storage"}
 	activated := 0
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
+			c.Check(container, Equals, storage)
 			return sb.ErrRecoveryKeyUsed
 		},
 	}
@@ -2359,7 +2438,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	}
 
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
@@ -2514,10 +2593,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1Fa
 
 	defer restore()
 
+	storage := &mockStorageContainer{name: "storage"}
 	activatedKeyData := 0
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activatedKeyData++
+			c.Check(container, Equals, storage)
 			return nil
 		},
 	}
@@ -2529,7 +2610,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1Fa
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
-		return &mockStorageContainer{}, nil
+		return storage, nil
 	})()
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
 	c.Assert(err, IsNil)

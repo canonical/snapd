@@ -64,6 +64,10 @@ var (
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
 	sbKeyDataPlatformName     = (*sb.KeyData).PlatformName
+
+	sbWithVolumeName                       = sb_luks2.WithVolumeName
+	sbWithExternalKeyData                  = sb.WithExternalKeyData
+	sbWithLegacyKeyringKeyDescriptionPaths = sb.WithLegacyKeyringKeyDescriptionPaths
 )
 
 func init() {
@@ -246,7 +250,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	if err != nil {
 		return res, err
 	}
-	err = activation.ActivateContainer(context.Background(), container, sb_luks2.WithVolumeName(mapperName), sb.WithExternalKeyData(keys...), sb.WithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice))
+	err = activation.ActivateContainer(context.Background(), container, sbWithVolumeName(mapperName), sbWithExternalKeyData(keys...), sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice))
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.UnlockMethod = UnlockedWithRecoveryKey

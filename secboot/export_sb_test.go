@@ -560,3 +560,15 @@ func MockSbPCRPolicyCounterHandle(f func(skd *sb_tpm2.SealedKeyData) tpm2.Handle
 func MockSbFindStorageContainer(f func(ctx context.Context, path string) (sb.StorageContainer, error)) (restore func()) {
 	return testutil.Mock(&sbFindStorageContainer, f)
 }
+
+func MockSbWithVolumeName(f func(name string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithVolumeName, f)
+}
+
+func MockSbWithExternalKeyData(f func(keys ...*sb.ExternalKeyData) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalKeyData, f)
+}
+
+func MockSbWithLegacyKeyringKeyDescriptionPaths(f func(paths ...string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithLegacyKeyringKeyDescriptionPaths, f)
+}
