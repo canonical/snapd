@@ -41,6 +41,7 @@ type DesktopEntry struct {
 
 	SnapInstanceName string
 	SnapAppName      string
+	SnapCommonID     string
 
 	Hidden                bool
 	OnlyShowIn            []string
@@ -164,6 +165,8 @@ func parse(filename string, r io.Reader) (*DesktopEntry, error) {
 				de.SnapInstanceName = value
 			case "X-SnapAppName":
 				de.SnapAppName = value
+			case "X-SnapCommonID":
+				de.SnapCommonID = value
 			default:
 				// Ignore all other keys
 			}

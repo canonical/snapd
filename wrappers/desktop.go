@@ -106,7 +106,7 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 
 // detectAppAndRewriteExecLine parses snap app name from passed "Exec=" line and rewrites it
 // to use the wrapper path for snap application.
-func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appName string, execLine string, err error) {
+func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appInfo *snap.AppInfo, execLine string, err error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
 		wrapper := app.WrapperPath()
@@ -121,9 +121,9 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appNam
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return app.Name, "Exec=" + wrapper, nil
+			return app, "Exec=" + wrapper, nil
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return app.Name, fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
+			return app, fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
@@ -137,10 +137,10 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appNam
 	if ok {
 		newExec := fmt.Sprintf("Exec=%s", app.WrapperPath())
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
-		return app.Name, newExec, nil
+		return app, newExec, nil
 	}
 
-	return "", "", fmt.Errorf("invalid exec command: %q", cmd)
+	return nil, "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
 func rewriteIconLine(s *snap.Info, line string) (string, error) {
@@ -187,13 +187,18 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		// rewrite exec lines to an absolute path for the binary
 		if bytes.HasPrefix(bline, []byte("Exec=")) {
 			var err error
-			appName, line, err := detectAppAndRewriteExecLine(s, desktopFile, string(bline))
+			appInfo, line, err := detectAppAndRewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
 			}
 			// Add metadata entry to associate the exec line with a snap app
-			newContent.Write([]byte("X-SnapAppName=" + appName + "\n"))
+			newContent.Write([]byte("X-SnapAppName=" + appInfo.Name + "\n"))
+
+			if appInfo.CommonID != "" {
+				// Add metadata entry to associate the application with a common ID.
+				newContent.Write([]byte("X-SnapCommonID=" + appInfo.CommonID + "\n"))
+			}
 
 			bline = []byte(line)
 		}

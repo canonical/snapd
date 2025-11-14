@@ -549,6 +549,32 @@ Exec=%s/bin/snap.app
 `, dirs.SnapMountDir))
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecRewriteFromDesktopWithCommonID(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  common-id: io.snapcraft.app
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+Exec=snap.app.evil.evil
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+X-SnapAppName=app
+X-SnapCommonID=io.snapcraft.app
+Exec=%s/bin/snap.app
+`, dirs.SnapMountDir))
+}
+
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -733,9 +759,27 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	appName, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(appName, Equals, "app")
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineOkWithCommonID(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  common-id: io.snapcraft.app
+`))
+	c.Assert(err, IsNil)
+
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	c.Assert(err, IsNil)
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(app.CommonID, Equals, "io.snapcraft.app")
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
 }
 
