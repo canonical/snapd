@@ -74,7 +74,7 @@ prepare: |
 
     # Use the fake-store to verify behaviour, so we can use our own assertions
     export SNAPPY_FORCE_API_URL="$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
-    ubuntu-image snap --channel edge --image-size 10G --validation=enforce ./model.assert
+    ubuntu-image snap --channel edge --image-size 10G ./model.assert
 
     IMAGE_DIR=$(tests.nested get images-path)
     IMAGE_NAME=$(tests.nested get image-name core)

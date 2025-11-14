@@ -978,7 +978,7 @@ nested_create_core_vm() {
             fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
-            SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+            SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G \
                "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
