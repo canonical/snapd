@@ -1051,7 +1051,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	// Default validation behavior to "enforce" if not set
 	if opts.Customizations.Validation == "" {
 		opts.Customizations.Validation = "enforce"
-		}
+	}
 	fmt.Fprintf(Stdout, "INFO: validation mode: %s\n", opts.Customizations.Validation)
 
 	assertMaxFormatsSelected := false
