@@ -22,7 +22,7 @@ Options:
   --force                          Force operation (relevant for mount directory migration)
 
 Actions:
-  --purge                          Purge all data from $STATIC_SNAP_MOUNT_DIR
+  --purge                          Purge all snaps and their data
   --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
   --check-mount-dir-migration      Check system state required to run mount directory migration
 EOF
@@ -97,36 +97,44 @@ purge() {
         systemctl_stop "$unit"
 
         if echo "$unit" | grep -q '.*\.mount' && ! is_component_mount_unit "$unit"; then
-            # Transform ${STATIC_SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
+            # Transform /var/lib/snapd/snap/core/3440 -> core/3440 removing any
             # extra / preceding snap name, eg:
             #  /var/lib/snapd/snap/core/3440  -> core/3440
             #  /snap/core/3440                -> core/3440
             #  /snap/core//3440               -> core/3440
             # NOTE: we could have used `systemctl show $unit -p Where --value`
             # but systemd 204 shipped with Ubuntu 14.04 does not support this
-            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$STATIC_SNAP_MOUNT_DIR##" -e 's#^/*##')
-            snap=$(echo "$snap_rev" |cut -f1 -d/)
-            rev=$(echo "$snap_rev" |cut -f2 -d/)
+            systemctl_where="$(systemctl show "$unit" -p Where)"
+            #  Where=/var/lib/snapd/snap/core/3440  -> core/3440
+            snap_rev="${systemctl_where#Where=*/snap/}"
+            # core/3440 -> core
+            snap="${snap_rev%/*}"
+            # core/3440 -> 3440
+            rev="${snap_rev#*/}"
+            # Transform:
+            # Where=/var/lib/snapd/snap/core/3440 -> /var/lib/snapd/snap
+            snap_mountpoint="$(dirname "${systemctl_where#Where=}")"
+            global_snaps_mount_dir="$(dirname "$snap_mountpoint")"
             if [ -n "$snap" ]; then
                 echo "Removing snap $snap"
                 # aliases
-                if [ -d "${STATIC_SNAP_MOUNT_DIR}/bin" ]; then
-                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
-                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
+                if [ -d "${global_snaps_mount_dir}/bin" ]; then
+                    find "${global_snaps_mount_dir}/bin" -maxdepth 1 -lname "$snap" -delete
+                    find "${global_snaps_mount_dir}/bin" -maxdepth 1 -lname "$snap.*" -delete
                 fi
                 # generated binaries
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap"
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap".*
+                rm -f "${global_snaps_mount_dir}/bin/$snap"
+                rm -f "${global_snaps_mount_dir}/bin/$snap".*
                 # snap mount dir
-                umount -l "${STATIC_SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-                rm -rf "${STATIC_SNAP_MOUNT_DIR:?}/$snap/$rev"
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/$snap/current"
+                umount -l "$snap_mountpoint" 2> /dev/null || true
+                rm -rf "$snap_mountpoint"
+                rm -f "${global_snaps_mount_dir}/$snap/current"
                 # snap data dir
                 rm -rf "/var/snap/$snap/$rev"
                 rm -rf "/var/snap/$snap/common"
                 rm -f "/var/snap/$snap/current"
                 # opportunistic remove (may fail if there are still revisions left)
-                for d in "${STATIC_SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
+                for d in "${global_snaps_mount_dir}/$snap" "/var/snap/$snap"; do
                     if [ -d "$d" ]; then
                         rmdir --ignore-fail-on-non-empty "$d"
                     fi
@@ -164,7 +172,7 @@ purge() {
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
 
-    # Undo any bind mounts to ${STATIC_SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # Undo any bind mounts to /var/lib/snapd/snap, /snap or /var/snap done by parallel
     # installs or LP:#1668659
     for mp in /snap /var/lib/snapd/snap /var/snap; do
         # btrfs bind mounts actually include subvolume in the filesystem-path
