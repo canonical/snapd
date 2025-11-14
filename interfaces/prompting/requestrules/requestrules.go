@@ -176,9 +176,9 @@ type RuleDB struct {
 	perUser map[uint32]*userDB
 
 	dbPath string
-	// notifyRule is a closure which will be called to record a notice when a
-	// rule is added, patched, or removed.
-	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+	// notifyRules is a closure which will be called to record notices when
+	// rules are added, patched, or removed.
+	notifyRules func(rules []*Rule, data map[string]string) error
 
 	// userSessionIDMu ensures that two threads cannot race to write a new user
 	// session ID.
@@ -188,14 +188,14 @@ type RuleDB struct {
 // New creates a new rule database, loads existing rules from the database file,
 // and returns the populated database.
 //
-// The given notifyRule closure may be called before `New()` returns, if a
+// The given notifyRules closure may be called before `New()` returns, if a
 // previously-saved rule has expired or if there are conflicts between rules.
 //
-// The given notifyRule closure will be called when a rule is added, modified,
-// expired, or removed. In order to guarantee the order of notices, notifyRule
+// The given notifyRules closure will be called when a rule is added, modified,
+// expired, or removed. In order to guarantee the order of notices, notifyRules
 // is called with the prompt DB lock held, so it should not block for a
 // substantial amount of time (such as to lock and modify snapd state).
-func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
+func New(notifyRules func(rules []*Rule, data map[string]string) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 	rulesFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
@@ -209,9 +209,9 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	}
 
 	rdb := &RuleDB{
-		maxIDMmap:  maxIDMmap,
-		notifyRule: notifyRule,
-		dbPath:     rulesFilepath,
+		maxIDMmap:   maxIDMmap,
+		notifyRules: notifyRules,
+		dbPath:      rulesFilepath,
 	}
 	if err = rdb.load(); err != nil {
 		logger.Noticef("cannot load rule database: %v; using new empty rule database", err)
@@ -242,11 +242,11 @@ func (rdb *RuleDB) load() (retErr error) {
 	rdb.rules = make([]*Rule, 0)
 	rdb.perUser = make(map[uint32]*userDB)
 
-	expiredRules := make(map[prompting.IDType]bool)
-	partiallyExpiredRules := make(map[prompting.IDType]bool)
-	// Store map of merged rules, where the original merged (removed) rule ID
+	var expiredRules []*Rule
+	var partiallyExpiredRules []*Rule
+	// Store map of merged rules, where the original merged (removed) rule
 	// maps to the ID of the rule into which it was merged.
-	mergedRules := make(map[prompting.IDType]prompting.IDType)
+	mergedRules := make(map[*Rule]prompting.IDType)
 
 	f, err := os.Open(rdb.dbPath)
 	if err != nil {
@@ -287,7 +287,7 @@ func (rdb *RuleDB) load() (retErr error) {
 			break
 		}
 		if status == prompting.AllPermsExpired {
-			expiredRules[rule.ID] = true
+			expiredRules = append(expiredRules, rule)
 			continue
 		}
 
@@ -299,24 +299,22 @@ func (rdb *RuleDB) load() (retErr error) {
 			break
 		}
 		if merged {
-			mergedRules[rule.ID] = mergedRule.ID
+			mergedRules[rule] = mergedRule.ID
 			continue
 		}
 
 		// Being merged is more important than being partially expired, so only
 		// check this after first adding the rule to the DB.
-		if status == prompting.AnyPermsExpired {
-			partiallyExpiredRules[rule.ID] = true
+		if status == prompting.SomePermsExpired {
+			partiallyExpiredRules = append(partiallyExpiredRules, rule)
 		}
 	}
 
 	if errInvalid != nil {
 		// The DB on disk was invalid, so drop every rule and start over
 		data := map[string]string{"removed": "dropped"}
-		for _, rule := range wrapped.Rules {
-			logger.Debugf("calling notifyRule(%d, %s, %v) because DB was invalid and all rules dropped", rule.User, rule.ID, data)
-			rdb.notifyRule(rule.User, rule.ID, data)
-		}
+		logger.Debugf("calling notifyRules() because DB was invalid and all rules dropped")
+		rdb.notifyRules(wrapped.Rules, data)
 		rdb.indexByID = make(map[prompting.IDType]int)
 		rdb.rules = make([]*Rule, 0)
 		rdb.perUser = make(map[uint32]*userDB)
@@ -326,26 +324,19 @@ func (rdb *RuleDB) load() (retErr error) {
 		return strutil.JoinErrors(errInvalid, rdb.save())
 	}
 
-	expiredData := map[string]string{"removed": "expired"}
-	for _, rule := range wrapped.Rules {
-		var data map[string]string
-		if expiredRules[rule.ID] {
-			data = expiredData
-			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired on load", rule.User, rule.ID, data)
-		} else if newID, exists := mergedRules[rule.ID]; exists {
-			data = map[string]string{
-				"removed":     "merged",
-				"merged-into": newID.String(),
-			}
-			logger.Debugf("calling notifyRule(%d, %s, %v) because it merged into rule %s on load", rule.User, rule.ID, data, newID)
-		} else if partiallyExpiredRules[rule.ID] {
-			// no-op, want to record notice with empty data
-			logger.Debugf("calling notifyRule(%d, %s, %v) on load because some (but not all) permissions were expired", rule.User, rule.ID, data)
-		} else {
-			// not expired or merged, so don't record notice
-			continue
+	rdb.notifyRules(partiallyExpiredRules, nil)
+	if len(expiredRules) > 0 {
+		data := map[string]string{"removed": "expired"}
+		logger.Debugf("calling notifyRules() for %d rules which were expired during load", len(expiredRules))
+		rdb.notifyRules(expiredRules, data)
+	}
+	for rule, newID := range mergedRules {
+		data := map[string]string{
+			"removed":     "merged",
+			"merged-into": newID.String(),
 		}
-		rdb.notifyRule(rule.User, rule.ID, data)
+		logger.Debugf("calling notifyRules() for merged rule with ID %s", rule.ID)
+		rdb.notifyRules([]*Rule{rule}, data)
 	}
 
 	if len(expiredRules) > 0 || len(partiallyExpiredRules) > 0 || len(mergedRules) > 0 {
@@ -751,7 +742,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		return conflicts
 	}
 
-	expiredData := map[string]string{"removed": "expired"}
+	expiredRules := make([]*Rule, 0, len(partiallyExpiredRules))
 	for ruleID := range partiallyExpiredRules {
 		maybeExpired, err := rdb.lookupRuleByIDForUser(rule.User, ruleID)
 		if err != nil {
@@ -775,11 +766,13 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
-			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired when another rule was added", maybeExpired.User, maybeExpired.ID, expiredData)
-			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
-		} else {
-			logger.Debugf("not calling notifyRule(%d, %s, %v) because an error occurred when trying to remove the maybe expired rule", maybeExpired.User, maybeExpired.ID, expiredData)
+			expiredRules = append(expiredRules, maybeExpired)
 		}
+	}
+	if len(expiredRules) > 0 {
+		logger.Debugf("calling notifyRules() for %d rules which were expired when adding new rule", len(expiredRules))
+		data := map[string]string{"removed": "expired"}
+		rdb.notifyRules(expiredRules, data)
 	}
 
 	for variantStr, variantEntry := range newVariantEntries {
@@ -1062,8 +1055,8 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
-	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was first added", user, newRule.ID, nil)
-	rdb.notifyRule(user, newRule.ID, nil)
+	logger.Debugf("calling notifyRules() for rule with ID %s when it was first added", newRule.ID)
+	rdb.notifyRules([]*Rule{newRule}, nil)
 	return newRule, nil
 }
 
@@ -1311,8 +1304,8 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
-	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, id, data)
-	rdb.notifyRule(user, id, data)
+	logger.Debugf("calling notifyRules() for rule with ID %s when it was removed", id)
+	rdb.notifyRules([]*Rule{rule}, data)
 	return rule, nil
 }
 
@@ -1362,14 +1355,14 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	}
 
 	// Save successful, now remove rules' variants from tree
-	data := map[string]string{"removed": "removed"}
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree, and no other
 		// rule was affected. We want the rule fully removed, so this is fine.
-		logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, rule.ID, data)
-		rdb.notifyRule(user, rule.ID, data)
 	}
+	data := map[string]string{"removed": "removed"}
+	logger.Debugf("calling notifyRules() for %d rules which were removed", len(rules))
+	rdb.notifyRules(rules, data)
 	return nil
 }
 
@@ -1494,8 +1487,8 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
-	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was patched", newRule.User, newRule.ID, nil)
-	rdb.notifyRule(newRule.User, newRule.ID, nil)
+	logger.Debugf("calling notifyRules() for rule with ID %s when it was patched", newRule.ID)
+	rdb.notifyRules([]*Rule{newRule}, nil)
 	return newRule, nil
 }
 

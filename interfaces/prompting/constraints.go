@@ -361,14 +361,14 @@ type PermExpirationStatus int
 
 const (
 	NoPermsExpired PermExpirationStatus = iota
-	AnyPermsExpired
+	SomePermsExpired
 	AllPermsExpired
 )
 
 // ValidateForInterface checks that the rule constraints are valid for the
 // given interface. If any permissions have expired at the given point in time,
 // they are pruned. Returns a [PermExpirationStatus] indicating whether all,
-// any, or no permissions were expired. If the rule is invalid, returns an
+// some, or no permissions were expired. If the rule is invalid, returns an
 // error.
 func (c *RuleConstraints) ValidateForInterface(iface string, at At) (status PermExpirationStatus, err error) {
 	// XXX: this is called only when loading rules from disk. Any interface-
@@ -681,7 +681,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, at At) (status Pe
 		return AllPermsExpired, nil
 	}
 	if len(expiredPerms) > 0 {
-		return AnyPermsExpired, nil
+		return SomePermsExpired, nil
 	}
 	return NoPermsExpired, nil
 }

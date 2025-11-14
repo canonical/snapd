@@ -1071,7 +1071,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					Expiration: at.Time,
 				},
 			},
-			prompting.AnyPermsExpired,
+			prompting.SomePermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
@@ -1147,7 +1147,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID,
 				},
 			},
-			prompting.AnyPermsExpired,
+			prompting.SomePermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
@@ -1172,7 +1172,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 				"execute": nil,
 			},
-			prompting.AnyPermsExpired,
+			prompting.SomePermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,

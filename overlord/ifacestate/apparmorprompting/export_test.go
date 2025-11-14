@@ -164,6 +164,12 @@ func (nb *noticeBackends) RuleBackend() *noticeTypeBackend {
 	return nb.ruleBackend
 }
 
+type AddNoticesInfo = addNoticesInfo
+
+func (ntb *noticeTypeBackend) AddNotices(infos []AddNoticesInfo) error {
+	return ntb.addNotices(infos)
+}
+
 func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data map[string]string) error {
 	return ntb.addNotice(userID, id, data)
 }
