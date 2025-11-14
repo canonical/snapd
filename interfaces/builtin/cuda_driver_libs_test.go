@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -179,6 +180,9 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &configfiles.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
