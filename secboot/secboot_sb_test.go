@@ -786,7 +786,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			})()
 
 			legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
-			defer secboot.MockSbWithLegacyKeyringKeyDescriptionPaths(func(paths... string) sb.ActivateOption {
+			defer secboot.MockSbWithLegacyKeyringKeyDescriptionPaths(func(paths ...string) sb.ActivateOption {
 				c.Assert(paths, HasLen, 2)
 				c.Check(paths[0], Equals, "/dev/disk/by-partuuid/enc-dev-partuuid")
 				c.Check(paths[1], Equals, devicePathUUID)
