@@ -20,7 +20,7 @@ restore: |
 
 execute: |
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
-  for iface in cuda egl gbm opengl opengles vulkan; do
+  for iface in cuda egl gbm nvidia-video opengl opengles vulkan; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
       MATCH "$iface" < "$SNAP_LDCONF_P"
   done
