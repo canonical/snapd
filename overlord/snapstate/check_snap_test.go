@@ -1471,7 +1471,7 @@ func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflicts(c *C) {
 	})
 
 	err = snapstate.CheckDesktopFileIDsConflicts(s.state, someSnap)
-	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "other-snap" use`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo.desktop" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflictsNoConflictWithSelf(c *C) {
@@ -1542,7 +1542,7 @@ func (s *snapmgrTestSuite) TestInstallDesktopFileIDsConflicts(c *C) {
 	// Conflict should be detected in early checks
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-desktop-file-ids"}
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "other-snap" use`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting desktop-file-id "org.example.Foo.desktop" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyDesktopFileIDsConflicts(c *C) {
@@ -1581,5 +1581,5 @@ func (s *snapmgrTestSuite) TestInstallManyDesktopFileIDsConflicts(c *C) {
 	s.settle(c)
 
 	// The order of installation is indeterminant, but one will fail
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "(some|other)-snap" \(11\) available to the system \(snap "(some|other)-snap" requesting desktop-file-id "org.example.Foo" conflicts with snap "(some|other)-snap" use\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "(some|other)-snap" \(11\) available to the system \(snap "(some|other)-snap" requesting desktop-file-id "org.example.Foo.desktop" conflicts with snap "(some|other)-snap" use\)`)
 }

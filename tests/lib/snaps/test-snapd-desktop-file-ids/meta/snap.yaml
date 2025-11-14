@@ -14,4 +14,5 @@ apps:
 plugs:
   desktop:
     desktop-file-ids:
-    - org.example
+    - org.example.desktop
+    - org.example.Fallback

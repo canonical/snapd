@@ -32,7 +32,7 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    files="$DIR/org.example.desktop $DIR/test-snapd-desktop-file-ids_foo.desktop $DIR/test-snapd-desktop-file-ids_org.example.Foo.desktop $DIR/test-snapd-desktop-file-ids_bad._____________.desktop"
+    files="$DIR/org.example.desktop $DIR/org.example.Fallback.desktop $DIR/test-snapd-desktop-file-ids_foo.desktop $DIR/test-snapd-desktop-file-ids_org.example.Foo.desktop $DIR/test-snapd-desktop-file-ids_bad._____________.desktop"
 
     # Connect desktop-legacy interface to test generated desktop allow/deny rules
     # only allows access to the snap's desktop files
