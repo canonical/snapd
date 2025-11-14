@@ -175,7 +175,6 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 
 func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
 	var newContent bytes.Buffer
-	mountDir := []byte(s.MountDir())
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for i := 0; scanner.Scan(); i++ {
 		bline := scanner.Bytes()
@@ -209,8 +208,12 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 			bline = []byte(line)
 		}
 
+		// use "current" instead of the revision number to avoid icon
+		// breakage when users copy the desktop files (LP: #1851490)
+		dollarSnapValue := []byte(filepath.Join(s.MountDir(), "..", "current"))
+
 		// do variable substitution
-		bline = bytes.Replace(bline, []byte("${SNAP}"), mountDir, -1)
+		bline = bytes.Replace(bline, []byte("${SNAP}"), dollarSnapValue, -1)
 
 		newContent.Grow(len(bline) + 1)
 		newContent.Write(bline)

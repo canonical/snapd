@@ -476,7 +476,7 @@ Icon=${SNAP}/meep
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=foo
 Name=foo
-Icon=%s/foo/12/meep
+Icon=%s/foo/current/meep
 
 # the empty line above is fine
 `, dirs.SnapMountDir))
@@ -624,6 +624,26 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, string(desktopContent))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileIcon(c *C) {
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
+
+	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Icon=${SNAP}/icon.png
+`)
+
+	desktopExpected := append(
+		[]byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Icon=`), []byte(dirs.SnapMountDir)...)
+
+	desktopExpected = append(desktopExpected, []byte(`/snap/current/icon.png
+`)...)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, string(desktopExpected))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {

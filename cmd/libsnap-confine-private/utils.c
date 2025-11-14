@@ -310,3 +310,26 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
 int sc_ensure_mkdir(const char *path, mode_t mode, uid_t uid, uid_t gid) {
     return sc_ensure_mkdirat(AT_FDCWD, path, mode, uid, gid);
 }
+
+bool sc_is_path_canonical(const char *path) {
+    if (path == NULL) {
+        return false;
+    }
+
+    size_t len = strlen(path);
+    if (len == 0) {
+        return false;
+    }
+
+    if (path[0] != '/') {
+        return false;
+    }
+
+    if (len == 1) {
+        /* just '/'  */
+        return true;
+    }
+
+    return !sc_endswith(path, "/.") && !sc_endswith(path, "/..") && !sc_endswith(path, "/") &&
+           strstr(path, "/../") == NULL && strstr(path, "/./") == NULL && strstr(path, "//") == NULL;
+}

@@ -45,6 +45,9 @@ const systemTraceConnectedPlugAppArmor = `
   /sys/kernel/debug/tracing/ r,
   /sys/kernel/debug/tracing/** rw,
 
+  /sys/kernel/tracing/ r,
+  /sys/kernel/tracing/** rw,
+
   # Access to kernel headers required for iovisor/bcc. This is typically
   # detected with 'ls -l /lib/modules/$(uname -r)/build/' which is a symlink
   # to /usr/src on Ubuntu and so only /usr/src is needed.

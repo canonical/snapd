@@ -77,11 +77,14 @@ var (
 
 type cmdRun struct {
 	mustWaitMixin
-	Command  string `long:"command" hidden:"yes"`
-	HookName string `long:"hook" hidden:"yes"`
-	Revision string `short:"r" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" `
-	DebugLog bool   `long:"debug-log"`
+	Command     string `long:"command" hidden:"yes"`
+	HookName    string `long:"hook" hidden:"yes"`
+	Revision    string `short:"r" default:"unset" hidden:"yes"`
+	Shell       bool   `long:"shell" `
+	DebugLog    bool   `long:"debug-log"`
+	Positionals struct {
+		SnapName SnapAndApp `hidden:"yes" required:"yes" positional-arg-name:"<NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"`
+	} `positional-args:"yes" required:"yes" hidden:"yes"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -284,15 +287,18 @@ func maybeCheckSystemKeyMismatch(cli *client.Client) (changeID string, err error
 }
 
 func (x *cmdRun) Usage() string {
-	return "[run-OPTIONS] <NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"
+	return "[run-OPTIONS]"
 }
 
 func (x *cmdRun) Execute(args []string) error {
-	if len(args) == 0 {
-		return errors.New(i18n.G("need the application to run as argument"))
+	snapApp := x.Positionals.SnapName.FullName()
+	if len(snapApp) == 0 {
+		if len(args) == 0 {
+			return errors.New(i18n.G("need the application to run as argument 1"))
+		}
+		snapApp = args[0]
+		args = args[1:]
 	}
-	snapApp := args[0]
-	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
 	optionsSet := 0

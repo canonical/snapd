@@ -216,6 +216,7 @@ BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  make
+BuildRequires:  m4
 BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
@@ -634,7 +635,8 @@ popd
 pushd ./data
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-     SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
+     USE_CANONICAL_SNAP_MOUNT_DIR=false \
+     USE_ALT_SNAP_MOUNT_DIR=true \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
 
@@ -710,7 +712,8 @@ pushd ./data
 %make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               TMPFILESDIR="%{_tmpfilesdir}" \
-              SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
+              USE_CANONICAL_SNAP_MOUNT_DIR=false \
+              USE_ALT_SNAP_MOUNT_DIR=true \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
 
