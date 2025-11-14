@@ -524,7 +524,37 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	c.Assert(err, IsNil)
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
 	c.Check(string(stdout), Equals, "channel: latest/stable\n")
-	c.Logf("bl: %s", string(stderr))
+	c.Check(string(stderr), Equals, "")
+	c.Check(err, IsNil)
+}
+
+func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
+	yesterday := time.Now().Add(-24 * time.Hour)
+	myAppSnapState := snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Current:  snap.R(-42),
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "my-app", Revision: snap.R(-42)},
+		}),
+		TrackingChannel: "",
+		Flags:           snapstate.Flags{},
+		InstanceKey:     "my-app",
+		LastRefreshTime: &yesterday,
+		Base:            "core22",
+		UserID:          1000,
+	}
+
+	s.st.Lock()
+	snapstate.Set(s.st, "my-app", &myAppSnapState)
+	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(1)}
+	s.st.Unlock()
+
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
+	c.Check(string(stdout), Equals, "channel: -\n")
+	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 }
 
