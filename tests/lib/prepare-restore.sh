@@ -528,8 +528,11 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            best_golang=golang-1.18
+            best_golang=golang-1.22
             case "$SPREAD_SYSTEM" in
+                ubuntu-18.04-*|ubuntu-core-18-*)
+                    best_golang=golang-1.18
+                    ;;
                 ubuntu-fips-*)
                     # we are limited by the FIPS variants of go toolchain
                     # available from the PPA, and we need to match the Go
@@ -540,15 +543,30 @@ prepare_project() {
                     quiet apt install -y golang-1.23
                     ;;
             esac
-            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control >deps.txt
-            quiet xargs -r eatmydata apt-get install -y < deps.txt
-            # The go 1.18 backport is not using alternatives or anything else so
+
+            # HACK: patches required to enable build on 18.04
+            case "$SPREAD_SYSTEM" in
+                ubuntu-18.04-*|ubuntu-core-18-*)
+                    sed -i 's/golang-1.22/golang-1.18/' ./debian/control
+                    ;;
+            esac
+
+            apt build-dep -y ./
+
+            # The go 1.18/1.22 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
-            if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.18/bin
-                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+            if ! go version | grep -q "${best_golang#*-}"; then
+                ln -fs "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
+            ;;
+    esac
+
+
+    # HACK: patches required to enable build on 18.04
+    case "$SPREAD_SYSTEM" in
+        ubuntu-18.04-*|ubuntu-core-18-*)
+            go mod edit -go=1.18 -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+            go mod tidy
             ;;
     esac
 
@@ -587,10 +605,6 @@ prepare_project() {
         chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)

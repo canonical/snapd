@@ -61,6 +61,12 @@ execute: |
     # test workflow static checks. They can therefore be safely skipped here.
     skip="${skip:-} SKIP_GOLANGCI_LINT=1"
 
+    # TODO:GOVERSION: snapd's go version is currently transitionary, resulting
+    # in our go.mod stating go1.22, but we're building with go1.18. this
+    # mismatch results in "go mod tidy" not working when using an older go
+    # version.
+    skip="${skip:-} SKIP_GO_MOD_TIDY=1"
+
     PROXY_PARAM=""
     if [ -n "${http_proxy:-}" ]; then
         PROXY_PARAM="HTTP_PROXY=$http_proxy"

@@ -1979,7 +1979,7 @@ func (s *clusterSuite) TestRunTimeout(c *check.C) {
 		},
 	}
 
-	discover := make(chan []string)
+	discover := make(chan string)
 	session := AssembleSession{
 		Initiated: started,
 	}
@@ -2010,7 +2010,7 @@ func (s *clusterSuite) TestRunServerError(c *check.C) {
 		},
 	}
 
-	discover := make(chan []string)
+	discover := make(chan string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
 	}, commit, db)
@@ -2043,7 +2043,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
 		},
 	}
 
-	discover := make(chan []string)
+	discover := make(chan string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
 	}, func(as AssembleSession) {}, db)
@@ -2092,7 +2092,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	discover := make(chan []string)
+	discover := make(chan string)
 	_, _, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
@@ -2133,7 +2133,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	discover := make(chan []string)
+	discover := make(chan string)
 	_, _, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }

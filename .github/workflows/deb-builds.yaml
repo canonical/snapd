@@ -40,11 +40,25 @@ jobs:
         mv /tmp/vendor-dir/snapd-*/vendor .
         mv /tmp/vendor-dir/snapd-*/c-vendor/* c-vendor/
 
+        # HACK: we normally build snapd with go1.22, but 18.04 only has go1.18
+        # available. since the x/crypto dependency version that we use in snapd
+        # requires go1.20, we replace it with an older version that is
+        # compatible with go1.18.
+        if [ "${{ inputs.os }}" = "ubuntu" ] && [ "${{ inputs.os-version }}" = "18.04" ]; then
+          go mod edit -go=1.18 -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+          go mod tidy
+          go mod vendor
+        fi
+
     - name: Setup debian dir
       run: |
         if [ -d "packaging/${{ inputs.os }}-${{ inputs.os-version }}" ]; then
           rm -r debian
           mv "packaging/${{ inputs.os }}-${{ inputs.os-version }}" debian
+        fi
+
+        if [ "${{ inputs.os }}" = "ubuntu" ] && [ "${{ inputs.os-version }}" = "18.04" ]; then
+          sed -i 's/golang-1.22/golang-1.18/' ./debian/control
         fi
 
     - name: Set up Docker Buildx
