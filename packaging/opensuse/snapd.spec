@@ -112,6 +112,7 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  m4
 # /usr/libexec/snapd/snap-mgmt: line 46: /etc/os-release: No such file or directory
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
@@ -315,6 +316,15 @@ popd
 M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 %endif
 
+%make_build -C %{indigo_srcdir}/data \
+		BINDIR=%{_bindir} \
+		LIBEXECDIR=%{_libexecdir} \
+		DATADIR=%{_datadir} \
+		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+		TMPFILESDIR=%{_tmpfilesdir} \
+		USE_CANONICAL_SNAP_MOUNT_DIR=true \
+		USE_ALT_SNAP_MOUNT_DIR=true
+
 %check
 # These binaries execute inside the mount namespace thus they must be built statically
 pushd %{buildroot}/%{_libexecdir}/snapd/
@@ -352,7 +362,9 @@ export SNAPD_SKIP_SLOW_TESTS=1
 		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		TMPFILESDIR=%{_tmpfilesdir} \
-		SNAP_MOUNT_DIR=%{snap_mount_dir}
+		USE_CANONICAL_SNAP_MOUNT_DIR=true \
+		USE_ALT_SNAP_MOUNT_DIR=true
+
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
