@@ -35,6 +35,7 @@ cmd/snap-gdb-shim/snap-gdb-shim
 cmd/snap-gdb-shim/snap-gdbserver-shim
 cmd/snap-mgmt/snap-mgmt
 cmd/snap-seccomp/snap-seccomp
+cmd/snap-strace-shim/snap-strace-shim
 cmd/snap-update-ns/snap-update-ns
 cmd/snap-update-ns/unit-tests
 cmd/snapd-apparmor/snapd-apparmor
