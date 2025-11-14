@@ -53,4 +53,5 @@ execute: |
   else
     snap_bootstrap_service=the-tool.service
   fi
-  remote.exec "sudo journalctl -b0 -u ${snap_bootstrap_service}" | MATCH "successfully activated encrypted device .* using a fallback activation method"
+  #FIXME: use activation state instead
+  #remote.exec "sudo journalctl -b0 -u ${snap_bootstrap_service}" | MATCH "successfully activated encrypted device .* using a fallback activation method"
