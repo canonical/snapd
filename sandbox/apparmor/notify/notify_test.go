@@ -343,7 +343,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
 	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, pendingCount)
+	c.Check(pendingCount, Equals, int(fakePending))
 
 	// Check that the new listener ID stored
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
@@ -417,7 +417,7 @@ func (s *notifySuite) TestRegisterFileDescriptorNoAccess(c *C) {
 	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 	c.Check(err, IsNil)
 	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, pendingCount)
+	c.Check(pendingCount, Equals, int(fakePending))
 
 	// Check that the new listener ID stored
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
@@ -460,7 +460,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	c.Check(receivedVersion, Equals, notify.ProtocolVersion(0))
 	c.Check(pendingCount, Equals, 0)
 
-	// EACCES during registration
+	// EPERM during registration
 	ioctlCalls = 0
 	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, fakeFD)
@@ -474,7 +474,7 @@ func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 			// Expect listener ID 0, set arbitrary ID/ready/pending
 			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 123)
 			// On v7, return an error on the APPARMOR_NOTIF_REGISTER
-			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EINVAL, unix.ErrnoName(unix.EACCES))
+			return respBuf, fmt.Errorf("cannot perform IOCTL request %v: %w (%s)", req, unix.EPERM, unix.ErrnoName(unix.EPERM))
 		case 2:
 			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
 			respBuf := checkIoctlBufferSetFilter(c, buf, notify.ProtocolVersion(3))
