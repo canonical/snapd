@@ -55,10 +55,11 @@ type refreshCommand struct {
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
 var longRefreshHelp = i18n.G(`
-The refresh command prints pending refreshes of the calling snap and can hold
-back disruptive refreshes of other snaps, such as refreshes of the kernel or
-base snaps that can trigger a restart. This command can be used from the
-gate-auto-refresh hook which is only run during auto-refresh.
+The refresh command prints pending refreshes or the tracking channel of the 
+calling snap and can hold back disruptive refreshes of other snaps, such as 
+refreshes of the kernel or base snaps that can trigger a restart. 
+This command can be used from the gate-auto-refresh hook which is only run 
+during auto-refresh.
 
 To show the channel the current snap is tracking:
     $ snapctl refresh --tracking
@@ -268,10 +269,15 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 
 	err := snapstate.Get(st, context.InstanceName(), &snapst)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+		return fmt.Errorf("internal error: %v", err)
 	}
 
-	c.printf("channel: %s\n", snapst.TrackingChannel)
+	if snapst.TrackingChannel == "" {
+		c.print("channel: -\n")
+	} else {
+		c.printf("channel: %s\n", snapst.TrackingChannel)
+	}
+
 	return nil
 }
 
