@@ -45,7 +45,7 @@ execute: |
   UKI_FILE="$(ls /boot/kernel.efi*-azure)"
 
   # move UKI to ESP
-  mv $UKI_FILE /boot/efi/EFI/ubuntu
+  mv "$UKI_FILE" /boot/efi/EFI/ubuntu
 
   # add UKI to boot entries
   efibootmgr --create --disk /dev/sda --part 15 --label "CVM UKI" --loader "\EFI\ubuntu\$(basename $UKI_FILE)"
