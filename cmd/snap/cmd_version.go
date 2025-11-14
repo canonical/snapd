@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -37,21 +38,29 @@ and operating system.
 
 type cmdVersion struct {
 	clientMixin
+
+	Verbose bool `long:"verbose"`
 }
 
 func init() {
-	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} }, nil, nil)
+	addCommand("version", shortVersionHelp, longVersionHelp, func() flags.Commander { return &cmdVersion{} },
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"verbose": i18n.G("Show verbose output"),
+		}, nil)
 }
+
+var snapdtoolIsReexecd = snapdtool.IsReexecd
 
 func (cmd cmdVersion) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	return printVersions(cmd.client)
+	return printVersions(cmd.client, cmd.Verbose)
 }
 
-func printVersions(cli *client.Client) error {
+func printVersions(cli *client.Client, verbose bool) error {
 	sv := serverVersion(cli)
 	w := tabWriter()
 
@@ -70,6 +79,30 @@ func printVersions(cli *client.Client) error {
 
 	if sv.Architecture != "" {
 		fmt.Fprintf(w, "architecture\t%s\n", sv.Architecture)
+	}
+
+	if verbose {
+		snapdBinOrigin := "-"
+		if sv.SnapdBinOrigin != "" {
+			snapdBinOrigin = sv.SnapdBinOrigin
+		}
+		fmt.Fprintf(w, "snapd-bin-origin\t%s\n", snapdBinOrigin)
+
+		reexecd, err := snapdtoolIsReexecd()
+		if err != nil {
+			logger.Debugf("cannot check snap command reexec status: %v", err)
+		}
+
+		snapFrom := "-"
+		if err == nil {
+			if reexecd {
+				snapFrom = "snapd-snap"
+			} else {
+				snapFrom = "native-package"
+			}
+		}
+
+		fmt.Fprintf(w, "snap-bin-origin\t%s\n", snapFrom)
 	}
 
 	w.Flush()
