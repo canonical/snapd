@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
@@ -198,6 +199,12 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+
+	deviceMgmtMgr, err := devicemgmtstate.Manager(s, o.runner, deviceMgr)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(deviceMgmtMgr)
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
