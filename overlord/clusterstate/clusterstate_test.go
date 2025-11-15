@@ -378,7 +378,7 @@ func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -406,7 +406,7 @@ func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 	st.Unlock()
 	defer st.Lock()
 
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	err = mgr.Ensure()
 	c.Assert(err, check.IsNil)
@@ -457,7 +457,7 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -524,7 +524,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
 
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -651,7 +651,7 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -761,7 +761,7 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -816,7 +816,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
@@ -831,7 +831,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 func (s *managerSuite) TestApplyClusterStateNoClusterData(c *check.C) {
 	st, _ := newStateWithStoreStack(c)
 
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	c.Assert(mgr.Ensure(), check.IsNil)
 
@@ -927,7 +927,7 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 
 	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.IsNil)
-	mgr := clusterstate.Manager(st)
+	mgr := clusterstate.Manager(st, state.NewTaskRunner(st))
 
 	st.Unlock()
 	defer st.Lock()
