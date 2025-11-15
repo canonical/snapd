@@ -79,6 +79,8 @@ const (
 	ContentCompatLabel
 	// Clustering enables experimental clustering support.
 	Clustering
+	// MessagePolling enables polling for and processing request-message messages from the Store.
+	MessagePolling
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -129,6 +131,8 @@ var featureNames = map[SnapdFeature]string{
 	AppArmorPrompting:  "apparmor-prompting",
 	ContentCompatLabel: "content-compatibility-label",
 	Clustering:         "clustering",
+
+	MessagePolling: "message-polling",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
