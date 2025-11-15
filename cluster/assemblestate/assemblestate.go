@@ -52,8 +52,8 @@ type AssembleState struct {
 	// with the lock held.
 	lock sync.Mutex
 
-	// trusted keeps track of all trusted peers.
-	trusted map[Fingerprint]Peer
+	// trusted keeps track of all trusted peers by fingerprint.
+	trusted map[Fingerprint]DeviceToken
 
 	// fingerprints keeps track of the TLS certificate fingerprints we know and
 	// the RDTs that they are associated with.
@@ -87,7 +87,7 @@ type AssembleState struct {
 // assembly to JSON.
 type AssembleSession struct {
 	Initiated  time.Time              `json:"initiated"`
-	Trusted    map[string]Peer        `json:"trusted"`
+	Trusted    map[string]DeviceToken `json:"trusted"`
 	Addresses  map[string]string      `json:"addresses"`
 	Discovered []string               `json:"discovered"`
 	Routes     Routes                 `json:"routes"`
@@ -95,11 +95,11 @@ type AssembleSession struct {
 }
 
 func (as *AssembleState) export() AssembleSession {
-	var trusted map[string]Peer
+	var trusted map[string]DeviceToken
 	if len(as.trusted) > 0 {
-		trusted = make(map[string]Peer, len(as.trusted))
-		for fp, p := range as.trusted {
-			trusted[base64.StdEncoding.EncodeToString(fp[:])] = p
+		trusted = make(map[string]DeviceToken, len(as.trusted))
+		for fp, rdt := range as.trusted {
+			trusted[base64.StdEncoding.EncodeToString(fp[:])] = rdt
 		}
 	}
 
@@ -127,15 +127,6 @@ func (as *AssembleState) export() AssembleSession {
 		Routes:     as.selector.Routes(),
 		Devices:    as.devices.Export(),
 	}
-}
-
-// Peer is a peer that has established trust via proof of the shared secret in
-// an assemble session.
-type Peer struct {
-	// RDT is the device token that this peer used to identify itself.
-	RDT DeviceToken `json:"rdt"`
-	// Cert is the TLS certificate that this peer used to send its messages.
-	Cert []byte `json:"cert"`
 }
 
 // AssembleConfig contains the configuration parameters required to initialize
@@ -212,7 +203,7 @@ func NewAssembleState(
 		return nil, fmt.Errorf("cannot build serial bundle: %w", err)
 	}
 
-	if err := ensureLocalDevicePresent(&validated.devices, assertDB, config.Secret, Identity{
+	if err := ensureLocalDevicePresent(&validated, assertDB, config.Secret, Identity{
 		RDT:          config.RDT,
 		FP:           CalculateFP(cert.Certificate[0]),
 		SerialBundle: bundle,
@@ -242,13 +233,13 @@ func NewAssembleState(
 	// for any peers that we already trust and know their address, we can safely
 	// inform the selector that the route from our local node to that peer can
 	// be published
-	for fp, peer := range validated.trusted {
+	for fp, rdt := range validated.trusted {
 		addr, ok := validated.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		sel.AddAuthoritativeRoute(peer.RDT, addr)
+		sel.AddAuthoritativeRoute(rdt, addr)
 	}
 
 	as := AssembleState{
@@ -277,9 +268,9 @@ func NewAssembleState(
 }
 
 // publishAuthAndCommit uses the given [Client] to publish to each device. If
-// publication succeeds, then the certificate returned by [Client.Untrusted]
-// (the certificate that the peer used to communicate with us) is associated
-// with the address that we reached them at.
+// publication succeeds, then the fingerprint returned by [Client.Untrusted]
+// (the fingerprint of the certificate that the peer used to communicate with
+// us) is associated with the address that we reached them at.
 //
 // If the certificate the peer used is already trusted (they've already
 // published their auth message to us), then we verify the route from this local
@@ -295,7 +286,7 @@ func (as *AssembleState) publishAuthAndCommit(ctx context.Context, addresses []s
 			continue
 		}
 
-		cert, err := untrustedSend(ctx, &as.lock, client, addr, "auth", Auth{
+		fp, err := untrustedSend(ctx, &as.lock, client, addr, "auth", Auth{
 			HMAC: as.authHMAC,
 			RDT:  as.config.RDT,
 		})
@@ -306,8 +297,6 @@ func (as *AssembleState) publishAuthAndCommit(ctx context.Context, addresses []s
 
 		logger.Debugf("sent auth message to %s", addr)
 
-		fp := CalculateFP(cert)
-
 		if expected, ok := as.addresses[fp]; ok && expected != addr {
 			return fmt.Errorf("found new address %s using same certificate as other address %s", addr, expected)
 		}
@@ -316,8 +305,8 @@ func (as *AssembleState) publishAuthAndCommit(ctx context.Context, addresses []s
 		as.addresses[fp] = addr
 		as.discovered[addr] = true
 
-		if p, ok := as.trusted[fp]; ok {
-			as.selector.AddAuthoritativeRoute(p.RDT, addr)
+		if rdt, ok := as.trusted[fp]; ok {
+			as.selector.AddAuthoritativeRoute(rdt, addr)
 		}
 	}
 
@@ -333,18 +322,18 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	for fp, p := range as.trusted {
+	for fp, rdt := range as.trusted {
 		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		queries, ack := as.devices.OutgoingQueriesTo(p.RDT)
+		queries, ack := as.devices.OutgoingQueriesTo(rdt)
 		if len(queries) == 0 {
 			continue
 		}
 
-		err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "unknown", UnknownDevices{
+		err := trustedSend(ctx, &as.lock, client, addr, fp, "unknown", UnknownDevices{
 			Devices: queries,
 		})
 		ack(err == nil)
@@ -353,7 +342,7 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 			continue
 		}
 
-		logger.Debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
+		logger.Debugf("sent device queries to %s at %s, count: %d", rdt, addr, len(queries))
 	}
 
 	// we don't commit when publishing device queries since we don't keep track
@@ -369,18 +358,18 @@ func (as *AssembleState) publishDevicesAndCommit(ctx context.Context, client Cli
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	for fp, p := range as.trusted {
+	for fp, rdt := range as.trusted {
 		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		ids, ack := as.devices.ResponsesTo(p.RDT)
+		ids, ack := as.devices.ResponsesTo(rdt)
 		if len(ids) == 0 {
 			continue
 		}
 
-		err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "devices", Devices{
+		err := trustedSend(ctx, &as.lock, client, addr, fp, "devices", Devices{
 			Devices: ids,
 		})
 		ack(err == nil)
@@ -389,7 +378,7 @@ func (as *AssembleState) publishDevicesAndCommit(ctx context.Context, client Cli
 			continue
 		}
 
-		logger.Debugf("sent device information to %s at %s, count: %d", p.RDT, addr, len(ids))
+		logger.Debugf("sent device information to %s at %s, count: %d", rdt, addr, len(ids))
 	}
 
 	as.commit(as.export())
@@ -402,11 +391,11 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	// collect all trusted peers that have also addresses
-	var available []Peer
-	for fp, p := range as.trusted {
+	// collect all trusted peers that have addresses
+	var available []DeviceToken
+	for fp, rdt := range as.trusted {
 		if _, ok := as.addresses[fp]; ok {
-			available = append(available, p)
+			available = append(available, rdt)
 		}
 	}
 
@@ -420,13 +409,13 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 	selected := available[:min(maxPeers, len(available))]
 
 	// for each randomly selected peer, get routes and send them
-	for _, p := range selected {
-		routes, ack, ok := as.selector.Select(p.RDT, maxRoutes)
+	for _, rdt := range selected {
+		routes, ack, ok := as.selector.Select(rdt, maxRoutes)
 		if !ok {
 			continue
 		}
 
-		fp, ok := as.fingerprints[p.RDT]
+		fp, ok := as.fingerprints[rdt]
 		if !ok {
 			continue
 		}
@@ -436,13 +425,13 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 			continue
 		}
 
-		if err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "routes", routes); err != nil {
+		if err := trustedSend(ctx, &as.lock, client, addr, fp, "routes", routes); err != nil {
 			logger.Debugf("cannot publish routes: %v", err)
 			continue
 		}
 
 		ack()
-		logger.Debugf("sent routes to %s at %s, count: %d", p.RDT, addr, len(routes.Routes)/3)
+		logger.Debugf("sent routes to %s at %s, count: %d", rdt, addr, len(routes.Routes)/3)
 	}
 
 	// we don't commit on route publishes since we don't keep track of which
@@ -460,7 +449,7 @@ func shuffle[T any](available []T) {
 // AuthenticateAndCommit checks that the given [Auth] message is valid and proves
 // knowledge of the shared secret. If this check is passed, we allow mutation of
 // this [AssembleState] via future calls to [AssembleState.verifyPeer] with the same
-// certificate.
+// certificate fingerprint.
 //
 // An error is returned if the message's HMAC is found to not prove knowledge of
 // the shared secret.
@@ -468,26 +457,21 @@ func shuffle[T any](available []T) {
 // This method is to be called by an implementation of the [Transport] interface.
 //
 // This method calls AssembleState.commit with the current state.
-func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
+func (as *AssembleState) AuthenticateAndCommit(auth Auth, fp Fingerprint) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
-
-	fp := CalculateFP(cert)
 
 	expectedHMAC := CalculateHMAC(auth.RDT, fp, as.config.Secret)
 	if !hmac.Equal(expectedHMAC, auth.HMAC) {
 		return errors.New("received invalid HMAC from peer")
 	}
 
-	if _, ok := as.trusted[fp]; ok {
-		if as.trusted[fp].RDT != auth.RDT {
-			return fmt.Errorf("peer %q and %q are using the same TLS certificate", as.trusted[fp].RDT, auth.RDT)
+	if existing, ok := as.trusted[fp]; ok {
+		if existing != auth.RDT {
+			return fmt.Errorf("peer %q and %q are using the same TLS certificate", existing, auth.RDT)
 		}
 	} else {
-		as.trusted[fp] = Peer{
-			RDT:  auth.RDT,
-			Cert: cert,
-		}
+		as.trusted[fp] = auth.RDT
 	}
 
 	if existing, ok := as.fingerprints[auth.RDT]; ok {
@@ -517,27 +501,25 @@ func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 	return nil
 }
 
-// VerifyPeer checks if the given certificate is trusted and maps to a known
-// RDT. If it is, then a [VerifiedPeer] is returned that can be used to modify
-// the state of the cluster on this peer's behalf.
+// VerifyPeer checks if the given certificate fingerprint is trusted and maps to
+// a known RDT. If it is, then a [VerifiedPeer] is returned that can be used to
+// modify the state of the cluster on this peer's behalf.
 //
 // An error is returned if the certificate isn't trusted.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (as *AssembleState) VerifyPeer(cert []byte) (VerifiedPeer, error) {
+func (as *AssembleState) VerifyPeer(fp Fingerprint) (VerifiedPeer, error) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	fp := CalculateFP(cert)
-
-	p, ok := as.trusted[fp]
+	rdt, ok := as.trusted[fp]
 	if !ok {
 		return nil, errors.New("given TLS certificate is not associated with a trusted RDT")
 	}
 
 	return &peerHandle{
 		as:  as,
-		rdt: p.RDT,
+		rdt: rdt,
 	}, nil
 }
 
@@ -850,18 +832,18 @@ func CalculateFP(cert []byte) Fingerprint {
 // trustedSend releases the given lock and calls client.Trusted.
 func trustedSend(
 	ctx context.Context, lock *sync.Mutex, client Client,
-	addr string, cert []byte, kind string, data any,
+	addr string, fp Fingerprint, kind string, data any,
 ) error {
 	lock.Unlock()
 	defer lock.Lock()
-	return client.Trusted(ctx, addr, cert, kind, data)
+	return client.Trusted(ctx, addr, fp, kind, data)
 }
 
 // untrustedSend releases the given lock and calls client.Untrusted.
 func untrustedSend(
 	ctx context.Context, lock *sync.Mutex, client Client,
 	addr string, kind string, data any,
-) ([]byte, error) {
+) (Fingerprint, error) {
 	lock.Unlock()
 	defer lock.Lock()
 	return client.Untrusted(ctx, addr, kind, data)
@@ -883,10 +865,19 @@ func buildSerialBundle(serial *asserts.Serial, db asserts.RODatabase) (string, e
 	return buf.String(), nil
 }
 
-// ensureLocalDevicePresent adds the local device identity to the IDs slice if
-// not present, or validates consistency if already present.
-func ensureLocalDevicePresent(data *DeviceQueryTrackerData, db asserts.RODatabase, secret string, self Identity) error {
-	for _, unverifiedID := range data.IDs {
+// ensureLocalDevicePresent ensures that the local device identity is present in
+// our internal representation of authenticated devices and device identities.
+func ensureLocalDevicePresent(
+	session *validatedSession,
+	db asserts.RODatabase,
+	secret string,
+	self Identity,
+) error {
+	if err := ensureLocalDeviceAuthenticated(session, self); err != nil {
+		return err
+	}
+
+	for _, unverifiedID := range session.devices.IDs {
 		if unverifiedID.RDT == self.RDT {
 			if unverifiedID.FP != self.FP {
 				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
@@ -916,8 +907,22 @@ func ensureLocalDevicePresent(data *DeviceQueryTrackerData, db asserts.RODatabas
 		}
 	}
 
-	data.IDs = append(data.IDs, self)
+	session.devices.IDs = append(session.devices.IDs, self)
 
+	return nil
+}
+
+func ensureLocalDeviceAuthenticated(session *validatedSession, self Identity) error {
+	if rdt, ok := session.trusted[self.FP]; ok && rdt != self.RDT {
+		return errors.New("current device fingerprint changed when resuming session")
+	}
+
+	if fp, ok := session.fingerprints[self.RDT]; ok && fp != self.FP {
+		return errors.New("current device fingerprint changed when resuming session")
+	}
+
+	session.trusted[self.FP] = self.RDT
+	session.fingerprints[self.RDT] = self.FP
 	return nil
 }
 
@@ -939,7 +944,7 @@ func parseAndValidateFingerprint(strFP string) (Fingerprint, error) {
 // validatedSession contains pre-parsed session data with field names matching
 // [AssembleState].
 type validatedSession struct {
-	trusted      map[Fingerprint]Peer
+	trusted      map[Fingerprint]DeviceToken
 	fingerprints map[DeviceToken]Fingerprint
 	addresses    map[Fingerprint]string
 	discovered   map[string]bool
@@ -976,16 +981,16 @@ func validateSession(session AssembleSession, clock func() time.Time) (validated
 		}
 	}
 
-	trusted := make(map[Fingerprint]Peer, len(session.Trusted))
+	trusted := make(map[Fingerprint]DeviceToken, len(session.Trusted))
 	fingerprints := make(map[DeviceToken]Fingerprint, len(session.Trusted))
-	for strFP, peer := range session.Trusted {
+	for strFP, rdt := range session.Trusted {
 		fp, err := parseAndValidateFingerprint(strFP)
 		if err != nil {
 			return validatedSession{}, fmt.Errorf("invalid fingerprint in trusted peers: %w", err)
 		}
 
-		trusted[fp] = peer
-		fingerprints[peer.RDT] = fp
+		trusted[fp] = rdt
+		fingerprints[rdt] = fp
 	}
 
 	addresses := make(map[Fingerprint]string, len(session.Addresses))

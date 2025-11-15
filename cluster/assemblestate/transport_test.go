@@ -49,17 +49,19 @@ type transportSuite struct{}
 var _ = check.Suite(&transportSuite{})
 
 var (
-	testClientCert    tls.Certificate
-	testServerCert    tls.Certificate
-	testServerCertDER []byte
-	testOtherCert     tls.Certificate
-	testOtherCertDER  []byte
+	testServerCert   tls.Certificate
+	testServerCertFP assemblestate.Fingerprint
+
+	testClientCert   tls.Certificate
+	testClientCertFP assemblestate.Fingerprint
 )
 
 func init() {
 	testClientCert, _ = generateTestCert()
-	testServerCert, testServerCertDER = generateTestCert()
-	testOtherCert, testOtherCertDER = generateTestCert()
+	testClientCertFP = assemblestate.CalculateFP(testClientCert.Certificate[0])
+
+	testServerCert, _ = generateTestCert()
+	testServerCertFP = assemblestate.CalculateFP(testServerCert.Certificate[0])
 }
 
 func generateTestCert() (tls.Certificate, []byte) {
@@ -125,7 +127,7 @@ func (s *transportSuite) TestTrustedSuccess(c *check.C) {
 		Routes:    []int{1, 2, 3},
 	}
 
-	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertDER, "routes", routes)
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertFP, "routes", routes)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(stats.Sent, check.Equals, int64(1))
@@ -135,6 +137,7 @@ func (s *transportSuite) TestTrustedSuccess(c *check.C) {
 func (s *transportSuite) TestTrustedCertificateMismatch(c *check.C) {
 	// need a different cert to test mismatch
 	_, wrongCertDER := generateTestCert()
+	wrongCertFP := assemblestate.CalculateFP(wrongCertDER)
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -159,7 +162,7 @@ func (s *transportSuite) TestTrustedCertificateMismatch(c *check.C) {
 		Routes:    []int{1},
 	}
 
-	err := client.Trusted(context.Background(), server.Listener.Addr().String(), wrongCertDER, "routes", routes)
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), wrongCertFP, "routes", routes)
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, ".*refusing to communicate with unexpected peer certificate")
 	c.Assert(stats.Sent, check.Equals, int64(0))
@@ -186,7 +189,7 @@ func (s *transportSuite) TestTrustedNonSuccessStatus(c *check.C) {
 		Routes:    []int{1, 2, 3},
 	}
 
-	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertDER, "routes", routes)
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertFP, "routes", routes)
 	c.Assert(err, check.NotNil)
 
 	c.Assert(err, check.ErrorMatches, "response to 'routes' message contains status code 400")
@@ -226,7 +229,7 @@ func (s *transportSuite) TestTrustedMultipleServerCertificates(c *check.C) {
 		Routes:    []int{1},
 	}
 
-	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertDER, "routes", routes)
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertFP, "routes", routes)
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, ".*exactly one peer certificate expected, got 2")
 	c.Assert(stats.Sent, check.Equals, int64(0))
@@ -259,10 +262,10 @@ func (s *transportSuite) TestUntrustedSuccess(c *check.C) {
 		RDT:  assemblestate.DeviceToken("test-device"),
 	}
 
-	cert, err := client.Untrusted(context.Background(), server.Listener.Addr().String(), "auth", auth)
+	fp, err := client.Untrusted(context.Background(), server.Listener.Addr().String(), "auth", auth)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(string(cert), check.Equals, string(testServerCertDER))
+	c.Assert(fp, check.Equals, testServerCertFP)
 
 	c.Assert(stats.Sent, check.Equals, int64(1))
 	c.Assert(stats.Tx > 0, check.Equals, true)
@@ -373,7 +376,7 @@ func (s *transportSuite) TestHTTPSClientRejectsRedirects(c *check.C) {
 	stats := assemblestate.TransportStats{}
 	client := assemblestate.NewHTTPSClient(testClientCert, &stats, nil)
 
-	err := client.Trusted(ctx, addr, testServerCertDER, "routes", nil)
+	err := client.Trusted(ctx, addr, testServerCertFP, "routes", nil)
 	c.Assert(err, check.ErrorMatches, ".*redirects are not expected")
 	c.Assert(stats.Sent, check.Equals, int64(0))
 
@@ -397,27 +400,27 @@ func (s *transportSuite) TestTrustedNoTLS(c *check.C) {
 	}
 
 	// client tries TLS but server doesn't support it
-	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertDER, "routes", routes)
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertFP, "routes", routes)
 	c.Assert(err, check.ErrorMatches, ".*server gave HTTP response to HTTPS client")
 }
 
 type testPeerAuthenticator struct {
-	AuthenticateAndCommitFunc func(auth assemblestate.Auth, cert []byte) error
-	VerifyPeerFunc            func(cert []byte) (assemblestate.VerifiedPeer, error)
+	AuthenticateAndCommitFunc func(auth assemblestate.Auth, fp assemblestate.Fingerprint) error
+	VerifyPeerFunc            func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error)
 }
 
-func (m *testPeerAuthenticator) AuthenticateAndCommit(auth assemblestate.Auth, cert []byte) error {
+func (m *testPeerAuthenticator) AuthenticateAndCommit(auth assemblestate.Auth, fp assemblestate.Fingerprint) error {
 	if m.AuthenticateAndCommitFunc == nil {
 		panic("unexpected call to AuthenticateAndCommit")
 	}
-	return m.AuthenticateAndCommitFunc(auth, cert)
+	return m.AuthenticateAndCommitFunc(auth, fp)
 }
 
-func (m *testPeerAuthenticator) VerifyPeer(cert []byte) (assemblestate.VerifiedPeer, error) {
+func (m *testPeerAuthenticator) VerifyPeer(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
 	if m.VerifyPeerFunc == nil {
 		panic("unexpected call to VerifyPeer")
 	}
-	return m.VerifyPeerFunc(cert)
+	return m.VerifyPeerFunc(fp)
 }
 
 type testVerifiedPeer struct {
@@ -450,11 +453,11 @@ func (m *testVerifiedPeer) CommitRoutes(routes assemblestate.Routes) error {
 
 func (s *transportSuite) TestHTTPSTransportServeAuthRoute(c *check.C) {
 	var auths []assemblestate.Auth
-	var certs [][]byte
+	var fps []assemblestate.Fingerprint
 	pa := &testPeerAuthenticator{
-		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, fp assemblestate.Fingerprint) error {
 			auths = append(auths, auth)
-			certs = append(certs, cert)
+			fps = append(fps, fp)
 			return nil
 		},
 	}
@@ -483,16 +486,16 @@ func (s *transportSuite) TestHTTPSTransportServeAuthRoute(c *check.C) {
 	}
 
 	client := transport.NewClient(testClientCert)
-	cert, err := client.Untrusted(ctx, addr, "auth", auth)
+	fp, err := client.Untrusted(ctx, addr, "auth", auth)
 	c.Assert(err, check.IsNil)
-	c.Assert(cert, check.DeepEquals, testServerCert.Certificate[0])
+	c.Assert(fp, check.Equals, testServerCertFP)
 
 	c.Assert(auths, check.HasLen, 1)
 	c.Assert(auths[0].HMAC, check.DeepEquals, auth.HMAC)
 	c.Assert(auths[0].RDT, check.Equals, auth.RDT)
 
-	c.Assert(certs, check.HasLen, 1)
-	c.Assert(certs[0], check.DeepEquals, testClientCert.Certificate[0])
+	c.Assert(fps, check.HasLen, 1)
+	c.Assert(fps[0], check.Equals, testClientCertFP)
 
 	stats := transport.Stats()
 	c.Assert(stats.Received, check.Equals, int64(1))
@@ -504,10 +507,10 @@ func (s *transportSuite) TestHTTPSTransportServeAuthRoute(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportServeDevicesRoute(c *check.C) {
 	var devices []assemblestate.Devices
-	var peerCerts [][]byte
+	var peerFPs []assemblestate.Fingerprint
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
-			peerCerts = append(peerCerts, cert)
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
+			peerFPs = append(peerFPs, fp)
 			return &testVerifiedPeer{
 				CommitDevicesFunc: func(d assemblestate.Devices) error {
 					devices = append(devices, d)
@@ -554,14 +557,14 @@ func (s *transportSuite) TestHTTPSTransportServeDevicesRoute(c *check.C) {
 	}
 
 	client := transport.NewClient(testClientCert)
-	err = client.Trusted(ctx, addr, testServerCert.Certificate[0], "devices", msg)
+	err = client.Trusted(ctx, addr, testServerCertFP, "devices", msg)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(devices, check.HasLen, 1)
 	c.Assert(devices[0], check.DeepEquals, msg)
 
-	c.Assert(peerCerts, check.HasLen, 1)
-	c.Assert(peerCerts[0], check.DeepEquals, testClientCert.Certificate[0])
+	c.Assert(peerFPs, check.HasLen, 1)
+	c.Assert(peerFPs[0], check.Equals, testClientCertFP)
 
 	stats := transport.Stats()
 	c.Assert(stats.Received, check.Equals, int64(1))
@@ -573,10 +576,10 @@ func (s *transportSuite) TestHTTPSTransportServeDevicesRoute(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportServeRoutesRoute(c *check.C) {
 	var routes []assemblestate.Routes
-	var peerCerts [][]byte
+	var peerFPs []assemblestate.Fingerprint
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
-			peerCerts = append(peerCerts, cert)
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
+			peerFPs = append(peerFPs, fp)
 			return &testVerifiedPeer{
 				CommitRoutesFunc: func(r assemblestate.Routes) error {
 					routes = append(routes, r)
@@ -622,14 +625,14 @@ func (s *transportSuite) TestHTTPSTransportServeRoutesRoute(c *check.C) {
 	}
 
 	client := transport.NewClient(testClientCert)
-	err = client.Trusted(ctx, addr, testServerCert.Certificate[0], "routes", msg)
+	err = client.Trusted(ctx, addr, testServerCertFP, "routes", msg)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(routes, check.HasLen, 1)
 	c.Assert(routes[0], check.DeepEquals, msg)
 
-	c.Assert(peerCerts, check.HasLen, 1)
-	c.Assert(peerCerts[0], check.DeepEquals, testClientCert.Certificate[0])
+	c.Assert(peerFPs, check.HasLen, 1)
+	c.Assert(peerFPs[0], check.Equals, testClientCertFP)
 
 	stats := transport.Stats()
 	c.Assert(stats.Received, check.Equals, int64(1))
@@ -641,10 +644,10 @@ func (s *transportSuite) TestHTTPSTransportServeRoutesRoute(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportServeUnknownRoute(c *check.C) {
 	var unknownDevices []assemblestate.UnknownDevices
-	var peerCerts [][]byte
+	var peerFPs []assemblestate.Fingerprint
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
-			peerCerts = append(peerCerts, cert)
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
+			peerFPs = append(peerFPs, fp)
 			return &testVerifiedPeer{
 				CommitDeviceQueriesFunc: func(u assemblestate.UnknownDevices) error {
 					unknownDevices = append(unknownDevices, u)
@@ -684,14 +687,14 @@ func (s *transportSuite) TestHTTPSTransportServeUnknownRoute(c *check.C) {
 	}
 
 	client := transport.NewClient(testClientCert)
-	err = client.Trusted(ctx, addr, testServerCert.Certificate[0], "unknown", msg)
+	err = client.Trusted(ctx, addr, testServerCertFP, "unknown", msg)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(unknownDevices, check.HasLen, 1)
 	c.Assert(unknownDevices[0], check.DeepEquals, msg)
 
-	c.Assert(peerCerts, check.HasLen, 1)
-	c.Assert(peerCerts[0], check.DeepEquals, testClientCert.Certificate[0])
+	c.Assert(peerFPs, check.HasLen, 1)
+	c.Assert(peerFPs[0], check.Equals, testClientCertFP)
 
 	stats := transport.Stats()
 	c.Assert(stats.Received, check.Equals, int64(1))
@@ -703,7 +706,7 @@ func (s *transportSuite) TestHTTPSTransportServeUnknownRoute(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsUnverifiedPeers(c *check.C) {
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
 			return nil, errors.New("peer verification failed")
 		},
 	}
@@ -728,7 +731,7 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsUnverifiedPeers(
 
 	client := transport.NewClient(testClientCert)
 	for _, endpoint := range []string{"routes", "unknown", "devices"} {
-		err := client.Trusted(ctx, addr, testServerCert.Certificate[0], endpoint, []string{"some", "json"})
+		err := client.Trusted(ctx, addr, testServerCertFP, endpoint, []string{"some", "json"})
 		c.Assert(err, check.NotNil)
 		c.Assert(err, check.ErrorMatches, fmt.Sprintf("response to '%s' message contains status code 403", endpoint))
 	}
@@ -742,7 +745,7 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsUnverifiedPeers(
 
 func (s *transportSuite) TestHTTPSTransportServeAuthRejectsFailedAuthentication(c *check.C) {
 	pa := &testPeerAuthenticator{
-		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, fp assemblestate.Fingerprint) error {
 			return errors.New("authentication failed")
 		},
 	}
@@ -784,7 +787,7 @@ func (s *transportSuite) TestHTTPSTransportServeAuthRejectsFailedAuthentication(
 
 func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsMultipleCertificates(c *check.C) {
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
 			c.Fatal("should not be called when multiple certificates are provided")
 			return nil, nil
 		},
@@ -891,11 +894,11 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsMultipleCertific
 
 func (s *transportSuite) TestHTTPSTransportRejectsNonPOSTRequests(c *check.C) {
 	pa := &testPeerAuthenticator{
-		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, fp assemblestate.Fingerprint) error {
 			c.Fatal("should not be called for non-POST requests")
 			return nil
 		},
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
 			return &testVerifiedPeer{
 				CommitDevicesFunc: func(devices assemblestate.Devices) error {
 					c.Fatal("should not be called for non-POST requests")
@@ -962,7 +965,7 @@ func (s *transportSuite) TestHTTPSTransportRejectsNonPOSTRequests(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportVerifiedPeerErrors(c *check.C) {
 	pa := &testPeerAuthenticator{
-		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+		VerifyPeerFunc: func(fp assemblestate.Fingerprint) (assemblestate.VerifiedPeer, error) {
 			return &testVerifiedPeer{
 				CommitDevicesFunc: func(devices assemblestate.Devices) error {
 					return errors.New("commit devices failed")
@@ -1061,7 +1064,7 @@ func (s *transportSuite) TestHTTPSTransportVerifiedPeerErrors(c *check.C) {
 
 func (s *transportSuite) TestHTTPSTransportAuthenticateAndCommitError(c *check.C) {
 	pa := &testPeerAuthenticator{
-		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, fp assemblestate.Fingerprint) error {
 			return errors.New("authentication failed")
 		},
 	}
