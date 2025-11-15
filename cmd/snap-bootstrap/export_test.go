@@ -130,7 +130,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
@@ -138,7 +138,7 @@ func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, na
 	}
 }
 
-func MockSecbootUnlockEncryptedVolumeUsingProtectorKey(f func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
+func MockSecbootUnlockEncryptedVolumeUsingProtectorKey(f func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockEncryptedVolumeUsingProtectorKey
 	secbootUnlockEncryptedVolumeUsingProtectorKey = f
 	return func() {
