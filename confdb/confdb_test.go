@@ -791,14 +791,14 @@ func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
-func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
+func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentMap(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"my-view": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "foo", "storage": "foo"},
 				map[string]any{"request": "foo.bar", "storage": "foo.bar"},
-				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "a.{b}", "storage": "a.{b}"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -817,23 +817,52 @@ func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "foo")
-	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]any{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
 
-	// check we leave an empty list
-	err = view.Set(databag, "a", []any{[]any{"foo"}})
-	c.Assert(err, IsNil)
-
-	value, err = view.Get(databag, "a")
-	c.Assert(err, IsNil)
-	c.Assert(value, Not(HasLen), 0)
-
-	err = view.Unset(databag, "a[0]")
+	err = view.Set(databag, "a", map[string]any{"c": "d"})
 	c.Assert(err, IsNil)
 
-	val, err := view.Get(databag, "a")
+	err = view.Unset(databag, "a.c")
 	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, []any{})
+
+	value, err = view.Get(databag, "a.c")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
+}
+
+func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentList(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "b[{n}].c", "storage": "b[{n}].c"},
+				map[string]any{"request": "c[{n}]", "storage": "b[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "b", []any{map[string]any{"c": "d"}, map[string]any{"c": "e"}})
+	c.Assert(err, IsNil)
+
+	// removing the map entry "c" removes the parent map and list as well
+	err = view.Unset(bag, "b[1].c")
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "b[1]")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(val, IsNil)
+
+	// this will match b[{n}] and remove that map, removing the list as well
+	err = view.Unset(bag, "c")
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "b")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(val, IsNil)
 }
 
 func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
@@ -2151,7 +2180,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 			"one": "value",
 			"two": "other",
 		},
-		// the nested value should be removed, leaving an empty map
+		// the nested value should be removed, removing its parent as well
 		"b": map[string]any{
 			"one": "value",
 		},
@@ -2171,7 +2200,6 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 		"a": map[string]any{
 			"two": "other",
 		},
-		"b": map[string]any{},
 		"c": map[string]any{
 			"two": "value",
 		},
@@ -2650,7 +2678,7 @@ func (*viewSuite) TestViewSeveralNestedContentRules(c *C) {
 	c.Assert(val, Equals, "value")
 }
 
-func (*viewSuite) TestViewInvalidMapKeys(c *C) {
+func (*viewSuite) TestSetValidateValue(c *C) {
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"bar": map[string]any{
 			"rules": []any{
@@ -2667,49 +2695,74 @@ func (*viewSuite) TestViewInvalidMapKeys(c *C) {
 	view := schema.View("bar")
 
 	type testcase struct {
-		value      any
-		invalidKey string
+		value any
+		error string
 	}
 
 	tcs := []testcase{
 		{
-			value:      map[string]any{"-foo": 2},
-			invalidKey: "-foo",
+			value: map[string]any{"-foo": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-foo" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo--bar": 2},
-			invalidKey: "foo--bar",
+			value: map[string]any{"foo--bar": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo--bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo-": 2},
-			invalidKey: "foo-",
+			value: map[string]any{"foo-": 2},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": map[string]any{"-bar": 2}},
-			invalidKey: "-bar",
+			value: map[string]any{"foo": map[string]any{"-bar": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": map[string]any{"bar": map[string]any{"baz-": 2}}},
-			invalidKey: "baz-",
+			value: map[string]any{"foo": map[string]any{"bar": map[string]any{"baz-": 2}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "baz-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      []any{map[string]any{"foo": 2}, map[string]any{"bar-": 2}},
-			invalidKey: "bar-",
+			value: []any{map[string]any{"foo": 2}, map[string]any{"bar-": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      []any{nil, map[string]any{"bar-": 2}},
-			invalidKey: "bar-",
+			value: []any{nil, map[string]any{"bar-": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value:      map[string]any{"foo": nil, "bar": map[string]any{"-baz": 2}},
-			invalidKey: "-baz",
+			value: map[string]any{"foo": nil, "bar": map[string]any{"-baz": 2}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-baz" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+		},
+		{
+			value: map[string]any{},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: []any{},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: map[string]any{"foo": []any{map[string]any{}}, "bar": map[string]any{"baz": []any{}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: map[string]any{"foo": []any{map[string]any{"bar": nil}}, "bar": map[string]any{"baz": []any{}}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			// having a nil value counts because it may be used to unset that path
+			value: map[string]any{"foo": []any{map[string]any{"bar": nil}}, "bar": map[string]any{"baz": []any{"foo"}}},
 		},
 	}
 
 	for _, tc := range tcs {
 		cmt := Commentf("expected invalid key err for value: %v", tc.value)
 		err = view.Set(databag, "foo", tc.value)
-		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" through confdb view acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
+		if tc.error != "" {
+			c.Assert(err, NotNil, cmt)
+			c.Assert(err.Error(), Equals, tc.error, cmt)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }
 
@@ -3527,6 +3580,7 @@ func (*viewSuite) TestUnsetList(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "b[{n}].c", "storage": "b[{n}].c"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3553,6 +3607,16 @@ func (*viewSuite) TestUnsetList(c *C) {
 	val, err = view.Get(bag, "a")
 	c.Check(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, IsNil)
+
+	// check matching on a prefix unsets every list element
+	err = view.Set(bag, "b", []any{map[string]any{"c": "foo"}, map[string]any{"c": "bar"}})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "b")
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(bag, "b")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (*viewSuite) TestUnsetBeyondCurrentList(c *C) {
