@@ -20,11 +20,13 @@
 package main_test
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	. "gopkg.in/check.v1"
 
+	main "github.com/snapcore/snapd/cmd/snap"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
@@ -33,7 +35,10 @@ import (
 
 func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"ia64"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{`+
+			`"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89",`+
+			`"architecture":"ia64", "snapd-bin-origin": "native-package"`+
+			`}}`)
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
@@ -47,13 +52,66 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 		"snapd         7.89\n"+
 		"series        56\n"+
 		"ubuntu        12.34\n"+
-		"architecture  ia64\n")
+		"architecture  ia64\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap              4.56\n"+
+		"snapd             7.89\n"+
+		"series            56\n"+
+		"ubuntu            12.34\n"+
+		"architecture      ia64\n"+
+		"snapd-bin-origin  native-package\n"+
+		"snap-bin-origin   snapd-snap\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
+
+	defer main.MockSnapdtoolIsReexecd(func() (bool, error) { return false, nil })()
+
+	s.ResetStdStreams()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap              4.56\n"+
+		"snapd             7.89\n"+
+		"series            56\n"+
+		"ubuntu            12.34\n"+
+		"architecture      ia64\n"+
+		"snapd-bin-origin  native-package\n"+
+		"snap-bin-origin   native-package\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
+
+	defer main.MockSnapdtoolIsReexecd(func() (bool, error) { return false, errors.New("mock error") })()
+
+	s.ResetStdStreams()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap              4.56\n"+
+		"snapd             7.89\n"+
+		"series            56\n"+
+		"ubuntu            12.34\n"+
+		"architecture      ia64\n"+
+		"snapd-bin-origin  native-package\n"+
+		"snap-bin-origin   -\n",
+	)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"powerpc","virtualization":"qemu"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{`+
+			`"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"powerpc","virtualization":"qemu",`+
+			`"snapd-bin-origin": "snapd-snap"`+
+			`}}`)
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
@@ -66,13 +124,30 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 		"snap          4.56\n"+
 		"snapd         7.89\n"+
 		"series        56\n"+
-		"architecture  powerpc\n")
+		"architecture  powerpc\n",
+	)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap              4.56\n"+
+		"snapd             7.89\n"+
+		"series            56\n"+
+		"architecture      powerpc\n"+
+		"snapd-bin-origin  snapd-snap\n"+
+		"snap-bin-origin   snapd-snap\n",
+	)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic": true,"os-release":{"id":"arch","version-id":""},"series":"56","version":"7.89"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{`+
+			`"on-classic": true,"os-release":{"id":"arch","version-id":""},"series":"56","version":"7.89"`+
+			`}}`)
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
@@ -85,7 +160,8 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 		"snap    4.56\n"+
 		"snapd   7.89\n"+
 		"series  56\n"+
-		"arch    -\n")
+		"arch    -\n",
+	)
 	c.Assert(s.Stderr(), Equals, "")
 }
 

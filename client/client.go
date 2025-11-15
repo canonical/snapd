@@ -564,6 +564,7 @@ type ServerVersion struct {
 	KernelVersion  string
 	Architecture   string
 	Virtualization string
+	SnapdBinOrigin string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -582,6 +583,7 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		KernelVersion:  sysInfo.KernelVersion,
 		Architecture:   sysInfo.Architecture,
 		Virtualization: sysInfo.Virtualization,
+		SnapdBinOrigin: sysInfo.SnapdBinOrigin,
 	}, nil
 }
 
@@ -690,6 +692,8 @@ type SysInfo struct {
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 
 	Features map[string]features.FeatureInfo `json:"features,omitempty"`
+
+	SnapdBinOrigin string `json:"snapd-bin-origin"`
 }
 
 func (rsp *response) err(cli *Client, statusCode int) error {
