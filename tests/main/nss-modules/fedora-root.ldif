@@ -1,0 +1,15 @@
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+add: olcRootPW
+olcRootPW: secret
+
+dn: olcDatabase={2}mdb,cn=config
+changetype: modify
+add: olcRootPW
+olcRootPW: secret
+-
+replace: olcRootDN
+olcRootDN: cn=admin,dc=example,dc=com
+-
+replace: olcSuffix
+olcSuffix: dc=example,dc=com
