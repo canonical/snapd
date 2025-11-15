@@ -1,6 +1,7 @@
 {
     "include": [
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "debian-req (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google-distro-1", 
@@ -9,6 +10,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-focal (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google",
@@ -17,6 +19,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-noble (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google",
@@ -25,6 +28,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-core-18 (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google-core",
@@ -33,6 +37,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-core-20 (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google-core",
@@ -41,6 +46,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-core-24 (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google-core",
@@ -49,6 +55,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "arch-linux",
         "backend": "openstack-ps7",
         "alternative-backend": "google-distro-2",
