@@ -22,6 +22,8 @@ environment:
     SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
+    echo "Modified to trigger run"
+
     # build an unrelated empty cdrom drive to provide to first boot with no 
     # real files on it to use as a placeholder in qemu args
     tests.nested build-seed "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
