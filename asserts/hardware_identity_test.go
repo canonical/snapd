@@ -184,10 +184,20 @@ func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
 	signature, err := asn1.Marshal(struct{ R, S *big.Int }{r, ss})
 	c.Assert(err, IsNil)
 
+	// valid signature
 	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
 	c.Assert(err, IsNil)
 
+	// invalid asn1 marshalling
+	err = h.VerifyNonceSignature(nonce, nil, crypto.SHA3_384)
+	c.Assert(err, NotNil)
+
+	// invalid remaining bytes
 	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
+	c.Assert(err, NotNil)
+
+	// invalid signature
+	err = h.VerifyNonceSignature(append(nonce, 1), signature, crypto.SHA3_384)
 	c.Assert(err, NotNil)
 }
 
