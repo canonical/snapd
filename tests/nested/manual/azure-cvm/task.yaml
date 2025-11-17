@@ -47,6 +47,10 @@ execute: |
   # move UKI to ESP
   mv "$UKI_FILE" /boot/efi/EFI/ubuntu
 
+  # ensure efivarfs is mounted
+  modprobe efivarfs || true
+  mount -t efivarfs efivarfs /sys/firmware/efi/efivars || true
+
   # add UKI to boot entries
   efibootmgr --create --disk /dev/sda --part 15 --label "CVM UKI" --loader "\EFI\ubuntu\$(basename $UKI_FILE)"
 
