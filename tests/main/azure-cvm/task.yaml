@@ -7,7 +7,13 @@ details: |
 # Run this test for jammy+
 systems: [ubuntu-22.04, ubuntu-24*]
 
+environment:
+    SNAPD_DEB_FROM_REPO: false
+
 prepare: |
+  # Install the snapd built
+  dpkg -i "$GOHOME"/snapd_*.deb
+  
   # Build the initramfs package from the project if possible
   if os.query is-ubuntu-lt 24.04; then
     # carries ubuntu-core-initramfs
@@ -16,6 +22,12 @@ prepare: |
     quiet apt install ubuntu-core-initramfs -y
   fi
 
+  if os.query is-ubuntu-ge 24.04; then
+      #shellcheck source=tests/lib/core-initrd.sh
+      . "$TESTSLIB"/core-initrd.sh
+      build_and_install_initramfs_deb
+  fi
+  
   # install the linux-firmware as the current version of
   # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
   # to build the initrd, also install the linux-azure kernel
