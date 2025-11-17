@@ -36,7 +36,7 @@ import (
 )
 
 // HardwareIdentity holds a hardware identity assertion, which is a statement
-// that verifies that identity of a physical piece of hardware
+// that verifies the identity of a physical piece of hardware
 type HardwareIdentity struct {
 	assertionBase
 
@@ -69,7 +69,7 @@ func (h *HardwareIdentity) HardwareID() string {
 }
 
 // HardwareIDKey returns hardware identity public key,
-// same as the body of a parsable form (PEM) as defined by RFC7468§13.
+// which is the body of a parsable form (PEM) as defined by RFC7468§13.
 func (h *HardwareIdentity) HardwareIDKey() crypto.PublicKey {
 	return h.hardwareKey
 }
@@ -137,7 +137,7 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 
 // checkStringIsPEM checks if string is the body of a parsable form (PEM).
 // It assumes the BEGIN and END lines are omitted. The function returns a
-// a non-nil error if the strings fails to be a PEM.
+// non-nil error if the string fails to be a PEM.
 func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	// add begin and end lines to PEM body
 	var bb bytes.Buffer
@@ -181,7 +181,7 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 	case ed25519.PublicKey:
 		return verifySignatureWithED25519Key(hashed, signature, h.hardwareKey.(ed25519.PublicKey))
 	default:
-		return fmt.Errorf("unsupported algorithm type: %s", keyType)
+		return fmt.Errorf("unsupported algorithm type: %T", keyType)
 	}
 }
 
@@ -190,7 +190,7 @@ func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, 
 }
 
 func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicKey) error {
-	// DsaSignature struct defines ASN.1 layout of ECDSA signature
+	// EcdsaSignature struct defines ASN.1 layout of ECDSA signature
 	type EcdsaSignature struct {
 		R, S *big.Int
 	}

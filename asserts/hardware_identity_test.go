@@ -21,6 +21,7 @@ package asserts_test
 
 import (
 	"crypto"
+	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -230,7 +231,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) 
 	c.Assert(err, IsNil)
 
 	nonce := []byte("test nonce")
-	// Sign with SHA3-384
+	// Sign with SHA256
 	hash := sha256.New()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
@@ -268,13 +269,33 @@ func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHash(c *C) {
 	const UNSUPPORTED_HASH = crypto.Hash(0) // Invalid hash value
 	err = h.VerifyNonceSignature(nil, nil, UNSUPPORTED_HASH)
 	c.Assert(err, NotNil)
+
+	var params dsa.Parameters
+	err = dsa.GenerateParameters(&params, rand.Reader, dsa.L1024N160)
+	c.Assert(err, IsNil)
+
+	privDSAKey := new(dsa.PrivateKey)
+	privDSAKey.Parameters = params
+	err = dsa.GenerateKey(privDSAKey, rand.Reader)
+	c.Assert(err, IsNil)
+
+	h, err = buildHardwareIdentityAssertion(&privDSAKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	err = h.VerifyNonceSignature(nil, nil, crypto.SHA256)
+	c.Assert(err, NotNil)
 }
 
 func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {
 	var pubBytes []byte
 	var err error
 
-	pubBytes, err = x509.MarshalPKIXPublicKey(hardwareKey)
+	// DSA keys need special handling since x509.MarshalPKIXPublicKey doesn't support them
+	if dsaKey, ok := hardwareKey.(*dsa.PublicKey); ok {
+		pubBytes, err = marshalDSAPublicKey(dsaKey)
+	} else {
+		pubBytes, err = x509.MarshalPKIXPublicKey(hardwareKey)
+	}
 
 	if err != nil {
 		return nil, err
@@ -301,4 +322,54 @@ func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.Hard
 	}
 
 	return a.(*asserts.HardwareIdentity), nil
+}
+
+// marshalDSAPublicKey marshals a DSA public key in PKIX format.
+// DSA keys are not supported by x509.MarshalPKIXPublicKey, so we need custom marshaling.
+// PKIX format: SEQUENCE { AlgorithmIdentifier, BIT STRING (public key) }
+func marshalDSAPublicKey(pubKey *dsa.PublicKey) ([]byte, error) {
+	// DSA algorithm OID: 1.2.840.10040.4.1
+	dsaOID := asn1.ObjectIdentifier{1, 2, 840, 10040, 4, 1}
+
+	// Marshal DSA parameters (p, q, g)
+	params := struct {
+		P, Q, G *big.Int
+	}{
+		P: pubKey.P,
+		Q: pubKey.Q,
+		G: pubKey.G,
+	}
+	paramBytes, err := asn1.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Marshal the public key value Y as an INTEGER
+	yBytes, err := asn1.Marshal(pubKey.Y)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the PKIX structure
+	pkixKey := struct {
+		Algorithm struct {
+			OID    asn1.ObjectIdentifier
+			Params asn1.RawValue
+		}
+		PublicKey asn1.BitString
+	}{
+		Algorithm: struct {
+			OID    asn1.ObjectIdentifier
+			Params asn1.RawValue
+		}{
+			OID:    dsaOID,
+			Params: asn1.RawValue{FullBytes: paramBytes},
+		},
+		PublicKey: asn1.BitString{
+			Bytes:     yBytes,
+			BitLength: len(yBytes) * 8,
+		},
+	}
+
+	return asn1.Marshal(pkixKey)
 }
