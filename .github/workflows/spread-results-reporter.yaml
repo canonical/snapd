@@ -104,7 +104,9 @@ jobs:
               echo '## No spread failures reported'
 
           else
-            # There are logged spread failures
+            # Consolidate all json files into one
+            jq -s '{items: (map(.items[]) )}' spread-results-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
+
             echo "## Failures:"
             if [[ $(jq -r '.items[] | select(.verb == "preparing" and .success == false)' consolidated-report.json) ]]; then
               echo "### Preparing:"
