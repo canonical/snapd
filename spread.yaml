@@ -575,7 +575,6 @@ backends:
         environment: *openstack-ps7-env
         systems: *openstack-arm-systems
 
-
     openstack-sru-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
@@ -1148,6 +1147,7 @@ repack: |
     fi
 
 kill-timeout: 30m
+tasks-limit: 20000
 
 prepare: |
     # NOTE: This part of the code needs to be in spread.yaml as it runs before
