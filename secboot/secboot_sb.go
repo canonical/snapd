@@ -109,9 +109,11 @@ func LockSealedKeys() error {
 	return lockTPMSealedKeys()
 }
 
+type ActivateState = sb.ActivateState
+
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
-	State() *sb.ActivateState
+	State() *ActivateState
 }
 
 type activateContextImpl struct {
@@ -120,6 +122,10 @@ type activateContextImpl struct {
 
 func (a *activateContextImpl) ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
+}
+
+func (a *activateContextImpl) State() *ActivateState {
+	return a.ActivateContext.State()
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
