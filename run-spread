@@ -79,7 +79,7 @@ if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
     gh run download "$run" -n "$filename" --dir "$tmpdir"
     rm -rfv built-snap
     mkdir -p built-snap
-    find "$tmpdir" -name "snapd*.snap" -exec mv {} built-snap/{}.keep \;
+    find "$tmpdir" -name "snapd*.snap" -exec sh -c 'mv "$1" "built-snap/$(basename "$1").keep"' _ {} \;
 
 elif [ "${NO_REBUILD:-0}" = "1" ] || [ "$no_rebuild" = "1" ]; then
     echo "-- $(date) -- requested no snap rebuild"
