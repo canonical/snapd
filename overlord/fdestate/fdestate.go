@@ -425,6 +425,12 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	}
 }
 
+// SystemContainerRoles return a list of default system
+// container roles i.e. ["system-data", "system-save"].
+func SystemContainerRoles() []string {
+	return []string{"system-data", "system-save"}
+}
+
 // KeyslotRef uniquely identifies a target key slot by
 // its container role and name.
 type KeyslotRef struct {

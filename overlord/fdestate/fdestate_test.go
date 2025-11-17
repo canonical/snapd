@@ -856,3 +856,7 @@ func (s *fdeMgrSuite) TestReplacePlatformKeySecbootPlatforms(c *C) {
 		}
 	}
 }
+
+func (s *fdeMgrSuite) TestSystemContainerRoles(c *C) {
+	c.Assert(fdestate.SystemContainerRoles(), DeepEquals, []string{"system-data", "system-save"})
+}
