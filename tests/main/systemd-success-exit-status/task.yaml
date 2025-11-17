@@ -38,9 +38,11 @@ execute: |
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with success exit status 42 sending USR1 signal"
-    if os.query is-ubuntu-le 16.04 ; then
+    if os.query is-ubuntu-le 16.04 || os.query is-amazon-linux 2 ; then
         # Doesn't support --wait
         systemctl kill -s USR1 "$SERVICE_NAME"
+        # Sleep so we give it a chance to die
+        sleep 5
     else
         systemctl kill -s USR1 --wait "$SERVICE_NAME"
     fi
@@ -66,9 +68,11 @@ execute: |
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with success exit status 250 sending USR2 signal"
-    if os.query is-ubuntu-le 16.04 ; then
+    if os.query is-ubuntu-le 16.04 || os.query is-amazon-linux 2 ; then
         # Doesn't support --wait
         systemctl kill -s USR2 "$SERVICE_NAME"
+        # Sleep so we give it a chance to die
+        sleep 5
     else
         systemctl kill -s USR2 --wait "$SERVICE_NAME"
     fi
@@ -94,11 +98,11 @@ execute: |
     retry -n 20 --wait 1 stat "$MARKER"
 
     echo "Terminate the service with failure exit status sending TRAP signal"
-    if os.query is-ubuntu-le 16.04 ; then
+    if os.query is-ubuntu-le 16.04 || os.query is-amazon-linux 2 ; then
         # Doesn't support --wait
         systemctl kill -s TRAP "$SERVICE_NAME"
         # Sleep so we give it a chance to die
-        sleep 10
+        sleep 5
     else
       # Killing with TRAP returns non-zero error code on many newer systems
         systemctl kill -s TRAP --wait "$SERVICE_NAME" || true
