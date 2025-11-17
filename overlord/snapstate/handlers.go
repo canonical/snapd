@@ -5226,6 +5226,21 @@ func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
 
 	// make the extra tasks wait for main task
 	extraTasks.WaitFor(mainTask)
+
+	// Update status of the injected tasks in case the main task was aborted
+	// already. Lets consider what status the main task can have at the time
+	// of the call:
+	// - Do (request processing stage, change is not in a Doing state)
+	// - Doing (Do handler is executed for the main task)
+	// - Abort (the task was aborted *before* the InjectTasks was called AND the
+	// state was locked but *after* the Do handler for the task was started)
+	// - Undoing (Undo handler is executed for the task)
+	status := mainTask.Status()
+	if status == state.AbortStatus {
+		for _, t := range extraTasks.Tasks() {
+			t.SetStatus(state.HoldStatus)
+		}
+	}
 }
 
 func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {

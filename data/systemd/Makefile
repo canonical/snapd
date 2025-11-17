@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SNAPD_ENVIRONMENT_FILE := /etc/environment
-SNAP_MOUNT_DIR ?= /snap
 BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
@@ -51,5 +50,4 @@ clean:
 		sed s:@libexecdir@:$(LIBEXECDIR):g | \
 		sed s:@SNAPD_ENVIRONMENT_FILE@:$(SNAPD_ENVIRONMENT_FILE):g | \
 		sed s:@bindir@:$(BINDIR):g | \
-		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@

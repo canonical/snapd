@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -391,6 +392,28 @@ func (s *preseedSuite) TestReset(c *C) {
 			}
 		}
 
+		emptiedDirs := []string{
+			dirs.SnapDataDir,
+			dirs.SnapCacheDir,
+			apparmor_sandbox.CacheDir,
+			dirs.SnapDesktopFilesDir,
+			dirs.SnapDBusSessionServicesDir,
+			dirs.SnapDBusSystemServicesDir,
+			dirs.SnapMountDir,
+		}
+
+		removedDirs := []string{
+			dirs.SnapAssertsDBDir,
+			dirs.FeaturesDir,
+			dirs.SnapDesktopIconsDir,
+			dirs.SnapDeviceDir,
+			dirs.SnapCookieDir,
+			dirs.SnapMountPolicyDir,
+			dirs.SnapAppArmorDir,
+			dirs.SnapSeqDir,
+			dirs.SnapSeccompBase,
+		}
+
 		checkArtifacts := func(exists bool) {
 			for _, art := range artifacts {
 				fullPath := filepath.Join(tmpDir, art.path)
@@ -398,6 +421,23 @@ func (s *preseedSuite) TestReset(c *C) {
 					c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
 				} else {
 					c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+				}
+				if exists {
+					continue
+				}
+				dir := filepath.Dir(art.path)
+				for _, d := range emptiedDirs {
+					if strings.HasPrefix(dir, d) {
+						c.Check(osutil.IsDirectory(filepath.Join(tmpDir, d)), Equals, true)
+						entries, err := os.ReadDir(filepath.Join(tmpDir, d))
+						c.Assert(err, IsNil)
+						c.Check(len(entries), Equals, 0, Commentf("directory %s should be empty", d))
+					}
+				}
+				for _, d := range removedDirs {
+					if strings.HasPrefix(dir, d) {
+						c.Check(osutil.IsDirectory(filepath.Join(tmpDir, d)), Equals, false)
+					}
 				}
 			}
 		}

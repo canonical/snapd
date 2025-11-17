@@ -182,6 +182,11 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 		// see comment in fixupArg about the >s case
 		return
 	}
+	if len(optName) > 0 && optName[0] == '<' && strings.HasSuffix(optName, "]") &&
+		strings.Contains(optName, ">") && strings.Contains(optName, "[") {
+		// see comment in fixupArg about the >s case
+		return
+	}
 	panicOnDebug("argument %q's %q should begin with < and end with >", cmdName, optName)
 }
 

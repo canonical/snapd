@@ -108,13 +108,19 @@ func newUserServiceClientNames(users []string, inter Interacter) (*userServiceCl
 	return newUserServiceClientUids(keys, inter)
 }
 
-func (c *userServiceClient) stopServices(disable bool, services ...string) error {
+func (c *userServiceClient) stopServices(disable bool, reason snap.ServiceStopReason, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
 	failures, err := c.cli.ServicesStop(ctx, services, disable)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not stop service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+	}
+
+	// if the request is removal, then we want to just log it
+	if err != nil && reason == snap.StopReasonRemove {
+		logger.Noticef("cannot stop user-services for snap during removal: %v", err)
+		err = nil
 	}
 	return err
 }
@@ -958,9 +964,10 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 		if opts.Disable && serviceIsSlotActivated(app) {
 			logger.Noticef("Disabling %s may not have the intended effect as the service is currently always activated by a slot", app.Name)
 		}
-		if app.DaemonScope == snap.SystemDaemon {
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
 			sys = append(sys, app)
-		} else if app.DaemonScope == snap.UserDaemon {
+		case snap.UserDaemon:
 			usr = append(usr, app)
 		}
 	}
@@ -1005,7 +1012,7 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	// Save any potentionally expensive calls if there is no need
 	if len(userServices) != 0 {
 		timings.Run(tm, "stop-user-services", "stop user services", func(nested timings.Measurer) {
-			err = cli.stopServices(opts.Disable, userServices...)
+			err = cli.stopServices(opts.Disable, reason, userServices...)
 		})
 		if err != nil {
 			return err

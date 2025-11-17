@@ -191,7 +191,7 @@ parts:
       # the current build environment does not support them
       cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
-      install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
+      install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
