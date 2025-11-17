@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -eu
+
+# Keymap has the structure layout,model,variant,options
+xkb_list="$(/usr/libexec/core/get-arg snapd.xkb || true)"
+
+[ -z "$xkb_list" ] && exit 0
+
+IFS=','; set -- $xkb_list
+
+layout="${1:-}"
+model="${2:-}"
+variant="${3:-}"
+options="${4:-}"
+
+# Write /etc/default/keyboard
+cat << EOF > /etc/default/keyboard
+# KEYBOARD CONFIGURATION FILE
+# Consult the keyboard(5) manual page.
+
+XKBMODEL="$model"
+XKBLAYOUT="$layout"
+XKBVARIANT="$variant"
+XKBOPTIONS="$options"
+
+BACKSPACE="guess"
+EOF

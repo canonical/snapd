@@ -1,0 +1,14 @@
+[Unit]
+Description=Set Plymouth Keymap
+DefaultDependencies=no
+After=systemd-udev-trigger.service systemd-udevd.service
+Before=plymouth-start.service
+ConditionKernelCommandLine=snapd.xkb
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/core/set-plymouth-keymap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target
