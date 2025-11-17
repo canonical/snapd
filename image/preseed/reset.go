@@ -139,6 +139,7 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 		filepath.Join(dirs.SnapDesktopFilesDir, "*"),
 		filepath.Join(dirs.SnapDBusSessionServicesDir, "*"),
 		filepath.Join(dirs.SnapDBusSystemServicesDir, "*"),
+		filepath.Join(dirs.SnapMountDir, "*"),
 	}
 
 	for _, gl := range globs {
@@ -164,7 +165,6 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 		dirs.SnapMountPolicyDir,
 		dirs.SnapAppArmorDir,
 		dirs.SnapSeqDir,
-		dirs.SnapMountDir,
 		dirs.SnapSeccompBase,
 	}
 
