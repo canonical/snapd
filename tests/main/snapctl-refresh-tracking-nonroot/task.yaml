@@ -13,7 +13,6 @@ restore: |
     snap remove --purge test-snapd-sh-core24
 
 execute: |
-    ...
     tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c \'snapctl refresh --tracking\'" > user-tracking.log
     MATCH "^latest/stable$" < user-tracking.log
     not tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-tracking.log
