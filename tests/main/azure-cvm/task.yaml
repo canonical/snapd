@@ -15,17 +15,20 @@ prepare: |
   dpkg -i "$GOHOME"/snapd_*.deb
   
   # Build the initramfs package from the project if possible
+  # to detect any issues in the initramfs package that would affect
+  # the cloud kernel
+  if os.query is-ubuntu-ge 24.04; then
+      #shellcheck source=tests/lib/core-initrd.sh
+      . "$TESTSLIB"/core-initrd.sh
+      build_and_install_initramfs_deb
+  fi
+
+  # Otherwise install it
   if os.query is-ubuntu-lt 24.04; then
     # carries ubuntu-core-initramfs
     quiet add-apt-repository ppa:snappy-dev/image -y
     quiet apt update -y
     quiet apt install ubuntu-core-initramfs -y
-  fi
-
-  if os.query is-ubuntu-ge 24.04; then
-      #shellcheck source=tests/lib/core-initrd.sh
-      . "$TESTSLIB"/core-initrd.sh
-      build_and_install_initramfs_deb
   fi
   
   # install the linux-firmware as the current version of
