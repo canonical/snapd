@@ -164,14 +164,11 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 // It currently supports key with algorithms RSA, ECDSA, and ED25519.
 // The hash algorithm used is also specified as a parameter.
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
-	// The New() function can panic if the hash algorithm is not supported but does
-	// not return an error. We recover from the panic to avoid crashing the program.
+	if !hashAlg.Available() {
+		return fmt.Errorf("unsupported hash type: %s", hashAlg.String())
+	}
+
 	hash := hashAlg.New()
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered from panic:", r)
-		}
-	}()
 
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)

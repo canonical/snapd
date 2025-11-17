@@ -26,6 +26,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
@@ -151,17 +152,17 @@ func (s *hardwareIdentitySuite) TestVerifySignatureRSA(c *C) {
 	c.Assert(err, IsNil)
 
 	nonce := []byte("test nonce")
-	hash := sha3.New384()
+	hash := sha256.New()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
 
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA3_384, hashed)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hashed)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA256)
 	c.Assert(err, IsNil)
 
-	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
+	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA256)
 	c.Assert(err, NotNil)
 }
 
@@ -220,19 +221,19 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) 
 
 	nonce := []byte("test nonce")
 	// Sign with SHA3-384
-	hash := sha3.New384()
+	hash := sha256.New()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
 
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA3_384, hashed)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hashed)
 	c.Assert(err, IsNil)
 
 	// Verify with correct hash algorithm - should pass
-	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA256)
 	c.Assert(err, IsNil)
 
-	// Verify with different hash algorithm (SHA2-384) - should fail
-	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA384)
+	// Verify with different hash algorithm (SHA2-512) - should fail
+	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA512)
 	c.Assert(err, NotNil)
 
 	// Sign with SHA2-512 and verify with SHA2-512 - should pass
@@ -245,6 +246,18 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) 
 
 	err = h.VerifyNonceSignature(nonce, signature512, crypto.SHA512)
 	c.Assert(err, IsNil)
+}
+
+func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHash(c *C) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	c.Assert(err, IsNil)
+
+	h, err := buildHardwareIdentityAssertion(&privKey.PublicKey)
+	c.Assert(err, IsNil)
+
+	const UNSUPPORTED_HASH = crypto.Hash(0) // Invalid hash value
+	err = h.VerifyNonceSignature(nil, nil, UNSUPPORTED_HASH)
+	c.Assert(err, NotNil)
 }
 
 func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {
