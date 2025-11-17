@@ -552,7 +552,7 @@ backends:
     openstack-arm-ext-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
-        plan: shared.medium.arm64
+        plan: shared.large.arm64
         halt-timeout: 3h
         wait-timeout: 10m
         groups: [default]
