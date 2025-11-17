@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -1295,6 +1296,90 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationFailingPrepareSerialHook(c *C) {
+	hookMgr := s.o.HookManager()
+	c.Assert(hookMgr, NotNil)
+
+	// force prepare-serial-request hook failure for gadget snap.
+	hookMgr.RegisterHijack("prepare-serial-request", "gadget", func(ctx *hookstate.Context) error {
+		return fmt.Errorf("failing prepare-serial-request hook")
+	})
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, devicestatetest.ReqIDPrepareSerialHook, nil)
+	defer mockServer.Close()
+
+	// setup state as will be done by first-boot
+	// & have a gadget with a prepare-device hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
+		RegBody: map[string]string{
+			"hardware-id-key":        "key",
+			"hardware-id-key-sha384": "hash",
+			"request-id-signature":   "signature",
+		},
+	}
+
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, pSRBhv)
+	defer r2()
+
+	r3 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r3()
+
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc2",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// runs the whole device registration process, note that the
+	// device is not seeded yet
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// without a seeded device, there is no become-operational change
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+
+	// now mark it as seeded
+	s.state.Set("seeded", true)
+	// and run the device registration again
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange()
+
+	c.Assert(becomeOperational, NotNil)
+	c.Check(becomeOperational.Err(), NotNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc2")
+	c.Check(device.Serial, Equals, "")
+
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc2",
+		"serial":   "9999",
+	})
+	c.Assert(err, NotNil)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepareSerialHook(c *C) {

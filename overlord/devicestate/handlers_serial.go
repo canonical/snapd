@@ -945,8 +945,10 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	return nil, nil
 }
 
-// This function checks if the prepare serial request hook is present and then
-// injects the request ID to run the hook. The function returns the new modified registration body if present
+// maybeRunPrepareSerialRequestHook checks if the gadget has a prepare-serial-request
+// hook and runs it with the provided request ID.
+// It returns the modified registration body if the hook updated it, or nil if no hook
+// exists or the body was not changed.
 func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, requestID, gadgetName string) ([]byte, error) {
 	st.Lock()
 	defer st.Unlock()
@@ -960,12 +962,11 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if gadgetInfo.Hooks["prepare-serial-request"] == nil {
 		return nil, nil
 	}
 
-	
 	hooksup := &hookstate.HookSetup{
 		Snap: gadgetName,
 		Hook: "prepare-serial-request",
@@ -979,11 +980,12 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	}
 	tr.Commit()
 
+	// Run the hook (this will unlock/relock the state)
 	err = m.runPrepareSerialRequestHook(st, hooksup)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// update registration body again after hook has been run
 	tr = config.NewTransaction(st)
 	var bodyStr string
@@ -993,15 +995,12 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	}
 
 	return []byte(bodyStr), nil
-	
-
 }
-
 
 func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *hookstate.HookSetup) error {
 	st.Unlock()
 	defer st.Lock()
-	
+
 	_, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
 	if err != nil {
 		return fmt.Errorf("cannot run prepare serial request hook: %v", err)
