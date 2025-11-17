@@ -100,6 +100,10 @@ func (m *mockActivateContext) ActivateContainer(ctx context.Context, container s
 	}
 }
 
+func (m *mockActivateContext) State() *secboot.ActivateState {
+	return nil
+}
+
 type mockStorageContainer struct {
 	// This is a simple object for which we compare address. For
 	// this we to have a field to avoid the struct to be empty.

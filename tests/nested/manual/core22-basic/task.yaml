@@ -93,10 +93,17 @@ execute: |
         #remote.exec "udevadm info --query=property --property=DM_NAME --value /dev/disk/snapd/ubuntu-save" | MATCH "^ubuntu-save"
     fi
 
-    remote.exec "sudo cat /var/lib/snapd/state.json" >state.json
+    remote.pull /var/lib/snapd/state.json state.json
     runrecover_handle=$(gojq -r '.data.fde."keyslot-roles"."run+recover"."tpm2-pcr-policy-revocation-counter"' <state.json)
     run_handle=$(gojq -r '.data.fde."keyslot-roles"."run"."tpm2-pcr-policy-revocation-counter"' <state.json)
     recover_handle=$(gojq -r '.data.fde."keyslot-roles".recover."tpm2-pcr-policy-revocation-counter"' <state.json)
+
+    data_disk=$(remote.exec "realpath /dev/disk/snapd/ubuntu-data-luks")
+    save_disk=$(remote.exec "realpath /dev/disk/snapd/ubuntu-save-luks")
+
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked.json
+    test "$(gojq -r '."state"."${data_disk}"."status"' <unlocked.json)" = platform-key
+    test "$(gojq -r '."state"."${save_disk}"."status"' <unlocked.json)" = platform-key
 
     # Revocation counter handles are expected in a specific range
     # This range is defined in secboot/secboot.go (PCRPolicyCounterHandleRange)

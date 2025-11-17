@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // states for partition state
@@ -56,6 +57,8 @@ type DiskUnlockState struct {
 	// UbuntuSave is the state of the ubuntu-save (or ubuntu-save-enc)
 	// partition.
 	UbuntuSave PartitionState `json:"ubuntu-save,omitempty"`
+
+	State *secboot.ActivateState `json:"state,omitempty"`
 }
 
 // WriteTo writes the DiskUnlockState into a json file for given name
