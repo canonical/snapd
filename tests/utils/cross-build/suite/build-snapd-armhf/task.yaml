@@ -5,7 +5,7 @@ details: |
   using the desired image, kernel and initrd, and then run the build-spread task
   which builds snapd snap on the target system.
 
-kill-timeout: 120m
+kill-timeout: 180m
 
 environment:
   VERSION/jammy: 22.04
