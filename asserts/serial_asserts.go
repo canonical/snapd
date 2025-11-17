@@ -22,10 +22,19 @@ package asserts
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	// validSerialStrict enforces a strict serial number format for new serials and
+	// features. This is stricter than the unconstrained format allowed in "legacy"
+	// serials. New snapd features that rely on serials (e.g., confdb-control) should
+	// use this format to gradually migrate the ecosystem to well-formed serials.
+	validSerialStrict = regexp.MustCompile("^[a-zA-Z0-9](?:[:+-]?[a-zA-Z0-9])*$")
 )
 
 // Serial holds a serial assertion, which is a statement binding a
