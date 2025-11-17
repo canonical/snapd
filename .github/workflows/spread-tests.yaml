@@ -408,7 +408,7 @@ jobs:
 
     - name: Upload spread logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
@@ -416,7 +416,7 @@ jobs:
   
     - name: Upload spread results file
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
@@ -496,7 +496,7 @@ jobs:
 
     - name: Upload artifacts
       if: always() && fromJSON(inputs.upload-artifacts)
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
@@ -504,7 +504,7 @@ jobs:
     
     - name: Save spread.json as an artifact
       if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
         path: "spread-results.json"
