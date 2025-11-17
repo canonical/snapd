@@ -951,6 +951,7 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	st.Lock()
 	defer st.Unlock()
 
+	// no gadget present
 	if gadgetName == "" {
 		return nil, nil
 	}
@@ -959,39 +960,50 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	if err != nil {
 		return nil, err
 	}
-	hasPrepareSerialRequestHook := (gadgetInfo.Hooks["prepare-serial-request"] != nil)
-
-	if hasPrepareSerialRequestHook {
-		hooksup := &hookstate.HookSetup{
-			Snap: gadgetName,
-			Hook: "prepare-serial-request",
-		}
-
-		// Add request id to config for hook to use
-		tr := config.NewTransaction(st)
-		err := tr.Set(gadgetName, "registration.request-id", requestID)
-		if err != nil {
-			return nil, fmt.Errorf("cannot set request id: %v", err)
-		}
-		tr.Commit()
-
-		st.Unlock()
-		_, err = m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
-		st.Lock()
-		if err != nil {
-			return nil, fmt.Errorf("cannot run prepare serial request hook: %v", err)
-		}
-
-		// update registration body again after hook has been run
-		tr = config.NewTransaction(st)
-		var bodyStr string
-		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get updated registration body: %v", err)
-		}
-
-		return []byte(bodyStr), nil
+	
+	if gadgetInfo.Hooks["prepare-serial-request"] == nil {
+		return nil, nil
 	}
 
-	return nil, nil
+	
+	hooksup := &hookstate.HookSetup{
+		Snap: gadgetName,
+		Hook: "prepare-serial-request",
+	}
+
+	// Add request id to config for hook to use
+	tr := config.NewTransaction(st)
+	err = tr.Set(gadgetName, "registration.request-id", requestID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot set request id: %v", err)
+	}
+	tr.Commit()
+
+	err = m.runPrepareSerialRequestHook(st, hooksup)
+
+	
+	// update registration body again after hook has been run
+	tr = config.NewTransaction(st)
+	var bodyStr string
+	err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get updated registration body: %v", err)
+	}
+
+	return []byte(bodyStr), nil
+	
+
+}
+
+
+func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *hookstate.HookSetup) error {
+	st.Unlock()
+	defer st.Lock()
+	
+	_, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
+	if err != nil {
+		return fmt.Errorf("cannot run prepare serial request hook: %v", err)
+	}
+
+	return nil
 }
