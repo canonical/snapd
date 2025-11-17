@@ -425,7 +425,7 @@ jobs:
     - name: Report spread errors
       if: always()
       run: |
-        if [ -e spread.json ]; then
+        if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"
             ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
             while IFS= read -r line; do
@@ -449,7 +449,7 @@ jobs:
               # The format is backend:system:name:variant (variant is optional)
               # Duplicates are removed and the list is sorted
               # The list is saved in the FAILED_TESTS_FILE
-              jq -r '.items[] | select(((.level == "" and .aborted == true) or (.level == "task" and .success == false))) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u | xargs > "$FAILED_TESTS_FILE"
+              jq -r '.items[] | select((.level == "" and .aborted == true) or (.level == "task" and .success == false)) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u | xargs > "$FAILED_TESTS_FILE"
 
               if [ -n "${{ inputs.upload-artifacts }}" ] && \
                   [ -d "$ARTIFACTS_FOLDER" ] && \

@@ -97,7 +97,6 @@ jobs:
             echo "## Spread tests skipped"
             exit 0
           fi
-          
           echo "The following results are from: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
 
           # There are no logged spread failures
@@ -106,23 +105,20 @@ jobs:
 
           else
             # There are logged spread failures
-            
-            jq -s 'add' spread-json-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
-
             echo "## Failures:"
-            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" )' consolidated-report.json) ]]; then
+            if [[ $(jq -r '.items[] | select(.verb == "preparing" and .success == false)' consolidated-report.json) ]]; then
               echo "### Preparing:"
-              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "preparing" ) .task' consolidated-report.json |\
+              jq -r '.items[] | select(.verb == "preparing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
                   awk ' { print "- " $0 }'
             fi
-            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" )' consolidated-report.json) ]]; then
+            if [[ $(jq -r '.items[] | select(.verb == "executing" and .success == false)' consolidated-report.json) ]]; then
               echo "### Executing:"
-              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "executing" ) .task' consolidated-report.json |\
+              jq -r '.items[] | select(.verb == "executing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
                   awk ' { print "- " $0 }'
             fi
-            if [[ $(jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" )' consolidated-report.json) ]]; then
+            if [[ $(jq -r '.items[] | select(.verb == "restoring" and .success == false)' consolidated-report.json) ]]; then
               echo "### Restoring:"
-              jq -r '.[] | select( .info_type == "Error" ) | select( .verb == "restoring" ) .task' consolidated-report.json |\
+              jq -r '.items[] | select(.verb == "restoring" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
                   awk ' { print "- " $0 }'
             fi
           fi
