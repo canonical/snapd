@@ -22,7 +22,6 @@ package asserts
 import (
 	"bytes"
 	"crypto"
-	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -160,9 +159,9 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	return pubKey, nil
 }
 
-// VerifySignature checks the signature of a given nonce against the hardware id key.
+// VerifyNonceSignature checks the signature of a given nonce against the hardware id key.
 // It is used by the model service to verify the request-id.
-// It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
+// It currently supports key with algorithms RSA, ECDSA, and ED25519.
 // The hash algorithm used is also specified as a parameter.
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
 	// The New() function can panic if the hash algorithm is not supported but does
@@ -180,8 +179,6 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 	switch keyType := h.hardwareKey.(type) {
 	case *rsa.PublicKey:
 		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey), hashAlg)
-	case *dsa.PublicKey:
-		return verifySignatureWithDSAKey(hashed, signature, h.hardwareKey.(*dsa.PublicKey))
 	case *ecdsa.PublicKey:
 		return verifySignatureWithECDSAKey(hashed, signature, h.hardwareKey.(*ecdsa.PublicKey))
 	case ed25519.PublicKey:
@@ -193,30 +190,6 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 
 func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, hashAlg crypto.Hash) error {
 	return rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature)
-}
-
-func verifySignatureWithDSAKey(hashed, signature []byte, pubKey *dsa.PublicKey) error {
-	// DsaSignature struct defines ASN.1 layout of DSA signature
-	type DsaSignature struct {
-		R, S *big.Int
-	}
-
-	var sig DsaSignature
-	rest, err := asn1.Unmarshal(signature, &sig)
-	if err != nil {
-		return err
-	}
-
-	// Ensure all bytes were consumed
-	if len(rest) > 0 {
-		return errors.New("signature invalid: trailing bytes")
-	}
-
-	if !dsa.Verify(pubKey, hashed, sig.R, sig.S) {
-		return errors.New("signature invalid")
-	}
-
-	return nil
 }
 
 func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicKey) error {
