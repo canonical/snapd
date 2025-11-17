@@ -105,6 +105,7 @@ func LockSealedKeys() error {
 
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	State() *ActivateState
 }
 
 type activateContextImpl struct {
@@ -113,6 +114,10 @@ type activateContextImpl struct {
 
 func (a *activateContextImpl) ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
+}
+
+func (a *activateContextImpl) State() *ActivateState {
+	return a.ActivateContext.State()
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
@@ -814,3 +819,5 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 		return nil, fmt.Errorf("internal error: unknown reseal kind")
 	}
 }
+
+type ActivateState = sb.ActivateState
