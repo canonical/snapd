@@ -86,7 +86,7 @@ prepare: |
   tests.systemd wait-for-service -n 15 --wait 2 --state active "$SERVICE_NAME"
 
   # Wait until the nested vm is accessible through ssh (50 retries with 10 sec wait)
-  tests.nested wait-for ssh 50 10
+  tests.nested wait-for ssh 100 10
 
 restore: |
   systemctl stop "$SERVICE_NAME" || true
