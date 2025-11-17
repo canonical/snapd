@@ -448,7 +448,7 @@ func (s *clusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *che
 }
 
 func (s *clusterSuite) TestAuthenticate(c *check.C) {
-	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -466,7 +466,8 @@ func (s *clusterSuite) TestAuthenticate(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
-		encodeFP(peerFP): peerRDT,
+		encodeFP(localFP): "rdt",
+		encodeFP(peerFP):  peerRDT,
 	})
 }
 
@@ -570,7 +571,7 @@ func (s *clusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 }
 
 func (s *clusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
-	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -586,7 +587,8 @@ func (s *clusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
-		encodeFP(fp): "peer-one",
+		encodeFP(localFP): "rdt",
+		encodeFP(fp):      "peer-one",
 	})
 
 	// second peer tries to use the same certificate - should fail
@@ -600,7 +602,7 @@ func (s *clusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 }
 
 func (s *clusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
-	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -615,7 +617,8 @@ func (s *clusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 1)
 	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]DeviceToken{
-		encodeFP(peerFP): "peer",
+		encodeFP(localFP): "rdt",
+		encodeFP(peerFP):  "peer",
 	})
 
 	// second authentication with different certificate - should fail
@@ -642,7 +645,7 @@ func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		}{rdt, via})
 	}
 
-	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, sel, AssembleConfig{
+	as, cm, localFP, _, _ := newAssembleStateWithTestKeys(c, sel, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -683,7 +686,8 @@ func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 
 	c.Assert(len(cm.commits), check.Equals, 2)
 	c.Assert(cm.commits[1].Trusted, check.DeepEquals, map[string]DeviceToken{
-		encodeFP(peerFP): peerRDT,
+		encodeFP(localFP): "rdt",
+		encodeFP(peerFP):  peerRDT,
 	})
 	c.Assert(cm.commits[1].Addresses, check.DeepEquals, map[string]string{
 		encodeFP(peerFP): peerAddr,
@@ -1835,6 +1839,28 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 				}
 			}(),
 			err: "invalid session data: discovered address \"127.0.0.2:8001\" not found in addresses map",
+		},
+		{
+			name: "local fingerprint recorded with different rdt",
+			session: AssembleSession{
+				Trusted: map[string]DeviceToken{
+					base64.StdEncoding.EncodeToString(localFP[:]): "other-rdt",
+				},
+			},
+			err: "current device fingerprint changed when resuming session",
+		},
+		{
+			name: "local rdt recorded with different fingerprint",
+			session: func() AssembleSession {
+				wrongFP := localFP
+				wrongFP[0] ^= 0xff
+				return AssembleSession{
+					Trusted: map[string]DeviceToken{
+						base64.StdEncoding.EncodeToString(wrongFP[:]): cfg.RDT,
+					},
+				}
+			}(),
+			err: "current device fingerprint changed when resuming session",
 		},
 		{
 			name: "local device fingerprint mismatch",
