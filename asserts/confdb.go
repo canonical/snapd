@@ -183,6 +183,11 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	serial := assert.HeaderString("serial")
+	if !validSerialStrict.MatchString(serial) {
+		return nil, fmt.Errorf("invalid serial: %s", serial)
+	}
+
 	groups, err := checkList(assert.headers, "groups")
 	if err != nil {
 		return nil, err
