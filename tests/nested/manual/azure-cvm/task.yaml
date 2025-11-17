@@ -52,7 +52,8 @@ execute: |
   mount -t efivarfs efivarfs /sys/firmware/efi/efivars || true
 
   # add UKI to boot entries
-  efibootmgr --create --disk /dev/sda --part 15 --label "CVM UKI" --loader "\EFI\ubuntu\$(basename $UKI_FILE)"
+  KERNEL_EFI="$(basename $UKI_FILE)"
+  efibootmgr --create --disk /dev/vda --part 15 --label "CVM UKI" --loader "/EFI/ubuntu/$KERNEL_EFI"
 
   if [ "$SPREAD_REBOOT" = "0" ]; then
     REBOOT
