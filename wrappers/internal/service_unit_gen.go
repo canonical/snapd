@@ -135,6 +135,9 @@ Wants={{.PrerequisiteTarget}}
 {{- if .After}}
 After={{ stringsJoin .After " " }}
 {{- end}}
+{{- if .Requisite}}
+Requisite={{ stringsJoin .Requisite " " }}
+{{- end}}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
@@ -279,6 +282,7 @@ WantedBy={{.ServicesTarget}}
 		BindsTo                  []string
 		WantedBy                 []string
 		PartOf                   []string
+		Requisite                []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -303,10 +307,11 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore: oomAdjustScore,
 		BusName:        busName,
 
-		Before:  generateServiceNames(appInfo.Snap, appInfo.Before),
-		After:   generateServiceNames(appInfo.Snap, appInfo.After),
-		BindsTo: generateServiceNames(appInfo.Snap, appInfo.BindsTo),
-		PartOf:  generateServiceNames(appInfo.Snap, appInfo.PartOf),
+		Before:    generateServiceNames(appInfo.Snap, appInfo.Before),
+		After:     generateServiceNames(appInfo.Snap, appInfo.After),
+		BindsTo:   generateServiceNames(appInfo.Snap, appInfo.BindsTo),
+		PartOf:    generateServiceNames(appInfo.Snap, appInfo.PartOf),
+		Requisite: generateServiceNames(appInfo.Snap, appInfo.Requisite),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -332,6 +337,7 @@ WantedBy={{.ServicesTarget}}
 				wrapperData.BindsTo = append(wrapperData.BindsTo, GRAPHICAL_SESSION_TARGET)
 			}
 			wrapperData.ServicesTarget = GRAPHICAL_SESSION_TARGET
+			wrapperData.Requisite = append(wrapperData.Requisite, GRAPHICAL_SESSION_TARGET)
 		}
 	default:
 		panic("unknown snap.DaemonScope")

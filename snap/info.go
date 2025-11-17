@@ -1347,10 +1347,11 @@ type AppInfo struct {
 
 	// list of other service names that this service will start after or
 	// before
-	After   []string
-	Before  []string
-	BindsTo []string
-	PartOf  []string
+	After     []string
+	Before    []string
+	BindsTo   []string
+	PartOf    []string
+	Requisite []string
 
 	Timer *TimerInfo
 
