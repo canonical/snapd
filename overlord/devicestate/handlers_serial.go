@@ -980,7 +980,9 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	tr.Commit()
 
 	err = m.runPrepareSerialRequestHook(st, hooksup)
-
+	if err != nil {
+		return nil, err
+	}
 	
 	// update registration body again after hook has been run
 	tr = config.NewTransaction(st)
