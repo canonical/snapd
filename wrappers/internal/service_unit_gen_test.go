@@ -101,6 +101,7 @@ const expectedGraphicalUserServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 After=graphical-session.target
+Requisite=graphical-session.target
 BindsTo=graphical-session.target
 X-Snappy=yes
 
@@ -124,6 +125,7 @@ const expectedDBusGraphicalUserServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 After=graphical-session.target
+Requisite=graphical-session.target
 PartOf=graphical-session.target
 X-Snappy=yes
 
@@ -147,6 +149,7 @@ const expectedSocketGraphicalUserServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 After=graphical-session.target
+Requisite=graphical-session.target
 PartOf=graphical-session.target
 X-Snappy=yes
 
