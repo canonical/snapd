@@ -492,7 +492,7 @@ jobs:
               # remove all whitespaces (systems shouldn't have spaces in their names anyway)
               filter="$(tr -d '[:space:]' <<<"$filter")"
 
-              # use the regex to filter out systems in both fundamental and non-fudnamental systems
+              # use the regex to filter in systems in both fundamental and non-fundamental systems
               fundamental_systems="$(jq -c --arg regex "$filter" '.include |= map(select(.systems | test($regex)))' .github/workflows/data-fundamental-systems.json)"
               non_fundamental_systems="$(jq -c --arg regex "$filter" '.include |= map(select(.systems | test($regex)))' .github/workflows/data-non-fundamental-systems.json)"
 
@@ -502,12 +502,13 @@ jobs:
               total_fund="$(jq -c . .github/workflows/data-fundamental-systems.json | grep -o "systems" | wc -l)"
               total_nonfund="$(jq -c . .github/workflows/data-non-fundamental-systems.json | grep -o "systems" | wc -l)"
 
-              # if no systems were filtered out, then filter out only noble
+              # if no systems were filtered in, then filter in only noble
               # this condition can trigger if something like a '.*' was used as regex or
               # if the #runonlyonesystem tag was not present in the PR description
               if [[ ( "$selected_fund" -eq "$total_fund" && "$selected_non_fund" -eq "$total_nonfund" ) || \
                  ( "$selected_fund" -eq 0 && "$selected_non_fund" -eq 0 ) ]]; then
-                echo "filtering out everything except for noble due to incorrect filtering"
+                echo "filtering out everything except for noble since either no systems were filtered out"
+                echo "If you wanted to choose different systems to run, use the #runonlyonesystem tag followed by a regex of what you wish to select"
                 echo "filtered fundamental systems are $fundamental_systems"
                 echo "filtered non-fundamental systems are $non_fundamental_systems"
                 fundamental_systems="$(jq -c --arg regex 'ubuntu-24.04-64' '.include |= map(select(.systems | test($regex)))' .github/workflows/data-fundamental-systems.json)"
