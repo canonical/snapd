@@ -288,7 +288,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// not the GPT label. Images that are created for CVM mode set both to the same label. The GPT label
 			// is used for partition discovery and the filesystem label for auto-discovery of a potentially encrypted
 			// partition.
-			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, pm.GptLabel, runModeCVMKey, opts)
+			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, disk, pm.GptLabel, runModeCVMKey, opts)
 			if err != nil {
 				return err
 			}
