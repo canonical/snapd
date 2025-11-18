@@ -9,6 +9,3 @@ ConditionKernelCommandLine=snapd.xkb
 Type=oneshot
 ExecStart=/usr/lib/core/set-plymouth-keymap
 RemainAfterExit=yes
-
-[Install]
-WantedBy=basic.target
