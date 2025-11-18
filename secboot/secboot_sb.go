@@ -96,6 +96,28 @@ func LockSealedKeys() error {
 	return lockTPMSealedKeys()
 }
 
+// Partition implementations return partition information required by secboot.
+type Partition interface {
+	PartitionUUID() string
+	FilesystemUUID() string
+}
+
+// Disk implementations provide disk information required by secboot.
+type Disk interface {
+	PartitionWithFsLabel(string) (Partition, error)
+}
+
+// Error returned if PartitionWithFsLabel cannot find the filesystem label.
+type FsLabelNotFoundError struct {
+	SearchLabel string
+}
+
+func (e FsLabelNotFoundError) Error() string {
+	return fmt.Sprintf("filesystem label %q not found", e.SearchLabel)
+}
+
+var _ = error(FsLabelNotFoundError{})
+
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
 // with a corresponding name. The options control activation with the
@@ -106,7 +128,7 @@ func LockSealedKeys() error {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// TODO:FDEM: this function is big. We need to split it.
 
 	res := UnlockResult{}
@@ -116,24 +138,24 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
-		var errNotFound disks.PartitionNotFoundError
+		var errNotFound FsLabelNotFoundError
 		if !xerrors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			return res, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
 		}
 		// otherwise it is an error not found and we should search for the
 		// unencrypted device
-		part, err = disk.FindMatchingPartitionWithFsLabel(name)
+		part, err = disk.PartitionWithFsLabel(name)
 		if err != nil {
 			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
 	}
 
-	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID)
+	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID())
 
 	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
@@ -154,7 +176,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
-	sourceDevice := fmt.Sprintf("/dev/disk/by-uuid/%s", part.FilesystemUUID)
+	sourceDevice := fmt.Sprintf("/dev/disk/by-uuid/%s", part.FilesystemUUID())
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	res.PartDevice = partDevice
@@ -258,7 +280,7 @@ func deviceHasPlainKey(device string) (bool, error) {
 // given plain key. Depending on how then encrypted device was set up, the key
 // is either used to unlock the device directly, or it is used to decrypt the
 // encrypted unlock key stored in LUKS2 tokens in the device.
-func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+func UnlockEncryptedVolumeUsingProtectorKey(disk Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -268,13 +290,13 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err != nil {
 		return unlockRes, err
 	}
 	unlockRes.IsEncrypted = true
 	// we have a device
-	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID)
+	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID())
 	unlockRes.PartDevice = encdev
 
 	uuid, err := randutilRandomKernelUUID()
