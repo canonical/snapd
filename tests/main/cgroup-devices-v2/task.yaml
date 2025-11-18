@@ -39,31 +39,17 @@ restore: |
     fi
 
 debug: |
-    if test -f "cgroup_device.progs-1" -a -f "cgroup_device.progs-2"; then
-        echo "cgroup devices before:"
-        cat "cgroup_device.progs-1"
-        echo "cgroup devices after installation:"
-        cat "cgroup_device.progs-2"
-    fi
-    if test -f "cgroup_device.progs-3"; then
-        echo "cgroup devices after connecting the interface:"
-        cat "cgroup_device.progs-3"
-    fi
-    if test -f "cgroup_device.progs-4"; then
-        echo "cgroup devices after restarting the service:"
-        cat "cgroup_device.progs-4"
-    fi
     systemctl status snap.test-snapd-service.test-snapd-service.service || true
     journalctl -u snap.test-snapd-service.test-snapd-service.service || true
 
 execute: |
     dump_cgroup_device_progs() {
-        # dump all progs but those that are assigned to systemd, in which case
-        # they have the pids list non empty
-        bpftool prog list -j | gojq -r '.[] | select(.type == "cgroup_device") | select(.pids == null) | .id'
+        # dump all snap progs
+        bpftool prog list -j | gojq -r '.[] | select(.type == "cgroup_device") | select(.name != null) | select(.name | startswith("s_")) | .name'
     }
-    echo "Dump BPF programs that are of type cgroup_device"
-    dump_cgroup_device_progs > cgroup_device.progs-1
+
+    echo "Before running the snap, there are no snap BPF programs"
+    test -z "$(dump_cgroup_device_progs)"
 
     echo "Install a test service"
     # Because this service is of type "simple" it is considered "ready" instantly.
@@ -91,10 +77,8 @@ execute: |
 
     # Initially since there are no devices assigned to snap, there is no map with device access
     test ! -e /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service
-    # Do another dump
-    dump_cgroup_device_progs > cgroup_device.progs-2
-    echo "Verify no new device cgroup programs are present"
-    test "$(wc -l < cgroup_device.progs-1)" = "$(wc -l < cgroup_device.progs-2)"
+    echo "Verify there continue to be no snap BPF programs"
+    test -z "$(dump_cgroup_device_progs)"
 
     echo "Connect the joystick interface"
     snap connect test-snapd-service:joystick
@@ -118,8 +102,8 @@ execute: |
     # but there are no new programs, as they go away when cgroup is removed
     # (also wait until systemd cleans up the cgroup)
     retry -n 10 test ! -e "/sys/fs/cgroup/$testshcgroup"
-    dump_cgroup_device_progs > cgroup_device.progs-3
-    test "$(wc -l < cgroup_device.progs-1)" = "$(wc -l < cgroup_device.progs-3)"
+    echo "Verify there continue to be no snap BPF programs"
+    test -z "$(dump_cgroup_device_progs)"
 
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_sh > device-access.map-app
@@ -155,8 +139,7 @@ execute: |
     MATCH 'key: 63 01 00 00 00 03 00 00 +00 +value: 01' < device-access.map-service
 
     # since the service is up, we'll observe that a new program was loaded
-    dump_cgroup_device_progs > cgroup_device.progs-4
-    test "$(wc -l < cgroup_device.progs-1)" -lt "$(wc -l < cgroup_device.progs-4)"
+    test "$(dump_cgroup_device_progs | wc -l)" -eq 1
 
     # unmount /sys/fs/bpf and observe how s-c- restores it
     echo "Verify the bpffs mount is created when needed"
