@@ -695,6 +695,7 @@ type subKey struct {
 func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 	var subkeys []subKey
 	var rawFilters map[string]string
+	var expectFilterOrEnd bool
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
@@ -713,6 +714,7 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 
 		sb.Reset()
 		rawFilters = nil
+		expectFilterOrEnd = false
 		return nil
 	}
 
@@ -756,8 +758,11 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 				if prevFilter, ok := rawFilters[field]; ok {
 					return nil, fmt.Errorf("cannot apply more than one filter to the same field: [.%[1]s={%[2]s}] and [.%[1]s={%[3]s}]", field, prevFilter, filter)
 				}
-
 				rawFilters[field] = filter
+
+				// the only things that can be between a field filter and a new sub-key
+				// are other field filters
+				expectFilterOrEnd = true
 				continue
 			}
 
@@ -770,6 +775,9 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 			fallthrough
 
 		default:
+			if expectFilterOrEnd {
+				return nil, fmt.Errorf("invalid sub-key: field filters, if present, must be at the end of a sub-key")
+			}
 			sb.WriteRune(char)
 		}
 	}
