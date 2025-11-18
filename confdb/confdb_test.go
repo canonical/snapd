@@ -3758,6 +3758,10 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 			filters: []map[string]string{nil, {"bar": "abc"}, {"bar": "cba"}},
 		},
 		{
+			path:    "foo[.bar={abc}][{n}]",
+			filters: []map[string]string{{"bar": "abc"}, nil},
+		},
+		{
 			path: "foo[",
 			err:  `invalid subkey "["`,
 		},
@@ -3790,6 +3794,14 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 		{
 			path: "foo[{n}][.foo={0foo}].some",
 			err:  "invalid field filter [.foo={0foo}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+		},
+		{
+			path: "foo[.bar={bar}]baz",
+			err:  "invalid sub-key: field filters, if present, must be at the end of a sub-key",
+		},
+		{
+			path: "foo[.bar={bar}]0",
+			err:  "invalid sub-key: field filters, if present, must be at the end of a sub-key",
 		},
 	}
 
