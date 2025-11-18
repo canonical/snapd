@@ -113,8 +113,8 @@ purge() {
             rev="${snap_rev#*/}"
             # Transform:
             # Where=/var/lib/snapd/snap/core/3440 -> /var/lib/snapd/snap
-            snap_mountpoint="$(dirname "${systemctl_where#Where=}")"
-            global_snaps_mount_dir="$(dirname "$snap_mountpoint")"
+            snap_mountpoint="${systemctl_where#Where=}"
+            global_snaps_mount_dir="$(dirname "$(dirname "$snap_mountpoint")")"
             if [ -n "$snap" ]; then
                 echo "Removing snap $snap"
                 # aliases
@@ -124,7 +124,7 @@ purge() {
                 fi
                 # generated binaries
                 rm -f "${global_snaps_mount_dir}/bin/$snap"
-                rm -f "${global_snaps_mount_dir}/bin/$snap".*
+                find "${global_snaps_mount_dir}/bin" -maxdepth 1 -name "$snap.*" -delete
                 # snap mount dir
                 umount -l "$snap_mountpoint" 2> /dev/null || true
                 rm -rf "$snap_mountpoint"
