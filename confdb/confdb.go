@@ -652,7 +652,7 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 		case isIndexPlaceholder:
 			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], part.filters))
 		default:
-			return nil, fmt.Errorf("invalid subkey %q", subkey)
+			return nil, fmt.Errorf("subkey %q must conform to base format %q", subkey, subkeyRegex)
 		}
 	}
 
@@ -720,8 +720,8 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 	for pathBytes.Len() > 0 {
 		// ReadRune can only return EOF errors and we already checked Len() so the
 		// error can be safely ignored here
-		char, _, _ := pathBytes.ReadRune()
-		if char == utf8.RuneError {
+		char, n, _ := pathBytes.ReadRune()
+		if char == utf8.RuneError && n == 1 {
 			return nil, fmt.Errorf("non UTF-8 character")
 		}
 
@@ -737,8 +737,8 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 			}
 
 			// both field filters and list accesses start with '[', check the next character
-			nextChar, _, _ := pathBytes.ReadRune()
-			if nextChar == utf8.RuneError {
+			nextChar, n, _ := pathBytes.ReadRune()
+			if nextChar == utf8.RuneError && n == 1 {
 				return nil, fmt.Errorf("non UTF-8 character")
 			}
 
@@ -762,8 +762,8 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 			}
 
 			// we're parsing a new list accessor (e.g, [{n}]), save the previous
-			// sub-key and continue
-			pathBytes.UnreadRune()
+			// sub-key and continue. Only errors if last op was not successful read
+			_ = pathBytes.UnreadRune()
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
@@ -788,8 +788,9 @@ func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error)
 	for pathBytes.Len() > 0 {
 		// ReadRune can only return EOF errors and we already checked Len() so the
 		// error can be safely ignored here
-		char, _, _ = pathBytes.ReadRune()
-		if char == utf8.RuneError {
+		var n int
+		char, n, _ = pathBytes.ReadRune()
+		if char == utf8.RuneError && n == 1 {
 			return "", "", fmt.Errorf("non UTF-8 character")
 		}
 

@@ -647,39 +647,39 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		},
 		{
 			testName: "invalid character in request: $",
-			request:  "a.b$", storage: "bad", err: `invalid request "a.b$": invalid subkey "b$"`,
+			request:  "a.b$", storage: "bad", err: `invalid request "a.b$": subkey "b$" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid character in storage path: é",
-			request:  "a.b", storage: "a.é", err: `invalid storage "a.é": invalid subkey "é"`,
+			request:  "a.b", storage: "a.é", err: `invalid storage "a.é": subkey "é" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid character in request: _",
-			request:  "a.b_c", storage: "a.b-c", err: `invalid request "a.b_c": invalid subkey "b_c"`,
+			request:  "a.b_c", storage: "a.b-c", err: `invalid request "a.b_c": subkey "b_c" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid leading dash",
-			request:  "-a", storage: "a", err: `invalid request "-a": invalid subkey "-a"`,
+			request:  "-a", storage: "a", err: `invalid request "-a": subkey "-a" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid trailing dash",
-			request:  "a", storage: "a-", err: `invalid storage "a-": invalid subkey "a-"`,
+			request:  "a", storage: "a-", err: `invalid storage "a-": subkey "a-" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "missing closing curly bracket",
-			request:  "{a{", storage: "a", err: `invalid request "{a{": invalid subkey "{a{"`,
+			request:  "{a{", storage: "a", err: `invalid request "{a{": subkey "{a{" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "missing opening curly bracket",
-			request:  "a", storage: "}a}", err: `invalid storage "}a}": invalid subkey "}a}"`,
+			request:  "a", storage: "}a}", err: `invalid storage "}a}": subkey "}a}" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "curly brackets not wrapping subkey",
-			request:  "a", storage: "a.b{a}c", err: `invalid storage "a.b{a}c": invalid subkey "b{a}c"`,
+			request:  "a", storage: "a.b{a}c", err: `invalid storage "a.b{a}c": subkey "b{a}c" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid whitespace character",
-			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": invalid subkey " "`,
+			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": subkey " " must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			testName: "invalid terminating [ character",
@@ -3762,16 +3762,22 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 			err:  `invalid subkey "["`,
 		},
 		{
-			path: "foo" + string(rune(0xDFFF)),
+			// invalid UTF-8
+			path: "foo\xc5",
 			err:  "non UTF-8 character",
 		},
 		{
-			path: "foo[" + string(rune(0xDFFF)),
+			path: "foo[\xc5",
 			err:  "non UTF-8 character",
 		},
 		{
-			path: "foo[." + string(rune(0xDFFF)),
+			path: "foo[.\xc5",
 			err:  "non UTF-8 character",
+		},
+		{
+			// actual replacement character in the string is valid UTF-8
+			path: "foo�",
+			err:  `subkey "foo�" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
 		},
 		{
 			path: "foo[{n}][.bar={baz}",
