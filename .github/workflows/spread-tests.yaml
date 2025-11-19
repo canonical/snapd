@@ -166,6 +166,12 @@ jobs:
               echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
           fi
 
+    - name: Setup for local run
+      if: ${{ inputs.backend == 'garden' }}
+      uses: ./.github/actions/setup-image-garden
+      with:
+        garden-system: ${{ inputs.systems }}
+
     - name: Setup run tests variable
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       run: |
