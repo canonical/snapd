@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -517,27 +518,32 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 
 	s.st.Lock()
 	snapstate.Set(s.st, "my-app", &myAppSnapState)
-	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(1)}
 	s.st.Unlock()
 
+	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(1)}
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
+
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
-	c.Check(string(stdout), Equals, "channel: latest/stable\n")
+	c.Check(err, IsNil)
+
+	expect, err := yaml.Marshal(map[string]string{"channel": "latest/stable"})
+	c.Check(string(stdout), Equals, string(expect))
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 }
 
 func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
+	revN := -42
 	yesterday := time.Now().Add(-24 * time.Hour)
 	myAppSnapState := snapstate.SnapState{
 		SnapType: string(snap.TypeApp),
-		Current:  snap.R(-42),
+		Current:  snap.R(revN),
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "my-app", Revision: snap.R(-42)},
+			{RealName: "my-app", Revision: snap.R(revN)},
 		}),
-		TrackingChannel: "",
+		TrackingChannel: "-",
 		Flags:           snapstate.Flags{},
 		InstanceKey:     "my-app",
 		LastRefreshTime: &yesterday,
@@ -547,13 +553,19 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 
 	s.st.Lock()
 	snapstate.Set(s.st, "my-app", &myAppSnapState)
-	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(1)}
+	
 	s.st.Unlock()
 
+	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(revN)}
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
+
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
-	c.Check(string(stdout), Equals, "channel: -\n")
+	c.Check(err, IsNil)
+
+	expect, err := yaml.Marshal(map[string]string{"channel": "-"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, string(expect))
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 }
@@ -566,7 +578,7 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000)
-	c.Assert(err, ErrorMatches, `non-root user only supports --tracking`)
+	c.Assert(err, ErrorMatches, `non-root users can only use --tracking with the refresh command`)
 }
 
 func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
