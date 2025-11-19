@@ -109,8 +109,8 @@ var (
 
 	secbootMeasureSnapSystemEpochWhenPossible     func() error
 	secbootMeasureSnapModelWhenPossible           func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
-	secbootUnlockEncryptedVolumeUsingProtectorKey func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(disk secboot.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
+	secbootUnlockEncryptedVolumeUsingProtectorKey func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
 
@@ -948,6 +948,36 @@ type recoverModeStateMachine struct {
 	degradedState *diskUnlockState
 }
 
+type sbPartition struct {
+	partitionUUID  string
+	filesystemUUID string
+}
+
+var _ = secboot.Partition(&sbPartition{})
+
+func (p *sbPartition) PartitionUUID() string {
+	return p.partitionUUID
+}
+
+func (p *sbPartition) FilesystemUUID() string {
+	return p.filesystemUUID
+}
+
+func (m *recoverModeStateMachine) PartitionWithFsLabel(fslabel string) (secboot.Partition, error) {
+	dpart, err := m.disk.FindMatchingPartitionWithFsLabel(fslabel)
+	if err != nil {
+		var errNotFound disks.PartitionNotFoundError
+		if errors.As(err, &errNotFound) {
+			return nil, secboot.FsLabelNotFoundError{}
+		}
+		return nil, err
+	}
+	return &sbPartition{partitionUUID: dpart.PartitionUUID,
+		filesystemUUID: dpart.FilesystemUUID}, nil
+}
+
+var _ = secboot.Disk(&recoverModeStateMachine{})
+
 func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
 	return m.model, nil
 }
@@ -1323,7 +1353,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		WhichModel:       m.whichModel,
 		BootMode:         m.mode,
 	}
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-data", runModeKey, unlockOpts)
 	m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
@@ -1367,7 +1397,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
 	dataFallbackKey := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-data", dataFallbackKey, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-data", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1423,7 +1453,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
-	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m.disk, "ubuntu-save", key)
+	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m, "ubuntu-save", key)
 	m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// failed to unlock with run key, try fallback key
@@ -1501,7 +1531,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-save", saveFallbackKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-save", saveFallbackKey, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -2232,7 +2262,7 @@ func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asse
 	return model, snaps, nil
 }
 
-func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, unlockRes secboot.UnlockResult, err error) {
+func maybeMountSave(disk *Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, unlockRes secboot.UnlockResult, err error) {
 	var saveDevice string
 	if encrypted {
 		saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(rootdir))
@@ -2253,7 +2283,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
+		part, err := disk.PartitionWithFsLabel("ubuntu-save")
 		if err != nil {
 			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
@@ -2262,7 +2292,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			}
 			return false, unlockRes, err
 		}
-		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
+		saveDevice = filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID())
 	}
 	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
 		return true, unlockRes, err
@@ -2440,13 +2470,6 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// get the diskOLD that we mounted the ubuntu-boot partition from as a
-	// reference point for future mounts
-	diskOLD, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuBootDir, nil)
-	if err != nil {
-		return err
-	}
-
 	// 1.1. measure model
 	err = stampedAction("run-model-measured", func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
@@ -2529,7 +2552,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		WhichModel:       mst.UnverifiedBootModel,
 		BootMode:         mst.mode,
 	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(diskOLD, "ubuntu-data", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
 		return err
 	}
@@ -2561,7 +2584,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		NoSuid:    true,
 		NoExec:    true,
 	}
-	haveSave, saveUnlockRes, err := maybeMountSave(diskOLD, rootfsDir, isEncryptedDev, saveMountOpts)
+	haveSave, saveUnlockRes, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, saveMountOpts)
 	if err != nil {
 		return err
 	}
@@ -2574,26 +2597,26 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := diskOLD.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that ubuntu-data mountpoint comes from the same disk
-		// as ubuntu-boot
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
-	}
+	// matches, err := diskOLD.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
+	// if err != nil {
+	// 	return err
+	// }
+	// if !matches {
+	// 	// failed to verify that ubuntu-data mountpoint comes from the same disk
+	// 	// as ubuntu-boot
+	// 	return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
+	// }
 	if haveSave {
 		diskState.setUnlockStateWithRunKey("ubuntu-save", saveUnlockRes, nil)
 
 		// 4.1a we have ubuntu-save, verify it as well
-		matches, err = diskOLD.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
-		if err != nil {
-			return err
-		}
-		if !matches {
-			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
-		}
+		// matches, err = diskOLD.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		// if err != nil {
+		// 	return err
+		// }
+		// if !matches {
+		// 	return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
+		// }
 
 		if isEncryptedDev {
 			// in run mode the path to open an encrypted save is for

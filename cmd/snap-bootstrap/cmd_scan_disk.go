@@ -71,7 +71,9 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/secboot"
 )
 
 func init() {
@@ -110,12 +112,34 @@ type Partition struct {
 	Filesystem
 }
 
+var _ = secboot.Partition(&Partition{})
+
+func (p *Partition) PartitionUUID() string {
+	return p.UUID
+}
+
+func (p *Partition) FilesystemUUID() string {
+	return p.Filesystem.FilesystemUUID
+}
+
 // Disk contains information about a disk detected in the system.
 type Disk struct {
 	// Path in /dev
 	Node string
 	// Partition information read from disk
 	Parts []Partition
+}
+
+var _ = secboot.Disk(&Disk{})
+
+func (d *Disk) PartitionWithFsLabel(label string) (secboot.Partition, error) {
+	for _, p := range d.Parts {
+		if p.FilesystemLabel == label {
+			return &p, nil
+		}
+	}
+
+	return nil, secboot.FsLabelNotFoundError{SearchLabel: label}
 }
 
 func isGpt(probe blkid.AbstractBlkidProbe) bool {
@@ -151,6 +175,28 @@ func probeFilesystemInfo(node string, start, size int64) (*Filesystem, error) {
 		return nil, err
 	}
 	return &Filesystem{FilesystemLabel: label, FilesystemUUID: fsUUID}, nil
+}
+
+func probeDiskFromMountpoint(mountpoint string) (*Disk, error) {
+	// first get the mount entry for the mountpoint
+	mounts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+	// loop over the mount entries in reverse order to prevent shadowing of a
+	// particular mount on top of another one
+	node := ""
+	for i := len(mounts) - 1; i >= 0; i-- {
+		if mounts[i].MountDir == mountpoint {
+			node = mounts[i].MountSource
+			break
+		}
+	}
+	if node == "" {
+		return nil, fmt.Errorf("no disk mounted in %s", mountpoint)
+	}
+
+	return probeDisk(node)
 }
 
 func probeDisk(node string) (*Disk, error) {

@@ -861,7 +861,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	c.Assert(err, IsNil)
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
@@ -881,7 +881,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	saveActivated := false
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not activated yet"))
 		saveActivated = true
 		c.Assert(name, Equals, "ubuntu-save")
@@ -1008,7 +1008,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	c.Assert(err, IsNil)
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
@@ -1028,7 +1028,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	saveActivated := false
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not activated yet"))
 		saveActivated = true
 		c.Assert(name, Equals, "ubuntu-save")
@@ -1140,7 +1140,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1150,7 +1150,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 
 	// the test does not mock ubuntu-save.key, the secboot helper for
 	// opening a volume using the key should not be called
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Fatal("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
@@ -1220,7 +1220,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	defer restore()
 
 	dataActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		dataActivated = true
 		// return true because we are using an encrypted device
@@ -1229,7 +1229,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	defer restore()
 
 	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "foo", "")
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not yet activated"))
 		return foundEncrypted("ubuntu-save"), fmt.Errorf("ubuntu-save unlock fail")
 	})
