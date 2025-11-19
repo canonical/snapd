@@ -189,6 +189,12 @@ const (
 	// ErrorKindKeyslotNotFound: keyslots cannot be found.
 	ErrorKindKeyslotsNotFound ErrorKind = "keyslots-not-found"
 
+	// ErrorKindKeyslotsAlreadyExists: keyslots already exist.
+	ErrorKindKeyslotsAlreadyExists ErrorKind = "keyslots-already-exist"
+
+	// ErrorKindInsufficientContainerCapacity: not enough free key slots on container.
+	ErrorKindInsufficientContainerCapacity ErrorKind = "insufficient-container-capacity"
+
 	// ErrorKindInvalidRecoveryKey: recovery key itself or its ID is invalid.
 	ErrorKindInvalidRecoveryKey ErrorKind = "invalid-recovery-key"
 )
