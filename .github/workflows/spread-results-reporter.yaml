@@ -63,7 +63,7 @@ jobs:
             } while (response.data.artifacts.length === per_page);
 
             let matchingArtifacts = allArtifacts.filter((artifact) => {
-              return artifact.name.startsWith(`spread-json-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
+              return artifact.name.startsWith(`spread-results-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
             });
 
             for (let artifact of matchingArtifacts) {
@@ -80,7 +80,7 @@ jobs:
  
       - name: Unzip spread json files
         run: |
-          find . -name "spread-json-${{ github.event.workflow_run.id }}*.zip" | while read filename; do 
+          find . -name "spread-results-${{ github.event.workflow_run.id }}*.zip" | while read filename; do 
             dir="${filename%.zip}"
             mkdir "$dir"
             unzip "$filename" -d "$dir"
@@ -100,7 +100,7 @@ jobs:
           echo "The following results are from: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
 
           # There are no logged spread failures
-          if ! ls spread-json-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
+          if ! ls spread-results-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
               echo '## No spread failures reported'
 
           else
