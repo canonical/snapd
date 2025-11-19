@@ -107,7 +107,7 @@ func (c *refreshCommand) nonRootExecute(context *hookstate.Context) error {
 	case c.Tracking:
 		return c.printTrackingInfo(context)
 	default:
-		return fmt.Errorf("non-root user only supports --tracking")
+		return ForbiddenCommandError{Message: "non-root users can only use --tracking with the refresh command"}
 	}
 }
 
@@ -162,7 +162,7 @@ func (c *refreshCommand) Execute(args []string) error {
 		return c.hold()
 	case c.PrintInhibitLock:
 		return c.printInhibitLockHint()
-	case c.Tracking && !c.Pending:
+	case c.Tracking:
 		return c.printTrackingInfo(context)
 	}
 
@@ -266,16 +266,16 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 
 	st := context.State()
 	var snapst snapstate.SnapState
-
 	err := snapstate.Get(st, context.InstanceName(), &snapst)
 	if err != nil {
 		return fmt.Errorf("internal error: %v", err)
 	}
 
-	if snapst.TrackingChannel == "" {
-		c.print("channel: -\n")
+	res, err := yaml.Marshal(map[string]string{"channel": snapst.TrackingChannel})
+	if err == nil {
+		c.print(string(res))
 	} else {
-		c.printf("channel: %s\n", snapst.TrackingChannel)
+		return fmt.Errorf("internal error: could not marshal tracking info: %v", err)
 	}
 
 	return nil
