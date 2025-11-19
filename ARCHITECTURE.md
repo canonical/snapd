@@ -10,7 +10,7 @@ For robustness, snapd ensures that all operations either succeed or revert their
 
 All the binaries, and their entry points, are defined under the [`cmd`](https://github.com/canonical/snapd/tree/master/cmd) package. It contains [`cmd/snap`](https://github.com/canonical/snapd/tree/master/cmd/snap) for the `snap` command and daemon client, and both `snap-confine` and `snap-exec` to handle the execution pipeline for snaps, alongside the `snap run` subcommand.
 
-## **Entry points and the execution pipeline**
+## Entry points and the execution pipeline
 
 Entry points for launching software in a snap are mainly either:
 
@@ -23,7 +23,7 @@ In both cases,execution starts within the `snap run` command provided with the a
 
 When run, `snap-confine` uses *capabilities (in the kernel sense)* to perform the set-up operations. It then relinquishes them before proceeding, as per the command line, to run exec `snap-exec. snap-exec` is responsible for the final setup within the sandbox before running exec with the actual snap target binary.
 
-## **Overlord and state managers**
+## Overlord and state managers
 
 *See also the overlord package [README](https://github.com/canonical/snapd/blob/master/overlord/README.md).*
 
@@ -78,7 +78,7 @@ At the other end of the import/export scale, [`devicestate`](https://github.com/
 
 Many managers cache their instance with [`overlord/state.State.Cache`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#State.Cache), using a private unique key so that is accessible from their top-level functions with signatures like `mgrstate.Func(st *state.State…)`.
 
-## **Asking snapd to do something**
+## Asking snapd to do something
 
 snapd provides a HTTP API over the `/run/snapd.socket` unix socket. This is how most of `snap's` own command operations are requested.
 
@@ -86,7 +86,7 @@ The API is implemented by the [`daemon`](https://github.com/canonical/snapd/tree
 
 Snap can make requests to snapd via the `snapctl` command, which internally uses the `/v2/snapctl` endpoint over the `/run/snap-snapd.socket` unix socket. The command itself does very little other than forward parameters to the endpoint and directing output and exit codes back from its response. The implementation logic for the various `snapctl` subcommands lives in [`hookstate/ctlcmd`](https://github.com/canonical/snapd/tree/master/overlord/hookstate/ctlcmd).
 
-## **Devices and boot support**
+## Devices and boot support
 
 On Ubuntu Core devices, where kernel and boot assets are provided by snaps, snapd is responsible for configuring the boot process and then for the full lifecycle of the device. On other devices, snapd is responsible for the parts of the device lifecycle and device identity as related to snaps.
 
