@@ -219,6 +219,10 @@ purge() {
 
     echo "Final directory cleanup"
     for snap_mount_dir in /snap /var/lib/snapd/snap; do
+        if [ -L "$snap_mount_dir" ]; then
+            continue
+        fi
+
         if [ -d "$snap_mount_dir" ]; then
             rm -rf "$snap_mount_dir"
         fi
