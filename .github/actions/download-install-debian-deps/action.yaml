@@ -25,6 +25,7 @@ runs:
     shell: bash
     run: |
         sudo apt update
+        ln -s packaging/ubuntu-16.04 debian
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
         sudo apt install -y clang
         sudo apt install -y gcovr lcov
