@@ -18,7 +18,7 @@ execute: |
     echo "Verify snapctl refresh --tracking"
 
     snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
-    echo $snapd_release | gojq --yaml-input -r .channel | MATCH "null"
+    echo $snapd_release | gojq --yaml-input -r .channel | MATCH "-"
 
     snap switch test-snapd-sh-core24 --channel latest/stable
     snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
