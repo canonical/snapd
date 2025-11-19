@@ -164,7 +164,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureRSA(c *C) {
 	c.Assert(err, IsNil)
 
 	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA256)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "signature invalid: .*")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
@@ -191,15 +191,15 @@ func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
 
 	// invalid asn1 marshalling
 	err = h.VerifyNonceSignature(nonce, nil, crypto.SHA3_384)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "asn1: .*")
 
 	// invalid remaining bytes
 	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "signature invalid: trailing bytes")
 
 	// invalid signature
 	err = h.VerifyNonceSignature(append(nonce, 1), signature, crypto.SHA3_384)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "signature invalid")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
@@ -220,7 +220,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
 	c.Assert(err, IsNil)
 
 	err = h.VerifyNonceSignature(nonce, append(signature, 1), crypto.SHA3_384)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "signature invalid")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) {
@@ -245,7 +245,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) 
 
 	// Verify with different hash algorithm (SHA2-512) - should fail
 	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA512)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*verification error")
 
 	// Sign with SHA2-512 and verify with SHA2-512 - should pass
 	hash512 := crypto.SHA512.New()
@@ -259,7 +259,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) 
 	c.Assert(err, IsNil)
 }
 
-func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHash(c *C) {
+func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHashOrAlgorithm(c *C) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	c.Assert(err, IsNil)
 
@@ -268,7 +268,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHash(c *C) {
 
 	const UNSUPPORTED_HASH = crypto.Hash(0) // Invalid hash value
 	err = h.VerifyNonceSignature(nil, nil, UNSUPPORTED_HASH)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "unsupported hash type: .*")
 
 	var params dsa.Parameters
 	err = dsa.GenerateParameters(&params, rand.Reader, dsa.L1024N160)
@@ -283,7 +283,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureUnsupportedHash(c *C) {
 	c.Assert(err, IsNil)
 
 	err = h.VerifyNonceSignature(nil, nil, crypto.SHA256)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "unsupported algorithm type: .*")
 }
 
 func buildHardwareIdentityAssertion(hardwareKey crypto.PublicKey) (*asserts.HardwareIdentity, error) {

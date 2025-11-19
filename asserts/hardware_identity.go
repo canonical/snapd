@@ -145,7 +145,6 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	bb.Write(data)
 	bb.WriteString("\n-----END PUBLIC KEY-----\n")
 
-	// the PEM block can never be nil as we added begin and end lines
 	block, _ := pem.Decode(bb.Bytes())
 	if block == nil {
 		return nil, errors.New("no PEM block was found")
@@ -186,7 +185,11 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 }
 
 func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, hashAlg crypto.Hash) error {
-	return rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature)
+	if err := rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature); err != nil {
+		return fmt.Errorf("signature invalid: %v", err)
+	}
+
+	return nil
 }
 
 func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicKey) error {
