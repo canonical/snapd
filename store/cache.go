@@ -22,9 +22,11 @@ package store
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"syscall"
 	"time"
 
@@ -36,6 +38,8 @@ import (
 // overridden in the unit tests
 var osRemove = os.Remove
 
+var ErrCleanupBusy = errors.New("cannot perform cache cleanup: cache is busy")
+
 // downloadCache is the interface that a store download cache must provide
 type downloadCache interface {
 	// Get retrieves the given cacheKey content and puts it into targetPath. Returns
@@ -45,6 +49,10 @@ type downloadCache interface {
 	Put(cacheKey, sourcePath string) error
 	// Get full path of the file in cache
 	GetPath(cacheKey string) string
+	// Best effort cleanup of outstanding cache items. Returns ErrCleanupBusy
+	// when the cache is in use and cleanup should be retried at some later
+	// time.
+	Cleanup() error
 }
 
 // nullCache is cache that does not cache
@@ -58,6 +66,8 @@ func (cm *nullCache) GetPath(cacheKey string) string {
 }
 func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
+func (cm *nullCache) Cleanup() error { return nil }
+
 // changesByMtime sorts by the mtime of files
 type changesByMtime []os.FileInfo
 
@@ -67,8 +77,12 @@ func (s changesByMtime) Less(i, j int) bool { return s[i].ModTime().Before(s[j].
 
 // cacheManager implements a downloadCache via content based hard linking
 type CacheManager struct {
-	cacheDir string
-	maxItems int
+	// cleanupLock is used as a 'cleanup' synchronization point, where operations
+	// for putting, getting files from the cache take a read cleanupLock, while the
+	// actual cleanup operation takes the cleanupLock for writing
+	cleanupLock sync.RWMutex
+	cacheDir    string
+	maxItems    int
 }
 
 // NewCacheManager returns a new CacheManager with the given cacheDir
@@ -92,18 +106,26 @@ func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 	}
 }
 
-// GetPath returns the full path of the given content in the cache
-// or empty string
+// GetPath returns the full path of the given content in the cache or empty
+// string. The path may be removed at any time. The caller needs to ensure that
+// they properly handle ErrNotExist when using returned path.
 func (cm *CacheManager) GetPath(cacheKey string) string {
+	cm.cleanupLock.RLock()
+	defer cm.cleanupLock.RUnlock()
+
 	if _, err := os.Stat(cm.path(cacheKey)); os.IsNotExist(err) {
 		return ""
 	}
+
 	return cm.path(cacheKey)
 }
 
 // Get retrieves the given cacheKey content and puts it into targetPath. Returns
 // true if a cached file was moved to targetPath or if one was already there.
 func (cm *CacheManager) Get(cacheKey, targetPath string) bool {
+	cm.cleanupLock.RLock()
+	defer cm.cleanupLock.RUnlock()
+
 	if err := os.Link(cm.path(cacheKey), targetPath); err != nil && !errors.Is(err, os.ErrExist) {
 		return false
 	}
@@ -126,22 +148,22 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 		return nil
 	}
 
-	err := os.Link(sourcePath, cm.path(cacheKey))
-	if os.IsExist(err) {
-		now := time.Now()
-		err := os.Chtimes(cm.path(cacheKey), now, now)
-		// this can happen if a cleanup happens in parallel, ie.
-		// the file was there but cleanup() removed it between
-		// the os.Link/os.Chtimes - no biggie, just link it again
-		if os.IsNotExist(err) {
-			return os.Link(sourcePath, cm.path(cacheKey))
+	err := func() error {
+		cm.cleanupLock.RLock()
+		defer cm.cleanupLock.RUnlock()
+
+		err := os.Link(sourcePath, cm.path(cacheKey))
+		if errors.Is(err, fs.ErrExist) {
+			now := time.Now()
+			return os.Chtimes(cm.path(cacheKey), now, now)
 		}
 		return err
-	}
+	}()
 	if err != nil {
 		return err
 	}
-	return cm.cleanup()
+
+	return cm.opportunisticCleanup()
 }
 
 // count returns the number of items in the cache
@@ -159,8 +181,24 @@ func (cm *CacheManager) path(cacheKey string) string {
 	return filepath.Join(cm.cacheDir, cacheKey)
 }
 
-// cleanup ensures that only maxItems are stored in the cache
+// invokes cleanup(), but ignores ErrCleanupBusy errors.
+func (cm *CacheManager) opportunisticCleanup() error {
+	if err := cm.cleanup(); err != ErrCleanupBusy {
+		return err
+	}
+	return nil
+}
+
+// cleanup ensures that only maxItems are stored in the cache. May return
+// ErrCleanupBusy if the cleanup lock cannot be taken in which case the cleanup
+// is skipped.
 func (cm *CacheManager) cleanup() error {
+	// try to obtain exclusive lock on the cache
+	if !cm.cleanupLock.TryLock() {
+		return ErrCleanupBusy
+	}
+	defer cm.cleanupLock.Unlock()
+
 	entries, err := os.ReadDir(cm.cacheDir)
 	if err != nil {
 		return err
@@ -288,4 +326,8 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 	sort.Sort(changesByMtime(stats.PruneCandidates))
 
 	return &stats, nil
+}
+
+func (cm *CacheManager) Cleanup() error {
+	return cm.cleanup()
 }
