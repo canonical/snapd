@@ -106,6 +106,20 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
 	}
 
+	notifyPrompt := noticeBackends.promptBackend.addNotice
+
+	notifyRules := func(rules []*requestrules.Rule, data map[string]string) error {
+		infos := make([]addNoticesInfo, 0, len(rules))
+		for _, rule := range rules {
+			infos = append(infos, addNoticesInfo{
+				UserID: rule.User,
+				ID:     rule.ID,
+				Data:   data,
+			})
+		}
+		return noticeBackends.ruleBackend.addNotices(infos)
+	}
+
 	listenerBackend, err := listenerRegister()
 	if err != nil {
 		return nil, fmt.Errorf("cannot register prompting listener: %w", err)
@@ -116,7 +130,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(noticeBackends.promptBackend.addNotice)
+	promptsBackend, err := requestprompts.New(notifyPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -126,7 +140,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(noticeBackends.ruleBackend.addNotice)
+	rulesBackend, err := requestrules.New(notifyRules)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}

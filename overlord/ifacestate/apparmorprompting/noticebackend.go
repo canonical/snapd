@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -175,6 +176,60 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 	return ntb, nil
 }
 
+// addNoticesInfo holds the information required to record one notice.
+type addNoticesInfo struct {
+	UserID uint32
+	ID     prompting.IDType
+	Data   map[string]string
+}
+
+// addNotices records an occurrence of a notice for each given notice info.
+// The notice key equals the info's prompt/rule ID, and the notice ID and type
+// are derived from the receiver.
+func (ntb *noticeTypeBackend) addNotices(infos []addNoticesInfo) error {
+	logger.Debugf("called addNotices() with %d notice infos", len(infos))
+	ntb.rwmu.Lock()
+	defer ntb.rwmu.Unlock()
+
+	// XXX: because each rollback function holds a pointer to the notice slice
+	// prior to its relevant change, and the change produces a copy, there will
+	// be a N copies of all the non-expired notices until this function returns.
+	rollbackStack := make([]func(), 0, len(infos))
+
+	// Even if an error occurs, try to continue with the rest of the notices,
+	// so we don't miss notices which should otherwise be recorded successfully.
+	var errs []error
+	for _, info := range infos {
+		rollback, err := ntb.doAddNotice(info.UserID, info.ID, info.Data)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			rollbackStack = append(rollbackStack, rollback)
+		}
+	}
+
+	if err := ntb.save(); err != nil {
+		for i := len(rollbackStack) - 1; i >= 0; i-- {
+			rollbackStack[i]()
+		}
+		logger.Debugf("error when saving prompting %s notice backend: %v", ntb.noticeType, err)
+		return fmt.Errorf("cannot add notices to prompting %s backend: %w", ntb.noticeType, err)
+	}
+
+	ntb.cond.Broadcast()
+
+	if len(errs) > 0 {
+		// TODO:GOVERSION: replace with errors.Join() once we're on golang v1.20+
+		joinedErrors := strutil.JoinErrors(errs...)
+		logger.Debugf("error(s) when adding %d notices to prompting %s notice backend: %v", len(infos), ntb.noticeType, joinedErrors)
+		return joinedErrors
+	}
+
+	logger.Debugf("successfully added %d notices to prompting %s notice backend", len(infos), ntb.noticeType)
+
+	return nil
+}
+
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
@@ -182,13 +237,40 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	logger.Debugf("called addNotice(%d, %s, %v)", userID, id, data)
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
+
+	rollback, err := ntb.doAddNotice(userID, id, data)
+	if err != nil {
+		return err
+	}
+
+	if err := ntb.save(); err != nil {
+		rollback()
+		logger.Debugf("error when saving prompting %s notice backend: %v", ntb.noticeType, err)
+		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
+	}
+
+	ntb.cond.Broadcast()
+
+	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, id.String())
+	logger.Debugf("successfully added notice with ID %s", noticeID)
+
+	return nil
+}
+
+// doAddNotice is an internal helper function which adds a notice with the
+// given ID, key, and data for the given user. Returns a rollback function to
+// revert the ntb state in case this needs to be rolled back in the future.
+//
+// The caller must hold the backend
+// lock and is responsible for saving the backend state to disk.
+func (ntb *noticeTypeBackend) doAddNotice(userID uint32, id prompting.IDType, data map[string]string) (rollback func(), err error) {
 	key := id.String()
 	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
 
 	userNotices, existingNotice, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
 		logger.Debugf("error when searching for existing notice with userID %d, noticeID %s: %v", userID, noticeID, err)
-		return err
+		return func() {}, err
 	}
 
 	// Now that errors can't occur (other than save error), get a new unique
@@ -222,27 +304,26 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	ntb.userNotices[userID] = newUserNotices
 	ntb.idToNotice[noticeID] = newNotice
 
-	if err := ntb.save(); err != nil {
+	expiredNotices := userNotices[:expiredCount]
+	for _, expiredNotice := range expiredNotices {
+		delete(ntb.idToNotice, expiredNotice.ID())
+	}
+
+	rollback = func() {
 		ntb.userNotices[userID] = userNotices
 		if existingNotice != nil {
 			ntb.idToNotice[noticeID] = existingNotice
 		} else {
 			delete(ntb.idToNotice, noticeID)
 		}
-		logger.Debugf("error when saving prompting %s notice backend: %v", ntb.noticeType, err)
-		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
+		// Re-add expired notices to map after potentially deleting the new
+		// noticeID, in case an expired notice with that ID did exist.
+		for _, expiredNotice := range expiredNotices {
+			ntb.idToNotice[expiredNotice.ID()] = expiredNotice
+		}
 	}
 
-	// Now that we've successfully saved, delete the expired notices
-	for _, expiredNotice := range userNotices[:expiredCount] {
-		delete(ntb.idToNotice, expiredNotice.ID())
-	}
-
-	ntb.cond.Broadcast()
-
-	logger.Debugf("successfully added notice with ID %s", noticeID)
-
-	return nil
+	return rollback, nil
 }
 
 // searchExistingNotices looks up the list of existing notices for the given

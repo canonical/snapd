@@ -21,8 +21,10 @@ package apparmorprompting_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -429,6 +431,223 @@ func (s *noticebackendSuite) TestAddNoticeSaveFailureRollback(c *C) {
 		c.Check(promptBackend.BackendNotice("prompt-0000000000000001"), NotNil, Commentf("could not find expired notice with ID 1 after adding notice with ID %s", id))
 		c.Check(promptBackend.BackendNotice("prompt-0000000000000002"), NotNil, Commentf("could not find expired notice with ID 2 after adding notice with ID %s", id))
 	}
+}
+
+func (s *noticebackendSuite) TestAddNotices(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	// Add 10 notices, alternating between user 0 and 1
+	infos := make([]apparmorprompting.AddNoticesInfo, 0, 10)
+	for i := uint32(1); i <= 10; i++ {
+		infos = append(infos, apparmorprompting.AddNoticesInfo{
+			UserID: i % 2,
+			ID:     prompting.IDType(i),
+			Data:   map[string]string{"foo": fmt.Sprintf("%d", i)},
+		})
+	}
+	c.Check(ruleBackend.AddNotices(infos), IsNil)
+	origNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(origNotices, HasLen, 10)
+	// Expire the first two notices by re-recording them in the past
+	for _, notice := range origNotices[:2] {
+		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
+	}
+
+	beforeNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(beforeNotices, HasLen, 8)
+	for i := 0; i < 8; i++ {
+		c.Check(beforeNotices[i].Key(), Equals, prompting.IDType(i+3).String())
+		c.Check(beforeNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", i+3))
+	}
+	// Check that one of the users has 4 of the notices
+	userID := uint32(1)
+	c.Assert(ruleBackend.BackendNotices(&state.NoticeFilter{UserID: &userID}), HasLen, 4)
+
+	// Add notices:
+	// - ID 1, user 1, which is expired
+	// - ID 4, user 0, which is the first non-expired notice for that user
+	// - ID 5, user 1, which is from the middle
+	// - ID 11, user 1, which is new
+	// - ID 8, user 0, which is from the middle
+	// - ID 4, user 0, which is from the middle now
+	// - ID 4, user 0, which is from the end now
+	// - ID 2, user 0, which previously existed long ago but was discarded
+	// - ID 3, user 1, which is the first non-expired notice for that user
+	infos = make([]apparmorprompting.AddNoticesInfo, 0, 9)
+	for _, id := range []uint32{1, 4, 5, 11, 8, 4, 4, 2, 3} {
+		infos = append(infos, apparmorprompting.AddNoticesInfo{
+			UserID: id % 2,
+			ID:     prompting.IDType(id),
+			Data:   nil,
+		})
+	}
+	c.Check(ruleBackend.AddNotices(infos), IsNil)
+
+	// Check that the new notices were added
+	afterNotices := ruleBackend.BackendNotices(nil)
+	c.Check(afterNotices, HasLen, 11, Commentf("after adding notices, afterNotices: %+v", afterNotices))
+	for i, id := range []uint32{6, 7, 9, 10, 1, 5, 11, 8, 4, 2, 3} {
+		c.Check(afterNotices[i].Key(), Equals, prompting.IDType(id).String())
+		userID, isSet := afterNotices[i].UserID()
+		c.Check(userID, Equals, id%2)
+		c.Check(isSet, Equals, true)
+		switch id {
+		case 6, 7, 9, 10:
+			// Original notices which were not re-recorded should still have data set
+			c.Check(afterNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", id))
+		default:
+			c.Check(afterNotices[i].LastData(), HasLen, 0)
+		}
+	}
+}
+
+func (s *noticebackendSuite) TestAddNoticesErrors(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	// Add 6 notices, alternating between user 0 and 1
+	infos := make([]apparmorprompting.AddNoticesInfo, 0, 6)
+	for i := uint32(1); i <= 6; i++ {
+		infos = append(infos, apparmorprompting.AddNoticesInfo{
+			UserID: i % 2,
+			ID:     prompting.IDType(i),
+			Data:   map[string]string{"foo": fmt.Sprintf("%d", i)},
+		})
+	}
+	c.Check(ruleBackend.AddNotices(infos), IsNil)
+	origNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(origNotices, HasLen, 6)
+	// Expire the first two notices by re-recording them in the past
+	for _, notice := range origNotices[:2] {
+		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
+	}
+
+	beforeNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(beforeNotices, HasLen, 4)
+	for i := 0; i < 4; i++ {
+		c.Check(beforeNotices[i].Key(), Equals, prompting.IDType(i+3).String())
+		c.Check(beforeNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", i+3))
+	}
+
+	// Add notices:
+	// - ID 1, user 0, which conflicts with existing notice
+	// - ID 7, user 1, which is a new notice
+	// - ID 4, user 1, which conflicts with existing notice
+	// - ID 4, user 0, which re-records original notice
+	// - ID 3, user 0, which conflicts with existing notice
+	infos = []apparmorprompting.AddNoticesInfo{
+		{UserID: 0, ID: prompting.IDType(1)},
+		{UserID: 1, ID: prompting.IDType(7)},
+		{UserID: 1, ID: prompting.IDType(4)},
+		{UserID: 0, ID: prompting.IDType(4)},
+		{UserID: 0, ID: prompting.IDType(3)},
+	}
+	result := ruleBackend.AddNotices(infos)
+	c.Check(result, NotNil)
+	onelined := strings.ReplaceAll(result.Error(), "\n", "; ")
+	c.Check(onelined, Matches, ".*cannot add rule notice with ID rule-0000000000000001 for user 0:.*")
+	c.Check(onelined, Not(Matches), ".*cannot add rule notice with ID rule-0000000000000007.*")
+	c.Check(onelined, Matches, ".*cannot add rule notice with ID rule-0000000000000004 for user 1:.*")
+	c.Check(onelined, Not(Matches), ".*cannot add rule notice with ID rule-0000000000000004 for user 0:.*")
+	c.Check(onelined, Matches, ".*cannot add rule notice with ID rule-0000000000000003 for user 0:.*")
+
+	// Check that the new notices which did not result in error were added
+	afterNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(afterNotices, HasLen, 5, Commentf("after adding notices, afterNotices: %+v", afterNotices))
+	for i, id := range []uint32{3, 5, 6, 7, 4} {
+		c.Check(afterNotices[i].Key(), Equals, prompting.IDType(id).String())
+		userID, isSet := afterNotices[i].UserID()
+		c.Check(userID, Equals, id%2)
+		c.Check(isSet, Equals, true)
+		switch id {
+		case 3, 5, 6:
+			// Original notices which were not re-recorded should still have data set
+			c.Check(afterNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", id))
+		default:
+			c.Check(afterNotices[i].LastData(), HasLen, 0)
+		}
+	}
+}
+
+func (s *noticebackendSuite) TestAddNoticesSaveFailureRollback(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	// Add 10 notices, alternating between user 0 and 1, so we can test that
+	// re-recorded and new notices are rolled back/deleted when save fails.
+	infos := make([]apparmorprompting.AddNoticesInfo, 0, 10)
+	for i := uint32(1); i <= 10; i++ {
+		infos = append(infos, apparmorprompting.AddNoticesInfo{
+			UserID: i % 2,
+			ID:     prompting.IDType(i),
+			Data:   map[string]string{"foo": fmt.Sprintf("%d", i)},
+		})
+	}
+	c.Check(ruleBackend.AddNotices(infos), IsNil)
+	origNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(origNotices, HasLen, 10)
+	// Expire the first two notices by re-recording them in the past
+	for _, notice := range origNotices[:2] {
+		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
+	}
+
+	beforeNotices := ruleBackend.BackendNotices(nil)
+	c.Assert(beforeNotices, HasLen, 8)
+	for i := 0; i < 8; i++ {
+		c.Check(beforeNotices[i].Key(), Equals, prompting.IDType(i+3).String())
+		c.Check(beforeNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", i+3))
+	}
+	// Check that one of the users has 4 of the notices
+	userID := uint32(1)
+	c.Assert(ruleBackend.BackendNotices(&state.NoticeFilter{UserID: &userID}), HasLen, 4)
+
+	// Check that the expired notices are still in the ID map.
+	// Technically, this check relies on internal implementation details
+	// which are not required to remain true.
+	c.Assert(ruleBackend.BackendNotice("rule-0000000000000001"), NotNil)
+	c.Assert(ruleBackend.BackendNotice("rule-0000000000000002"), NotNil)
+
+	// Cause a save error by writing a directory in place of the notices state file
+	path := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "rule-notices.json")
+	c.Assert(os.Remove(path), IsNil)
+	c.Assert(os.Mkdir(path, 0o700), IsNil)
+
+	// Add notices:
+	// - ID 1, user 1, which is expired
+	// - ID 4, user 0, which is the first non-expired notice for that user
+	// - ID 5, user 1, which is from the middle
+	// - ID 11, user 1, which is new
+	// - ID 8, user 0, which is from the middle
+	// - ID 4, user 0, which is from the middle now
+	// - ID 4, user 0, which is from the end now
+	// - ID 2, user 0, which previously existed long ago but was discarded
+	// - ID 3, user 1, which is the first non-expired notice for that user
+	infos = make([]apparmorprompting.AddNoticesInfo, 0, 9)
+	for _, id := range []uint32{1, 4, 5, 11, 8, 4, 4, 2, 3} {
+		infos = append(infos, apparmorprompting.AddNoticesInfo{
+			UserID: id % 2,
+			ID:     prompting.IDType(id),
+			Data:   nil,
+		})
+	}
+	result := ruleBackend.AddNotices(infos)
+	c.Check(result, ErrorMatches, "cannot add notices to prompting interfaces-requests-rule-update backend.*")
+
+	// Check that the new notices were not added
+	afterNotices := ruleBackend.BackendNotices(nil)
+	c.Check(afterNotices, HasLen, 8, Commentf("after adding notices, afterNotices: %+v", afterNotices))
+	for i := 0; i < 8; i++ {
+		c.Check(afterNotices[i].Key(), Equals, prompting.IDType(i+3).String())
+		c.Check(afterNotices[i].LastData()["foo"], Equals, fmt.Sprintf("%d", i+3))
+	}
+
+	// Check that the expired notices are still in the ID map.
+	c.Check(ruleBackend.BackendNotice("rule-0000000000000001"), NotNil, Commentf("could not find expired notice with ID 1 after adding notices"))
+	c.Check(ruleBackend.BackendNotice("rule-0000000000000002"), NotNil, Commentf("could not find expired notice with ID 2 after adding notices"))
 }
 
 func (s *noticebackendSuite) TestLoad(c *C) {
