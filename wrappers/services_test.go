@@ -152,7 +152,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 
 [Install]
@@ -219,7 +219,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 
 [Install]
@@ -265,7 +265,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -367,7 +367,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -465,7 +465,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -557,7 +557,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -671,7 +671,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -788,7 +788,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -931,7 +931,7 @@ ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Slice=snap.%[2]s.slice
 
@@ -956,7 +956,7 @@ ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Slice=snap.%[2]s.slice
 
@@ -1123,7 +1123,7 @@ ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Slice=snap.%[2]s.slice
 
@@ -1339,7 +1339,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -1440,7 +1440,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=snap.foogroup.slice
 
@@ -1617,7 +1617,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=%[3]s
 
@@ -1736,7 +1736,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 Slice=%[3]s
 
@@ -1849,7 +1849,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 
 [Install]
@@ -1928,7 +1928,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %[3]s
 [Install]
@@ -1979,7 +1979,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %[3]s
 [Install]
@@ -2069,7 +2069,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %[3]s
 [Install]
@@ -2138,7 +2138,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %s
 [Install]
@@ -2205,7 +2205,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %s
 [Install]
@@ -2267,7 +2267,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %s
 [Install]
@@ -2349,7 +2349,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %s
 [Install]
@@ -2426,7 +2426,7 @@ Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=forking
 %[3]s
 [Install]
@@ -2648,7 +2648,7 @@ ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Delegate=true
 
@@ -2716,7 +2716,7 @@ ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
 WorkingDirectory=/var/snap/hello-snap/12
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
@@ -4384,7 +4384,7 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 
 	content, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(content), "\nWatchdogSec=12\n"), Equals, true)
+	c.Check(strings.Contains(string(content), "\nWatchdogSec=12s\n"), Equals, true)
 
 	noWatchdog := []string{
 		filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
@@ -4955,7 +4955,7 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 
 	content, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(content), "\nRestartSec=12\n"), Equals, true)
+	c.Check(strings.Contains(string(content), "\nRestartSec=12s\n"), Equals, true)
 
 	content, err = os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
