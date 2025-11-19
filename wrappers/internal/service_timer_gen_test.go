@@ -120,7 +120,7 @@ ExecStart=/usr/bin/snap run --timer="10:00-12:00,,mon,23:00~01:00/2" snap.app
 SyslogIdentifier=snap.app
 Restart=%s
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=%s
 `
 

@@ -10342,7 +10342,7 @@ ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
 WorkingDirectory=/var/snap/test-snap/42
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
@@ -10577,7 +10577,7 @@ ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
 WorkingDirectory=/var/snap/test-snap/42
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
