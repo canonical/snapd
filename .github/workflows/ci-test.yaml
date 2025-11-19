@@ -507,7 +507,7 @@ jobs:
               # if the #runonlyonesystem tag was not present in the PR description
               if [[ ( "$selected_fund" -eq "$total_fund" && "$selected_non_fund" -eq "$total_nonfund" ) || \
                  ( "$selected_fund" -eq 0 && "$selected_non_fund" -eq 0 ) ]]; then
-                echo "filtering out everything except for noble since either no systems were filtered out"
+                echo "filtering out everything except for noble since no systems were filtered out"
                 echo "If you wanted to choose different systems to run, use the #runonlyonesystem tag followed by a regex of what you wish to select"
                 echo "filtered fundamental systems are $fundamental_systems"
                 echo "filtered non-fundamental systems are $non_fundamental_systems"
