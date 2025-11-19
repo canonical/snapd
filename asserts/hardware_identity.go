@@ -188,7 +188,6 @@ func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, 
 	if err := rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature); err != nil {
 		return fmt.Errorf("signature invalid: %v", err)
 	}
-
 	return nil
 }
 
@@ -220,6 +219,5 @@ func verifySignatureWithED25519Key(hashed, signature []byte, pubKey ed25519.Publ
 	if !ed25519.Verify(pubKey, hashed, signature) {
 		return errors.New("signature invalid")
 	}
-
 	return nil
 }
