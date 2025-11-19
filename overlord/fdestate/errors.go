@@ -45,17 +45,17 @@ func (e *KeyslotRefsNotFoundError) Error() string {
 	}
 }
 
-type keyslotsAlreadyExistsError struct {
-	keyslots []Keyslot
+type KeyslotsAlreadyExistsError struct {
+	Keyslots []Keyslot
 }
 
-func (e *keyslotsAlreadyExistsError) Error() string {
-	if len(e.keyslots) == 1 {
-		return fmt.Sprintf("key slot %s already exists", e.keyslots[0].Ref().String())
+func (e *KeyslotsAlreadyExistsError) Error() string {
+	if len(e.Keyslots) == 1 {
+		return fmt.Sprintf("key slot %s already exists", e.Keyslots[0].Ref().String())
 	} else {
 		var concatRefs strings.Builder
-		concatRefs.WriteString(e.keyslots[0].Ref().String())
-		for _, ref := range e.keyslots[1:] {
+		concatRefs.WriteString(e.Keyslots[0].Ref().String())
+		for _, ref := range e.Keyslots[1:] {
 			concatRefs.WriteString(", ")
 			concatRefs.WriteString(ref.Ref().String())
 		}
@@ -95,4 +95,19 @@ func (e *InvalidRecoveryKeyError) Error() string {
 	default:
 		return "internal error: unexpected recovery key error"
 	}
+}
+
+type InsufficientContainerCapacityError struct {
+	ContainerRoles []string
+}
+
+func (e *InsufficientContainerCapacityError) Error() string {
+	switch len(e.ContainerRoles) {
+	case 0:
+		return "insufficient container capacity"
+	case 1:
+		return fmt.Sprintf("insufficient capacity on container %s", e.ContainerRoles[0])
+	}
+
+	return fmt.Sprintf("insufficient capacity on containers [%s]", strings.Join(e.ContainerRoles, ", "))
 }
