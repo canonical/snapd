@@ -164,7 +164,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureRSA(c *C) {
 	c.Assert(err, IsNil)
 
 	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA256)
-	c.Assert(err, ErrorMatches, "signature invalid: .*")
+	c.Assert(err, ErrorMatches, "invalid signature: .*")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
@@ -195,11 +195,11 @@ func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
 
 	// invalid remaining bytes
 	err = h.VerifyNonceSignature(nonce, append(signature, 0), crypto.SHA3_384)
-	c.Assert(err, ErrorMatches, "signature invalid: trailing bytes")
+	c.Assert(err, ErrorMatches, "invalid signature: trailing bytes")
 
 	// invalid signature
 	err = h.VerifyNonceSignature(append(nonce, 1), signature, crypto.SHA3_384)
-	c.Assert(err, ErrorMatches, "signature invalid")
+	c.Assert(err, ErrorMatches, "invalid signature")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
@@ -220,7 +220,7 @@ func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
 	c.Assert(err, IsNil)
 
 	err = h.VerifyNonceSignature(nonce, append(signature, 1), crypto.SHA3_384)
-	c.Assert(err, ErrorMatches, "signature invalid")
+	c.Assert(err, ErrorMatches, "invalid signature")
 }
 
 func (s *hardwareIdentitySuite) TestVerifySignatureDifferentHashAlgorithm(c *C) {

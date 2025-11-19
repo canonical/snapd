@@ -186,7 +186,7 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 
 func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, hashAlg crypto.Hash) error {
 	if err := rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature); err != nil {
-		return fmt.Errorf("signature invalid: %v", err)
+		return fmt.Errorf("invalid signature: %v", err)
 	}
 	return nil
 }
@@ -205,11 +205,11 @@ func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicK
 
 	// Ensure all bytes were consumed
 	if len(rest) > 0 {
-		return errors.New("signature invalid: trailing bytes")
+		return errors.New("invalid signature: trailing bytes")
 	}
 
 	if !ecdsa.Verify(pubKey, hashed, sig.R, sig.S) {
-		return errors.New("signature invalid")
+		return errors.New("invalid signature")
 	}
 
 	return nil
@@ -217,7 +217,7 @@ func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicK
 
 func verifySignatureWithED25519Key(hashed, signature []byte, pubKey ed25519.PublicKey) error {
 	if !ed25519.Verify(pubKey, hashed, signature) {
-		return errors.New("signature invalid")
+		return errors.New("invalid signature")
 	}
 	return nil
 }
