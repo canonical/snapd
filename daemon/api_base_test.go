@@ -267,6 +267,10 @@ func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
 	return s.connectivityResult, s.err
 }
 
+func (s *apiBaseSuite) CleanDownloadsCache() error {
+	return nil
+}
+
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
