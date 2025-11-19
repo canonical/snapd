@@ -572,6 +572,14 @@ func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
 }
 
+func SetStoreCacheCleanNext(snapmgr *SnapManager, when time.Time) {
+	snapmgr.ensureStoreCacheCleanNext = when
+}
+
+func GetStoreCacheCleanNext(snapmgr *SnapManager) time.Time {
+	return snapmgr.ensureStoreCacheCleanNext
+}
+
 func SplitEssentialUpdates(deviceCtx DeviceContext, updates []SnapUpdate) (essential, nonEssential []SnapUpdate) {
 	return splitEssentialUpdates(deviceCtx, updates)
 }

@@ -987,6 +987,10 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 	return nil, nil
 }
 
+func (f *fakeStore) CleanDownloadsCache() error {
+	return nil
+}
+
 type fakeSnappyBackend struct {
 	ops fakeOps
 	mu  sync.Mutex
