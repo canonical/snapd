@@ -624,7 +624,11 @@ func SetRootDir(rootdir string) {
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
-	SnapSaveDir = SnapSaveDirUnder(rootdir)
+	if release.OnClassic {
+		SnapSaveDir = filepath.Join(RunDir, "mnt", "ubuntu-save")
+	} else {
+		SnapSaveDir = SnapSaveDirUnder(rootdir)
+	}
 	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
 	SnapDataSaveDir = filepath.Join(SnapSaveDir, "snap")
 
