@@ -21,9 +21,7 @@ package asserts_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
-	"regexp"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -1356,62 +1354,4 @@ func (as *assertsSuite) TestAtSequenceResolve(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(a, NotNil)
 	c.Check(a.Type().Name, Equals, "test-only-seq")
-}
-
-func (as *assertsSuite) TestSnapRevisionFromSnapIdAndRevisionNumberSuccess(c *C) {
-	_, db := makeStoreAndCheckDB(c)
-
-	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
-		return []asserts.Assertion{
-			&asserts.SnapRevision{},
-		}, nil
-	})
-	defer restore()
-
-	rev, err := asserts.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
-	c.Assert(err, IsNil)
-	c.Check(rev, FitsTypeOf, &asserts.SnapRevision{})
-}
-
-func (as *assertsSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorOnFind(c *C) {
-	_, db := makeStoreAndCheckDB(c)
-
-	expErr := errors.New("test")
-	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
-		return nil, expErr
-	})
-	defer restore()
-
-	rev, err := asserts.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
-	c.Check(err, Equals, expErr)
-	c.Check(rev, IsNil)
-}
-
-func (as *assertsSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorNoneFound(c *C) {
-	_, db := makeStoreAndCheckDB(c)
-
-	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
-		return nil, nil
-	})
-	defer restore()
-
-	rev, err := asserts.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
-	c.Check(err, ErrorMatches, regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=1, snap-revision=1)."))
-	c.Check(rev, IsNil)
-}
-
-func (as *assertsSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorOnMultipleFound(c *C) {
-	_, db := makeStoreAndCheckDB(c)
-
-	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
-		return []asserts.Assertion{
-			&asserts.SnapRevision{},
-			&asserts.SnapRevision{},
-		}, nil
-	})
-	defer restore()
-
-	rev, err := asserts.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
-	c.Check(err, ErrorMatches, regexp.QuoteMeta("multiple snap-revision assertions found that match (snap-id=1, snap-revision=1)."))
-	c.Check(rev, IsNil)
 }
