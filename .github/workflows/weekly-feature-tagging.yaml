@@ -85,7 +85,7 @@ jobs:
     name: "spread ${{ matrix.group }}"
     if: needs.read-systems.outputs.fundamental-systems != ''
     with:
-      runs-on: '["self-hosted", "spread-enabled"]'
+      runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
@@ -106,7 +106,7 @@ jobs:
     if: needs.read-systems.outputs.non-fundamental-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
-      runs-on: '["self-hosted", "spread-enabled"]'
+      runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
@@ -126,7 +126,7 @@ jobs:
     if: needs.read-systems.outputs.nested-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
-      runs-on: '["self-hosted", "spread-enabled"]'
+      runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}  
