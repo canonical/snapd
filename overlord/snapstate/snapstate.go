@@ -1865,7 +1865,7 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 		return nil, err
 	}
 
-	return plan.revisionChanges(st, opts)
+	return plan.revisionChanges(opts)
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
@@ -3140,7 +3140,9 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	plan, err := storeUpdatePlan(ctx, st, allSnaps, nil, user, refreshOpts, Options{})
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, nil, user, refreshOpts, Options{
+		Flags: Flags{IsAutoRefresh: true},
+	})
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?

@@ -556,16 +556,18 @@ func storeUpdatePlanCore(
 		// track the channel that the snap is currently on
 		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
 
-		plan.targets = append(plan.targets, target{
-			info:   sar.Info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
-				CohortKey:    up.RevOpts.CohortKey,
-			},
-			components: compTargets,
-		})
+		snapsup := SnapSetup{
+			DownloadInfo: &sar.DownloadInfo,
+			Channel:      up.RevOpts.Channel,
+			CohortKey:    up.RevOpts.CohortKey,
+		}
+
+		t, err := newTargetFromInfo(st, *snapst, sar.Info, snapsup, compTargets, opts)
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		plan.targets = append(plan.targets, t)
 	}
 
 	// consider snaps that already have a local copy of the revision that we are
@@ -620,22 +622,24 @@ func storeUpdatePlanCore(
 		// switching to
 		info.Channel = up.RevOpts.Channel
 
-		plan.targets = append(plan.targets, target{
-			info:   info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				Channel:   up.RevOpts.Channel,
-				CohortKey: up.RevOpts.CohortKey,
-				SnapPath:  info.MountFile(),
+		snapsup := SnapSetup{
+			Channel:   up.RevOpts.Channel,
+			CohortKey: up.RevOpts.CohortKey,
+			SnapPath:  info.MountFile(),
 
-				// if the caller specified a revision, then we always run
-				// through the entire update process. this enables something
-				// like "snap refresh --revision=n", where revision n is already
-				// installed
-				AlwaysUpdate: !up.RevOpts.Revision.Unset(),
-			},
-			components: compsups,
-		})
+			// if the caller specified a revision, then we always run
+			// through the entire update process. this enables something
+			// like "snap refresh --revision=n", where revision n is already
+			// installed
+			AlwaysUpdate: !up.RevOpts.Revision.Unset(),
+		}
+
+		t, err := newTargetFromInfo(st, *snapst, info, snapsup, compsups, opts)
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		plan.targets = append(plan.targets, t)
 	}
 
 	for _, t := range plan.targets {

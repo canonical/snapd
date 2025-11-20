@@ -58,12 +58,12 @@ type Options struct {
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
 	Seed bool
-	// ExpectOneSnap is a boolean flag indicating that this operation is expected
-	// to only operate on one snap (excluding any prerequisite snaps that may be
-	// required). If this is true, then the operation will fail if more than one
-	// snap is being operated on. This flag primarily exists to support the
-	// pre-existing behavior of calling InstallMany with one snap vs calling
-	// Install.
+	// ExpectOneSnap is a boolean flag indicating that this operation is
+	// expected to only operate on one snap (excluding any prerequisite snaps
+	// that may be required). If this is true, then the operation will fail if
+	// more than one snap is being operated on. This flag primarily exists to
+	// support the pre-existing behavior of calling InstallMany with one snap vs
+	// calling Install.
 	ExpectOneSnap bool
 }
 
@@ -84,7 +84,8 @@ type target struct {
 	// setup is a partially initialized SnapSetup that contains the data needed
 	// to find the snap file that will be installed.
 	setup SnapSetup
-	// info contains the snap.info for the snap to be installed.
+	// info contains the snap.info for the snap to be installed. This is kept
+	// for now but should no longer be required by target.setups.
 	info *snap.Info
 	// snapst is the current state of the target snap, prior to installation.
 	// This must be retrieved prior to unlocking the state for any reason (for
@@ -96,14 +97,8 @@ type target struct {
 
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
 // for the target snap.
-func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSetup, error) {
-	snapUserID, err := userIDForSnap(st, &t.snapst, opts.UserID)
-	if err != nil {
-		return SnapSetup{}, nil, err
-	}
-
+func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup, error) {
 	compsups := make([]ComponentSetup, 0, len(t.components))
-	compSideInfos := make([]snap.ComponentSideInfo, 0, len(t.components))
 	for _, comp := range t.components {
 		compsups = append(compsups, ComponentSetup{
 			CompSideInfo: comp.CompSideInfo,
@@ -118,63 +113,77 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 				MultiComponentInstall: true,
 			},
 		})
-		compSideInfos = append(compSideInfos, *comp.CompSideInfo)
 	}
 
-	flags, err := earlyChecks(st, &t.snapst, t.info, compSideInfos, opts.Flags)
+	return t.setup, compsups, nil
+}
+
+func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snapsup SnapSetup, comps []ComponentSetup, opts Options) (target, error) {
+	snapUserID, err := userIDForSnap(st, &snapst, opts.UserID)
 	if err != nil {
-		return SnapSetup{}, nil, err
+		return target{}, err
+	}
+
+	compSideInfos := make([]snap.ComponentSideInfo, 0, len(comps))
+	for _, comp := range comps {
+		if comp.CompSideInfo != nil {
+			compSideInfos = append(compSideInfos, *comp.CompSideInfo)
+		}
+	}
+
+	flags, err := earlyChecks(st, &snapst, info, compSideInfos, opts.Flags)
+	if err != nil {
+		return target{}, err
 	}
 
 	// to match the behavior of the original Update and UpdateMany, we only
 	// allow updating ignoring validation sets if we are working with
 	// exactly one snap
 	if !opts.ExpectOneSnap {
-		flags.IgnoreValidation = t.snapst.IgnoreValidation
+		flags.IgnoreValidation = snapst.IgnoreValidation
 	}
 
 	var confdbSchemaIDs []ConfdbSchemaID
-	for _, plug := range t.info.Plugs {
+	for _, plug := range info.Plugs {
 		if plug.Interface != "confdb" {
 			continue
 		}
 
 		account, confdb, _, err := snap.ConfdbPlugAttrs(plug)
 		if err != nil {
-			return SnapSetup{}, nil, err
+			return target{}, err
 		}
 
 		confdbSchemaIDs = append(confdbSchemaIDs, ConfdbSchemaID{Account: account, Name: confdb})
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
+	providerContentAttrs := defaultProviderContentAttrs(st, info, opts.PrereqTracker)
 
-	return SnapSetup{
-		Channel:      t.setup.Channel,
-		CohortKey:    t.setup.CohortKey,
-		DownloadInfo: t.setup.DownloadInfo,
-		SnapPath:     t.setup.SnapPath,
-		AlwaysUpdate: t.setup.AlwaysUpdate,
+	snapsup.Base = info.Base
+	snapsup.Prereq = keys(providerContentAttrs)
+	snapsup.PrereqContentAttrs = providerContentAttrs
+	snapsup.UserID = snapUserID
+	snapsup.Flags = flags.ForSnapSetup()
+	snapsup.SideInfo = &info.SideInfo
+	snapsup.Type = info.Type()
+	snapsup.Version = info.Version
+	snapsup.PlugsOnly = len(info.Slots) == 0
+	snapsup.InstanceKey = info.InstanceKey
+	snapsup.ExpectedProvenance = info.SnapProvenance
+	snapsup.PluggedConfdbIDs = confdbSchemaIDs
+	snapsup.AuxStoreInfo = backend.AuxStoreInfo{
+		Media:    info.Media,
+		StoreURL: info.StoreURL,
+		// XXX we store this for the benefit of old snapd
+		Website: info.Website(),
+	}
 
-		Base:               t.info.Base,
-		Prereq:             keys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		UserID:             snapUserID,
-		Flags:              flags.ForSnapSetup(),
-		SideInfo:           &t.info.SideInfo,
-		Type:               t.info.Type(),
-		Version:            t.info.Version,
-		PlugsOnly:          len(t.info.Slots) == 0,
-		InstanceKey:        t.info.InstanceKey,
-		ExpectedProvenance: t.info.SnapProvenance,
-		PluggedConfdbIDs:   confdbSchemaIDs,
-		AuxStoreInfo: backend.AuxStoreInfo{
-			Media:    t.info.Media,
-			StoreURL: t.info.StoreURL,
-			// XXX we store this for the benefit of old snapd
-			Website: t.info.Website(),
-		},
-	}, compsups, nil
+	return target{
+		setup:      snapsup,
+		info:       info,
+		snapst:     snapst,
+		components: comps,
+	}, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -301,16 +310,18 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
-		installs = append(installs, target{
-			setup: SnapSetup{
-				DownloadInfo: &r.DownloadInfo,
-				Channel:      channel,
-				CohortKey:    sn.RevOpts.CohortKey,
-			},
-			info:       r.Info,
-			snapst:     *snapst,
-			components: comps,
-		})
+		snapsup := SnapSetup{
+			DownloadInfo: &r.DownloadInfo,
+			Channel:      channel,
+			CohortKey:    sn.RevOpts.CohortKey,
+		}
+
+		t, err := newTargetFromInfo(st, *snapst, r.Info, snapsup, comps, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		installs = append(installs, t)
 	}
 
 	for _, t := range installs {
@@ -741,7 +752,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 		opts.PrereqTracker.Add(t.info)
 
-		snapsup, compsups, err := t.setups(st, opts)
+		snapsup, compsups, err := t.setups(opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -831,7 +842,7 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 		return nil, err
 	}
 
-	t, err := targetForPathSnap(p.snap, snapst, opts)
+	t, err := targetForPathSnap(st, p.snap, snapst, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -899,12 +910,12 @@ func (p *updatePlan) targetInfos() []*snap.Info {
 
 // updates returns the updates that should be applied to the system's state for
 // this plan.
-func (p *updatePlan) updates(st *state.State, opts Options) ([]update, error) {
+func (p *updatePlan) updates(opts Options) ([]update, error) {
 	updates := make([]update, 0, len(p.targets))
 	for _, t := range p.targets {
 		opts.PrereqTracker.Add(t.info)
 
-		snapsup, compsups, err := t.setups(st, opts)
+		snapsup, compsups, err := t.setups(opts)
 		if err != nil {
 			if !p.refreshAll() {
 				return nil, err
@@ -925,8 +936,8 @@ func (p *updatePlan) updates(st *state.State, opts Options) ([]update, error) {
 
 // revisionChanges returns the snaps that will have their revisions changed by
 // the updates in this plan.
-func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Info, error) {
-	updates, err := p.updates(st, opts)
+func (p *updatePlan) revisionChanges(opts Options) ([]*snap.Info, error) {
+	updates, err := p.updates(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1164,7 +1175,7 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	// it is sad that we have to split up updatePlan like this, but doUpdate is
 	// used in places where we don't have a snap.Info, so we cannot pass an
 	// updatePlan to doUpdate
-	updates, err := plan.updates(st, opts)
+	updates, err := plan.updates(opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1390,7 +1401,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 			return updatePlan{}, err
 		}
 
-		t, err := targetForPathSnap(sn, snapst, opts)
+		t, err := targetForPathSnap(st, sn, snapst, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -1410,7 +1421,7 @@ func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) erro
 	return nil
 }
 
-func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
+func targetForPathSnap(st *state.State, update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
 
 	if si.RealName == "" {
@@ -1462,14 +1473,11 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		return target{}, err
 	}
 
-	return target{
-		setup: SnapSetup{
-			SnapPath:  update.Path,
-			Channel:   update.RevOpts.Channel,
-			CohortKey: update.RevOpts.CohortKey,
-		},
-		info:       info,
-		snapst:     snapst,
-		components: comps,
-	}, nil
+	snapsup := SnapSetup{
+		SnapPath:  update.Path,
+		Channel:   update.RevOpts.Channel,
+		CohortKey: update.RevOpts.CohortKey,
+	}
+
+	return newTargetFromInfo(st, snapst, info, snapsup, comps, opts)
 }

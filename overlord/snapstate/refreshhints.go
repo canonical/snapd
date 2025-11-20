@@ -90,8 +90,11 @@ func (r *refreshHints) refresh() error {
 
 	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		plan, err = storeUpdatePlan(auth.EnsureContextTODO(),
-			r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
+		plan, err = storeUpdatePlan(auth.EnsureContextTODO(), r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{
+			Flags: Flags{
+				IsAutoRefresh: true,
+			},
+		})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -199,7 +202,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 
 		flags := snapst.Flags
 		flags.IsAutoRefresh = true
-		snapsup, compsups, err := t.setups(st, Options{
+		snapsup, compsups, err := t.setups(Options{
 			DeviceCtx: deviceCtx,
 			Flags:     flags,
 		})
