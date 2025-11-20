@@ -793,8 +793,8 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
 		}
 
-		if opts.Flags.RequireTypeBase && t.info.Type() != snap.TypeBase && t.info.Type() != snap.TypeOS {
-			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", t.info.Type())
+		if opts.Flags.RequireTypeBase && t.Type() != snap.TypeBase && t.Type() != snap.TypeOS {
+			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", t.Type())
 		}
 
 		opts.PrereqTracker.Add(t.info)
@@ -968,7 +968,7 @@ func (p *updatePlan) updates(opts Options) ([]update, error) {
 				return nil, err
 			}
 
-			logger.Noticef("cannot refresh snap %q: %v", t.info.InstanceName(), err)
+			logger.Noticef("cannot refresh snap %q: %v", t.InstanceName(), err)
 			continue
 		}
 
@@ -991,7 +991,7 @@ func (p *updatePlan) revisionChanges(opts Options) ([]*snap.Info, error) {
 
 	targetByName := make(map[string]target, len(p.targets))
 	for _, t := range p.targets {
-		targetByName[t.info.InstanceName()] = t
+		targetByName[t.InstanceName()] = t
 	}
 
 	changes := make([]*snap.Info, 0, len(updates))
@@ -1054,7 +1054,7 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := heldSnaps[t.info.InstanceName()]
+		_, ok := heldSnaps[t.InstanceName()]
 		return !ok, nil
 	})
 
@@ -1072,7 +1072,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 	ignoreValidation := make(map[string]bool, len(p.targets))
 	for _, t := range p.targets {
 		if t.snapst.IgnoreValidation {
-			ignoreValidation[t.info.InstanceName()] = true
+			ignoreValidation[t.InstanceName()] = true
 		}
 	}
 
@@ -1092,7 +1092,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := validatedMap[t.info.InstanceName()]
+		_, ok := validatedMap[t.InstanceName()]
 		return ok, nil
 	})
 

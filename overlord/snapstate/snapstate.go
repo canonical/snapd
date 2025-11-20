@@ -3169,7 +3169,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	// check conflicts
 	fromChange := ""
 	for _, t := range plan.targets {
-		name := t.info.InstanceName()
+		name := t.InstanceName()
 		if _, ok := hints[name]; !ok {
 			// filtered out by refreshHintsFromCandidates
 			continue

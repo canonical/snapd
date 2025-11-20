@@ -172,7 +172,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 		ignoreValidation := make(map[string]bool, len(plan.targets))
 		for _, t := range plan.targets {
 			if t.setup.IgnoreValidation {
-				ignoreValidation[t.info.InstanceName()] = true
+				ignoreValidation[t.InstanceName()] = true
 			}
 		}
 
@@ -188,15 +188,14 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 
 	hints := make(map[string]*refreshCandidate, len(plan.targets))
 	for _, t := range plan.targets {
-		info := t.info
 		var snapst SnapState
-		if err := Get(st, info.InstanceName(), &snapst); err != nil {
+		if err := Get(st, t.InstanceName(), &snapst); err != nil {
 			return nil, err
 		}
 
 		// we don't need to handle potential channel switches here, since those
 		// shouldn't happen during a auto-refresh
-		if snapst.IsInstalled() && !info.Revision.Unset() && snapst.Current == info.Revision {
+		if snapst.IsInstalled() && !t.setup.Revision().Unset() && snapst.Current == t.setup.Revision() {
 			continue
 		}
 
@@ -207,14 +206,14 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 			Flags:     flags,
 		})
 		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", info.InstanceName(), err)
+			logger.Debugf("update hint for %q is not applicable: %v", t.InstanceName(), err)
 			continue
 		}
 
-		hints[info.InstanceName()] = &refreshCandidate{
+		hints[t.InstanceName()] = &refreshCandidate{
 			SnapSetup:  snapsup,
 			Components: compsups,
-			Monitored:  IsSnapMonitored(st, info.InstanceName()),
+			Monitored:  IsSnapMonitored(st, t.InstanceName()),
 		}
 	}
 	return hints, nil

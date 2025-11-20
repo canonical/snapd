@@ -382,7 +382,7 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 		}
 		hasUpdate := false
 		for _, update := range plan.targets {
-			if update.info.InstanceName() == name {
+			if update.InstanceName() == name {
 				hasUpdate = true
 				break
 			}
