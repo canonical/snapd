@@ -68,12 +68,12 @@ func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
 func (cm *nullCache) Cleanup() error { return nil }
 
-// changesByMtime sorts by the mtime of files
-type changesByMtime []os.FileInfo
+// entriesByMtime sorts by the mtime of files
+type entriesByMtime []os.FileInfo
 
-func (s changesByMtime) Len() int           { return len(s) }
-func (s changesByMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s changesByMtime) Less(i, j int) bool { return s[i].ModTime().Before(s[j].ModTime()) }
+func (s entriesByMtime) Len() int           { return len(s) }
+func (s entriesByMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s entriesByMtime) Less(i, j int) bool { return s[i].ModTime().Before(s[j].ModTime()) }
 
 // cacheManager implements a downloadCache via content based hard linking
 type CacheManager struct {
@@ -82,7 +82,7 @@ type CacheManager struct {
 	// actual cleanup operation takes the lock for writing
 	lock     sync.RWMutex
 	cacheDir string
-	maxItems int
+	cp       CachePolicy
 }
 
 // NewCacheManager returns a new CacheManager with the given cacheDir
@@ -102,7 +102,21 @@ type CacheManager struct {
 func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 	return &CacheManager{
 		cacheDir: cacheDir,
-		maxItems: maxItems,
+		cp: CachePolicy{
+			// at most this many unreferenced items
+			MaxItems: maxItems,
+			// unreferenced items older than 30 days are removed
+			MaxAge: 30 * 24 * time.Hour,
+			// try to keep cache < 1GB
+			MaxSizeBytes: 1 * 1024 * 1024 * 1024,
+		},
+	}
+}
+
+func NewCacheManagerWithPolicy(cacheDir string, policy CachePolicy) *CacheManager {
+	return &CacheManager{
+		cacheDir: cacheDir,
+		cp:       policy,
 	}
 }
 
@@ -211,69 +225,38 @@ func (cm *CacheManager) opportunisticCleanup() error {
 		return err
 	}
 
-	if len(entries) <= cm.maxItems {
-		return nil
+	toRemove, err := cm.cp.Apply(entries, time.Now())
+	if err != nil {
+		logger.Noticef("cannot apply downloads cache policy: %v", err)
 	}
 
-	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only from the cache and thus be a candidate for pruning
-	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
-	pruneCandidatesSize := int64(0)
-
-	for _, entry := range entries {
-		fi, err := entry.Info()
-		if err != nil {
-			return err
-		}
-
-		n, err := hardLinkCount(fi)
-		if err != nil {
-			logger.Noticef("cannot inspect cache: %s", err)
-		}
-		// If the file is referenced in the filesystem somewhere else our copy
-		// is "free" so skip it.
-		if n <= 1 {
-			pruneCandidates = append(pruneCandidates, fi)
-			pruneCandidatesSize += fi.Size()
-		}
-	}
-
-	if len(pruneCandidates) > 0 {
-		logger.Debugf("store cache cleanup candidates %v total %v", len(pruneCandidates),
-			quantity.FormatAmount(uint64(pruneCandidatesSize), -1))
-		for _, c := range pruneCandidates {
-			logger.Debugf("%s, size: %v, mod %s", c.Name(), quantity.FormatAmount(uint64(c.Size()), -1), c.ModTime())
-		}
-	}
-
-	if len(pruneCandidates) <= cm.maxItems {
-		// nothing to prune
+	if len(toRemove) == 0 {
 		return nil
 	}
 
 	var lastErr error
-	sort.Sort(changesByMtime(pruneCandidates))
-	numOwned := len(pruneCandidates)
-	deleted := 0
-	for _, fi := range pruneCandidates {
+	var removedSize uint64
+	var removedCount uint
+	for _, fi := range toRemove {
 		path := cm.path(fi.Name())
+		sz := fi.Size()
 		logger.Debugf("removing %v", path)
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
 				// If there is any error we cleanup the file (it is just a cache
 				// after all).
-				logger.Noticef("cannot cleanup cache: %s", err)
+				logger.Noticef("cannot remove cache entry: %s", err)
 				lastErr = err
 			}
-			continue
-		}
-		deleted++
-		remaining := numOwned - deleted
-		if remaining <= cm.maxItems {
-			logger.Debugf("cache size satisfied, remaining items: %v", remaining)
-			break
+		} else {
+			removedCount++
+			removedSize += uint64(sz)
 		}
 	}
+
+	logger.Noticef("removed %v entries/%s from downloads cache",
+		removedCount, quantity.FormatAmount(removedSize, -1))
+
 	return lastErr
 }
 
@@ -285,14 +268,20 @@ func hardLinkCount(fi os.FileInfo) (uint64, error) {
 	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", fi.Name())
 }
 
+type CacheEntry struct {
+	Info os.FileInfo
+	// Candidate is true if the entry is a candidate for removal
+	Candidate bool
+	// Remove is true when entry would be removed according to the cache policy
+	Remove bool
+}
+
 // StoreCacheStats contains some statistics about the store cache.
 type StoreCacheStats struct {
-	// TotalEntries is a count of all entries in the cache.
-	TotalEntries int
 	// TotalSize is a sum of sizes of all entries in the cache.
 	TotalSize uint64
-	// PruneCandidates is a list of files which are candidates for removal.
-	PruneCandidates []os.FileInfo
+	// Entries in the cache
+	Entries []CacheEntry
 }
 
 // Status returns statistics about the store cache.
@@ -302,13 +291,17 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 		return nil, err
 	}
 
-	stats := StoreCacheStats{
-		TotalEntries: len(entries),
+	toRemove, err := cm.cp.Apply(entries, time.Now())
+	if err != nil {
+		return nil, err
 	}
 
-	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only from the cache and thus be a candidate for pruning
-	stats.PruneCandidates = make([]os.FileInfo, 0, len(entries)/5)
+	removeByName := make(map[string]bool, len(toRemove))
+	for _, en := range toRemove {
+		removeByName[en.Name()] = true
+	}
+
+	stats := StoreCacheStats{}
 
 	for _, entry := range entries {
 		fi, err := entry.Info()
@@ -316,25 +309,92 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 			return nil, err
 		}
 
-		n, err := hardLinkCount(fi)
-		if err != nil {
-			return nil, err
-		}
-
-		// If the file is referenced in the filesystem somewhere else our copy
-		// is "free" so skip it.
-		if n <= 1 {
-			stats.PruneCandidates = append(stats.PruneCandidates, fi)
-		}
-
 		stats.TotalSize += uint64(fi.Size())
-	}
 
-	sort.Sort(changesByMtime(stats.PruneCandidates))
+		stats.Entries = append(stats.Entries, CacheEntry{
+			Info:      fi,
+			Candidate: cm.cp.isCandidate(fi),
+			Remove:    removeByName[fi.Name()],
+		})
+	}
 
 	return &stats, nil
 }
 
 func (cm *CacheManager) Cleanup() error {
 	return cm.cleanup()
+}
+
+type CachePolicy struct {
+	MaxItems     int
+	MaxSizeBytes uint64
+	MaxAge       time.Duration
+}
+
+func (cp *CachePolicy) isCandidate(fi os.FileInfo) bool {
+	n, err := hardLinkCount(fi)
+	if err != nil {
+		logger.Noticef("cannot inspect cache: %s", err)
+	}
+
+	// If the file is referenced in the filesystem somewhere else our copy
+	// is "free" so skip it.
+	return n <= 1
+}
+
+func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time) (remove []os.FileInfo, err error) {
+	// most of the entries will have more than one hardlink, but a minority may
+	// be referenced only from the cache and thus be a candidate for pruning
+	candidates := make([]os.FileInfo, 0, len(entries)/5)
+	candidatesSize := uint64(0)
+
+	for _, entry := range entries {
+		fi, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+
+		if cp.isCandidate(fi) {
+			candidates = append(candidates, fi)
+			candidatesSize += uint64(fi.Size())
+		}
+	}
+
+	sort.Sort(entriesByMtime(candidates))
+
+	if len(candidates) > 0 {
+		logger.Debugf("store cache cleanup candidates %v total %v", len(remove),
+			quantity.FormatAmount(uint64(candidatesSize), -1))
+		for _, c := range candidates {
+			logger.Debugf("%s, size: %v, mod %s", c.Name(), quantity.FormatAmount(uint64(c.Size()), -1), c.ModTime())
+		}
+	}
+
+	removeCount := 0
+	removeSize := uint64(0)
+	for _, c := range candidates {
+		doRemove := false
+		if c.ModTime().Add(cp.MaxAge).Before(now) {
+			doRemove = true
+		}
+
+		if !doRemove && len(candidates)-removeCount > cp.MaxItems {
+			doRemove = true
+		}
+
+		if !doRemove && candidatesSize-removeSize > cp.MaxSizeBytes {
+			doRemove = true
+		}
+
+		logger.Debugf("entry %v remove %v", c.Name(), doRemove)
+		if doRemove {
+			remove = append(remove, c)
+			removeCount++
+			removeSize += uint64(c.Size())
+		}
+	}
+
+	logger.Debugf("cache candidates to remove %v/%s", removeCount, quantity.FormatAmount(removeSize, -1))
+
+	return remove, nil
 }
