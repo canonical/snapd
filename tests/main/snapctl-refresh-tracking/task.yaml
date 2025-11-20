@@ -2,7 +2,7 @@ summary: Check that `snapctl refresh` works with the tracking flag
 
 environment:
     USER/root: root
-    USER/test-user: test-user
+    USER/test-user: user0
 
 details: |
     Verifies the `snapctl` command can be used in a privileged context
