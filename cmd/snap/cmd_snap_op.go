@@ -29,6 +29,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -128,6 +130,17 @@ The disable command disables a snap. The binaries and services of the
 snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
+
+type SnapChannel struct {
+	Channel string `yaml:"channel"`
+}
+
+// SnapConfig represents the top-level structure.
+// The "snaps" field is a map where the key is the
+// snap name (like "lxd") and the value is its channel info.
+type SnapConfig struct {
+	Snaps map[string]SnapChannel `yaml:"snaps"`
+}
 
 type cmdRemove struct {
 	waitMixin
@@ -981,6 +994,7 @@ type cmdRefresh struct {
 	Time             bool                   `long:"time"`
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Tracking         bool                   `long:"tracking"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
 	Unhold           bool                   `long:"unhold"`
@@ -1166,6 +1180,13 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
 		x.Transaction != client.TransactionPerSnap
 
+	// Ensure --tracking is mutually exclusive
+	if x.Tracking && (x.Hold != "" || x.Unhold || otherFlags) {
+		return errors.New(i18n.G("cannot use --tracking with other flags"))
+	} else if x.Tracking {
+		return x.TrackRefreshes()
+	}
+
 	if x.Hold != "" && (x.Unhold || otherFlags) {
 		return errors.New(i18n.G("cannot use --hold with other flags"))
 	} else if x.Unhold && (x.Hold != "" || otherFlags) {
@@ -1207,6 +1228,43 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) TrackRefreshes() (err error) {
+	names := installedSnapNames(x.Positional.Snaps)
+
+	snaps, err := x.client.List(names, nil)
+	if err != nil {
+		return err
+	}
+
+	// This sort is no longer strictly necessary because the YAML library
+	// will sort the map keys by default, but it doesn't hurt.
+	sort.Sort(snapsByName(snaps))
+
+	// 1. Create the Go struct to hold all the snap data
+	config := SnapConfig{
+		Snaps: make(map[string]SnapChannel),
+	}
+
+	// 2. Populate the map instead of printing
+	for _, snap := range snaps {
+		config.Snaps[snap.Name] = SnapChannel{
+			Channel: snap.TrackingChannel,
+		}
+	}
+
+	// 3. Marshal the entire struct into YAML
+	yamlData, err := yaml.Marshal(&config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal snap tracking info: %w", err)
+	}
+
+	// 4. Print the final YAML output to Stdout
+	//    (Fprintln adds a newline at the end)
+	fmt.Fprintln(Stdout, string(yamlData))
+
+	return nil
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
@@ -1600,6 +1658,8 @@ func init() {
 			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"tracking": i18n.G("Show channel tracking information for provided snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
