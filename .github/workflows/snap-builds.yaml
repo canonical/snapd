@@ -98,7 +98,7 @@ jobs:
 
     - name: Uploading snapd snap artifact
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ steps.set_artifact_name.outputs.artifact_name }}
         path: "*.snap"
