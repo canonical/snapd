@@ -107,7 +107,7 @@ func (c *refreshCommand) nonRootExecute(context *hookstate.Context) error {
 	case c.Tracking:
 		return c.printTrackingInfo(context)
 	default:
-		return ForbiddenCommandError{Message: "non-root users can only use --tracking with the refresh command"}
+		return &ForbiddenCommandError{Message: "non-root users can only use --tracking with the refresh command"}
 	}
 }
 
