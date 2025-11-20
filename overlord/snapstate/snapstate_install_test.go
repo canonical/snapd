@@ -4379,7 +4379,7 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, nil, 0, nil)
 	c.Assert(err, NotNil)
-	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+	c.Check(err, testutil.ErrorIs, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
 
 	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")

@@ -95,6 +95,33 @@ type target struct {
 	components []ComponentSetup
 }
 
+// ErrTargetNotApplicable marks targets that cannot be set up (e.g. wrong arch,
+// epoch, missing features) and can be skipped during auto-refresh.
+var ErrTargetNotApplicable = errors.New("target not applicable")
+
+type targetNotApplicableError struct {
+	err error
+}
+
+func (e targetNotApplicableError) Error() string {
+	return e.err.Error()
+}
+
+func (e targetNotApplicableError) Unwrap() error {
+	return e.err
+}
+
+func (e targetNotApplicableError) Is(target error) bool {
+	if target == ErrTargetNotApplicable {
+		return true
+	}
+	return errors.Is(e.err, target)
+}
+
+func markTargetNotApplicable(err error) error {
+	return targetNotApplicableError{err: err}
+}
+
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
 // for the target snap.
 func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup, error) {
@@ -133,7 +160,7 @@ func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snaps
 
 	flags, err := earlyChecks(st, &snapst, info, compSideInfos, opts.Flags)
 	if err != nil {
-		return target{}, err
+		return target{}, markTargetNotApplicable(err)
 	}
 
 	// to match the behavior of the original Update and UpdateMany, we only

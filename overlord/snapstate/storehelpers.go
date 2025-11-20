@@ -564,6 +564,10 @@ func storeUpdatePlanCore(
 
 		t, err := newTargetFromInfo(st, *snapst, sar.Info, snapsup, compTargets, opts)
 		if err != nil {
+			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
+				logger.Noticef("cannot refresh snap %q: %v", sar.Info.InstanceName(), err)
+				continue
+			}
 			return updatePlan{}, err
 		}
 
@@ -636,6 +640,10 @@ func storeUpdatePlanCore(
 
 		t, err := newTargetFromInfo(st, *snapst, info, snapsup, compsups, opts)
 		if err != nil {
+			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
+				logger.Noticef("cannot refresh snap %q: %v", info.InstanceName(), err)
+				continue
+			}
 			return updatePlan{}, err
 		}
 
