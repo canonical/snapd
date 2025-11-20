@@ -578,7 +578,7 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000)
-	c.Assert(err, ErrorMatches, `non-root users can only use --tracking with the refresh command`)
+	c.Assert(err, DeepEquals, &ctlcmd.ForbiddenCommandError{Message: `non-root users can only use --tracking with the refresh command`})
 }
 
 func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
