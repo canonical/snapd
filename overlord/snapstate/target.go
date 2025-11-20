@@ -93,6 +93,8 @@ type target struct {
 	snapst SnapState
 	// components is a list of components to install with this snap.
 	components []ComponentSetup
+	// size is the expected download size of the snap.
+	size int64
 }
 
 // ErrTargetNotApplicable marks targets that cannot be set up (e.g. wrong arch,
@@ -143,6 +145,35 @@ func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup, error) {
 	}
 
 	return t.setup, compsups, nil
+}
+
+// minimalInstallInfo implementation for disk space/prereq checks.
+func (t *target) InstanceName() string {
+	return t.setup.InstanceName()
+}
+
+func (t *target) Type() snap.Type {
+	return t.setup.Type
+}
+
+func (t *target) SnapBase() string {
+	return t.setup.Base
+}
+
+func (t *target) DownloadSize() int64 {
+	return t.size
+}
+
+func (t *target) Prereq(_ *state.State, _ PrereqTracker) []string {
+	return t.setup.Prereq
+}
+
+func checkTargetsDiskSpace(st *state.State, kind string, targets []target, userID int, prqt PrereqTracker) error {
+	installInfos := make([]minimalInstallInfo, 0, len(targets))
+	for i := range targets {
+		installInfos = append(installInfos, &targets[i])
+	}
+	return checkDiskSpace(st, kind, installInfos, userID, prqt)
 }
 
 func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snapsup SnapSetup, comps []ComponentSetup, opts Options) (target, error) {
@@ -210,6 +241,7 @@ func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snaps
 		info:       info,
 		snapst:     snapst,
 		components: comps,
+		size:       info.DownloadInfo.Size,
 	}, nil
 }
 
@@ -757,12 +789,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 	sortComponentsOnTargets(targets)
 
-	installInfos := make([]minimalInstallInfo, 0, len(targets))
-	for _, t := range targets {
-		installInfos = append(installInfos, installSnapInfo{t.info})
-	}
-
-	if err = checkDiskSpace(st, "install", installInfos, opts.UserID, opts.PrereqTracker); err != nil {
+	if err = checkTargetsDiskSpace(st, "install", targets, opts.UserID, opts.PrereqTracker); err != nil {
 		return nil, nil, err
 	}
 
@@ -1168,10 +1195,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 	}
 
 	changeKind := "refresh"
-	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
 	for _, t := range plan.targets {
-		installInfos = append(installInfos, installSnapInfo{t.info})
-
 		// if any of the snaps are not installed, then we should use the
 		// "install" change as the kind
 		if !t.snapst.IsInstalled() {
@@ -1179,7 +1203,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		}
 	}
 
-	if err := checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker); err != nil {
+	if err := checkTargetsDiskSpace(st, changeKind, plan.targets, opts.UserID, opts.PrereqTracker); err != nil {
 		return nil, nil, err
 	}
 
