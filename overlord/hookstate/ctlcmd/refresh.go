@@ -271,7 +271,14 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 		return fmt.Errorf("internal error: %v", err)
 	}
 
-	res, err := yaml.Marshal(map[string]string{"channel": snapst.TrackingChannel})
+	var res []byte
+	
+	if snapst.TrackingChannel != "" {
+		res, err = yaml.Marshal(map[string]string{"channel": snapst.TrackingChannel})
+	} else {
+		res, err = yaml.Marshal(map[string]*string{"channel": nil})
+	}
+	
 	if err == nil {
 		c.print(string(res))
 	} else {
