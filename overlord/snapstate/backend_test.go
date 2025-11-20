@@ -317,6 +317,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	case "prompting-client":
 		snapID = "aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj"
+	case "snap-store":
+		snapID = "gjf3IPXoRiipCu9K0kVu52f0H56fIksg"
 	}
 
 	if spec.Name == "snap-unknown" {

@@ -3968,6 +3968,30 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapdDesktopIntegration(c *C) {
 	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
+func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapStore(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "22.04"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", false)
+	tr.Commit()
+
+	// Installing snap-store is possible even when
+	// user-daemons is disabled.
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "snap-store", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// However, it will still fail on systems that do not support
+	// the user-daemons feature at all.
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	_, err = snapstate.Install(context.Background(), s.state, "snap-store", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+}
+
 func (s *snapmgrTestSuite) TestInstallUserDaemonsPromptingClient(c *C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "22.04"})
 	defer restore()
