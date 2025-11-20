@@ -257,8 +257,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 				// Not specifying the container-role field implicitly means
 				// targeting all system containers i.e. system-data and
 				// system-save.
-				for _, containerRole := range fdestate.SystemContainerRoles() {
-					expandedRef := fdestate.KeyslotRef{ContainerRole: containerRole, Name: ref.Name}
+				expandedRefs := fdestate.ExpandSystemContainerRoles(ref.Name)
+				for _, expandedRef := range expandedRefs {
 					if exists[expandedRef.String()] {
 						return BadRequest("invalid keyslots: duplicate keyslot found %s", expandedRef.String())
 					}
