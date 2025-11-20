@@ -571,6 +571,10 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
+		if err := checkSnapAgainstValidationSets(sar.Info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+			return updatePlan{}, err
+		}
+
 		plan.targets = append(plan.targets, t)
 	}
 
@@ -647,18 +651,11 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		plan.targets = append(plan.targets, t)
-	}
-
-	for _, t := range plan.targets {
-		up, ok := updates[t.info.InstanceName()]
-		if !ok {
-			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
-		}
-
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
+
+		plan.targets = append(plan.targets, t)
 	}
 
 	return plan, nil

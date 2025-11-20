@@ -380,18 +380,11 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, err
 		}
 
-		installs = append(installs, t)
-	}
-
-	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName())
-		if !ok {
-			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
-		}
-
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(r.Info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
 			return nil, err
 		}
+
+		installs = append(installs, t)
 	}
 
 	return installs, err
