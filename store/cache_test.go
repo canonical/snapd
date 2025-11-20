@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -46,7 +47,9 @@ func (s *cacheSuite) SetUpTest(c *C) {
 	s.tmp = c.MkDir()
 
 	s.maxItems = 5
-	s.cm = store.NewCacheManager(c.MkDir(), s.maxItems)
+	s.cm = store.NewCacheManager(c.MkDir(), store.CachePolicy{
+		MaxItems: s.maxItems,
+	})
 	// validity
 	c.Check(s.cm.Count(), Equals, 0)
 }
@@ -178,13 +181,12 @@ func (s *cacheSuite) TestStats(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(int(stats.TotalSize), Equals, 24)
-	c.Check(stats.TotalEntries, Equals, s.maxItems+12)
-	c.Check(len(stats.PruneCandidates), Equals, s.maxItems+12)
+	c.Check(len(stats.Entries), Equals, s.maxItems+12)
 	candidates := map[string]bool{}
-	for _, en := range stats.PruneCandidates {
-		_, ok := candidates[en.Name()]
+	for _, en := range stats.Entries {
+		_, ok := candidates[en.Info.Name()]
 		c.Check(ok, Equals, false)
-		candidates[en.Name()] = true
+		candidates[en.Info.Name()] = true
 	}
 }
 
@@ -195,9 +197,10 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 		c.Assert(err, IsNil)
 	}
 
+	fail := true
 	// simulate error with the removal of a file in cachedir
 	restore := store.MockOsRemove(func(name string) error {
-		if name == filepath.Join(s.cm.CacheDir(), cacheKeys[0]) {
+		if name == filepath.Join(s.cm.CacheDir(), cacheKeys[0]) && fail {
 			return fmt.Errorf("simulated error")
 		}
 		return os.Remove(name)
@@ -209,10 +212,20 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	c.Check(err, ErrorMatches, "simulated error")
 
 	// and also verify that the cache still got cleaned up
-	c.Check(s.cm.Count(), Equals, s.maxItems)
+	c.Check(s.cm.Count(), Equals, s.maxItems+1)
 
 	// even though the "unremovable" file is still in the cache
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
+
+	fail = false
+	// try again
+	// verify that cleanup returns the last error
+	err = s.cm.Cleanup()
+	c.Check(err, IsNil)
+	// now the file is cleaned up
+	c.Check(s.cm.Count(), Equals, s.maxItems)
+	// the file is gone now
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
 }
 
 func (s *cacheSuite) TestCleanupBusy(c *C) {
@@ -299,4 +312,445 @@ func (s *cacheSuite) TestCacheHitOnErrExist(c *C) {
 	// cache tries to link to an occupied path
 	cacheHit := s.cm.Get("foo", targetPath)
 	c.Assert(cacheHit, Equals, true)
+}
+
+func (s *cacheSuite) TestCleanupWithCachePolicy(c *C) {
+	s.cm = store.NewCacheManager(c.MkDir(), store.CachePolicy{
+		MaxItems:     3,
+		MaxSizeBytes: 10 * 1024,
+		MaxAge:       365 * 24 * time.Hour,
+	})
+
+	// use makeTestFiles to create files with proper modification times
+	cacheKeys, testFiles := s.makeTestFiles(c, 5)
+
+	// remove the test files so they're candidates for removal
+	for _, p := range testFiles {
+		err := os.Remove(p)
+		c.Assert(err, IsNil)
+	}
+
+	// count before cleanup
+	countBefore := s.cm.Count()
+	c.Check(countBefore, Equals, 5)
+
+	// cleanup should respect MaxItems
+	err := s.cm.Cleanup()
+	c.Check(err, IsNil)
+
+	countAfter := s.cm.Count()
+	c.Check(countAfter <= 3, Equals, true)
+
+	// oldest files removed
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, false)
+	// newest ones are kept
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[4])), Equals, true)
+}
+
+func (s *cacheSuite) TestCleanupConcurrent(c *C) {
+	s.cm = store.NewCacheManager(c.MkDir(), store.CachePolicy{
+		MaxItems:     3,
+		MaxSizeBytes: 10 * 1024,
+		MaxAge:       365 * 24 * time.Hour,
+	})
+
+	s.makeTestFiles(c, 1000)
+
+	var wg sync.WaitGroup
+	startC := make(chan struct{})
+	resC := make(chan error, 10)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-startC
+			resC <- s.cm.Cleanup()
+		}()
+	}
+
+	// cleanups start now
+	close(startC)
+	// cleanups are done
+	wg.Wait()
+
+	close(resC)
+	for err := range resC {
+		if err != nil {
+			c.Logf("err: %v", err)
+		}
+		c.Check(err == nil || errors.Is(err, store.ErrCleanupBusy), Equals, true, Commentf("unexpected error: %v", err))
+	}
+}
+
+func (s *cacheSuite) TestGetPutCleanupConcurrent(c *C) {
+	// a very crude attempt at exercising concurrent cache operations
+	s.cm = store.NewCacheManager(c.MkDir(), store.CachePolicy{
+		MaxItems:     5,
+		MaxSizeBytes: 100,
+		MaxAge:       24 * time.Hour,
+	})
+
+	numWorkers := 10
+	operationsPerWorker := 20
+	var wg sync.WaitGroup
+	startC := make(chan struct{})
+	resultC := make(chan error, numWorkers*operationsPerWorker)
+
+	const (
+		opPut = iota
+		opGet
+		opCleanup
+		opMax
+	)
+
+	// launch workers
+	for i := 0; i < numWorkers; i++ {
+
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			<-startC
+
+			for j := 0; j < operationsPerWorker; j++ {
+				// each operation randomly chooses between Put, Get, or Cleanup
+				op := (workerID*operationsPerWorker + j) % opMax
+
+				switch op {
+				case opPut: // 0
+					p := s.makeTestFile(c, fmt.Sprintf("w%d_f%d", workerID, j), fmt.Sprintf("content-%d-%d", workerID, j))
+					cacheKey := fmt.Sprintf("key-%d-%d", workerID, j)
+					err := s.cm.Put(cacheKey, p)
+					resultC <- err
+					// remove it so that it may be cleaned up
+					os.Remove(p)
+
+				case opGet: // 1
+					targetPath := filepath.Join(c.MkDir(), fmt.Sprintf("target-%d-%d", workerID, j))
+					cacheKey := fmt.Sprintf("key-%d-%d", workerID, j)
+					hit := s.cm.Get(cacheKey, targetPath)
+					// hit might be false if the file was cleaned up, ignore it
+					_ = hit
+					resultC <- nil
+
+				case opCleanup: // 2
+					err := s.cm.Cleanup()
+					// ErrCleanupBusy is expected when multiple cleanups race
+					if err != nil && !errors.Is(err, store.ErrCleanupBusy) {
+						resultC <- err
+					} else {
+						resultC <- nil
+					}
+				}
+			}
+		}(i)
+	}
+
+	// all workers start now
+	close(startC)
+	// wait for all workers to complete
+	wg.Wait()
+	close(resultC)
+
+	// verify no unexpected errors occurred
+	for err := range resultC {
+		c.Check(err, IsNil)
+	}
+}
+
+type cachePolicySuite struct {
+	tmp string
+}
+
+var _ = Suite(&cachePolicySuite{})
+
+func (s *cachePolicySuite) SetUpTest(c *C) {
+	s.tmp = c.MkDir()
+}
+
+func entryNames[T interface {
+	Name() string
+}](entries []T) []string {
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+
+	return names
+}
+
+func (s *cachePolicySuite) makeTestDirEntry(c *C, name string, size int64, modTime time.Time) os.DirEntry {
+	p := filepath.Join(s.tmp, name)
+	content := make([]byte, size)
+	err := os.WriteFile(p, content, 0644)
+	c.Assert(err, IsNil)
+
+	err = os.Chtimes(p, modTime, modTime)
+	c.Assert(err, IsNil)
+
+	entry, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+	for _, e := range entry {
+		if e.Name() == name {
+			return e
+		}
+	}
+	c.Fatal("entry not found")
+	return nil
+}
+
+func (s *cachePolicySuite) TestNoRemoval(c *C) {
+	// within all limits
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 1024,
+		MaxAge:       30 * 24 * time.Hour,
+	}
+
+	s.makeTestDirEntry(c, "file1", 100, time.Now())
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	c.Check(len(toRemove), Equals, 0)
+}
+
+func (s *cachePolicySuite) TestMaxItems(c *C) {
+	// removal up to max limit
+	cp := store.CachePolicy{
+		MaxItems:     2,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       30 * 24 * time.Hour,
+	}
+
+	s.makeTestDirEntry(c, "file1", 100, time.Now().Add(-48*time.Hour))
+	s.makeTestDirEntry(c, "file2", 100, time.Now().Add(-24*time.Hour))
+	s.makeTestDirEntry(c, "file3", 100, time.Now())
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	c.Check(entryNames(toRemove), DeepEquals, []string{"file1"})
+}
+
+func (s *cachePolicySuite) TestMaxAgeTooOld(c *C) {
+	// cleanup of items over the age threshold
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       24 * time.Hour,
+	}
+
+	now := time.Now()
+	s.makeTestDirEntry(c, "old_file", 100, now.Add(-48*time.Hour))
+	s.makeTestDirEntry(c, "recent_file", 100, now.Add(-12*time.Hour))
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+
+	// should remove file older than MaxAge
+	c.Check(entryNames(toRemove), DeepEquals, []string{"old_file"})
+}
+
+func (s *cachePolicySuite) TestMaxSize(c *C) {
+	// test that items are removed when total size exceeds MaxSize
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 250, // 250B
+		MaxAge:       30 * 24 * time.Hour,
+	}
+
+	now := time.Now()
+	// files will be removed starting from the oldest until we meet the size limit
+	s.makeTestDirEntry(c, "file1", 100, now.Add(-25*time.Hour))
+	s.makeTestDirEntry(c, "file2", 100, now.Add(-24*time.Hour))
+	s.makeTestDirEntry(c, "file3", 100, now.Add(-23*time.Hour))
+	s.makeTestDirEntry(c, "file4", 100, now.Add(-22*time.Hour))
+	s.makeTestDirEntry(c, "file5", 100, now.Add(-21*time.Hour))
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	// removing files 1, 2, 3, makes the cache meet the size limit
+	c.Check(entryNames(toRemove), DeepEquals, []string{
+		"file1", "file2", "file3",
+	})
+}
+
+func (s *cachePolicySuite) TestApplyMultipleLimits(c *C) {
+	// test that all three policy constraints are respected
+	cp := store.CachePolicy{
+		MaxItems:     2,
+		MaxSizeBytes: 150,
+		MaxAge:       24 * time.Hour,
+	}
+
+	now := time.Now()
+	// arrange a scenario where files will be dropped in order to satisfy different limits in the policy
+	s.makeTestDirEntry(c, "very_old", 100, now.Add(-72*time.Hour)) // hits the age limit
+	s.makeTestDirEntry(c, "old", 100, now.Add(-48*time.Hour))      // victim to items limit
+	s.makeTestDirEntry(c, "recent", 100, now.Add(-12*time.Hour))   // caught by cache size limit
+	s.makeTestDirEntry(c, "newest", 100, now)
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+
+	c.Check(entryNames(toRemove), DeepEquals, []string{
+		"very_old", "old", "recent",
+	})
+}
+
+func (s *cachePolicySuite) TestEmptyCache(c *C) {
+	cp := store.CachePolicy{
+		MaxItems:     5,
+		MaxSizeBytes: 1 * 1024 * 1024,
+		MaxAge:       24 * time.Hour,
+	}
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	c.Check(len(toRemove), Equals, 0)
+}
+
+func (s *cachePolicySuite) TestSingleFile(c *C) {
+	cp := store.CachePolicy{
+		MaxItems:     1,
+		MaxSizeBytes: 100,
+		MaxAge:       24 * time.Hour,
+	}
+
+	s.makeTestDirEntry(c, "single", 50, time.Now())
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	c.Assert(len(toRemove), Equals, 0)
+}
+
+func (s *cachePolicySuite) TestZeroMaxItems(c *C) {
+	// test that MaxItems=0 has no effect
+	cp := store.CachePolicy{
+		MaxItems:     0,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       30 * 24 * time.Hour,
+	}
+
+	now := time.Now()
+	s.makeTestDirEntry(c, "file1", 100, now.Add(-12*time.Hour))
+	s.makeTestDirEntry(c, "file2", 100, now)
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+	c.Check(toRemove, HasLen, 0)
+}
+
+func (s *cachePolicySuite) TestZeroMaxSize(c *C) {
+	// test that MaxSize=0 has no effect
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 0,
+		MaxAge:       30 * 24 * time.Hour,
+	}
+
+	now := time.Now()
+	s.makeTestDirEntry(c, "file1", 100, now.Add(-12*time.Hour))
+	s.makeTestDirEntry(c, "file2", 100, now)
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+
+	c.Assert(toRemove, HasLen, 0)
+}
+
+func (s *cachePolicySuite) TestZeroMaxAge(c *C) {
+	// test that MaxAge=0 has no effect
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       0,
+	}
+
+	now := time.Now()
+	s.makeTestDirEntry(c, "file1", 100, now.Add(-12*time.Hour))
+	s.makeTestDirEntry(c, "file2", 100, now)
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+
+	c.Assert(toRemove, HasLen, 0)
+}
+
+func (s *cachePolicySuite) TestMaxAgeAtBoundary(c *C) {
+	maxAge := 24 * time.Hour
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       maxAge,
+	}
+
+	now := time.Now()
+	// above the age threshold
+	s.makeTestDirEntry(c, "past_boundary", 100, now.Add(-maxAge-time.Minute))
+	// these are kept
+	s.makeTestDirEntry(c, "at_boundary", 100, now.Add(-maxAge))
+	s.makeTestDirEntry(c, "just_before", 100, now.Add(-maxAge+time.Minute))
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, IsNil)
+
+	c.Check(entryNames(toRemove), DeepEquals, []string{"past_boundary"})
+}
+
+func (s *cachePolicySuite) TestApplyErr(c *C) {
+	maxAge := 24 * time.Hour
+	cp := store.CachePolicy{
+		MaxItems:     10,
+		MaxSizeBytes: 10 * 1024 * 1024,
+		MaxAge:       maxAge,
+	}
+
+	now := time.Now()
+	// above the age threshold
+	s.makeTestDirEntry(c, "entry", 100, now.Add(-maxAge-time.Minute))
+
+	entries, err := os.ReadDir(s.tmp)
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 1)
+	c.Assert(os.Remove(filepath.Join(s.tmp, entries[0].Name())), IsNil)
+
+	toRemove, err := cp.Apply(entries, now)
+	c.Assert(err, ErrorMatches, ".*/entry: no such file or directory")
+	c.Check(toRemove, HasLen, 0)
 }
