@@ -543,7 +543,7 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "my-app", Revision: snap.R(revN)},
 		}),
-		TrackingChannel: "-",
+		TrackingChannel: "",
 		Flags:           snapstate.Flags{},
 		InstanceKey:     "my-app",
 		LastRefreshTime: &yesterday,
@@ -563,7 +563,7 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
 	c.Check(err, IsNil)
 
-	expect, err := yaml.Marshal(map[string]string{"channel": "-"})
+	expect, err := yaml.Marshal(map[string]*string{"channel": nil})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, string(expect))
 	c.Check(string(stderr), Equals, "")
