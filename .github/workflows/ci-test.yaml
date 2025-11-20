@@ -555,6 +555,10 @@ jobs:
     uses: ./.github/workflows/spread-tests.yaml
     if: |
       always() &&
+      needs.unit-tests.result == 'success' &&
+      needs.unit-tests-c.result == 'success' &&
+      needs.snap-builds.result == 'success' &&
+      needs.read-systems.result == 'success' &&
       ( needs.spread-fundamental.result == 'success' || needs.spread-fundamental.result == 'skipped' ) &&
       github.event_name == 'pull_request' && 
       !contains(github.base_ref, 'release') && 
