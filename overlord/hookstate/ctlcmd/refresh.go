@@ -278,12 +278,12 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 	} else {
 		res, err = yaml.Marshal(map[string]*string{"channel": nil})
 	}
-	
-	if err == nil {
-		c.print(string(res))
-	} else {
+
+	if err != nil {
 		return fmt.Errorf("internal error: could not marshal tracking info: %v", err)
 	}
+
+	c.print(string(res))
 
 	return nil
 }
