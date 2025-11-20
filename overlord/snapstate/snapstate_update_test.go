@@ -637,7 +637,7 @@ func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-layout/stable"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
 
 	// When layouts are enabled we can refresh to a snap depending on the feature.
 	tr = config.NewTransaction(s.state)
@@ -668,7 +668,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	})
 
 	_, _, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
 
 	// When layouts are enabled we can refresh multiple snaps if one of them depends on the feature.
 	tr = config.NewTransaction(s.state)
