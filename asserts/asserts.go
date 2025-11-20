@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -1404,34 +1403,4 @@ func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 		return fmt.Errorf("failed signature verification: %v", err)
 	}
 	return nil
-}
-
-var dbFindMany = func(db RODatabase, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return db.FindMany(assertionType, headers)
-}
-
-var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
-
-// SnapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
-// a snap ID, and a revision number. This is to be used in cases where the sha3 hash which is the primary key
-// for revision assertions is not known or we don't want to incur the cost to compute it.
-func SnapRevisionFromSnapIdAndRevisionNumber(db RODatabase, snapId string, revN int) (*SnapRevision, error) {
-	revs, err := dbFindMany(db, SnapRevisionType, map[string]string{
-		"snap-id":       snapId,
-		"snap-revision": strconv.Itoa(revN),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if len(revs) < 1 {
-		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%d).", ErrNoRevisionFound, snapId, revN)
-	}
-
-	if len(revs) > 1 {
-		return nil, fmt.Errorf("multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%d).", snapId, revN)
-	}
-
-	rev := revs[0].(*SnapRevision)
-	return rev, nil
 }
