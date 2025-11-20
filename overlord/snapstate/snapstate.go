@@ -1401,7 +1401,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 		return flags, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return flags, fmt.Errorf("feature flag validation failed for snap %q: %v", info.InstanceName(), err)
+		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
