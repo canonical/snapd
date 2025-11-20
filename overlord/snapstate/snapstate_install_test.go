@@ -3750,7 +3750,7 @@ layout:
   bind: $SNAP/usr
 `)
 	_, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{}, nil)
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
 
 	// When layouts are enabled we can install a local snap depending on the feature.
 	tr = config.NewTransaction(s.state)
@@ -3837,7 +3837,7 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.layouts", false)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.layouts' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
 
 	// Layouts can be explicitly enabled.
 	tr = config.NewTransaction(s.state)
@@ -3872,7 +3872,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	// User daemons are disabled by default.
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.user-daemons' to true`)
 
 	// User daemons can be explicitly enabled.
 	tr := config.NewTransaction(s.state)
@@ -3886,21 +3886,21 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.user-daemons", false)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.user-daemons' to true`)
 
 	// The default empty value means "disabled"".
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.user-daemons", "")
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.user-daemons' to true`)
 
 	// User daemons are disabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.user-daemons", nil)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.user-daemons' to true`)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsUnsupportedOnTrusty(c *C) {
@@ -3917,7 +3917,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsUnsupportedOnTrusty(c *C) {
 	// daemons are not supported on Trusty
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": user session daemons are not supported on this release`)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsFirmwareUpdater(c *C) {
@@ -3941,7 +3941,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsFirmwareUpdater(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	_, err = snapstate.Install(context.Background(), s.state, "firmware-updater", opts, s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+	c.Check(err, ErrorMatches, `feature flag validation failed for snap "firmware-updater": user session daemons are not supported on this release`)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapdDesktopIntegration(c *C) {
@@ -3965,7 +3965,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapdDesktopIntegration(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	_, err = snapstate.Install(context.Background(), s.state, "snapd-desktop-integration", opts, s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+	c.Check(err, ErrorMatches, `feature flag validation failed for snap "snapd-desktop-integration": user session daemons are not supported on this release`)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapStore(c *C) {
@@ -3989,7 +3989,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapStore(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	_, err = snapstate.Install(context.Background(), s.state, "snap-store", opts, s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+	c.Check(err, ErrorMatches, `feature flag validation failed for snap "snap-store": user session daemons are not supported on this release`)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsPromptingClient(c *C) {
@@ -4013,7 +4013,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsPromptingClient(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	_, err = snapstate.Install(context.Background(), s.state, "prompting-client", opts, s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+	c.Check(err, ErrorMatches, `feature flag validation failed for snap "prompting-client": user session daemons are not supported on this release`)
 }
 
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
@@ -4037,7 +4037,7 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.dbus-activation", false)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.dbus-activation' to true`)
 
 	// The default empty value means "enabled"
 	tr = config.NewTransaction(s.state)
@@ -4160,7 +4160,7 @@ version: 1.0
 `)
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
 	_, _, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{}, nil)
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap_foo": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 
 	// enable parallel instances
 	tr := config.NewTransaction(s.state)
@@ -4406,7 +4406,7 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
 
 	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, nil, 0, nil)
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap_foo": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 }
 
 func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
