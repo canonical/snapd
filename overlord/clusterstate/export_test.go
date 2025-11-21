@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockInstallWithGoal(f func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) ([]*snap.Info, []*state.TaskSet, error)) func() {
+func MockInstallWithGoal(f func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error)) func() {
 	restore := testutil.Backup(&installWithGoal)
 	installWithGoal = f
 	return restore

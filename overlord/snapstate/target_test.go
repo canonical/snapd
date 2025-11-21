@@ -57,12 +57,11 @@ func (s *targetTestSuite) TestInstallWithComponents(c *C) {
 		},
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, snapName)
-	c.Check(info.Channel, Equals, channel)
-	c.Check(info.Components[compName].Name, Equals, compName)
+	c.Check(setup.InstanceName(), Equals, snapName)
+	c.Check(setup.Channel, Equals, channel)
 
 	verifyInstallTasksWithComponents(c, snap.TypeApp, 0, 0, []string{compName}, ts)
 
@@ -276,11 +275,10 @@ version: 1.0
 		Components: components,
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, snapName)
-	c.Check(info.Components[compName].Name, Equals, compName)
+	c.Check(setup.InstanceName(), Equals, snapName)
 
 	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap|updatesGadgetAssets, 0, []string{compName}, ts)
 }
@@ -473,11 +471,11 @@ func (s *targetTestSuite) TestInstallFromStoreDefaultChannel(c *C) {
 		InstanceName: "some-snap",
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, "some-snap")
-	c.Check(info.Channel, Equals, "stable")
+	c.Check(setup.InstanceName(), Equals, "some-snap")
+	c.Check(setup.Channel, Equals, "stable")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -506,11 +504,11 @@ components:
 		SideInfo:     si,
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, "some-snap")
-	c.Check(info.Channel, Equals, "")
+	c.Check(setup.InstanceName(), Equals, "some-snap")
+	c.Check(setup.Channel, Equals, "")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -589,11 +587,11 @@ components:
 		SideInfo:     si,
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, "some-snap")
-	c.Check(info.Channel, Equals, "edge")
+	c.Check(setup.InstanceName(), Equals, "some-snap")
+	c.Check(setup.Channel, Equals, "edge")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -622,14 +620,14 @@ components:
 		RevOpts:  snapstate.RevisionOptions{Channel: "edge"},
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
-
-	c.Check(info.InstanceName(), Equals, "some-snap")
 
 	// should be missing here, since the side info doesn't have a channel. we're
 	// just setting the tracked channel in the revision options
-	c.Check(info.Channel, Equals, "")
+	c.Check(setup.SideInfo.Channel, Equals, "")
+	c.Check(setup.InstanceName(), Equals, "some-snap")
+	c.Check(setup.Channel, Equals, "edge")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -675,11 +673,11 @@ func (s *targetTestSuite) TestInstallFromStoreRevisionAndChannel(c *C) {
 		},
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, "some-snap")
-	c.Check(info.Channel, Equals, "stable")
+	c.Check(setup.InstanceName(), Equals, "some-snap")
+	c.Check(setup.Channel, Equals, "stable")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -699,15 +697,15 @@ func (s *targetTestSuite) TestInstallFromStoreRevisionAndChannelWithRedirectChan
 		},
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
 	c.Assert(err, IsNil)
-
-	c.Check(info.InstanceName(), Equals, "some-snap-with-default-track")
 
 	// note that this is the effective channel, not the tracked channel. this
 	// doesn't have to be the same as the channel in the SnapSetup, and it is
 	// really only here to let us know exactly where the snap came from.
-	c.Check(info.Channel, Equals, "stable")
+	c.Check(setup.SideInfo.Channel, Equals, "stable")
+	c.Check(setup.InstanceName(), Equals, "some-snap-with-default-track")
+	c.Check(setup.Channel, Equals, "2.0/stable")
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)

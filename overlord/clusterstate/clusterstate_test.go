@@ -437,7 +437,7 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
-	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		c.Fatal("unexpected install")
 		return nil, nil, errors.New("unexpected")
 	})
@@ -503,7 +503,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
-	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		c.Fatal("unexpected install")
 		return nil, nil, errors.New("unexpected")
 	})
@@ -643,7 +643,7 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	})
 	defer restore()
 
-	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		task := st.NewTask("install", "install snaps")
 		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})
@@ -741,7 +741,7 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
-	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		task := st.NewTask("install", "install snap one")
 		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})
@@ -907,7 +907,7 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
-	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		task := st.NewTask("one-task", "apply subcluster one")
 		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})

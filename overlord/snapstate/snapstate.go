@@ -1437,13 +1437,13 @@ type PrereqTracker interface {
 }
 
 // InstallPath returns a set of tasks for installing a snap from a file path
-// and the snap.Info for the given snap.
+// and the SnapSetup for the given snap.
 //
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, SnapSetup, error) {
 	target := PathInstallGoal(PathSnap{
 		InstanceName: instanceName,
 		Path:         path,
@@ -1452,14 +1452,14 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	})
 
 	// TODO have caller pass a context
-	info, ts, err := InstallOne(context.Background(), st, target, Options{
+	setup, ts, err := InstallOne(context.Background(), st, target, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, SnapSetup{}, err
 	}
-	return ts, info, nil
+	return ts, setup, nil
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -1832,7 +1832,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 
 	target := StoreInstallGoal(snaps...)
 	// TODO have caller pass a context
-	infos, tss, err := InstallWithGoal(context.Background(), st, target, Options{
+	setups, tss, err := InstallWithGoal(context.Background(), st, target, Options{
 		Flags:  *flags,
 		UserID: userID,
 	})
@@ -1840,9 +1840,9 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		return nil, nil, err
 	}
 
-	installed := make([]string, 0, len(infos))
-	for _, info := range infos {
-		installed = append(installed, info.InstanceName())
+	installed := make([]string, 0, len(setups))
+	for _, snapsup := range setups {
+		installed = append(installed, snapsup.InstanceName())
 	}
 
 	return installed, tss, err
@@ -2010,7 +2010,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		affected = append(affected, updated...)
 	}
 
-	var installed []*snap.Info
+	var installed []SnapSetup
 	var installTss []*state.TaskSet
 	if len(missing) > 0 {
 		var err error
@@ -2045,8 +2045,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		installTss = append(installTss, compTasks...)
 	}
 
-	for _, i := range installed {
-		affected = append(affected, i.InstanceName())
+	for _, s := range installed {
+		affected = append(affected, s.InstanceName())
 	}
 
 	// here we enforce some ordering constraints:
@@ -2063,7 +2063,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// that order). we only care about the snap ones, so we take a subslice.
 	var baseInstalls, nonBaseInstalls []*state.TaskSet
 	for i, ts := range installTss[:len(installed)] {
-		if installed[i].Type() == snap.TypeBase {
+		if installed[i].Type == snap.TypeBase {
 			baseInstalls = append(baseInstalls, ts)
 		} else {
 			nonBaseInstalls = append(nonBaseInstalls, ts)

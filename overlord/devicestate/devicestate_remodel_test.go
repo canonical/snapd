@@ -483,7 +483,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 
 		sn := g.snaps[0]
@@ -505,7 +505,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -671,7 +671,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		switch g := goal.(type) {
 		case *pathInstallGoalRecorder:
 			name := g.snap.SideInfo.RealName
@@ -704,7 +704,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 			tInstall.WaitFor(tValidate)
 			ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 			ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-			return nil, ts, nil
+			return snapstate.SnapSetup{}, ts, nil
 		case *storeInstallGoalRecorder:
 			sn := g.snaps[0]
 			name := sn.InstanceName
@@ -727,9 +727,9 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 			tInstall.WaitFor(tValidate)
 			ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 			ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-			return nil, ts, nil
+			return snapstate.SnapSetup{}, ts, nil
 		}
-		return nil, nil, fmt.Errorf("unexpected goal type: %T", goal)
+		return snapstate.SnapSetup{}, nil, fmt.Errorf("unexpected goal type: %T", goal)
 	})
 	defer restore()
 
@@ -788,7 +788,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -808,7 +808,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -910,7 +910,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -930,7 +930,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -1089,7 +1089,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 
 	var testStore snapstate.StoreService
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -1110,7 +1110,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -1292,7 +1292,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 
 	var clashing *asserts.Model
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -1315,7 +1315,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -1377,7 +1377,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	var chg *state.Change
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -1396,7 +1396,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -1440,7 +1440,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	var chg *state.Change
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -1460,7 +1460,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -1968,7 +1968,7 @@ volumes:
 		{"meta/gadget.yaml", remodelGadgetYaml},
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -1983,7 +1983,7 @@ volumes:
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 	restore = release.MockOnClassic(false)
@@ -2159,7 +2159,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		RealName: "new-gadget-unexpected",
 		Revision: snap.R(34),
 	}
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -2174,7 +2174,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 	restore = release.MockOnClassic(false)
@@ -2210,7 +2210,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -2223,7 +2223,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -2266,7 +2266,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -2284,7 +2284,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -2326,7 +2326,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -2347,7 +2347,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tDownload, snapstate.SnapSetupEdge)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -2718,10 +2718,10 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// snaps will be refreshed so calls go through update
 		c.Errorf("unexpected call, test broken")
-		return nil, nil, errors.New("unexpected call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -2974,7 +2974,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 		name := g.snap.SideInfo.RealName
 
@@ -2988,7 +2988,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		ts := state.NewTaskSet(tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		ts.MarkEdge(tValidate, snapstate.SnapSetupEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -3234,7 +3234,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 
 		c.Check(g.snap.SideInfo.RealName, Equals, "app-snap")
@@ -3247,7 +3247,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		ts := state.NewTaskSet(tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.SnapSetupEdge)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -3505,10 +3505,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
-		return nil, nil, errors.New("unexpected call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -3837,10 +3837,10 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
-		return nil, nil, errors.New("unexpected call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -4121,10 +4121,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
-		return nil, nil, errors.New("unexpected call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -4348,9 +4348,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
-		return nil, nil, errors.New("unexpected install call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected install call")
 	})
 	defer restore()
 
@@ -4524,9 +4524,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelFailWhenUsingUnassertedSnapForSpecifi
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
-		return nil, nil, errors.New("unexpected install call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected install call")
 	})
 	defer restore()
 
@@ -4698,9 +4698,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
-		return nil, nil, errors.New("unexpected install call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected install call")
 	})
 	defer restore()
 
@@ -4897,9 +4897,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		// no snaps are getting installed
-		return nil, nil, errors.New("unexpected install call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected install call")
 	})
 	defer restore()
 
@@ -5100,9 +5100,9 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		c.Errorf("unexpected call, test broken")
-		return nil, nil, errors.New("unexpected call")
+		return snapstate.SnapSetup{}, nil, errors.New("unexpected call")
 	})
 	defer restore()
 
@@ -5394,7 +5394,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -5405,7 +5405,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 	restore = release.MockOnClassic(false)
@@ -5727,7 +5727,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	})
 
 	installWithDeviceContextCalled := 0
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 
 		installWithDeviceContextCalled++
@@ -5741,7 +5741,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -6033,7 +6033,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -6044,7 +6044,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 	restore = release.MockOnClassic(false)
@@ -6345,13 +6345,13 @@ plugs:
 		})
 	}
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
 		if missingWhen != "install" {
 			c.Errorf("unexpected call to install for snap %q", name)
-			return nil, nil, fmt.Errorf("unexpected call")
+			return snapstate.SnapSetup{}, nil, fmt.Errorf("unexpected call")
 		}
 		c.Check(opts.Flags.Required, Equals, true)
 		c.Check(opts.DeviceCtx, Equals, testDeviceCtx)
@@ -6367,7 +6367,7 @@ plugs:
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -6580,13 +6580,13 @@ plugs:
 		RealName: "foo-missing-deps",
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
 		if name != "foo-missing-deps" {
 			c.Errorf("unexpected call to install for snap %q", name)
-			return nil, nil, fmt.Errorf("unexpected call")
+			return snapstate.SnapSetup{}, nil, fmt.Errorf("unexpected call")
 		}
 		c.Check(opts.Flags.Required, Equals, true)
 		c.Check(opts.DeviceCtx, Equals, testDeviceCtx)
@@ -6612,7 +6612,7 @@ plugs:
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 
@@ -6773,6 +6773,27 @@ type expectedComponent struct {
 	compType snap.ComponentType
 }
 
+func snapSetupFromInfo(info *snap.Info) snapstate.SnapSetup {
+	if info == nil {
+		return snapstate.SnapSetup{}
+	}
+
+	setup := snapstate.SnapSetup{
+		SideInfo:    &info.SideInfo,
+		InstanceKey: info.InstanceKey,
+		Type:        info.Type(),
+		Version:     info.Version,
+		Base:        info.Base,
+		PlugsOnly:   len(info.Slots) == 0,
+		Channel:     info.Channel,
+	}
+	setup.AuxStoreInfo.Media = info.Media
+	setup.AuxStoreInfo.StoreURL = info.StoreURL
+	setup.AuxStoreInfo.Website = info.Website()
+	setup.ExpectedProvenance = info.SnapProvenance
+	return setup
+}
+
 func mockSnapstateUpdateOne(c *C, snaps map[string]expectedSnap) (restore func(), updated map[string]string) {
 	updated = make(map[string]string)
 	mock := func(
@@ -6892,7 +6913,7 @@ func mockSnapstateInstallOneFromFile(c *C, snaps map[string]expectedSnap) (resto
 		st *state.State,
 		goal snapstate.InstallGoal,
 		opts snapstate.Options,
-	) (*snap.Info, *state.TaskSet, error) {
+	) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 		name := g.snap.InstanceName
 		if name == "" {
@@ -6987,7 +7008,7 @@ func mockSnapstateInstallOneFromFile(c *C, snaps map[string]expectedSnap) (resto
 
 		opts.PrereqTracker.Add(info)
 
-		return info, ts, nil
+		return snapSetupFromInfo(info), ts, nil
 	}
 
 	return devicestate.MockSnapstateInstallOne(mock), installed
@@ -7176,7 +7197,7 @@ func mockSnapstateInstallOne(c *C, snaps map[string]expectedSnap) (restore func(
 		st *state.State,
 		goal snapstate.InstallGoal,
 		opts snapstate.Options,
-	) (*snap.Info, *state.TaskSet, error) {
+	) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 		rev := g.snaps[0].RevOpts.Revision
@@ -7272,7 +7293,7 @@ func mockSnapstateInstallOne(c *C, snaps map[string]expectedSnap) (restore func(
 
 		opts.PrereqTracker.Add(info)
 
-		return info, ts, nil
+		return snapSetupFromInfo(info), ts, nil
 	}
 
 	return devicestate.MockSnapstateInstallOne(mock), installed
@@ -10723,7 +10744,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 		Type: "base",
 	}
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -10756,7 +10777,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 

@@ -416,7 +416,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 			},
 		},
 	}
-	restore := daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, Equals, true, Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, HasLen, 3)

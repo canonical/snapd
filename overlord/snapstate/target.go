@@ -720,23 +720,23 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 
 // InstallOne is a convenience wrapper for InstallWithGoal that ensures that a
 // single snap is being installed and unwraps the results to return a single
-// snap.Info and state.TaskSet. If the InstallGoal does not request to install
+// SnapSetup and state.TaskSet. If the InstallGoal does not request to install
 // exactly one snap, an error is returned.
-func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (*snap.Info, *state.TaskSet, error) {
+func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Options) (SnapSetup, *state.TaskSet, error) {
 	opts.ExpectOneSnap = true
 
-	infos, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
+	setups, tasksets, err := InstallWithGoal(ctx, st, goal, opts)
 	if err != nil {
-		return nil, nil, err
+		return SnapSetup{}, nil, err
 	}
 
 	// this case is unexpected since InstallWithGoal verifies that we are
 	// operating on exactly one target
-	if len(infos) != 1 || len(tasksets) != 1 {
-		return nil, nil, errors.New("internal error: expected exactly one snap and task set")
+	if len(setups) != 1 || len(tasksets) != 1 {
+		return SnapSetup{}, nil, errors.New("internal error: expected exactly one snap and task set")
 	}
 
-	return infos[0], tasksets[0], nil
+	return setups[0], tasksets[0], nil
 }
 
 func sortComponentsOnTargets(targets []target) {
@@ -754,13 +754,13 @@ func sortComponentsOnTargets(targets []target) {
 // snaps from. The Options struct contains optional parameters that apply to the
 // installation operation.
 //
-// A slice of snap.Info structs is returned for each snap that is being
+// A slice of SnapSetup structs is returned for each snap that is being
 // installed along with a slice of state.TaskSet structs that represent the
 // tasks that are part of the installation operation for each snap.
 //
 // TODO: rename this to Install once the API is settled, and we can rename or
 // remove the old Install function.
-func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]*snap.Info, []*state.TaskSet, error) {
+func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opts Options) ([]SnapSetup, []*state.TaskSet, error) {
 	if err := opts.setDefaultLane(st); err != nil {
 		return nil, nil, err
 	}
@@ -787,7 +787,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(targets))
-	infos := make([]*snap.Info, 0, len(targets))
+	setups := make([]SnapSetup, 0, len(targets))
 	for _, t := range targets {
 		if t.setup.SnapPath != "" && t.setup.DownloadInfo != nil {
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
@@ -817,10 +817,10 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		ts.JoinLane(generateLane(st, opts))
 
 		tasksets = append(tasksets, ts)
-		infos = append(infos, t.info)
+		setups = append(setups, snapsup)
 	}
 
-	return infos, tasksets, nil
+	return setups, tasksets, nil
 }
 
 // generateLane returns the lane to use for the tasks that all operate on a

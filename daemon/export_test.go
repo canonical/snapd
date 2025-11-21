@@ -156,7 +156,7 @@ func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationS
 	return r
 }
 
-func MockSnapstateInstallWithGoal(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithGoal(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithGoal
 	snapstateInstallWithGoal = mock
 	return func() {
@@ -204,7 +204,7 @@ func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snap
 	}
 }
 
-func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, snapstate.SnapSetup, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {

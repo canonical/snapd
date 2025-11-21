@@ -45,7 +45,7 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, snapstate.SnapSetup, error) {
 	if sn.Required {
 		flags.Required = true
 	}
@@ -72,16 +72,16 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		Components: components,
 		RevOpts:    snapstate.RevisionOptions{Channel: sn.Channel},
 	})
-	info, ts, err := snapstate.InstallOne(context.Background(), st, goal, snapstate.Options{
+	setup, ts, err := snapstate.InstallOne(context.Background(), st, goal, snapstate.Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
 		Seed:          true,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, snapstate.SnapSetup{}, err
 	}
 
-	return ts, info, nil
+	return ts, setup, nil
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
@@ -271,14 +271,14 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		chainTs = chainTsFullSeeding
 	}
 
-	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
+	chainSorted := func(infos []snapstate.SnapSetup, infoToTs map[string]*state.TaskSet) {
 		// This is the order in which snaps will be installed in the
 		// system. We want the boot base to be installed before the
 		// kernel so any existing kernel hook can execute with the boot
 		// base as rootfs.
-		effectiveType := func(info *snap.Info) snap.Type {
-			typ := info.Type()
-			if info.RealName == model.Base() {
+		effectiveType := func(setup snapstate.SnapSetup) snap.Type {
+			typ := setup.Type
+			if setup.SnapName() == model.Base() {
 				typ = snap.InternalTypeBootBase
 			}
 			return typ
@@ -287,16 +287,16 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			return effectiveType(infos[i]).SortsBefore(effectiveType(infos[j]))
 		})
 
-		for _, info := range infos {
-			ts := infoToTs[info]
+		for _, setup := range infos {
+			ts := infoToTs[setup.InstanceName()]
 			tsAll = chainTs(tsAll, ts)
 		}
 	}
 
 	// collected snap infos
-	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
+	infos := make([]snapstate.SnapSetup, 0, len(essentialSeedSnaps)+len(seedSnaps))
 
-	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
+	infoToTs := make(map[string]*state.TaskSet, len(essentialSeedSnaps))
 
 	prqt := snap.NewSelfContainedSetPrereqTracker()
 
@@ -324,17 +324,17 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			Transaction:      client.TransactionAllSnaps,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
+		ts, setup, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
-		if info.Type() == snap.TypeKernel || info.Type() == snap.TypeGadget {
-			configTs := snapstate.ConfigureSnap(st, info.SnapName(), snapstate.UseConfigDefaults)
+		if setup.Type == snap.TypeKernel || setup.Type == snap.TypeGadget {
+			configTs := snapstate.ConfigureSnap(st, setup.SnapName(), snapstate.UseConfigDefaults)
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}
-		infos = append(infos, info)
-		infoToTs[info] = ts
+		infos = append(infos, setup)
+		infoToTs[setup.InstanceName()] = ts
 	}
 	// now add/chain the tasksets in the right order based on essential
 	// snap types
@@ -357,7 +357,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	// ensure we install in the right order
-	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
+	infoToTs = make(map[string]*state.TaskSet, len(seedSnaps))
 
 	// note, we use separate lanes for essential and non-essential snaps so that
 	// failures installing non-essential snaps do not cause essential snap
@@ -377,12 +377,12 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			Transaction: client.TransactionAllSnaps,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
+		ts, setup, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
-		infos = append(infos, info)
-		infoToTs[info] = ts
+		infos = append(infos, setup)
+		infoToTs[setup.InstanceName()] = ts
 	}
 
 	// validate that all snaps have bases and providers are fulfilled
