@@ -947,12 +947,12 @@ func (p *updatePlan) refreshAll() bool {
 
 // TODO: consider making functions that call this method (and functions that
 // accept the output of this method) into methods on updatePlan
-func (p *updatePlan) targetInfos() []*snap.Info {
-	infos := make([]*snap.Info, 0, len(p.targets))
+func (p *updatePlan) targetSetups() []SnapSetup {
+	setups := make([]SnapSetup, 0, len(p.targets))
 	for _, t := range p.targets {
-		infos = append(infos, t.info)
+		setups = append(setups, t.setup)
 	}
-	return infos
+	return setups
 }
 
 // updates returns the updates that should be applied to the system's state for
@@ -1078,7 +1078,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 
 	// for the reader, the concept of validating here is not to be confused with
 	// validation sets.
-	validated, err := ValidateRefreshes(st, p.targetInfos(), ignoreValidation, opts.UserID, opts.DeviceCtx)
+	validated, err := ValidateRefreshes(st, p.targetSetups(), ignoreValidation, opts.UserID, opts.DeviceCtx)
 	if err != nil {
 		if !p.refreshAll() {
 			return err

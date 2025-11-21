@@ -180,7 +180,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 
 		// if an error isn't returned here, then the returned list of snaps to
 		// refresh will match the input
-		_, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, userID, deviceCtx)
+		_, err := ValidateRefreshes(st, plan.targetSetups(), ignoreValidation, userID, deviceCtx)
 		if err != nil {
 			return nil, err
 		}

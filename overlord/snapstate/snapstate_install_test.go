@@ -8093,7 +8093,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyIgnoresValidation(c *C) {
-	snapstate.ValidateRefreshes = func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	snapstate.ValidateRefreshes = func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		return nil, fmt.Errorf("error: InstallPathMany should bypass refresh control checks")
 	}
 	defer func() { snapstate.ValidateRefreshes = nil }()

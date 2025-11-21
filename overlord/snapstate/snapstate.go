@@ -1869,7 +1869,7 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
-var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx DeviceContext) (validated []*snap.Info, err error)
+var ValidateRefreshes func(st *state.State, refreshes []SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx DeviceContext) (validated []SnapSetup, err error)
 
 // UpdateMany updates everything from the given list of names that the
 // store says is updatable. If the list is empty, update everything.
