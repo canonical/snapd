@@ -94,7 +94,7 @@ func (r *refreshHints) refresh() error {
 			Flags: Flags{
 				IsAutoRefresh: true,
 			},
-		})
+		}, nil)
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.

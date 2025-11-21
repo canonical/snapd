@@ -1160,12 +1160,6 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, ErrExpectedOneSnap
 	}
 
-	if filter != nil {
-		plan.filter(func(t target) (bool, error) {
-			return filter(t.info, &t.snapst), nil
-		})
-	}
-
 	if err := plan.filterHeldSnaps(st, opts); err != nil {
 		return nil, nil, err
 	}
@@ -1251,6 +1245,8 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 type storeUpdateGoal struct {
 	// snaps is a mapping of snap names to StoreUpdate structs.
 	snaps map[string]StoreUpdate
+	// filter applies additional filtering on the returned targets.
+	filter updateFilter
 }
 
 // StoreUpdate represents a snap that is to be updated from the store.
@@ -1280,6 +1276,24 @@ func StoreUpdateGoal(snaps ...StoreUpdate) UpdateGoal {
 	}
 }
 
+// StoreUpdateGoalWithFilter creates a new UpdateGoal to update snaps from the
+// store and applies the provided updateFilter to the resulting targets.
+func StoreUpdateGoalWithFilter(filter updateFilter, snaps ...StoreUpdate) UpdateGoal {
+	mapping := make(map[string]StoreUpdate, len(snaps))
+	for _, sn := range snaps {
+		if _, ok := mapping[sn.InstanceName]; ok {
+			continue
+		}
+
+		mapping[sn.InstanceName] = sn
+	}
+
+	return &storeUpdateGoal{
+		snaps:  mapping,
+		filter: filter,
+	}
+}
+
 func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Options) (updatePlan, error) {
 	if opts.ExpectOneSnap && len(s.snaps) != 1 {
 		return updatePlan{}, ErrExpectedOneSnap
@@ -1300,7 +1314,7 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	}
 
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
-	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
+	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts, s.filter)
 	if err != nil {
 		return updatePlan{}, err
 	}

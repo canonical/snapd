@@ -348,14 +348,14 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options, filter updateFilter) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts, filter)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -414,7 +414,7 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts, filter)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -432,7 +432,12 @@ func storeUpdatePlanCore(
 	user *auth.UserState,
 	refreshOpts *store.RefreshOptions,
 	opts Options,
+	filter updateFilter,
 ) (updatePlan, error) {
+	if filter == nil {
+		filter = func(*snap.Info, *SnapState) bool { return true }
+	}
+
 	if refreshOpts == nil {
 		return updatePlan{}, errors.New("internal error: refresh opts cannot be nil")
 	}
@@ -562,6 +567,10 @@ func storeUpdatePlanCore(
 			CohortKey:    up.RevOpts.CohortKey,
 		}
 
+		if !filter(sar.Info, snapst) {
+			continue
+		}
+
 		t, err := newTargetFromInfo(st, *snapst, sar.Info, snapsup, compTargets, opts)
 		if err != nil {
 			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
@@ -596,6 +605,10 @@ func storeUpdatePlanCore(
 		info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
 		if err != nil {
 			return updatePlan{}, err
+		}
+
+		if !filter(info, snapst) {
+			continue
 		}
 
 		// here, we attempt to refresh components that are currently installed.

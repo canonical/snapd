@@ -1860,7 +1860,7 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 		PrereqTracker: snap.SimplePrereqTracker{},
 	}
 
-	plan, err := storeUpdatePlan(context.TODO(), st, allSnaps, nil, user, nil, opts)
+	plan, err := storeUpdatePlan(context.TODO(), st, allSnaps, nil, user, nil, opts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2164,8 +2164,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		})
 	}
 
-	goal := StoreUpdateGoal(updates...)
-	return UpdateWithGoal(ctx, st, goal, filter, Options{
+	goal := StoreUpdateGoalWithFilter(filter, updates...)
+	return UpdateWithGoal(ctx, st, goal, nil, Options{
 		Flags:      *flags,
 		UserID:     userID,
 		FromChange: fromChange,
@@ -3142,7 +3142,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
 	plan, err := storeUpdatePlan(ctx, st, allSnaps, nil, user, refreshOpts, Options{
 		Flags: Flags{IsAutoRefresh: true},
-	})
+	}, nil)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
