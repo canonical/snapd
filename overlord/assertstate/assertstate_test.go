@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -534,7 +536,7 @@ version: %d
 	return snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 }
 
-func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, provenance string, revisions ...int) (paths map[int]string, digests map[int]string) {
+func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, provenance string, integrity bool, revisions ...int) (paths map[int]string, digests map[int]string) {
 	if db == nil {
 		db = s.storeSigning.Database
 	}
@@ -580,6 +582,21 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, db *asserts.Database, proven
 			"developer-id":  s.dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
+
+		if integrity {
+			headers["integrity"] = []any{
+				map[string]any{
+					"type":            "dm-verity",
+					"version":         "1",
+					"hash-algorithm":  "sha256",
+					"data-block-size": "4096",
+					"hash-block-size": "4096",
+					"digest":          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"salt":            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				},
+			}
+		}
+
 		signer := assertstest.SignerDB(s.storeSigning)
 		if provenance != "" {
 			headers["provenance"] = provenance
@@ -669,7 +686,7 @@ version: 1.0.2
 }
 
 func (s *assertMgrSuite) TestDoFetch(c *C) {
-	_, digests := s.prereqSnapAssertions(c, nil, "", 10)
+	_, digests := s.prereqSnapAssertions(c, nil, "", false, 10)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -690,7 +707,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 }
 
 func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
-	_, digests := s.prereqSnapAssertions(c, nil, "", 10, 11)
+	_, digests := s.prereqSnapAssertions(c, nil, "", false, 10, 11)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -846,7 +863,7 @@ func (s *assertMgrSuite) setupModelAndStore(c *C) *asserts.Store {
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, nil, "", 10)
+	paths, digests := s.prereqSnapAssertions(c, nil, "", false, 10)
 	snapPath := paths[10]
 
 	s.state.Lock()
@@ -893,7 +910,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapStoreNotFound(c *C) {
-	paths, digests := s.prereqSnapAssertions(c, nil, "", 10)
+	paths, digests := s.prereqSnapAssertions(c, nil, "", false, 10)
 
 	snapPath := paths[10]
 
@@ -985,7 +1002,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
-	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, "", false, 10)
 
 	snapPath := paths[10]
 
@@ -5444,7 +5461,7 @@ type testValidateComponentOpts struct {
 func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentOpts) {
 	snapRev, compRev := snap.R(10), snap.R(20)
 
-	paths, _ := s.prereqSnapAssertions(c, nil, opts.provenance, 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, opts.provenance, false, 10)
 	snapPath := paths[10]
 
 	blobProvenance := opts.provenance
@@ -5588,7 +5605,7 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 
 	assertstest.AddMany(db, s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey)
 
-	paths, _ := s.prereqSnapAssertions(c, db, "", 10)
+	paths, _ := s.prereqSnapAssertions(c, db, "", false, 10)
 	snapPath := paths[10]
 
 	headers := map[string]any{
@@ -5687,7 +5704,7 @@ func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
+	paths, _ := s.prereqSnapAssertions(c, nil, "", false, 10)
 	snapPath := paths[10]
 	si := s.setupConfdb(c)
 
@@ -5922,4 +5939,114 @@ func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {
 
 	err := assertstate.FetchConfdbSchemaAssertion(s.state, 0, "foo", "bar")
 	c.Assert(err, testutil.ErrorIs, store.ErrStoreOffline)
+}
+
+type testValidatedIntegrityDataParams struct {
+	createRevision   bool
+	createMultiple   bool
+	integrity        bool
+	expIntegrityData *integrity.IntegrityDataParams
+	expErr           string
+}
+
+func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIntegrityDataParams) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	if params.createRevision {
+		paths, _ := s.prereqSnapAssertions(c, nil, "", params.integrity, 10)
+		snapPath := paths[10]
+
+		if params.createMultiple {
+			rev := 10
+			snapPath := s.makeTestSnap(c, rev, "")
+			digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
+			c.Assert(err, IsNil)
+
+			headers := map[string]any{
+				"snap-id":       "snap-id-1",
+				"snap-sha3-384": digest,
+				"snap-size":     fmt.Sprintf("%d", sz),
+				"snap-revision": fmt.Sprintf("%d", rev),
+				"developer-id":  s.dev1Acct.AccountID(),
+				"timestamp":     time.Now().Format(time.RFC3339),
+			}
+
+			signer := assertstest.SignerDB(s.storeSigning)
+
+			snapRev, err := signer.Sign(asserts.SnapRevisionType, headers, nil, "")
+			c.Assert(err, IsNil)
+			err = s.storeSigning.Add(snapRev)
+			c.Assert(err, IsNil)
+		}
+
+		// have a model and the store assertion available
+		storeAs := s.setupModelAndStore(c)
+		err := s.storeSigning.Add(storeAs)
+		c.Assert(err, IsNil)
+
+		chg := s.state.NewChange("install", "...")
+		t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+		snapsup := snapstate.SnapSetup{
+			SnapPath: snapPath,
+			UserID:   0,
+			SideInfo: &snap.SideInfo{
+				RealName: "foo",
+				SnapID:   "snap-id-1",
+				Revision: snap.R(10),
+			},
+		}
+		t.Set("snap-setup", snapsup)
+		chg.AddTask(t)
+
+		s.state.Unlock()
+		defer s.se.Stop()
+		s.settle(c)
+		s.state.Lock()
+
+		c.Assert(chg.Err(), IsNil)
+	}
+
+	idp, err := assertstate.ValidatedIntegrityData(s.state, "snap-id-1", 10)
+	c.Check(idp, DeepEquals, params.expIntegrityData)
+	if params.expErr != "" {
+		c.Check(err, ErrorMatches, params.expErr)
+	} else {
+		c.Check(err, IsNil)
+	}
+}
+
+func (s *assertMgrSuite) TestValidatedIntegrityDataSuccess(c *C) {
+	s.testValidatedIntegrityData(c, testValidatedIntegrityDataParams{
+		createRevision: true,
+		integrity:      true,
+		expIntegrityData: &integrity.IntegrityDataParams{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlocks:    4,
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			Salt:          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		expErr: "",
+	})
+}
+
+func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoneFound(c *C) {
+	s.testValidatedIntegrityData(c, testValidatedIntegrityDataParams{
+		createRevision:   true,
+		integrity:        false,
+		expIntegrityData: nil,
+		expErr:           "no integrity data found in revision",
+	})
+}
+
+func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
+	s.testValidatedIntegrityData(c, testValidatedIntegrityDataParams{
+		createRevision:   false,
+		expIntegrityData: nil,
+		expErr:           regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)."),
+	})
 }
