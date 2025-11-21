@@ -18,11 +18,11 @@ execute: |
     echo "Verify snapctl refresh --tracking"
 
     snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
-    echo $snapd_release | gojq --yaml-input -r .channel | MATCH "null"
+    echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "null"
 
     snap switch test-snapd-sh-core24 --channel latest/stable
     snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
-    echo $snapd_release | gojq --yaml-input -r .channel | MATCH "latest/stable"
+    echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "latest/stable"
 
     if [ "$USER" != "root" ]; then
         not tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-tracking.log
