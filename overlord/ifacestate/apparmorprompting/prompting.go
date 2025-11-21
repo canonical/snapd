@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/notices"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
@@ -94,16 +94,33 @@ type InterfacesRequestsManager struct {
 	// would be a race between the method calls unblocking and the manager
 	// actually getting the chance to handle the request.
 	ready chan struct{}
+
+	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
+	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 }
 
-func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr error) {
-	// First initialize notice backends to load notices from disk and allow
-	// prompting managers to record notices. Don't register the notice backends
-	// with the state until we're sure initialization was successful and
-	// prompting will be enabled.
-	noticeBackends, err := newNoticeBackends(noticeMgr)
-	if err != nil {
-		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
+func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyPrompt calls can return
+		// quickly without waiting for state lock and AddNotice() to return.
+		s.Lock()
+		defer s.Unlock()
+		options := state.AddNoticeOptions{
+			Data: data,
+		}
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
+		return err
+	}
+	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
+		// TODO: add some sort of queue so that notifyRule calls can return
+		// quickly without waiting for state lock and AddNotice() to return.
+		s.Lock()
+		defer s.Unlock()
+		options := state.AddNoticeOptions{
+			Data: data,
+		}
+		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
+		return err
 	}
 
 	listenerBackend, err := listenerRegister()
@@ -116,7 +133,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(noticeBackends.promptBackend.addNotice)
+	promptsBackend, err := requestprompts.New(notifyPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -126,7 +143,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(noticeBackends.ruleBackend.addNotice)
+	rulesBackend, err := requestrules.New(notifyRule)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
@@ -136,18 +153,13 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	// Now that all prompting managers were successfully initialized, register
-	// the notice backends with the state as notice providers.
-	if err = noticeBackends.registerWithManager(noticeMgr); err != nil {
-		// This should never occur
-		return nil, fmt.Errorf("cannot register notice backends for prompting manager: %w", err)
-	}
-
 	m = &InterfacesRequestsManager{
-		listener: listenerBackend,
-		prompts:  promptsBackend,
-		rules:    rulesBackend,
-		ready:    make(chan struct{}),
+		listener:     listenerBackend,
+		prompts:      promptsBackend,
+		rules:        rulesBackend,
+		ready:        make(chan struct{}),
+		notifyPrompt: notifyPrompt,
+		notifyRule:   notifyRule,
 	}
 
 	m.tomb.Go(m.run)

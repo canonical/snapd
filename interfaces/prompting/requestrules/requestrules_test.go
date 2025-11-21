@@ -20,7 +20,6 @@
 package requestrules_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -217,22 +216,12 @@ func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*req
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
-	filtered := filterOutDebugLogs(logbuf)
-	c.Check(filtered, Matches, fmt.Sprintf(".*cannot load rule database: %s; using new empty rule database.*", expectedErr))
+	logErr := fmt.Errorf("%s", strings.TrimSpace(logbuf.String()))
+	c.Check(logErr, ErrorMatches, fmt.Sprintf(".*cannot load rule database: %s; using new empty rule database", expectedErr))
 	if checkWritten {
 		s.checkWrittenRuleDB(c, nil)
 	}
 	s.checkNewNoticesSimple(c, map[string]string{"removed": "dropped"}, rules...)
-}
-
-func filterOutDebugLogs(logbuf *bytes.Buffer) string {
-	var filteredLines []string
-	for _, logline := range strings.Split(logbuf.String(), "\n") {
-		if !strings.Contains(logline, "DEBUG") {
-			filteredLines = append(filteredLines, logline)
-		}
-	}
-	return strings.TrimSpace(strings.Join(filteredLines, "\n"))
 }
 
 func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrules.Rule) {
@@ -310,7 +299,7 @@ func (s *requestrulesSuite) TestLoadErrorUnmarshal(c *C) {
 	// unmarshal should catch invalid rule and exit before attempting to add.
 	rules := []*requestrules.Rule{good1, bad, good2}
 	s.writeRules(c, dbPath, rules)
-	s.testLoadError(c, `invalid interface: "foo"`, nil, checkWritten)
+	s.testLoadError(c, `invalid interface: "foo".*`, nil, checkWritten)
 }
 
 func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
@@ -403,7 +392,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
 }
 
 func setPermissionsOutcomeLifespanExpirationSession(c *C, rule *requestrules.Rule, permissions []string, outcome prompting.OutcomeType, lifespan prompting.LifespanType, expiration time.Time, userSessionID prompting.IDType) {
@@ -434,7 +423,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleConflict), rules, checkWritten)
 }
 
 func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
@@ -469,7 +458,7 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
+	c.Check(logbuf.String(), HasLen, 0)
 
 	expectedWrittenRules := []*requestrules.Rule{good1, good2, good3}
 	s.checkWrittenRuleDB(c, expectedWrittenRules)
@@ -678,7 +667,7 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
+	c.Check(logbuf.String(), HasLen, 0)
 
 	expectedWrittenRules := []*requestrules.Rule{expected1, expected2, expected3, expected4}
 	s.checkWrittenRuleDB(c, expectedWrittenRules)
@@ -759,7 +748,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
+	c.Check(logbuf.String(), HasLen, 0)
 
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNotices(c, nil)

@@ -185,7 +185,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
 
-	s.mgr, err = ifacestate.Manager(s.state, hookMgr, nil, s.o.TaskRunner(), nil, nil)
+	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	s.o.AddManager(s.mgr)

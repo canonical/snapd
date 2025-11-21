@@ -430,7 +430,7 @@ apps:
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, nil, ovld.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
@@ -499,7 +499,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, nil, ovld.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
@@ -547,7 +547,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	defer restore()
 
 	// Construct and start up the interface manager.
-	mgr, err := ifacestate.Manager(st, nil, nil, ovld.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
@@ -777,7 +777,7 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	ovld := overlord.Mock()
 	st := ovld.State()
 	// manager
-	mgr, err := ifacestate.Manager(st, nil, nil, ovld.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	// installs the ifacemgr helper
 	err = mgr.StartUp()
