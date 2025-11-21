@@ -201,14 +201,10 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 
 		flags := snapst.Flags
 		flags.IsAutoRefresh = true
-		snapsup, compsups, err := t.setups(Options{
+		snapsup, compsups := t.setups(Options{
 			DeviceCtx: deviceCtx,
 			Flags:     flags,
 		})
-		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", t.InstanceName(), err)
-			continue
-		}
 
 		hints[t.InstanceName()] = &refreshCandidate{
 			SnapSetup:  snapsup,

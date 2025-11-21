@@ -126,7 +126,7 @@ func markTargetNotApplicable(err error) error {
 
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
 // for the target snap.
-func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup, error) {
+func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup) {
 	compsups := make([]ComponentSetup, 0, len(t.components))
 	for _, comp := range t.components {
 		compsups = append(compsups, ComponentSetup{
@@ -144,7 +144,7 @@ func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup, error) {
 		})
 	}
 
-	return t.setup, compsups, nil
+	return t.setup, compsups
 }
 
 // minimalInstallInfo implementation for disk space/prereq checks.
@@ -799,10 +799,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 		opts.PrereqTracker.Add(t.info)
 
-		snapsup, compsups, err := t.setups(opts)
-		if err != nil {
-			return nil, nil, err
-		}
+		snapsup, compsups := t.setups(opts)
 
 		var instFlags int
 		if opts.Flags.SkipConfigure {
@@ -957,21 +954,14 @@ func (p *updatePlan) targetSetups() []SnapSetup {
 
 // updates returns the updates that should be applied to the system's state for
 // this plan.
+//
+// TODO: add preDownload flag to update???
 func (p *updatePlan) updates(opts Options) ([]update, error) {
 	updates := make([]update, 0, len(p.targets))
 	for _, t := range p.targets {
 		opts.PrereqTracker.Add(t.info)
 
-		snapsup, compsups, err := t.setups(opts)
-		if err != nil {
-			if !p.refreshAll() {
-				return nil, err
-			}
-
-			logger.Noticef("cannot refresh snap %q: %v", t.InstanceName(), err)
-			continue
-		}
-
+		snapsup, compsups := t.setups(opts)
 		updates = append(updates, update{
 			Setup:      snapsup,
 			SnapState:  t.snapst,
