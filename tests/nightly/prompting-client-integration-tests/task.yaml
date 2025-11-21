@@ -34,8 +34,8 @@ prepare: |
     pushd prompting-client/testing-snap
     snapcraft pack
     echo "Install the test snap"
-    snap install *.snap --dangerous
-    TEST_SNAP_NAME="$(ls *.snap | head -1 | cut -d '_' -f 1)"
+    snap install ./*.snap --dangerous
+    TEST_SNAP_NAME="$(find . -name '*.snap' | head -1 | cut -d '/' -f 2 | cut -d '_' -f 1)"
     tests.cleanup defer snap remove --purge "$TEST_SNAP_NAME"
     snap connect "$TEST_SNAP_NAME:camera"
     snap connect "$TEST_SNAP_NAME:audio-record"
@@ -70,11 +70,16 @@ prepare: |
     cargo test --no-run
     popd
 
-    INTEGRATION_TESTS_PATH="$(ls -ht prompting-client/prompting-client/target/debug/deps/integration* | grep -Ev '\.d' | head -n1)"
-    cp "$INTEGRATION_TESTS_PATH" /home/test/run-integration-tests
+    for artifact in prompting-client/prompting-client/target/debug/deps/integration* ; do
+        if echo "$artifact" | grep '\.d' ; then
+            continue
+        fi
+        cp "$artifact" /home/test/run-integration-tests
+        break
+    done
     chown test /home/test/run-integration-tests
 
-execute:
+execute: |
     tests.exec is-skipped && exit 0
 
     tests.session -u test exec /home/test/run-integration-tests
