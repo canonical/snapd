@@ -2772,7 +2772,7 @@ func (s *storeTestSuite) TestFindV2FindFields(c *C) {
 	sort.Strings(findFields)
 	c.Assert(findFields, DeepEquals, []string{
 		"base", "categories", "channel", "common-ids", "confinement", "contact",
-		"description", "download", "integrity", "license", "links", "media", "prices", "private",
+		"description", "download", "license", "links", "media", "prices", "private",
 		"publisher", "revision", "store-url", "summary", "title", "type",
 		"version", "website"})
 }
