@@ -303,6 +303,9 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 		c.Check(recoveryKeyID, Equals, "some-key-id")
 		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
 			{ContainerRole: "some-container-role", Name: "some-name"},
+			// keyslot expanded
+			{ContainerRole: "system-data", Name: "some-other-name"},
+			{ContainerRole: "system-save", Name: "some-other-name"},
 		})
 
 		return state.NewTaskSet(st.NewTask("some-task", "")), nil
@@ -313,7 +316,8 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	"action": "replace-recovery-key",
 	"key-id": "some-key-id",
 	"keyslots": [
-		{"container-role": "some-container-role", "name": "some-name"}
+		{"container-role": "some-container-role", "name": "some-name"},
+		{"name": "some-other-name"}
 	]
 }`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -399,6 +403,38 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 	c.Check(rsp.Kind, Equals, client.ErrorKindInvalidRecoveryKey)
 	c.Check(rsp.Message, Equals, `invalid recovery key: expired`)
 	c.Check(rsp.Value, DeepEquals, map[string]any{"reason": fdestate.InvalidRecoveryKeyReasonExpired})
+
+	for _, conflictingKeyslot := range []fdestate.KeyslotRef{
+		{ContainerRole: "some-container-role", Name: "explicit-duplicate"},
+		{ContainerRole: "system-data", Name: "implicit-duplicate"},
+		{ContainerRole: "system-save", Name: "implicit-duplicate"},
+	} {
+		bodyRaw := fmt.Sprintf(`{
+	"action": "replace-recovery-key",
+	"key-id": "some-key-id",
+	"keyslots": [
+		{"container-role": %q, "name": %q},
+		{"container-role": "some-container-role", "name": "explicit-duplicate"},
+		{"name": "implicit-duplicate"}
+	]
+}`, conflictingKeyslot.ContainerRole, conflictingKeyslot.Name)
+
+		body = strings.NewReader(bodyRaw)
+		req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+		req.Header.Add("Content-Type", "application/json")
+
+		c.Assert(err, IsNil)
+		rsp = s.errorReq(c, req, nil, actionIsExpected)
+		c.Assert(rsp.Status, Equals, 400)
+		switch conflictingKeyslot.Name {
+		case "explicit-duplicate":
+			c.Check(rsp.Message, Equals, fmt.Sprintf("invalid keyslots: duplicate keyslot found %s", conflictingKeyslot.String()))
+		case "implicit-duplicate":
+			c.Check(rsp.Message, Equals, fmt.Sprintf("invalid keyslots: duplicate implicit keyslot found %s", conflictingKeyslot.String()))
+		default:
+			c.Errorf("unexpected keyslot name %q", conflictingKeyslot.Name)
+		}
+	}
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
@@ -445,6 +481,9 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 		}
 		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
 			{ContainerRole: "some-container-role", Name: "some-name"},
+			// keyslot expanded
+			{ContainerRole: "system-data", Name: "some-other-name"},
+			{ContainerRole: "system-save", Name: "some-other-name"},
 		})
 
 		return state.NewTaskSet(st.NewTask("some-task", "")), nil
@@ -454,7 +493,8 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 {
 	"action": "replace-platform-key",
 	"keyslots": [
-		{"container-role": "some-container-role", "name": "some-name"}
+		{"container-role": "some-container-role", "name": "some-name"},
+		{"name": "some-other-name"}
 	],
 %s
 }`
@@ -633,6 +673,9 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 		c.Check(authMode, Equals, device.AuthModePassphrase)
 		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
 			{ContainerRole: "some-container-role", Name: "some-name"},
+			// keyslot expanded
+			{ContainerRole: "system-data", Name: "some-other-name"},
+			{ContainerRole: "system-save", Name: "some-other-name"},
 		})
 
 		return state.NewTaskSet(), nil
@@ -644,7 +687,8 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 	"old-passphrase": "old",
 	"new-passphrase": "new",
 	"keyslots": [
-		{"container-role": "some-container-role", "name": "some-name"}
+		{"container-role": "some-container-role", "name": "some-name"},
+		{"name": "some-other-name"}
 	]
 }`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
