@@ -67,6 +67,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -173,16 +174,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
 	s.AddCleanup(restoreCheckFreeSpace)
 
-	// Updates to mounts now call to the assertion database to a) check whether a snap needs to
-	// be mounted with integrity data and b) get the verified integrity data parameters.
-	// Here we mock that lookup and always return a snap revision assertion for the snap so that
-	// the code proceeds.
-	// Functions that need to test behaviour using a snap revision assertion that contains integrity
-	// data, will remock this using a mock assertion with integrity data.
-	rev := makeMockSnapRevisionAssertion(false)
-	restoreAssertFetcher := snapstate.MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(rev)
-	s.AddCleanup(restoreAssertFetcher)
-
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
@@ -226,6 +217,19 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restore)
+
+	// Updates to mounts now call to the assertion database to a) check whether a snap needs to
+	// be mounted with integrity data and b) get the verified integrity data parameters.
+	// Here we mock that lookup and always return a snap revision assertion for the snap so that
+	// the code proceeds.
+	// Functions that need to test behaviour using a snap revision assertion that contains integrity
+	// data, will remock this using a mock assertion with integrity data.
+	// rev := makeMockSnapRevisionAssertion(false)
+
+	restore = snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev int) (*integrity.IntegrityDataParams, error) {
+		return nil, nil
 	})
 	s.AddCleanup(restore)
 
@@ -10239,7 +10243,11 @@ apps:
 	defer restore()
 
 	rev := makeMockSnapRevisionAssertion(true)
-	restore = snapstate.MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(rev)
+	restore = snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, revN int) (*integrity.IntegrityDataParams, error) {
+		idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+		c.Assert(err, IsNil)
+		return idp, nil
+	})
 	defer restore()
 
 	s.restarts[unitName] = 0

@@ -30,8 +30,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -57,9 +55,8 @@ import (
 )
 
 var (
-	removeSnapChangeKind                           = swfeats.RegisterChangeKind("remove-snap")
-	transitionUbuntuCoreChangeKind                 = swfeats.RegisterChangeKind("transition-ubuntu-core")
-	assertsSnapRevisionFromSnapIdAndRevisionNumber = asserts.SnapRevisionFromSnapIdAndRevisionNumber
+	removeSnapChangeKind           = swfeats.RegisterChangeKind("remove-snap")
+	transitionUbuntuCoreChangeKind = swfeats.RegisterChangeKind("transition-ubuntu-core")
 )
 
 func init() {
@@ -1502,12 +1499,6 @@ func (m *SnapManager) ensureMountsUpdated() error {
 	if len(allStates) != 0 {
 		sysd := getSystemD()
 
-		// Open the assertion db to lookup integrity data for snaps
-		db, err := sysdb.Open()
-		if err != nil {
-			return err
-		}
-
 		for _, snapSt := range allStates {
 			info, err := snapSt.CurrentInfo()
 			if err != nil {
@@ -1556,12 +1547,8 @@ func (m *SnapManager) ensureMountsUpdated() error {
 
 			if !snapSt.Current.Local() {
 				snapID := snapSt.Sequence.Revisions[0].Snap.SnapID
-				rev, err := assertsSnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapSt.Current.N)
-				if err != nil {
-					return err
-				}
 
-				idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+				idp, err := ValidatedIntegrityData(m.state, snapID, snapSt.Current.N)
 
 				// Currently integrity data are not enforced therefore errors returned when integrity data
 				// are not found for a snap revision are ignored.
