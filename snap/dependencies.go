@@ -19,11 +19,22 @@
 
 package snap
 
-import "slices"
+import (
+	"fmt"
+	"regexp"
+	"slices"
+	"strconv"
+)
+
+type dependency struct {
+	Name        string
+	MinimumBase int // 0 means "no minimum base"
+	MaximumBase int // 0 means "no maximum base"
+}
 
 // This is the list of interfaces to add for each interface available
-var dependencies = map[string][]string{
-	"desktop-legacy": {"accessibility"},
+var dependencies = map[string][]dependency{
+	"desktop-legacy": {{Name: "accessibility"}},
 }
 
 // This is the list of interfaces that can't be manually defined in the
@@ -32,60 +43,59 @@ var forbidenInterfaces = []string{
 	"accessibility",
 }
 
-func GetGlobalPlugDependencies(plugs map[string]any, slots map[string]any) map[string]any {
-	dependeciesList := map[string]any{}
-	for plug := range plugs {
+func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*PlugInfo, globalSlots map[string]*SlotInfo, base string) ([]string, error) {
+	globalPlugNames := []string{}
+	for plugName := range globalPlugs {
+		globalPlugNames = append(globalPlugNames, plugName)
+	}
+	baseVersion := 0
+	if match, _ := regexp.MatchString("[cC]ore[0-9]+", base); match {
+		baseVersion, _ = strconv.Atoi(base[4:])
+	}
+	dependeciesList := []string{}
+	for _, plug := range append(plugs, globalPlugNames...) {
+		// Check no forbiden dependency is in the app plugs list
+		if CheckInterfaceIsInvalid(plug) {
+			return nil, fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", plug)
+		}
+
 		deps, ok := dependencies[plug]
 		if !ok {
 			continue
 		}
 		for _, dep := range deps {
-			if _, ok := dependeciesList[dep]; ok {
+			if baseVersion != 0 {
+				if (dep.MinimumBase != 0) && (dep.MinimumBase > baseVersion) {
+					continue
+				}
+				if (dep.MaximumBase != 0) && (dep.MaximumBase < baseVersion) {
+					continue
+				}
+			}
+			if slices.Contains(dependeciesList, dep.Name) {
 				// Don't add duplicated dependencies
 				continue
 			}
-			if _, ok := plugs[dep]; ok {
+			if slices.Contains(plugs, dep.Name) {
+				// Don't add a dependency plug if it is already a app-specific plug
+				continue
+			}
+			if slices.Contains(slots, dep.Name) {
+				// Don't add a dependency plug if it is already an app-specific slot
+				continue
+			}
+			if _, ok := globalPlugs[dep.Name]; ok {
 				// Don't add a plug dependency that is already in the global plugs
 				continue
 			}
-			if _, ok := slots[dep]; ok {
+			if _, ok := globalSlots[dep.Name]; ok {
 				// Don't add a plug dependency that is already in the global slots
 				continue
 			}
-			dependeciesList[dep] = nil
+			dependeciesList = append(dependeciesList, dep.Name)
 		}
 	}
-	return dependeciesList
-}
-
-func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*PlugInfo, globalSlots map[string]*SlotInfo) []string {
-	dependeciesList := []string{}
-	for _, plug := range plugs {
-		deps, ok := dependencies[plug]
-		if !ok {
-			continue
-		}
-		for _, dep := range deps {
-			if slices.Contains(dependeciesList, dep) {
-				// Don't add duplicated dependencies
-				continue
-			}
-			if slices.Contains(plugs, dep) {
-				// Don't add a dependency plug if it is already a defined plug
-				continue
-			}
-			if slices.Contains(slots, dep) {
-				// Don't add a dependency plug if it is already a slot
-				continue
-			}
-			if _, ok := globalSlots[dep]; ok {
-				// Don't add a plug dependency that is already in the global slots
-				continue
-			}
-			dependeciesList = append(dependeciesList, dep)
-		}
-	}
-	return dependeciesList
+	return dependeciesList, nil
 }
 
 func CheckInterfaceIsInvalid(iface string) bool {
