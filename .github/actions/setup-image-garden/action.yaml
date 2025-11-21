@@ -87,4 +87,4 @@ runs:
             sudo go build -o /usr/bin ./...
         - name: Install dependencies
           shell: bash
-          run: sudo apt install -y ovmf whois xorriso qemu-system-x86
+          run: sudo apt update && sudo apt install -y ovmf whois xorriso qemu-system-x86
