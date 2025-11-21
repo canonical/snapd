@@ -7,7 +7,7 @@ xkb_list="$(/usr/libexec/core/get-arg snapd.xkb || true)"
 
 [ -z "$xkb_list" ] && exit 0
 
-IFS=','; set -- $xkb_list
+IFS=','; set -- "$xkb_list"
 
 layout="${1:-}"
 model="${2:-}"
