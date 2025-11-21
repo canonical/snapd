@@ -182,24 +182,15 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
-	globalPlugDependencies := GetGlobalPlugDependencies(y.Plugs, y.Slots)
 
 	snap := infoSkeletonFromSnapYaml(y)
 
 	// Collect top-level definitions of plugs and slots
-	if err := setPlugsFromSnapYaml(y.Plugs, y, snap, false); err != nil {
-		return nil, err
-	}
-	if err := setPlugsFromSnapYaml(globalPlugDependencies, y, snap, true); err != nil {
+	if err := setPlugsFromSnapYaml(y, snap, false); err != nil {
 		return nil, err
 	}
 	if err := setSlotsFromSnapYaml(y, snap); err != nil {
 		return nil, err
-	}
-
-	for key, value := range globalPlugDependencies {
-		// insert dependencies in the yaml to ensure full compatibility
-		y.Plugs[key] = value
 	}
 
 	strk.init(len(y.Apps) + len(y.Hooks))
@@ -396,11 +387,8 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 	return nil
 }
 
-func setPlugsFromSnapYaml(plugs map[string]any, y snapYaml, snap *Info, isDependency bool) error {
-	for name, data := range plugs {
-		if CheckInterfaceIsInvalid(name) {
-			return fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", name)
-		}
+func setPlugsFromSnapYaml(y snapYaml, snap *Info, isDependency bool) error {
+	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
 			return err
@@ -497,13 +485,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			snap.LegacyAliases[alias] = app
 		}
 
-		// Check no forbiden dependency is in the plugs list
-		for _, plugName := range yApp.PlugNames {
-			if CheckInterfaceIsInvalid(plugName) {
-				return fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", plugName)
-			}
+		plugDependencies, err := GetDependenciesFor(yApp.PlugNames, yApp.SlotNames, snap.Plugs, snap.Slots, snap.Base)
+		if err != nil {
+			return err
 		}
-		plugDependencies := GetDependenciesFor(yApp.PlugNames, yApp.SlotNames, snap.Plugs, snap.Slots)
 		yApp.PlugNames = append(yApp.PlugNames, plugDependencies...)
 
 		// Bind all plugs/slots listed in this app
