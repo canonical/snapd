@@ -14,10 +14,10 @@ model="${2:-}"
 variant="${3:-}"
 options="${4:-}"
 
-# Write /etc/default/keyboard
 cat << EOF > /etc/default/keyboard
 # KEYBOARD CONFIGURATION FILE
-# Consult the keyboard(5) manual page.
+# THIS FILE WAS AUTOMATICALLY CREATED
+# BY THE "snapd.xkb" KERNEL ARGUMENT
 
 XKBMODEL="$model"
 XKBLAYOUT="$layout"

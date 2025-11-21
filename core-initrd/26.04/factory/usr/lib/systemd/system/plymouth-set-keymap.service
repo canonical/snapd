@@ -1,8 +1,7 @@
 [Unit]
 Description=Set Plymouth Keymap
 DefaultDependencies=no
-After=systemd-udev-trigger.service systemd-udevd.service
-Before=plymouth-start.service
+Before=systemd-ask-password-plymouth.service
 ConditionKernelCommandLine=snapd.xkb
 
 [Service]
