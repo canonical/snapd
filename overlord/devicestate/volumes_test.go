@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -117,6 +118,19 @@ func (s *volumesSuite) TestGetVolumeStructuresWithKeyslots(c *C) {
 			{Name: "default-fallback", ContainerRole: "system-save", Type: fdestate.KeyslotTypePlatform},
 		}
 		return keyslots, nil, nil
+	})()
+
+	defer devicestate.MockFdestateGetActivations(func(st *state.State) (activations map[string]*secboot.ContainerActivateState, err error) {
+		return map[string]*secboot.ContainerActivateState{
+			"system-data": &secboot.ContainerActivateState{
+				Status:  secboot.ActivationSucceededWithPlatformKey,
+				Keyslot: "default",
+			},
+			"system-save": &secboot.ContainerActivateState{
+				Status:  secboot.ActivationSucceededWithPlatformKey,
+				Keyslot: "default",
+			},
+		}, nil
 	})()
 
 	s.state.Lock()

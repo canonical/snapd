@@ -22,6 +22,7 @@
 package fdestate
 
 import (
+	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/sha1"
@@ -470,6 +471,42 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
 	mgr := fdeMgr(st)
 	return mgr.GetKeyslots(keyslotRefs)
+}
+
+func (m *FDEManager) GetActivations() (activations map[string]*secboot.ContainerActivateState, err error) {
+	state, err := boot.LoadDiskUnlockState("unlocked.json")
+	if err != nil {
+		return nil, err
+	}
+	if state.State == nil {
+		return nil, fmt.Errorf("no activation state is provided by snap-bootstrap")
+	}
+
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	activations = make(map[string]*secboot.ContainerActivateState)
+	for _, container := range containers {
+		container.DevPath()
+		storage, err := secboot.FindStorageContainer(context.Background(), container.DevPath())
+		if err != nil {
+			return nil, fmt.Errorf("cannot find activated storage container for %s %s: %w", container.DevPath(), container.ContainerRole(), err)
+		}
+		storageState, err := secboot.GetActivation(state.State, storage.Path())
+		if err != nil {
+			return nil, err
+		}
+		activations[container.ContainerRole()] = storageState
+	}
+
+	return activations, nil
+}
+
+func GetActivations(st *state.State) (activations map[string]*secboot.ContainerActivateState, err error) {
+	mgr := fdeMgr(st)
+	return mgr.GetActivations()
 }
 
 func keyslotsAffectedByTask(t *state.Task) ([]KeyslotRef, error) {

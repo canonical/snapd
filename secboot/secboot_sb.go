@@ -802,3 +802,22 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 }
 
 type ActivateState = sb.ActivateState
+
+type ContainerActivateState = sb.ContainerActivateState
+type StorageContainer = sb.StorageContainer
+
+func FindStorageContainer(ctx context.Context, path string) (StorageContainer, error) {
+	return sb.FindStorageContainer(ctx, path)
+}
+
+func GetActivation(state *ActivateState, path string) (*ContainerActivateState, error) {
+	if containerState, ok := state.Activations[path]; ok {
+		return containerState, nil
+	}
+
+	return nil, fmt.Errorf("disk '%s' was not found in the activations", path)
+}
+
+const (
+	ActivationSucceededWithPlatformKey = sb.ActivationSucceededWithPlatformKey
+)

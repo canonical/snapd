@@ -216,3 +216,24 @@ func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 
 type ActivateState struct {
 }
+
+type ContainerActivateState struct {
+	Status  int
+	Keyslot string
+}
+
+const (
+	ActivationSucceededWithPlatformKey = 0
+)
+
+type StorageContainer interface {
+	Path() string
+}
+
+func FindStorageContainer(ctx context.Context, path string) (StorageContainer, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func GetActivation(state *ActivateState, path string) (*ContainerActivateState, error) {
+	return nil, errBuildWithoutSecboot
+}

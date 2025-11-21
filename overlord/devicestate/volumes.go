@@ -26,11 +26,13 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
-	fdestateGetKeyslots = fdestate.GetKeyslots
-	snapstateGadgetInfo = snapstate.GadgetInfo
+	fdestateGetKeyslots    = fdestate.GetKeyslots
+	snapstateGadgetInfo    = snapstate.GadgetInfo
+	fdestateGetActivations = fdestate.GetActivations
 )
 
 // VolumeStructureWithKeyslots is gadget.VolumeStructure with
@@ -38,7 +40,8 @@ var (
 type VolumeStructureWithKeyslots struct {
 	gadget.VolumeStructure
 
-	Keyslots []fdestate.Keyslot
+	Keyslots   []fdestate.Keyslot
+	Activation *secboot.ContainerActivateState
 }
 
 // GetVolumeStructuresWithKeyslots returns the current gadget
@@ -64,6 +67,12 @@ func GetVolumeStructuresWithKeyslots(st *state.State) ([]VolumeStructureWithKeys
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key slots: %v", err)
 	}
+
+	activations, err := fdestateGetActivations(st)
+	if err != nil {
+		return nil, err
+	}
+
 	keyslotsByContainerRole := make(map[string][]fdestate.Keyslot)
 	for _, keyslot := range keyslots {
 		keyslotsByContainerRole[keyslot.ContainerRole] = append(keyslotsByContainerRole[keyslot.ContainerRole], keyslot)
@@ -75,6 +84,7 @@ func GetVolumeStructuresWithKeyslots(st *state.State) ([]VolumeStructureWithKeys
 			structuresWithKeyslots = append(structuresWithKeyslots, VolumeStructureWithKeyslots{
 				VolumeStructure: gs,
 				Keyslots:        keyslotsByContainerRole[gs.Role],
+				Activation:      activations[gs.Role],
 			})
 		}
 	}

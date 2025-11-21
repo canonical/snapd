@@ -707,6 +707,10 @@ func MockFdestateGetKeyslots(f func(st *state.State, keyslotRefs []fdestate.Keys
 	return testutil.Mock(&fdestateGetKeyslots, f)
 }
 
+func MockFdestateGetActivations(f func(st *state.State) (activations map[string]*secboot.ContainerActivateState, err error)) (restore func()) {
+	return testutil.Mock(&fdestateGetActivations, f)
+}
+
 func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error)) (restore func()) {
 	return testutil.Mock(&snapstateGadgetInfo, f)
 }
