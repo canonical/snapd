@@ -1143,6 +1143,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow snap-update-ns to open home directory
   owner @{HOME}/ r,
 
+  # Work around for https://gitlab.com/apparmor/apparmor/-/issues/571
+  # which prevents access to mmap MAP_HUGETLB.
+  allow file / rwm,
+
 ###SNIPPETS###
 }
 `
