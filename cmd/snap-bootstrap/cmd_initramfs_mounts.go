@@ -36,6 +36,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -61,7 +62,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -115,17 +115,12 @@ var (
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 
-	mountReadOnlyOptions = &systemdMountOptions{
-		ReadOnly: true,
-		Private:  true,
-	}
-
 	gadgetInstallRun                 = gadgetInstall.Run
 	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
-	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
+	sysdbTrusted                     = sysdb.Trusted
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -1947,28 +1942,6 @@ func createSysrootMount() bool {
 	return isCore24plus == "1" || isCore24plus == "true"
 }
 
-func getVerityOptions(snapPath string, idp *integrity.IntegrityDataParams) (*dmVerityOptions, error) {
-	hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
-
-	if err != nil && err == integrity.ErrIntegrityDataParamsNotFound {
-		// TODO: throw error instead if integrity data are required by policy
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, err)
-	}
-
-	// TODO: we currently rely on several parameters from the on-disk unverified superblock
-	// which gets automatically parsed by veritysetup for the mount. Instead we can use
-	// the parameters we already have in the assertion as options to the mount but this
-	// would require extra support in libmount.
-	return &dmVerityOptions{
-		HashDevice: hashDevice,
-		RootHash:   idp.Digest,
-	}, nil
-}
-
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -2030,7 +2003,12 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 
-		verityOptions, err := getVerityOptions(essentialSnap.Path, essentialSnap.IntegrityDataParams)
+		essentialSnapInfo := &essentialSnapInfo{
+			path:                essentialSnap.Path,
+			integrityDataParams: essentialSnap.IntegrityDataParams,
+		}
+
+		verityOptions, err := essentialSnapInfo.GetVerityOptions()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -2069,9 +2047,9 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 					ReadOnly:  true,
 					Private:   true,
 				}
+
 				if verityOptions != nil {
 					mountOptions.FsOpts = verityOptions
-
 				}
 
 				if err := doSystemdMount(essentialSnap.Path,
@@ -2564,6 +2542,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	if modeEnv.RecoverySystem != "" && !isClassic {
+		mst.firstBoot = true
+	}
+
 	// order in the list must not change as it determines the mount order
 	typs := []snap.Type{snap.TypeGadget, snap.TypeKernel}
 	if !isClassic {
@@ -2575,6 +2557,13 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv, rootfsDir)
 	if err != nil {
 		return err
+	}
+
+	if !isClassic {
+		err = mst.LoadEssentialSnapRevisions(modeEnv, mounts)
+		if err != nil {
+			return err
+		}
 	}
 
 	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
@@ -2596,11 +2585,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
+			verityOptions, err := mst.essentialSnaps[basePlaceInfo.SnapName()].GetVerityOptions()
+			if err != nil {
+				return err
+			}
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
-
-			// TODO: verity data for the mount should be passed here instead of nil
-			// once support for verity data in run mode is added
-			if err := writeSysrootMountUnit(what, "squashfs", nil); err != nil {
+			if err := writeSysrootMountUnit(what, "squashfs", verityOptions); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
 			}
 		}
@@ -2627,7 +2617,25 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		dir := snapTypeToMountDir[typ]
 		snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
 		snapMntPt := filepath.Join(boot.InitramfsRunMntDir, dir)
-		if err := doSystemdMount(snapPath, snapMntPt, mountReadOnlyOptions); err != nil {
+
+		var verityOptions *dmVerityOptions
+		if !isClassic {
+			verityOptions, err = mst.essentialSnaps[sn.SnapName()].GetVerityOptions()
+			if err != nil {
+				return err
+			}
+		}
+
+		mountOptions := &systemdMountOptions{
+			ReadOnly: true,
+			Private:  true,
+		}
+
+		if verityOptions != nil {
+			mountOptions.FsOpts = verityOptions
+		}
+
+		if err := doSystemdMount(snapPath, snapMntPt, mountOptions); err != nil {
 			return err
 		}
 		// On 24+ kernels, create /lib/{firmware,modules} mounts if
@@ -2666,7 +2674,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 4.5 mount snapd snap only on first boot
-	if modeEnv.RecoverySystem != "" && !isClassic {
+	if mst.firstBoot {
 		// load the recovery system and generate mount for snapd
 		theSeed, err := mst.LoadSeed(modeEnv.RecoverySystem)
 		if err != nil {

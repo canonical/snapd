@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -33,6 +34,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -1403,4 +1405,64 @@ func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 		return fmt.Errorf("failed signature verification: %v", err)
 	}
 	return nil
+}
+
+var dbFindMany = func(db RODatabase, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return db.FindMany(assertionType, headers)
+}
+
+var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
+
+// SnapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
+// a snap ID, and a revision number. This is to be used in cases where the sha3 hash which is the primary key
+// for revision assertions is not known or we don't want to incur the cost to compute it.
+func SnapRevisionFromSnapIdAndRevisionNumber(db RODatabase, snapId string, revN int) (*SnapRevision, error) {
+	revs, err := dbFindMany(db, SnapRevisionType, map[string]string{
+		"snap-id":       snapId,
+		"snap-revision": strconv.Itoa(revN),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(revs) < 1 {
+		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%d).", ErrNoRevisionFound, snapId, revN)
+	}
+
+	if len(revs) > 1 {
+		return nil, fmt.Errorf("multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%d).", snapId, revN)
+	}
+
+	rev := revs[0].(*SnapRevision)
+	return rev, nil
+}
+
+var ErrNoDeclarationFound = errors.New("no snap-declaration assertion found")
+
+// SnapDeclarationFromNameAndAuthority is a helper that searches for a snap declaration in the database given
+// a snap's name, authority id and a series. This is to be used in cases where the snap-id which is the primary
+// key is not known.
+func SnapDeclarationFromNameAndAuthority(db RODatabase, name string, authority string) (*SnapDeclaration, error) {
+	decls, err := dbFindMany(db, SnapDeclarationType, map[string]string{
+		"authority-id": authority,
+		"series":       release.Series,
+		"snap-name":    name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(decls) < 1 {
+		return nil, fmt.Errorf("no snap-declaration assertion found that matches (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	if len(decls) > 1 {
+		return nil, fmt.Errorf("multiple snap-declaration assertions found that match (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	decl := decls[0].(*SnapDeclaration)
+
+	decl.SnapID()
+
+	return decl, nil
 }
