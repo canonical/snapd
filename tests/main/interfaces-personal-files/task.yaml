@@ -27,11 +27,11 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/.testdir1
-    "$TESTSTOOLS"/fs-state mock-file /var/tmp/.testfile1
-    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/root
-    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/testfile2
-    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/.testfile2
+    "$TESTSTOOLS"/fs-state mock-dir /var/log/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file /var/log/.testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /var/log/root
+    "$TESTSTOOLS"/fs-state mock-file /var/log/root/testfile2
+    "$TESTSTOOLS"/fs-state mock-file /var/log/root/.testfile2
 
     # Ubuntu 14.04 does not have busctl required by tests.session
     if ! os.query is-ubuntu 14.04; then
@@ -65,9 +65,9 @@ restore: |
     "$TESTSTOOLS"/fs-state restore-file /root/testfile1
     "$TESTSTOOLS"/fs-state restore-dir /root/.testdir1
     "$TESTSTOOLS"/fs-state restore-dir /root/testdir1
-    "$TESTSTOOLS"/fs-state restore-dir /var/tmp/.testdir1
-    "$TESTSTOOLS"/fs-state restore-file /var/tmp/.testfile1
-    "$TESTSTOOLS"/fs-state restore-dir /var/tmp/root
+    "$TESTSTOOLS"/fs-state restore-dir /var/log/.testdir1
+    "$TESTSTOOLS"/fs-state restore-file /var/log/.testfile1
+    "$TESTSTOOLS"/fs-state restore-dir /var/log/root
     rm -rf "$TEST_USER_HOME/.testdir1"
     rm -rf "$TEST_USER_HOME/.missing/testdir1"
 
@@ -164,11 +164,11 @@ execute: |
     MATCH "Permission denied" < call.error
 
     echo "The snap is not able to to access files and dirs outside $HOME"
-    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/.testdir1" 2>&1| MATCH "Permission denied"
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/.testfile1" 2>&1| MATCH "Permission denied"
-    test-snapd-sh.with-personal-files-plug -c "ls /var/tmp/root/" 2>&1| MATCH "Permission denied"
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/testfile2" 2>&1| MATCH "Permission denied"
-    test-snapd-sh.with-personal-files-plug -c "cat /var/tmp/root/.testfile2" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "ls /var/log/.testdir1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/log/.testfile1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "ls /var/log/root/" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/log/root/testfile2" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-personal-files-plug -c "cat /var/log/root/.testfile2" 2>&1| MATCH "Permission denied"
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:personal-files
