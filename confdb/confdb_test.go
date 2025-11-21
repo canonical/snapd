@@ -4121,3 +4121,113 @@ func (*viewSuite) TestFieldFilteringNotString(c *C) {
 	c.Check(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, IsNil)
 }
+
+func (s *viewSuite) TestConfdbSchemaParameters(c *C) {
+	type testcase struct {
+		parameters any
+		err        string
+	}
+
+	tcs := []testcase{
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "optional",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "required",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "required-on-read",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "required-on-write",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"summary": "very descriptive",
+				},
+			},
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": "invalid",
+				},
+			},
+			err: `.*: expected "presence" to be one of "optional", "required-on-write", "required-on-read", "required" or empty but was "invalid"`,
+		},
+		{
+			parameters: []map[string]any{{
+				"status": map[string]any{
+					"presence": "invalid",
+				},
+			},
+			},
+			err: `.*expected optional "parameters" to be map but got \[\]map\[string\]interface {}`,
+		},
+		{
+			parameters: map[string]any{
+				"status": map[string]any{
+					"presence": 99,
+				},
+			},
+			err: `.*invalid parameter "status": expected presence to be string but got int`,
+		},
+		{
+			parameters: map[string]any{
+				"status": []map[string]any{
+					{"presence": "optional"},
+				},
+			},
+			err: `.*invalid parameter "status": expected map of strings but got \[\]map\[string\]interface {}`,
+		},
+		// optional case is covered by any previous test that doesn't define parameters
+	}
+
+	for i, tc := range tcs {
+		views := map[string]any{
+			"wifi-setup": map[string]any{
+				"parameters": tc.parameters,
+				"rules": []any{
+					map[string]any{
+						"request": "snaps.{name}.plugs.{plug}",
+						"storage": "snaps.{name}[.status={status}].plugs.{plug}",
+					},
+				},
+			},
+		}
+
+		cmt := Commentf("test %d/%d", i+1, len(tcs))
+		schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err, cmt)
+			c.Assert(schema, IsNil, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+			c.Assert(schema, NotNil, cmt)
+		}
+	}
+}
