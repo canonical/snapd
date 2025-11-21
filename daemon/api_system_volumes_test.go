@@ -405,17 +405,17 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 	c.Check(rsp.Value, DeepEquals, map[string]any{"reason": fdestate.InvalidRecoveryKeyReasonExpired})
 
 	for _, conflictingKeyslot := range []fdestate.KeyslotRef{
-		{ContainerRole: "some-container-role", Name: "some-name"},
-		{ContainerRole: "system-data", Name: "some-other-name"},
-		{ContainerRole: "system-save", Name: "some-other-name"},
+		{ContainerRole: "some-container-role", Name: "explicit-duplicate"},
+		{ContainerRole: "system-data", Name: "implicit-duplicate"},
+		{ContainerRole: "system-save", Name: "implicit-duplicate"},
 	} {
 		bodyRaw := fmt.Sprintf(`{
 	"action": "replace-recovery-key",
 	"key-id": "some-key-id",
 	"keyslots": [
 		{"container-role": %q, "name": %q},
-		{"container-role": "some-container-role", "name": "some-name"},
-		{"name": "some-other-name"}
+		{"container-role": "some-container-role", "name": "explicit-duplicate"},
+		{"name": "implicit-duplicate"}
 	]
 }`, conflictingKeyslot.ContainerRole, conflictingKeyslot.Name)
 
@@ -426,9 +426,15 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 		c.Assert(err, IsNil)
 		rsp = s.errorReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, Equals, 400)
-		c.Check(rsp.Message, Equals, fmt.Sprintf("invalid keyslots: duplicate keyslot found %s", conflictingKeyslot.String()))
+		switch conflictingKeyslot.Name {
+		case "explicit-duplicate":
+			c.Check(rsp.Message, Equals, fmt.Sprintf("invalid keyslots: duplicate keyslot found %s", conflictingKeyslot.String()))
+		case "implicit-duplicate":
+			c.Check(rsp.Message, Equals, fmt.Sprintf("invalid keyslots: duplicate implicit keyslot found %s", conflictingKeyslot.String()))
+		default:
+			c.Errorf("unexpected keyslot name %q", conflictingKeyslot.Name)
+		}
 	}
-
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
