@@ -43,9 +43,9 @@ Any system change operation is realized as a set and dependency graph of tasks. 
 The [`overlord/snapstate.SnapManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#SnapManager) is responsible for:
 
 * managing the snapd persisted internal state for each installed snap (see [`snapstate.SnapState`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#SnapState))
-* implementing tasks for their lifecycle and the lifecycle of their *components*, if any.
+* implementing tasks for their lifecycle and the lifecycle of their *components*, if any
 * ensure logic for regular automatic updates
-* keeping the external system state for snaps consistent.
+* keeping the external system state for snaps consistent
 
 The [`overlord/snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) manager task handlers use helpers from [`snapstate/backend`](https://github.com/canonical/snapd/tree/master/overlord/snapstate/backend) to influence external on-disk snap state. The `backend` in turn uses the [`wrappers`](https://github.com/canonical/snapd/tree/master/wrappers) package to maintain the linkage data that exposes a snap to the system, be it applications and their alias symlinks in `/snap/bin`, systemd units, or desktop integration for the snap.
 
@@ -63,7 +63,7 @@ The [`overlord/ifacestate.InterfaceManager`](https://pkg.go.dev/github.com/snapc
 
 Paradigmatic handlers for [`ifacestate`](https://github.com/canonical/snapd/tree/master/overlord/ifacestate) include `setup-profiles`, `auto-connect` and `connect`.
 
-Assertions are signed documents used to carry policy or verification information. The [`overlord/assertstate.AssertManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#AssertManager), using the [`asserts`](https://github.com/canonical/snapd/tree/master/asserts) package, is responsible for maintaining the system assertion database. This includes updating and retrieving assertions, as needed, and to verify snaps. The `snap-declaration` assertion`,` for example, carries identity and sandbox policy information for a snap, while `snap-revision` carries verification information for a specific snap revision.
+Assertions are signed documents used to carry policy or verification information. The [`overlord/assertstate.AssertManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#AssertManager), using the [`asserts`](https://github.com/canonical/snapd/tree/master/asserts) package, is responsible for maintaining the system assertion database. This includes updating and retrieving assertions, as needed, and to verify snaps. The `snap-declaration` assertion, for example, carries identity and sandbox policy information for a snap, while `snap-revision` carries verification information for a specific snap revision.
 
 Paradigmatic functionality in [`assertstate`](https://github.com/canonical/snapd/tree/master/overlord/assertstate) is [`DB`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#DB) to get read-only access to the database, more direct retrieval helpers (e.g. [`SnapDeclaration`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#SnapDeclaration)) , [`RefreshSnapAssertions`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#RefreshSnapAssertions) and the `verify-snap` task.
 
@@ -73,8 +73,8 @@ The import dependencies for the manager packages code are fairly dense. As it de
 
 At the other end of the import/export scale, [`devicestate`](https://github.com/canonical/snapd/tree/master/overlord/devicestate) *uses* most of the other managers. Reverse dependencies are addressed by having either:
 
-* the manager initialization injects functional hooks into other manager packages.
-* subpackages in the managers that expose an external facade of useful functionality ([`configstate/config`](https://github.com/canonical/snapd/tree/master/overlord/configstate/config) is an example of the latter).
+* the manager initialization injects functional hooks into other manager packages
+* subpackages in the managers that expose an external façade of useful functionality ([`configstate/config`](https://github.com/canonical/snapd/tree/master/overlord/configstate/config) is an example of the latter)
 
 Many managers cache their instance with [`overlord/state.State.Cache`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#State.Cache), using a private unique key so that is accessible from their top-level functions with signatures like `mgrstate.Func(st *state.State…)`.
 
@@ -90,6 +90,6 @@ Snap can make requests to snapd via the `snapctl` command, which internally uses
 
 On Ubuntu Core devices, where kernel and boot assets are provided by snaps, snapd is responsible for configuring the boot process and then for the full lifecycle of the device. On other devices, snapd is responsible for the parts of the device lifecycle and device identity as related to snaps.
 
-[`overlord/devicestate.DeviceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/devicestate#DeviceManager) is the state manager responsible for orchestrating all of this. For example, it has code to drive full device installation from a never-before-booted Ubuntu Core image or for a more limited installation of a set of snaps in a system on first boot, from a so-called *seed system* configuration. It also has code to register and give an identity (`asserts.Seria`l tied to the device [`asserts.Model`](https://pkg.go.dev/github.com/snapcore/snapd/asserts#Model)) to the device with device services and/or the store.
+[`overlord/devicestate.DeviceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/devicestate#DeviceManager) is the state manager responsible for orchestrating all of this. For example, it has code to drive full device installation from a never-before-booted Ubuntu Core image or for a more limited installation of a set of snaps in a system on first boot, from a so-called *seed system* configuration. It also has code to register and give an identity (`asserts.Serial` tied to the device [`asserts.Model`](https://pkg.go.dev/github.com/snapcore/snapd/asserts#Model)) to the device with device services and/or the store.
 
 For boot and disk configuration, as well as boot assets management, [`devicestate`](https://github.com/canonical/snapd/tree/master/overlord/devicestate) and [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) code use functionality from the [`boot`](https://github.com/canonical/snapd/tree/master/boot), [`gadget`](https://github.com/canonical/snapd/tree/master/gadget) and [`kernel`](https://github.com/canonical/snapd/tree/master/kernel) packages. Bootloader specific code lives in [`bootloader`](https://github.com/canonical/snapd/tree/master/bootloader) and is mostly used via [`boot`](https://github.com/canonical/snapd/tree/master/boot) and not directly.
