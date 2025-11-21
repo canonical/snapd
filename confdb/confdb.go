@@ -308,12 +308,26 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 			}
 		}
 
+		var params map[string]paramPresence
+		if paramsRaw, ok := viewMap["parameters"]; ok {
+			paramsMap, ok := paramsRaw.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf(`cannot define view %q: expected optional "parameters" to be map but got %T`, name, paramsRaw)
+			}
+
+			var err error
+			params, err = parseParameters(paramsMap)
+			if err != nil {
+				return nil, fmt.Errorf("cannot define view %q: %w", name, err)
+			}
+		}
+
 		rules, ok := viewMap["rules"].([]any)
 		if !ok || len(rules) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		view, err := newView(dbSchema, name, rules)
+		view, err := newView(dbSchema, name, rules, params)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
@@ -324,7 +338,61 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 	return dbSchema, nil
 }
 
-func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
+type paramPresence uint8
+
+const (
+	optional paramPresence = iota
+	requiredOnWrite
+	requiredOnRead
+	required
+)
+
+var presenceStrings = []string{"optional", "required-on-write", "required-on-read", "required"}
+
+func newParamPresence(pres string) (paramPresence, error) {
+	if pres == "" {
+		pres = "optional"
+	}
+
+	for i, presStr := range presenceStrings {
+		if presStr == pres {
+			return paramPresence(i), nil
+		}
+	}
+
+	presQuoted := strutil.Quoted(presenceStrings)
+	return optional, fmt.Errorf(`expected "presence" to be one of %s or empty but was %q`, presQuoted, pres)
+}
+
+func parseParameters(params map[string]any) (map[string]paramPresence, error) {
+	paramPresence := make(map[string]paramPresence, len(params))
+
+	for param, attrsRaw := range params {
+		attrs, ok := attrsRaw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid parameter %q: expected map of strings but got %T", param, attrsRaw)
+		}
+
+		var presenceStr string
+		if presenceRaw, ok := attrs["presence"]; ok {
+			presenceStr, ok = presenceRaw.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid parameter %q: expected presence to be string but got %T", param, presenceRaw)
+			}
+		}
+
+		presence, err := newParamPresence(presenceStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parameter %q: %v", param, err)
+		}
+
+		paramPresence[param] = presence
+	}
+
+	return paramPresence, nil
+}
+
+func newView(dbSchema *Schema, name string, viewRules []any, _ map[string]paramPresence) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]viewRule, 0, len(viewRules)),
