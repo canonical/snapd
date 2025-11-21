@@ -260,7 +260,7 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 				expandedRefs := fdestate.ExpandSystemContainerRoles(ref.Name)
 				for _, expandedRef := range expandedRefs {
 					if exists[expandedRef.String()] {
-						return BadRequest("invalid keyslots: duplicate keyslot found %s", expandedRef.String())
+						return BadRequest("invalid keyslots: duplicate implicit keyslot found %s", expandedRef.String())
 					}
 					expanded = append(expanded, expandedRef)
 					exists[expandedRef.String()] = true
