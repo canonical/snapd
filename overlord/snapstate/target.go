@@ -981,40 +981,6 @@ func (p *updatePlan) updates(opts Options) ([]update, error) {
 	return updates, nil
 }
 
-// revisionChanges returns the snaps that will have their revisions changed by
-// the updates in this plan.
-func (p *updatePlan) revisionChanges(opts Options) ([]*snap.Info, error) {
-	updates, err := p.updates(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	targetByName := make(map[string]target, len(p.targets))
-	for _, t := range p.targets {
-		targetByName[t.InstanceName()] = t
-	}
-
-	changes := make([]*snap.Info, 0, len(updates))
-	for _, up := range updates {
-		ok, err := up.revisionSatisfied()
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			continue
-		}
-
-		t, ok := targetByName[up.SnapState.InstanceName()]
-		// this should never happen
-		if !ok {
-			return nil, fmt.Errorf("internal error: update %q not found in targets", up.SnapState.InstanceName())
-		}
-
-		changes = append(changes, t.info)
-	}
-	return changes, nil
-}
-
 // filter applies the given function to each target in the update plan and
 // removes any targets for which the function returns false.
 func (p *updatePlan) filter(f func(t target) (bool, error)) error {

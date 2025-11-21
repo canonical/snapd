@@ -1860,12 +1860,20 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 		PrereqTracker: snap.SimplePrereqTracker{},
 	}
 
-	plan, err := storeUpdatePlan(context.TODO(), st, allSnaps, nil, user, nil, opts, nil)
+	var changes []*snap.Info
+	collect := func(info *snap.Info, snapst *SnapState) bool {
+		if snapst == nil || !snapst.IsInstalled() || snapst.Current != info.Revision {
+			changes = append(changes, info)
+		}
+		return true
+	}
+
+	_, err = storeUpdatePlan(context.TODO(), st, allSnaps, nil, user, nil, opts, collect)
 	if err != nil {
 		return nil, err
 	}
 
-	return plan.revisionChanges(opts)
+	return changes, nil
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
