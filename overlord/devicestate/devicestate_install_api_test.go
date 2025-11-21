@@ -931,7 +931,14 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 		return
 	}
 
-	c.Assert(chg.Err(), IsNil)
+	if withVolumesAuth {
+		// TODO:FDEM: PIN and passphrase support is temporarily disabled
+		// during install even with supported snapd versions.
+		c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*"passphrase" authentication mode is not supported by target system.*`)
+		return
+	} else {
+		c.Assert(chg.Err(), IsNil)
+	}
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
 	c.Check(mountCmd.Calls(), DeepEquals, [][]string{

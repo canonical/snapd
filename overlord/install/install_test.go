@@ -981,18 +981,24 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"secured", "encrypted", "2.68", "2.68", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: true,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          device.EncryptionTypeLUKS,
+				// TODO:FDEM: passphrase support is temporarily disabled
+				// during install even with supported snapd versions.
+				// PassphraseAuthAvailable: true,
+				PassphraseAuthAvailable: false,
 			},
 			nil,
 		}, {
 			"secured", "encrypted", "2.69", "2.69", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
-				StorageSafety:           asserts.StorageSafetyEncrypted,
-				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: true,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          device.EncryptionTypeLUKS,
+				// TODO:FDEM: passphrase support is temporarily disabled
+				// during install even with supported snapd versions.
+				// PassphraseAuthAvailable: true,
+				PassphraseAuthAvailable: false,
 			},
 			preinstallCheckContext,
 		}, {
@@ -1011,6 +1017,22 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: false,
+			},
+			preinstallCheckContext,
+		},
+		// PIN support smoke test
+		{
+			"secured", "encrypted", "2.99", "2.99", true, ErrorNone,
+			install.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          device.EncryptionTypeLUKS,
+				// TODO:FDEM: PIN and passphrase support is temporarily disabled
+				// during install even with supported snapd versions.
+				// PassphraseAuthAvailable: true,
+				// PINAuthAvailable:        true,
+				PassphraseAuthAvailable: false,
+				PINAuthAvailable:        false,
 			},
 			preinstallCheckContext,
 		},
