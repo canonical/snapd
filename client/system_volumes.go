@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type KeyslotType string
@@ -45,6 +46,8 @@ type SystemVolumesStructureInfo struct {
 	Name       string                 `json:"name"`
 	Encrypted  bool                   `json:"encrypted"`
 	Keyslots   map[string]KeyslotInfo `json:"keyslots,omitempty"`
+
+	Activation *secboot.ContainerActivateState `json:"activation,omitempty"`
 }
 
 type SystemVolumesResult struct {

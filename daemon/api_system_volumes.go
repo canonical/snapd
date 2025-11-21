@@ -116,6 +116,7 @@ func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWith
 		VolumeName: structure.VolumeName,
 		Name:       structure.Name,
 		Encrypted:  len(structure.Keyslots) > 0,
+		Activation: structure.Activation,
 	}
 	if structureInfo.Encrypted {
 		structureInfo.Keyslots = make(map[string]client.KeyslotInfo, len(structure.Keyslots))
