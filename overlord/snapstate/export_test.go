@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
@@ -592,16 +593,6 @@ func MockAffectedSnapsByKind(value map[string]AffectedSnapsFunc) (restore func()
 	}
 }
 
-func MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(snapRev *asserts.SnapRevision) (restore func()) {
-	orig := assertsSnapRevisionFromSnapIdAndRevisionNumber
-	assertsSnapRevisionFromSnapIdAndRevisionNumber = func(asserts.RODatabase, string, int) (*asserts.SnapRevision, error) {
-		return snapRev, nil
-	}
-	return func() {
-		assertsSnapRevisionFromSnapIdAndRevisionNumber = orig
-	}
-}
-
 // CustomInstallGoal allows us to define custom implementations of installGoal
 // to be used in tests.
 type CustomInstallGoal struct {
@@ -610,4 +601,12 @@ type CustomInstallGoal struct {
 
 func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	return c.ToInstall(ctx, st, opts)
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev int) (*integrity.IntegrityDataParams, error)) func() {
+	old := ValidatedIntegrityData
+	ValidatedIntegrityData = f
+	return func() {
+		ValidatedIntegrityData = old
+	}
 }

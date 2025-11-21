@@ -5939,10 +5939,6 @@ func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
 	})
 	defer restore()
 
-	rev := makeMockSnapRevisionAssertion(false)
-	restore = snapstate.MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(rev)
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8111,10 +8107,6 @@ func (s *validationSetsSuite) testUpdateManyValidationSetsPartialFailure(c *C) *
 	})
 	defer restore()
 
-	rev := makeMockSnapRevisionAssertion(false)
-	restore = snapstate.MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(rev)
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8199,10 +8191,6 @@ func (s *validationSetsSuite) TestUpdateManyValidationSetsPartialFailureRevertTa
 		assertstate.UpdateValidationSet(s.state, &tr)
 		return nil
 	})
-	defer restore()
-
-	rev := makeMockSnapRevisionAssertion(false)
-	restore = snapstate.MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(rev)
 	defer restore()
 
 	chg := s.testUpdateManyValidationSetsPartialFailure(c)
