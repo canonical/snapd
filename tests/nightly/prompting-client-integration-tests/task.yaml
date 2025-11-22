@@ -1,0 +1,80 @@
+summary: Run the prompting-client integration tests
+
+details: |
+    This test checks that the integration test suite from the prompting-client
+    repository continues to pass when run against the the latest snapd.
+
+systems:
+    - ubuntu-2*
+
+# Start early as it takes a long time.
+priority: 100
+kill-timeout: 30m
+
+prepare: |
+    if os.query is-ubuntu-lt 24.04 ; then
+        tests.exec skip-test "Prompting is only supported on Ubuntu 24.04 and later" && exit 0
+    fi
+
+    echo "Set up the test user"
+    tests.session -u test prepare
+    tests.cleanup defer tests.session -u test restore
+
+    echo "Install snapcraft"
+    snap install snapcraft --classic
+    tests.cleanup defer snap remove --purge snapcraft
+
+    echo "Install lxd as the build backend for snapcraft"
+    "$TESTSTOOLS"/lxd-state prepare-snap
+
+    echo "Clone the prompting-client repo"
+    git clone https://github.com/canonical/prompting-client
+
+    echo "Build the test snap"
+    pushd prompting-client/testing-snap
+    snapcraft pack
+    echo "Install the test snap"
+    snap install *.snap --dangerous
+    TEST_SNAP_NAME="$(ls *.snap | head -1 | cut -d '_' -f 1)"
+    tests.cleanup defer snap remove --purge "$TEST_SNAP_NAME"
+    snap connect "$TEST_SNAP_NAME:camera"
+    snap connect "$TEST_SNAP_NAME:audio-record"
+    popd
+
+    echo "Install dependencies for local tests"
+    apt install -y protobuf-compiler "linux-modules-extra-$(uname -r)" v4l-utils
+
+    echo "Ensure virtual camera and audio devices will work"
+    modprobe v4l2loopback devices=1 video_nr=0 card_label="Placeholder Card" exclusive_caps=1
+    modprobe snd-aloop
+    adduser test video && newgrp video
+    chmod 666 /dev/video0
+
+    echo "Install the prompting-client snap from latest/edge"
+    snap set system experimental.user-daemons=true
+    tests.cleanup defer snap set system experimental.user-daemons=false
+    snap install prompting-client --channel=latest/edge
+    tests.cleanup defer snap remove --purge prompting-client
+    snap connect prompting-client:snap-interfaces-requests-control
+
+    echo "Enable prompting"
+    snap set system experimental.apparmor-prompting=true
+    tests.cleanup defer snap set system experimental.apparmor-prompting=false
+
+    echo "Install the Rust toolchain"
+    snap install rustup --classic
+    rustup default stable
+
+    echo "Build the integration-tests binary"
+    pushd prompting-client/prompting-client
+    cargo test --no-run
+    popd
+
+    INTEGRATION_TESTS_PATH="$(ls -ht prompting-client/prompting-client/target/debug/deps/integration* | grep -Ev '\.d' | head -n1)"
+    cp "$INTEGRATION_TESTS_PATH" /home/test/run-integration-tests
+    chown test /home/test/run-integration-tests
+
+execute:
+    tests.exec is-skipped && exit 0
+
+    tests.session -u test exec /home/test/run-integration-tests
