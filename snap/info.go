@@ -997,6 +997,10 @@ func (s *Info) DesktopPlugFileIDs() ([]string, error) {
 		if !ok {
 			return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
 		}
+		if !strings.HasSuffix(desktopFileID, ".desktop") {
+			logger.Noticef("adding missing .desktop suffix to desktop file ID %s (snap %s)", desktopFileID, s.InstanceName())
+			desktopFileID = desktopFileID + ".desktop"
+		}
 		desktopFileIDs = append(desktopFileIDs, desktopFileID)
 	}
 	return desktopFileIDs, nil
@@ -1038,7 +1042,7 @@ func (s *Info) MangleDesktopFileName(desktopFile string) (string, error) {
 	// XXX: Do we want to fail if a desktop-file-ids entry doesn't
 	// have a corresponding file?
 	for _, desktopFileID := range desktopFileIDs {
-		if strings.TrimSuffix(base, ".desktop") == desktopFileID {
+		if base == desktopFileID {
 			return filepath.Join(dir, base), nil
 		}
 	}
@@ -1475,7 +1479,7 @@ func (app *AppInfo) DesktopFile() string {
 	// Loop through desktop-file-ids desktop interface plug attribute in order to
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
-		desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
+		desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, desktopFileID)
 		if !osutil.FileExists(desktopFile) {
 			continue
 		}
