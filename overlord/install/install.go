@@ -235,32 +235,6 @@ func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, file
 	}
 }
 
-func checkPassphraseSupportedByTargetSystem(sysVer SystemSnapdVersions) (bool, error) {
-	const minSnapdVersion = "2.68"
-	if sysVer.SnapdVersion == "" || sysVer.SnapdInitramfsVersion == "" {
-		return false, nil
-	}
-
-	// snapd snap must support passphrases.
-	cmp, err := strutil.VersionCompare(sysVer.SnapdVersion, minSnapdVersion)
-	if err != nil {
-		return false, fmt.Errorf("invalid snapd version in info file from snapd snap: %v", err)
-	}
-	if cmp < 0 {
-		return false, nil
-	}
-	// snap-bootstrap inside the kernel must support passphrases.
-	cmp, err = strutil.VersionCompare(sysVer.SnapdInitramfsVersion, minSnapdVersion)
-	if err != nil {
-		return false, fmt.Errorf("invalid snapd version in info file from kernel snap: %v", err)
-	}
-	if cmp < 0 {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // EncryptionConstraints is the set of constraints that
 // [GetEncryptionSupportInfo] must consider when deciding how to encrypt the
 // system.
@@ -360,11 +334,11 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
 		if checkSecbootEncryption {
-			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(constraints.SnapdVersions)
-			if err != nil {
-				return res, fmt.Errorf("cannot check passphrase support: %v", err)
-			}
-			res.PassphraseAuthAvailable = passphraseAuthAvailable
+			// TODO:FDEM: re-enable PIN and passphrase support during install
+			// after we figure out how to properly obtain the keyboard layout
+			// during install-time for plymouth.
+			res.PassphraseAuthAvailable = false
+			res.PINAuthAvailable = false
 		}
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,

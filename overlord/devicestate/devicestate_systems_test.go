@@ -3338,7 +3338,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphrase
 		snap.TypeSnapd:  "2.68",
 		snap.TypeKernel: "2.68",
 	}
-	const hasPassphraseSupport = true
+	// TODO:FDEM: PIN and passphrase support is temporarily disabled
+	// during install even with supported snapd versions.
+	// const hasPassphraseSupport = true
+	const hasPassphraseSupport = false
 	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
