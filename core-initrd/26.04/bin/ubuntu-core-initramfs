@@ -466,6 +466,9 @@ def install_misc(dest_dir, sysroot, deb_arch):
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
 
+    # Include xkb-data layouts for plymouth
+    files += glob.glob("/usr/share/X11/xkb/**/*", recursive=True)
+
     # the arm64 build of snap-bootstrap requires libteec
     if deb_arch == "aarch64-linux-gnu":
         files += glob.glob("/usr/lib/" + deb_arch + "/libteec.so*")
