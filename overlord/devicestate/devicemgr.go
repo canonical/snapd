@@ -117,6 +117,15 @@ func (e *noDeviceIdentityYetError) Is(err error) bool {
 	return ok || errors.Is(err, state.ErrNoState)
 }
 
+// StateDeviceInitialized represents another manager that can be
+// notified when the device manager has been started.
+type StateDeviceInitialized interface {
+	// DeviceInitialized is called when StartUp has finished on
+	// DeviceManager. There are no use case for returning an error
+	// so far.
+	DeviceInitialized()
+}
+
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
@@ -172,6 +181,8 @@ type DeviceManager struct {
 	preseedSystemLabel string
 
 	ntpSyncedOrTimedOut bool
+
+	onInit []StateDeviceInitialized
 }
 
 // Manager returns a new device manager.
@@ -319,6 +330,10 @@ const (
 	SysHasModeenv
 )
 
+func (m *DeviceManager) AddOnInit(onInit StateDeviceInitialized) {
+	m.onInit = append(m.onInit, onInit)
+}
+
 // SystemMode returns the current mode of the system.
 // An expectation about the system controls the returned mode when
 // none is set explicitly, as it's the case on pre-UC20 systems. In
@@ -338,30 +353,41 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	m.state.Lock()
-	defer m.state.Unlock()
+	err := func() error {
+		m.state.Lock()
+		defer m.state.Unlock()
 
-	dev, err := m.earlyDeviceContext()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+		dev, err := m.earlyDeviceContext()
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		// if ErrNoState then dev is nil, we assume a classic system here,
+		// any error will re-surface again in the main first boot code
+		if dev != nil && m.shouldMountUbuntuSave(dev) {
+			if err := m.setupUbuntuSave(dev); err != nil {
+				return fmt.Errorf("cannot set up ubuntu-save: %v", err)
+			}
+		}
+
+		// ensure /var/lib/snapd/void permissions are ok
+		if err := ensureFileDirPermissions(); err != nil {
+			logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
+		}
+
+		// TODO: setup proper timings measurements for this
+		return EarlyConfig(m.state, m.earlyPreloadGadget)
+	}()
+
+	if err != nil {
 		return err
 	}
 
-	// if ErrNoState then dev is nil, we assume a classic system here,
-	// any error will re-surface again in the main first boot code
-	if dev != nil && m.shouldMountUbuntuSave(dev) {
-		if err := m.setupUbuntuSave(dev); err != nil {
-			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
-		}
+	for _, onInit := range m.onInit {
+		onInit.DeviceInitialized()
 	}
 
-	// ensure /var/lib/snapd/void permissions are ok
-	if err := ensureFileDirPermissions(); err != nil {
-		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
-	}
-
-	// TODO: setup proper timings measurements for this
-
-	return EarlyConfig(m.state, m.earlyPreloadGadget)
+	return nil
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
