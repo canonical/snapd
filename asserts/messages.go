@@ -110,6 +110,16 @@ func (req *RequestMessage) Assumes() []string {
 	return req.assumes
 }
 
+// TODO
+func (req *RequestMessage) ValidSince() time.Time {
+	return req.since
+}
+
+// TODO
+func (req *RequestMessage) ValidUntil() time.Time {
+	return req.until
+}
+
 func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 	accountID := assert.HeaderString("account-id")
 	if !validAccountID.MatchString(accountID) {
