@@ -673,8 +673,9 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 fwupd
-                gcc-multilib
+                gcc-i686-linux-gnu
                 libc6-dev-i386
+                libc6-dev-i386-cross
                 linux-libc-dev
                 lsof
                 net-tools
