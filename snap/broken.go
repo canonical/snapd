@@ -65,7 +65,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 			Snap:        info,
 			Name:        appname,
 			Daemon:      "simple",
-			DaemonScope: SystemDaemon,
+			DaemonScope: SystemDaemonScope,
 		}
 	}
 	// guess the user services next
@@ -76,7 +76,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 			Snap:        info,
 			Name:        appname,
 			Daemon:      "simple",
-			DaemonScope: UserDaemon,
+			DaemonScope: UserDaemonScope,
 		}
 	}
 
