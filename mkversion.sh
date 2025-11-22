@@ -63,7 +63,7 @@ fi
 # at this point we maybe in _build/src/github etc where we have no
 # debian/changelog (dh-golang only exports the sources here)
 # switch to the real source dir for the changelog parsing
-: "${DPKG_PARSECHANGELOG:=$(command -v dpkg-parsechangelog)}"
+: "${DPKG_PARSECHANGELOG=$(command -v dpkg-parsechangelog)}"
 if [ -n "$DPKG_PARSECHANGELOG" ]; then
     version_from_changelog="$(cd "$PKG_BUILDDIR"; "$DPKG_PARSECHANGELOG" --show-field Version)";
 fi
