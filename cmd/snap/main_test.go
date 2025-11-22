@@ -103,6 +103,10 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	// mock an empty cmdline since we check the cmdline to check whether we are
 	// in install mode or not and we don't want to use the host's proc/cmdline
 	s.AddCleanup(kcmdline.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
+
+	s.AddCleanup(snap.MockSnapdtoolIsReexecd(func() (bool, error) {
+		return true, nil
+	}))
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -240,7 +244,12 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\nubuntu  12.34\n")
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap    4.56\n"+
+		"snapd   7.89\n"+
+		"series  56\n"+
+		"ubuntu  12.34\n",
+	)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -254,7 +263,11 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
+	c.Assert(s.Stdout(), Equals, ""+
+		"snap    4.56\n"+
+		"snapd   7.89\n"+
+		"series  56\n",
+	)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
