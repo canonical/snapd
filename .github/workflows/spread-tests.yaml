@@ -431,16 +431,15 @@ jobs:
     - name: Report spread errors
       if: always()
       run: |
-        if [ -e spread.log ]; then
-            echo "Running spread log analyzer"
+        if [ -e results.json ]; then
+            echo "Adding to the filtered log any spread errors found"
             ACTIONS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
-            ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json --cut 1 >/dev/null
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Adding failed test line to filtered log"
                     echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -r '.[] | select( .type == "info" ) | select( .info_type == "Error" ) | "\(.verb) \(.task)"' spread-results.json)
+            done <<< $(jq -r '.items[] | select(.level == "task" and .success == false) | "\(.verb) \(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u)
         else
             echo "No spread log found, skipping errors reporting"
         fi
@@ -448,22 +447,20 @@ jobs:
     - name: Analyze spread test results
       if: always()
       run: |
-          if [ -f spread.log ]; then
-              echo "Running spread log parser"
-              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-
-              # Add openstack backend definition to spread.yaml
-              if [ "$SPREAD_BACKEND" = openstack ]; then
-                  ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
-              fi
-
-              echo "Running spread log analyzer"
-              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+          if [ -f results.json ]; then
+              echo "Saving the tests to be re-executed"
+              # Tests to be re-executed are:
+              # - Aborted tests (level is empty and aborted is true)
+              # - Failed tasks (level is task and success is false)
+              # The format is backend:system:name:variant (variant is optional)
+              # Duplicates are removed and the list is sorted
+              # The list is saved in the FAILED_TESTS_FILE
+              jq -r '.items[] | select((.level == "" and .aborted == true) or (.level == "task" and .success == false)) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u | xargs > "$FAILED_TESTS_FILE"
 
               if [ -n "${{ inputs.upload-artifacts }}" ] && \
                   [ -d "$ARTIFACTS_FOLDER" ] && \
-                  grep -Eq "Failed (task|suite|project) restore: " spread.log; then
-                  
+                  [ -n "$(jq -r '.items[] | select(.verb== "restoring" and .success == false)' results.json)" ]; then
+
                   # Restore encountered some errors, so check the retrieved data for any missing tests.
                   # If any data is missing, add the corresponding test to the list of failed tests.
                   for test in $RUN_TESTS; do
@@ -508,14 +505,6 @@ jobs:
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
         if-no-files-found: ignore
     
-    - name: Save spread.json as an artifact
-      if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
-        path: "spread-results.json"
-        if-no-files-found: ignore
-
     - name: Save spread test results to cache
       if: always()
       uses: actions/cache/save@v4
