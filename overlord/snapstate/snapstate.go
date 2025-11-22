@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -92,6 +92,7 @@ var userDaemonsOverrides = []string{
 	"EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP", // firmware-updater snap-id
 	"IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu", // snapd-desktop-integration snap-id
 	"aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj", // prompting-client snap-id
+	"gjf3IPXoRiipCu9K0kVu52f0H56fIksg", // snap-store snap-id
 }
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -1400,7 +1401,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 		return flags, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return flags, err
+		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
