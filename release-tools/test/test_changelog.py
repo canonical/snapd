@@ -4,8 +4,6 @@ from io import StringIO
 import os
 import unittest
 
-import changelog
-
 fake_news_md = """
 # New in snapd 2.60.3:
 * Fix bug in the "private" plug attribute of the shared-memory
@@ -21,41 +19,68 @@ expected_changelog_entry = """
       version of snapd.
     - Fix missing integration of the /etc/apparmor.d/tunables/home.d/
       apparmor to support non-standard home directories
-"""[1:]
+"""[
+    1:
+]
 
 
 class TestChangelogReadNewsMd(unittest.TestCase):
     def setUp(self):
+        try:
+            # check whether python3-debian is installed, the tests could be run
+            # on systems where the module is not package or otherwise available
+            import changelog  # noqa: F401
+        except ModuleNotFoundError as err:
+            if err.name == "debian":
+                raise unittest.SkipTest("skip test due to missing 'debian' module")
+            raise
+
         self.news_md = StringIO(fake_news_md)
 
     def test_happy(self):
-        changelog_entry = changelog.read_changelogs_news_md(
-            self.news_md, "2.60.3")
+        import changelog
+
+        changelog_entry = changelog.read_changelogs_news_md(self.news_md, "2.60.3")
         self.assertEqual(changelog_entry, expected_changelog_entry)
 
     def test_version_not_found(self):
+        import changelog
+
         with self.assertRaises(RuntimeError) as cm:
             changelog.read_changelogs_news_md(self.news_md, "1.1")
-        self.assertEqual(str(cm.exception), 'cannot find expected version "1.1" in first header, found "New in snapd 2.60.3:"')
+        self.assertEqual(
+            str(cm.exception),
+            'cannot find expected version "1.1" in first header, found "New in snapd 2.60.3:"',
+        )
 
     def test_deb_email_happy(self):
-        original = os.environ.get('DEBEMAIL')
-        os.environ['DEBEMAIL'] = "FirstName LastName <firstname.lastname@canonical.com>"
+        import changelog
+
+        original = os.environ.get("DEBEMAIL")
+        os.environ["DEBEMAIL"] = "FirstName LastName <firstname.lastname@canonical.com>"
         try:
             changelog.validate_env_deb_email()
         finally:
             if original:
-                os.environ['DEBEMAIL'] = original
+                os.environ["DEBEMAIL"] = original
 
     def test_deb_email_errors(self):
-        original = os.environ.get('DEBEMAIL')
-        os.environ['DEBEMAIL'] = ""
+        import changelog
+
+        original = os.environ.get("DEBEMAIL")
+        os.environ["DEBEMAIL"] = ""
         with self.assertRaises(RuntimeError) as e:
             changelog.validate_env_deb_email()
-        self.assertEqual(str(e.exception), 'cannot find environment variable "DEBEMAIL", please provide DEBEMAIL="FirstName LastName <valid-email-address>"')
-        os.environ['DEBEMAIL'] = "FirstName LastName <firstname.lastname.com>"
+        self.assertEqual(
+            str(e.exception),
+            'cannot find environment variable "DEBEMAIL", please provide DEBEMAIL="FirstName LastName <valid-email-address>"',
+        )
+        os.environ["DEBEMAIL"] = "FirstName LastName <firstname.lastname.com>"
         with self.assertRaises(RuntimeError) as e:
             changelog.validate_env_deb_email()
-        self.assertEqual(str(e.exception), 'environment variable "DEBEMAIL" uses incorrect format, expecting DEBEMAIL="FirstName LastName <valid-email-address>"')
+        self.assertEqual(
+            str(e.exception),
+            'environment variable "DEBEMAIL" uses incorrect format, expecting DEBEMAIL="FirstName LastName <valid-email-address>"',
+        )
         if original:
-            os.environ['DEBEMAIL'] = original
+            os.environ["DEBEMAIL"] = original
