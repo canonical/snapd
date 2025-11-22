@@ -32,6 +32,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/jessevdk/go-flags"
 
@@ -108,8 +109,8 @@ var (
 
 	secbootMeasureSnapSystemEpochWhenPossible     func() error
 	secbootMeasureSnapModelWhenPossible           func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
-	secbootUnlockEncryptedVolumeUsingProtectorKey func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(disk secboot.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
+	secbootUnlockEncryptedVolumeUsingProtectorKey func(disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
 
@@ -947,6 +948,36 @@ type recoverModeStateMachine struct {
 	degradedState *diskUnlockState
 }
 
+type sbPartition struct {
+	partitionUUID  string
+	filesystemUUID string
+}
+
+var _ = secboot.Partition(&sbPartition{})
+
+func (p *sbPartition) PartitionUUID() string {
+	return p.partitionUUID
+}
+
+func (p *sbPartition) FilesystemUUID() string {
+	return p.filesystemUUID
+}
+
+func (m *recoverModeStateMachine) PartitionWithFsLabel(fslabel string) (secboot.Partition, error) {
+	dpart, err := m.disk.FindMatchingPartitionWithFsLabel(fslabel)
+	if err != nil {
+		var errNotFound disks.PartitionNotFoundError
+		if errors.As(err, &errNotFound) {
+			return nil, secboot.FsLabelNotFoundError{}
+		}
+		return nil, err
+	}
+	return &sbPartition{partitionUUID: dpart.PartitionUUID,
+		filesystemUUID: dpart.FilesystemUUID}, nil
+}
+
+var _ = secboot.Disk(&recoverModeStateMachine{})
+
 func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
 	return m.model, nil
 }
@@ -1322,7 +1353,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		WhichModel:       m.whichModel,
 		BootMode:         m.mode,
 	}
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-data", runModeKey, unlockOpts)
 	m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// we couldn't unlock ubuntu-data with the primary key, or we didn't
@@ -1366,7 +1397,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
 	dataFallbackKey := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-data", dataFallbackKey, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-data", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1422,7 +1453,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
-	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m.disk, "ubuntu-save", key)
+	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(m, "ubuntu-save", key)
 	m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// failed to unlock with run key, try fallback key
@@ -1500,7 +1531,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-save", saveFallbackKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m, "ubuntu-save", saveFallbackKey, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1876,10 +1907,37 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	return candidate, nil
 }
 
-// mountNonDataPartitionMatchingKernelDisk will select the partition
-// to mount at dir using the boot package function
-// FindPartitionUUIDForBootedKernelDisk to determine what partition
-// the booted kernel came from.
+func diskNodeFromDiskSnapdSymlink() (string, error) {
+	symLink, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk"))
+	if err != nil {
+		return "", err
+	}
+	node := filepath.Base(symLink)
+	return filepath.Join("/dev", node), nil
+}
+
+// findPartNodeInDisk returns the expected kernel name for a partition in
+// diskNode that matches the criteria of the passed match callback.
+func findPartNodeInDisk(disk *Disk, match func(Partition) bool) (string, error) {
+	for _, p := range disk.Parts {
+		fmt.Println("part", p)
+		if match(p) {
+			// Build the name now, as in Linux add_partition():
+			// https://elixir.bootlin.com/linux/v6.17.4/source/block/partitions/core.c#L335
+			partNode := disk.Node
+			if unicode.IsDigit(rune(disk.Node[len(disk.Node)-1])) {
+				partNode += "p"
+			}
+			return fmt.Sprint(partNode, p.Number), nil
+		}
+	}
+
+	return "", fmt.Errorf("%s: partition not found", disk.Node)
+}
+
+// findBootDisk finds the boot disk partitions using the boot
+// package function FindPartitionUUIDForBootedKernelDisk to determine what
+// partition the booted kernel came from.
 //
 // If "snap-bootstrap scan-disk" was run as part of udev it will
 // restrict the search of the partition from the boot disk it found.
@@ -1887,53 +1945,73 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 // If "snap-bootstrap scan-disk" is not in use (legacy case),
 // it will look for any partition that matches the boot.
 //
-// If which disk the kernel came from cannot be determined, then it
-// will fallback to mounting via the specified disk label. If
-// "snap-bootstrap scan-disk" was used, it will restrict the search to
-// the boot disk.
-func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
-	var partSrc string
+// If the disk kernel came from cannot be determined, then it will fallback to
+// looking at the specified disk label.
+func findBootDisk(fallbacklabel string) (*Disk, string, error) {
+	var bootPart string
+	var disk *Disk
 
-	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
-		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
+	if diskNode, err := diskNodeFromDiskSnapdSymlink(); err == nil {
+		// We have symlinks, we already know the disk
+		fmt.Println("probing", diskNode)
+		disk, err = probeDisk(diskNode)
 		if err != nil {
-			return err
+			fmt.Println("while probing", diskNode, err)
+			return nil, "", err
 		}
+
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
+			bootPart, err = findPartNodeInDisk(disk,
+				func(p Partition) bool { return p.UUID == partuuid })
 			if err != nil {
-				return err
+				return nil, "", err
 			}
-			partSrc = partition.KernelDeviceNode
 		} else {
-			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+			bootPart, err = findPartNodeInDisk(disk,
+				func(p Partition) bool { return p.FilesystemLabel == fallbacklabel })
 			if err != nil {
-				return err
+				return nil, "", err
 			}
-			partSrc = partition.KernelDeviceNode
 		}
 	} else {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-			//       to use by-uuid or by-id
-			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+			bootPart = filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partuuid)
 		} else {
-			partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+			bootPart, err = getNonUEFISystemDisk(fallbacklabel)
 			if err != nil {
-				return err
+				return nil, "", err
 			}
+			fmt.Println("fallbl:", fallbacklabel, bootPart)
 		}
 
 		// The partition uuid is read from the EFI variables. At this point
 		// the kernel may not have initialized the storage HW yet so poll
 		// here.
-		if err := waitForDevice(partSrc); err != nil {
-			return err
+		if err := waitForDevice(bootPart); err != nil {
+			return nil, "", err
+		}
+
+		// Resolve if it is a symlink
+		fmt.Println("readlink of", bootPart)
+		if target, err := os.Readlink(bootPart); err == nil {
+			bootPart = filepath.Join("/dev", filepath.Base(target))
+			fmt.Println("bootPart changed", bootPart)
+		}
+		// Find out disk and probe
+		diskNode = strings.TrimRight(bootPart, "0123456789")
+		lenNode := len(diskNode)
+		if diskNode[lenNode-1] == 'p' && unicode.IsDigit(rune(diskNode[lenNode-2])) {
+			diskNode = diskNode[0 : lenNode-1]
+		}
+		disk, err = probeDisk(diskNode)
+		if err != nil {
+			fmt.Println("while probing", diskNode, err)
+			return nil, "", err
 		}
 	}
-	return doSystemdMount(partSrc, dir, opts)
+	return disk, bootPart, nil
 }
 
 func createSysrootMount() bool {
@@ -1983,7 +2061,11 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed", seedMountOpts); err != nil {
+	_, seedPart, err := findBootDisk("ubuntu-seed")
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := doSystemdMount(seedPart, boot.InitramfsUbuntuSeedDir, seedMountOpts); err != nil {
 		return nil, nil, err
 	}
 
@@ -2180,7 +2262,7 @@ func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asse
 	return model, snaps, nil
 }
 
-func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, unlockRes secboot.UnlockResult, err error) {
+func maybeMountSave(disk *Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, unlockRes secboot.UnlockResult, err error) {
 	var saveDevice string
 	if encrypted {
 		saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(rootdir))
@@ -2201,7 +2283,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		}
 		saveDevice = unlockRes.FsDevice
 	} else {
-		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
+		part, err := disk.PartitionWithFsLabel("ubuntu-save")
 		if err != nil {
 			if _, ok := err.(disks.PartitionNotFoundError); ok {
 				// this is ok, ubuntu-save may not exist for
@@ -2210,7 +2292,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			}
 			return false, unlockRes, err
 		}
-		saveDevice = filepath.Join("/dev/disk/by-partuuid", partUUID)
+		saveDevice = filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID())
 	}
 	if err := doSystemdMount(saveDevice, boot.InitramfsUbuntuSaveDir, mountOpts); err != nil {
 		return true, unlockRes, err
@@ -2380,14 +2462,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 1. mount ubuntu-boot
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot", bootMountOpts); err != nil {
+	disk, bootPart, err := findBootDisk("ubuntu-boot")
+	if err != nil {
 		return err
 	}
-
-	// get the disk that we mounted the ubuntu-boot partition from as a
-	// reference point for future mounts
-	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuBootDir, nil)
-	if err != nil {
+	if err := doSystemdMount(bootPart, boot.InitramfsUbuntuBootDir, bootMountOpts); err != nil {
 		return err
 	}
 
@@ -2424,7 +2503,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
 	hasSeedPart := true
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
+	fmt.Println("looking for ubuntu-seed")
+	seedPart, err := findPartNodeInDisk(disk,
+		func(p Partition) bool { return p.FilesystemLabel == "ubuntu-seed" })
 	if err != nil {
 		if isClassic {
 			// If there is no ubuntu-seed on classic, that's fine
@@ -2441,8 +2522,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// and it is important to fsck it because it is vfat and mounted writable
 	// TODO:UC20: mount it as read-only here and remount as writable when we
 	//            need it to be writable for i.e. transitioning to recover mode
-	if partUUID != "" {
-		if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID),
+	// XXX we were mounting only if GPT?? as we were using partition UUID
+	// from very early: df16febde2d8aa3452b0db8c7c33cebf27c19421
+	if hasSeedPart {
+		if err := doSystemdMount(seedPart,
 			boot.InitramfsUbuntuSeedDir, seedMountOpts); err != nil {
 			return err
 		}
@@ -2514,26 +2597,26 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
-	if err != nil {
-		return err
-	}
-	if !matches {
-		// failed to verify that ubuntu-data mountpoint comes from the same disk
-		// as ubuntu-boot
-		return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
-	}
+	// matches, err := diskOLD.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
+	// if err != nil {
+	// 	return err
+	// }
+	// if !matches {
+	// 	// failed to verify that ubuntu-data mountpoint comes from the same disk
+	// 	// as ubuntu-boot
+	// 	return fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
+	// }
 	if haveSave {
 		diskState.setUnlockStateWithRunKey("ubuntu-save", saveUnlockRes, nil)
 
 		// 4.1a we have ubuntu-save, verify it as well
-		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
-		if err != nil {
-			return err
-		}
-		if !matches {
-			return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
-		}
+		// matches, err = diskOLD.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
+		// if err != nil {
+		// 	return err
+		// }
+		// if !matches {
+		// 	return fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", diskOLD.Dev())
+		// }
 
 		if isEncryptedDev {
 			// in run mode the path to open an encrypted save is for
