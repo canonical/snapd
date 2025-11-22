@@ -7,10 +7,12 @@ details: |
     - Users can check their recovery key is valid at runtime (need as a
       part of the firmware update flow)
     - Users can replace their recovery key at runtime
+    - Users can add new recovery keys at runtime
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
+  # TODO:FDEM: add 26.04 variant
   MODEL_VERSION/2510: "25.10"
   GADGET_VERSION/2510: "classic-25.10"
   KERNEL_VERSION/2510: "25.10"
@@ -157,13 +159,17 @@ execute: |
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
+  clear_tpm_and_reboot()
+  {
+    echo "Clear TPM and reboot to force recovery key request"
+    tests.nested vm stop
+    tests.nested vm clear-tpm
+    tests.nested vm start
+  }
+
   # Check we can boot with recovery key
   tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
-
-  echo "Clear TPM and reboot to force recovery key request"
-  tests.nested vm stop
-  tests.nested vm clear-tpm
-  tests.nested vm start
+  clear_tpm_and_reboot
 
   remote_action_request()
   {
@@ -198,12 +204,9 @@ execute: |
   MATCH '"status": "Bad Request"' < resp
   MATCH "invalid recovery key" < resp
 
-  tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
-
   # We can boot with new recovery key
-  tests.nested vm stop
-  tests.nested vm clear-tpm
-  tests.nested vm start
+  tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
+  clear_tpm_and_reboot
 
   # Check new/old recovery keys after reboot for good measure
   remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
@@ -231,6 +234,58 @@ execute: |
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+
+  # Add new recovery key
+  remote_action_request '{"action": "generate-recovery-key"}'
+  gojq --raw-output '.result."key-id"' < resp > rkey-id.out
+  gojq --raw-output '.result."recovery-key"' < resp > rkey-extra.out
+
+  remote_action_request "{\"action\": \"add-recovery-key\", \"key-id\": \"$(cat rkey-id.out)\", \"keyslots\": [{\"name\": \"landscape-recovery\"}]}"
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  # Runtime recovery check works with the new key
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-extra.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  # but also work with the existing key
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  # We can boot with newly added recovery key
+  tests.nested vm set-recovery-key "$(cat rkey-extra.out)"
+  clear_tpm_and_reboot
+
+  # Check recovery keys after reboot for good measure
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-extra.out)\"}"
+  MATCH '"status": "OK"' < resp
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  # Check keyslots include the new recovery key
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+  
+  # system-data is encrypted and has two recovery keys
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^4$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+  gojq --raw-output '.keyslots."landscape-recovery".type' < container.out | MATCH "^recovery$"
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^4$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+  gojq --raw-output '.keyslots."landscape-recovery".type' < container.out | MATCH "^recovery$"
+
+  # Check we can boot with the default recovery key for good measure
+  tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
+  clear_tpm_and_reboot
 
   # TODO:FDEM: Grow test to check that we can reprovision and reseal
   # then reboot without recovery keys

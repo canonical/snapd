@@ -42,7 +42,7 @@ var systemVolumesCmd = &Command{
 	GET:  getSystemVolumes,
 	POST: postSystemVolumesAction,
 	Actions: []string{
-		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
+		"generate-recovery-key", "check-recovery-key", "add-recovery-key", "replace-recovery-key",
 		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase"},
 	// anyone can enumerate key slots.
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
@@ -67,6 +67,10 @@ var systemVolumesCmd = &Command{
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     polkitActionManageFDE,
 			},
+			"add-recovery-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
 			"replace-recovery-key": interfaceRootAccess{
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     polkitActionManageFDE,
@@ -81,11 +85,13 @@ var systemVolumesCmd = &Command{
 	},
 }
 
+var fdeAddRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-add-recovery-key")
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
 var fdeReplacePlatformKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-platform-key")
 var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
 
 var (
+	fdestateAddRecoveryKey     = fdestate.AddRecoveryKey
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
 	fdestateReplacePlatformKey = fdestate.ReplacePlatformKey
 	fdestateChangeAuth         = fdestate.ChangeAuth
@@ -248,11 +254,44 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return BadRequest("extra content found in request body")
 	}
 
+	// Expand target keyslots that do not specify a container role.
+	if len(req.Keyslots) != 0 {
+		expanded := make([]fdestate.KeyslotRef, 0, len(req.Keyslots))
+		exists := make(map[string]bool)
+		for _, ref := range req.Keyslots {
+			if len(ref.ContainerRole) == 0 {
+				// Not specifying the container-role field implicitly means
+				// targeting all system containers i.e. system-data and
+				// system-save.
+				ref1 := fdestate.KeyslotRef{ContainerRole: "system-data", Name: ref.Name}
+				ref2 := fdestate.KeyslotRef{ContainerRole: "system-save", Name: ref.Name}
+				if exists[ref1.String()] {
+					return BadRequest("invalid keyslots: duplicate keyslot found %s", ref1.String())
+				}
+				if exists[ref2.String()] {
+					return BadRequest("invalid keyslots: duplicate keyslot found %s", ref2.String())
+				}
+				expanded = append(expanded, ref1, ref2)
+				exists[ref1.String()] = true
+				exists[ref2.String()] = true
+			} else {
+				if exists[ref.String()] {
+					return BadRequest("invalid keyslots: duplicate keyslot found %s", ref.String())
+				}
+				expanded = append(expanded, ref)
+				exists[ref.String()] = true
+			}
+		}
+		req.Keyslots = expanded
+	}
+
 	switch req.Action {
 	case "generate-recovery-key":
 		return postSystemVolumesActionGenerateRecoveryKey(c)
 	case "check-recovery-key":
 		return postSystemVolumesActionCheckRecoveryKey(c, &req)
+	case "add-recovery-key":
+		return postSystemVolumesActionAddRecoveryKey(c, &req)
 	case "replace-recovery-key":
 		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
 	case "replace-platform-key":
@@ -306,6 +345,27 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 	}
 
 	return SyncResponse(nil)
+}
+
+func postSystemVolumesActionAddRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.KeyID == "" {
+		return BadRequest("system volume action requires key-id to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateAddRecoveryKey(st, req.KeyID, req.Keyslots)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "cannot add recovery key: %v")
+	}
+
+	chg := newChange(st, fdeAddRecoveryKeyChangeKind, "Add recovery key", []*state.TaskSet{ts}, nil)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
 }
 
 func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
