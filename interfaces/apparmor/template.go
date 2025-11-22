@@ -500,6 +500,10 @@ var templateCommon = `
   /run/credentials/ r,
   /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/ r,
   /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/** r,
+
+  # Work around for https://gitlab.com/apparmor/apparmor/-/issues/571
+  # which prevents access to mmap MAP_HUGETLB.
+  allow file / rwm,
   
   ###DEVMODE_SNAP_CONFINE###
 `
