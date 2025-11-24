@@ -57,7 +57,9 @@ execute: |
     if not snap list pi-kernel &>/dev/null; then
         echo "Ensure extracted kernel.efi exists"
         kernel_name="$(snaps.name kernel)"
-        test -e /boot/grub/"$kernel_name"*/kernel.efi
+        for kernel in /boot/grub/"$kernel_name"*/kernel.efi; do
+          test -e "${kernel}"
+        done
 
         echo "Ensure kernel.efi is a symlink"
         test -L /boot/grub/kernel.efi
