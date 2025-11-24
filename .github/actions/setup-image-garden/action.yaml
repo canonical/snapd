@@ -56,18 +56,20 @@ runs:
           with:
             path: ~/.cache/image-garden/dl
             key: image-garden-dl-${{ inputs.garden-system }}
+        - name: Install dependencies
+          shell: bash
+          run: |
+            echo "::group::Install dependencies::"
+            # Disable man page updates which is time-consuming.
+            echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
+            # Update apt metadata and install the required packages.
+            sudo apt update -q
+            sudo apt install -y git-restore-mtime ovmf whois xorriso qemu-system-x86
+            echo "::endgroup::"
         - name: Restore mtime of .image-garden.mk
           shell: bash
           run: |
             echo "::group::Restore mtime of .image-garden.mk"
-            # Disable man page updates which is time-consuming.
-            echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
-            # Download the deb and install it by hand.
-            wget http://ftp.us.debian.org/debian/pool/main/g/git-mestrelion-tools/git-restore-mtime_2022.12-1_all.deb
-            sudo dpkg -i git-restore-mtime_2022.12-1_all.deb
-            rm -f git-restore-mtime_2022.12-1_all.deb
-            # sudo apt update
-            # sudo apt install -y git-restore-mtime
             git restore-mtime .image-garden.mk
             ls -l .image-garden.mk
             echo "::endgroup::"
@@ -85,6 +87,3 @@ runs:
             git clone https://github.com/canonical/spread-plus.git /tmp/spread
             cd /tmp/spread
             sudo go build -o /usr/bin ./...
-        - name: Install dependencies
-          shell: bash
-          run: sudo apt install -y ovmf whois xorriso qemu-system-x86
