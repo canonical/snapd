@@ -61,7 +61,7 @@ runs:
           run: |
             echo "::group::Install dependencies::"
             # Disable man page updates which is time-consuming.
-            echo "man-db/auto-update boolean false" | sudo debconf-set-selections
+            echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
             # Update apt metadata and install the required packages.
             sudo apt update -q
             sudo apt install -y git-restore-mtime ovmf whois xorriso qemu-system-x86
