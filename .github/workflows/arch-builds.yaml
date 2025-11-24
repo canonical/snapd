@@ -32,8 +32,6 @@ jobs:
         load: true
         file: tests/lib/packaging/arch.dockerfile
         tags: arch-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Set version in spec
       run: |
