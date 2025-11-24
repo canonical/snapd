@@ -565,7 +565,7 @@ func MockSbWithVolumeName(f func(name string) sb.ActivateOption) (restore func()
 	return testutil.Mock(&sbWithVolumeName, f)
 }
 
-func MockSbWithExternalKeyData(f func(keys ...*sb.ExternalKeyData) sb.ActivateOption) (restore func()) {
+func MockSbWithExternalKeyData(f func(name string, keyData *sb.KeyData) sb.ActivateOption) (restore func()) {
 	return testutil.Mock(&sbWithExternalKeyData, f)
 }
 

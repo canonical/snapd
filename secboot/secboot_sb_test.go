@@ -498,22 +498,6 @@ func (s *secbootSuite) TestProvisionForCVMTPMNotEnabled(c *C) {
 	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
 }
 
-type mockKeyDataWriter struct {
-	data *bytes.Buffer
-}
-
-func (w *mockKeyDataWriter) Write(data []byte) (int, error) {
-	return w.data.Write(data)
-}
-
-func (w *mockKeyDataWriter) Cancel() error {
-	return nil
-}
-
-func (w *mockKeyDataWriter) Commit() error {
-	return nil
-}
-
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 	// setup mock disks to use for locating the partition
@@ -779,26 +763,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				return volumeNameOption
 			})()
 
-			externalKeys := &mockActivateOption{name: "external-keys"}
-			defer secboot.MockSbWithExternalKeyData(func(keys ...*sb.ExternalKeyData) sb.ActivateOption {
-				if tc.noKeyFile || tc.errorReadKeyFile {
-					c.Check(keys, HasLen, 0)
-				} else {
-					c.Assert(keys, HasLen, 1)
+			externalKey := &mockActivateOption{name: "external-key"}
+			defer secboot.MockSbWithExternalKeyData(func(name string, keyData *sb.KeyData) sb.ActivateOption {
+				c.Assert(tc.noKeyFile, Equals, false)
+				c.Assert(tc.errorReadKeyFile, Equals, false)
 
-					var buf bytes.Buffer
+				c.Check(keyData, Equals, expectedKeyData)
 
-					_, err := buf.ReadFrom(keys[0])
-					c.Assert(err, IsNil)
-
-					expectedWriter := &mockKeyDataWriter{data: &bytes.Buffer{}}
-					err = expectedKeyData.WriteAtomic(expectedWriter)
-					c.Assert(err, IsNil)
-
-					c.Check(buf.Bytes(), DeepEquals, expectedWriter.data.Bytes())
-				}
-
-				return externalKeys
+				return externalKey
 			})()
 
 			legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
@@ -827,14 +799,29 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 					c.Check(container, Equals, storage)
 					if tc.rkAllow {
-						c.Assert(opts, HasLen, 4)
-						c.Check(opts[3], Equals, recoveryOption)
+						if tc.noKeyFile || tc.errorReadKeyFile {
+							c.Assert(opts, HasLen, 3)
+							c.Check(opts[2], Equals, recoveryOption)
+						} else {
+							c.Assert(opts, HasLen, 4)
+							c.Check(opts[3], Equals, recoveryOption)
+						}
 					} else {
-						c.Assert(opts, HasLen, 3)
+						if tc.noKeyFile || tc.errorReadKeyFile {
+							c.Assert(opts, HasLen, 2)
+						} else {
+							c.Assert(opts, HasLen, 3)
+						}
 					}
-					c.Check(opts[0], Equals, volumeNameOption)
-					c.Check(opts[1], Equals, externalKeys)
-					c.Check(opts[2], Equals, legacyKeyringPaths)
+					if tc.noKeyFile || tc.errorReadKeyFile {
+						c.Check(opts[0], Equals, volumeNameOption)
+						c.Check(opts[1], Equals, legacyKeyringPaths)
+					} else {
+						c.Check(opts[0], Equals, externalKey)
+						c.Check(opts[1], Equals, volumeNameOption)
+						c.Check(opts[2], Equals, legacyKeyringPaths)
+					}
+
 					return tc.activateErr
 				},
 			}
@@ -1924,14 +1911,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	}
 
 	var foundKeyData *sb.KeyData
-	externalKeys := &mockActivateOption{name: "external-keys"}
-	defer secboot.MockSbWithExternalKeyData(func(keys ...*sb.ExternalKeyData) sb.ActivateOption {
-		c.Assert(keys, HasLen, 1)
-		keyData, err := sb.ReadKeyData(keys[0])
-		c.Assert(err, IsNil)
+	externalKey := &mockActivateOption{name: "external-key"}
+	defer secboot.MockSbWithExternalKeyData(func(name string, keyData *sb.KeyData) sb.ActivateOption {
+		c.Assert(foundKeyData, IsNil)
 		c.Check(keyData.PlatformName(), Equals, "fde-hook-v2")
 		foundKeyData = keyData
-		return externalKeys
+		return externalKey
 	})()
 
 	activated := 0
@@ -1941,7 +1926,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 			activated++
 			c.Check(container, Equals, storage)
 			c.Assert(opts, HasLen, 3)
-			c.Check(opts[1], Equals, externalKeys)
+			c.Check(opts[0], Equals, externalKey)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
 			c.Assert(foundKeyData, NotNil)
@@ -2417,15 +2402,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 
 	var foundKeyData *sb.KeyData
 
-	externalKeys := &mockActivateOption{name: "external-keys"}
-	defer secboot.MockSbWithExternalKeyData(func(keys ...*sb.ExternalKeyData) sb.ActivateOption {
-		c.Assert(keys, HasLen, 1)
-		keyData, err := sb.ReadKeyData(keys[0])
-		c.Assert(err, IsNil)
+	externalKey := &mockActivateOption{name: "external-key"}
+	defer secboot.MockSbWithExternalKeyData(func(name string, keyData *sb.KeyData) sb.ActivateOption {
+		c.Assert(foundKeyData, IsNil)
 		c.Check(keyData.ReadableName(), Equals, mockSealedKeyFile)
 		c.Check(keyData.PlatformName(), Equals, "fde-hook-v2")
 		foundKeyData = keyData
-		return externalKeys
+		return externalKey
 	})()
 
 	legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
@@ -2441,8 +2424,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 			activated++
 			c.Check(container, Equals, storage)
 			c.Assert(opts, HasLen, 3)
-			c.Check(opts[0], Equals, volumeNameOption)
-			c.Check(opts[1], Equals, externalKeys)
+			c.Check(opts[0], Equals, externalKey)
+			c.Check(opts[1], Equals, volumeNameOption)
 			c.Check(opts[2], Equals, legacyKeyringPaths)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
@@ -2804,14 +2787,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	}
 
 	var foundKeyData *sb.KeyData
-	externalKeys := &mockActivateOption{name: "external-keys"}
-	defer secboot.MockSbWithExternalKeyData(func(keys ...*sb.ExternalKeyData) sb.ActivateOption {
-		c.Assert(keys, HasLen, 1)
-		keyData, err := sb.ReadKeyData(keys[0])
-		c.Assert(err, IsNil)
+	externalKey := &mockActivateOption{name: "external-key"}
+	defer secboot.MockSbWithExternalKeyData(func(name string, keyData *sb.KeyData) sb.ActivateOption {
+		c.Assert(foundKeyData, IsNil)
 		c.Check(keyData.PlatformName(), Equals, "fde-hook-v2")
 		foundKeyData = keyData
-		return externalKeys
+		return externalKey
 	})()
 
 	activated := 0
@@ -2821,7 +2802,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 			activated++
 			c.Check(container, Equals, storage)
 			c.Assert(opts, HasLen, 3)
-			c.Check(opts[1], Equals, externalKeys)
+			c.Check(opts[0], Equals, externalKey)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
 			c.Assert(foundKeyData, NotNil)
