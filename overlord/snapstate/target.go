@@ -931,24 +931,6 @@ func (p *updatePlan) targetSetups() []SnapSetup {
 	return setups
 }
 
-// updates returns the updates that should be applied to the system's state for
-// this plan.
-//
-// TODO: add preDownload flag to update???
-func (p *updatePlan) updates(opts Options) ([]update, error) {
-	updates := make([]update, 0, len(p.targets))
-	for _, t := range p.targets {
-		snapsup := t.setup
-		compsups := append([]ComponentSetup(nil), t.components...)
-		updates = append(updates, update{
-			Setup:      snapsup,
-			SnapState:  t.snapst,
-			Components: compsups,
-		})
-	}
-	return updates, nil
-}
-
 // filter applies the given function to each target in the update plan and
 // removes any targets for which the function returns false.
 func (p *updatePlan) filter(f func(t target) (bool, error)) error {
@@ -1147,12 +1129,7 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	// it is sad that we have to split up updatePlan like this, but doUpdate is
 	// used in places where we don't have a snap.Info, so we cannot pass an
 	// updatePlan to doUpdate
-	updates, err := plan.updates(opts)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	updated, uts, err := doPotentiallySplitUpdate(st, plan.requested, updates, opts)
+	updated, uts, err := doPotentiallySplitUpdate(st, plan, opts)
 	if err != nil {
 		return nil, nil, err
 	}

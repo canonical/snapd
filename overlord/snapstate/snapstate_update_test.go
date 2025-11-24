@@ -14113,10 +14113,10 @@ func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestSplitEssentialSnapUpdates(c *C) {
-	updatesToNames := func(updates []snapstate.SnapUpdate) []string {
-		names := make([]string, 0, len(updates))
-		for _, up := range updates {
-			names = append(names, up.Setup.InstanceName())
+	targetsToNames := func(targets []snapstate.Target) []string {
+		names := make([]string, 0, len(targets))
+		for _, t := range targets {
+			names = append(names, t.InstanceName())
 		}
 		return names
 	}
@@ -14173,21 +14173,20 @@ func (s *snapmgrTestSuite) TestSplitEssentialSnapUpdates(c *C) {
 	}
 
 	for _, tc := range tcs {
-		updates := make([]snapstate.SnapUpdate, 0, len(tc.snaps))
+		targets := make([]snapstate.Target, 0, len(tc.snaps))
 		for _, sn := range tc.snaps {
-			updates = append(updates, snapstate.SnapUpdate{
-				Setup: snapstate.SnapSetup{
-					SideInfo: &snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: sn + "-id"},
-					Type:     snap.Type(types[sn]),
-					Base:     tc.bases[sn],
-				},
-			})
+			setup := snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: sn + "-id"},
+				Type:     snap.Type(types[sn]),
+				Base:     tc.bases[sn],
+			}
+			targets = append(targets, snapstate.NewTargetForTest(setup, snapstate.SnapState{}, nil))
 		}
 
 		ctx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase(tc.modelBase)}
-		essential, nonEssential := snapstate.SplitEssentialUpdates(ctx, updates)
-		c.Assert(updatesToNames(essential), testutil.DeepUnsortedMatches, tc.essentialSnaps)
-		c.Assert(updatesToNames(nonEssential), testutil.DeepUnsortedMatches, tc.nonEssentialSnaps)
+		essential, nonEssential := snapstate.SplitEssentialUpdates(ctx, targets)
+		c.Assert(targetsToNames(essential), testutil.DeepUnsortedMatches, tc.essentialSnaps)
+		c.Assert(targetsToNames(nonEssential), testutil.DeepUnsortedMatches, tc.nonEssentialSnaps)
 	}
 }
 
