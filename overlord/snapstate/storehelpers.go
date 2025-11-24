@@ -675,6 +675,10 @@ func storeUpdatePlanCore(
 		plan.targets = append(plan.targets, t)
 	}
 
+	if err := filterPlanWithRefreshControl(st, &plan, opts); err != nil {
+		return updatePlan{}, err
+	}
+
 	return plan, nil
 }
 

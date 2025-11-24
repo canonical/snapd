@@ -105,12 +105,8 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return err
 	}
-	deviceCtx, err := DeviceCtxFromState(r.state, nil)
-	if err != nil {
-		return err
-	}
 
-	hints, err := refreshHintsFromUpdatePlan(r.state, plan, deviceCtx)
+	hints, err := refreshHintsFromUpdatePlan(r.state, plan)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
@@ -169,25 +165,7 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
-	if ValidateRefreshes != nil && len(plan.targets) != 0 {
-		ignoreValidation := make(map[string]bool, len(plan.targets))
-		for _, t := range plan.targets {
-			if t.setup.IgnoreValidation {
-				ignoreValidation[t.InstanceName()] = true
-			}
-		}
-
-		const userID = 0
-
-		// if an error isn't returned here, then the returned list of snaps to
-		// refresh will match the input
-		_, err := ValidateRefreshes(st, plan.targetSetups(), ignoreValidation, userID, deviceCtx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan) (map[string]*refreshCandidate, error) {
 	hints := make(map[string]*refreshCandidate, len(plan.targets))
 	for _, t := range plan.targets {
 		var snapst SnapState

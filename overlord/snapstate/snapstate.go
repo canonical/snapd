@@ -3148,12 +3148,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		// of errors?
 		return nil, nil, err
 	}
-	deviceCtx, err := DeviceCtxFromState(st, nil)
-	if err != nil {
-		return nil, nil, err
-	}
 
-	hints, err := refreshHintsFromUpdatePlan(st, plan, deviceCtx)
+	hints, err := refreshHintsFromUpdatePlan(st, plan)
 	if err != nil {
 		return nil, nil, err
 	}

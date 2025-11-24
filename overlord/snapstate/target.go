@@ -214,7 +214,7 @@ func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snaps
 		setup:      snapsup,
 		snapst:     snapst,
 		components: comps,
-		size:       info.DownloadInfo.Size,
+		size:       info.Size,
 	}, nil
 }
 
@@ -1041,7 +1041,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 	// save the candidates so the auto-refresh can be continued if it's inhibited
 	// by a running snap.
 	if opts.Flags.IsAutoRefresh {
-		hints, err := refreshHintsFromUpdatePlan(st, plan, opts.DeviceCtx)
+		hints, err := refreshHintsFromUpdatePlan(st, plan)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1180,10 +1180,6 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
 	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts, s.filter)
 	if err != nil {
-		return updatePlan{}, err
-	}
-
-	if err := filterPlanWithRefreshControl(st, &plan, opts); err != nil {
 		return updatePlan{}, err
 	}
 
