@@ -1646,7 +1646,7 @@ func downloadTasks(
 		return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	snapsup := &SnapSetup{
+	snapsup := SnapSetup{
 		Channel:                     revOpts.Channel,
 		Base:                        info.Base,
 		UserID:                      opts.UserID,
@@ -1675,7 +1675,7 @@ func downloadTasks(
 		compsups[i].DownloadBlobDir = downloadDir
 	}
 
-	if err := checkSnapAgainstValidationSets(sar.Info, compsups, "download", revOpts.ValidationSets); err != nil {
+	if err := checkSnapAgainstValidationSets(snapsup, compsups, "download", revOpts.ValidationSets); err != nil {
 		return nil, nil, err
 	}
 

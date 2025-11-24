@@ -355,7 +355,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, err
 		}
 
-		if err := checkSnapAgainstValidationSets(r.Info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.setup, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
 			return nil, err
 		}
 
@@ -365,13 +365,25 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	return installs, err
 }
 
-func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
-	constraints, err := vsets.Presence(info)
+type snapsupNameRef struct {
+	snapsup SnapSetup
+}
+
+func (s *snapsupNameRef) ID() string {
+	return s.snapsup.SideInfo.SnapID
+}
+
+func (s *snapsupNameRef) SnapName() string {
+	return s.snapsup.SnapName()
+}
+
+func checkSnapAgainstValidationSets(snapsup SnapSetup, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
+	constraints, err := vsets.Presence(&snapsupNameRef{snapsup})
 	if err != nil {
 		return err
 	}
 
-	if err := checkSnapAgainstConstraints(info.InstanceName(), info.Revision, constraints, action); err != nil {
+	if err := checkSnapAgainstConstraints(snapsup.InstanceName(), snapsup.Revision(), constraints, action); err != nil {
 		return err
 	}
 
@@ -380,7 +392,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(snapsup.SnapName(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(

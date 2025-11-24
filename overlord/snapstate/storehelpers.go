@@ -574,13 +574,13 @@ func storeUpdatePlanCore(
 		t, err := newTargetFromInfo(st, *snapst, sar.Info, snapsup, compTargets, opts)
 		if err != nil {
 			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
-				logger.Noticef("cannot refresh snap %q: %v", sar.Info.InstanceName(), err)
+				logger.Noticef("cannot refresh snap %q: %v", sar.InstanceName(), err)
 				continue
 			}
 			return updatePlan{}, err
 		}
 
-		if err := checkSnapAgainstValidationSets(sar.Info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.setup, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 
@@ -666,7 +666,7 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
-		if err := checkSnapAgainstValidationSets(info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		if err := checkSnapAgainstValidationSets(t.setup, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 
