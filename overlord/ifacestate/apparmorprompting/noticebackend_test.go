@@ -76,21 +76,33 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 	c.Assert(err, IsNil)
 	id3, err := s.st.AddNotice(&uid2, state.InterfacesRequestsRuleUpdateNotice, prompting.IDType(0x789).String(), &state.AddNoticeOptions{Data: data1})
 	c.Assert(err, IsNil)
-	id4, err := s.st.AddNotice(&uid2, state.WarningNotice, "foo", &state.AddNoticeOptions{Data: data2})
+	// Add some notices for which we'll pre-record notices in the backends
+	// before draining, so we expect not to re-record
+	id4, err := s.st.AddNotice(&uid1, state.InterfacesRequestsPromptNotice, prompting.IDType(0xabc).String(), &state.AddNoticeOptions{Data: nil})
+	c.Assert(err, IsNil)
+	id5, err := s.st.AddNotice(&uid1, state.InterfacesRequestsRuleUpdateNotice, prompting.IDType(0xdef).String(), &state.AddNoticeOptions{Data: data1})
+	c.Assert(err, IsNil)
+	id6, err := s.st.AddNotice(&uid1, state.InterfacesRequestsPromptNotice, prompting.IDType(0x1000).String(), &state.AddNoticeOptions{Data: data2})
+	c.Assert(err, IsNil)
+	// Add warning notice which we won't drain
+	id7, err := s.st.AddNotice(&uid2, state.WarningNotice, "foo", &state.AddNoticeOptions{Data: data2})
 	c.Assert(err, IsNil)
 	// Add one prompting notice with a key which is not an IDType.String(), which will be dropped
-	id5, err := s.st.AddNotice(&uid2, state.InterfacesRequestsRuleUpdateNotice, "bar", &state.AddNoticeOptions{Data: data2})
+	id8, err := s.st.AddNotice(&uid2, state.InterfacesRequestsRuleUpdateNotice, "bar", &state.AddNoticeOptions{Data: data2})
 	c.Assert(err, IsNil)
 	s.st.Unlock()
 
 	// Check that all notices are retrievable from the manager
 	existingNotices := s.noticeMgr.Notices(nil)
-	c.Assert(existingNotices, HasLen, 5)
+	c.Assert(existingNotices, HasLen, 8)
 	c.Check(existingNotices[0].ID(), Equals, id1)
 	c.Check(existingNotices[1].ID(), Equals, id2)
 	c.Check(existingNotices[2].ID(), Equals, id3)
 	c.Check(existingNotices[3].ID(), Equals, id4)
 	c.Check(existingNotices[4].ID(), Equals, id5)
+	c.Check(existingNotices[5].ID(), Equals, id6)
+	c.Check(existingNotices[6].ID(), Equals, id7)
+	c.Check(existingNotices[7].ID(), Equals, id8)
 
 	// Create new prompting notice backends and check that they initially have no notices
 	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
@@ -100,7 +112,16 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 
 	// Creating backend has no effect on the notice manager yet
 	existingNotices = s.noticeMgr.Notices(nil)
-	c.Assert(existingNotices, HasLen, 5)
+	c.Assert(existingNotices, HasLen, 8)
+
+	// Pre-create some notices in the prompting notice backends which we expect
+	// to not be overwritten by drained notices
+	c.Check(noticeBackend.PromptBackend().AddNotice(uid1, 0xabc, data1), IsNil)
+	c.Check(noticeBackend.RuleBackend().AddNotice(uid1, 0xdef, data2), IsNil)
+	c.Check(noticeBackend.PromptBackend().AddNotice(uid1, 0x1000, nil), IsNil)
+	// And the notices can be retrieved
+	c.Check(noticeBackend.PromptBackend().BackendNotices(nil), HasLen, 2)
+	c.Check(noticeBackend.RuleBackend().BackendNotices(nil), HasLen, 1)
 
 	// Register the prompting backends with the notice manager
 	err = apparmorprompting.RegisterWithManager(noticeBackend, s.noticeMgr)
@@ -108,39 +129,57 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 
 	// Check that the prompting backends have the expected notices now
 	promptNotices := noticeBackend.PromptBackend().BackendNotices(nil)
-	c.Assert(promptNotices, HasLen, 1)
+	c.Assert(promptNotices, HasLen, 3)
 	ruleNotices := noticeBackend.RuleBackend().BackendNotices(nil)
-	c.Assert(ruleNotices, HasLen, 2)
-	// Check that the new notice IDs are namespaced as expected and key and data were preserved
-	c.Check(promptNotices[0].ID(), Equals, "prompt-0000000000000123")
-	c.Check(promptNotices[0].Key(), Equals, "0000000000000123")
-	c.Check(promptNotices[0].LastData(), DeepEquals, data1)
-	c.Check(ruleNotices[0].ID(), Equals, "rule-0000000000000456")
-	c.Check(ruleNotices[0].Key(), Equals, "0000000000000456")
-	c.Check(ruleNotices[0].LastData(), DeepEquals, data2)
-	c.Check(ruleNotices[1].ID(), Equals, "rule-0000000000000789")
-	c.Check(ruleNotices[1].Key(), Equals, "0000000000000789")
-	c.Check(ruleNotices[1].LastData(), DeepEquals, data1)
+	c.Assert(ruleNotices, HasLen, 3)
+	// Check that the new notice IDs are namespaced as expected and key and
+	// data were preserved. When the notices were pre-created in the backend
+	// prior to registering, the data should not have changed, otherwise the
+	// data should match what was drained from state
+	c.Check(promptNotices[0].ID(), Equals, "prompt-0000000000000ABC")
+	c.Check(promptNotices[0].Key(), Equals, "0000000000000ABC")
+	c.Check(promptNotices[0].LastData(), DeepEquals, data1) // from pre-created
+	c.Check(promptNotices[1].ID(), Equals, "prompt-0000000000001000")
+	c.Check(promptNotices[1].Key(), Equals, "0000000000001000")
+	c.Check(promptNotices[1].LastData(), IsNil) // from pre-created
+	c.Check(promptNotices[2].ID(), Equals, "prompt-0000000000000123")
+	c.Check(promptNotices[2].Key(), Equals, "0000000000000123")
+	c.Check(promptNotices[2].LastData(), DeepEquals, data1) // from state
+	c.Check(ruleNotices[0].ID(), Equals, "rule-0000000000000DEF")
+	c.Check(ruleNotices[0].Key(), Equals, "0000000000000DEF")
+	c.Check(ruleNotices[0].LastData(), DeepEquals, data2) // from pre-created
+	c.Check(ruleNotices[1].ID(), Equals, "rule-0000000000000456")
+	c.Check(ruleNotices[1].Key(), Equals, "0000000000000456")
+	c.Check(ruleNotices[1].LastData(), DeepEquals, data2) // from state
+	c.Check(ruleNotices[2].ID(), Equals, "rule-0000000000000789")
+	c.Check(ruleNotices[2].Key(), Equals, "0000000000000789")
+	c.Check(ruleNotices[2].LastData(), DeepEquals, data1) // from state
 
 	// Check that the state no longer has notices with prompting types
 	s.st.Lock()
 	stateNotices := s.st.Notices(nil)
 	s.st.Unlock()
 	c.Check(stateNotices, HasLen, 1)
-	c.Check(stateNotices[0].ID(), Equals, id4)
+	c.Check(stateNotices[0].ID(), Equals, id7)
 	c.Check(stateNotices[0].Key(), Equals, "foo")
 
 	// Check that the notice manager can retrieve all expected notices
 	notices := s.noticeMgr.Notices(nil)
-	c.Check(notices, HasLen, 4)
-	c.Check(notices[0].ID(), Equals, id4)
+	c.Check(notices, HasLen, 7)
+	c.Check(notices[0].ID(), Equals, id7)
 	c.Check(notices[0].Key(), Equals, "foo")
-	c.Check(notices[1].ID(), Equals, "prompt-0000000000000123")
-	c.Check(notices[1].Key(), Equals, "0000000000000123")
-	c.Check(notices[2].ID(), Equals, "rule-0000000000000456")
-	c.Check(notices[2].Key(), Equals, "0000000000000456")
-	c.Check(notices[3].ID(), Equals, "rule-0000000000000789")
-	c.Check(notices[3].Key(), Equals, "0000000000000789")
+	c.Check(notices[1].ID(), Equals, "prompt-0000000000000ABC")
+	c.Check(notices[1].Key(), Equals, "0000000000000ABC")
+	c.Check(notices[2].ID(), Equals, "rule-0000000000000DEF")
+	c.Check(notices[2].Key(), Equals, "0000000000000DEF")
+	c.Check(notices[3].ID(), Equals, "prompt-0000000000001000")
+	c.Check(notices[3].Key(), Equals, "0000000000001000")
+	c.Check(notices[4].ID(), Equals, "prompt-0000000000000123")
+	c.Check(notices[4].Key(), Equals, "0000000000000123")
+	c.Check(notices[5].ID(), Equals, "rule-0000000000000456")
+	c.Check(notices[5].Key(), Equals, "0000000000000456")
+	c.Check(notices[6].ID(), Equals, "rule-0000000000000789")
+	c.Check(notices[6].Key(), Equals, "0000000000000789")
 }
 
 func (s *noticebackendSuite) TestAddNotice(c *C) {
