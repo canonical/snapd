@@ -3829,6 +3829,9 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"bar": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "foo[{m}]", "storage": "foo[.bar={bar}][{m}]"},
 			},
@@ -3861,6 +3864,11 @@ func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"status":  map[string]any{},
+				"version": map[string]any{},
+			},
+
 			"rules": []any{
 				map[string]any{"request": "snaps.{snap}", "storage": "snaps.{snap}[.status={status}][.version={version}]"},
 			},
@@ -3916,6 +3924,10 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"age": map[string]any{},
+				"toy": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "users.{user}.{pet}", "storage": "{user}[.age={age}].{pet}"},
 				map[string]any{"request": "pet-kinds.{user}.{pet}", "storage": "{user}.{pet}[.toy={toy}].kind"},
@@ -3989,6 +4001,9 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 func (*viewSuite) TestFilteringNoData(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"field": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "{foo}", "storage": "{foo}[.baz={field}]"},
 				map[string]any{"request": "a.b.c", "storage": "a.b.c[.d={field}]"},
@@ -4026,6 +4041,9 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"field": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "foo[{n}]", "storage": "foo[{n}][.baz={field}]"},
 			},
@@ -4050,6 +4068,10 @@ func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 func (*viewSuite) TestListFiltering(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+
+			"parameters": map[string]any{
+				"path": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "vm[{n}]", "storage": "sys.vm[{n}][.path={path}]"},
 				map[string]any{"request": "vm-value[{n}]", "storage": "sys.vm[{n}][.path={path}].value"},
@@ -4104,6 +4126,9 @@ func (*viewSuite) TestListFiltering(c *C) {
 func (*viewSuite) TestFieldFilteringNotString(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
+			"parameters": map[string]any{
+				"bar": map[string]any{},
+			},
 			"rules": []any{
 				map[string]any{"request": "foo.bar", "storage": "foo[.bar={bar}].bar"},
 			},
@@ -4230,4 +4255,23 @@ func (s *viewSuite) TestConfdbSchemaParameters(c *C) {
 			c.Assert(schema, NotNil, cmt)
 		}
 	}
+}
+
+func (s *viewSuite) TestConfdbSchemaParametersCrossCheck(c *C) {
+	views := map[string]any{
+		"wifi-setup": map[string]any{
+			"parameters": map[string]any{
+				"a": map[string]any{"presence": "optional"},
+			},
+			"rules": []any{
+				map[string]any{
+					"request": "foo.baz",
+					"storage": "foo[.a={a}].baz[.b={b}]",
+				},
+			},
+		},
+	}
+
+	_, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, ErrorMatches, `.*filter parameter "b" must be declared in "parameters" stanza`)
 }

@@ -392,11 +392,12 @@ func parseParameters(params map[string]any) (map[string]paramPresence, error) {
 	return paramPresence, nil
 }
 
-func newView(dbSchema *Schema, name string, viewRules []any, _ map[string]paramPresence) (*View, error) {
+func newView(schema *Schema, name string, viewRules []any, paramPresence map[string]paramPresence) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]viewRule, 0, len(viewRules)),
-		schema: dbSchema,
+		schema: schema,
+		params: paramPresence,
 	}
 
 	for _, ruleRaw := range viewRules {
@@ -429,7 +430,7 @@ func newView(dbSchema *Schema, name string, viewRules []any, _ map[string]paramP
 
 		// check the field filters in the last accessor against the schema
 		if rule.storage[len(rule.storage)-1].FieldFilters() != nil {
-			schemaAlts, err := dbSchema.DatabagSchema.SchemaAt(rule.storage)
+			schemaAlts, err := schema.DatabagSchema.SchemaAt(rule.storage)
 			if err != nil {
 				return nil, err
 			}
@@ -449,18 +450,46 @@ func newView(dbSchema *Schema, name string, viewRules []any, _ map[string]paramP
 				return nil, fmt.Errorf("can only apply field filters to maps but %q expects list after filters", rule.originalStorage)
 			}
 		}
+
+		params := getFilterParams(rule)
+		for _, param := range params {
+			if _, ok := paramPresence[param]; !ok {
+				return nil, fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+			}
+		}
 	}
 
 	for _, rules := range pathToRules {
 		// this also implicitly checks that the paths are consistent with the schema.
 		// For instance, if the schema expects foo.bar to be a boolean, the path
 		// "foo.bar.baz" would fail because it cannot key a boolean
-		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
+		if err := checkSchemaMismatch(schema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
 	}
 
 	return view, nil
+}
+
+func getFilterParams(rule viewRule) []string {
+	// filter duplicates
+	params := make(map[string]struct{})
+
+	for _, acc := range rule.storage {
+		for _, param := range acc.FieldFilters() {
+			params[param] = struct{}{}
+		}
+	}
+
+	return keys(params)
+}
+
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func parseRule(parent *viewRule, ruleRaw any) ([]viewRule, error) {
@@ -925,6 +954,7 @@ type View struct {
 	Name   string
 	rules  []viewRule
 	schema *Schema
+	params map[string]paramPresence
 }
 
 func (v *View) Schema() *Schema {
