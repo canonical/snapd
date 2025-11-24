@@ -1,12 +1,13 @@
-summary: Check that `snapctl refresh` works with the tracking flag
+summary: Check that 'snapctl refresh' works with the tracking flag
 
 environment:
     USER/root: root
     USER/user0: user0
 
 details: |
-    Verifies the `snapctl` command can be used in a privileged context
-    and returns the channel being tracked when passed the --tracking flag.
+    Verifies the snapctl refresh command works as expected when using the --tracking flag.
+    The test checks that other snapctl refresh commands still require root privileges, and
+    tests how snapctl refresh behaves with different channels set.
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
@@ -15,8 +16,6 @@ restore: |
     snap remove --purge test-snapd-sh-core24
 
 execute: |
-    echo "Verify snapctl refresh --tracking"
-
     snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
     echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "null"
 
