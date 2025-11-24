@@ -61,8 +61,6 @@ jobs:
           SYSTEM=${{ inputs.os }}
           TAG=${{ inputs.os-version }}
         tags: deb-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Build deb
       run: |

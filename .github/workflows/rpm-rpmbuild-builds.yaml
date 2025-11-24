@@ -52,8 +52,6 @@ jobs:
           IMAGE=${{ inputs.image-name }}
           TAG=${{ inputs.image-tag }}
           PACKAGING_DIR=${{ inputs.pkg-dir }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Set version in spec
       run: |

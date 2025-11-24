@@ -44,8 +44,6 @@ jobs:
         load: true
         file: tests/lib/packaging/fedora.dockerfile
         tags: mock-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Create cache key
       # Force a cache refresh once a week by using the year and week number as part of the cache key
