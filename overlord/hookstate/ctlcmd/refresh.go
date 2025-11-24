@@ -272,7 +272,7 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 	}
 
 	var res []byte
-	
+
 	if snapst.TrackingChannel != "" {
 		res, err = yaml.Marshal(map[string]string{"channel": snapst.TrackingChannel})
 	} else {

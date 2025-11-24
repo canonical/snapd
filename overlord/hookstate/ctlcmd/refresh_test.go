@@ -553,7 +553,7 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 
 	s.st.Lock()
 	snapstate.Set(s.st, "my-app", &myAppSnapState)
-	
+
 	s.st.Unlock()
 
 	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(revN)}
