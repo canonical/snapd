@@ -68,6 +68,12 @@ prepare: |
 
     pushd prompting-client/prompting-client
 
+    echo "Enable timeouts for integration tests"
+    git fetch
+    git config user.email 'nonexistent@ubuntu.com'
+    git config user.name 'Ubuntu'
+    git cherry-pick d81dadd1715523dbf697897a1d9ca6d208cbb355
+
     echo "Patch the integration tests to disable the camera tests"
     sed -i '/Allow access to camera/i #[ignore = "Skip camera tests for now"]' tests/integration.rs
     git diff | cat
