@@ -21,7 +21,6 @@
 package secboot
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/hmac"
@@ -123,19 +122,6 @@ func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return &activateContextImpl{ActivateContext: context}, nil
 }
 
-type serializedKeyData struct {
-	bytes.Buffer
-	readableName string
-}
-
-func (s *serializedKeyData) Commit() error {
-	return nil
-}
-
-func (s *serializedKeyData) ReadableName() string {
-	return s.readableName
-}
-
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
 // with a corresponding name. The options control activation with the
@@ -207,14 +193,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		}
 	}
 
-	var keys []*sb.ExternalKeyData
+	var options []sb.ActivateOption
 	if loadedKey.KeyData != nil {
-		// FIXME: sb.ExternalKeyData expects a reader, but we have a KeyData. This
-		// is because NewKeyDataFromSealedKeyObjectFile gives use a KeyData, not a
-		// KeyDataReader. So we need to serialize it to make a reader.
-		keyDataReader := &serializedKeyData{readableName: loadedKey.KeyData.ReadableName()}
-		loadedKey.KeyData.WriteAtomic(keyDataReader)
-		keys = append(keys, sb.NewExternalKeyData(loadedKey.KeyData.ReadableName(), keyDataReader))
+		options = append(options, sbWithExternalKeyData(loadedKey.KeyData.ReadableName(), loadedKey.KeyData))
 	}
 
 	if opts.WhichModel != nil {
@@ -256,7 +237,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	}
 	// FIXME: there is no way to disable recovery key and obey AllowRecoveryKey
 
-	options := []sb.ActivateOption{sbWithVolumeName(mapperName), sbWithExternalKeyData(keys...), sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice)}
+	options = append(options, sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice))
 	if opts.AllowRecoveryKey {
 		options = append(options, sbWithRecoveryKeyTries(3))
 	}
