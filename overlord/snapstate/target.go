@@ -84,9 +84,6 @@ type target struct {
 	// setup is a partially initialized SnapSetup that contains the data needed
 	// to find the snap file that will be installed.
 	setup SnapSetup
-	// info contains the snap.info for the snap to be installed. This is kept
-	// for now but should no longer be required by target.setups.
-	info *snap.Info
 	// snapst is the current state of the target snap, prior to installation.
 	// This must be retrieved prior to unlocking the state for any reason (for
 	// example, talking to the store).
@@ -238,7 +235,6 @@ func newTargetFromInfo(st *state.State, snapst SnapState, info *snap.Info, snaps
 
 	return target{
 		setup:      snapsup,
-		info:       info,
 		snapst:     snapst,
 		components: comps,
 		size:       info.DownloadInfo.Size,
