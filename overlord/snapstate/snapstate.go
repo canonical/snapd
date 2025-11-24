@@ -1564,6 +1564,10 @@ func Download(
 	revOpts RevisionOptions,
 	opts Options,
 ) (*state.TaskSet, *snap.Info, error) {
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, nil, err
+	}
+
 	const skipSnapDownload = false
 	return downloadTasks(ctx, st, name, components, downloadDir, skipSnapDownload, revOpts, opts)
 }
@@ -1583,6 +1587,10 @@ func DownloadComponents(
 	revOpts RevisionOptions,
 	opts Options,
 ) (*state.TaskSet, error) {
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, err
+	}
+
 	const skipSnapDownload = true
 	ts, _, err := downloadTasks(ctx, st, name, components, downloadDir, skipSnapDownload, revOpts, opts)
 	if err != nil {
@@ -1632,9 +1640,7 @@ func downloadTasks(
 
 	info := sar.Info
 
-	if opts.PrereqTracker != nil {
-		opts.PrereqTracker.Add(info)
-	}
+	opts.PrereqTracker.Add(info)
 
 	if opts.Flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
@@ -3149,7 +3155,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	refreshOpts := &store.RefreshOptions{Scheduled: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
 	plan, err := storeUpdatePlan(ctx, st, allSnaps, nil, user, refreshOpts, Options{
-		Flags: Flags{IsAutoRefresh: true},
+		Flags:         Flags{IsAutoRefresh: true},
+		PrereqTracker: snap.SimplePrereqTracker{},
 	}, nil)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types

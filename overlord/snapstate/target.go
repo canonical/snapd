@@ -375,6 +375,8 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			CohortKey:    sn.RevOpts.CohortKey,
 		}
 
+		opts.PrereqTracker.Add(r.Info)
+
 		t, err := newTargetFromInfo(st, *snapst, r.Info, snapsup, comps, opts)
 		if err != nil {
 			return nil, err
@@ -797,8 +799,6 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", t.Type())
 		}
 
-		opts.PrereqTracker.Add(t.info)
-
 		snapsup, compsups := t.setups(opts)
 
 		var instFlags int
@@ -959,8 +959,6 @@ func (p *updatePlan) targetSetups() []SnapSetup {
 func (p *updatePlan) updates(opts Options) ([]update, error) {
 	updates := make([]update, 0, len(p.targets))
 	for _, t := range p.targets {
-		opts.PrereqTracker.Add(t.info)
-
 		snapsup, compsups := t.setups(opts)
 		updates = append(updates, update{
 			Setup:      snapsup,
@@ -1492,6 +1490,8 @@ func targetForPathSnap(st *state.State, update PathSnap, snapst SnapState, opts 
 		Channel:   update.RevOpts.Channel,
 		CohortKey: update.RevOpts.CohortKey,
 	}
+
+	opts.PrereqTracker.Add(info)
 
 	return newTargetFromInfo(st, snapst, info, snapsup, comps, opts)
 }

@@ -584,6 +584,8 @@ func storeUpdatePlanCore(
 			return updatePlan{}, err
 		}
 
+		opts.PrereqTracker.Add(sar.Info)
+
 		plan.targets = append(plan.targets, t)
 	}
 
@@ -667,6 +669,8 @@ func storeUpdatePlanCore(
 		if err := checkSnapAgainstValidationSets(info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
+
+		opts.PrereqTracker.Add(info)
 
 		plan.targets = append(plan.targets, t)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -94,6 +95,7 @@ func (r *refreshHints) refresh() error {
 			Flags: Flags{
 				IsAutoRefresh: true,
 			},
+			PrereqTracker: snap.SimplePrereqTracker{},
 		}, nil)
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
