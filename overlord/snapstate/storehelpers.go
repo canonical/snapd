@@ -551,7 +551,7 @@ func storeUpdatePlanCore(
 		// compTargets will be filtered down to only the components that appear
 		// in the action result, meaning that we might install fewer components
 		// than we have installed right now
-		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
+		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames, opts.Flags)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}

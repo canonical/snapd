@@ -201,16 +201,9 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 			continue
 		}
 
-		flags := snapst.Flags
-		flags.IsAutoRefresh = true
-		snapsup, compsups := t.setups(Options{
-			DeviceCtx: deviceCtx,
-			Flags:     flags,
-		})
-
 		hints[t.InstanceName()] = &refreshCandidate{
-			SnapSetup:  snapsup,
-			Components: compsups,
+			SnapSetup:  t.setup,
+			Components: t.components,
 			Monitored:  IsSnapMonitored(st, t.InstanceName()),
 		}
 	}

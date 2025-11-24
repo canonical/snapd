@@ -120,13 +120,9 @@ func InstallComponents(
 	tss := make([]*state.TaskSet, 0, len(compsups))
 	compSetupIDs := make([]string, 0, len(compsups))
 	for _, compsup := range compsups {
-		// since we are installing multiple components, we don't want to setup
-		// the security profiles until the end
-		compsup.MultiComponentInstall = true
-
 		// here we share the setupSecurity and kmodSetup tasks between all of
 		// the component task chains. this results in multiple parallel tasks
-		// (one per copmonent) that have synchronization points at the
+		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
 		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
@@ -196,7 +192,7 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, fmt.Errorf("internal error: expected exactly one snap action result, got %d", len(sars))
 	}
 
-	return componentTargetsFromActionResult("install", sars[0], names)
+	return componentTargetsFromActionResult("install", sars[0], names, opts.Flags)
 }
 
 // installComponentAction returns a store action that is used to get a list of

@@ -1666,7 +1666,7 @@ func downloadTasks(
 		snapsup.Channel = sar.RedirectChannel
 	}
 
-	compsups, err := componentTargetsFromActionResult("download", sar, components)
+	compsups, err := componentTargetsFromActionResult("download", sar, components, opts.Flags)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 	}
@@ -4213,9 +4213,6 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 		compsup := ComponentSetup{
 			CompSideInfo: &cinfo.ComponentSideInfo,
 			CompType:     cinfo.Type,
-			ComponentInstallFlags: ComponentInstallFlags{
-				MultiComponentInstall: true,
-			},
 		}
 
 		unlinkComp := st.NewTask("unlink-component", fmt.Sprintf(i18n.G(

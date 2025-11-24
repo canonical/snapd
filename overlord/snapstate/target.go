@@ -121,29 +121,6 @@ func markTargetNotApplicable(err error) error {
 	return targetNotApplicableError{err: err}
 }
 
-// setups returns the completed SnapSetup and slice of ComponentSetup structs
-// for the target snap.
-func (t *target) setups(opts Options) (SnapSetup, []ComponentSetup) {
-	compsups := make([]ComponentSetup, 0, len(t.components))
-	for _, comp := range t.components {
-		compsups = append(compsups, ComponentSetup{
-			CompSideInfo: comp.CompSideInfo,
-			CompType:     comp.CompType,
-			CompPath:     comp.CompPath,
-			DownloadInfo: comp.DownloadInfo,
-
-			ComponentInstallFlags: ComponentInstallFlags{
-				// if we're removing the snap, then we should remove the
-				// components too
-				RemoveComponentPath:   opts.Flags.RemoveSnapPath,
-				MultiComponentInstall: true,
-			},
-		})
-	}
-
-	return t.setup, compsups
-}
-
 // minimalInstallInfo implementation for disk space/prereq checks.
 func (t *target) InstanceName() string {
 	return t.setup.InstanceName()
@@ -360,7 +337,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			channel = "stable"
 		}
 
-		comps, err := componentTargetsFromActionResult("install", r, sn.Components)
+		comps, err := componentTargetsFromActionResult("install", r, sn.Components, opts.Flags)
 		if err != nil {
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
@@ -492,7 +469,7 @@ func cachedEnforcedValidationSets(st *state.State) cachedValidationSets {
 	}
 }
 
-func componentTargetsFromActionResult(action string, sar store.SnapActionResult, requested []string) ([]ComponentSetup, error) {
+func componentTargetsFromActionResult(action string, sar store.SnapActionResult, requested []string, flags Flags) ([]ComponentSetup, error) {
 	mapping := make(map[string]store.SnapResourceResult, len(sar.Resources))
 	for _, res := range sar.Resources {
 		mapping[res.Name] = res
@@ -511,7 +488,10 @@ func componentTargetsFromActionResult(action string, sar store.SnapActionResult,
 			return nil, fmt.Errorf("cannot find component %q in snap resources", comp)
 		}
 
-		setup, err := componentSetupFromResource(comp, res, sar.Info)
+		setup, err := componentSetupFromResource(comp, res, sar.Info, ComponentInstallFlags{
+			RemoveComponentPath:   flags.RemoveSnapPath,
+			MultiComponentInstall: true,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -521,7 +501,7 @@ func componentTargetsFromActionResult(action string, sar store.SnapActionResult,
 	return setups, nil
 }
 
-func componentSetupFromResource(name string, sar store.SnapResourceResult, info *snap.Info) (ComponentSetup, error) {
+func componentSetupFromResource(name string, sar store.SnapResourceResult, info *snap.Info, flags ComponentInstallFlags) (ComponentSetup, error) {
 	comp, ok := info.Components[name]
 	if !ok {
 		return ComponentSetup{}, fmt.Errorf("%q is not a component for snap %q", name, info.SnapName())
@@ -543,9 +523,10 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 	}
 
 	return ComponentSetup{
-		DownloadInfo: &sar.DownloadInfo,
-		CompSideInfo: &csi,
-		CompType:     comp.Type,
+		DownloadInfo:          &sar.DownloadInfo,
+		CompSideInfo:          &csi,
+		CompType:              comp.Type,
+		ComponentInstallFlags: flags,
 	}, nil
 }
 
@@ -795,14 +776,12 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", t.Type())
 		}
 
-		snapsup, compsups := t.setups(opts)
-
 		var instFlags int
 		if opts.Flags.SkipConfigure {
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
+		ts, err := doInstall(st, &t.snapst, t.setup, t.components, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -810,7 +789,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		ts.JoinLane(generateLane(st, opts))
 
 		tasksets = append(tasksets, ts)
-		setups = append(setups, snapsup)
+		setups = append(setups, t.setup)
 	}
 
 	return setups, tasksets, nil
@@ -889,7 +868,7 @@ func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts O
 	return []target{t}, nil
 }
 
-func componentSetupsFromPaths(snapInfo *snap.Info, components []PathComponent) ([]ComponentSetup, error) {
+func componentSetupsFromPaths(snapInfo *snap.Info, components []PathComponent, flags Flags) ([]ComponentSetup, error) {
 	setups := make([]ComponentSetup, 0, len(components))
 	for _, pc := range components {
 		compInfo, err := validatedComponentInfo(pc.Path, snapInfo, pc.SideInfo)
@@ -901,6 +880,10 @@ func componentSetupsFromPaths(snapInfo *snap.Info, components []PathComponent) (
 			CompPath:     pc.Path,
 			CompSideInfo: pc.SideInfo,
 			CompType:     compInfo.Type,
+			ComponentInstallFlags: ComponentInstallFlags{
+				RemoveComponentPath:   flags.RemoveSnapPath,
+				MultiComponentInstall: true,
+			},
 		})
 	}
 
@@ -955,7 +938,8 @@ func (p *updatePlan) targetSetups() []SnapSetup {
 func (p *updatePlan) updates(opts Options) ([]update, error) {
 	updates := make([]update, 0, len(p.targets))
 	for _, t := range p.targets {
-		snapsup, compsups := t.setups(opts)
+		snapsup := t.setup
+		compsups := append([]ComponentSetup(nil), t.components...)
 		updates = append(updates, update{
 			Setup:      snapsup,
 			SnapState:  t.snapst,
@@ -1476,7 +1460,7 @@ func targetForPathSnap(st *state.State, update PathSnap, snapst SnapState, opts 
 		return target{}, err
 	}
 
-	comps, err := componentSetupsFromPaths(info, update.Components)
+	comps, err := componentSetupsFromPaths(info, update.Components, opts.Flags)
 	if err != nil {
 		return target{}, err
 	}
