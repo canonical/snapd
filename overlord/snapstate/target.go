@@ -977,52 +977,10 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	return nil
 }
 
-// validateAndFilterTargets validates the targets in the update plan against
-// refresh control validation assertions. Any targets that cannot be validated
-// are removed from the update plan.
-func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) error {
-	if ValidateRefreshes == nil || len(p.targets) == 0 || opts.Flags.IgnoreValidation {
-		return nil
-	}
-
-	ignoreValidation := make(map[string]bool, len(p.targets))
-	for _, t := range p.targets {
-		if t.snapst.IgnoreValidation {
-			ignoreValidation[t.InstanceName()] = true
-		}
-	}
-
-	// for the reader, the concept of validating here is not to be confused with
-	// validation sets.
-	validated, err := ValidateRefreshes(st, p.targetSetups(), ignoreValidation, opts.UserID, opts.DeviceCtx)
-	if err != nil {
-		if !p.refreshAll() {
-			return err
-		}
-		logger.Noticef("cannot refresh some snaps: %v", err)
-	}
-
-	validatedMap := make(map[string]bool, len(validated))
-	for _, sn := range validated {
-		validatedMap[sn.InstanceName()] = true
-	}
-
-	p.filter(func(t target) (bool, error) {
-		_, ok := validatedMap[t.InstanceName()]
-		return ok, nil
-	})
-
-	return nil
-}
-
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
 	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
-
-	// filterGatedSnaps validates the update plan against refresh control and, if
-	// applicable, filters out gated snaps.
-	filterGatedSnaps(*state.State, *updatePlan, Options) error
 }
 
 // UpdateOne is a convenience wrapper for UpdateWithGoal that ensures that a
@@ -1090,11 +1048,6 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 
 		// TODO: why not check this error?
 		updateRefreshCandidates(st, hints, plan.requested)
-	}
-
-	// filter out snaps that have been gated by refresh control
-	if err := goal.filterGatedSnaps(st, &plan, opts); err != nil {
-		return nil, nil, err
 	}
 
 	changeKind := "refresh"
@@ -1230,14 +1183,47 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, err
 	}
 
+	if err := filterPlanWithRefreshControl(st, &plan, opts); err != nil {
+		return updatePlan{}, err
+	}
+
 	return plan, nil
 }
 
-func (*storeUpdateGoal) filterGatedSnaps(st *state.State, plan *updatePlan, opts Options) error {
-	// validate snaps to be refreshed against refresh control assertions. If we
-	// are refreshing all snaps, then we filter out the snaps that cannot be
-	// validated and log them
-	return plan.validateAndFilterTargets(st, opts)
+// filterPlanWithRefreshControl validates the targets in the update plan against
+// refresh-control validation assertions. Any targets that cannot be validated
+// are removed from the plan.
+func filterPlanWithRefreshControl(st *state.State, plan *updatePlan, opts Options) error {
+	if ValidateRefreshes == nil || len(plan.targets) == 0 || opts.Flags.IgnoreValidation {
+		return nil
+	}
+
+	ignoreValidation := make(map[string]bool, len(plan.targets))
+	for _, t := range plan.targets {
+		if t.snapst.IgnoreValidation {
+			ignoreValidation[t.InstanceName()] = true
+		}
+	}
+
+	validated, err := ValidateRefreshes(st, plan.targetSetups(), ignoreValidation, opts.UserID, opts.DeviceCtx)
+	if err != nil {
+		if !plan.refreshAll() {
+			return err
+		}
+		logger.Noticef("cannot refresh some snaps: %v", err)
+	}
+
+	validatedMap := make(map[string]bool, len(validated))
+	for _, sn := range validated {
+		validatedMap[sn.InstanceName()] = true
+	}
+
+	plan.filter(func(t target) (bool, error) {
+		_, ok := validatedMap[t.InstanceName()]
+		return ok, nil
+	})
+
+	return nil
 }
 
 func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
@@ -1383,11 +1369,6 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 		targets:   targets,
 		requested: names,
 	}, nil
-}
-
-func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) error {
-	// local installs ignore refresh control by design
-	return nil
 }
 
 func targetForPathSnap(st *state.State, update PathSnap, snapst SnapState, opts Options) (target, error) {
