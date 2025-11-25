@@ -42,7 +42,7 @@ type PollMessagesRequest struct {
 	Limit int `json:"limit"`
 
 	// The response messages to send to the Store.
-	Messages []Message `json:"messages,omitempty"` // Response messages to send
+	Messages []Message `json:"messages,omitempty"`
 }
 
 // PollMessagesResponse contains request-message messages received from the store with their tokens.
