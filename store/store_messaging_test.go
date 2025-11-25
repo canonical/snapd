@@ -123,7 +123,7 @@ func (s *storeMessagingSuite) TestFetchMessagesNegativeLimit(c *C) {
 	c.Check(resp, IsNil)
 }
 
-func (s *storeMessagingSuite) TestFetchMessagesServerError(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesBadRequest(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		errResp := map[string]any{
 			"error-list": []map[string]string{
@@ -157,7 +157,7 @@ func (s *storeMessagingSuite) TestFetchMessagesServerError(c *C) {
 	c.Check(resp, IsNil)
 }
 
-func (s *storeMessagingSuite) TestFetchMessagesServerErrorNoErrorList(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesServerError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte("{}"))
@@ -174,7 +174,7 @@ func (s *storeMessagingSuite) TestFetchMessagesServerErrorNoErrorList(c *C) {
 	req := &store.MessagesRequest{Limit: 10}
 
 	resp, err := sto.FetchMessages(s.ctx, req)
-	c.Assert(err, ErrorMatches, "cannot fetch messages: unexpected status 500")
+	c.Assert(err, ErrorMatches, "cannot fetch messages: got unexpected HTTP status code 500 via POST to .*")
 	c.Check(resp, IsNil)
 }
 

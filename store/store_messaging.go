@@ -133,7 +133,7 @@ func (s *Store) FetchMessages(ctx context.Context, req *MessagesRequest) (*Messa
 			return nil, fmt.Errorf("cannot fetch messages: %w (status: %d)", &errResp, httpResp.StatusCode)
 		}
 
-		return nil, fmt.Errorf("cannot fetch messages: unexpected status %d", httpResp.StatusCode)
+		return nil, respToError(httpResp, "fetch messages")
 	}
 
 	return &resp, nil
