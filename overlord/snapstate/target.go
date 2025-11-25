@@ -961,34 +961,6 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	return nil
 }
 
-// filterHeldSnaps removes any targets from the update plan that are held.
-// If the update plan is not refreshing all snaps, then this function does
-// nothing.
-func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
-	// we only filter out held snaps during auto-refresh or general refreshes
-	// that do not specify specific snaps
-	if !p.refreshAll() {
-		return nil
-	}
-
-	holdLevel := HoldGeneral
-	if opts.Flags.IsAutoRefresh {
-		holdLevel = HoldAutoRefresh
-	}
-
-	heldSnaps, err := HeldSnaps(st, holdLevel)
-	if err != nil {
-		return err
-	}
-
-	p.filter(func(t target) (bool, error) {
-		_, ok := heldSnaps[t.InstanceName()]
-		return !ok, nil
-	})
-
-	return nil
-}
-
 // UpdateGoal represents a single snap or a group of snaps to be updated.
 type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
@@ -1044,22 +1016,6 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 
 	if opts.ExpectOneSnap && len(plan.targets) != 1 {
 		return nil, nil, ErrExpectedOneSnap
-	}
-
-	if err := plan.filterHeldSnaps(st, opts); err != nil {
-		return nil, nil, err
-	}
-
-	// save the candidates so the auto-refresh can be continued if it's inhibited
-	// by a running snap.
-	if opts.Flags.IsAutoRefresh {
-		hints, err := refreshHintsFromUpdatePlan(st, plan)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// TODO: why not check this error?
-		updateRefreshCandidates(st, hints, plan.requested)
 	}
 
 	changeKind := "refresh"
@@ -1195,7 +1151,51 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, err
 	}
 
+	if err := filterPlanWithHeldSnaps(st, &plan, opts); err != nil {
+		return updatePlan{}, err
+	}
+
+	if opts.Flags.IsAutoRefresh {
+		// save the candidates so the auto-refresh can be continued if it's inhibited
+		// by a running snap.
+		hints, err := refreshHintsFromUpdatePlan(st, plan)
+		if err != nil {
+			return updatePlan{}, err
+		}
+
+		// TODO: why not check this error?
+		updateRefreshCandidates(st, hints, plan.requested)
+	}
+
 	return plan, nil
+}
+
+// filterPlanWithHeldSnaps removes any targets from the update plan that are
+// held. If the update plan is not refreshing all snaps, then this function does
+// nothing.
+func filterPlanWithHeldSnaps(st *state.State, plan *updatePlan, opts Options) error {
+	// we only filter out held snaps during auto-refresh or general refreshes
+	// that do not specify specific snaps
+	if !plan.refreshAll() {
+		return nil
+	}
+
+	holdLevel := HoldGeneral
+	if opts.Flags.IsAutoRefresh {
+		holdLevel = HoldAutoRefresh
+	}
+
+	heldSnaps, err := HeldSnaps(st, holdLevel)
+	if err != nil {
+		return err
+	}
+
+	plan.filter(func(t target) (bool, error) {
+		_, ok := heldSnaps[t.InstanceName()]
+		return !ok, nil
+	})
+
+	return nil
 }
 
 // filterPlanWithRefreshControl validates the targets in the update plan against
