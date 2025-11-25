@@ -349,6 +349,13 @@ const (
 
 var presenceStrings = []string{"optional", "required-on-write", "required-on-read", "required"}
 
+func (p paramPresence) String() string {
+	if int(p) >= len(presenceStrings) {
+		panic("unknown parameter presence")
+	}
+	return presenceStrings[p]
+}
+
 func newParamPresence(pres string) (paramPresence, error) {
 	if pres == "" {
 		pres = "optional"
@@ -484,6 +491,7 @@ func getFilterParams(rule viewRule) []string {
 	return keys(params)
 }
 
+// TODO:GOVERSION: use maps.Keys once on go 1.23
 func keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
@@ -1591,6 +1599,44 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
+func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]string) error {
+	if op != "get" && op != "set" {
+		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
+	}
+
+	for _, m := range matches {
+		for _, acc := range m.storagePath {
+			if acc.FieldFilters() == nil {
+				continue
+			}
+
+			for _, param := range acc.FieldFilters() {
+				pres, ok := v.params[param]
+				if !ok {
+					// we checked this at schema creation so this shouldn't happen
+					return fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+				}
+
+				if _, ok := constraints[param]; ok {
+					// operation constrains this param, nothing to check
+					continue
+				}
+
+				switch {
+				case pres == required:
+					fallthrough
+				case pres == requiredOnRead && op == "get":
+					fallthrough
+				case pres == requiredOnWrite && op == "set":
+					return fmt.Errorf(`unconstrained filter parameter %q is set as %s in "parameters" stanza`, param, pres)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // Get returns the view value identified by the request after the constraints
 // have been applied to any matching filter in the storage path. If the request
 // cannot be matched against any rule, it returns a NoMatchError, and if no data
@@ -1608,6 +1654,10 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 
 	matches, err := v.matchGetRequest(accessors)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := v.checkUnconstrainedParams("get", matches, constraints); err != nil {
 		return nil, err
 	}
 
@@ -2091,10 +2141,10 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(subKeys []Accessor, cstrs map[string]string) (any, error) {
+func (s JSONDatabag) Get(subKeys []Accessor, constraints map[string]string) (any, error) {
 	// TODO: create this in the return below as well?
 	var value any
-	if err := get(subKeys, 0, s, cstrs, &value); err != nil {
+	if err := get(subKeys, 0, s, constraints, &value); err != nil {
 		return nil, err
 	}
 
@@ -2106,7 +2156,7 @@ func (s JSONDatabag) Get(subKeys []Accessor, cstrs map[string]string) (any, erro
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []Accessor, index int, node any, cstrs map[string]string, result *any) error {
+func get(subKeys []Accessor, index int, node any, constraints map[string]string, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2114,9 +2164,9 @@ func get(subKeys []Accessor, index int, node any, cstrs map[string]string, resul
 
 	switch node := node.(type) {
 	case map[string]json.RawMessage:
-		return getMap(subKeys, index, node, cstrs, result)
+		return getMap(subKeys, index, node, constraints, result)
 	case []json.RawMessage:
-		return getList(subKeys, index, node, cstrs, result)
+		return getList(subKeys, index, node, constraints, result)
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
 		path := JoinAccessors(subKeys[:index+1])
@@ -2131,7 +2181,7 @@ func get(subKeys []Accessor, index int, node any, cstrs map[string]string, resul
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstrs map[string]string, result *any) error {
+func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
 	key := subKeys[index]
 
 	var matchAll bool
@@ -2143,7 +2193,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, rawLevel, cstrs); err != nil {
+		if ok, err := matchesConstraints(key, rawLevel, constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2161,7 +2211,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
-				if ok, err := matchesConstraints(key, v, cstrs); err != nil {
+				if ok, err := matchesConstraints(key, v, constraints); err != nil {
 					return err
 				} else if !ok {
 					continue
@@ -2193,7 +2243,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 		results := make(map[string]any)
 
 		for k, v := range node {
-			if ok, err := matchesConstraints(key, v, cstrs); err != nil {
+			if ok, err := matchesConstraints(key, v, constraints); err != nil {
 				return err
 			} else if !ok {
 				continue
@@ -2212,7 +2262,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, index+1, level, cstrs, &res); err != nil {
+			if err := get(subKeys, index+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2236,7 +2286,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 		return err
 	}
 
-	return get(subKeys, index+1, level, cstrs, result)
+	return get(subKeys, index+1, level, constraints, result)
 }
 
 // getList traverses node (a decoded JSON list) and, depending on the path being
@@ -2246,7 +2296,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map[string]string, result *any) error {
+func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
 	key := subKeys[keyIndex]
 
 	var matchAll bool
@@ -2257,7 +2307,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, list[listIndex], cstrs); err != nil {
+		if ok, err := matchesConstraints(key, list[listIndex], constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2275,7 +2325,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			var level []any
 			for _, v := range list {
-				if ok, err := matchesConstraints(key, v, cstrs); err != nil {
+				if ok, err := matchesConstraints(key, v, constraints); err != nil {
 					return err
 				} else if !ok {
 					// filter out this value
@@ -2308,7 +2358,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
-			if ok, err := matchesConstraints(key, el, cstrs); err != nil {
+			if ok, err := matchesConstraints(key, el, constraints); err != nil {
 				return err
 			} else if !ok {
 				// filter out this value
@@ -2328,7 +2378,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, keyIndex+1, level, cstrs, &res); err != nil {
+			if err := get(subKeys, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2353,14 +2403,14 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 		return err
 	}
 
-	return get(subKeys, keyIndex+1, level, cstrs, result)
+	return get(subKeys, keyIndex+1, level, constraints, result)
 }
 
 // matchesConstraints returns true only if the object should not be filtered out,
 // either because it matches the constraints or they're not applicable.
-func matchesConstraints(acc Accessor, val json.RawMessage, cstrs map[string]string) (bool, error) {
+func matchesConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
 	filters := acc.FieldFilters()
-	if len(filters) == 0 || len(cstrs) == 0 {
+	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
 		return true, nil
 	}
@@ -2375,7 +2425,7 @@ func matchesConstraints(acc Accessor, val json.RawMessage, cstrs map[string]stri
 	}
 
 	for field, filterName := range filters {
-		constrVal, ok := cstrs[filterName]
+		constrVal, ok := constraints[filterName]
 		if !ok {
 			// no constraint value was provided for this filter, ignore
 			continue
