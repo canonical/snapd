@@ -1047,9 +1047,6 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 }
 
 func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *UpdateTaskSets, error) {
-	// it is sad that we have to split up updatePlan like this, but doUpdate is
-	// used in places where we don't have a snap.Info, so we cannot pass an
-	// updatePlan to doUpdate
 	updated, uts, err := doPotentiallySplitUpdate(st, plan, opts)
 	if err != nil {
 		return nil, nil, err
