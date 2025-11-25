@@ -703,13 +703,20 @@ def mkcpio(path, output, *, compress=True):
         zstd_cmd = None
 
     file_list = []
+    firmware_list = []
+    module_list = []
     for root, dirs, files in os.walk(path):
         for d in dirs:
             file_list.append(os.path.join(os.path.relpath(root, path), d))
         for f in files:
-            file_list.append(os.path.join(os.path.relpath(root, path), f))
-    file_list = sorted(file_list)
-    for path in file_list:
+            path = os.path.join(os.path.relpath(root, path), f)
+            if not os.islink(path) and path.startswith('usr/lib/modules/'):
+                module_list.append(path)
+            if not os.islink(path) and path.startswith('usr/lib/firmware/'):
+                firmware_list.append(path)
+            file_list.append(path)
+
+    for path in sorted(file_list) + sorted(firmware_list) + sorted(module_list):
         cpio_cmd.stdin.write(path.encode('ascii'))
         cpio_cmd.stdin.write(b'\0')
 
