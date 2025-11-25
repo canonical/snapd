@@ -4275,3 +4275,34 @@ func (s *viewSuite) TestConfdbSchemaParametersCrossCheck(c *C) {
 	_, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
 	c.Assert(err, ErrorMatches, `.*filter parameter "b" must be declared in "parameters" stanza`)
 }
+
+func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{
+				"a": map[string]any{"presence": "required-on-read"},
+				"b": map[string]any{"presence": "required"},
+			},
+			"rules": []any{
+				map[string]any{
+					"request": "foo.baz",
+					"storage": "foo[.a={a}].bar[.b={b}]",
+				},
+			},
+		},
+	}
+
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+	_, err = view.Get(bag, "foo", map[string]string{"b": "b"})
+	c.Assert(err, ErrorMatches, `unconstrained filter parameter "a" is set as required-on-read in "parameters" stanza`)
+
+	_, err = view.Get(bag, "foo", map[string]string{"a": "a"})
+	c.Assert(err, ErrorMatches, `unconstrained filter parameter "b" is set as required in "parameters" stanza`)
+
+	_, err = view.Get(bag, "foo", map[string]string{"a": "a", "b": "b"})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
