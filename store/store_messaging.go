@@ -30,14 +30,14 @@ const (
 	messagesEndpointPath = "v2/messages"
 )
 
-// PollMessagesRequest contains parameters for polling & sending messages to the Store.
-type PollMessagesRequest struct {
-	// Token of last successfully stored request-message.
+// MessagesRequest contains parameters for polling & sending messages to the Store.
+type MessagesRequest struct {
+	// Token of last successfully stored request message.
 	// Acknowledges all messages up to and including the specified token.
 	After string `json:"after,omitempty"`
 
 	// Controls the operation mode:
-	//   - limit > 0: Poll for up to limit messages (server may return fewer)
+	//   - limit > 0: Fetch up to limit messages (server may return fewer)
 	//   - limit = 0: Don't return messages (useful for ack-only, response-only, or status checks)
 	Limit int `json:"limit"`
 
@@ -45,15 +45,14 @@ type PollMessagesRequest struct {
 	Messages []Message `json:"messages,omitempty"`
 }
 
-// PollMessagesResponse contains request-message messages received from the store with their tokens.
-// PollMessagesResponse contains messages and queue status from the Store.
+// MessagesResponse contains request messages received from the store with their tokens.
 //
 // When:
 //   - limit > 0: messages contains up to limit request messages
 //   - limit = 0: messages is omitted, only queue status is returned
-type PollMessagesResponse struct {
+type MessagesResponse struct {
 	// Request messages with their acknowledgement tokens.
-	Messages []MessageWithToken `json:"messages,omitempty"`
+	Messages []MessageWithToken `json:"messages"`
 
 	// Total unacknowledged messages in the device's queue.
 	TotalPendingMessages int `json:"total-pending-messages"`
@@ -67,25 +66,37 @@ type messageQueueError struct {
 	} `json:"error-list"`
 }
 
+func (e *messageQueueError) Error() string {
+	msg := ""
+	for i, err := range e.ErrorList {
+		if i > 0 {
+			msg += "; "
+		}
+		msg += fmt.Sprintf("%s (code: %s)", err.Message, err.Code)
+	}
+
+	return msg
+}
+
 // Message represents a message and its format.
 type Message struct {
 	Format string `json:"format"` // e.g. assertion
 	Data   string `json:"data"`   // Encoded assertion
 }
 
-// MessageWithToken is a request-message with its acknowledgement token.
+// MessageWithToken is a request message with its acknowledgement token.
 // The token should be echoed back in a subsequent poll's After field once the
-// message has been successfully received and stored.
+// message has been successfully received and persisted.
 type MessageWithToken struct {
 	Message
 	Token string `json:"token"`
 }
 
-// PollMessages polls the store's /v2/messages endpoint, sending response-message messages
-// and acknowledging received request-message messages.
-func (s *Store) PollMessages(ctx context.Context, req *PollMessagesRequest) (*PollMessagesResponse, error) {
+// FetchMessages calls the store's /v2/messages endpoint, sending response messages
+// and acknowledging received request messages.
+func (s *Store) FetchMessages(ctx context.Context, req *MessagesRequest) (*MessagesResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("poll request cannot be nil")
+		return nil, fmt.Errorf("message request cannot be nil")
 	}
 	if req.Limit < 0 {
 		return nil, fmt.Errorf("limit must be non-negative, got %d", req.Limit)
@@ -93,7 +104,7 @@ func (s *Store) PollMessages(ctx context.Context, req *PollMessagesRequest) (*Po
 
 	reqData, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal poll request: %w", err)
+		return nil, fmt.Errorf("cannot marshal message request: %w", err)
 	}
 
 	url, err := s.endpointURL(messagesEndpointPath, nil)
@@ -109,21 +120,20 @@ func (s *Store) PollMessages(ctx context.Context, req *PollMessagesRequest) (*Po
 		Accept:      jsonContentType,
 	}
 
-	var resp PollMessagesResponse
+	var resp MessagesResponse
 	var errResp messageQueueError
 	httpResp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &resp, &errResp)
 	if err != nil {
-		return nil, fmt.Errorf("cannot poll messages: %w", err)
+		return nil, fmt.Errorf("cannot fetch messages: %w", err)
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != 200 {
 		if len(errResp.ErrorList) > 0 {
-			return nil, fmt.Errorf("cannot poll messages: %s (code: %s, status: %d)",
-				errResp.ErrorList[0].Message, errResp.ErrorList[0].Code, httpResp.StatusCode)
+			return nil, fmt.Errorf("cannot fetch messages: %w (status: %d)", &errResp, httpResp.StatusCode)
 		}
 
-		return nil, fmt.Errorf("cannot poll messages: unexpected status %d", httpResp.StatusCode)
+		return nil, fmt.Errorf("cannot fetch messages: unexpected status %d", httpResp.StatusCode)
 	}
 
 	return &resp, nil

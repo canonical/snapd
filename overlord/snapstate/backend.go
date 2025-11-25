@@ -71,8 +71,6 @@ type StoreService interface {
 
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
-
-	PollMessages(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error)
 }
 
 type managerBackend interface {

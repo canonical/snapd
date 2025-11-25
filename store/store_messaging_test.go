@@ -27,6 +27,7 @@ import (
 	"net/url"
 
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -40,7 +41,7 @@ func (s *storeMessagingSuite) SetUpTest(c *C) {
 	s.baseStoreSuite.SetUpTest(c)
 }
 
-func (s *storeMessagingSuite) TestPollMessagesOK(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesOK(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/v2/messages")
@@ -49,7 +50,7 @@ func (s *storeMessagingSuite) TestPollMessagesOK(c *C) {
 		body, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 
-		var req store.PollMessagesRequest
+		var req store.MessagesRequest
 		err = json.Unmarshal(body, &req)
 		c.Assert(err, IsNil)
 		c.Check(req.Limit, Equals, 10)
@@ -80,14 +81,14 @@ func (s *storeMessagingSuite) TestPollMessagesOK(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	req := &store.PollMessagesRequest{
+	req := &store.MessagesRequest{
 		After: "token-42",
 		Limit: 10,
 		Messages: []store.Message{
 			{Format: "assertion", Data: "response-message-42"},
 		},
 	}
-	resp, err := sto.PollMessages(s.ctx, req)
+	resp, err := sto.FetchMessages(s.ctx, req)
 	c.Assert(err, IsNil)
 	c.Assert(resp, NotNil)
 	c.Assert(resp.Messages, HasLen, 1)
@@ -96,33 +97,33 @@ func (s *storeMessagingSuite) TestPollMessagesOK(c *C) {
 	c.Check(resp.TotalPendingMessages, Equals, 5)
 }
 
-func (s *storeMessagingSuite) TestPollMessagesNilRequest(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesNilRequest(c *C) {
 	mockServerURL, _ := url.Parse("http://store.example.com")
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	resp, err := sto.PollMessages(s.ctx, nil)
-	c.Assert(err, ErrorMatches, "poll request cannot be nil")
+	resp, err := sto.FetchMessages(s.ctx, nil)
+	c.Assert(err, ErrorMatches, "message request cannot be nil")
 	c.Check(resp, IsNil)
 }
 
-func (s *storeMessagingSuite) TestPollMessagesNegativeLimit(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesNegativeLimit(c *C) {
 	mockServerURL, _ := url.Parse("http://store.example.com")
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&store.Config{
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	req := &store.PollMessagesRequest{Limit: -5}
+	req := &store.MessagesRequest{Limit: -5}
 
-	resp, err := sto.PollMessages(s.ctx, req)
+	resp, err := sto.FetchMessages(s.ctx, req)
 	c.Assert(err, ErrorMatches, "limit must be non-negative, got -5")
 	c.Check(resp, IsNil)
 }
 
-func (s *storeMessagingSuite) TestPollMessagesServerError(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesServerError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		errResp := map[string]any{
 			"error-list": []map[string]string{
@@ -145,21 +146,18 @@ func (s *storeMessagingSuite) TestPollMessagesServerError(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	req := &store.PollMessagesRequest{
-		After: "token-42",
-		Limit: 0,
-	}
+	req := &store.MessagesRequest{After: "token-42", Limit: 0}
 
-	resp, err := sto.PollMessages(s.ctx, req)
+	resp, err := sto.FetchMessages(s.ctx, req)
 	c.Assert(
 		err,
 		ErrorMatches,
-		`cannot poll messages: invalid request format \(code: bad-request, status: 400\)`,
+		`cannot fetch messages: invalid request format \(code: bad-request\) \(status: 400\)`,
 	)
 	c.Check(resp, IsNil)
 }
 
-func (s *storeMessagingSuite) TestPollMessagesServerErrorNoErrorList(c *C) {
+func (s *storeMessagingSuite) TestFetchMessagesServerErrorNoErrorList(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte("{}"))
@@ -173,9 +171,23 @@ func (s *storeMessagingSuite) TestPollMessagesServerErrorNoErrorList(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	req := &store.PollMessagesRequest{Limit: 10}
+	req := &store.MessagesRequest{Limit: 10}
 
-	resp, err := sto.PollMessages(s.ctx, req)
-	c.Assert(err, ErrorMatches, "cannot poll messages: unexpected status 500")
+	resp, err := sto.FetchMessages(s.ctx, req)
+	c.Assert(err, ErrorMatches, "cannot fetch messages: unexpected status 500")
+	c.Check(resp, IsNil)
+}
+
+func (s *storeMessagingSuite) TestFetchMessagesStoreOffline(c *C) {
+	mockServerURL, _ := url.Parse("http://store.example.local")
+	dauthCtx := &testDauthContext{c: c, device: s.device, storeOffline: true}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	req := &store.MessagesRequest{Limit: 10}
+
+	resp, err := sto.FetchMessages(s.ctx, req)
+	c.Assert(err, testutil.ErrorIs, store.ErrStoreOffline)
 	c.Check(resp, IsNil)
 }
