@@ -35,15 +35,26 @@ func mountNsPath(snapName string) string {
 	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
 }
 
+type runNamespaceToolOpts struct {
+	// SnapIsLocked indicates that the snap lock has already been taken
+	SnapIsLocked bool
+}
+
 // Run an internal tool on a given snap namespace, if one exists.
-func runNamespaceTool(toolName, snapName string) ([]byte, error) {
+func runNamespaceTool(toolName, snapName string, runOpts runNamespaceToolOpts) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
 		toolPath, err := snapdtool.InternalToolPath(toolName)
 		if err != nil {
 			return nil, err
 		}
-		cmd := exec.Command(toolPath, snapName)
+
+		var opts []string
+		if runOpts.SnapIsLocked {
+			opts = append(opts, "--snap-already-locked")
+		}
+		opts = append(opts, snapName)
+		cmd := exec.Command(toolPath, opts...)
 		output, err := cmd.CombinedOutput()
 		return output, err
 	}
@@ -52,7 +63,19 @@ func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 
 // Discard the mount namespace of a given snap.
 func DiscardSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-discard-ns", snapName)
+	output, err := runNamespaceTool("snap-discard-ns", snapName, runNamespaceToolOpts{})
+	if err != nil {
+		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+	}
+	return nil
+}
+
+// Discard the mount namespace of a given snap. The snap must be locked, which
+// the tool is expected to verify.
+func DiscardLockedSnapNamespace(snapName string) error {
+	output, err := runNamespaceTool("snap-discard-ns", snapName, runNamespaceToolOpts{
+		SnapIsLocked: true,
+	})
 	if err != nil {
 		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
@@ -61,7 +84,7 @@ func DiscardSnapNamespace(snapName string) error {
 
 // Update the mount namespace of a given snap.
 func UpdateSnapNamespace(snapName string) error {
-	output, err := runNamespaceTool("snap-update-ns", snapName)
+	output, err := runNamespaceTool("snap-update-ns", snapName, runNamespaceToolOpts{})
 	if err != nil {
 		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
