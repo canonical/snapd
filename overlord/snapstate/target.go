@@ -1379,6 +1379,103 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 	}, nil
 }
 
+// SetupUpdate represents a snap and its components that should be refreshed
+// using already prepared SnapSetup/ComponentSetup data (e.g. replaying a
+// store-provided plan).
+type SetupUpdate struct {
+	Snap       SnapSetup
+	Components []ComponentSetup
+}
+
+// setupUpdateGoal implements UpdateGoal for pre-built SnapSetup data.
+type setupUpdateGoal struct {
+	updates []SetupUpdate
+}
+
+// SetupUpdateGoal creates a new UpdateGoal that reuses provided SnapSetup and
+// ComponentSetup values to build an update plan.
+func SetupUpdateGoal(updates ...SetupUpdate) UpdateGoal {
+	seen := make(map[string]bool, len(updates))
+	filtered := make([]SetupUpdate, 0, len(updates))
+	for _, up := range updates {
+		name := up.Snap.InstanceName()
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		filtered = append(filtered, up)
+	}
+
+	return &setupUpdateGoal{updates: filtered}
+}
+
+func (g *setupUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Options) (updatePlan, error) {
+	if opts.ExpectOneSnap && len(g.updates) != 1 {
+		return updatePlan{}, ErrExpectedOneSnap
+	}
+
+	enforcedSets := cachedEnforcedValidationSets(st)
+
+	targets := make([]target, 0, len(g.updates))
+	requested := make([]string, 0, len(g.updates))
+
+	for _, up := range g.updates {
+		name := up.Snap.InstanceName()
+
+		var snapst SnapState
+		if err := Get(st, name, &snapst); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				return updatePlan{}, snap.NotInstalledError{Snap: name}
+			}
+			return updatePlan{}, err
+		}
+
+		var vsets *snapasserts.ValidationSets
+		if opts.Flags.IgnoreValidation || ignoreValidationSetsForRefresh(&snapst, opts) {
+			vsets = snapasserts.NewValidationSets()
+		} else {
+			var err error
+			vsets, err = enforcedSets()
+			if err != nil {
+				return updatePlan{}, err
+			}
+		}
+
+		if err := checkSnapAgainstValidationSets(up.Snap, up.Components, "refresh", vsets); err != nil {
+			return updatePlan{}, err
+		}
+
+		size := int64(0)
+		if up.Snap.DownloadInfo != nil {
+			size = up.Snap.DownloadInfo.Size
+		}
+		if size == 0 {
+			if info, err := snapst.CurrentInfo(); err == nil && info != nil {
+				size = info.Size
+			}
+		}
+
+		targets = append(targets, target{
+			setup:      up.Snap,
+			snapst:     snapst,
+			components: up.Components,
+			size:       size,
+		})
+		requested = append(requested, name)
+	}
+
+	plan := updatePlan{
+		targets:   targets,
+		requested: requested,
+	}
+
+	if err := filterPlanWithRefreshControl(st, &plan, opts); err != nil {
+		return updatePlan{}, err
+	}
+
+	return plan, nil
+}
+
 func targetForPathSnap(st *state.State, update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
 

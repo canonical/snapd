@@ -3293,40 +3293,38 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 		return nil, err
 	}
 
-	targets := make([]target, 0, len(candidates))
+	updates := make([]SetupUpdate, 0, len(candidates))
 	for _, up := range candidates {
-		snapsup, snapst, err := up.SnapSetupForUpdate(st, flags)
-		if err != nil {
+		if up == nil {
+			continue
+		}
+		// Ensure the snap still exists; if not, skip like the old path.
+		var snapst SnapState
+		if err := Get(st, up.InstanceName(), &snapst); err != nil {
 			logger.Noticef("cannot update %q: %v", up.InstanceName(), err)
 			continue
 		}
 
-		t := target{
-			setup:      *snapsup,
-			snapst:     *snapst,
-			components: up.Components,
+		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), &snapst, fromChange); err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+			continue
 		}
 
-		// TODO: eventually, refreshCandidate will just contain an embedded
-		// target. that will eliminate this hack
-		if snapsup.DownloadInfo != nil {
-			t.size = snapsup.DownloadInfo.Size
-		}
+		snapsup := up.SnapSetup
+		snapsup.Flags.IsAutoRefresh = flags.IsAutoRefresh
+		snapsup.Flags.IsContinuedAutoRefresh = flags.IsContinuedAutoRefresh
 
-		targets = append(targets, t)
+		updates = append(updates, SetupUpdate{
+			Snap:       snapsup,
+			Components: up.Components,
+		})
 	}
 
-	if err := checkTargetsDiskSpace(st, "refresh", targets, 0, nil); err != nil {
-		return nil, err
-	}
+	goal := SetupUpdateGoal(updates...)
 
-	const userID = 0
-	plan := updatePlan{
-		targets: targets,
-	}
-	_, updateTss, err := doPotentiallySplitUpdate(st, plan, Options{
+	_, updateTss, err := UpdateWithGoal(context.Background(), st, goal, nil, Options{
 		Flags:      *flags,
-		UserID:     userID,
+		UserID:     0,
 		FromChange: fromChange,
 		DeviceCtx:  deviceCtx,
 	})
