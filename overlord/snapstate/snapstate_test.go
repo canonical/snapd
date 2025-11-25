@@ -1675,6 +1675,10 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
@@ -1948,6 +1952,10 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				inhibitHint: "refresh",
 			},
 			{
+				op:   "discard-namespace-locked",
+				name: "snap-core18-to-core22",
+			},
+			{
 				op:   "unlink-snap",
 				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
 			},
@@ -2038,6 +2046,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap_instance",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap_instance",
 		},
 		{
 			op:             "unlink-snap",
@@ -2133,7 +2145,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2183,6 +2195,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -2274,6 +2290,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -2389,6 +2409,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
