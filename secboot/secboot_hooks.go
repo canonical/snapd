@@ -41,6 +41,7 @@ var fdeHasRevealKey = fde.HasRevealKey
 var sbSetModel = sb_scope.SetModel
 var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
+var sbWithExternalUnlockKey = sb.WithExternalUnlockKey
 
 // taggedHandle wraps a raw handle from a secboot hook and adds a method field.
 // This field is used to route the handle to the correct [sb_hooks.KeyRevealer].
@@ -294,16 +295,15 @@ func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyDevices []
 
 var resealKeysWithFDESetupHook = resealKeysWithFDESetupHookImpl
 
-func unlockDiskWithHookV1Key(mapperName, sourceDevice string, sealed []byte) error {
+func diskWithHookV1KeyOption(sealed []byte) (sb.ActivateOption, error) {
 	p := fde.RevealParams{
 		SealedKey: sealed,
 	}
-	options := sb.ActivateVolumeOptions{}
 	unlockKey, err := fde.Reveal(&p)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return sbActivateVolumeWithKey(mapperName, sourceDevice, unlockKey, &options)
+	return sbWithExternalUnlockKey("v1-hook", unlockKey, sb.ExternalUnlockKeyFromPlatformDevice), nil
 }
 
 type fdeHookV2DataHandler struct{}

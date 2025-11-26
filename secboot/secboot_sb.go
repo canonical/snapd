@@ -221,19 +221,12 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 
 	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
 	if loadedKey.FDEHookKeyV1 != nil {
-		// Special case for hook keys v1. They do not have
-		// primary keys. So we cannot wrap them in KeyData
-		err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.FDEHookKeyV1)
-		if err == nil {
-			res.FsDevice = targetDevice
-			res.UnlockMethod = UnlockedWithSealedKey
-			return res, nil
+		option, err := diskWithHookV1KeyOption(loadedKey.FDEHookKeyV1)
+		if err != nil {
+			logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
+		} else {
+			options = append(options, option)
 		}
-		// If we did not manage we should still try unlocking
-		// with key data if there are some on the tokens.
-		// Also the request for recovery key will happen in
-		// ActivateVolumeWithKeyData
-		logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
 	}
 
 	container, err := sbFindStorageContainer(context.Background(), sourceDevice)
@@ -335,41 +328,31 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	// device, in the modern setup (indicated by presence of tokens carrying
 	// named key data), the plain key is used to decrypt the actual unlock key
 
+	options := []sb.ActivateOption{
+		sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(encdev),
+	}
+
 	if foundPlainKey {
 		// XXX secboot maintains a global object holding protector keys, there
 		// is no way to pass it through context or obtain the current set of
 		// protector keys, so instead simply set it to empty set once we're done
 		sbSetProtectorKeys(key)
 		defer sbSetProtectorKeys()
-
-		container, err := sbFindStorageContainer(context.Background(), encdev)
-		if err != nil {
-			return unlockRes, err
-		}
-		if err := activation.ActivateContainer(context.Background(), container, sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(encdev)); err != nil {
-			return unlockRes, err
-		}
 	} else {
-		if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
-			return unlockRes, err
-		}
+		options = append(options, sbWithExternalUnlockKey("protector", key, sb.ExternalUnlockKeyFromStorageContainer))
+	}
+
+	container, err := sbFindStorageContainer(context.Background(), encdev)
+	if err != nil {
+		return unlockRes, err
+	}
+	if err := activation.ActivateContainer(context.Background(), container, options...); err != nil {
+		return unlockRes, err
 	}
 
 	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
-}
-
-// unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
-// key.
-func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
-	// no special options set
-	options := sb.ActivateVolumeOptions{}
-	err := sbActivateVolumeWithKey(name, device, key, &options)
-	if err == nil {
-		logger.Noticef("successfully activated encrypted device %v using a key", device)
-	}
-	return err
 }
 
 // ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
