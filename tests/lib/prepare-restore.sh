@@ -117,7 +117,7 @@ build_rpm() {
         distro=amzn
         release=2023
     fi
-    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
     rpm_dir=$(rpm --eval "%_topdir")
@@ -168,7 +168,7 @@ build_rpm() {
 }
 
 build_arch_pkg() {
-    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/arch
 
