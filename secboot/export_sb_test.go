@@ -576,3 +576,7 @@ func MockSbWithLegacyKeyringKeyDescriptionPaths(f func(paths ...string) sb.Activ
 func MockSbWithRecoveryKeyTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
 	return testutil.Mock(&sbWithRecoveryKeyTries, f)
 }
+
+func MockSbWithExternalUnlockKey(f func(name string, key sb.DiskUnlockKey, src sb.ExternalUnlockKeySource) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalUnlockKey, f)
+}
