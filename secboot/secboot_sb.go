@@ -339,7 +339,7 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 		if err != nil {
 			return unlockRes, err
 		}
-		if err := activation.ActivateContainer(context.Background(), container, sbWithVolumeName(mapperName)); err != nil {
+		if err := activation.ActivateContainer(context.Background(), container, sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(encdev)); err != nil {
 			return unlockRes, err
 		}
 	} else {

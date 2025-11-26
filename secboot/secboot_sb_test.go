@@ -1833,12 +1833,19 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 		return volumeNameOption
 	})()
 
+	legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
+	defer secboot.MockSbWithLegacyKeyringKeyDescriptionPaths(func(paths ...string) sb.ActivateOption {
+		c.Check(paths, DeepEquals, []string{"/dev/disk/by-uuid/321-321-321"})
+		return legacyKeyringPaths
+	})()
+
 	storage := &mockStorageContainer{name: "storage"}
 	activateContext := &mockActivateContext{
 		activateContainer: func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			c.Check(container, Equals, storage)
-			c.Assert(opts, HasLen, 1)
+			c.Assert(opts, HasLen, 2)
 			c.Check(opts[0], Equals, volumeNameOption)
+			c.Check(opts[1], Equals, legacyKeyringPaths)
 			return nil
 		},
 	}
