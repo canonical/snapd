@@ -606,3 +606,7 @@ func MockSbWithPassphraseTries(f func(n uint) sb.ActivateContextOption) (restore
 func MockSbWithPINTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
 	return testutil.Mock(&sbWithPINTries, f)
 }
+
+func MockSbWithExternalUnlockKey(f func(name string, key sb.DiskUnlockKey, src sb.ExternalUnlockKeySource) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalUnlockKey, f)
+}
