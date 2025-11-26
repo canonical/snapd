@@ -1,0 +1,50 @@
+name: PR Cache Usage Check
+
+# This workflow monitors GitHub Actions cache usage and alerts on pull requests
+# when cache usage exceeds the configured threshold (default: 90%).
+#
+# How it works:
+# 1. Triggered on pull_request_target events (which has write permissions even for fork PRs)
+# 2. Uses the cache-usage composite action to query the GitHub API for cache statistics
+# 3. If cache usage exceeds the threshold:
+#    - Posts a detailed summary comment to the PR with cache stats and a link to the full report
+#    - Fails the workflow to alert maintainers
+# 4. If usage is below threshold, the workflow passes silently
+#
+# The cache-usage action provides:
+# - Total cache size and limit (in kB)
+# - Current usage percentage
+# - Count of cache entries
+# - Detailed cache entries table in the workflow run summary
+
+on:
+  pull_request_target:
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**", "hotfix/**", feature/** ]
+
+jobs:
+  check-cache:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    env:
+      THRESHOLD: '90'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Check cache usage
+        id: cache-check
+        uses: ./.github/actions/cache-usage
+        with:
+          threshold: ${{ env.THRESHOLD }}
+      
+      - name: Post cache summary to PR
+        if: steps.cache-check.outputs.exceeds-threshold == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "${{ steps.cache-check.outputs.summary-markdown }}"

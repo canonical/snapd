@@ -1,0 +1,137 @@
+name: 'Check Cache Usage'
+description: 'Reports GitHub Actions cache usage for the repository'
+inputs:
+  threshold:
+    description: 'Cache usage percentage threshold for warning (default: 90)'
+    required: false
+    default: '90'
+outputs:
+  total-size-kb:
+    description: 'Total cache size in kB'
+    value: ${{ steps.cache-info.outputs.total-size-kb }}
+  total-count:
+    description: 'Total number of cache entries'
+    value: ${{ steps.cache-info.outputs.total-count }}
+  cache-limit-kb:
+    description: 'Cache limit in kB'
+    value: ${{ steps.cache-info.outputs.cache-limit-kb }}
+  usage-percent:
+    description: 'Percentage of cache limit used'
+    value: ${{ steps.cache-info.outputs.usage-percent }}
+  exceeds-threshold:
+    description: 'Whether cache usage exceeds threshold (true/false)'
+    value: ${{ steps.cache-info.outputs.exceeds-threshold }}
+  summary-markdown:
+    description: 'Markdown summary of cache usage for PR comments'
+    value: ${{ steps.cache-info.outputs.summary-markdown }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Get cache usage
+      id: cache-info
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        # Get cache usage
+        echo "Fetching cache usage for $REPO..."
+        cache_usage=$(gh api \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          /repos/$REPO/actions/cache/usage)
+        
+        total_size=$(echo "$cache_usage" | jq -r '.active_caches_size_in_bytes')
+        total_count=$(echo "$cache_usage" | jq -r '.active_caches_count')
+        
+        echo "Get the cache size limit from the repository settings"
+        cache_limit=$(echo "$cache_usage" | jq -r '.full_cache_size_in_bytes // 10737418240')
+        
+        # If the limit is 0 or not available, fall back to 10GB default
+        if [ "$cache_limit" = "0" ] || [ "$cache_limit" = "null" ]; then
+          cache_limit=10737418240
+          echo "Cache limit not set or zero, defaulting to 10GB"
+        fi
+        
+        echo "Convert cache usage information to human-readable output"
+        usage_percent=$(awk "BEGIN {printf \"%.2f\", ($total_size / $cache_limit) * 100}")
+        size_kb=$(awk "BEGIN {printf \"%.1f\", $total_size / 1000}")
+        limit_kb=$(awk "BEGIN {printf \"%.1f\", $cache_limit / 1000}")
+        
+        # Output results
+        echo "total-size-kb=$size_kb" >> $GITHUB_OUTPUT
+        echo "total-count=$total_count" >> $GITHUB_OUTPUT
+        echo "cache-limit-kb=$limit_kb" >> $GITHUB_OUTPUT
+        echo "usage-percent=$usage_percent" >> $GITHUB_OUTPUT
+        
+        echo "Check if usage exceeds threshold"
+        threshold="${{ inputs.threshold }}"
+        if [ "$(awk "BEGIN {print ($usage_percent > $threshold)}")" -eq 1 ]; then
+          echo "exceeds-threshold=true" >> $GITHUB_OUTPUT
+        else
+          echo "exceeds-threshold=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Build cache usage summary markdown"
+        summary="## Cache Usage Summary"$'\n'
+        summary+=$'\n'
+        summary+="- **Total Cache Entries:** $total_count"$'\n'
+        summary+="- **Total Cache Size:** ${size_kb} kB"$'\n'
+        summary+="- **Cache Limit:** ${limit_kb} kB"$'\n'
+        summary+="- **Cache Usage:** ${usage_percent}% of limit"
+        
+        if [ "$(awk "BEGIN {print ($usage_percent > $threshold)}")" -eq 1 ]; then
+          summary+=$'\n'$'\n'
+          summary+="⚠️ **Warning:** Cache usage is above $threshold%"
+        fi
+        
+        # Output as multiline string for PR comments
+        summary_with_link="$summary"$'\n'$'\n'
+        summary_with_link+="[View detailed cache report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        
+        {
+          echo 'summary-markdown<<EOF'
+          echo "$summary_with_link"
+          echo 'EOF'
+        } >> $GITHUB_OUTPUT
+
+        echo "Output usage summary to Step Summary"
+        echo "$summary" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Get cache entries
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        # Get cache entries
+        echo "Fetching cache entries for $REPO..."
+        # Use --paginate to get all cache entries
+        caches=$(gh api --paginate \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          /repos/$REPO/actions/caches)
+        
+        echo "Count total cache entries"
+        cache_count=$(echo "$caches" | jq '[.actions_caches[]] | length')
+
+        echo "Output cache entries to Step Summary"
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Cache Entries" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Total Cache Entries:** $cache_count" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "| Key | Size | Created | Last Accessed |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|------|---------|---------------|" >> $GITHUB_STEP_SUMMARY
+        
+        # Sort by size (largest first)
+        echo "$caches" | jq -sr '[.[].actions_caches[]] | sort_by(-.size_in_bytes)[] | 
+          [.key, 
+           (.size_in_bytes / 1000 | tonumber | tostring | split(".")[0] + "." + (split(".")[1] // "0")[0:1] + " kB"), 
+           .created_at, 
+           .last_accessed_at] | 
+          @tsv' | \
+        while IFS=$'\t' read -r key size created accessed; do
+          echo "| \`$key\` | $size | $created | $accessed |" >> $GITHUB_STEP_SUMMARY
+        done
