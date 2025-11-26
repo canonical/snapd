@@ -48,7 +48,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       
       - name: Filter systems
         if: needs.set-inputs.outputs.run-one-system != ''
@@ -158,7 +158,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download snapd snap
         uses: ./.github/actions/download-snapd-snap
@@ -174,7 +174,7 @@ jobs:
           snap debug features > all-features.json
 
       - name: Upload snapd feature data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: "all-features"
           path: "all-features.json"
@@ -189,17 +189,17 @@ jobs:
       || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Get generated data
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: feature-tags-artifacts
           pattern: spread-artifacts-*
           merge-multiple: true
 
       - name: Get all features
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: all-features
 
@@ -276,7 +276,7 @@ jobs:
         run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
       
       - name: Upload feature data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: "feature-tags"
           path: "final-feature-tags.tar.gz"

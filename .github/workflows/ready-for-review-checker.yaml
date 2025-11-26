@@ -12,7 +12,7 @@ jobs:
       actions: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check for "Run only one system" label
         id: check_label
