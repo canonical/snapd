@@ -1,4 +1,4 @@
-summary: Ensure that replacing a bind with a symlink doesn't break an update
+summary: Ensure that dramatic change in layout does not break updates
 
 details: |
     Recently, the steam snap replaced several bindings with symlinks in the
@@ -6,6 +6,9 @@ details: |
     the "bound" version to the "symlinked" one because snapd complained that
     it couldn't update the mount namespace. The solution consists on discard
     the namespace and retry again.
+
+    The namespace is automatically discarded during snap refresh if no processes
+    are running in it (as detected by RAA).
 
 systems:
     # the snaps aren't available for ARM.
@@ -26,18 +29,34 @@ execute: |
 
     echo "Installing test snap"
     snap install --beta test-snapd-layout-change
+    # the snap has a configure hook, for which a mount ns will be created
+    test -e /run/snapd/ns/test-snapd-layout-change.mnt
+    # inodes are reused, so combine inode number with modification timestamp
+    inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change.mnt)"
+    test-snapd-layout-change -c 'true'
+    new_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change.mnt)"
+    # mount ns is not discarded when running an app
+    test "$inode" = "$new_inode"
+
+    old_inode="$new_inode"
 
     echo "Refreshing test snap to newer version "
+    # mount ns gets discarded and new one is created for the configure hook
     snap refresh --edge test-snapd-layout-change
+    test -e /run/snapd/ns/test-snapd-layout-change.mnt
+    new_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change.mnt)"
+    test "$new_inode" != "$old_inode"
 
     echo "Testing layout change with a daemon"
 
     echo "Installing test snap with daemon"
     snap install --beta test-snapd-layout-change-with-daemon
+    test -e /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt
+    old_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt)"
 
     echo "Refreshing test snap with daemon to newer version"
-    echo "(this one must fail because daemon snaps can't discard the namespace)"
-    if snap refresh --edge test-snapd-layout-change-with-daemon ; then
-        echo "ERROR: running snap refresh for test-snapd-layout-change-with-daemon did not fail as expected"
-        exit 1
-    fi
+    # daemon is of type 'simple' and it gets restart during the refresh
+    snap refresh --edge test-snapd-layout-change-with-daemon
+    # mount ns got discarded across refresh
+    new_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt)"
+    test "$new_inode" != "$old_inode"
