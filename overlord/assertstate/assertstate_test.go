@@ -5993,6 +5993,14 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 		err := s.storeSigning.Add(storeAs)
 		c.Assert(err, IsNil)
 
+		// the mocked snap install operation also needs to declare the integrity
+		// data to be used
+		idParams := snap.IntegrityDataInfo{}
+		if params.expIntegrityData != nil {
+			idParams.Digest = params.expIntegrityData.Digest
+			idParams.HashAlg = params.expIntegrityData.HashAlg
+		}
+
 		chg := s.state.NewChange("install", "...")
 		t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 		snapsup := snapstate.SnapSetup{
@@ -6003,6 +6011,7 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 				SnapID:   "snap-id-1",
 				Revision: snap.R(10),
 			},
+			IntegrityDataInfo: &idParams,
 		}
 		t.Set("snap-setup", snapsup)
 		chg.AddTask(t)
