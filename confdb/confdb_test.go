@@ -4412,7 +4412,7 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 }
 
 // matches field filters
-var fieldFilterReg = regexp.MustCompile(fmt.Sprintf("\\[\\.%s={%s}\\]", confdb.SubkeyRegex, confdb.SubkeyRegex))
+var fieldFilterReg = regexp.MustCompile(fmt.Sprintf("\\[\\.%[1]s={%[1]s}\\]", confdb.SubkeyRegex))
 
 // matches anything that begins with a '[' and does not have a '[' or a '.'
 var indexReg = `\[[^.\[]*`
@@ -4449,21 +4449,22 @@ func (*viewSuite) TestSubkeyRegex(c *C) {
 	c.Check(d[6], Equals, "]")
 }
 
-func hasValidSubkeys(s string, o confdb.ParseOptions) bool {
+func hasInvalidSubkeys(s string, o confdb.ParseOptions) bool {
 	subStrings := subkeyOnlyReg.FindAllString(s, -1)
 	for _, ss := range subStrings {
-		// If the substring doesn't match the generic case
-		if !confdb.ValidSubkey.MatchString(ss) &&
-			// if it doesn't match the placeholder case when placeholders are allowed
-			!(o.AllowPlaceholders && confdb.ValidPlaceholder.MatchString(ss)) &&
-			// if it doesn't match the index case when partial paths are allowed and indices are not forbidden
-			!(!o.ForbidIndexes && o.AllowPartialPath && confdb.ValidIndexSubkey.MatchString(ss)) &&
-			// if it doesn't match index placeholders when placeholders and partial paths are allowed
-			!(o.AllowPlaceholders && o.AllowPartialPath && confdb.ValidIndexPlaceholder.MatchString(ss)) {
-			return false
+		// valid if it's a basic sub-key
+		if confdb.ValidSubkey.MatchString(ss) ||
+			// or it's a placeholder and we're expecting them
+			(confdb.ValidPlaceholder.MatchString(ss) && o.AllowPlaceholders) ||
+			// or it's an index and we're expecting them
+			(confdb.ValidIndexSubkey.MatchString(ss) && !o.ForbidIndexes) ||
+			// or it's an index placeholder and we're expecting them
+			(confdb.ValidIndexPlaceholder.MatchString(ss) && o.AllowPlaceholders) {
+			continue
 		}
+		return true
 	}
-	return true
+	return false
 }
 
 func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
@@ -4475,7 +4476,7 @@ func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
 		return true
 	}
 	// Only if partial paths are allowed can a path begin with '['
-	if strings.HasPrefix(subStrings[0], "[") && !o.AllowPartialPath {
+	if strings.HasPrefix(subStrings[0], "[") {
 		return true
 	}
 	for i, ss := range subStrings {
@@ -4519,7 +4520,7 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 	f.Add(seed)
 	f.Fuzz(func(t *testing.T, s string) {
 		accessors, err := wrapper(s)
-		if err != nil && isProblematicSubkeyError(err.Error()) && !hasValidSubkeys(s, o) {
+		if err != nil && isProblematicSubkeyError(err.Error()) && hasInvalidSubkeys(s, o) {
 			t.Skip()
 		}
 		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s, o) {
@@ -4551,16 +4552,16 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 }
 
 func FuzzParsePathIntoAccessors(f *testing.F) {
-	o := confdb.ParseOptions{AllowPlaceholders: false, AllowPartialPath: false, ForbidIndexes: false}
+	o := confdb.ParseOptions{AllowPlaceholders: false, ForbidIndexes: false}
 	fuzzHelper(f, o, "foo-bar.baz[3][2]")
 }
 
 func FuzzParsePathIntoAccessorsAllowPlaceholders(f *testing.F) {
-	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: false}
+	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: false}
 	fuzzHelper(f, o, "foo-bar[.status={status}].{baz}[{n}].foo[3][{m}]")
 }
 
 func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
-	o := confdb.ParseOptions{AllowPlaceholders: true, AllowPartialPath: false, ForbidIndexes: true}
+	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: true}
 	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
 }
