@@ -72,7 +72,6 @@ func (s *storeMessagingSuite) TestFetchMessagesOK(c *C) {
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(resp)
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
