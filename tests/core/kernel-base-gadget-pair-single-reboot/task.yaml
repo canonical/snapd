@@ -25,6 +25,10 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
+    if snap list pc | NOMATCH "x[1-9]"; then
+        tests.exec skip-test "This test needs a host using an unasserted 'pc' gadget snap" && exit 0
+    fi
+
     # To get VERSION_ID defined
     . /etc/os-release
 
@@ -37,17 +41,16 @@ prepare: |
     readlink /snap/pc/current > pc.rev
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     change_id="$(cat refresh-change-id)"
     snap debug state --change "$change_id" /var/lib/snapd/state.json || true
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     # To get VERSION_ID defined
     . /etc/os-release
-
-    if snap list pc | NOMATCH "x[1-9]"; then
-        echo "This test needs a host using an unasserted 'pc' gadget snap"
-        exit 1
-    fi
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
