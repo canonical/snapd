@@ -81,4 +81,4 @@ jobs:
 
     - name: Unit tests (C)
       run: |
-        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make distcheck"
+        su test-user sh -c "DPKG_PARSECHANGELOG='' ./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make distcheck"

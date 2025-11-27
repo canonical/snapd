@@ -36,7 +36,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image with cache support
+    - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -44,8 +44,6 @@ jobs:
         load: true
         file: tests/lib/packaging/fedora.dockerfile
         tags: mock-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Create cache key
       # Force a cache refresh once a week by using the year and week number as part of the cache key

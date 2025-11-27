@@ -475,17 +475,49 @@ jobs:
         id: read-systems
         shell: bash
         run: |
+          set -x
           echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
           if [ -n "${{ github.event.pull_request.number }}" ]; then
-            labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
+            labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels | jq -r '.labels[].name')
             if grep -q '^Run only one system$' <<<$labels; then
-              # filter out all other systems but this one single system
-              single_system=ubuntu-24.04-64
-              echo "fundamental-systems=$(jq -c ".include |= map(select(.systems == \"$single_system\"))" .github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
-              echo "non-fundamental-systems=" >> $GITHUB_OUTPUT
+              body="$(gh pr view ${{ github.event.pull_request.number }} --json body --jq .body)"
+
+              # grab the regex that follows the #runonlyonesystem tag if it exists
+              # if it doesn't exist, don't fail here; that case will be caught when checking
+              # the number of filtered systems vs. total systems
+              filter="$(grep -ioP '#runonlyonesystem\K.*' <<<"$body" || true)"
+              # remove all whitespaces (systems shouldn't have spaces in their names anyway)
+              filter="$(tr -d '[:space:]' <<<"$filter")"
+
+              # use the regex to filter in systems in both fundamental and non-fundamental systems
+              fundamental_systems="$(jq -c --arg regex "$filter" '.include |= map(select(.systems | test($regex)))' .github/workflows/data-fundamental-systems.json)"
+              non_fundamental_systems="$(jq -c --arg regex "$filter" '.include |= map(select(.systems | test($regex)))' .github/workflows/data-non-fundamental-systems.json)"
+
+              # count the number of systems selected vs. total number
+              selected_fund="$(grep -o "systems" <<<"$fundamental_systems" | wc -l || true)"
+              selected_non_fund="$(grep -o "systems" <<<"$non_fundamental_systems" | wc -l || true)"
+              total_fund="$(jq -c . .github/workflows/data-fundamental-systems.json | grep -o "systems" | wc -l)"
+              total_nonfund="$(jq -c . .github/workflows/data-non-fundamental-systems.json | grep -o "systems" | wc -l)"
+
+              # if no systems were filtered in, then filter in only noble
+              # this condition can trigger if something like a '.*' was used as regex or
+              # if the #runonlyonesystem tag was not present in the PR description
+              if [[ ( "$selected_fund" -eq "$total_fund" && "$selected_non_fund" -eq "$total_nonfund" ) || \
+                 ( "$selected_fund" -eq 0 && "$selected_non_fund" -eq 0 ) ]]; then
+                echo "filtering out everything except for noble since no systems were filtered out"
+                echo "If you wanted to choose different systems to run, use the #runonlyonesystem tag followed by a regex of what you wish to select"
+                echo "filtered fundamental systems are $fundamental_systems"
+                echo "filtered non-fundamental systems are $non_fundamental_systems"
+                fundamental_systems="$(jq -c --arg regex 'ubuntu-24.04-64' '.include |= map(select(.systems | test($regex)))' .github/workflows/data-fundamental-systems.json)"
+                non_fundamental_systems="$(jq -c --arg regex 'ubuntu-24.04-64' '.include |= map(select(.systems | test($regex)))' .github/workflows/data-non-fundamental-systems.json)"
+              fi
+
+              echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+              echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
+
               if ! grep -q '^Run nested$' <<<$labels; then
                 echo "nested-systems=" >> $GITHUB_OUTPUT
               fi
@@ -495,7 +527,7 @@ jobs:
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.fundamental-systems != ''
+    if: contains(needs.read-systems.outputs.fundamental-systems, 'systems')
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -521,7 +553,17 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
+    if: |
+      always() &&
+      needs.unit-tests.result == 'success' &&
+      needs.unit-tests-c.result == 'success' &&
+      needs.snap-builds.result == 'success' &&
+      needs.read-systems.result == 'success' &&
+      ( needs.spread-fundamental.result == 'success' || needs.spread-fundamental.result == 'skipped' ) &&
+      github.event_name == 'pull_request' && 
+      !contains(github.base_ref, 'release') && 
+      !contains(github.event.pull_request.labels.*.name, 'cross-distro') && 
+      contains(needs.read-systems.outputs.non-fundamental-systems, 'systems')
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
@@ -549,7 +591,13 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
+    if: |
+      contains(needs.read-systems.outputs.non-fundamental-systems, 'systems') &&
+      ( 
+        github.event_name != 'pull_request' || 
+        contains(github.base_ref, 'release') || 
+        contains(github.event.pull_request.labels.*.name, 'cross-distro')
+      )
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
@@ -578,7 +626,7 @@ jobs:
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.nested-systems != ''
+    if: contains(needs.read-systems.outputs.nested-systems, 'systems')
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
