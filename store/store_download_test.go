@@ -718,6 +718,8 @@ type cacheObserver struct {
 	// list of errors to return on Put() to a specific key
 	putFailForKey map[string][]error
 	putErrHits    map[string]int
+
+	cleanupCalls int
 }
 
 func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
@@ -743,6 +745,11 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 		}
 	}
 	co.inCache[cacheKey] = true
+	return nil
+}
+
+func (co *cacheObserver) Cleanup() error {
+	co.cleanupCalls++
 	return nil
 }
 
@@ -1093,6 +1100,10 @@ func (co *fakeCacher) GetPath(cacheKey string) string {
 }
 
 func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Cleanup() error {
 	panic("unexpected call")
 }
 

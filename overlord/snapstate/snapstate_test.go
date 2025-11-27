@@ -225,6 +225,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	AddForeignTaskHandlers(s.o.TaskRunner(), s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
+	// cleaned in the future, so that the cleanup doesn't run
+	snapstate.SetStoreCacheCleanedLast(s.snapmgr, time.Now().Add(time.Hour))
 
 	s.o.AddManager(s.snapmgr)
 	s.o.AddManager(s.o.TaskRunner())
@@ -3946,6 +3948,75 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	s.snapmgr.Ensure()
 	// all sideloads gone
 	c.Assert(filenames(), DeepEquals, []string{s0})
+}
+
+type cleaningFakeStore struct {
+	fakeStore
+
+	cleanDownloadsCacheCalls int
+	cleanDownloadsCacheErr   error
+}
+
+func (f *cleaningFakeStore) CleanDownloadsCache() error {
+	f.cleanDownloadsCacheCalls++
+	return f.cleanDownloadsCacheErr
+}
+
+func (s *snapmgrTestSuite) TestEsnureSnapStoreCacheCleanedHappily(c *C) {
+	cf := cleaningFakeStore{}
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	t1 := time.Now()
+	now := t1
+	// ensure cleanup runs
+	snapstate.SetStoreCacheCleanedLast(s.snapmgr, now.Add(-30*24*time.Hour))
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	err := s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+
+	now = t1.Add(200 * time.Millisecond)
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+
+	// advance time so that another cleanup happens
+	now = now.Add(25 * time.Hour)
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 2)
+}
+
+func (s *snapmgrTestSuite) TestEsnureSnapStoreCacheCleanedWithError(c *C) {
+	cf := cleaningFakeStore{
+		cleanDownloadsCacheErr: errors.New("mock error"),
+	}
+
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	t1 := time.Now()
+	now := t1
+	// ensure cleanup runs
+	snapstate.SetStoreCacheCleanedLast(s.snapmgr, now.Add(-30*24*time.Hour))
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	err := s.snapmgr.Ensure()
+	// errors are swalled up
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {

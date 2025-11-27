@@ -71,6 +71,10 @@ type StoreService interface {
 
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
+
+	// CleanDownloadsCache executes a non blocking attempt to clean the downloads
+	// cache.
+	CleanDownloadsCache() error
 }
 
 type managerBackend interface {

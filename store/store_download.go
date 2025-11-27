@@ -977,3 +977,7 @@ func (s *Store) SetCacheDownloads(fileCount int) {
 		s.cacher = &nullCache{}
 	}
 }
+
+func (s *Store) CleanDownloadsCache() error {
+	return s.cacher.Cleanup()
+}

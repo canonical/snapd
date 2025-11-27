@@ -21,7 +21,9 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"text/tabwriter"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/dirs"
@@ -34,8 +36,11 @@ Show statistics of the local snap downloads cache.
 `
 
 type cmdSnapDownloadsCache struct {
-	Dir      string `long:"cache"`
-	MaxItems *uint  `long:"max-items"`
+	Dir          string         `long:"cache"`
+	MaxItems     *uint          `long:"max-items"`
+	All          bool           `long:"all"`
+	MaxSizeBytes *uint64        `long:"max-size-bytes"`
+	MaxAge       *time.Duration `long:"max-age"`
 }
 
 func init() {
@@ -45,15 +50,34 @@ func init() {
 		func() flags.Commander {
 			return &cmdSnapDownloadsCache{}
 		}, map[string]string{
-			"cache":     "Cache directory, if different than the default location",
-			"max-items": "Maximum count of cache-unique items, if different than the default",
+			"cache":          "Cache directory, if different than the default location",
+			"max-items":      "Maximum count of cache-unique items, if different than the default",
+			"max-size-bytes": "Max size of all remaining cache items",
+			"max-age":        "Max age of items",
+			"all":            "List all entries",
 		}, nil)
+}
+
+// entriesByMtime sorts by the mtime of files
+type entriesByMtime []store.CacheEntry
+
+func (s entriesByMtime) Len() int           { return len(s) }
+func (s entriesByMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s entriesByMtime) Less(i, j int) bool { return s[i].Info.ModTime().Before(s[j].Info.ModTime()) }
+
+func boolYesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 	cacheDir := dirs.SnapDownloadCacheDir
 	const sameAsOverlordDefaultCacheDownloads = 5
 	maxItems := sameAsOverlordDefaultCacheDownloads
+	maxAge := time.Hour * 24 * 30
+	maxSize := uint64(1024 * 1024 * 1024)
 
 	if x.Dir != "" {
 		cacheDir = x.Dir
@@ -63,7 +87,20 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 		maxItems = int(*x.MaxItems)
 	}
 
-	cm := store.NewCacheManager(cacheDir, maxItems)
+	if x.MaxAge != nil {
+		maxAge = *x.MaxAge
+	}
+
+	if x.MaxSizeBytes != nil {
+		maxSize = *x.MaxSizeBytes
+	}
+
+	cm := store.NewCacheManagerWithPolicy(cacheDir, store.CachePolicy{
+		MaxItems:     maxItems,
+		MaxSizeBytes: uint64(maxSize),
+		MaxAge:       maxAge,
+	})
+
 	stats, err := cm.Stats()
 	if err != nil {
 		return fmt.Errorf("cannot obtain cache stats: %w", err)
@@ -71,32 +108,46 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 
 	// TODO add ability to invoke cleanup?
 
+	sort.Sort(entriesByMtime(stats.Entries))
+
 	fmt.Fprintf(Stdout, "Cache location: %v\n", cacheDir)
 	fmt.Fprintf(Stdout, "Max cache-unique items: %v\n", maxItems)
-	fmt.Fprintf(Stdout, "Cache entries: %v\n", stats.TotalEntries)
+	fmt.Fprintf(Stdout, "Cache entries: %v\n", len(stats.Entries))
 	fmt.Fprintf(Stdout, "Total size: %v\n", quantity.FormatAmount(stats.TotalSize, -1))
-	fmt.Fprintf(Stdout, "Prune candidates: %v\n", len(stats.PruneCandidates))
-	if candidatesCount := len(stats.PruneCandidates); candidatesCount > 0 {
-		wouldRemoveCount := 0
+	removedSize := int64(0)
+	candidatesSize := int64(0)
+	if len(stats.Entries) > 0 {
 		tw := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 
-		fmt.Fprintf(tw, "Name\tSize\tMod time\tWould remove\n")
-		for _, c := range stats.PruneCandidates {
-			wouldRemove := "no"
-			if remaining := candidatesCount - wouldRemoveCount; remaining > maxItems {
-				wouldRemove = "yes"
-				wouldRemoveCount++
+		fmt.Fprintf(tw, "Name\tSize\tMod time\tCandidate\tWould remove\n")
+		for _, entry := range stats.Entries {
+
+			if !entry.Candidate && !x.All {
+				continue
 			}
 
-			fmt.Fprintf(tw, "%s\t%v\t%s\t%s\n",
-				c.Name(),
-				quantity.FormatAmount(uint64(c.Size()), -1),
-				c.ModTime(),
-				wouldRemove,
+			if entry.Candidate {
+				candidatesSize += entry.Info.Size()
+			}
+
+			if entry.Remove {
+				removedSize += entry.Info.Size()
+			}
+
+			fmt.Fprintf(tw, "%s\t%v\t%s\t%v\t%s\n",
+				entry.Info.Name(),
+				quantity.FormatAmount(uint64(entry.Info.Size()), -1),
+				entry.Info.ModTime(),
+				boolYesNo(entry.Candidate),
+				boolYesNo(entry.Remove),
 			)
 		}
 		tw.Flush()
 	}
+
+	fmt.Fprintf(Stdout, "Total removed size: %v\n", quantity.FormatAmount(uint64(removedSize), -1))
+	fmt.Fprintf(Stdout, "Total candidates size: %v\n", quantity.FormatAmount(uint64(candidatesSize), -1))
+	fmt.Fprintf(Stdout, "Remaining size: %v\n", quantity.FormatAmount((uint64(candidatesSize)-uint64(removedSize)), -1))
 
 	return nil
 }

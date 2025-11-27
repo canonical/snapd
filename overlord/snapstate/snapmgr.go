@@ -66,6 +66,7 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
+	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -79,9 +80,10 @@ type SnapManager struct {
 
 	preseed bool
 
-	ensuredMountsUpdated       bool
-	ensuredDesktopFilesUpdated bool
-	ensuredDownloadsCleaned    bool
+	ensuredMountsUpdated        bool
+	ensuredDesktopFilesUpdated  bool
+	ensuredDownloadsCleaned     bool
+	ensureStoreCacheCleanedLast time.Time
 
 	changeCallbackID int
 }
@@ -1609,6 +1611,64 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	return nil
 }
 
+// TODO use elsewhere
+func isSeeded(st *state.State) (bool, error) {
+	// only run after we are seeded
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+	return seeded, nil
+}
+
+// snap downloads cache cleanup runs every 24h
+const storeCacheCleanPeriod = 24 * time.Hour
+
+func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
+	run, sto, err := func() (bool, StoreService, error) {
+		now := timeNow()
+		if m.ensureStoreCacheCleanedLast.Add(storeCacheCleanPeriod).After(now) {
+			return false, nil, nil
+		}
+
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		seeded, err := isSeeded(m.state)
+		if err != nil {
+			return false, nil, err
+		}
+		if !seeded {
+			return false, nil, nil
+		}
+
+		m.ensureStoreCacheCleanedLast = now
+		return true, Store(m.state, nil), nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if !run {
+		// no store, no need to run
+		return nil
+	}
+
+	// state does not need to be locked from here on
+
+	logger.Noticef("performing periodic snap downloads cache cleanup")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureStoreDownloadsCacheCleaned")
+
+	if err := sto.CleanDownloadsCache(); err != nil {
+		// not a fatal error
+		logger.Noticef("cannot clean store downloads cache: %v", err)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1631,6 +1691,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureMountsUpdated(),
 		m.ensureDesktopFilesUpdated(),
 		m.ensureDownloadsCleaned(),
+		m.ensureStoreDownloadsCacheCleaned(),
 	}
 
 	//FIXME: use firstErr helper
