@@ -136,7 +136,6 @@ func (s *storeMessagingSuite) TestFetchMessagesBadRequest(c *C) {
 		w.WriteHeader(400)
 		json.NewEncoder(w).Encode(errResp)
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
