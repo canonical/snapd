@@ -251,7 +251,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		state := activation.State()
 		activationState, hasActivationState := state.Activations[container.CredentialName()]
 		if !hasActivationState {
-			logger.Noticef("WARNING: state not availble for activation of %s", sourceDevice)
+			logger.Noticef("WARNING: state not available for activation of %s", sourceDevice)
 			res.UnlockMethod = UnlockedWithSealedKey
 		} else if activationState.Status == sb.ActivationSucceededWithRecoveryKey {
 			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
