@@ -11,6 +11,10 @@ systems:
     - -amazon-linux-2-64
 
 prepare: |
+    if [ -z "$(command -v plz-run)" ]; then
+        tests.exec skip-test "The plz-run executable wasn't built earlier as when executing external backend" && exit 0
+    fi
+
     snap pack test-snapd-checkbox-support
     snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
 
@@ -20,6 +24,8 @@ prepare: |
     install -m 755 "$(command -v plz-run)" /var/snap/test-snapd-checkbox-support/common
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     # This test is susceptible to other tests leaving systemd in an un-reloaded
     # state. Ensure that we start from a clean state by reloading systemd.
     systemctl daemon-reload
