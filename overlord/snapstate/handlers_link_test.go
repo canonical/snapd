@@ -616,10 +616,17 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 	})
 	defer restore()
 
-	restore = snapstate.MockOnRefreshInhibitionTimeout(func(chg *state.Change, snapName string) error {
-		return fmt.Errorf("boom!")
-	})
-	defer restore()
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "unlink-snap" {
+			// make sure that the snap is inhibited while unlink is called
+			hint, _, err := runinhibit.IsLocked("pkg", nil)
+			c.Assert(err, IsNil)
+			c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+
+			return fmt.Errorf("mock error")
+		}
+		return nil
+	}
 
 	task := s.state.NewTask("unlink-current-snap", "")
 	task.Set("snap-setup", &snapstate.SnapSetup{
@@ -642,6 +649,12 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 		op:          "run-inhibit-snap-for-unlink",
 		name:        "pkg",
 		inhibitHint: "refresh",
+	}, {
+		op:   "unlink-snap",
+		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+	}, {
+		op:   "link-snap",
+		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(appCheckCalled, Equals, 1)
@@ -651,6 +664,10 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 	c.Assert(err, IsNil)
 	defer lock.Close()
 	c.Assert(lock.TryLock(), IsNil)
+
+	hint, _, err := runinhibit.IsLocked("pkg", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
