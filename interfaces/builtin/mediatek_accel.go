@@ -47,20 +47,29 @@ const mediatekAccelConnectedPlugAppArmorHeader = `
 # Description: Provide permissions for accessing the hardware accelerators on MediaTek Genio devices
 
 `
+const mediatekAccelAPUConnectedPlugAppArmorSnippet = `
+# Added due to "apu" plug attribute.
+# APU (AI Processing Unit)
+/dev/apusys rw,
+`
+
+const mediatekAccelVCUConnectedPlugAppArmorSnippet = `
+# Added due to "vcu" plug attribute.
+# VPU (MediaTek Video Processor Unit)
+/dev/vcu rw,
+# MDP (MediaTek Media Data Path) and other vcu in the future
+/dev/vcu[0-9]* rw,
+`
 
 var mediatekAccelUnitRules = map[string]mediatekAccelRule{
 	"apu": {
-		AppArmor: "# APU (AI Processing Unit)\n" +
-			"/dev/apusys rw,\n",
+		AppArmor: mediatekAccelAPUConnectedPlugAppArmorSnippet,
 		UDev: []string{
 			`SUBSYSTEM=="misc", KERNEL=="apusys"`,
 		},
 	},
 	"vcu": {
-		AppArmor: "# VPU (MediaTek Video Processor Unit)\n" +
-			"/dev/vcu rw,\n" +
-			"# MDP (MediaTek Media Data Path) and other vcu in the future\n" +
-			"/dev/vcu[0-9]* rw,\n",
+		AppArmor: mediatekAccelVCUConnectedPlugAppArmorSnippet,
 		UDev: []string{
 			/* For VPU (MediaTek Video Processor Unit) */
 			`SUBSYSTEM=="vcu", KERNEL=="vcu"`,
@@ -103,6 +112,7 @@ func (iface *mediatekAccelInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.AddSnippet(mediatekAccelConnectedPlugAppArmorHeader)
 	for name, rule := range mediatekAccelUnitRules {
 		v := false
+		// validated in BeforePreparePlug
 		_ = plug.Attr(name, &v)
 		if v {
 			spec.AddSnippet(rule.AppArmor)
