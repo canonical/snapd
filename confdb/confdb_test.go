@@ -4514,12 +4514,9 @@ func isFieldFilterError(s string) bool {
 }
 
 func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
-	wrapper := func(s string) ([]confdb.Accessor, error) {
-		return confdb.ParsePathIntoAccessors(s, o)
-	}
 	f.Add(seed)
 	f.Fuzz(func(t *testing.T, s string) {
-		accessors, err := wrapper(s)
+		accessors, err := confdb.ParsePathIntoAccessors(s, o)
 		if err != nil && isProblematicSubkeyError(err.Error()) && hasInvalidSubkeys(s, o) {
 			t.Skip()
 		}
