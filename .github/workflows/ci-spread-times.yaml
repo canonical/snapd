@@ -16,7 +16,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
@@ -86,7 +86,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
@@ -116,7 +116,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
