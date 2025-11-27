@@ -161,7 +161,6 @@ func (s *storeMessagingSuite) TestFetchMessagesServerError(c *C) {
 		w.WriteHeader(500)
 		w.Write([]byte("{}"))
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
