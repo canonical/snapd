@@ -374,15 +374,6 @@ prepare_project() {
 
     # so is ubuntu-14.04
     if os.query is-trusty; then
-        if [ ! -d packaging/ubuntu-14.04 ]; then
-            echo "no packaging/ubuntu-14.04/ directory "
-            echo "broken test setup"
-            exit 1
-        fi
-
-        # 14.04 has its own packaging
-        ./generate-packaging-dir
-
         quiet eatmydata apt-get install -y software-properties-common
 
 	# FIXME: trusty-proposed disabled because there is an inconsistency
