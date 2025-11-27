@@ -104,6 +104,7 @@ func LockSealedKeys() error {
 
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	State() *sb.ActivateState
 }
 
 type activateContextImpl struct {
@@ -237,22 +238,29 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	}
 	// FIXME: there is no way to disable recovery key and obey AllowRecoveryKey
 
+	logger.Noticef("MYDEBUG: opening %s with legacy paths: %s %s", name, partDevice, sourceDevice)
 	options = append(options, sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice))
 	if opts.AllowRecoveryKey {
 		options = append(options, sbWithRecoveryKeyTries(3))
 	}
 	err = activation.ActivateContainer(context.Background(), container, options...)
-	if err == sb.ErrRecoveryKeyUsed {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
-		res.UnlockMethod = UnlockedWithRecoveryKey
-	} else if err != nil {
+	if err != nil {
 		res.UnlockMethod = NotUnlocked
 		return res, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
 	} else {
-		logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
-		res.UnlockMethod = UnlockedWithSealedKey
+		state := activation.State()
+		activationState, hasActivationState := state.Activations[container.CredentialName()]
+		if !hasActivationState {
+			logger.Noticef("WARNING: state not availble for activation of %s", sourceDevice)
+			res.UnlockMethod = UnlockedWithSealedKey
+		} else if activationState.Status == sb.ActivationSucceededWithRecoveryKey {
+			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
+			res.UnlockMethod = UnlockedWithRecoveryKey
+		} else {
+			logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
+			res.UnlockMethod = UnlockedWithSealedKey
+		}
 	}
-
 	res.FsDevice = targetDevice
 	return res, nil
 }
