@@ -6059,3 +6059,81 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
 		expErr:           regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)."),
 	})
 }
+
+func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.Database) {
+	store = assertstest.NewStoreStack("canonical", nil)
+	cfg := &asserts.DatabaseConfig{
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         store.Trusted,
+		OtherPredefined: store.Generic,
+	}
+	checkDB, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	// add store key
+	err = checkDB.Add(store.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	// add generic key
+	err = checkDB.Add(store.GenericKey)
+	c.Assert(err, IsNil)
+
+	return store, checkDB
+}
+
+func (as *assertMgrSuite) TestSnapRevisionFromSnapIdAndRevisionNumberSuccess(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := assertstate.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return []asserts.Assertion{
+			&asserts.SnapRevision{},
+		}, nil
+	})
+	defer restore()
+
+	rev, err := assertstate.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
+	c.Assert(err, IsNil)
+	c.Check(rev, FitsTypeOf, &asserts.SnapRevision{})
+}
+
+func (as *assertMgrSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorOnFind(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	expErr := errors.New("test")
+	restore := assertstate.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return nil, expErr
+	})
+	defer restore()
+
+	rev, err := assertstate.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
+	c.Check(err, Equals, expErr)
+	c.Check(rev, IsNil)
+}
+
+func (as *assertMgrSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorNoneFound(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := assertstate.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	rev, err := assertstate.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
+	c.Check(err, ErrorMatches, regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=1, snap-revision=1)."))
+	c.Check(rev, IsNil)
+}
+
+func (as *assertMgrSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorOnMultipleFound(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := assertstate.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return []asserts.Assertion{
+			&asserts.SnapRevision{},
+			&asserts.SnapRevision{},
+		}, nil
+	})
+	defer restore()
+
+	rev, err := assertstate.SnapRevisionFromSnapIdAndRevisionNumber(db, "1", 1)
+	c.Check(err, ErrorMatches, regexp.QuoteMeta("multiple snap-revision assertions found that match (snap-id=1, snap-revision=1)."))
+	c.Check(rev, IsNil)
+}

@@ -1366,10 +1366,10 @@ var dbFindMany = func(db asserts.RODatabase, assertionType *asserts.AssertionTyp
 
 var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
 
-// snapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
+// SnapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
 // a snap ID, and a revision number. This is to be used in cases where the sha3 hash which is the primary key
 // for revision assertions is not known or we don't want to incur the cost to compute it.
-func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId string, revN int) (*asserts.SnapRevision, error) {
+func SnapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId string, revN int) (*asserts.SnapRevision, error) {
 	revs, err := dbFindMany(db, asserts.SnapRevisionType, map[string]string{
 		"snap-id":       snapId,
 		"snap-revision": strconv.Itoa(revN),
@@ -1398,7 +1398,7 @@ func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId strin
 func ValidatedIntegrityData(st *state.State, snapID string, snapRev int) (*integrity.IntegrityDataParams, error) {
 	db := DB(st)
 
-	rev, err := snapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapRev)
+	rev, err := SnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapRev)
 	if err != nil {
 		return nil, err
 	}
