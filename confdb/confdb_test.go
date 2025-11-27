@@ -4500,6 +4500,12 @@ func hasUnexpectedFieldFilterTermination(s string) bool {
 	return false
 }
 
+func isProblematicSubkeyError(s string) bool {
+	return strings.Contains(s, "invalid subkey") ||
+		strings.Contains(s, "must conform to base format") ||
+		strings.Contains(s, "field filters, if present, must be at the end of a sub-key")
+}
+
 func isFieldFilterError(s string) bool {
 	return strings.Contains(s, "field filter terminated unexpectedly") ||
 		strings.Contains(s, "field filter must be in the format") ||
@@ -4513,13 +4519,13 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 	f.Add(seed)
 	f.Fuzz(func(t *testing.T, s string) {
 		accessors, err := wrapper(s)
-		if err != nil && strings.Contains(err.Error(), "invalid subkey") && !hasValidSubkeys(s, o) {
+		if err != nil && isProblematicSubkeyError(err.Error()) && !hasValidSubkeys(s, o) {
 			t.Skip()
 		}
 		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s, o) {
 			t.Skip()
 		}
-		if err != nil && err.Error() == "non UTF-8 character" && (!utf8.ValidString(s) || strings.Contains(s, string(rune(0xDFFF)))) {
+		if err != nil && err.Error() == "non UTF-8 character" && !utf8.ValidString(s) {
 			t.Skip()
 		}
 		if err != nil && isFieldFilterError(err.Error()) && hasUnexpectedFieldFilterTermination(s) {
