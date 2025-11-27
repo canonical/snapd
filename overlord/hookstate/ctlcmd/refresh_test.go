@@ -525,12 +525,18 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
-	c.Check(err, IsNil)
-
-	expect, err := yaml.Marshal(map[string]string{"channel": "latest/stable"})
-	c.Check(string(stdout), Equals, string(expect))
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
+
+	var actualData map[string]string
+    err = yaml.Unmarshal([]byte(stdout), &actualData)
+    c.Check(err, IsNil)
+
+	expectedData := map[string]string{
+        "channel": "latest/stable",
+    }
+
+    c.Check(actualData, DeepEquals, expectedData)
 }
 
 func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
@@ -561,13 +567,18 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
-	c.Check(err, IsNil)
-
-	expect, err := yaml.Marshal(map[string]*string{"channel": nil})
-	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, string(expect))
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
+
+	var actualData map[string]*string
+    err = yaml.Unmarshal([]byte(stdout), &actualData)
+    c.Check(err, IsNil)
+
+	expectedData := map[string]*string{
+        "channel": nil,
+    }
+
+    c.Check(actualData, DeepEquals, expectedData)
 }
 
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
