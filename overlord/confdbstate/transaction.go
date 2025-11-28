@@ -168,7 +168,7 @@ func (t *Transaction) Unset(path []confdb.Accessor) error {
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path []confdb.Accessor) (any, error) {
+func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]string) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -178,14 +178,14 @@ func (t *Transaction) Get(path []confdb.Accessor) (any, error) {
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
-		return t.pristine.Get(path)
+		return t.pristine.Get(path, cstrs)
 	}
 
 	if err := t.applyChanges(); err != nil {
 		return nil, err
 	}
 
-	return t.modified.Get(path)
+	return t.modified.Get(path, cstrs)
 }
 
 // Commit applies the previous writes and validates the final databag. If any

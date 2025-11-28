@@ -87,7 +87,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
@@ -119,11 +119,13 @@ jobs:
         echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Get previous cache
-      uses: actions/cache@v4
+    - name: Download previous test results
+      if: ${{ github.run_attempt > 1 }}
+      uses: actions/download-artifact@v4
+      continue-on-error: true
       with:
+        name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
@@ -414,7 +416,7 @@ jobs:
 
     - name: Upload spread logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
@@ -422,7 +424,7 @@ jobs:
   
     - name: Upload spread results file
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
@@ -499,16 +501,15 @@ jobs:
 
     - name: Upload artifacts
       if: always() && fromJSON(inputs.upload-artifacts)
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
         if-no-files-found: ignore
-    
-    - name: Save spread test results to cache
-      if: always()
-      uses: actions/cache/save@v4
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
 
+    - name: Upload failed tests
+      if: always() && env.TEST_FAILED == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
+        path: ${{ env.FAILED_TESTS_FILE }}

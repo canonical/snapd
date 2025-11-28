@@ -29,10 +29,10 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download vendor
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -80,7 +80,7 @@ jobs:
           "
 
     - name: Upload packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: package-${{ inputs.system }}
         path: /tmp/uploads

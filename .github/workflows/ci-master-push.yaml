@@ -10,7 +10,7 @@ jobs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Resolve Go snap channels
         id: resolve-go-channels
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download Debian dependencies
       run: |
@@ -39,7 +39,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -136,7 +136,7 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: coverage-files-*
         path: .coverage/
