@@ -47,10 +47,10 @@ jobs:
         target_system="${{ inputs.os }}-${{ inputs.os-version }}"
         case "$target_system" in
             debian-sid)
-                mv -v packaging/debian-sid debian
+                cp -av packaging/debian-sid debian
                 ;;
             ubuntu-*)
-                mv -v packaging/ubuntu-16.04 debian
+                cp -av packaging/ubuntu-16.04 debian
                 ;;
             *)
                 echo "unsupported deb packaging for $target_system"
