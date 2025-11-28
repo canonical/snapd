@@ -17,8 +17,8 @@ reset_classic() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
             # 14.04 uses native package only, there is no dedicated cleanup
-            sh -x /var/lib/dpkg/info/snapd.prerm remove
-            sh -x /var/lib/dpkg/info/snapd.postrm purge
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=prerm sh -x /var/lib/dpkg/info/snapd.prerm remove
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=postrm sh -x /var/lib/dpkg/info/snapd.postrm purge
             ;;
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
