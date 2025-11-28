@@ -18,6 +18,8 @@ environment:
   # TODO: extract a more comprehensive core24 test similar
   # to tests/nested/manual/passphrase-support-on-hybrid.
   NESTED_FDE_PASSWORD/passphrase_auth: "ubuntu"
+  # passphrase can only work with tokens
+  NESTED_EXTRA_CMDLINE/passphrase_auth: ubuntu-core.force-experimental-tokens=1
 
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
