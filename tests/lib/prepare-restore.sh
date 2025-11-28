@@ -546,6 +546,11 @@ prepare_project() {
             if ! os.query is-trusty; then
                 # Debian and Ubuntu non-14.04
                 do_depinstall
+            else
+                # we only run a limited set of tests on 14.04, hence only Go is
+                # needed to build the dependencies, but that's all
+                eatmydata apt-get install -y golang-1.18
+                ln -s "/usr/lib/go-1.18/bin/go" /usr/bin/go
             fi
             ;;
     esac
