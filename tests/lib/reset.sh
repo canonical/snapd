@@ -28,7 +28,6 @@ reset_classic() {
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
-                --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
             # The script above doesn't remove the snapd directory as this
             # is normally done by the rpm packaging system.

@@ -8,7 +8,7 @@
 set -e
 set +x
 
-STATIC_SNAP_MOUNT_DIR="@STATIC_SNAP_MOUNT_DIR@"
+STATIC_SNAP_TOOLING_DIR="@STATIC_SNAP_TOOLING_DIR@"
 
 show_help() {
     exec cat <<'EOF'
@@ -16,14 +16,17 @@ Usage: snap-mgmt.sh [OPTIONS]
 
 A simple script to cleanup snap installations.
 
-optional arguments:
+Options:
   --help                           Show this help message and exit
-  --snap-mount-dir=<path>          Provide a path to be used as $STATIC_SNAP_MOUNT_DIR
-  --purge                          Purge all data from $STATIC_SNAP_MOUNT_DIR
+  --snap-tooling-dir=<path>        Override default path to snapd tooling dir
+  --force                          Force operation (relevant for mount directory migration)
+
+Actions:
+  --purge                          Purge all snaps and their data
+  --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
+  --check-mount-dir-migration      Check system state required to run mount directory migration
 EOF
 }
-
-SNAP_UNIT_PREFIX="$(systemd-escape -p ${STATIC_SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
@@ -49,7 +52,7 @@ systemctl_stop() {
 }
 
 is_component_mount_unit() {
-    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q '\(/snap\|/var/lib/snapd/snap\)/[^/]*/components/mnt/[^/]*/[^/]*'
 }
 
 purge() {
@@ -61,8 +64,8 @@ purge() {
         systemctl_stop snap.mount.service
     fi
 
-    units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
-    mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
+    units=$(systemctl list-unit-files --no-legend --full 'snap.*' 'snap-*.mount' 'var-lib-snapd-snap-*.mount' | grep -vF snap.mount.service || true)
+    mounts=$(echo "$units" | grep -e "^snap-.*\\.mount" -e "^var-lib-snapd-snap-.*\\.mount" | cut -f1 -d ' ')
 
     # *.snap and *.comp mount points
     snap_mounts=""
@@ -94,36 +97,44 @@ purge() {
         systemctl_stop "$unit"
 
         if echo "$unit" | grep -q '.*\.mount' && ! is_component_mount_unit "$unit"; then
-            # Transform ${STATIC_SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
+            # Transform /var/lib/snapd/snap/core/3440 -> core/3440 removing any
             # extra / preceding snap name, eg:
             #  /var/lib/snapd/snap/core/3440  -> core/3440
             #  /snap/core/3440                -> core/3440
             #  /snap/core//3440               -> core/3440
             # NOTE: we could have used `systemctl show $unit -p Where --value`
             # but systemd 204 shipped with Ubuntu 14.04 does not support this
-            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$STATIC_SNAP_MOUNT_DIR##" -e 's#^/*##')
-            snap=$(echo "$snap_rev" |cut -f1 -d/)
-            rev=$(echo "$snap_rev" |cut -f2 -d/)
+            systemctl_where="$(systemctl show "$unit" -p Where)"
+            #  Where=/var/lib/snapd/snap/core/3440  -> core/3440
+            snap_rev="${systemctl_where#Where=*/snap/}"
+            # core/3440 -> core
+            snap="${snap_rev%/*}"
+            # core/3440 -> 3440
+            rev="${snap_rev#*/}"
+            # Transform:
+            # Where=/var/lib/snapd/snap/core/3440 -> /var/lib/snapd/snap
+            snap_mountpoint="${systemctl_where#Where=}"
+            global_snaps_mount_dir="$(dirname "$(dirname "$snap_mountpoint")")"
             if [ -n "$snap" ]; then
                 echo "Removing snap $snap"
                 # aliases
-                if [ -d "${STATIC_SNAP_MOUNT_DIR}/bin" ]; then
-                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
-                    find "${STATIC_SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
+                if [ -d "${global_snaps_mount_dir}/bin" ]; then
+                    find "${global_snaps_mount_dir}/bin" -maxdepth 1 -lname "$snap" -delete
+                    find "${global_snaps_mount_dir}/bin" -maxdepth 1 -lname "$snap.*" -delete
                 fi
                 # generated binaries
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap"
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/bin/$snap".*
+                rm -f "${global_snaps_mount_dir}/bin/$snap"
+                find "${global_snaps_mount_dir}/bin" -maxdepth 1 -name "$snap.*" -delete
                 # snap mount dir
-                umount -l "${STATIC_SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-                rm -rf "${STATIC_SNAP_MOUNT_DIR:?}/$snap/$rev"
-                rm -f "${STATIC_SNAP_MOUNT_DIR}/$snap/current"
+                umount -l "$snap_mountpoint" 2> /dev/null || true
+                rm -rf "$snap_mountpoint"
+                rm -f "${global_snaps_mount_dir}/$snap/current"
                 # snap data dir
                 rm -rf "/var/snap/$snap/$rev"
                 rm -rf "/var/snap/$snap/common"
                 rm -f "/var/snap/$snap/current"
                 # opportunistic remove (may fail if there are still revisions left)
-                for d in "${STATIC_SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
+                for d in "${global_snaps_mount_dir}/$snap" "/var/snap/$snap"; do
                     if [ -d "$d" ]; then
                         rmdir --ignore-fail-on-non-empty "$d"
                     fi
@@ -161,9 +172,9 @@ purge() {
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
 
-    # Undo any bind mounts to ${STATIC_SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # Undo any bind mounts to /var/lib/snapd/snap, /snap or /var/snap done by parallel
     # installs or LP:#1668659
-    for mp in "$STATIC_SNAP_MOUNT_DIR" /var/snap; do
+    for mp in /snap /var/lib/snapd/snap /var/snap; do
         # btrfs bind mounts actually include subvolume in the filesystem-path
         # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
         if grep -q " $mp $mp " /proc/self/mountinfo ||
@@ -207,7 +218,15 @@ purge() {
     rm -rf /var/lib/snapd/features
 
     echo "Final directory cleanup"
-    rm -rf "${STATIC_SNAP_MOUNT_DIR}"
+    for snap_mount_dir in /snap /var/lib/snapd/snap; do
+        if [ -L "$snap_mount_dir" ]; then
+            continue
+        fi
+
+        if [ -d "$snap_mount_dir" ]; then
+            rm -rf "$snap_mount_dir"
+        fi
+    done
     rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
@@ -235,28 +254,377 @@ purge() {
         # Remove auto-generated rules for snap-confine from the 'core' snap
         echo "Removing extra snap-confine apparmor rules"
         # shellcheck disable=SC2046
-        rm -f /etc/apparmor.d/$(echo "$SNAP_UNIT_PREFIX" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
+        for snap_unit_prefix in snap var-lib-snapd-snap; do
+            rm -f /etc/apparmor.d/$(echo "$snap_unit_prefix" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
+        done
     fi
 }
 
+ensure_snap_apps_stopped() {
+    apps_or_services="$(find /sys/fs/cgroup/ -name 'snap.*.*.scope' -o -name 'snap.*.*.service')"
+    if [ -n "$apps_or_services" ]; then
+        (
+            echo "Found active snap services or applications in the following cgroups:"
+            for n in $apps_or_services; do
+                # transform snap.foo.bar.service into foo
+                sn="$(basename "$n")"
+                sn="${sn#snap.}"
+                sn="${sn%%.*}"
+                echo "- $n"
+                echo "  likely owned by snap: '$sn'"
+                echo "  PIDs: $(paste -s -d' ' "$n/cgroup.procs")"
+            done
+        ) >&2
+        return 1
+    fi
+    return 0
+}
+
+discard_mount_namespaces() {
+    if [ ! -d /run/snapd/ns ]; then
+        return
+    fi
+
+    tooldir="$1"
+    if [ -z "$tooldir" ]; then
+        tooldir="$STATIC_SNAP_TOOLING_DIR"
+    fi
+
+    echo "Discarding snap mount namespaces"
+    find /run/snapd/ns/ -name '*.mnt' | while read -r mntns; do
+        snname="$(basename "${mntns%.mnt}")"
+        echo "  ..discarding mount namespace of snap $snname"
+        "$tooldir"/snap-discard-ns "$snname"
+    done
+}
+
+_patch_service_unit_mount_dependencies() {
+    mount_from_nopref="$1"
+    mount_to_nopref="$2"
+    svc_unit="$3"
+    tmpdir="$4"
+
+    # strip out snap. and <svc>.service, leaving the snap name only
+    snap_name=${svc_unit#snap.}
+    snap_name=${snap_name%%.*}
+
+    old_mount_p="$(systemd-escape -p "$mount_from_nopref/$snap_name/")"
+    new_mount_p="$(systemd-escape -p "$mount_to_nopref/$snap_name/")"
+
+    # given e.g. /snap/test-snapd-service/
+    # systemd-escape produces: snap-test\x2dsnapd\x2dservice
+    # but we need to convert to: snap-test\\x2dsnapd\\x2dservice
+    # match entries like:
+    # Requires=snap-foo-
+    # After=snap-foo
+    old_mount_p_escaped="${old_mount_p//\\/\\\\}"
+    new_mount_p_escaped="${new_mount_p//\\/\\\\}"
+    if ! grep -F -q "=${old_mount_p_escaped}" "/etc/systemd/system/$svc_unit" ; then
+        echo "Service unit $svc_unit already patched"
+        return
+    fi
+
+    echo "Updating service unit $svc_unit"
+    cp -v "/etc/systemd/system/$svc_unit" "$tmpdir/backup/etc/systemd/system/$svc_unit"
+
+    sed -i \
+        -e "s#^Requires=${old_mount_p_escaped}-#Requires=${new_mount_p_escaped}-#" \
+        -e "s#^After=${old_mount_p_escaped}-#After=${new_mount_p_escaped}-#" \
+        "/etc/systemd/system/$svc_unit"
+}
+
+_mount_dir_migrate() {
+    mount_from="$1"
+    mount_from_nopref="${mount_from#/}"
+    mount_to="$2"
+    mount_to_nopref="${mount_to#/}"
+
+    # TODO error when $mount_from is a prefix of $mount_to
+
+    set -x
+    mount_from_escaped="$(systemd-escape -p "${mount_from_nopref}")"
+    mount_to_escaped="$(systemd-escape -p "${mount_to_nopref}")"
+
+    echo "Attempting migration of snap mount location:"
+    echo "  $mount_from -> $mount_to"
+
+    if ! ensure_snap_apps_stopped; then
+        echo "Please ensure all snap services or applications are stopped before attempting migration." >&2
+        exit 1
+    fi
+
+    service_units=$(systemctl list-unit-files --no-legend --full 'snap.*.service' | cut -f1 -d' '|| true)
+    mount_units=$(systemctl list-unit-files --no-legend --full "${mount_from_escaped}-*.mount" | cut -f1 -d' ' || true)
+
+    echo "-- services"
+    echo "$service_units"
+    echo "-- mounts"
+    echo "$mount_units"
+
+    tmpdir="$(mktemp -d -t snap-mgmt-migrate.XXXXX)"
+    mkdir -p "$tmpdir/backup/etc/systemd/system"
+    echo "Backup saved to $tmpdir"
+
+    # stop service units first, the services could theoretically reach out to
+    # snapd while stopping
+    echo "Stopping snap services..."
+    for unit in $service_units; do
+        echo "Stopping service $unit"
+        systemctl stop "$unit"
+    done
+
+    echo "Stopping snapd..."
+    systemctl stop snapd.socket snapd.service
+
+    echo "Checking for snap applications or services that are still alive"
+    if ! ensure_snap_apps_stopped; then
+        echo "Found running snap services or applications."  >&2
+        exit 1
+    fi
+
+    discard_mount_namespaces "$STATIC_SNAP_TOOLING_DIR"
+
+    new_units=()
+    if [ -z "$mount_units" ]; then
+        echo "All mount units already migrated or no snap mounts"
+    else
+        echo "Stopping mount units..."
+        for unit in $mount_units; do
+            echo "Stopping mount unit $unit"
+            systemctl stop "$unit"
+        done
+
+        # make a backup copy of the whole snap mount dir, all units should be
+        # stopped now, so this should be a tree of empty directories and current
+        # symlinks
+        cp -av "/$mount_from_nopref" "$tmpdir/backup/"
+
+        echo "Updating mount units"
+        # note, we're only iterating over mount units which still have the old name
+        for unit in $mount_units; do
+            # e.g. /snap/foo/123
+            # assumes systemd 246+
+            where_mount="$(systemctl show -p Where --value "$unit")"
+            # e.g. /snap/foo
+            snap_where_mount="$(dirname "$where_mount")"
+
+            # some units may have been patched already
+            echo "Updating mount unit $unit"
+            # new unit name
+            nn="${mount_to_escaped}-${unit#"$mount_from_escaped"-}"
+            new_units+=("$nn")
+            echo "  ..new unit name $nn"
+            # new mount point location
+            n_where_mount="$mount_to/${where_mount#"$mount_from"}"
+            # new snap mount location
+            n_snap_where_mount="$(dirname "$n_where_mount")"
+            echo "  ..new mount path $n_where_mount"
+
+            # make a backup copy
+            mkdir -p "$tmpdir/backup/etc/systemd/system"
+            cp -v "/etc/systemd/system/$unit" "$tmpdir/backup/etc/systemd/system/"
+
+            echo "  ..patching $unit"
+            # Where=/snap/foo/123 -> Where=/var/lib/snapd/snap/foo/123
+            sed -e "s#Where=/${mount_from_nopref}/#Where=/${mount_to_nopref}/#" \
+                "/etc/systemd/system/$unit" > "/etc/systemd/system/$unit.swp"
+            echo "  ..renaming to $nn"
+            mv -v "/etc/systemd/system/$unit.swp" "/etc/systemd/system/$nn"
+            rm -v "/etc/systemd/system/$unit"
+
+            if [ -L "/etc/systemd/system/multi-user.target.wants/$unit" ]; then
+                # enabled units appear as symlinks
+                rm -v "/etc/systemd/system/multi-user.target.wants/$unit"
+                ln -sv "/etc/systemd/system/$nn" "/etc/systemd/system/multi-user.target.wants/$nn"
+            fi
+
+            # ensure mount point exists
+            mkdir -p "$n_where_mount"
+
+            # recreate current symlink
+            if [ -L "$snap_where_mount/current" ] && [ ! -L "$n_snap_where_mount/current" ]; then
+                cp -av "$snap_where_mount/current" "$n_snap_where_mount/current"
+            fi
+        done
+    fi
+
+    if [ -z "$service_units" ]; then
+        echo "No snap service units"
+    else
+        for svc_unit in $service_units; do
+            if ! [[ "$svc_unit" = *.service ]]; then
+                continue
+            fi
+            _patch_service_unit_mount_dependencies "$mount_from_nopref" "$mount_to_nopref" "$svc_unit" "$tmpdir"
+        done
+    fi
+
+    if [ -d "$mount_from/bin" ] && [ ! -L "$mount_from" ]; then
+        cp -av "$mount_from/bin" "$mount_to/bin"
+    fi
+    if [ -f "$mount_from/README" ] && [ ! -L "$mount_from" ]; then
+        cp -av "$mount_from/README" "$mount_to/README"
+    fi
+
+    # TODO: restore SELinux context of created files and directories?
+
+    echo "Reloading systemd"
+    systemctl daemon-reload
+
+    echo "Starting new mount units"
+    for new_unit in "${new_units[@]}"; do
+        systemctl start "$new_unit"
+    done
+
+    if [ -d "$mount_from" ]; then
+        echo "Renaming old snap mount directory $mount_from to $mount_from.old"
+        if mountpoint "$mount_from"; then
+            echo "Found $mount_from to be a mount point, likely from parallel instances"
+            umount -l "$mount_from"
+        fi
+        mv -v "$mount_from" "${mount_from}.old"
+    fi
+
+    if [ "$mount_from" = "/snap" ] && [ ! -L "$mount_from" ]; then
+        echo "Restoring ability to run classic snaps"
+        ln -sv "$mount_to" "$mount_from"
+    fi
+
+    systemctl start snapd.socket snapd.service
+}
+
+# check whether migration is needed, returns 0 when needed
+_mount_dir_paths_check() {
+    if [ -e /var/lib/snapd/snap ] && {
+           [ -L /snap ] || [ ! -e /snap ]
+       }; then
+        echo "Snap mount directory migration already completed or not needed" >&2
+        return 1
+    fi
+    return 0
+}
+
+mount_dir_migrate() {
+    force="$1"
+
+    if ! _mount_dir_paths_check; then
+        if [ "$force" = "yes" ]; then
+            echo "WARNING: Forcing mount directory migration" >&2
+        else
+            exit 0
+        fi
+    fi
+
+    echo "#############################################"
+    echo "####### snap mount directory migration ######"
+    echo "#############################################"
+    echo
+    echo "Please report any issues in the snapcraft forum at: https://forum.snapcraft.io/"
+    echo
+    
+    _mount_dir_migrate "/snap" "/var/lib/snapd/snap"
+
+    echo "######################################################"
+    echo "####### snap mount directory migration complete ######"
+    echo "######################################################"
+    echo
+    echo "You may start using snaps again."
+    echo "System reboot is recommended."
+    echo
+    echo "A copy of old snap mount directory was saved as /snap.old"
+    echo "Remove it manually by executing:"
+    echo "   rm -rf /snap.old"
+    echo
+}
+
+mount_dir_migrate_check() {
+    bad=0
+    not_needed=0
+    echo "Checking snap mount directories presence..."
+    if ! _mount_dir_paths_check ; then
+        not_needed=1
+    fi
+
+    echo
+    echo "Checking snap applications and services..."
+    if ! ensure_snap_apps_stopped; then
+        echo "Found running snap services or applications."
+        bad=1
+    fi
+
+    echo
+    if [ "$bad" != 0 ]; then
+        echo "Mount directory migration cannot continue."
+        exit 1
+    elif [ "$not_needed" = 0 ]; then
+        echo "System is ready for migration."
+    fi
+}
+
+
+force=no
+action=""
 while [ -n "$1" ]; do
     case "$1" in
         --help)
             show_help
             exit
             ;;
-        --snap-mount-dir=*)
-            STATIC_SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX=$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")
+        --snap-tooling-dir=*)
+            STATIC_SNAP_TOOLING_DIR=${1#*=}
             shift
             ;;
         --purge)
-            purge
+            if [ -n "$action" ]; then
+                echo "Cannot request purge when already doing '$action'" >&2
+                exit 1
+            fi
+            action=purge
+            shift
+            ;;
+        --migrate-mount-dir)
+            if [ -n "$action" ]; then
+                echo "Cannot request mount directory migration when already doing '$action'" >&2
+                exit 1
+            fi
+            action=migrate-mount-dir
+            shift
+            ;;
+        --check-mount-dir-migration)
+            if [ -n "$action" ]; then
+                echo "Cannot request mount directory migration check when already doing '$action'" >&2
+                exit 1
+            fi
+            action=check-mount-dir-migration
+            shift
+            ;;
+        --force)
+            force=yes
             shift
             ;;
         *)
-            echo "Unknown command: $1"
+                echo "Unknown command: $1, see --help" >&2
             exit 1
             ;;
     esac
 done
+
+case "$action" in
+    purge)
+        purge
+        ;;
+    migrate-mount-dir)
+        mount_dir_migrate "$force"
+        ;;
+    check-mount-dir-migration)
+        mount_dir_migrate_check
+        ;;
+    *)
+        if [ -z "$action" ]; then
+            echo "No action specified, see --help" >&2
+        else
+            echo "Unknown action '$action'" >&2
+        fi
+        exit 1
+        ;;
+esac
