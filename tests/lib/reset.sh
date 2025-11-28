@@ -15,6 +15,11 @@ reset_classic() {
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            # 14.04 uses native package only, there is no dedicated cleanup
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=prerm sh -x /var/lib/dpkg/info/snapd.prerm remove
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=postrm sh -x /var/lib/dpkg/info/snapd.postrm purge
+            ;;
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge

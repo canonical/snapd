@@ -374,20 +374,11 @@ prepare_project() {
 
     # so is ubuntu-14.04
     if os.query is-trusty; then
-        if [ ! -d packaging/ubuntu-14.04 ]; then
-            echo "no packaging/ubuntu-14.04/ directory "
-            echo "broken test setup"
-            exit 1
-        fi
-
-        # 14.04 has its own packaging
-        ./generate-packaging-dir
-
         quiet eatmydata apt-get install -y software-properties-common
 
-	# FIXME: trusty-proposed disabled because there is an inconsistency
-	#        in the trusty-proposed archive:
-	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+        # FIXME: trusty-proposed disabled because there is an inconsistency
+        #        in the trusty-proposed archive:
+        # linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
         #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
         quiet eatmydata apt-get update
@@ -528,26 +519,38 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            best_golang=golang-1.18
-            case "$SPREAD_SYSTEM" in
-                ubuntu-fips-*)
-                    # we are limited by the FIPS variants of go toolchain
-                    # available from the PPA, and we need to match the Go
-                    # version expected by during FIPS build of the deb, which
-                    # currently expects 1.23, see:
-                    # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
-                    best_golang=golang-1.23
-                    quiet apt install -y golang-1.23
-                    ;;
-            esac
-            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control >deps.txt
-            quiet xargs -r eatmydata apt-get install -y < deps.txt
-            # The go 1.18 backport is not using alternatives or anything else so
-            # we need to get it on path somehow. This is not perfect but simple.
-            if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.18/bin
-                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+            do_depinstall() {
+                best_golang=golang-1.18
+                case "$SPREAD_SYSTEM" in
+                    ubuntu-fips-*)
+                        # we are limited by the FIPS variants of go toolchain
+                        # available from the PPA, and we need to match the Go
+                        # version expected by during FIPS build of the deb, which
+                        # currently expects 1.23, see:
+                        # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
+                        best_golang=golang-1.23
+                        quiet apt install -y golang-1.23
+                        ;;
+                esac
+                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
+                gdebi --quiet --apt-line ./debian/control >deps.txt
+                quiet xargs -r eatmydata apt-get install -y < deps.txt
+                # The go 1.18 backport is not using alternatives or anything else so
+                # we need to get it on path somehow. This is not perfect but simple.
+                if [ -z "$(command -v go)" ]; then
+                    # the path filesystem path is: /usr/lib/go-1.18/bin
+                    ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+                fi
+            }
+
+            if ! os.query is-trusty; then
+                # Debian and Ubuntu non-14.04
+                do_depinstall
+            else
+                # we only run a limited set of tests on 14.04, hence only Go is
+                # needed to build the dependencies, but that's all
+                eatmydata apt-get install -y golang-1.18
+                ln -s "/usr/lib/go-1.18/bin/go" /usr/bin/go
             fi
             ;;
     esac
@@ -559,12 +562,17 @@ prepare_project() {
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
     # as they exist in the archive for further use.
+    # On 14.04 we only ever use snapd from the archive
     if tests.info is-snapd-from-archive; then
         case "$SPREAD_SYSTEM" in
             debian-*)
                 # In Debian 14+, the snap-confine transitional package was removed.
                 # In earlier versions it was just an empty package so it's not worth pulling.
                 ( cd "${GOHOME}" && tests.pkgs download snapd )
+                ;;
+            ubuntu-14.04-*)
+                # directly call apt-get, tests.pkgs only knows about 'apt'
+                ( cd "${GOHOME}" && apt-get download snapd snap-confine )
                 ;;
             *)
                 ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
@@ -586,6 +594,10 @@ prepare_project() {
         # go mod runs as root and will leave strange permissions
         chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
+            ubuntu-14.04-*)
+                echo "building native packages on 14.04 is no longer supported"
+                exit 1
+                ;;
             ubuntu-*|debian-*)
                 # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
                 gdebi --quiet --apt-line ./debian/control >deps.txt
