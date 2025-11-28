@@ -248,6 +248,34 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return BadRequest("extra content found in request body")
 	}
 
+	// Expand target keyslots that do not specify a container role.
+	if len(req.Keyslots) != 0 {
+		expanded := make([]fdestate.KeyslotRef, 0, len(req.Keyslots))
+		exists := make(map[string]bool)
+		for _, ref := range req.Keyslots {
+			if len(ref.ContainerRole) == 0 {
+				// Not specifying the container-role field implicitly means
+				// targeting all system containers i.e. system-data and
+				// system-save.
+				expandedRefs := fdestate.ExpandSystemContainerRoles(ref.Name)
+				for _, expandedRef := range expandedRefs {
+					if exists[expandedRef.String()] {
+						return BadRequest("invalid keyslots: duplicate implicit keyslot found %s", expandedRef.String())
+					}
+					expanded = append(expanded, expandedRef)
+					exists[expandedRef.String()] = true
+				}
+			} else {
+				if exists[ref.String()] {
+					return BadRequest("invalid keyslots: duplicate keyslot found %s", ref.String())
+				}
+				expanded = append(expanded, ref)
+				exists[ref.String()] = true
+			}
+		}
+		req.Keyslots = expanded
+	}
+
 	switch req.Action {
 	case "generate-recovery-key":
 		return postSystemVolumesActionGenerateRecoveryKey(c)
