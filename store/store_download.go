@@ -965,10 +965,13 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	return nil
 }
 
+// CacheDownloads returns the configured setting of cached downloads.
 func (s *Store) CacheDownloads() int {
 	return s.cfg.CacheDownloads
 }
 
+// SetCacheDownloads configures the snap downloads cache mechanism. With file
+// count set to 0, no downloads are cached.
 func (s *Store) SetCacheDownloads(fileCount int) {
 	s.cfg.CacheDownloads = fileCount
 	if fileCount > 0 {
@@ -978,6 +981,9 @@ func (s *Store) SetCacheDownloads(fileCount int) {
 	}
 }
 
+// CleanDownloadsCache attempts cleanup of snap downloads cache.
+//
+// Returns ErrCleanupBusy if the cache was locked for other operations.
 func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
 }

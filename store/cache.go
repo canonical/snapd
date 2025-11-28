@@ -181,18 +181,18 @@ func (cm *CacheManager) path(cacheKey string) string {
 	return filepath.Join(cm.cacheDir, cacheKey)
 }
 
-// invokes cleanup(), but ignores ErrCleanupBusy errors.
+// invokes Cleanup(), but ignores ErrCleanupBusy errors.
 func (cm *CacheManager) opportunisticCleanup() error {
-	if err := cm.cleanup(); err != ErrCleanupBusy {
+	if err := cm.Cleanup(); err != ErrCleanupBusy {
 		return err
 	}
 	return nil
 }
 
-// cleanup ensures that only maxItems are stored in the cache. May return
+// Cleanup ensures that only maxItems are stored in the cache. May return
 // ErrCleanupBusy if the cleanup lock cannot be taken in which case the cleanup
 // is skipped.
-func (cm *CacheManager) cleanup() error {
+func (cm *CacheManager) Cleanup() error {
 	// try to obtain exclusive lock on the cache
 	if !cm.cleanupLock.TryLock() {
 		return ErrCleanupBusy
@@ -326,8 +326,4 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 	sort.Sort(changesByMtime(stats.PruneCandidates))
 
 	return &stats, nil
-}
-
-func (cm *CacheManager) Cleanup() error {
-	return cm.cleanup()
 }
