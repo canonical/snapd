@@ -247,6 +247,7 @@ parts:
         - optee-client-dev
     override-pull: |
       craftctl default
+      ln -sf packaging/ubuntu-16.04 debian
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
 

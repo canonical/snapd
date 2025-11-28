@@ -70,22 +70,14 @@ create_test_user(){
 }
 
 build_deb(){
-    # debian-sid packaging is special
-    if os.query is-debian sid; then
-        if [ ! -d packaging/debian-sid ]; then
-            echo "no packaging/debian-sid/ directory "
-            echo "broken test setup"
-            exit 1
-        fi
+    if [ ! -L debian ] ; then
+        echo "no debian directory or symlink, broken test setup"
+        exit 1
+    fi
 
+    if os.query is-debian sid; then
         # remove etckeeper
         apt purge -y etckeeper
-
-        # debian has its own packaging
-        rm -f debian
-        # the debian dir must be a real dir, a symlink will make
-        # dpkg-buildpackage choke later.
-        mv packaging/debian-sid debian
 
         apt build-dep -y ./
 
@@ -125,7 +117,7 @@ build_rpm() {
         distro=amzn
         release=2023
     fi
-    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
     rpm_dir=$(rpm --eval "%_topdir")
@@ -176,7 +168,7 @@ build_rpm() {
 }
 
 build_arch_pkg() {
-    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/arch
 
@@ -372,7 +364,22 @@ prepare_project() {
         fi
     fi
 
-    # so is ubuntu-14.04
+    # set up debian symlink as needed
+    if os.query is-trusty; then
+        # no packaging setup for 14.04, we're no longer building the packages in
+        # CI
+        :
+    elif os.query is-ubuntu; then
+        # TODO generate packaging appropriate for a given ubuntu release
+        ln -sf packaging/ubuntu-16.04 debian
+    elif os.query is-debian-sid ; then
+        # debian sid has special packaging
+        ln -sf packaging/debian-sid debian
+    elif os.query is-debian; then
+        # TODO debian reuses ubuntu 16.04 packaging
+        ln -sf packaging/ubuntu-16.04 debian
+    fi
+
     if os.query is-trusty; then
         quiet eatmydata apt-get install -y software-properties-common
 

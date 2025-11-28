@@ -71,7 +71,7 @@ jobs:
             ./vendor.sh
           )
           mkdir /tmp/pkg
-          base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+          base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
           version="1337.$base_version"
           ./packaging/pack-source -v "$version" -o /tmp/pkg
           ./packaging/pack-source -v "$version" -o /tmp/pkg -s
@@ -160,6 +160,7 @@ jobs:
       run: |
           sudo apt clean
           sudo apt update
+          ln -s packaging/ubuntu-16.04 debian
           sudo apt build-dep -d -y ${{ github.workspace }}
           # for indent
           sudo apt install texinfo autopoint
