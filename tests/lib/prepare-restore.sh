@@ -562,12 +562,17 @@ prepare_project() {
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
     # as they exist in the archive for further use.
+    # On 14.04 we only ever use snapd from the archive
     if tests.info is-snapd-from-archive; then
         case "$SPREAD_SYSTEM" in
             debian-*)
                 # In Debian 14+, the snap-confine transitional package was removed.
                 # In earlier versions it was just an empty package so it's not worth pulling.
                 ( cd "${GOHOME}" && tests.pkgs download snapd )
+                ;;
+            ubuntu-14.04-*)
+                # directly call apt-get, tests.pkgs only knows about 'apt'
+                ( cd "${GOHOME}" && apt-get download snapd snap-confine )
                 ;;
             *)
                 ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
@@ -591,6 +596,7 @@ prepare_project() {
         case "$SPREAD_SYSTEM" in
             ubuntu-14.04-*)
                 echo "building native packages on 14.04 is no longer supported"
+                exit 1
                 ;;
             ubuntu-*|debian-*)
                 # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
