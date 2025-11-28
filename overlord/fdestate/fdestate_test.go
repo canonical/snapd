@@ -103,7 +103,7 @@ func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
 	ts, err := fdestate.AddRecoveryKey(s.st, recoveryKeyID, []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},
 		{ContainerRole: "system-save", Name: "default-recovery"},
-		// Also non-system exra recovery keys can be added.
+		// Also non-system extra recovery keys can be added.
 		{ContainerRole: "system-data", Name: "some-other-slot"},
 	})
 	c.Assert(err, IsNil)
@@ -157,7 +157,7 @@ func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
 
 	// no key slots
 	_, err := fdestate.AddRecoveryKey(s.st, "good-key-id", nil)
-	c.Assert(err, ErrorMatches, "keyslots cannot be an empty")
+	c.Assert(err, ErrorMatches, "keyslots cannot be empty")
 
 	// invalid recovery key id
 	_, err = fdestate.AddRecoveryKey(s.st, "bad-key-id", keyslots)

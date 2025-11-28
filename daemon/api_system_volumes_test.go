@@ -353,7 +353,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyError(c *C) {
 	}))
 
 	// bad request error
-	body := strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id"}`)
+	body := strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id", "keyslots": [{"name": "some-keyslot"}]}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
@@ -367,7 +367,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyError(c *C) {
 	mockErr = &snapstate.ChangeConflictError{
 		Message: fmt.Sprintf("conflict error: boom!"),
 	}
-	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id"}`)
+	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id", "keyslots": [{"name": "some-keyslot"}]}`)
 	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -381,7 +381,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyError(c *C) {
 	mockErr = &fdestate.KeyslotsAlreadyExistsError{
 		Keyslots: []fdestate.Keyslot{{ContainerRole: "some-container-role", Name: "some-name"}},
 	}
-	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id"}`)
+	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id", "keyslots": [{"name": "some-keyslot"}]}`)
 	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -396,7 +396,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyError(c *C) {
 	mockErr = &fdestate.InvalidRecoveryKeyError{
 		Reason: fdestate.InvalidRecoveryKeyReasonNotFound,
 	}
-	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id"}`)
+	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id", "keyslots": [{"name": "some-keyslot"}]}`)
 	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -411,7 +411,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyError(c *C) {
 	mockErr = &fdestate.InsufficientContainerCapacityError{
 		ContainerRoles: []string{"system-data", "system-save"},
 	}
-	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id"}`)
+	body = strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-key-id", "keyslots": [{"name": "some-keyslot"}]}`)
 	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
 	req.Header.Add("Content-Type", "application/json")
 
@@ -435,6 +435,20 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyMissingKeyID(c
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKeyMissingKeyslots(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "add-recovery-key", "key-id": "some-id"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires keyslots to be provided")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {

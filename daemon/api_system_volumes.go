@@ -348,6 +348,9 @@ func postSystemVolumesActionAddRecoveryKey(c *Command, req *systemVolumesActionR
 	if req.KeyID == "" {
 		return BadRequest("system volume action requires key-id to be provided")
 	}
+	if len(req.Keyslots) == 0 {
+		return BadRequest("system volume action requires keyslots to be provided")
+	}
 
 	st := c.d.overlord.State()
 	st.Lock()
