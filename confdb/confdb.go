@@ -2193,7 +2193,8 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, rawLevel, constraints); err != nil {
+		entry := entry{key: key.Name(), value: rawLevel}
+		if ok, err := matchesConstraints(key, entry, constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2211,7 +2212,8 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
-				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+				entry := entry{key: k, value: v}
+				if ok, err := matchesConstraints(key, entry, constraints); err != nil {
 					return err
 				} else if !ok {
 					continue
@@ -2243,7 +2245,8 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 		results := make(map[string]any)
 
 		for k, v := range node {
-			if ok, err := matchesConstraints(key, v, constraints); err != nil {
+			entry := entry{key: k, value: v}
+			if ok, err := matchesConstraints(key, entry, constraints); err != nil {
 				return err
 			} else if !ok {
 				continue
@@ -2307,7 +2310,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, list[listIndex], constraints); err != nil {
+		if ok, err := fieldFiltersMatchConstraints(key, list[listIndex], constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2325,7 +2328,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			var level []any
 			for _, v := range list {
-				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+				if ok, err := fieldFiltersMatchConstraints(key, v, constraints); err != nil {
 					return err
 				} else if !ok {
 					// filter out this value
@@ -2358,7 +2361,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
-			if ok, err := matchesConstraints(key, el, constraints); err != nil {
+			if ok, err := fieldFiltersMatchConstraints(key, el, constraints); err != nil {
 				return err
 			} else if !ok {
 				// filter out this value
@@ -2406,9 +2409,37 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 	return get(subKeys, keyIndex+1, level, constraints, result)
 }
 
-// matchesConstraints returns true only if the object should not be filtered out,
-// either because it matches the constraints or they're not applicable.
-func matchesConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
+type entry struct {
+	key   string
+	value json.RawMessage
+}
+
+func matchesConstraints(acc Accessor, e entry, constraints map[string]string) (bool, error) {
+	if !constrainSubkeyPlaceholders(acc, e.key, constraints) {
+		return false, nil
+	}
+
+	return fieldFiltersMatchConstraints(acc, e.value, constraints)
+}
+
+func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]string) bool {
+	if acc.Type() != KeyPlaceholderType {
+		// filter doesn't apply
+		return true
+	}
+
+	constrained, ok := constraints[acc.Name()]
+	if !ok {
+		// no constraint for this placeholder
+		return true
+	}
+
+	return key == constrained
+}
+
+// fieldFiltersMatchConstraints returns true only if the object should not be
+// filtered out, either because it matches the constraints or they're not applicable.
+func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
