@@ -20,7 +20,7 @@ environment:
   # Only 25.10+ systems (including core) should be able to
   # use the new TPM FDE recovery key APIs, so keep those systems
   # so it fails hard when those checks are added to force
-  # chaning the test accordingly.
+  # changing the test accordingly.
   MODEL_VERSION/2404: "24.04"
   GADGET_VERSION/2404: classic-24.04
   KERNEL_VERSION/2404: "24"
