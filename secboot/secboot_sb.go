@@ -191,12 +191,17 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, expectFDEHook); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
+		} else {
+			logger.Noticef("MYDEBUG: no %s for %s", sealedEncryptionKeyFile, name)
 		}
 	}
 
 	var options []sb.ActivateOption
 	if loadedKey.KeyData != nil {
+		logger.Noticef("MYDEBUG: collected key data in %s for %s %s", sealedEncryptionKeyFile, name, loadedKey.KeyData.ReadableName())
 		options = append(options, sbWithExternalKeyData(loadedKey.KeyData.ReadableName(), loadedKey.KeyData))
+	} else {
+		logger.Noticef("MYDEBUG: no key data for %s", name)
 	}
 
 	if opts.WhichModel != nil {
