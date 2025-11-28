@@ -70,6 +70,11 @@ prepare: |
   # so we want to undo that to ensure our snaps are on them
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
+  # for some systems in the core variant, the version of snapd inside chroot will
+  # trigger a reexec with --reset-chroot, which will remove the /snap dir due to
+  # an old version of snap-preseed
+  mkdir -p "$IMAGE_MOUNTPOINT"/snap
+
   # unmount the image and start the VM
   umount_ubuntu_image "$IMAGE_MOUNTPOINT"
   tests.nested create-vm classic

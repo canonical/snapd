@@ -16,7 +16,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
@@ -25,10 +25,17 @@ jobs:
         run: |
           mkdir tests/smoke/empty
           echo -e "summary: test\nexecute: true\n" > tests/smoke/empty/task.yaml
+
+      - name: Download snapd snap
+        uses: ./.github/actions/download-snapd-snap
+        with:
+          use-master-push: true
+          is-amd64: true
+          is-arm64: false
+          is-fips: false
       
       - name: run empty test with spread
         env:
-          SPREAD_USE_SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
           SPREAD_USE_PREBUILT_SNAPD_SNAP: true
         run: |
           # Run spread in all the systems defined for openstack-ps7 environment
@@ -79,7 +86,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
@@ -109,7 +116,7 @@ jobs:
           mkdir "${{ github.workspace }}"
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           # spread uses tags as delta reference
           fetch-depth: 0
@@ -119,9 +126,16 @@ jobs:
           mkdir tests/smoke/empty
           echo -e "summary: test\nexecute: true\n" > tests/smoke/empty/task.yaml
 
+      - name: Download snapd snap
+        uses: ./.github/actions/download-snapd-snap
+        with:
+          use-master-push: true
+          is-amd64: true
+          is-arm64: false
+          is-fips: false
+
       - name: run repeated empty test with spread
         env:
-          SPREAD_USE_SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
           SPREAD_USE_PREBUILT_SNAPD_SNAP: true
         run: |
           # Run spread several times to get the avg time for the prepare/restore task

@@ -119,6 +119,17 @@ The following labels are commonly used:
 - `Skip spread`: instructs our CI system to not run any spread tests. Only unit
   tests will be executed. Use this when a PR only changes code in the unit tests.
   Do not use this flag if any production code changes.
+- `Run only one system`: instructs our CI system to only run one system or a
+  subset of systems. To run a subset of systems, add the case-insensitive tag
+  `#runonlyonesystem` followed by a regex somewhere in your PR description on its
+  own line. The regex should select the systems you wish to run as known to
+  our CI. For a list of systems, check
+  `.github/workflows/data-*fundamental-systems.json`
+
+  Examples:
+  - Run all opensuse and fedora systems: `#runonlyonesystem (opensuse|fedora)`
+  - Run all non-core ubuntu systems: `#runonlyonesystem ^ubuntu(?!-core).*`
+  - Run only jammy: `#runonlyonesystem ubuntu-22.04-64`
 
 ### Pull request updates
 

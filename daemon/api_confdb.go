@@ -110,6 +110,8 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if len(action.Values) == 0 {
 		return BadRequest("cannot set confdb: request body contains no values")
 	}
+	// TODO: apply some size restrictions to the value (so someone can't pass
+	// a massive string, for instance)
 
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {

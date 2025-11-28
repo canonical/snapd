@@ -162,7 +162,7 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 
 // Databag controls access to the confdb data storage.
 type Databag interface {
-	Get(path []Accessor) (any, error)
+	Get(path []Accessor, constraints map[string]string) (any, error)
 	Set(path []Accessor, value any) error
 	Unset(path []Accessor) error
 	Data() ([]byte, error)
@@ -268,7 +268,7 @@ func pathChangeAffects(modified, affected []Accessor) bool {
 			return true
 		}
 
-		if modified[i].Name() != affectedKey.Name() {
+		if modified[i].Type() != affectedKey.Type() || modified[i].Name() != affectedKey.Name() {
 			return false
 		}
 	}
@@ -308,12 +308,26 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 			}
 		}
 
+		var params map[string]paramPresence
+		if paramsRaw, ok := viewMap["parameters"]; ok {
+			paramsMap, ok := paramsRaw.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf(`cannot define view %q: expected optional "parameters" to be map but got %T`, name, paramsRaw)
+			}
+
+			var err error
+			params, err = parseParameters(paramsMap)
+			if err != nil {
+				return nil, fmt.Errorf("cannot define view %q: %w", name, err)
+			}
+		}
+
 		rules, ok := viewMap["rules"].([]any)
 		if !ok || len(rules) == 0 {
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		view, err := newView(dbSchema, name, rules)
+		view, err := newView(dbSchema, name, rules, params)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
@@ -324,11 +338,73 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 	return dbSchema, nil
 }
 
-func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
+type paramPresence uint8
+
+const (
+	optional paramPresence = iota
+	requiredOnWrite
+	requiredOnRead
+	required
+)
+
+var presenceStrings = []string{"optional", "required-on-write", "required-on-read", "required"}
+
+func (p paramPresence) String() string {
+	if int(p) >= len(presenceStrings) {
+		panic("unknown parameter presence")
+	}
+	return presenceStrings[p]
+}
+
+func newParamPresence(pres string) (paramPresence, error) {
+	if pres == "" {
+		pres = "optional"
+	}
+
+	for i, presStr := range presenceStrings {
+		if presStr == pres {
+			return paramPresence(i), nil
+		}
+	}
+
+	presQuoted := strutil.Quoted(presenceStrings)
+	return optional, fmt.Errorf(`expected "presence" to be one of %s or empty but was %q`, presQuoted, pres)
+}
+
+func parseParameters(params map[string]any) (map[string]paramPresence, error) {
+	paramPresence := make(map[string]paramPresence, len(params))
+
+	for param, attrsRaw := range params {
+		attrs, ok := attrsRaw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid parameter %q: expected map of strings but got %T", param, attrsRaw)
+		}
+
+		var presenceStr string
+		if presenceRaw, ok := attrs["presence"]; ok {
+			presenceStr, ok = presenceRaw.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid parameter %q: expected presence to be string but got %T", param, presenceRaw)
+			}
+		}
+
+		presence, err := newParamPresence(presenceStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parameter %q: %v", param, err)
+		}
+
+		paramPresence[param] = presence
+	}
+
+	return paramPresence, nil
+}
+
+func newView(schema *Schema, name string, viewRules []any, paramPresence map[string]paramPresence) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]viewRule, 0, len(viewRules)),
-		schema: dbSchema,
+		schema: schema,
+		params: paramPresence,
 	}
 
 	for _, ruleRaw := range viewRules {
@@ -361,7 +437,7 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 
 		// check the field filters in the last accessor against the schema
 		if rule.storage[len(rule.storage)-1].FieldFilters() != nil {
-			schemaAlts, err := dbSchema.DatabagSchema.SchemaAt(rule.storage)
+			schemaAlts, err := schema.DatabagSchema.SchemaAt(rule.storage)
 			if err != nil {
 				return nil, err
 			}
@@ -381,18 +457,47 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 				return nil, fmt.Errorf("can only apply field filters to maps but %q expects list after filters", rule.originalStorage)
 			}
 		}
+
+		params := getFilterParams(rule)
+		for _, param := range params {
+			if _, ok := paramPresence[param]; !ok {
+				return nil, fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+			}
+		}
 	}
 
 	for _, rules := range pathToRules {
 		// this also implicitly checks that the paths are consistent with the schema.
 		// For instance, if the schema expects foo.bar to be a boolean, the path
 		// "foo.bar.baz" would fail because it cannot key a boolean
-		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
+		if err := checkSchemaMismatch(schema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
 	}
 
 	return view, nil
+}
+
+func getFilterParams(rule viewRule) []string {
+	// filter duplicates
+	params := make(map[string]struct{})
+
+	for _, acc := range rule.storage {
+		for _, param := range acc.FieldFilters() {
+			params[param] = struct{}{}
+		}
+	}
+
+	return keys(params)
+}
+
+// TODO:GOVERSION: use maps.Keys once on go 1.23
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func parseRule(parent *viewRule, ruleRaw any) ([]viewRule, error) {
@@ -652,7 +757,7 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 		case isIndexPlaceholder:
 			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], part.filters))
 		default:
-			return nil, fmt.Errorf("invalid subkey %q", subkey)
+			return nil, fmt.Errorf("subkey %q must conform to base format %q", subkey, subkeyRegex)
 		}
 	}
 
@@ -695,6 +800,7 @@ type subKey struct {
 func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 	var subkeys []subKey
 	var rawFilters map[string]string
+	var expectFilterOrEnd bool
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
@@ -713,6 +819,7 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 
 		sb.Reset()
 		rawFilters = nil
+		expectFilterOrEnd = false
 		return nil
 	}
 
@@ -720,8 +827,8 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 	for pathBytes.Len() > 0 {
 		// ReadRune can only return EOF errors and we already checked Len() so the
 		// error can be safely ignored here
-		char, _, _ := pathBytes.ReadRune()
-		if char == utf8.RuneError {
+		char, n, _ := pathBytes.ReadRune()
+		if char == utf8.RuneError && n == 1 {
 			return nil, fmt.Errorf("non UTF-8 character")
 		}
 
@@ -737,8 +844,8 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 			}
 
 			// both field filters and list accesses start with '[', check the next character
-			nextChar, _, _ := pathBytes.ReadRune()
-			if nextChar == utf8.RuneError {
+			nextChar, n, _ := pathBytes.ReadRune()
+			if nextChar == utf8.RuneError && n == 1 {
 				return nil, fmt.Errorf("non UTF-8 character")
 			}
 
@@ -756,20 +863,26 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 				if prevFilter, ok := rawFilters[field]; ok {
 					return nil, fmt.Errorf("cannot apply more than one filter to the same field: [.%[1]s={%[2]s}] and [.%[1]s={%[3]s}]", field, prevFilter, filter)
 				}
-
 				rawFilters[field] = filter
+
+				// the only things that can be between a field filter and a new sub-key
+				// are other field filters
+				expectFilterOrEnd = true
 				continue
 			}
 
 			// we're parsing a new list accessor (e.g, [{n}]), save the previous
-			// sub-key and continue
-			pathBytes.UnreadRune()
+			// sub-key and continue. Only errors if last op was not successful read
+			_ = pathBytes.UnreadRune()
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
 			fallthrough
 
 		default:
+			if expectFilterOrEnd {
+				return nil, fmt.Errorf("invalid sub-key: field filters, if present, must be at the end of a sub-key")
+			}
 			sb.WriteRune(char)
 		}
 	}
@@ -788,8 +901,9 @@ func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error)
 	for pathBytes.Len() > 0 {
 		// ReadRune can only return EOF errors and we already checked Len() so the
 		// error can be safely ignored here
-		char, _, _ = pathBytes.ReadRune()
-		if char == utf8.RuneError {
+		var n int
+		char, n, _ = pathBytes.ReadRune()
+		if char == utf8.RuneError && n == 1 {
 			return "", "", fmt.Errorf("non UTF-8 character")
 		}
 
@@ -848,6 +962,7 @@ type View struct {
 	Name   string
 	rules  []viewRule
 	schema *Schema
+	params map[string]paramPresence
 }
 
 func (v *View) Schema() *Schema {
@@ -864,41 +979,43 @@ type expandedMatch struct {
 }
 
 // maxValueDepth is the limit on a value's nestedness. Creating a highly nested
-// JSON value only requires a few bytes per level, but when recursively traversing
-// such a value, each level requires about 2Kb stack. Prevent excessive stack
-// usage by limiting the recursion depth.
+// JSON value only requires a couple of bytes per level (e.g., {{...}}) but each
+// of those would cause us allocate a frame on the stack.
 var maxValueDepth = 64
 
-// validateSetValue checks that map keys conform to the same format as path sub-keys.
-func validateSetValue(v any, depth int) error {
-	if depth > maxValueDepth {
-		return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
-	}
+// validateSetValue performs some basic checks on the value being set:
+//   - map keys conform to the path sub-key regex
+//   - containers must contain a scalar either directly or indirectly
+//   - nestedness is limited.
+func validateSetValue(initial any) error {
+	for depth, values := 1, []any{initial}; len(values) > 0; depth++ {
+		if depth > maxValueDepth {
+			return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
+		}
 
-	var nestedVals []any
-	switch typedVal := v.(type) {
-	case map[string]any:
-		for k, v := range typedVal {
-			if !validSubkey.Match([]byte(k)) {
-				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+		upto := len(values)
+		for i := 0; i < upto; i++ {
+			switch typed := values[i].(type) {
+			case []any:
+				if len(typed) == 0 {
+					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
+				}
+				values = append(values, typed...)
+			case map[string]any:
+				if len(typed) == 0 {
+					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
+				}
+
+				for k, v := range typed {
+					if !validSubkey.MatchString(k) {
+						return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+					}
+
+					values = append(values, v)
+				}
 			}
-
-			nestedVals = append(nestedVals, v)
 		}
-
-	case []any:
-		nestedVals = typedVal
-	}
-
-	for _, v := range nestedVals {
-		if v == nil {
-			// the value can be nil (used to unset values for compatibility w/ options)
-			continue
-		}
-
-		if err := validateSetValue(v, depth+1); err != nil {
-			return err
-		}
+		values = values[upto:]
 	}
 
 	return nil
@@ -916,8 +1033,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
-	depth := 1
-	if err := validateSetValue(value, depth); err != nil {
+	if err := validateSetValue(value); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
@@ -936,7 +1052,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
 	getAccs := func(i int) []Accessor { return matches[i].storagePath }
-	sort.Slice(matches, byAccessor(matches, getAccs))
+	sort.Slice(matches, byAccessor(getAccs))
 
 	var expandedMatches []expandedMatch
 	suffixes := make(map[string]struct{}, len(matches))
@@ -968,7 +1084,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	// sort again since we may have unpacked a list into many expanded matches.
 	// Since list Set()s depend on the length of the existing list, the order matters
 	getAccs = func(i int) []Accessor { return expandedMatches[i].storagePath }
-	sort.Slice(expandedMatches, byAccessor(expandedMatches, getAccs))
+	sort.Slice(expandedMatches, byAccessor(getAccs))
 
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
@@ -991,10 +1107,9 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	return nil
 }
 
-type match interface{ expandedMatch | requestMatch }
 type accGetter func(i int) []Accessor
 
-func byAccessor[T match](matches []T, getAccs accGetter) func(x, y int) bool {
+func byAccessor(getAccs accGetter) func(x, y int) bool {
 	return func(x, y int) bool {
 		xPath := getAccs(x)
 		yPath := getAccs(y)
@@ -1484,10 +1599,49 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
-// Get returns the view value identified by the request. Returns a NoMatchError
-// if the view can't be found. Returns a NoDataError if there's no data for
-// the request.
-func (v *View) Get(databag Databag, request string) (any, error) {
+func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]string) error {
+	if op != "get" && op != "set" {
+		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
+	}
+
+	for _, m := range matches {
+		for _, acc := range m.storagePath {
+			if acc.FieldFilters() == nil {
+				continue
+			}
+
+			for _, param := range acc.FieldFilters() {
+				pres, ok := v.params[param]
+				if !ok {
+					// we checked this at schema creation so this shouldn't happen
+					return fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+				}
+
+				if _, ok := constraints[param]; ok {
+					// operation constrains this param, nothing to check
+					continue
+				}
+
+				switch {
+				case pres == required:
+					fallthrough
+				case pres == requiredOnRead && op == "get":
+					fallthrough
+				case pres == requiredOnWrite && op == "set":
+					return fmt.Errorf(`unconstrained filter parameter %q is set as %s in "parameters" stanza`, param, pres)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Get returns the view value identified by the request after the constraints
+// have been applied to any matching filter in the storage path. If the request
+// cannot be matched against any rule, it returns a NoMatchError, and if no data
+// is stored for the request, a NoDataError is returned.
+func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1503,9 +1657,13 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 		return nil, err
 	}
 
+	if err := v.checkUnconstrainedParams("get", matches, constraints); err != nil {
+		return nil, err
+	}
+
 	var merged any
 	for _, match := range matches {
-		val, err := databag.Get(match.storagePath)
+		val, err := databag.Get(match.storagePath, constraints)
 		if err != nil {
 			if errors.Is(err, &NoDataError{}) {
 				continue
@@ -1609,6 +1767,9 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
+// TODO: when constraints are applied to path placeholders, this should take
+// constraints to be passed into matchGetRequest (it's not unsafe not to do it
+// but it would include more paths in the check than necessary)
 func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
@@ -1751,7 +1912,7 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
 	// are read after
 	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
-	sort.Slice(matches, byAccessor(matches, getAccs))
+	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil
 }
@@ -1980,10 +2141,10 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(subKeys []Accessor) (any, error) {
+func (s JSONDatabag) Get(subKeys []Accessor, constraints map[string]string) (any, error) {
 	// TODO: create this in the return below as well?
 	var value any
-	if err := get(subKeys, 0, s, &value); err != nil {
+	if err := get(subKeys, 0, s, constraints, &value); err != nil {
 		return nil, err
 	}
 
@@ -1995,7 +2156,7 @@ func (s JSONDatabag) Get(subKeys []Accessor) (any, error) {
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []Accessor, index int, node any, result *any) error {
+func get(subKeys []Accessor, index int, node any, constraints map[string]string, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2003,9 +2164,9 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 
 	switch node := node.(type) {
 	case map[string]json.RawMessage:
-		return getMap(subKeys, index, node, result)
+		return getMap(subKeys, index, node, constraints, result)
 	case []json.RawMessage:
-		return getList(subKeys, index, node, result)
+		return getList(subKeys, index, node, constraints, result)
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
 		path := JoinAccessors(subKeys[:index+1])
@@ -2020,7 +2181,7 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, result *any) error {
+func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
 	key := subKeys[index]
 
 	var matchAll bool
@@ -2029,6 +2190,12 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		var ok bool
 		rawLevel, ok = node[key.Name()]
 		if !ok {
+			return &NoDataError{}
+		}
+
+		if ok, err := matchesConstraints(key, rawLevel, constraints); err != nil {
+			return err
+		} else if !ok {
 			return &NoDataError{}
 		}
 	} else if key.Type() == KeyPlaceholderType {
@@ -2044,11 +2211,21 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
+				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+					return err
+				} else if !ok {
+					continue
+				}
+
 				var deser any
 				if err := json.Unmarshal(v, &deser); err != nil {
 					return fmt.Errorf(`internal error: %w`, err)
 				}
 				level[k] = deser
+			}
+
+			if len(level) == 0 {
+				return &NoDataError{}
 			}
 
 			*result = level
@@ -2066,6 +2243,12 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		results := make(map[string]any)
 
 		for k, v := range node {
+			if ok, err := matchesConstraints(key, v, constraints); err != nil {
+				return err
+			} else if !ok {
+				continue
+			}
+
 			level, err := unmarshalLevel(subKeys, index, v)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
@@ -2079,7 +2262,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, index+1, level, &res); err != nil {
+			if err := get(subKeys, index+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2103,7 +2286,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		return err
 	}
 
-	return get(subKeys, index+1, level, result)
+	return get(subKeys, index+1, level, constraints, result)
 }
 
 // getList traverses node (a decoded JSON list) and, depending on the path being
@@ -2113,13 +2296,22 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *any) error {
+func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
 	key := subKeys[keyIndex]
 
 	var matchAll bool
 	listIndex := -1
 	if key.Type() == ListIndexType {
 		listIndex, _ = strconv.Atoi(key.Name())
+		if listIndex >= len(list) {
+			return &NoDataError{}
+		}
+
+		if ok, err := matchesConstraints(key, list[listIndex], constraints); err != nil {
+			return err
+		} else if !ok {
+			return &NoDataError{}
+		}
 	} else if key.Type() == IndexPlaceholderType {
 		matchAll = true
 	} else {
@@ -2127,21 +2319,28 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
 	}
 
-	if listIndex >= len(list) {
-		return &NoDataError{}
-	}
-
 	// read the final value
 	if keyIndex == len(subKeys)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
-			level := make([]any, len(list))
-			for i, v := range list {
+			var level []any
+			for _, v := range list {
+				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+					return err
+				} else if !ok {
+					// filter out this value
+					continue
+				}
+
 				var deser any
 				if err := json.Unmarshal(v, &deser); err != nil {
 					return fmt.Errorf(`internal error: %w`, err)
 				}
-				level[i] = deser
+				level = append(level, deser)
+			}
+
+			if len(level) == 0 {
+				return &NoDataError{}
 			}
 
 			*result = level
@@ -2159,6 +2358,13 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
+			if ok, err := matchesConstraints(key, el, constraints); err != nil {
+				return err
+			} else if !ok {
+				// filter out this value
+				continue
+			}
+
 			level, err := unmarshalLevel(subKeys, keyIndex+1, el)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
@@ -2172,7 +2378,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, keyIndex+1, level, &res); err != nil {
+			if err := get(subKeys, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2197,7 +2403,56 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return err
 	}
 
-	return get(subKeys, keyIndex+1, level, result)
+	return get(subKeys, keyIndex+1, level, constraints, result)
+}
+
+// matchesConstraints returns true only if the object should not be filtered out,
+// either because it matches the constraints or they're not applicable.
+func matchesConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
+	filters := acc.FieldFilters()
+	if len(filters) == 0 || len(constraints) == 0 {
+		// no filters to apply to this value
+		return true, nil
+	}
+
+	var mapVal map[string]json.RawMessage
+	if err := json.Unmarshal(val, &mapVal); err != nil {
+		if _, ok := err.(*json.UnmarshalTypeError); ok {
+			// field filters aren't applicable to this field (not a map)
+			return true, nil
+		}
+		return false, fmt.Errorf(`internal error: %w`, err)
+	}
+
+	for field, filterName := range filters {
+		constrVal, ok := constraints[filterName]
+		if !ok {
+			// no constraint value was provided for this filter, ignore
+			continue
+		}
+
+		if _, ok := mapVal[field]; !ok {
+			// the value doesn't contain the field, so it cannot match its constraint
+			return false, nil
+		}
+
+		// only allow constraining strings for now
+		var fieldVal string
+		if err := json.Unmarshal(mapVal[field], &fieldVal); err != nil {
+			if _, ok := err.(*json.UnmarshalTypeError); ok {
+				// can't compare this field to constraints
+				return false, nil
+			}
+			return false, fmt.Errorf(`internal error: %w`, err)
+		}
+
+		if fieldVal != constrVal {
+			// the filtered field doesn't match the provided constraint, filter out the map
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // noContainerError is used when the traversal logic expected some JSON to
@@ -2451,13 +2706,15 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 	}
 
 	if index == len(subKeys)-1 {
-		if key.Type() == KeyPlaceholderType {
-			// remove entire level
+		if key.Type() == KeyPlaceholderType || (len(node) == 1 && node[key.Name()] != nil) {
+			// remove entire level. We still need to iterate and delete() because the
+			// top level is always non-nil so returning nil isn't enough
+			for k := range node {
+				delete(node, k)
+			}
 			return nil, nil
 		}
 
-		// NOTE: don't remove entire level even if all entries are unset to keep it
-		// consistent with options
 		delete(node, key.Name())
 		return json.Marshal(node)
 	}
@@ -2500,6 +2757,9 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 		}
 	}
 
+	if len(node) == 0 {
+		return nil, nil
+	}
 	return json.Marshal(node)
 }
 
@@ -2522,8 +2782,10 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 			node = append(node[:i], node[i+1:]...)
 		}
 
-		// NOTE: we don't remove the list if all entries were unset to keep this
-		// consistent with maps (which in turn are consistent w/ how options work)
+		if len(node) == 0 {
+			return nil, nil
+		}
+
 		return json.Marshal(node)
 	}
 
@@ -2572,8 +2834,10 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 		}
 	}
 
-	// NOTE: we don't remove the list if all entries were unset to keep this
-	// consistent with maps (which in turn are consistent w/ how options work)
+	if len(node) == 0 {
+		return nil, nil
+	}
+
 	return json.Marshal(node)
 }
 

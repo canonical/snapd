@@ -1,14 +1,20 @@
 # shellcheck shell=sh
-
-# Expand $PATH to include the directory where snappy applications go.
-snap_bin_path="@SNAP_MOUNT_DIR@/bin"
-if [ -n "${PATH##*${snap_bin_path}}" ] && [ -n "${PATH##*${snap_bin_path}:*}" ]; then
+m4_dnl
+m4_changequote([,])m4_dnl
+m4_define([INJECT_DIR],[m4_dnl
+snap_bin_path="$1/bin"
+if test -n "${PATH##*${snap_bin_path}}" && test -n "${PATH##*${snap_bin_path}:*}"; then
     export PATH="$PATH:${snap_bin_path}"
 fi
+])m4_dnl
+# Expand $PATH to include the directory where snappy applications go.
+m4_ifelse(USE_CANONICAL_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/snap])])m4_dnl
+m4_ifelse(USE_ALT_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/var/lib/snapd/snap])])m4_dnl
+m4_dnl
 
 # Ensure base distro defaults xdg path are set if nothing filed up some
 # defaults yet.
-if [ -z "$XDG_DATA_DIRS" ]; then
+if test -z "$XDG_DATA_DIRS" ; then
     export XDG_DATA_DIRS="/usr/local/share:/usr/share"
 fi
 
@@ -16,7 +22,7 @@ fi
 # looked for in XDG_DATA_DIRS; make sure it includes the relevant directory for
 # snappy applications' desktop files.
 snap_xdg_path="/var/lib/snapd/desktop"
-if [ -n "${XDG_DATA_DIRS##*${snap_xdg_path}}" ] && [ -n "${XDG_DATA_DIRS##*${snap_xdg_path}:*}" ]; then
+if test -n "${XDG_DATA_DIRS##*${snap_xdg_path}}" && test -n "${XDG_DATA_DIRS##*${snap_xdg_path}:*}"; then
     export XDG_DATA_DIRS="${XDG_DATA_DIRS}:${snap_xdg_path}"
 fi
 

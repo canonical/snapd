@@ -55,19 +55,38 @@ func (s *fdeMgrSuite) settle(c *C) {
 
 func (s *fdeMgrSuite) TestKeyslotRefValidate(c *C) {
 	k := fdestate.KeyslotRef{ContainerRole: "system-data", Name: "some-keyslot"}
-	c.Assert(k.Validate(), IsNil)
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), IsNil)
 
 	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-keyslot"}
-	c.Assert(k.Validate(), IsNil)
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), IsNil)
 
 	k = fdestate.KeyslotRef{ContainerRole: "some-container", Name: "some-keyslot"}
-	c.Assert(k.Validate(), ErrorMatches, `unsupported container role "some-container", expected "system-data" or "system-save"`)
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), ErrorMatches, `unsupported container role "some-container", expected "system-data" or "system-save"`)
 
 	k = fdestate.KeyslotRef{Name: "some-keyslot"}
-	c.Assert(k.Validate(), ErrorMatches, "container role cannot be empty")
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), ErrorMatches, "container role cannot be empty")
 
 	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: ""}
-	c.Assert(k.Validate(), ErrorMatches, "name cannot be empty")
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), ErrorMatches, "name cannot be empty")
+
+	for _, name := range []string{"default-external", "snap-external", "default-recovery", "defaultt", "snapp"} {
+		k = fdestate.KeyslotRef{ContainerRole: "system-data", Name: name}
+		c.Assert(k.Validate(fdestate.KeyslotTypePlatform), ErrorMatches, `only system key slot names can start with "(default|snap)"`)
+	}
+	k = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), IsNil)
+	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
+	c.Assert(k.Validate(fdestate.KeyslotTypePlatform), IsNil)
+
+	for _, name := range []string{"default-external", "snap-external", "default-fallback", "default", "defaultt", "snapp"} {
+		k = fdestate.KeyslotRef{ContainerRole: "system-data", Name: name}
+		c.Assert(k.Validate(fdestate.KeyslotTypeRecovery), ErrorMatches, `only system key slot names can start with "(default|snap)"`)
+	}
+	k = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
+	c.Assert(k.Validate(fdestate.KeyslotTypeRecovery), IsNil)
+
+	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-keyslot"}
+	c.Assert(k.Validate("bad-type"), ErrorMatches, `internal error: unexpected key slot type "bad-type"`)
 }
 
 func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
@@ -249,10 +268,13 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
 
-	// invalid keyslot
+	// invalid keyslot reference, starts with "default" or "snap"
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
-	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): unsupported name, expected "default-recovery"`)
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): only system key slot names can start with "default"`)
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snap-external"}
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "snap-external"\): only system key slot names can start with "snap"`)
 
 	// invalid keyslot
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
@@ -418,10 +440,13 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
 
-	// invalid keyslot reference
+	// invalid keyslot reference, starts with "default" or "snap"
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
-	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported name, expected "default" or "default-fallback"`)
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): only system key slot names can start with "default"`)
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snap-external"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "snap-external"\): only system key slot names can start with "snap"`)
 
 	// missing keyslot
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
@@ -665,10 +690,13 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
 
-	// invalid key slot reference
+	// invalid keyslot reference, starts with "default" or "snap"
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
 	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
-	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported name, expected "default" or "default-fallback"`)
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): only system key slot names can start with "default"`)
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snap-external"}
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "snap-external"\): only system key slot names can start with "snap"`)
 
 	// missing keyslot
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
@@ -855,4 +883,12 @@ func (s *fdeMgrSuite) TestReplacePlatformKeySecbootPlatforms(c *C) {
 			c.Assert(ts, IsNil)
 		}
 	}
+}
+
+func (s *fdeMgrSuite) TestExpandSystemContainerRoles(c *C) {
+	refs := fdestate.ExpandSystemContainerRoles("some-key")
+	c.Assert(refs, DeepEquals, []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "some-key"},
+		{ContainerRole: "system-save", Name: "some-key"},
+	})
 }

@@ -36,7 +36,6 @@ class Distro(NamedTuple):
 
 
 debianish_distros = [
-    Distro("ubuntu-14.04", "trusty", "~14.04"),
     Distro("ubuntu-16.04", "xenial", ""),
     Distro("debian-sid", "unstable", "-1"),
 ]
