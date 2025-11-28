@@ -589,6 +589,9 @@ prepare_project() {
         # go mod runs as root and will leave strange permissions
         chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
+            ubuntu-14.04-*)
+                echo "building native packages on 14.04 is no longer supported"
+                ;;
             ubuntu-*|debian-*)
                 # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
                 gdebi --quiet --apt-line ./debian/control >deps.txt
