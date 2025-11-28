@@ -138,11 +138,11 @@ func (e *refreshControlError) Error() string {
 }
 
 // ValidateRefreshes validates the refresh candidate revisions represented by
-// the snapInfos, looking for the needed refresh control validation assertions,
+// the snap setups, looking for the needed refresh control validation assertions,
 // it returns a validated subset in validated and a summary error if not all
 // candidates validated. ignoreValidation is a set of snap-instance-names that
 // should not be gated.
-func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) (validated []*snap.Info, err error) {
+func ValidateRefreshes(s *state.State, snapSetups []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) (validated []snapstate.SnapSetup, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
@@ -184,15 +184,20 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	}
 
 	var errs []error
-	for _, candInfo := range snapInfos {
-		if ignoreValidation[candInfo.InstanceName()] {
-			validated = append(validated, candInfo)
+	for _, cand := range snapSetups {
+		if cand.SideInfo == nil {
+			errs = append(errs, fmt.Errorf("cannot refresh %q: missing side info", cand.InstanceName()))
 			continue
 		}
-		gatedID := candInfo.SnapID
+		instanceName := cand.InstanceName()
+		if ignoreValidation[instanceName] {
+			validated = append(validated, cand)
+			continue
+		}
+		gatedID := cand.SideInfo.SnapID
 		gating := controlled[gatedID]
 		if len(gating) == 0 { // easy case, no refresh control
-			validated = append(validated, candInfo)
+			validated = append(validated, cand)
 			continue
 		}
 
@@ -202,7 +207,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			for _, gatingID := range gating {
 				valref := &asserts.Ref{
 					Type:       asserts.ValidationType,
-					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
+					PrimaryKey: []string{release.Series, gatingID, gatedID, cand.SideInfo.Revision.String()},
 				}
 				err := f.Fetch(valref)
 				if notFound, ok := err.(*asserts.NotFoundError); ok && notFound.Type == asserts.ValidationType {
@@ -217,7 +222,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		}
 		err := doFetch(s, userID, deviceCtx, nil, fetching)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", instanceName, cand.SideInfo.Revision, err))
 			continue
 		}
 
@@ -233,11 +238,11 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			}
 		}
 		if revoked != nil {
-			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.InstanceName(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", instanceName, cand.SideInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
 			continue
 		}
 
-		validated = append(validated, candInfo)
+		validated = append(validated, cand)
 	}
 
 	if errs != nil {

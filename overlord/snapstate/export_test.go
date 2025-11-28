@@ -38,7 +38,6 @@ type (
 	ManagerBackend managerBackend
 
 	MinimalInstallInfo  = minimalInstallInfo
-	SnapUpdate          = update
 	InstallSnapInfo     = installSnapInfo
 	DirMigrationOptions = dirMigrationOptions
 	Migration           = migration
@@ -572,8 +571,16 @@ func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
 }
 
-func SplitEssentialUpdates(deviceCtx DeviceContext, updates []SnapUpdate) (essential, nonEssential []SnapUpdate) {
-	return splitEssentialUpdates(deviceCtx, updates)
+func SplitEssentialUpdates(deviceCtx DeviceContext, targets []Target) (essential, nonEssential []Target) {
+	return splitEssentialUpdates(deviceCtx, targets)
+}
+
+func NewTargetForTest(setup SnapSetup, snapst SnapState, comps []ComponentSetup) Target {
+	return target{
+		setup:      setup,
+		snapst:     snapst,
+		components: comps,
+	}
 }
 
 func MockAffectedSnapsByAttr(value map[string]AffectedSnapsFunc) (restore func()) {

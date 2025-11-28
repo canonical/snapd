@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -90,8 +91,12 @@ func (r *refreshHints) refresh() error {
 
 	var plan updatePlan
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		plan, err = storeUpdatePlan(auth.EnsureContextTODO(),
-			r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{})
+		plan, err = storeUpdatePlan(auth.EnsureContextTODO(), r.state, allSnaps, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged}, Options{
+			Flags: Flags{
+				IsAutoRefresh: true,
+			},
+			PrereqTracker: snap.SimplePrereqTracker{},
+		}, nil)
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -100,12 +105,8 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return err
 	}
-	deviceCtx, err := DeviceCtxFromState(r.state, nil)
-	if err != nil {
-		return err
-	}
 
-	hints, err := refreshHintsFromUpdatePlan(r.state, plan, deviceCtx)
+	hints, err := refreshHintsFromUpdatePlan(r.state, plan)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
@@ -164,54 +165,24 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
-	if ValidateRefreshes != nil && len(plan.targets) != 0 {
-		ignoreValidation := make(map[string]bool, len(plan.targets))
-		for _, t := range plan.targets {
-			if t.setup.IgnoreValidation {
-				ignoreValidation[t.info.InstanceName()] = true
-			}
-		}
-
-		const userID = 0
-
-		// if an error isn't returned here, then the returned list of snaps to
-		// refresh will match the input
-		_, err := ValidateRefreshes(st, plan.targetInfos(), ignoreValidation, userID, deviceCtx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan) (map[string]*refreshCandidate, error) {
 	hints := make(map[string]*refreshCandidate, len(plan.targets))
 	for _, t := range plan.targets {
-		info := t.info
 		var snapst SnapState
-		if err := Get(st, info.InstanceName(), &snapst); err != nil {
+		if err := Get(st, t.InstanceName(), &snapst); err != nil {
 			return nil, err
 		}
 
 		// we don't need to handle potential channel switches here, since those
 		// shouldn't happen during a auto-refresh
-		if snapst.IsInstalled() && !info.Revision.Unset() && snapst.Current == info.Revision {
+		if snapst.IsInstalled() && !t.setup.Revision().Unset() && snapst.Current == t.setup.Revision() {
 			continue
 		}
 
-		flags := snapst.Flags
-		flags.IsAutoRefresh = true
-		snapsup, compsups, err := t.setups(st, Options{
-			DeviceCtx: deviceCtx,
-			Flags:     flags,
-		})
-		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", info.InstanceName(), err)
-			continue
-		}
-
-		hints[info.InstanceName()] = &refreshCandidate{
-			SnapSetup:  snapsup,
-			Components: compsups,
-			Monitored:  IsSnapMonitored(st, info.InstanceName()),
+		hints[t.InstanceName()] = &refreshCandidate{
+			SnapSetup:  t.setup,
+			Components: t.components,
+			Monitored:  IsSnapMonitored(st, t.InstanceName()),
 		}
 	}
 	return hints, nil

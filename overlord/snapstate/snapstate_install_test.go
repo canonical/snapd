@@ -2541,18 +2541,18 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, info, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{}, prqt)
+	ts, setup, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", "", snapstate.Flags{}, prqt)
 	c.Assert(err, IsNil)
 
 	c.Assert(prqt.infos, HasLen, 1)
-	c.Check(prqt.infos[0], DeepEquals, info)
+	c.Check(prqt.infos[0].InstanceName(), Equals, setup.InstanceName())
 	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 
 	chg.AddAll(ts)
 
-	// ensure the returned info is correct
-	c.Check(info.SideInfo.RealName, Equals, "mock")
-	c.Check(info.Version, Equals, "1.0")
+	// ensure the returned setup is correct
+	c.Check(setup.SideInfo.RealName, Equals, "mock")
+	c.Check(setup.Version, Equals, "1.0")
 
 	s.settle(c)
 
@@ -4379,7 +4379,7 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, nil, 0, nil)
 	c.Assert(err, NotNil)
-	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+	c.Check(err, testutil.ErrorIs, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
 
 	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
@@ -6925,14 +6925,14 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		RevOpts:      snapstate.RevisionOptions{Channel: channel},
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, target, snapstate.Options{
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, target, snapstate.Options{
 		UserID: 1,
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, instanceName)
-	c.Check(info.Channel, Equals, channel)
-	c.Check(info.Revision, Equals, snapRevision)
+	c.Check(setup.InstanceName(), Equals, instanceName)
+	c.Check(setup.Channel, Equals, channel)
+	c.Check(setup.Revision(), Equals, snapRevision)
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
 		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo,
@@ -7422,15 +7422,15 @@ components:
 		Components:   components,
 	})
 
-	info, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
+	setup, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{
 		Flags: snapstate.Flags{
 			Required:       true,
 			RemoveSnapPath: opts.removePaths,
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, instanceName)
-	c.Check(info.Revision, Equals, si.Revision)
+	c.Check(setup.InstanceName(), Equals, instanceName)
+	c.Check(setup.Revision(), Equals, si.Revision)
 
 	chg.AddAll(ts)
 
@@ -8093,7 +8093,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyIgnoresValidation(c *C) {
-	snapstate.ValidateRefreshes = func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	snapstate.ValidateRefreshes = func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		return nil, fmt.Errorf("error: InstallPathMany should bypass refresh control checks")
 	}
 	defer func() { snapstate.ValidateRefreshes = nil }()

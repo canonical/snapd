@@ -72,6 +72,11 @@ func (e *SnapNeedsClassicError) Error() string {
 	return fmt.Sprintf("snap %q requires classic confinement", e.Snap)
 }
 
+func (e *SnapNeedsClassicError) Is(err error) bool {
+	_, ok := err.(*SnapNeedsClassicError)
+	return ok
+}
+
 type SnapNeedsClassicSystemError struct {
 	Snap string
 }

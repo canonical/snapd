@@ -210,7 +210,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		return &snap.Info{SuggestedName: mockedName}, nil
 	})()
 
-	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
@@ -220,10 +220,15 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		installQueue = append(installQueue, goal.snaps[0].InstanceName)
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		name, key := snap.SplitInstanceName(goal.snaps[0].InstanceName)
+		setup := snapstate.SnapSetup{
+			SideInfo:    &snap.SideInfo{RealName: name},
+			InstanceKey: key,
+		}
+		return []snapstate.SnapSetup{setup}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, snapstate.SnapSetup, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 
 		c.Check(path, testutil.FileEquals, "xyzzy")
@@ -232,7 +237,9 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), &snap.Info{SuggestedName: name}, nil
+		return state.NewTaskSet(t), snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{RealName: name},
+		}, nil
 	})()
 
 	buf := bytes.NewBufferString(content)
@@ -1059,7 +1066,7 @@ version: 1`, nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, snapstate.SnapSetup, error) {
 		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName: "foo",
@@ -1067,7 +1074,9 @@ version: 1`, nil)
 			Revision: snap.R(41),
 		})
 
-		return state.NewTaskSet(), &snap.Info{SuggestedName: "foo"}, nil
+		return state.NewTaskSet(), snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{RealName: "foo"},
+		}, nil
 	})()
 
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
@@ -1154,8 +1163,8 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		return &snap.Info{SuggestedName: "foo"}, nil
 	})()
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-		return nil, nil, &snapstate.ChangeConflictError{Snap: "foo"}
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, snapstate.SnapSetup, error) {
+		return nil, snapstate.SnapSetup{}, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
@@ -2360,7 +2369,7 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		})()
 
-		defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 			goal, ok := g.(*storeInstallGoalRecorder)
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 			c.Assert(goal.snaps, check.HasLen, 1)
@@ -2370,7 +2379,12 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 			}
 
 			t := st.NewTask("fake-install-snap", "Doing a fake install")
-			return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+			name, key := snap.SplitInstanceName(goal.snaps[0].InstanceName)
+			setup := snapstate.SnapSetup{
+				SideInfo:    &snap.SideInfo{RealName: name},
+				InstanceKey: key,
+			}
+			return []snapstate.SnapSetup{setup}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 		})()
 
 		// try the snap (without an installed core)

@@ -171,7 +171,7 @@ func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal
 	return testutil.Mock(&snapstateUpdateOne, mock)
 }
 
-func MockSnapstateInstallOne(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallOne(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error)) (restore func()) {
 	return testutil.Mock(&snapstateInstallOne, mock)
 }
 

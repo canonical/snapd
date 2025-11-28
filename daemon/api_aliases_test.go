@@ -590,11 +590,13 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []snapstate.SnapSetup{{
+			SideInfo: &snap.SideInfo{RealName: "fake"},
+		}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -617,11 +619,13 @@ func (s *aliasesSuite) TestInstallUnaliased(c *check.C) {
 func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []snapstate.SnapSetup{{
+			SideInfo: &snap.SideInfo{RealName: "fake"},
+		}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)
@@ -644,11 +648,13 @@ func (s *aliasesSuite) TestInstallIgnoreRunning(c *check.C) {
 func (s *aliasesSuite) TestInstallPrefer(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]snapstate.SnapSetup, []*state.TaskSet, error) {
 		calledFlags = opts.Flags
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
-		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []snapstate.SnapSetup{{
+			SideInfo: &snap.SideInfo{RealName: "fake"},
+		}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
 	d := s.daemon(c)

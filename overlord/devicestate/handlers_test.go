@@ -499,7 +499,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 	var testStore snapstate.StoreService
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (snapstate.SnapSetup, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -519,7 +519,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		return snapstate.SnapSetup{}, ts, nil
 	})
 	defer restore()
 

@@ -72,6 +72,17 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func snapSetupsFromInfos(infos ...*snap.Info) []snapstate.SnapSetup {
+	setups := make([]snapstate.SnapSetup, 0, len(infos))
+	for _, info := range infos {
+		setups = append(setups, snapstate.SnapSetup{
+			SideInfo:    &info.SideInfo,
+			InstanceKey: info.InstanceKey,
+		})
+	}
+	return setups
+}
+
 func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
 	verifyUpdateTasksWithComponents(c, typ, opts, 0, discards, nil, ts)
 }
@@ -757,7 +768,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	})
 
 	validateCalled := false
-	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	happyValidateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		validateCalled = true
 		return refreshes, nil
 	}
@@ -3384,10 +3395,10 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(refreshes, HasLen, 1)
-		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
-		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(refreshes[0].SideInfo.SnapID, Equals, "some-snap-id")
+		c.Check(refreshes[0].Revision(), Equals, snap.R(11))
 		c.Check(ignoreValidation, HasLen, 0)
 		return nil, validateErr
 	}
@@ -3416,7 +3427,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		return nil, validateErr
 	}
 	// hook it up
@@ -3450,7 +3461,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshesFail := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(refreshes, HasLen, 1)
 		if len(ignoreValidation) == 0 {
 			return nil, validateErr
@@ -3557,7 +3568,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	s.fakeStore.refreshRevnos = map[string]snap.Revision{
 		"some-snap-id": snap.R(11),
 	}
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		return refreshes, nil
 	}
 	// hook it up
@@ -3634,7 +3645,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshesFail := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(refreshes, HasLen, 2)
 		if len(ignoreValidation) == 0 {
 			return nil, validateErr
@@ -4119,7 +4130,7 @@ func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) 
 		SnapType: "app",
 	})
 
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(refreshes, HasLen, 2)
 		c.Check(ignoreValidation, HasLen, 0)
 		return refreshes, nil
@@ -4652,7 +4663,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	})
 
 	validateCalled := false
-	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx1 snapstate.DeviceContext) ([]*snap.Info, error) {
+	happyValidateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx1 snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(deviceCtx1, Equals, deviceCtx)
 		validateCalled = true
 		return refreshes, nil
@@ -5990,12 +6001,12 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	})
 
 	validateCalled := false
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		validateCalled = true
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].InstanceName(), Equals, "some-snap")
-		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
-		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(refreshes[0].SideInfo.SnapID, Equals, "some-snap-id")
+		c.Check(refreshes[0].Revision(), Equals, snap.R(11))
 		c.Check(ignoreValidation, HasLen, 0)
 		return refreshes, nil
 	}
@@ -6104,7 +6115,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 	})
 
 	validateCalled := false
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		validateCalled = true
 		c.Check(refreshes, HasLen, 2)
 		instanceIdx := 0
@@ -6115,10 +6126,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 		}
 		c.Check(refreshes[someIdx].InstanceName(), Equals, "some-snap")
 		c.Check(refreshes[instanceIdx].InstanceName(), Equals, "some-snap_instance")
-		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
-		c.Check(refreshes[0].Revision, Equals, snap.R(11))
-		c.Check(refreshes[1].SnapID, Equals, "some-snap-id")
-		c.Check(refreshes[1].Revision, Equals, snap.R(11))
+		c.Check(refreshes[0].SideInfo.SnapID, Equals, "some-snap-id")
+		c.Check(refreshes[0].Revision(), Equals, snap.R(11))
+		c.Check(refreshes[1].SideInfo.SnapID, Equals, "some-snap-id")
+		c.Check(refreshes[1].Revision(), Equals, snap.R(11))
 		c.Check(ignoreValidation, HasLen, 0)
 		return refreshes, nil
 	}
@@ -6150,10 +6161,10 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []snapstate.SnapSetup, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]snapstate.SnapSetup, error) {
 		c.Check(refreshes, HasLen, 1)
-		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
-		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(refreshes[0].SideInfo.SnapID, Equals, "some-snap-id")
+		c.Check(refreshes[0].Revision(), Equals, snap.R(11))
 		c.Check(ignoreValidation, HasLen, 0)
 		return nil, validateErr
 	}
@@ -14102,10 +14113,10 @@ func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestSplitEssentialSnapUpdates(c *C) {
-	updatesToNames := func(updates []snapstate.SnapUpdate) []string {
-		names := make([]string, 0, len(updates))
-		for _, up := range updates {
-			names = append(names, up.Setup.InstanceName())
+	targetsToNames := func(targets []snapstate.Target) []string {
+		names := make([]string, 0, len(targets))
+		for _, t := range targets {
+			names = append(names, t.InstanceName())
 		}
 		return names
 	}
@@ -14162,21 +14173,20 @@ func (s *snapmgrTestSuite) TestSplitEssentialSnapUpdates(c *C) {
 	}
 
 	for _, tc := range tcs {
-		updates := make([]snapstate.SnapUpdate, 0, len(tc.snaps))
+		targets := make([]snapstate.Target, 0, len(tc.snaps))
 		for _, sn := range tc.snaps {
-			updates = append(updates, snapstate.SnapUpdate{
-				Setup: snapstate.SnapSetup{
-					SideInfo: &snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: sn + "-id"},
-					Type:     snap.Type(types[sn]),
-					Base:     tc.bases[sn],
-				},
-			})
+			setup := snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: sn, Revision: snap.R(1), SnapID: sn + "-id"},
+				Type:     snap.Type(types[sn]),
+				Base:     tc.bases[sn],
+			}
+			targets = append(targets, snapstate.NewTargetForTest(setup, snapstate.SnapState{}, nil))
 		}
 
 		ctx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase(tc.modelBase)}
-		essential, nonEssential := snapstate.SplitEssentialUpdates(ctx, updates)
-		c.Assert(updatesToNames(essential), testutil.DeepUnsortedMatches, tc.essentialSnaps)
-		c.Assert(updatesToNames(nonEssential), testutil.DeepUnsortedMatches, tc.nonEssentialSnaps)
+		essential, nonEssential := snapstate.SplitEssentialUpdates(ctx, targets)
+		c.Assert(targetsToNames(essential), testutil.DeepUnsortedMatches, tc.essentialSnaps)
+		c.Assert(targetsToNames(nonEssential), testutil.DeepUnsortedMatches, tc.nonEssentialSnaps)
 	}
 }
 

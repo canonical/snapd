@@ -348,14 +348,14 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options, filter updateFilter) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
 		return updatePlan{}, err
 	}
 
-	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts)
+	plan, err := storeUpdatePlanCore(ctx, st, allSnaps, requested, user, refreshOpts, opts, filter)
 	if err != nil {
 		return updatePlan{}, err
 	}
@@ -382,7 +382,7 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 		}
 		hasUpdate := false
 		for _, update := range plan.targets {
-			if update.info.InstanceName() == name {
+			if update.InstanceName() == name {
 				hasUpdate = true
 				break
 			}
@@ -414,7 +414,7 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 		// we already started a pre-download for this snap, so no extra
 		// load is being exerted on the store.
 		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
+		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts, filter)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -432,7 +432,12 @@ func storeUpdatePlanCore(
 	user *auth.UserState,
 	refreshOpts *store.RefreshOptions,
 	opts Options,
+	filter updateFilter,
 ) (updatePlan, error) {
+	if filter == nil {
+		filter = func(*snap.Info, *SnapState) bool { return true }
+	}
+
 	if refreshOpts == nil {
 		return updatePlan{}, errors.New("internal error: refresh opts cannot be nil")
 	}
@@ -546,7 +551,7 @@ func storeUpdatePlanCore(
 		// compTargets will be filtered down to only the components that appear
 		// in the action result, meaning that we might install fewer components
 		// than we have installed right now
-		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
+		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames, opts.Flags)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
@@ -556,16 +561,32 @@ func storeUpdatePlanCore(
 		// track the channel that the snap is currently on
 		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
 
-		plan.targets = append(plan.targets, target{
-			info:   sar.Info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
-				CohortKey:    up.RevOpts.CohortKey,
-			},
-			components: compTargets,
-		})
+		snapsup := SnapSetup{
+			DownloadInfo: &sar.DownloadInfo,
+			Channel:      up.RevOpts.Channel,
+			CohortKey:    up.RevOpts.CohortKey,
+		}
+
+		if !filter(sar.Info, snapst) {
+			continue
+		}
+
+		t, err := newTargetFromInfo(st, *snapst, sar.Info, snapsup, compTargets, opts)
+		if err != nil {
+			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
+				logger.Noticef("cannot refresh snap %q: %v", sar.InstanceName(), err)
+				continue
+			}
+			return updatePlan{}, err
+		}
+
+		if err := checkSnapAgainstValidationSets(t.setup, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+			return updatePlan{}, err
+		}
+
+		opts.PrereqTracker.Add(sar.Info)
+
+		plan.targets = append(plan.targets, t)
 	}
 
 	// consider snaps that already have a local copy of the revision that we are
@@ -586,6 +607,10 @@ func storeUpdatePlanCore(
 		info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
 		if err != nil {
 			return updatePlan{}, err
+		}
+
+		if !filter(info, snapst) {
+			continue
 		}
 
 		// here, we attempt to refresh components that are currently installed.
@@ -620,33 +645,38 @@ func storeUpdatePlanCore(
 		// switching to
 		info.Channel = up.RevOpts.Channel
 
-		plan.targets = append(plan.targets, target{
-			info:   info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				Channel:   up.RevOpts.Channel,
-				CohortKey: up.RevOpts.CohortKey,
-				SnapPath:  info.MountFile(),
+		snapsup := SnapSetup{
+			Channel:   up.RevOpts.Channel,
+			CohortKey: up.RevOpts.CohortKey,
+			SnapPath:  info.MountFile(),
 
-				// if the caller specified a revision, then we always run
-				// through the entire update process. this enables something
-				// like "snap refresh --revision=n", where revision n is already
-				// installed
-				AlwaysUpdate: !up.RevOpts.Revision.Unset(),
-			},
-			components: compsups,
-		})
-	}
-
-	for _, t := range plan.targets {
-		up, ok := updates[t.info.InstanceName()]
-		if !ok {
-			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
+			// if the caller specified a revision, then we always run
+			// through the entire update process. this enables something
+			// like "snap refresh --revision=n", where revision n is already
+			// installed
+			AlwaysUpdate: !up.RevOpts.Revision.Unset(),
 		}
 
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		t, err := newTargetFromInfo(st, *snapst, info, snapsup, compsups, opts)
+		if err != nil {
+			if errors.Is(err, ErrTargetNotApplicable) && (opts.Flags.IsAutoRefresh || plan.refreshAll()) {
+				logger.Noticef("cannot refresh snap %q: %v", info.InstanceName(), err)
+				continue
+			}
 			return updatePlan{}, err
 		}
+
+		if err := checkSnapAgainstValidationSets(t.setup, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+			return updatePlan{}, err
+		}
+
+		opts.PrereqTracker.Add(info)
+
+		plan.targets = append(plan.targets, t)
+	}
+
+	if err := filterPlanWithRefreshControl(st, &plan, opts); err != nil {
+		return updatePlan{}, err
 	}
 
 	return plan, nil
