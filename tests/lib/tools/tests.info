@@ -11,13 +11,15 @@ show_help() {
     echo "    is-reexec-in-use:       indicates re-execution to the snapd snap is being effectively performed"
 }
 
-# ubuntu 14.04: does not support apt download which is used to get the packages from the archive.
+# ubuntu 14.04: snapd deb is always from the repositories
 # ubuntu-core: it is built based on the snapd.deb file, so it requires the deb is created from current.
 is_snapd_from_archive() {
-    [ "$SNAPD_DEB_FROM_REPO" = true ] && \
-    [ -n "$(command -v apt)" ] && \
-    [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]] && \
-    not os.query is-trusty
+    {
+        [ "$SNAPD_DEB_FROM_REPO" = true ] && \
+        [ -n "$(command -v apt)" ] && \
+        [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]
+    } || \
+    os.query is-trusty
 }
 
 is_reexec_enabled() {
