@@ -239,6 +239,10 @@ var helpCategories = []helpCategory{
 		Commands:        []string{"saved", "save", "check-snapshot", "restore", "forget"},
 		AllOnlyCommands: []string{"export-snapshot", "import-snapshot"},
 	}, {
+		Label:       i18n.G("Issue reporting"),
+		Description: i18n.G("report issues with a specific snap"),
+		Commands:    []string{"report-issue"},
+	}, {
 		Label:       i18n.G("Device"),
 		Description: i18n.G("manage device"),
 		Commands:    []string{"model", "remodel", "reboot", "recovery"},
