@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var (
@@ -88,8 +89,9 @@ var (
 )
 
 var (
-	buildID     = "unknown"
-	systemdVirt = ""
+	buildID            = "unknown"
+	systemdVirt        = ""
+	snapdtoolIsReexecd = snapdtool.IsReexecd
 )
 
 func init() {
@@ -127,6 +129,16 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get user auth data: %s", err)
 	}
 
+	reexecd, err := snapdtoolIsReexecd()
+	if err != nil {
+		return InternalError("cannot obtain snapd reexec status: %s", err)
+	}
+
+	snapdFrom := "snapd-snap"
+	if !reexecd {
+		snapdFrom = "native-package"
+	}
+
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
 		Hold: formatRefreshTime(refreshHold),
@@ -150,10 +162,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh":      refreshInfo,
-		"architecture": arch.DpkgArchitecture(),
-		"system-mode":  deviceMgr.SystemMode(devicestate.SysAny),
-		"features":     features.All(tr),
+		"refresh":          refreshInfo,
+		"architecture":     arch.DpkgArchitecture(),
+		"system-mode":      deviceMgr.SystemMode(devicestate.SysAny),
+		"features":         features.All(tr),
+		"snapd-bin-origin": snapdFrom,
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt

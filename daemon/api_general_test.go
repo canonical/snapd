@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -163,6 +164,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
 		"system-mode":      "run",
+		"snapd-bin-origin": "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -290,9 +292,10 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []any{"feature-1", "feature-2"},
 			"confinement-options": []any{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture":   arch.DpkgArchitecture(),
-		"virtualization": "kvm",
-		"system-mode":    "run",
+		"architecture":     arch.DpkgArchitecture(),
+		"virtualization":   "kvm",
+		"system-mode":      "run",
+		"snapd-bin-origin": "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -303,6 +306,84 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	const featuresKey = "features"
 	delete(rsp.Result.(map[string]any), featuresKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *generalSuite) testSysInfoBinOrigin(c *check.C, exp string, expErr string) {
+	s.expectSystemInfoReadAccess()
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+	restore = sandbox.MockForceDevMode(true)
+	defer restore()
+
+	r := c.MkDir()
+	// using unknown distro, set up
+	dirstest.MustMockAltSnapMountDir(r)
+	dirstest.MustMockClassicConfinementAltDirSupport(r)
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(r)
+
+	restore = daemon.MockSystemdVirt("magic")
+	defer restore()
+	// Set systemd version <230 so QuotaGroups feature unsupported
+	restore = systemd.MockSystemdVersion(229, nil)
+	defer restore()
+
+	buildID := "this-is-my-build-id"
+	restore = daemon.MockBuildID(buildID)
+	defer restore()
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	s.expectSystemInfoReadAccess()
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
+	if expErr == "" {
+		c.Check(rec.Code, check.Equals, 200)
+		c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
+
+		var rsp daemon.RespJSON
+		c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+		c.Check(rsp.Status, check.Equals, 200)
+		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+
+		m, _ := rsp.Result.(map[string]any)
+		c.Assert(m, check.NotNil)
+		c.Check(m["snapd-bin-origin"], check.Equals, exp)
+	} else {
+		c.Check(rec.Code, check.Equals, 500)
+		c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
+		assertResponseBody(c, rec.Body, map[string]any{
+			"type":        "error",
+			"status-code": float64(500),
+			"status":      "Internal Server Error",
+			"result": map[string]any{
+				"message": `cannot obtain snapd reexec status: mock error`,
+			},
+		})
+	}
+}
+
+func (s *generalSuite) TestSysInfoBinOriginSnapd(c *check.C) {
+	defer daemon.MockSnapdtoolsIsReexecd(func() (bool, error) {
+		return true, nil
+	})()
+
+	s.testSysInfoBinOrigin(c, "snapd-snap", "")
+}
+
+func (s *generalSuite) TestSysInfoBinOriginError(c *check.C) {
+	defer daemon.MockSnapdtoolsIsReexecd(func() (bool, error) {
+		return false, errors.New("mock error")
+	})()
+
+	s.testSysInfoBinOrigin(c, "", "foo bar")
 }
 
 func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
@@ -372,8 +453,9 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 			"apparmor":            []any{"feature-1", "feature-2"},
 			"confinement-options": []any{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture": arch.DpkgArchitecture(),
-		"system-mode":  mode,
+		"architecture":     arch.DpkgArchitecture(),
+		"system-mode":      mode,
+		"snapd-bin-origin": "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
