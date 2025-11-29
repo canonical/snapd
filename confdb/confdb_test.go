@@ -4306,3 +4306,104 @@ func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
 	_, err = view.Get(bag, "foo", map[string]string{"a": "a", "b": "b"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
+
+func (s *viewSuite) TestFilteringSubkey(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			// don't need "parameters" stanza to filter based on sub-keys
+			"rules": []any{
+				map[string]any{"request": "foo.{bar}.baz", "storage": "foo.{bar}.baz"},
+			},
+		},
+	}
+
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+	err = bag.Set(parsePath(c, "foo"), map[string]any{
+		"a": map[string]any{"baz": "a"},
+		"b": map[string]any{"baz": "b"},
+	})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "foo", nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]any{
+		"a": map[string]any{"baz": "a"},
+		"b": map[string]any{"baz": "b"},
+	})
+
+	val, err = view.Get(bag, "foo", map[string]string{"bar": "b"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]any{
+		"b": map[string]any{"baz": "b"},
+	})
+
+	val, err = view.Get(bag, "foo", map[string]string{"bar": "a"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]any{
+		"a": map[string]any{"baz": "a"},
+	})
+
+	_, err = view.Get(bag, "foo", map[string]string{"bar": "c"})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (s *viewSuite) TestFilterNestedSubkey(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			// don't need "parameters" stanza to filter based on sub-keys
+			"rules": []any{
+				map[string]any{"request": "foo.{bar}.{baz}", "storage": "foo.{bar}.{baz}"},
+			},
+		},
+	}
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+	err = bag.Set(parsePath(c, "foo"), map[string]any{
+		"a": map[string]any{
+			"c": "1",
+			"d": "1",
+		},
+		"b": map[string]any{
+			"c": "1",
+			"d": "1",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "foo", map[string]string{"baz": "c"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]any{
+		"a": map[string]any{
+			"c": "1",
+		},
+		"b": map[string]any{
+			"c": "1",
+		},
+	})
+
+	_, err = view.Get(bag, "foo", map[string]string{"baz": "e"})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+
+	err = view.Unset(bag, "foo")
+	c.Assert(err, IsNil)
+
+	err = bag.Set(parsePath(c, "foo"), map[string]any{
+		"a": map[string]any{
+			"c": "1",
+		},
+		"b": map[string]any{
+			"d": "1",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(bag, "foo", map[string]string{"baz": "c", "bar": "b"})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
