@@ -1,0 +1,73 @@
+summary: Ensure devlxd interface works.
+
+details: |
+    The devlxd interface allows a snap to access the LXD devlxd socket.
+    This socket provides instance information and metadata to applications
+    running inside LXD instances.
+
+systems: [ubuntu-*]
+
+environment:
+    DEVLXD_PATH: /dev/lxd/sock
+    DEVLXD_OUTPUT: /tmp/devlxd-output.txt
+
+prepare: |
+    echo "Given a snap declaring a devlxd plug is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "And a unix domain socket listener is set up"
+    if [ -e "$DEVLXD_PATH" ]; then
+        echo "Socket path $DEVLXD_PATH already exists"
+        exit 1
+    fi
+
+    d="$(dirname "$DEVLXD_PATH")"
+    mkdir -p "$d"
+    tests.cleanup defer rm -rf "$d"
+
+    # We create an actual socket to simulate a real /dev/lxd/sock socket
+    systemd-run --unit=fake-lxd -r -q /bin/sh -c "nc -l -U $DEVLXD_PATH > $DEVLXD_OUTPUT"
+    tests.cleanup defer rm -f "$DEVLXD_OUTPUT"
+    retry -n 30 --wait 1 sh -c "test -S $DEVLXD_PATH"
+
+    if [ ! -S "$DEVLXD_PATH" ]; then
+        echo "Failed to create unix domain socket at $DEVLXD_PATH"
+        exit 1
+    fi
+
+restore: |
+    systemctl stop fake-lxd
+    rm -rf /var/snap/lxd/common/lxd/devlxd /dev/lxd
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i devlxd | MATCH '^- +test-snapd-sh:devlxd'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-sh:devlxd
+
+    echo "Then the snap is able to write to the socket"
+    test-snapd-sh.with-devlxd-plug -c "python3 - <<'PY'
+    import socket
+    p = '$DEVLXD_PATH'
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(p)
+    s.sendall(b'test-message\n')
+    s.close()
+    PY"
+
+    # Wait for the socket listener to receive and write the data
+    retry -n 30 --wait 1 sh -c "grep -q 'test-message' $DEVLXD_OUTPUT"
+
+    MATCH "test-message" < "$DEVLXD_OUTPUT"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:devlxd
+
+    echo "Then the snap cannot write to the socket"
+    test-snapd-sh.with-devlxd-plug -c "echo 'denied' | nc -U $DEVLXD_PATH" 2>&1 |& tee output.log || true
+    MATCH "Permission denied" < output.log
