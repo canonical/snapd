@@ -718,6 +718,8 @@ type cacheObserver struct {
 	// list of errors to return on Put() to a specific key
 	putFailForKey map[string][]error
 	putErrHits    map[string]int
+
+	cleanupCalls int
 }
 
 func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
@@ -746,6 +748,11 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	return nil
 }
 
+func (co *cacheObserver) Cleanup() error {
+	co.cleanupCalls++
+	return nil
+}
+
 func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 	obs := &cacheObserver{inCache: map[string]bool{"the-snaps-sha3_384": true}}
 	restore := s.store.MockCacher(obs)
@@ -766,6 +773,7 @@ func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
+	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
 func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
@@ -887,6 +895,7 @@ esac
 		fmt.Sprintf("%s:%s", snap.Sha3_384, path),
 	})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
+	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
@@ -973,6 +982,7 @@ func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
 	c.Check(obs.putErrHits, DeepEquals, map[string]int{
 		foo_sha3: 1,
 	})
+	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
 func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
@@ -1093,6 +1103,10 @@ func (co *fakeCacher) GetPath(cacheKey string) string {
 }
 
 func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Cleanup() error {
 	panic("unexpected call")
 }
 

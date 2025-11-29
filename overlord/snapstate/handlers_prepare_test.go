@@ -56,6 +56,7 @@ func (s *baseHandlerSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.runner)
 	c.Assert(err, IsNil)
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Now().Add(time.Hour))
 
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)
