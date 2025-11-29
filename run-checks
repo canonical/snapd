@@ -150,7 +150,7 @@ missing_interface_spread_test() {
             # skip gadget provided interfaces for now
             continue
             ;;
-        cuda-driver-libs | egl-driver-libs | gbm-driver-libs | opengl-driver-libs | opengles-driver-libs | vulkan-driver-libs)
+        cuda-driver-libs | egl-driver-libs | gbm-driver-libs | nvidia-video-driver-libs | opengl-driver-libs | opengles-driver-libs | vulkan-driver-libs)
             # skip interfaces with plug side only in rootfs for now
             continue
             ;;
