@@ -110,6 +110,16 @@ func (req *RequestMessage) Assumes() []string {
 	return req.assumes
 }
 
+// ValidSince returns the time when the request-message starts being valid.
+func (req *RequestMessage) ValidSince() time.Time {
+	return req.since
+}
+
+// ValidUntil returns the time when the request-message stops being valid.
+func (req *RequestMessage) ValidUntil() time.Time {
+	return req.until
+}
+
 func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 	accountID := assert.HeaderString("account-id")
 	if !validAccountID.MatchString(accountID) {
