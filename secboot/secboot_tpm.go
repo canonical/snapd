@@ -222,29 +222,6 @@ func lockTPMSealedKeys() error {
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
 }
 
-func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ...string) *sb.ActivateVolumeOptions {
-	passphraseTry := 0
-	if allowPassphrase {
-		passphraseTry = 1
-	}
-	options := sb.ActivateVolumeOptions{
-		PassphraseTries: passphraseTry,
-		// disable recovery key by default
-		RecoveryKeyTries:  0,
-		KeyringPrefix:     keyringPrefix,
-		LegacyDevicePaths: legacyPaths,
-	}
-	if allowRecoveryKey {
-		// enable recovery key only when explicitly allowed
-		options.RecoveryKeyTries = 3
-	}
-	return &options
-}
-
-func newAuthRequestor() sb.AuthRequestor {
-	return NewSystemdAuthRequestor()
-}
-
 func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
 	kdReader, err := sb.NewLUKS2KeyDataReader(devicePath, slotName)
 	if err != nil {
@@ -315,6 +292,8 @@ func hasOldSealedKeyPrefix(keyfile string) (bool, error) {
 // provided in that case will be enough for unlocking.
 // TODO:FDEM: consider moving this to secboot
 func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error {
+	logger.Noticef("MYDEBUG: readKeyFileImpl %s %v", keyfile, hintExpectFDEHook)
+
 	oldSealedKey, err := hasOldSealedKeyPrefix(keyfile)
 	if err != nil {
 		return err
@@ -322,6 +301,8 @@ func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error
 
 	switch {
 	case oldSealedKey && hintExpectFDEHook:
+		logger.Noticef("MYDEBUG: found very old key")
+
 		// FDE hook key v1
 		//
 		// It has the same magic header as sealed key object,
@@ -335,6 +316,8 @@ func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error
 		return nil
 
 	case oldSealedKey && !hintExpectFDEHook:
+		logger.Noticef("MYDEBUG: found old TPM key")
+
 		// TPM sealed object
 		sealedObject, err := sbReadSealedKeyObjectFromFile(keyfile)
 		if err != nil {
@@ -349,6 +332,8 @@ func readKeyFileImpl(keyfile string, kl keyLoader, hintExpectFDEHook bool) error
 		return nil
 
 	default:
+		logger.Noticef("MYDEBUG: found key data")
+
 		reader, err := sbNewFileKeyDataReader(keyfile)
 		if err != nil {
 			return fmt.Errorf("cannot open key data: %v", err)
