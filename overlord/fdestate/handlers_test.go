@@ -112,7 +112,10 @@ func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.Keyslot
 func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 	const onClassic = true
 	manager := s.startedManager(c, onClassic)
-	s.mockCurrentKeys(c, nil, nil)
+	s.mockCurrentKeys(c,
+		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-1"}},
+		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-2"}},
+	)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -132,7 +135,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
-				{ContainerRole: "system-data", Name: "default-recovery"}, // already exists
+				{ContainerRole: "system-data", Name: "some-key-1"}, // already exists
 				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
 			},
 			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
@@ -180,6 +183,18 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			expectedAdds:    []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
 			expectedDeletes: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
 			expectedErr:     `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "some-key-3"},
+				{ContainerRole: "system-data", Name: "some-key-4"},
+				{ContainerRole: "system-data", Name: "some-key-5"},
+				{ContainerRole: "system-data", Name: "some-key-6"},
+				{ContainerRole: "system-data", Name: "some-key-7"},
+				{ContainerRole: "system-data", Name: "some-key-8"},
+				{ContainerRole: "system-data", Name: "some-key-9"},
+			},
+			expectedErr: `insufficient capacity on container system-data`,
 		},
 	}
 

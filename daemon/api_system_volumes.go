@@ -42,7 +42,7 @@ var systemVolumesCmd = &Command{
 	GET:  getSystemVolumes,
 	POST: postSystemVolumesAction,
 	Actions: []string{
-		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
+		"generate-recovery-key", "check-recovery-key", "add-recovery-key", "replace-recovery-key",
 		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase"},
 	// anyone can enumerate key slots.
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
@@ -67,6 +67,10 @@ var systemVolumesCmd = &Command{
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     polkitActionManageFDE,
 			},
+			"add-recovery-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
 			"replace-recovery-key": interfaceRootAccess{
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     polkitActionManageFDE,
@@ -81,11 +85,13 @@ var systemVolumesCmd = &Command{
 	},
 }
 
+var fdeAddRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-add-recovery-key")
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
 var fdeReplacePlatformKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-platform-key")
 var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
 
 var (
+	fdestateAddRecoveryKey     = fdestate.AddRecoveryKey
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
 	fdestateReplacePlatformKey = fdestate.ReplacePlatformKey
 	fdestateChangeAuth         = fdestate.ChangeAuth
@@ -281,6 +287,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesActionGenerateRecoveryKey(c)
 	case "check-recovery-key":
 		return postSystemVolumesActionCheckRecoveryKey(c, &req)
+	case "add-recovery-key":
+		return postSystemVolumesActionAddRecoveryKey(c, &req)
 	case "replace-recovery-key":
 		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
 	case "replace-platform-key":
@@ -334,6 +342,30 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 	}
 
 	return SyncResponse(nil)
+}
+
+func postSystemVolumesActionAddRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.KeyID == "" {
+		return BadRequest("system volume action requires key-id to be provided")
+	}
+	if len(req.Keyslots) == 0 {
+		return BadRequest("system volume action requires keyslots to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateAddRecoveryKey(st, req.KeyID, req.Keyslots)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "cannot add recovery key: %v")
+	}
+
+	chg := newChange(st, fdeAddRecoveryKeyChangeKind, "Add recovery key", []*state.TaskSet{ts}, nil)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
 }
 
 func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
