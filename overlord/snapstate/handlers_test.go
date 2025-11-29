@@ -258,7 +258,7 @@ func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
 			map[string]*snap.AppInfo{
 				"app": {
 					Daemon:      "",
-					DaemonScope: snap.UserDaemon,
+					DaemonScope: snap.UserDaemonScope,
 				},
 			},
 			map[int][]string{},
@@ -272,7 +272,7 @@ func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon:      "simple",
-					DaemonScope: snap.UserDaemon,
+					DaemonScope: snap.UserDaemonScope,
 				},
 			},
 			map[int][]string{},
@@ -303,7 +303,7 @@ func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon:      "simple",
-					DaemonScope: snap.UserDaemon,
+					DaemonScope: snap.UserDaemonScope,
 				},
 			},
 			map[int][]string{
@@ -323,7 +323,7 @@ func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon:      "simple",
-					DaemonScope: snap.UserDaemon,
+					DaemonScope: snap.UserDaemonScope,
 				},
 			},
 			map[int][]string{
@@ -343,7 +343,7 @@ func (s *handlersSuite) TestComputeMissingDisabledUserServices(c *C) {
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon:      "",
-					DaemonScope: snap.UserDaemon,
+					DaemonScope: snap.UserDaemonScope,
 				},
 			},
 			map[int][]string{

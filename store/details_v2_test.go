@@ -385,7 +385,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	// validate apps
 	c.Check(info.Apps["user-svc"].Command, Equals, "bin/user-svc")
 	c.Check(info.Apps["user-svc"].Daemon, Equals, "simple")
-	c.Check(info.Apps["user-svc"].DaemonScope, Equals, snap.UserDaemon)
+	c.Check(info.Apps["user-svc"].DaemonScope, Equals, snap.UserDaemonScope)
 
 	// validate components
 	someComponent := *info.Components["some-component"]
