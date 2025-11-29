@@ -281,6 +281,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"setup-snap",
 		"remove-snap-aliases",
 		"run-inhibit-snap-for-unlink",
+		"discard-namespace-locked",
 		"unlink-snap",
 		"copy-data",
 		"setup-snap-save-data",
@@ -400,6 +401,10 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:                 "unlink-snap",
@@ -954,6 +959,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	ops = append(ops, []string{
 		"remove-snap-aliases",
 		"run-inhibit-snap-for-unlink",
+		"discard-namespace-locked",
 		"unlink-snap",
 		"prepare-kernel-snap",
 		"update-gadget-assets:Doing",
@@ -1191,6 +1197,10 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "services-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "services-snap",
 		},
 		{
 			op:                 "unlink-snap",
@@ -1569,6 +1579,10 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "services-snap_instance",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "services-snap_instance",
 		},
 		{
 			op:                 "unlink-snap",
@@ -2486,6 +2500,10 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
@@ -2827,6 +2845,10 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:                 "unlink-snap",
@@ -14645,6 +14667,10 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
 		},
@@ -14889,6 +14915,10 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        instanceName,
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
 		},
 		{
 			op:   "unlink-snap",
@@ -15291,6 +15321,10 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
 		},
@@ -15647,6 +15681,10 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 			op:          "run-inhibit-snap-for-unlink",
 			name:        instanceName,
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
 		},
 		{
 			op:   "unlink-snap",
@@ -16323,6 +16361,10 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
 			unlinkSkipBinaries: opts.refreshAppAwarenessUX,
@@ -16840,6 +16882,10 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 			op:          "run-inhibit-snap-for-unlink",
 			name:        snapName,
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: snapName,
 		},
 		{
 			op:                 "unlink-snap",
@@ -17558,6 +17604,10 @@ components:
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
@@ -17955,6 +18005,10 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 			op:          "run-inhibit-snap-for-unlink",
 			name:        instanceName,
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: instanceName,
 		},
 		{
 			op:                 "unlink-snap",
@@ -18429,7 +18483,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 			op:          "run-inhibit-snap-for-unlink",
 			name:        instanceName,
 			inhibitHint: "refresh",
-		}, fakeOp{
+		},
+		fakeOp{
+			op:   "discard-namespace-locked",
+			name: instanceName,
+		},
+		fakeOp{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
 			unlinkSkipBinaries: opts.refreshAppAwarenessUX,

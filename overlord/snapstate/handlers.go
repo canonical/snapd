@@ -1525,6 +1525,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 				return err
 			}
 		}
+
+		// we're still holding the snap lock
+		logger.Debugf("discarding snap %q mount namespace", snapsup.InstanceName())
+		if err := m.backend.DiscardSnapNamespaceLocked(snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 
 	snapst.Active = false
