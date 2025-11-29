@@ -1470,7 +1470,7 @@ var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error 
 	return nil
 }
 
-func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
+func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
 	st := t.State()
@@ -1519,7 +1519,16 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 
 			return err
 		}
+
 		defer lock.Close()
+		defer func() {
+			if retErr != nil {
+				if unlockErr := runinhibit.Unlock(snapsup.InstanceName(), nil); unlockErr != nil {
+					t.Logf("cannot unlock run inhibition: %v", unlockErr)
+				}
+			}
+		}()
+
 		if inhibitionTimeout {
 			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
 				return err
