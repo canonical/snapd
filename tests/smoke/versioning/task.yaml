@@ -42,9 +42,9 @@ execute: |
     MATCH "architecture *(amd64|arm64|armel|armhf|i386|ppc64el|riscv64|s390x)" < version.out
 
     if tests.info is-reexec-in-use; then
-        MATCH "snapd-bin-origin .*snapd-snap" < version-verbose.out
-        MATCH "snap-bin-origin .*snapd-snap" < version-verbose.out
+        MATCH "snapd-bin-from +snap" < version-verbose.out
+        MATCH "snap-bin-from +snap" < version-verbose.out
     else
-        MATCH "snapd-bin-origin .*native-package" < version-verbose.out
-        MATCH "snap-bin-origin .*native-package" < version-verbose.out
+        MATCH "snapd-bin-from +native-package" < version-verbose.out
+        MATCH "snap-bin-from +native-package" < version-verbose.out
     fi
