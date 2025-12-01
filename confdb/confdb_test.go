@@ -4467,7 +4467,7 @@ func hasInvalidSubkeys(s string, o confdb.ParseOptions) bool {
 	return false
 }
 
-func hasEmptySubkey(s string, o confdb.ParseOptions) bool {
+func hasEmptySubkey(s string) bool {
 	subStrings := subkeyWithDot.FindAllString(s, -1)
 	if len(subStrings) == 0 {
 		return true
@@ -4520,7 +4520,7 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 		if err != nil && isProblematicSubkeyError(err.Error()) && hasInvalidSubkeys(s, o) {
 			t.Skip()
 		}
-		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s, o) {
+		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s) {
 			t.Skip()
 		}
 		if err != nil && err.Error() == "non UTF-8 character" && !utf8.ValidString(s) {
@@ -4539,7 +4539,7 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 		if len(accessors) == len(expected) {
 			for i, e := range expected {
 				if accessors[i].Access() != e {
-					t.Errorf("unexpected type of accessor %v with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
+					t.Errorf("unexpected type of accessor %T with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
 				}
 			}
 		} else if len(accessors) != len(expected)-len(fieldFilterReg.FindAllString(s, -1)) {
