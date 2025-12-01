@@ -25,6 +25,9 @@ environment:
   GADGET_VERSION/2504: "classic-25.04"
   KERNEL_VERSION/2504: "25.04"
 
+  # XXX: Add UC test variant? It is not officially supported
+  # but might help spot edge cases.
+
   KDF_TYPE/pbkdf2: pbkdf2
   KDF_TYPE/argon2i: argon2i
   KDF_TYPE/argon2id: argon2id
