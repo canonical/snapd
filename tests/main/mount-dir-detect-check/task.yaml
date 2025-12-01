@@ -61,13 +61,30 @@ execute: |
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
   baddir="$(cat mock-mount-dir)"
 
-  echo "No snaps can be installed if detection found unexpected snap mount directory"
-  "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 2>&1 | MATCH "unexpected snap mount directory"
+  if ! os.query is-opensuse; then
+      echo "No snaps can be installed if detection found unexpected snap mount directory"
+      "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 2>&1 | MATCH "unexpected snap mount directory"
+  else
+      # on openSUSE, we support mount dir migration so either location works
+      "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+      tests.systemd stop-unit snapd.service
+      # purge all snaps so that the alt mount directory can be purged
+      snapd.tool exec snap-mgmt --purge
+  fi
 
   echo "After restoring the correct snap mount directory"
   rm -rf "$baddir"
   mkdir -p "$SNAP_MOUNT_DIR"
   systemctl restart snapd.service
+  # previous steps may have purged the state
+  snap wait system seed.loaded
 
   echo "Snaps can be installed again"
   "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+  test -d "$SNAP_MOUNT_DIR"
+  test ! -d "$baddir"
+
+  echo "And still work"
+  test-snapd-sh-core24.sh -c true

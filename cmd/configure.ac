@@ -160,6 +160,10 @@ AC_ARG_WITH([snap-mount-dir],
 AC_SUBST(STATIC_SNAP_MOUNT_DIR)
 AC_DEFINE_UNQUOTED([STATIC_SNAP_MOUNT_DIR], "${STATIC_SNAP_MOUNT_DIR}", [Static location of the snap mount points])
 
+STATIC_SNAP_TOOLING_DIR="${libexecdir%/snapd}/snapd"
+AC_SUBST(STATIC_SNAP_TOOLING_DIR)
+AC_DEFINE_UNQUOTED([STATIC_SNAP_TOOLING_DIR], "${STATIC_SNAP_TOOLING_DIR}", [Static location of the snapd tooling directory])
+
 SNAP_MOUNT_DIR_SYSTEMD_UNIT="$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")"
 AC_SUBST([SNAP_MOUNT_DIR_SYSTEMD_UNIT])
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR_SYSTEMD_UNIT], "${SNAP_MOUNT_DIR_SYSTEMD_UNIT}", [Systemd unit name for snap mount points location])
