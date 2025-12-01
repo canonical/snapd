@@ -44,6 +44,9 @@ type parser interface {
 type visibilityHolder interface {
 	DatabagSchema
 
+	// nestedVisibilitySecret returns true if any of its nested types have secret visibility
+	nestedVisibilitySecret() bool
+
 	// restrictVisibility sets the visibility, if more restrictive, for the databag and all its descendents to the indicated value
 	restrictVisibility(Visibility)
 }
@@ -96,6 +99,11 @@ func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot use "ephemeral" in user-defined type: %s`, alias)
 			}
 
+			as, ok := aliasSchema.(visibilityHolder)
+			if ok && as.nestedVisibilitySecret() {
+				return nil, fmt.Errorf(`cannot use "visibility" in user-defined type: %s`, alias)
+			}
+
 			schema.aliases[alias] = newUserDefinedType(aliasSchema)
 		}
 	}
@@ -131,6 +139,10 @@ func (v *userDefinedType) Ephemeral() bool {
 
 func (v *userDefinedType) Visibility() Visibility {
 	return v.visibility
+}
+
+func (v *userDefinedType) nestedVisibilitySecret() bool {
+	return v.visibility == SecretVisibility
 }
 
 func (v *userDefinedType) restrictVisibility(vis Visibility) {
@@ -209,6 +221,10 @@ func (s *aliasReference) Visibility() Visibility {
 	return s.visibility
 }
 
+func (s *aliasReference) nestedVisibilitySecret() bool {
+	return s.visibility == SecretVisibility
+}
+
 func (s *aliasReference) restrictVisibility(vis Visibility) {
 	if vis <= s.visibility {
 		return
@@ -234,6 +250,10 @@ func (s scalarSchema) NestedEphemeral() bool {
 
 func (s scalarSchema) Visibility() Visibility {
 	return s.visibility
+}
+
+func (s scalarSchema) nestedVisibilitySecret() bool {
+	return s.Visibility() == SecretVisibility
 }
 
 func (s *scalarSchema) restrictVisibility(vis Visibility) {
@@ -320,6 +340,11 @@ func (s *StorageSchema) NestedEphemeral() bool {
 func (s *StorageSchema) Visibility() Visibility {
 	// A storage schema can never be secret
 	return DefaultVisibility
+}
+
+func (s *StorageSchema) nestedVisibilitySecret() bool {
+	vh, ok := s.topLevel.(visibilityHolder)
+	return ok && vh.nestedVisibilitySecret()
 }
 
 func (s *StorageSchema) restrictVisibility(vis Visibility) {
@@ -600,6 +625,17 @@ func (v *alternativesSchema) Visibility() Visibility {
 	return v.schemas[0].Visibility()
 }
 
+func (v *alternativesSchema) nestedVisibilitySecret() bool {
+	for _, schema := range v.schemas {
+		vs, ok := schema.(visibilityHolder)
+		if ok && vs.nestedVisibilitySecret() {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (v *alternativesSchema) restrictVisibility(vis Visibility) {
 	for _, schema := range v.schemas {
 		vs, ok := schema.(visibilityHolder)
@@ -818,6 +854,38 @@ func (v *mapSchema) NestedEphemeral() bool {
 
 func (v *mapSchema) Visibility() Visibility {
 	return v.visibility
+}
+
+func (v *mapSchema) nestedVisibilitySecret() bool {
+	if v.Visibility() == SecretVisibility {
+		return true
+	}
+
+	for _, schema := range v.entrySchemas {
+		vh, ok := schema.(visibilityHolder)
+		if !ok {
+			continue
+		}
+		if vh.nestedVisibilitySecret() {
+			return true
+		}
+	}
+
+	if v.keySchema != nil {
+		vh, ok := v.keySchema.(visibilityHolder)
+		if ok && vh.nestedVisibilitySecret() {
+			return true
+		}
+	}
+
+	if v.valueSchema != nil {
+		vh, ok := v.valueSchema.(visibilityHolder)
+		if ok && vh.nestedVisibilitySecret() {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (v *mapSchema) restrictVisibility(vis Visibility) {
@@ -1511,6 +1579,14 @@ func (v *arraySchema) NestedEphemeral() bool {
 
 func (v *arraySchema) Visibility() Visibility {
 	return v.visibility
+}
+
+func (v *arraySchema) nestedVisibilitySecret() bool {
+	if v.Visibility() == SecretVisibility {
+		return true
+	}
+	vh, ok := v.elementType.(visibilityHolder)
+	return ok && vh.nestedVisibilitySecret()
 }
 
 func (v *arraySchema) restrictVisibility(vis Visibility) {
