@@ -15,9 +15,9 @@ prepare: |
     exit 0
   fi
 
-  # Install the snapd built
+  # Install the snapd build
   dpkg -i "$GOHOME"/snapd_*.deb
-  
+
   # Build the initramfs package from the project if possible
   # to detect any issues in the initramfs package that would affect
   # the cloud kernel
@@ -34,7 +34,7 @@ prepare: |
     quiet apt update -y
     quiet apt install ubuntu-core-initramfs -y
   fi
-  
+
   # install the linux-firmware as the current version of
   # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
   # to build the initrd, also install the linux-azure kernel
@@ -44,8 +44,8 @@ prepare: |
   REBOOT
 
 execute: |
-  # verify after the first reboot that we are now running an Azure kernel
-  if [ "$SPREAD_REBOOT" -lt 0 ]; then
+  # verify after the first and second reboot that we are running an azure kernel
+  if [ "$SPREAD_REBOOT" -ge 1 ]; then
     KERNEL_TYPE=$(uname -r | rev | cut -d'-' -f1 | rev)
     if [ "$KERNEL_TYPE" != "azure" ]; then
       echo "not running expected -azure kernel"
