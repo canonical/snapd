@@ -426,6 +426,12 @@ func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alte
 	}
 
 	flatAlts := flattenAlternatives(alt)
+	first := flatAlts[0].Visibility()
+	for _, alt := range flatAlts {
+		if alt.Visibility() != first {
+			return nil, fmt.Errorf(`cannot have alternatives with different levels of visibility`)
+		}
+	}
 	alt.schemas = flatAlts
 
 	return alt, nil
