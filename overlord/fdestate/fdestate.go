@@ -512,7 +512,7 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 // limited anyway.
 const maxContainerCapacity = 8
 
-func checkInsufficientContainerCapacity(fdemgr *FDEManager, keyslotRefs []KeyslotRef) error {
+func checkSufficientContainerCapacity(fdemgr *FDEManager, keyslotRefs []KeyslotRef) error {
 	if len(keyslotRefs) == 0 {
 		// Nothing to do.
 		return nil
@@ -565,7 +565,7 @@ func checkInsufficientContainerCapacity(fdemgr *FDEManager, keyslotRefs []Keyslo
 //
 // If any key slot from keyslotRefs already exists, a KeyslotsAlreadyExistsError is returned.
 //
-// If some target container has insufficient capacity, a InsufficientContainerCapacity is returned.
+// If some target container has insufficient capacity, an InsufficientContainerCapacity is returned.
 func AddRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
 	if len(keyslotRefs) == 0 {
 		return nil, fmt.Errorf("keyslots cannot be empty")
@@ -592,7 +592,7 @@ func AddRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Keyslot
 		return nil, err
 	}
 
-	if err := checkInsufficientContainerCapacity(fdemgr, keyslotRefs); err != nil {
+	if err := checkSufficientContainerCapacity(fdemgr, keyslotRefs); err != nil {
 		return nil, err
 	}
 

@@ -94,7 +94,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return nil
 	}
 
-	if err := checkInsufficientContainerCapacity(m, missingRefs); err != nil {
+	if err := checkSufficientContainerCapacity(m, missingRefs); err != nil {
 		return err
 	}
 
