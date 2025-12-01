@@ -79,8 +79,8 @@ const (
 	ContentCompatLabel
 	// Clustering enables experimental clustering support.
 	Clustering
-	// MessagePolling enables polling for and processing request-message assertions from the Store.
-	MessagePolling
+	// RemoteManagement enables polling for and processing request-message assertions from the Store.
+	RemoteManagement
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -132,7 +132,7 @@ var featureNames = map[SnapdFeature]string{
 	ContentCompatLabel: "content-compatibility-label",
 	Clustering:         "clustering",
 
-	MessagePolling: "message-polling",
+	RemoteManagement: "remote-management",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

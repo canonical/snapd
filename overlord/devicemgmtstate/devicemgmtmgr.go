@@ -230,9 +230,9 @@ func (m *DeviceMgmtManager) Ensure() error { // TODO: add manager-level feature 
 // canPoll checks whether polling should happen now based on feature flags and timing.
 func (m *DeviceMgmtManager) canPoll(lastPolled time.Time) bool {
 	tr := config.NewTransaction(m.state)
-	enabled, err := features.Flag(tr, features.MessagePolling)
+	enabled, err := features.Flag(tr, features.RemoteManagement)
 	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("cannot check message-polling feature flag: %v", err)
+		logger.Noticef("cannot check remote-management feature flag: %v", err)
 		return false
 	}
 	if !enabled {
