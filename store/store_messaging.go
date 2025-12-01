@@ -30,8 +30,8 @@ const (
 	messagesEndpointPath = "v2/messages"
 )
 
-// MessagesRequest contains parameters for polling & sending messages to the Store.
-type MessagesRequest struct {
+// MessageExchangeRequest contains parameters for polling & sending messages to the Store.
+type MessageExchangeRequest struct {
 	// Token of last successfully stored request message.
 	// Acknowledges all messages up to and including the specified token.
 	After string `json:"after,omitempty"`
@@ -45,12 +45,12 @@ type MessagesRequest struct {
 	Messages []Message `json:"messages,omitempty"`
 }
 
-// MessagesResponse contains request messages received from the store with their tokens.
+// MessageExchangeResponse contains request messages received from the store with their tokens.
 //
 // When:
 //   - limit > 0: messages contains up to limit request messages
 //   - limit = 0: messages is omitted, only queue status is returned
-type MessagesResponse struct {
+type MessageExchangeResponse struct {
 	// Request messages with their acknowledgement tokens.
 	Messages []MessageWithToken `json:"messages"`
 
@@ -92,9 +92,9 @@ type MessageWithToken struct {
 	Token string `json:"token"`
 }
 
-// FetchMessages calls the store's /v2/messages endpoint, sending response messages
-// and acknowledging received request messages.
-func (s *Store) FetchMessages(ctx context.Context, req *MessagesRequest) (*MessagesResponse, error) {
+// ExchangeMessages calls the store's /v2/messages endpoint to fetch request messages,
+// acknowledge received messages, and send response messages.
+func (s *Store) ExchangeMessages(ctx context.Context, req *MessageExchangeRequest) (*MessageExchangeResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("message request cannot be nil")
 	}
@@ -120,20 +120,20 @@ func (s *Store) FetchMessages(ctx context.Context, req *MessagesRequest) (*Messa
 		Accept:      jsonContentType,
 	}
 
-	var resp MessagesResponse
+	var resp MessageExchangeResponse
 	var errResp messageQueueError
 	httpResp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &resp, &errResp)
 	if err != nil {
-		return nil, fmt.Errorf("cannot fetch messages: %w", err)
+		return nil, fmt.Errorf("cannot exchange messages: %w", err)
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != 200 {
 		if len(errResp.ErrorList) > 0 {
-			return nil, fmt.Errorf("cannot fetch messages: %w (status: %d)", &errResp, httpResp.StatusCode)
+			return nil, fmt.Errorf("cannot exchange messages: %w (status: %d)", &errResp, httpResp.StatusCode)
 		}
 
-		return nil, respToError(httpResp, "fetch messages")
+		return nil, respToError(httpResp, "exchange messages")
 	}
 
 	return &resp, nil
