@@ -11,6 +11,10 @@ environment:
     SNAPD_DEB_FROM_REPO: false
 
 prepare: |
+  if [ "$SPREAD_REBOOT" -eq 1 ]; then
+    exit 0
+  fi
+
   # Install the snapd built
   dpkg -i "$GOHOME"/snapd_*.deb
   
@@ -36,20 +40,24 @@ prepare: |
   # to build the initrd, also install the linux-azure kernel
   quiet apt install linux-firmware linux-azure -y
 
-  if [ "$SPREAD_REBOOT" = "0" ]; then
-    REBOOT
-  fi
+  # reboot into the azure kernel
+  REBOOT
 
+execute: |
   # verify after the first reboot that we are now running an Azure kernel
-  if [ "$SPREAD_REBOOT" = "1" ]; then
+  if [ "$SPREAD_REBOOT" -lt 0 ]; then
     KERNEL_TYPE=$(uname -r | rev | cut -d'-' -f1 | rev)
     if [ "$KERNEL_TYPE" != "azure" ]; then
       echo "not running expected -azure kernel"
       exit 1
     fi
+
+    # on second reboot, we should still be running an azure kernel
+    if [ "$SPREAD_REBOOT" -eq 2 ]; then
+      exit 0
+    fi
   fi
 
-execute: |
   # build initramfs
   ubuntu-core-initramfs create-initrd --kernelver "$(uname -r)"
 
@@ -67,7 +75,7 @@ execute: |
   mount -t efivarfs efivarfs /sys/firmware/efi/efivars || true
 
   # find either vda or sda
-  DISk_DEV=""
+  DISK_DEV=""
   if [ -b /dev/vda ]; then
     DISK_DEV="/dev/vda"
   elif [ -b /dev/sda ]; then
@@ -80,15 +88,4 @@ execute: |
   # add UKI to boot entries
   KERNEL_EFI="$(basename "$UKI_FILE")"
   efibootmgr --create --disk "$DISK_DEV" --part 15 --label "CVM UKI" --loader "/EFI/ubuntu/$KERNEL_EFI"
-  if [ "$SPREAD_REBOOT" = "0" ]; then
-    REBOOT
-  fi
-
-  # verify that we are still running an Azure kernel
-  if [ "$SPREAD_REBOOT" = "1" ]; then
-    KERNEL_TYPE=$(uname -r | rev | cut -d'-' -f1 | rev)
-    if [ "$KERNEL_TYPE" != "azure" ]; then
-      echo "not running expected -azure kernel"
-      exit 1
-    fi
-  fi
+  REBOOT
