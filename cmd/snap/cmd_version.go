@@ -83,10 +83,10 @@ func printVersions(cli *client.Client, verbose bool) error {
 
 	if verbose {
 		snapdBinOrigin := "-"
-		if sv.SnapdBinOrigin != "" {
-			snapdBinOrigin = sv.SnapdBinOrigin
+		if sv.SnapdBinFrom != "" {
+			snapdBinOrigin = sv.SnapdBinFrom
 		}
-		fmt.Fprintf(w, "snapd-bin-origin\t%s\n", snapdBinOrigin)
+		fmt.Fprintf(w, "snapd-bin-from\t%s\n", snapdBinOrigin)
 
 		reexecd, err := snapdtoolIsReexecd()
 		if err != nil {
@@ -96,13 +96,13 @@ func printVersions(cli *client.Client, verbose bool) error {
 		snapFrom := "-"
 		if err == nil {
 			if reexecd {
-				snapFrom = "snapd-snap"
+				snapFrom = "snap"
 			} else {
 				snapFrom = "native-package"
 			}
 		}
 
-		fmt.Fprintf(w, "snap-bin-origin\t%s\n", snapFrom)
+		fmt.Fprintf(w, "snap-bin-from\t%s\n", snapFrom)
 	}
 
 	w.Flush()
