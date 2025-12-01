@@ -164,7 +164,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
 		"system-mode":      "run",
-		"snapd-bin-origin": "native-package",
+		"snapd-bin-from":   "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -292,10 +292,10 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []any{"feature-1", "feature-2"},
 			"confinement-options": []any{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture":     arch.DpkgArchitecture(),
-		"virtualization":   "kvm",
-		"system-mode":      "run",
-		"snapd-bin-origin": "native-package",
+		"architecture":   arch.DpkgArchitecture(),
+		"virtualization": "kvm",
+		"system-mode":    "run",
+		"snapd-bin-from": "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -355,7 +355,7 @@ func (s *generalSuite) testSysInfoBinOrigin(c *check.C, exp string, expErr strin
 
 		m, _ := rsp.Result.(map[string]any)
 		c.Assert(m, check.NotNil)
-		c.Check(m["snapd-bin-origin"], check.Equals, exp)
+		c.Check(m["snapd-bin-from"], check.Equals, exp)
 	} else {
 		c.Check(rec.Code, check.Equals, 500)
 		c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
@@ -375,7 +375,7 @@ func (s *generalSuite) TestSysInfoBinOriginSnapd(c *check.C) {
 		return true, nil
 	})()
 
-	s.testSysInfoBinOrigin(c, "snapd-snap", "")
+	s.testSysInfoBinOrigin(c, "snap", "")
 }
 
 func (s *generalSuite) TestSysInfoBinOriginError(c *check.C) {
@@ -453,9 +453,9 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 			"apparmor":            []any{"feature-1", "feature-2"},
 			"confinement-options": []any{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture":     arch.DpkgArchitecture(),
-		"system-mode":      mode,
-		"snapd-bin-origin": "native-package",
+		"architecture":   arch.DpkgArchitecture(),
+		"system-mode":    mode,
+		"snapd-bin-from": "native-package",
 	}
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

@@ -134,7 +134,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot obtain snapd reexec status: %s", err)
 	}
 
-	snapdFrom := "snapd-snap"
+	snapdFrom := "snap"
 	if !reexecd {
 		snapdFrom = "native-package"
 	}
@@ -162,11 +162,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh":          refreshInfo,
-		"architecture":     arch.DpkgArchitecture(),
-		"system-mode":      deviceMgr.SystemMode(devicestate.SysAny),
-		"features":         features.All(tr),
-		"snapd-bin-origin": snapdFrom,
+		"refresh":        refreshInfo,
+		"architecture":   arch.DpkgArchitecture(),
+		"system-mode":    deviceMgr.SystemMode(devicestate.SysAny),
+		"features":       features.All(tr),
+		"snapd-bin-from": snapdFrom,
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
