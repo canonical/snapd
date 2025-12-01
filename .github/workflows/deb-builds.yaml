@@ -42,10 +42,21 @@ jobs:
 
     - name: Setup debian dir
       run: |
-        if [ -d "packaging/${{ inputs.os }}-${{ inputs.os-version }}" ]; then
-          rm -r debian
-          mv "packaging/${{ inputs.os }}-${{ inputs.os-version }}" debian
-        fi
+        # top level debian directory must not exist
+        test ! -d debian
+        target_system="${{ inputs.os }}-${{ inputs.os-version }}"
+        case "$target_system" in
+            debian-sid)
+                cp -av packaging/debian-sid debian
+                ;;
+            ubuntu-*)
+                cp -av packaging/ubuntu-16.04 debian
+                ;;
+            *)
+                echo "unsupported deb packaging for $target_system"
+                exit 1
+                ;;
+        esac
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
