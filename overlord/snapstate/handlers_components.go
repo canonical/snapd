@@ -221,7 +221,7 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 	return nil
 }
 
-func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) {
+func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	st := t.State()
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
@@ -257,7 +257,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 		st.Lock()
 		defer st.Unlock()
 
-		if err == nil {
+		if retErr == nil {
 			return
 		}
 
