@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -112,14 +113,35 @@ func addCategoryLinks(linksBag map[string]map[string]bool, category, link string
 
 // TODO:GOVERSION: use maps.Keys()
 func keys[K comparable, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
+	ret := make([]K, 0, len(m))
 	for k := range m {
-		keys = append(keys, k)
+		ret = append(ret, k)
 	}
-	return keys
+	return ret
 }
 
-func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueReportingLinks []string) {
+var (
+	// a link which looks like it may be the right place to report bugs or
+	// issues related to Linux
+	maybeBugsIssuesLink = regexp.MustCompile("(?i)http.*(bug|issue|linux).*")
+)
+
+func guessLikelyIssueReportingLink(allFlatLinks map[string][]string) string {
+	if issues := allFlatLinks["issues"]; len(issues) > 0 {
+		return issues[0]
+	}
+
+	for _, k := range []string{"contact", "website"} {
+		for _, l := range allFlatLinks[k] {
+			if maybeBugsIssuesLink.MatchString(l) {
+				return l
+			}
+		}
+	}
+	return ""
+}
+
+func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, likelyIssueReportingLink string) {
 	remoteSnap, _, remoteErr := x.client.FindOne(snap.InstanceSnap(snapName))
 	localSnap, _, localErr := x.client.Snap(snapName)
 
@@ -147,17 +169,20 @@ func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueRe
 
 	if len(allLinks) == 0 {
 		fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has not listed any points of contact.\n"), snapName)
-		return false, nil
+		return false, ""
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has listed the following points of contact:\n"), snapName)
+	fmt.Fprintf(Stdout, i18n.G("Contact information provided by %q snap publisher:\n"), snapName)
 
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+
+	allFlatLinks := map[string][]string{}
 
 	if c, ok := allLinks["contact"]; ok {
 		c := keys(c)
 		sort.Strings(c)
-		fmt.Fprintf(w, i18n.G("\tContact:\n"))
+		allFlatLinks["contact"] = c
+		fmt.Fprintf(w, i18n.G("\tGeneral:\n"))
 		for _, k := range c {
 			fmt.Fprintf(w, "\t\t%s\n", k)
 		}
@@ -166,9 +191,7 @@ func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueRe
 	if c, ok := allLinks["issues"]; ok {
 		c := keys(c)
 		sort.Strings(c)
-
-		issueReportingLinks = c
-
+		allFlatLinks["issues"] = c
 		fmt.Fprintf(w, i18n.G("\tIssue reporting:\n"))
 		for _, k := range c {
 			fmt.Fprintf(w, "\t\t%s\n", k)
@@ -178,6 +201,7 @@ func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueRe
 	if c, ok := allLinks["website"]; ok {
 		c := keys(c)
 		sort.Strings(c)
+		allFlatLinks["website"] = c
 		fmt.Fprintf(w, i18n.G("\tWebsite:\n"))
 		for _, k := range c {
 			fmt.Fprintf(w, "\t\t%s\n", k)
@@ -188,6 +212,7 @@ func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueRe
 		if c, ok := allLinks[sourceName]; ok {
 			c := keys(c)
 			sort.Strings(c)
+			allFlatLinks["source-code"] = append(allFlatLinks["source-code"], c...)
 			fmt.Fprintf(w, i18n.G("\tSource code:\n"))
 			for _, k := range c {
 				fmt.Fprintf(w, "\t\t%s\n", k)
@@ -197,7 +222,7 @@ func (x *reportIssueCmd) reportContacts(snapName string) (hadLinks bool, issueRe
 	}
 	w.Flush()
 
-	return true, issueReportingLinks
+	return true, guessLikelyIssueReportingLink(allFlatLinks)
 }
 
 func isDesktop() bool {
@@ -212,16 +237,16 @@ func (x *reportIssueCmd) Execute([]string) error {
 		snapName = "snapd"
 	}
 
-	hadLinks, issueReportingLinks := x.reportContacts(snapName)
+	hadLinks, likelyIssueReportingLink := x.reportContacts(snapName)
 
 	if hadLinks {
 		fmt.Fprint(Stdout, i18n.G("\nUse one of the links listed above to report an issue with the snap.\n"))
 	}
 
-	if isStdinTTY && isDesktop() && len(issueReportingLinks) > 0 {
+	if isStdinTTY && isDesktop() && likelyIssueReportingLink != "" {
 		xdgOpen, _ := exec.LookPath("xdg-open")
 		if xdgOpen != "" {
-			fmt.Fprint(Stdout, i18n.G("\nWould you like to open the first issue tracker link in browser? [Y/n] "))
+			fmt.Fprintf(Stdout, i18n.G("\nWould you like to open %s in browser? [Y/n] "), likelyIssueReportingLink)
 
 			s, err := bufio.NewReader(Stdin).ReadString('\n')
 			if err != nil {
@@ -233,7 +258,7 @@ func (x *reportIssueCmd) Execute([]string) error {
 
 			switch s {
 			case "y\n", "Y\n", "yes\n", "\n":
-				return exec.Command(xdgOpen, issueReportingLinks[0]).Run()
+				return exec.Command(xdgOpen, likelyIssueReportingLink).Run()
 			}
 		}
 	}
