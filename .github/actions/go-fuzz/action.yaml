@@ -64,7 +64,7 @@ runs:
     - name: Show failures
       shell: bash
       run: |
-        find . -wholename '**/testdata/fuzz/*' -type f -exec sh -c 'echo "{}"; cat "{}"' \;
+        find . -wholename '**/testdata/fuzz/*' -type f -exec echo {} \; -exec cat {} \;
         if [ -f "${{ github.workspace }}/fuzzingfailed" ]; then
           exit 1
         fi
