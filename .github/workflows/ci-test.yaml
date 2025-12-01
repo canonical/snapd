@@ -16,7 +16,7 @@ jobs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Resolve Go snap channels
         id: resolve-go-channels
@@ -60,7 +60,7 @@ jobs:
     name: Create go vendor
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: vendor
         run: |
@@ -71,14 +71,14 @@ jobs:
             ./vendor.sh
           )
           mkdir /tmp/pkg
-          base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+          base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
           version="1337.$base_version"
           ./packaging/pack-source -v "$version" -o /tmp/pkg
           ./packaging/pack-source -v "$version" -o /tmp/pkg -s
           echo "$version" > /tmp/pkg/version
 
       - name: Upload vendors
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: vendor-pkgs
           path: /tmp/pkg
@@ -154,12 +154,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download Debian dependencies
       run: |
           sudo apt clean
           sudo apt update
+          ln -s packaging/ubuntu-16.04 debian
           sudo apt build-dep -d -y ${{ github.workspace }}
           # for indent
           sudo apt install texinfo autopoint
@@ -169,7 +170,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -203,7 +204,7 @@ jobs:
     if: github.ref != 'refs/heads/master'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -255,7 +256,7 @@ jobs:
         shell: bash
 
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Confirm required static checks passed
         uses: ./.github/actions/combine-results
@@ -387,7 +388,7 @@ jobs:
   unit-tests-python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '>=3.9'
@@ -412,7 +413,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Confirm required unit tests passed
         uses: ./.github/actions/combine-results
@@ -432,7 +433,7 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: coverage-files-*
         path: .coverage/
@@ -469,7 +470,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Read matrix file
         id: read-systems
@@ -662,7 +663,7 @@ jobs:
         run: echo "${{ github.event.pull_request.number }}" > pr_number
       
       - name: Upload PR number
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pr_number 
           path: pr_number

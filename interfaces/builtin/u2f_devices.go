@@ -95,7 +95,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Thetis Key",
 		VendorIDPattern:  "1ea8",
-		ProductIDPattern: "f025|f825|fc26",
+		ProductIDPattern: "f025|f825|fc26|f829",
 	},
 	{
 		Name:             "Nitrokey FIDO U2F",

@@ -25,10 +25,10 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download vendor
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -42,15 +42,26 @@ jobs:
 
     - name: Setup debian dir
       run: |
-        if [ -d "packaging/${{ inputs.os }}-${{ inputs.os-version }}" ]; then
-          rm -r debian
-          mv "packaging/${{ inputs.os }}-${{ inputs.os-version }}" debian
-        fi
+        # top level debian directory must not exist
+        test ! -d debian
+        target_system="${{ inputs.os }}-${{ inputs.os-version }}"
+        case "$target_system" in
+            debian-sid)
+                cp -av packaging/debian-sid debian
+                ;;
+            ubuntu-*)
+                cp -av packaging/ubuntu-16.04 debian
+                ;;
+            *)
+                echo "unsupported deb packaging for $target_system"
+                exit 1
+                ;;
+        esac
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image with cache support
+    - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -61,8 +72,6 @@ jobs:
           SYSTEM=${{ inputs.os }}
           TAG=${{ inputs.os-version }}
         tags: deb-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Build deb
       run: |
@@ -82,7 +91,7 @@ jobs:
           "
 
     - name: upload packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: package-${{ inputs.system }}
         path: /tmp/builds/

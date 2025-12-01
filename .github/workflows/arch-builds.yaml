@@ -13,10 +13,10 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download vendor
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -24,7 +24,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image with cache support
+    - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -32,8 +32,6 @@ jobs:
         load: true
         file: tests/lib/packaging/arch.dockerfile
         tags: arch-base:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
 
     - name: Set version in spec
       run: |
@@ -55,7 +53,7 @@ jobs:
         sudo find /tmp/pkg/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
 
     - name: upload packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: package-arch-linux-64
         path: /tmp/uploads

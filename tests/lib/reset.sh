@@ -15,6 +15,11 @@ reset_classic() {
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            # 14.04 uses native package only, there is no dedicated cleanup
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=prerm sh -x /var/lib/dpkg/info/snapd.prerm remove
+            DPKG_MAINTSCRIPT_PACKAGE=snapd DPKG_MAINTSCRIPT_NAME=postrm sh -x /var/lib/dpkg/info/snapd.postrm purge
+            ;;
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
@@ -23,7 +28,6 @@ reset_classic() {
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
-                --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
             # The script above doesn't remove the snapd directory as this
             # is normally done by the rpm packaging system.

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -425,6 +426,16 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	}
 }
 
+// ExpandSystemContainerRoles expands the given key slot name
+// into a list of key slot references for default system
+// container roles i.e. [system-data, system-save].
+func ExpandSystemContainerRoles(keyslotName string) []KeyslotRef {
+	return []KeyslotRef{
+		{ContainerRole: "system-data", Name: keyslotName},
+		{ContainerRole: "system-save", Name: keyslotName},
+	}
+}
+
 // KeyslotRef uniquely identifies a target key slot by
 // its container role and name.
 type KeyslotRef struct {
@@ -437,7 +448,7 @@ func (k KeyslotRef) String() string {
 }
 
 // Validate that the key slot reference points to expected key slots.
-func (k KeyslotRef) Validate() error {
+func (k KeyslotRef) Validate(keyslotType KeyslotType) error {
 	if len(k.ContainerRole) == 0 {
 		return errors.New("container role cannot be empty")
 	}
@@ -448,6 +459,27 @@ func (k KeyslotRef) Validate() error {
 	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
 		return fmt.Errorf(`unsupported container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
 	}
+
+	isSystemKeyslot := false
+	switch keyslotType {
+	case KeyslotTypeRecovery:
+		isSystemKeyslot = k.Name == "default-recovery"
+	case KeyslotTypePlatform:
+		isSystemKeyslot = k.Name == "default" || k.Name == "default-fallback"
+	default:
+		return fmt.Errorf("internal error: unexpected key slot type %q", keyslotType)
+	}
+
+	if !isSystemKeyslot {
+		// external key slots cannot use reserved prefixes.
+		reservedPrefixes := []string{"snap", "default"}
+		for _, prefix := range reservedPrefixes {
+			if strings.HasPrefix(k.Name, prefix) {
+				return fmt.Errorf("only system key slot names can start with %q", prefix)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -493,12 +525,8 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	}
 
 	for _, keyslotRef := range keyslotRefs {
-		if err := keyslotRef.Validate(); err != nil {
+		if err := keyslotRef.Validate(KeyslotTypeRecovery); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
-		}
-		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
-		if keyslotRef.Name != "default-recovery" {
-			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslotRef.String())
 		}
 	}
 
@@ -591,12 +619,8 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	}
 
 	for _, keyslotRef := range keyslotRefs {
-		if err := keyslotRef.Validate(); err != nil {
+		if err := keyslotRef.Validate(KeyslotTypePlatform); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
-		}
-		// TODO:FDEM: accept custom key slot names when a naming convension is defined
-		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
-			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
 	}
 
@@ -704,12 +728,8 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	}
 
 	for _, keyslotRef := range keyslotRefs {
-		if err := keyslotRef.Validate(); err != nil {
+		if err := keyslotRef.Validate(KeyslotTypePlatform); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
-		}
-		// TODO:FDEM: accept custom key slot names when a naming convension is defined
-		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
-			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
 	}
 

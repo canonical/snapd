@@ -13,6 +13,7 @@ vendor/modules.txt
 c-vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
+/debian
 
 # snap-confine bits
 *.a

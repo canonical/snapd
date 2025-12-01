@@ -1,0 +1,208 @@
+summary: Execute snap mount directory migration
+details: |
+    Execute migration of snap mount directory. Ensure that snaps continue to
+    work after.
+
+systems:
+    - opensuse-*
+
+environment:
+    PARALLEL_INSTANCES/parallel: true
+    PARALLEL_INSTANCES/no_parallel: false
+
+prepare: |
+    snap set system experimental.user-daemons=true
+    # although state reset should clean that up
+    tests.cleanup defer snap unset system experimental.user-daemons
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    # install twice
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
+    tests.cleanup defer snap remove --purge test-snapd-user-service
+
+    if [ "$PARALLEL_INSTANCES" = "true" ]; then
+        snap set system experimental.parallel-instances=true
+        tests.cleanup defer snap unset system experimental.parallel-instances
+
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service test-snapd-service_foo
+        tests.cleanup defer snap remove --purge test-snapd-service_foo
+    fi
+
+execute: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        test-snapd-sh-core24.sh -c true
+        systemctl is-active snap.test-snapd-service.test-snapd-service.service
+        not snapd.tool exec snap-mgmt --check-mount-dir-migration |& tee check-migrate.log
+        not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
+
+        # we're showing the prompt
+        MATCH 'Please report any issues in the snapcraft forum' < migrate.log
+        # and also failing due to running applications
+        MATCH "Please ensure all snap services or applications are stopped" < migrate.log
+        MATCH "/system.slice/snap.test-snapd-service.test-snapd-service.service" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-service'" < migrate.log
+
+        MATCH "/system.slice/snap.test-snapd-service.test-snapd-service.service" < check-migrate.log
+        MATCH "likely owned by snap: 'test-snapd-service'" < check-migrate.log
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            MATCH "likely owned by snap: 'test-snapd-service_foo'" < check-migrate.log
+        fi
+        MATCH "Mount directory migration cannot continue." < check-migrate.log
+        NOMATCH "System is ready for migration." < check-migrate.log
+
+        # stop the services
+        snap stop test-snapd-service
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap stop test-snapd-service_foo
+        fi
+
+        # but start the application
+        test-snapd-sh-core24.sh -c 'exec sleep infinity' &
+        
+        not snapd.tool exec snap-mgmt --check-mount-dir-migration |& tee check-migrate.log
+        not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
+        MATCH "Please ensure all snap services or applications are stopped" < migrate.log
+        MATCH "/app.slice/snap.test-snapd-sh-core24.sh" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-sh-core24'" < migrate.log
+        NOMATCH "test-snapd-service" < migrate.log
+
+        MATCH "/app.slice/snap.test-snapd-sh-core24.sh" < check-migrate.log
+        MATCH "likely owned by snap: 'test-snapd-sh-core24'" < check-migrate.log
+        MATCH "Mount directory migration cannot continue." < check-migrate.log
+
+        # kill whole process group
+        kill -9 $!
+        wait $! || true
+
+        # still blocked by user services
+        not snapd.tool exec snap-mgmt --check-mount-dir-migration |& tee check-migrate.log
+        not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
+        MATCH "Please ensure all snap services or applications are stopped" < migrate.log
+        MATCH "/app.slice/snap.test-snapd-user-service.test-snapd-user-service.service" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-user-service'" < migrate.log
+        # no matches for process which was blocking previously snap
+        NOMATCH "test-snapd-sh-core24" < migrate.log
+        MATCH "Mount directory migration cannot continue." < check-migrate.log
+
+        snap stop test-snapd-user-service
+        
+        # now we're good
+        snapd.tool exec snap-mgmt --check-mount-dir-migration |& tee check-migrate.log
+        NOMATCH "Mount directory migration cannot continue." < check-migrate.log
+        MATCH "System is ready for migration." < check-migrate.log
+
+        # and can execute actual migration
+        snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
+        
+        snap list | NOMATCH broken
+        
+        test-snapd-sh-core24.sh -c true
+        
+        # XXX should this be done automatically?
+        snap start test-snapd-service
+        
+        snap services test-snapd-service | MATCH ' active'
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap start test-snapd-service_foo
+            snap services test-snapd-service_foo | MATCH ' active'
+        fi
+        
+        # both revisions are present
+        test -f /var/lib/snapd/snap/test-snapd-sh-core24/x1/meta/snap.yaml
+        test -f /var/lib/snapd/snap/test-snapd-sh-core24/x2/meta/snap.yaml
+        # current is correct
+        test "$(readlink /var/lib/snapd/snap/test-snapd-sh-core24/current)" = "x2"
+        # mount units are active
+        systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-sh-core24/x1).mount"
+        systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-sh-core24/x2).mount"
+        
+        # same for the service snap
+        test -f /var/lib/snapd/snap/test-snapd-service/x1/meta/snap.yaml
+        test "$(readlink /var/lib/snapd/snap/test-snapd-service/current)" = "x1"
+        # mount unit is active
+        systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service/x1).mount"
+
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            # and parallel instance of test-snapd-service
+            test -f /var/lib/snapd/snap/test-snapd-service_foo/x1/meta/snap.yaml
+            test "$(readlink /var/lib/snapd/snap/test-snapd-service_foo/current)" = "x1"
+            # mount unit is active
+            systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service_foo/x1).mount"
+        fi
+        
+        # /snap is preserved as symlink
+        test -L /snap
+        test "$(readlink /snap)" = "/var/lib/snapd/snap"
+
+        echo "A backup copy of old mount directory exists"
+        test -d /snap.old
+        
+        # we can install another revision of a snap
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+        
+        test -f /var/lib/snapd/snap/test-snapd-sh-core24/x3/meta/snap.yaml
+        # and remove the old revision
+        snap remove test-snapd-sh-core24 --revision=x2
+        
+        not test -f /var/lib/snapd/snap/test-snapd-sh-core24/x2/meta/snap.yaml
+        
+        # path is correctly reported by the snapd tooling
+        snap debug paths | MATCH 'SNAPD_MOUNT=/var/lib/snapd/snap$'
+
+        # stop all services
+        snap stop test-snapd-service
+        echo "Attempting another migration should be a noop"
+        snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate-already-done.log
+        MATCH "Snap mount directory migration already completed or not needed" < migrate-already-done.log
+        snapd.tool exec snap-mgmt --check-mount-dir-migration |& tee check-migrate.log
+        MATCH "Snap mount directory migration already completed or not needed" < check-migrate.log
+
+        echo "Reboot to assert post reboot state"
+        REBOOT
+        
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "After reboot..."
+        echo "No snaps are broken"
+        snap list | NOMATCH broken
+        echo "Mount units are active"
+        systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-sh-core24/x3).mount"
+        systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service/x1).mount"
+
+        echo "Snaps continue to work"
+        snap services test-snapd-service | MATCH ' active'
+
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service_foo/x1).mount"
+            snap services test-snapd-service_foo | MATCH ' active'
+        fi
+
+        test-snapd-sh-core24.sh -c true
+
+        snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
+        MATCH "Snap mount directory migration already completed or not needed" < migrate.log
+        NOMATCH "Forcing mount directory migration" < migrate.log
+
+        echo "It is possible to remove old mount directory"
+        rm -rfv /snap.old
+
+        snap stop test-snapd-service
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap stop test-snapd-service_foo
+        fi
+        snap stop test-snapd-user-service
+
+        echo "Forcing migration does not modify files"
+        mod_time_before="$(stat --format '%Y' /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service)"
+        snapd.tool exec snap-mgmt --migrate-mount-dir --force |& tee migrate.log
+        MATCH "Snap mount directory migration already completed or not needed" < migrate.log
+        MATCH "Forcing mount directory migration" < migrate.log
+
+        mod_time_after="$(stat --format '%Y' /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service)"
+        test "$mod_time_after" = "$mod_time_before"
+
+        # snapd is automatically started at the end of the process
+        snap list | NOMATCH broken
+    fi
