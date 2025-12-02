@@ -94,6 +94,10 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return nil
 	}
 
+	if err := checkSufficientContainerCapacity(m, missingRefs); err != nil {
+		return err
+	}
+
 	rkeyInfo, err := m.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
 		return fmt.Errorf("cannot find recovery key with id %q: %v", recoveryKeyID, err)
@@ -198,7 +202,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 			return fmt.Errorf("cannot get key slots: %v", err)
 		}
 		if len(currentRenamedKeyslots) != 0 {
-			return &keyslotsAlreadyExistsError{keyslots: currentRenamedKeyslots}
+			return &KeyslotsAlreadyExistsError{Keyslots: currentRenamedKeyslots}
 		}
 	}
 
