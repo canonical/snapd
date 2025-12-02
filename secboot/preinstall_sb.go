@@ -41,17 +41,16 @@ type PreinstallCheckContext struct {
 	sbRunChecksContext *sb_preinstall.RunChecksContext
 }
 
-// PreinstallCheckResult contains information required post install
-// for optimum PCR configuration and resealing. Contents are opaque
-// outside of secboot to ensure that only secboot interprets them.
+// PreinstallCheckResult contains information required during and post
+// install for optimum PCR configuration and resealing. Contents are
+// opaque outside of secboot to ensure that only secboot interprets them.
 type PreinstallCheckResult struct {
 	sbCheckResult    *sb_preinstall.CheckResult
 	sbPCRProfileOpts sb_preinstall.PCRProfileOptionsFlags
 }
 
-// PreinstallCheckResultForMarshalling is an auxiliary type for JSON
-// marshalling of PreinstallCheckResult. It is for internal use and
-// testing only.
+// PreinstallCheckResultJSON is an auxiliary type for JSON marshalling
+// of PreinstallCheckResult. It is for internal use and testing only.
 type PreinstallCheckResultJSON struct {
 	Result         *sb_preinstall.CheckResult           `json:"result"`
 	PCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
@@ -139,7 +138,7 @@ func (cc *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, act
 // SaveCheckResult writes the serialized preinstall check result in the
 // location specified by the filename.
 func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
-	checkResult, err := cc.checkResult()
+	checkResult, err := cc.CheckResult()
 	if err != nil {
 		return err
 	}
@@ -147,7 +146,11 @@ func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
 	return checkResult.save(filename)
 }
 
-func (cc *PreinstallCheckContext) checkResult() (*PreinstallCheckResult, error) {
+// CheckResult retrieves the preinstall check result from the preinstall
+// check context. On success, it returns the preinstall check result required
+// post install for optimum PCR configuration and resealing. On failure, it
+// returns the error encountered while retrieving the result.
+func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) {
 	if cc.sbRunChecksContext == nil {
 		return nil, fmt.Errorf("preinstall check context unavailable")
 	}
