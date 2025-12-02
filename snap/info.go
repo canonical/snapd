@@ -1367,12 +1367,21 @@ type AppInfo struct {
 
 	// list of other service names that this service will start after or
 	// before
-	After  []string
-	Before []string
+	After     []string
+	Before    []string
+	BindsTo   []string
+	PartOf    []string
+	Requisite []string
 
 	Timer *TimerInfo
 
 	Autostart string
+}
+
+// HasPlug returns true if this AppInfo has the requested plug.
+func (app *AppInfo) HasPlug(plug string) bool {
+	_, ok := app.Plugs[plug]
+	return ok
 }
 
 // Runnable returns a Runnable for this app.
