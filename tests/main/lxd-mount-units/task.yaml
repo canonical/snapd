@@ -5,7 +5,12 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-systems: [ubuntu-2*]
+# TODO enable this for 26.04. It is currently disabled for lack of a 26.04 image
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  - ubuntu-25*
 
 restore: |
     lxd.lxc stop ubuntu --force || true
