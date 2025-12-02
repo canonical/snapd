@@ -16,6 +16,7 @@ systems:
     - -ubuntu-22.*
     - -ubuntu-24.*
     - -ubuntu-25.*
+    - -ubuntu-26.*
     - -ubuntu-core-22-*
     - -ubuntu-core-24-*    
 
