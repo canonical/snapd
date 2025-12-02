@@ -2375,7 +2375,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 		if !IsErrAndNotWait(retErr) {
 			return
 		}
-		// err is not nil, we need to try and unlink the snap to cleanup after
+		// retErr is not nil, we need to try and unlink the snap to cleanup after
 		// ourselves
 		var backendErr error
 		if newInfo.Type() == snap.TypeSnapd && !firstInstall {
