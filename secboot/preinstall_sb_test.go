@@ -480,13 +480,14 @@ func (s *preinstallSuite) TestSaveCheckResultErrorResultNotAvailable(c *C) {
 
 func (s *preinstallSuite) TestSave(c *C) {
 	filename := filepath.Join(c.MkDir(), "/run/mnt/ubuntu-save/device/fde/preinstall")
-	expectedCheckResult := secboot.PreinstallCheckResult{
-		Result: &sb_preinstall.CheckResult{
+	expectedCheckResult := secboot.NewPreinstallCheckResult(
+		&sb_preinstall.CheckResult{
 			PCRAlg: tpm2.HashAlgorithmSHA512,
 			Flags:  sb_preinstall.NoPlatformConfigProfileSupport | sb_preinstall.NoDriversAndAppsProfileSupport,
 		},
-		PCRProfileOpts: sb_preinstall.PCRProfileOptionsDefault,
-	}
+		sb_preinstall.PCRProfileOptionsDefault,
+	)
+
 	expectedData :=
 		`{
   "result": {
@@ -500,7 +501,7 @@ func (s *preinstallSuite) TestSave(c *C) {
   "pcr-profile-opts": 0
 }`
 
-	err := secboot.Save(&expectedCheckResult, filename)
+	err := secboot.Save(expectedCheckResult, filename)
 	c.Assert(err, IsNil)
 
 	data, err := os.ReadFile(filename)
@@ -511,9 +512,11 @@ func (s *preinstallSuite) TestSave(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(readable.String(), Equals, expectedData)
 
-	var checkResult secboot.PreinstallCheckResult
-	err = json.Unmarshal(data, &checkResult)
+	var checkResultJSON secboot.PreinstallCheckResultJSON
+	err = json.Unmarshal(data, &checkResultJSON)
 	c.Assert(err, IsNil)
+
+	checkResult := secboot.NewPreinstallCheckResult(checkResultJSON.Result, checkResultJSON.PCRProfileOpts)
 
 	c.Assert(checkResult, DeepEquals, expectedCheckResult)
 }
