@@ -360,9 +360,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 	dataActivated := false
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(
-		func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 			c.Assert(name, Equals, "ubuntu-data")
-			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+			c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
+			c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			c.Assert(opts.AllowRecoveryKey, Equals, true)
 			c.Assert(opts.WhichModel, NotNil)
 			mod, err := opts.WhichModel()
@@ -371,7 +372,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 			dataActivated = true
 			// return true because we are using an encrypted device
-			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
+			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey, "external:legacy"), nil
 		})
 	defer restore()
 
@@ -384,7 +385,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 		saveActivated = true
 		c.Assert(name, Equals, "ubuntu-save")
 		c.Assert(key, DeepEquals, []byte("foo"))
-		return happyUnlocked("ubuntu-save", secboot.UnlockedWithKey), nil
+		return happyUnlocked("ubuntu-save", secboot.UnlockedWithKey, "external:legacy"), nil
 	})
 	defer restore()
 
