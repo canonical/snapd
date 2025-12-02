@@ -425,6 +425,8 @@ def install_misc(dest_dir, sysroot, deb_arch):
         "/usr/bin/tar",
         "/usr/lib/" + deb_arch + "/libgcc_s.so.1",
         "/usr/lib/" + deb_arch + "/libkmod.so.2",
+        "/usr/lib/" + deb_arch + "/libseccomp.so.2",
+        "/usr/lib/" + deb_arch + "/libpam.so.0",
         "/usr/lib/systemd/system/dbus.service",
         "/usr/lib/systemd/system/dbus.socket",
         "/usr/lib/systemd/system/plymouth-start.service",
