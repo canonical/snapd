@@ -92,6 +92,7 @@ type PendingMessage struct {
 
 	ChangeID        string `json:"change-id,omitempty"`        // Set when subsystem change is created
 	ValidationError string `json:"validation-error,omitempty"` // Set when validation fails
+	ApplyError      string `json:"apply-error,omitempty"`      // Set when apply fails
 }
 
 func (msg *PendingMessage) ID() string {
@@ -274,10 +275,10 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 			Messages: messages,
 		},
 	)
+	m.state.Lock()
 	if err != nil {
 		return err
 	}
-	m.state.Lock()
 
 	m.processExchangeResponse(ms, resp)
 	m.setState(ms)
@@ -327,19 +328,24 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 			continue
 		}
 
+		lane := m.state.NewLane()
+
 		validate := m.state.NewTask("validate-message", fmt.Sprintf("Validate message %s", msg.ID()))
 		validate.Set("id", msg.ID())
 		validate.WaitFor(t)
+		validate.JoinLane(lane)
 		chg.AddTask(validate)
 
 		apply := m.state.NewTask("apply-message", fmt.Sprintf("Apply message %s", msg.ID()))
 		apply.Set("id", msg.ID())
 		apply.WaitFor(validate)
+		apply.JoinLane(lane)
 		chg.AddTask(apply)
 
 		queue := m.state.NewTask("queue-response", fmt.Sprintf("Queue response for message %s", msg.ID()))
 		queue.Set("id", msg.ID())
 		queue.WaitFor(apply)
+		queue.JoinLane(lane)
 		chg.AddTask(queue)
 	}
 
@@ -396,7 +402,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	return nil
 }
 
-// doApplyMessage dispatches the message to its subsystem handler for processsing.
+// doApplyMessage dispatches the message to its subsystem handler for processing.
 func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -417,9 +423,10 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 
 	subSysChangeID, err := handler.Apply(m.state, msg)
 	if err != nil {
-		return fmt.Errorf("cannot apply message: %w", err)
+		msg.ApplyError = fmt.Sprintf("cannot apply message: %v", err)
+	} else {
+		msg.ChangeID = subSysChangeID
 	}
-	msg.ChangeID = subSysChangeID
 
 	m.setState(ms)
 
@@ -472,6 +479,9 @@ func (m *DeviceMgmtManager) buildResponseBody(msg *PendingMessage, handler Messa
 	if msg.ValidationError != "" {
 		status = asserts.MessageStatusRejected
 		body = map[string]any{"message": msg.ValidationError}
+	} else if msg.ApplyError != "" {
+		status = asserts.MessageStatusError
+		body = map[string]any{"message": msg.ApplyError}
 	} else {
 		subSysChange := m.state.Change(msg.ChangeID)
 		if subSysChange == nil {

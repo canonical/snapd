@@ -103,7 +103,6 @@ func (s *Store) PollMessages(ctx context.Context, req *PollMessagesRequest) (*Po
 	if err != nil {
 		return nil, fmt.Errorf("cannot poll messages: %w", err)
 	}
-	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != 200 {
 		if len(errResp.ErrorList) > 0 {

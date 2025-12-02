@@ -95,28 +95,31 @@ func (h *ConfdbMessageHandler) BuildResponse(chg *state.Change) (map[string]any,
 		return map[string]any{}, asserts.MessageStatusSuccess
 	}
 
-	responseBody := map[string]any{}
-	errData, ok := apiData["error"]
-	if ok {
-		errData := errData.(map[string]any) // TODO: handle if type conversion fails
-
-		kind, ok := errData["kind"]
+	response := map[string]any{}
+	errData, hasErr := apiData["error"]
+	if hasErr {
+		errData, ok := errData.(map[string]any)
 		if ok {
-			responseBody["kind"] = kind
+			kind, ok := errData["kind"]
+			if ok {
+				response["kind"] = kind
+			}
+
+			message, ok := errData["message"]
+			if ok {
+				response["message"] = message
+			}
+		} else {
+			response["message"] = fmt.Sprintf("invalid error data format: expected map[string]any, got %T", errData)
 		}
 
-		message, ok := errData["message"]
-		if ok {
-			responseBody["message"] = message
-		}
-
-		return responseBody, asserts.MessageStatusError
+		return response, asserts.MessageStatusError
 	}
 
 	values, ok := apiData["values"]
 	if ok {
-		responseBody["values"] = values
+		response["values"] = values
 	}
 
-	return responseBody, asserts.MessageStatusSuccess
+	return response, asserts.MessageStatusSuccess
 }
