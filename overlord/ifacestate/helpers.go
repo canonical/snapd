@@ -354,6 +354,12 @@ var removeStaleConnections = func(st *state.State) error {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
+			// Do not remove stale connections for broken snaps
+			if broken, err := isBroken(st, connRef.PlugRef.Snap); err != nil {
+				return err
+			} else if broken {
+				continue
+			}
 			staleConns = append(staleConns, id)
 			continue
 		}
@@ -361,10 +367,17 @@ var removeStaleConnections = func(st *state.State) error {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
+			// Do not remove stale connections for broken snaps
+			if broken, err := isBroken(st, connRef.SlotRef.Snap); err != nil {
+				return err
+			} else if broken {
+				continue
+			}
 			staleConns = append(staleConns, id)
 			continue
 		}
 	}
+
 	if len(staleConns) > 0 {
 		for _, id := range staleConns {
 			delete(conns, id)

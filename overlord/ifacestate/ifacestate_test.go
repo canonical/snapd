@@ -2048,7 +2048,77 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 	c.Assert(logLines[1], Equals, "")
 }
 
-func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsNotRemoved(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot":             map[string]any{"interface": "test", "auto": true},
+		"other-consumer:plug other-producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// have both snaps in state, but broken due to missing snap.yaml, so that
+	// we test that we don't prune connections for broken snaps.
+	const brokenSnapName = "consumer"
+	consumerSideInfo := &snap.SideInfo{
+		RealName: brokenSnapName,
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, brokenSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{consumerSideInfo}),
+		Current:  consumerSideInfo.Revision,
+		SnapType: "app",
+	})
+	const otherBrokenSnapName = "producer"
+	producerSideInfo := &snap.SideInfo{
+		RealName: otherBrokenSnapName,
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, otherBrokenSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{producerSideInfo}),
+		Current:  producerSideInfo.Revision,
+		SnapType: "app",
+	})
+
+	// validity check - snaps are broken
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, brokenSnapName, &snapst), IsNil)
+	curInfo, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Matches, fmt.Sprintf(`cannot find installed snap "%s" at revision 1: missing file .*/1/meta/snap.yaml`, brokenSnapName))
+	c.Assert(snapstate.Get(s.state, otherBrokenSnapName, &snapst), IsNil)
+	curInfo, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Matches, fmt.Sprintf(`cannot find installed snap "%s" at revision 1: missing file .*/1/meta/snap.yaml`, otherBrokenSnapName))
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing is connected, as the snaps are broken
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// but the consumer:plug producer:slot connection is kept in the state and only the other one
+	// got dropped.
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// check that the log from reloadConnections now mentions that the snap is broken
+	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by reloadConnections", "consumer"))
+}
+
+func (s *interfaceManagerSuite) testReloadConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2103,12 +2173,12 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by reloadConnections", brokenSnapName))
 }
 
-func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfPlugSnapBroken(c *C) {
-	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "consumer")
+func (s *interfaceManagerSuite) TestReloadConnectionsNotRemovedIfPlugSnapBroken(c *C) {
+	s.testReloadConnectionsNotRemovedIfSnapBroken(c, "consumer")
 }
 
-func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfSlotSnapBroken(c *C) {
-	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "producer")
+func (s *interfaceManagerSuite) TestReloadConnectionsNotRemovedIfSlotSnapBroken(c *C) {
+	s.testReloadConnectionsNotRemovedIfSnapBroken(c, "producer")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
