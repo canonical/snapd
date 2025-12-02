@@ -145,6 +145,8 @@ type SealKeysParams struct {
 	TPMPolicyAuthKeyFile string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
+	// Optional preinstall check result for optimum PCR configuration
+	CheckResult *PreinstallCheckResult
 	// The key role (run, run+recover, recover)
 	KeyRole string
 	// Whether to allow disabled DMA protection

@@ -175,7 +175,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		sealKeyForBootChainsCalled := 0
-		restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+		restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 			sealKeyForBootChainsCalled++
 
 			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")} {
@@ -236,7 +236,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		u := mockUnlocker{}
-		err = boot.SealKeyToModeenv(myKey, myKey2, nil, myVolumesAuth, model, modeenv, boot.MockSealKeyToModeenvFlags{
+		err = boot.SealKeyToModeenv(myKey, myKey2, nil, myVolumesAuth, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{
 			FactoryReset:  tc.factoryReset,
 			StateUnlocker: u.unlocker,
 			UseTokens:     !tc.disableTokens,
@@ -1611,7 +1611,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 	myKey2 := secboot.CreateMockBootstrappedContainer()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
 		c.Check(key, DeepEquals, myKey)
@@ -1640,7 +1640,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1653,7 +1653,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorSad(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	sealKeyForBootChainsCalled := 0
-	restore := boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+	restore := boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 
 		return fmt.Errorf("seal key failed")
@@ -1673,7 +1673,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorSad(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}})
+	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}})
 	c.Assert(err, ErrorMatches, `seal key failed`)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
