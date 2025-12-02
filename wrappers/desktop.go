@@ -354,7 +354,7 @@ func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
 		}
 		desktopFilesGlobs := []string{fmt.Sprintf("%s_*.desktop", info.DesktopPrefix())}
 		for _, desktopFileID := range desktopFileIDs {
-			desktopFilesGlobs = append(desktopFilesGlobs, desktopFileID+".desktop")
+			desktopFilesGlobs = append(desktopFilesGlobs, desktopFileID)
 		}
 		content, err := deriveDesktopFilesContent(info)
 		if err != nil {
