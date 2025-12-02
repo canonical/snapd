@@ -4,7 +4,7 @@ show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24, is-core26"
     echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
-    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy, is-noble is-resolute"
+    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy, is-noble, is-resolute"
     echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux [ID], is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
     echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
