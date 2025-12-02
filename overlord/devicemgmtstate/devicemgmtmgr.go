@@ -18,10 +18,10 @@
  */
 
 // Package devicemgmtstate implements the manager and state aspects responsible
-// for polling-based remote device management. It receives signed request-message
-// assertions from the store via periodic polling, validates them against SD187
-// requirements, dispatches them to subsystem-specific handlers (like confdb), and
-// sends back response-message assertions with processing results.
+// for message-based remote device management. It receives signed request-message
+// assertions from the store via periodic message exchanges, validates them against
+// SD187 requirements, dispatches them to subsystem-specific handlers (like confdb),
+// and sends back response-message assertions with processing results.
 package devicemgmtstate
 
 import (
@@ -45,9 +45,10 @@ import (
 const (
 	deviceMgmtStateKey = "device-mgmt"
 
-	// TODO: dynamically change this based on # of pending messages & other factors
-	pollingLimit    = 10
-	pollingInterval = 5 * time.Minute
+	defaultExchangeLimit    = 10
+	defaultExchangeInterval = 5 * time.Minute
+
+	awaitSubsystemRetryInterval = 30 * time.Second
 )
 
 var deviceMgmtCycleChangeKind = swfeats.RegisterChangeKind("device-management-cycle")
@@ -75,12 +76,13 @@ type ResponseMessageSigner interface {
 // Messages remain pending until their associated change completes,
 // at which point a response is queued and the message is removed.
 type PendingMessage struct {
-	BaseID      string `json:"base-id"`
-	SeqNum      int    `json:"seq-num"`
-	Kind        string `json:"kind"`
-	AccountID   string `json:"account-id"`
-	AuthorityID string `json:"authority-id"`
-	Source      string `json:"source"`
+	BaseID      string    `json:"base-id"`
+	SeqNum      int       `json:"seq-num"`
+	Kind        string    `json:"kind"`
+	AccountID   string    `json:"account-id"`
+	AuthorityID string    `json:"authority-id"`
+	Source      string    `json:"source"`
+	Received    time.Time `json:"received"`
 
 	Devices    []string  `json:"devices"`
 	ValidSince time.Time `json:"valid-since"`
@@ -88,8 +90,8 @@ type PendingMessage struct {
 
 	Body string `json:"body"`
 
-	Received time.Time `json:"received"`
-	ChangeID string    `json:"change-id,omitempty"` // Set when subsystem change is created
+	ChangeID        string `json:"change-id,omitempty"`        // Set when subsystem change is created
+	ValidationError string `json:"validation-error,omitempty"` // Set when validation fails
 }
 
 func (msg *PendingMessage) ID() string {
@@ -100,15 +102,10 @@ func (msg *PendingMessage) ID() string {
 	return msg.BaseID
 }
 
-// Sequence tracks the last received and applied sequence numbers for message ordering.
-// TODO: implement sequencing and LRU eviction
-type Sequence struct {
-	// The <random-id> portion of message-id
-	ID string `json:"id"`
-	// The highest <N> we've stored
-	LastStored int `json:"last-received"`
-	// The highest <N> we've successfully applied
-	LastApplied int `json:"last-applied"`
+// exchangeConfig holds parameters for the message exchange task.
+type exchangeConfig struct {
+	// Limit is the maximum number of request messages to fetch.
+	Limit int
 }
 
 // DeviceMgmtState holds the persistent state for device management operations.
@@ -119,20 +116,17 @@ type DeviceMgmtState struct {
 	// TODO: add cap to PendingMessages queue to prevent unbounded growth.
 	PendingMessages map[string]*PendingMessage `json:"pending-messages"`
 
-	// Sequence tracking (LRU cache, max 256 entries)
-	Sequences map[string]*Sequence `json:"sequences"`
-
 	// PendingAckToken is the token of the last message we successfully stored,
-	// sent in the "after" field of the next poll request to acknowledge receipt
+	// sent in the "after" field of the next exchange to acknowledge receipt
 	// up to this point.
 	PendingAckToken string `json:"pending-ack-token"`
 
-	// ReadyResponses are response-message assertions ready to send in the next poll.
+	// ReadyResponses are response-message assertions ready to send in the next exchange.
 	// Cleared after successful transmission.
 	ReadyResponses map[string]store.Message `json:"ready-responses"`
 
-	// Timestamp of last poll
-	LastPolled time.Time `json:"last-polled"`
+	// LastExchange is the timestamp of the last message exchange.
+	LastExchange time.Time `json:"last-exchange"`
 }
 
 // DeviceMgmtManager handles device management operations.
@@ -152,11 +146,10 @@ func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessag
 
 	m.handlers["confdb"] = &ConfdbMessageHandler{}
 
-	runner.AddHandler("poll-messages", m.doPollMessages, nil)
+	runner.AddHandler("exchange-messages", m.doExchangeMessages, nil)
 	runner.AddHandler("dispatch-messages", m.doDispatchMessages, nil)
 	runner.AddHandler("validate-message", m.doValidateMessage, nil)
 	runner.AddHandler("apply-message", m.doApplyMessage, nil)
-	runner.AddHandler("await-subsystem-change", m.doAwaitSubsystemChange, nil)
 	runner.AddHandler("queue-response", m.doQueueResponse, nil)
 
 	return m, nil
@@ -170,7 +163,6 @@ func (m *DeviceMgmtManager) getState() (*DeviceMgmtState, error) {
 		if errors.Is(err, state.ErrNoState) {
 			return &DeviceMgmtState{
 				PendingMessages: make(map[string]*PendingMessage),
-				Sequences:       make(map[string]*Sequence),
 				ReadyResponses:  make(map[string]store.Message),
 			}, nil
 		}
@@ -187,7 +179,7 @@ func (m *DeviceMgmtManager) setState(ms *DeviceMgmtState) {
 }
 
 // Ensure implements StateManager.Ensure.
-func (m *DeviceMgmtManager) Ensure() error { // TODO: add manager-level feature flag?
+func (m *DeviceMgmtManager) Ensure() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -196,92 +188,106 @@ func (m *DeviceMgmtManager) Ensure() error { // TODO: add manager-level feature 
 		return err
 	}
 
+	shouldExchg, exchgCfg := m.shouldExchangeMessages(ms)
+	if !shouldExchg {
+		return nil
+	}
+
+	// For now, only one device management change can be in flight at any given time.
 	for _, chg := range m.state.Changes() {
 		if chg.Kind() == deviceMgmtCycleChangeKind && !chg.Status().Ready() {
 			return nil
 		}
 	}
 
-	ts := state.NewTaskSet()
-	var dispatch *state.Task
-	for _, msg := range ms.PendingMessages {
-		if msg.ChangeID == "" {
-			dispatch = m.state.NewTask("dispatch-messages", "Dispatch message(s) to subsystems")
-			ts.AddTask(dispatch)
-			break
-		}
-	}
+	chg := m.state.NewChange(deviceMgmtCycleChangeKind, "Process device management messages")
 
-	if m.canPoll(ms.LastPolled) {
-		poll := m.state.NewTask("poll-messages", "Poll store for device management messages")
-		ts.WaitFor(poll)
-		ts.AddTask(poll)
-	}
+	exchg := m.state.NewTask("exchange-messages", "Exchange messages with the Store")
+	exchg.Set("config", exchgCfg)
+	chg.AddTask(exchg)
 
-	if len(ts.Tasks()) > 0 {
-		chg := m.state.NewChange(deviceMgmtCycleChangeKind, "Process device management messages")
-		chg.AddAll(ts)
-		chg.Set("dispatch-queued", dispatch != nil)
-	}
+	dispatch := m.state.NewTask("dispatch-messages", "Dispatch message(s) to subsystems")
+	dispatch.WaitFor(exchg)
+	chg.AddTask(dispatch)
 
 	return nil
 }
 
-// canPoll checks whether polling should happen now based on feature flags and timing.
-func (m *DeviceMgmtManager) canPoll(lastPolled time.Time) bool {
+// shouldExchangeMessages checks whether a message exchange should happen now.
+func (m *DeviceMgmtManager) shouldExchangeMessages(ms *DeviceMgmtState) (bool, exchangeConfig) {
 	tr := config.NewTransaction(m.state)
-	enabled, err := features.Flag(tr, features.RemoteManagement)
+	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
 	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("cannot check remote-management feature flag: %v", err)
-		return false
-	}
-	if !enabled {
-		return false
+		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
+		return false, exchangeConfig{}
 	}
 
-	if time.Since(lastPolled) < pollingInterval {
-		return false
+	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
+	if time.Now().Before(nextExchange) {
+		return false, exchangeConfig{}
 	}
 
-	return true
+	shouldExchange := enabled || len(ms.ReadyResponses) > 0
+	limit := 0
+	if enabled {
+		limit = defaultExchangeLimit
+	}
+
+	return shouldExchange, exchangeConfig{Limit: limit}
 }
 
-// doPollMessages polls the store for new request messages, acknowledges receipt
-// of persisted messages, and sends queued response messages.
-func (m *DeviceMgmtManager) doPollMessages(t *state.Task, tomb *tomb.Tomb) error {
+// doExchangeMessages exchanges messages with the store: sends queued response messages,
+// acknowledges receipt of persisted request messages, and fetches new request messages.
+func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
+	defer m.state.Unlock()
 
 	ms, err := m.getState()
 	if err != nil {
 		return err
 	}
+	ms.LastExchange = time.Now()
 
 	deviceCtx, err := snapstate.DevicePastSeeding(m.state, nil)
 	if err != nil {
-		m.state.Unlock()
 		return err
 	}
-
 	sto := snapstate.Store(m.state, deviceCtx)
-	m.state.Unlock()
+
+	var cfg exchangeConfig
+	err = t.Get("config", &cfg)
+	if err != nil {
+		return err
+	}
 
 	messages := make([]store.Message, 0, len(ms.ReadyResponses))
 	for _, msg := range ms.ReadyResponses {
 		messages = append(messages, msg)
 	}
 
+	m.state.Unlock()
 	resp, err := sto.PollMessages(
 		tomb.Context(context.Background()),
 		&store.PollMessagesRequest{
 			After:    ms.PendingAckToken,
-			Limit:    pollingLimit,
+			Limit:    cfg.Limit,
 			Messages: messages,
 		},
 	)
 	if err != nil {
 		return err
 	}
+	m.state.Lock()
 
+	m.processExchangeResponse(ms, resp)
+	m.setState(ms)
+
+	return nil
+}
+
+// processExchangeResponse updates local state based on the message exchange response.
+// Caller must hold state lock.
+func (m *DeviceMgmtManager) processExchangeResponse(ms *DeviceMgmtState, resp *store.PollMessagesResponse) {
 	for _, msg := range resp.Messages {
 		pendingMsg, err := parsePendingMessage(msg.Message)
 		if err != nil {
@@ -289,37 +295,22 @@ func (m *DeviceMgmtManager) doPollMessages(t *state.Task, tomb *tomb.Tomb) error
 			continue
 		}
 
-		ms.PendingMessages[pendingMsg.ID()] = pendingMsg
-	}
-
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	ms.ReadyResponses = make(map[string]store.Message)
-	ms.PendingAckToken = ""
-	ms.LastPolled = time.Now()
-
-	if len(resp.Messages) > 0 {
-		ms.PendingAckToken = resp.Messages[len(resp.Messages)-1].Token
-
-		chg := t.Change()
-		var dispatchQueued bool
-		chg.Get("dispatch-queued", &dispatchQueued)
-		if !dispatchQueued {
-			dispatch := m.state.NewTask("dispatch-messages", "Dispatch message(s) to subsystems")
-			dispatch.WaitFor(t)
-			chg.AddTask(dispatch)
-			chg.Set("dispatch-queued", true)
+		_, exists := ms.PendingMessages[pendingMsg.ID()]
+		if !exists {
+			ms.PendingMessages[pendingMsg.ID()] = pendingMsg
 		}
 	}
 
-	m.setState(ms)
+	if len(resp.Messages) > 0 {
+		ms.PendingAckToken = resp.Messages[len(resp.Messages)-1].Token
+	} else {
+		ms.PendingAckToken = ""
+	}
 
-	return nil
+	ms.ReadyResponses = make(map[string]store.Message)
 }
 
-// doDispatchMessages selects pending messages for processing & creates validate-message
-// tasks for them.
+// doDispatchMessages selects pending messages for processing & queues tasks for them.
 // TODO: handle sequencing - pick messages from sequences that have predecessors applied.
 func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
@@ -340,10 +331,16 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		validate.Set("id", msg.ID())
 		validate.WaitFor(t)
 		chg.AddTask(validate)
-	}
 
-	if len(ms.PendingMessages) > 0 {
-		m.state.EnsureBefore(0)
+		apply := m.state.NewTask("apply-message", fmt.Sprintf("Apply message %s", msg.ID()))
+		apply.Set("id", msg.ID())
+		apply.WaitFor(validate)
+		chg.AddTask(apply)
+
+		queue := m.state.NewTask("queue-response", fmt.Sprintf("Queue response for message %s", msg.ID()))
+		queue.Set("id", msg.ID())
+		queue.WaitFor(apply)
+		chg.AddTask(queue)
 	}
 
 	return nil
@@ -372,7 +369,6 @@ func (m *DeviceMgmtManager) getMessageAndHandler(t *state.Task, ms *DeviceMgmtSt
 }
 
 // doValidateMessage performs snapd-level and subsystem-level validation on a message.
-// Creates apply-message task if validation succeeds, or queue-response for rejected messages.
 // TODO: implement device targeting check
 // TODO: implement time constraint checks
 // TODO: implement assumes validation
@@ -390,27 +386,17 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
-	var next *state.Task
 	err = handler.Validate(m.state, msg)
 	if err != nil {
-		next = m.state.NewTask("queue-response", fmt.Sprintf("Queue response for message %s", msg.ID()))
-		next.Set("status", asserts.MessageStatusRejected)
-		next.Set("body", map[string]any{"message": err.Error()})
-	} else {
-		next = m.state.NewTask("apply-message", fmt.Sprintf("Apply message %s", msg.ID()))
+		msg.ValidationError = err.Error()
 	}
-
-	next.Set("id", msg.ID())
-	next.WaitFor(t)
-	t.Change().AddTask(next)
 
 	m.setState(ms)
 
 	return nil
 }
 
-// doApplyMessage dispatches the message to its subsystem handler for processsing
-// and creates an await-subsystem-change task to monitor completion.
+// doApplyMessage dispatches the message to its subsystem handler for processsing.
 func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -425,25 +411,24 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if msg.ValidationError != "" {
+		return nil // No-op if validation failed
+	}
+
 	subSysChangeID, err := handler.Apply(m.state, msg)
 	if err != nil {
 		return fmt.Errorf("cannot apply message: %w", err)
 	}
 	msg.ChangeID = subSysChangeID
 
-	await := m.state.NewTask("await-subsystem-change", fmt.Sprintf("Await %s subsystem change for message %s", msg.Kind, msg.ID()))
-	await.Set("id", msg.ID())
-	await.WaitFor(t)
-	t.Change().AddTask(await)
-
 	m.setState(ms)
 
 	return nil
 }
 
-// doAwaitSubsystemChange monitors a subsystem change until completion and creates
-// a queue-response task with the processing results.
-func (m *DeviceMgmtManager) doAwaitSubsystemChange(t *state.Task, _ *tomb.Tomb) error {
+// doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
+// Retries until subsystem change completes.
+func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -457,70 +442,55 @@ func (m *DeviceMgmtManager) doAwaitSubsystemChange(t *state.Task, _ *tomb.Tomb) 
 		return err
 	}
 
-	subSysChange := m.state.Change(msg.ChangeID)
-	if subSysChange == nil {
-		return fmt.Errorf("subsystem change %s not found", msg.ChangeID)
-	}
-
-	if !subSysChange.Status().Ready() {
-		return &state.Retry{After: time.Minute}
-	}
-
-	respBody, status := handler.BuildResponse(subSysChange)
-
-	queue := m.state.NewTask("queue-response", fmt.Sprintf("Queue response for message %s", msg.ID()))
-	queue.Set("id", msg.ID())
-	queue.Set("status", status)
-	queue.Set("body", respBody)
-	queue.WaitFor(t)
-	t.Change().AddTask(queue)
-
-	return nil
-}
-
-// doQueueResponse signs a response message and queues it for transmission on the next poll.
-func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	ms, err := m.getState()
+	body, status, err := m.buildResponseBody(msg, handler)
 	if err != nil {
 		return err
 	}
 
-	msg, _, err := m.getMessageAndHandler(t, ms)
-	if err != nil {
-		return err
-	}
-
-	var body map[string]any
-	err = t.Get("body", &body)
-	if err != nil {
-		return err
-	}
-
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("cannot marshal response body: %w", err)
-	}
-
-	var status asserts.MessageStatus
-	err = t.Get("status", &status)
-	if err != nil {
-		return err
-	}
-
-	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), status, bodyBytes)
+	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), status, body)
 	if err != nil {
 		return fmt.Errorf("cannot sign response: %w", err)
 	}
 
-	ms.ReadyResponses[msg.ID()] = store.Message{Format: "assertion", Data: string(asserts.Encode(resAs))}
+	ms.ReadyResponses[msg.ID()] = store.Message{
+		Format: "assertion",
+		Data:   string(asserts.Encode(resAs)),
+	}
 	delete(ms.PendingMessages, msg.ID())
 
 	m.setState(ms)
 
 	return nil
+}
+
+// buildResponseBody creates a response body for a message.
+// Caller must hold state lock.
+func (m *DeviceMgmtManager) buildResponseBody(msg *PendingMessage, handler MessageHandler) ([]byte, asserts.MessageStatus, error) {
+	var body map[string]any
+	var status asserts.MessageStatus
+
+	if msg.ValidationError != "" {
+		status = asserts.MessageStatusRejected
+		body = map[string]any{"message": msg.ValidationError}
+	} else {
+		subSysChange := m.state.Change(msg.ChangeID)
+		if subSysChange == nil {
+			return nil, "", fmt.Errorf("subsystem change %s not found", msg.ChangeID)
+		}
+
+		if !subSysChange.Status().Ready() {
+			return nil, "", &state.Retry{After: awaitSubsystemRetryInterval}
+		}
+
+		body, status = handler.BuildResponse(subSysChange)
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot marshal response body: %w", err)
+	}
+
+	return bodyBytes, status, nil
 }
 
 // parsePendingMessage decodes a store message body into a PendingMessage.

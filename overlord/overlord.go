@@ -105,21 +105,23 @@ type Overlord struct {
 	startOfOperationTime time.Time
 
 	// managers
-	inited     bool
-	startedUp  bool
-	runner     *state.TaskRunner
-	restartMgr *restart.RestartManager
-	snapMgr    *snapstate.SnapManager
-	serviceMgr *servicestate.ServiceManager
-	assertMgr  *assertstate.AssertManager
-	ifaceMgr   *ifacestate.InterfaceManager
-	hookMgr    *hookstate.HookManager
-	deviceMgr  *devicestate.DeviceManager
-	clusterMgr *clusterstate.ClusterManager
-	cmdMgr     *cmdstate.CommandManager
-	shotMgr    *snapshotstate.SnapshotManager
-	fdeMgr     *fdestate.FDEManager
-	noticeMgr  *notices.NoticeManager
+	inited        bool
+	startedUp     bool
+	runner        *state.TaskRunner
+	restartMgr    *restart.RestartManager
+	snapMgr       *snapstate.SnapManager
+	serviceMgr    *servicestate.ServiceManager
+	assertMgr     *assertstate.AssertManager
+	ifaceMgr      *ifacestate.InterfaceManager
+	hookMgr       *hookstate.HookManager
+	deviceMgr     *devicestate.DeviceManager
+	clusterMgr    *clusterstate.ClusterManager
+	cmdMgr        *cmdstate.CommandManager
+	shotMgr       *snapshotstate.SnapshotManager
+	fdeMgr        *fdestate.FDEManager
+	noticeMgr     *notices.NoticeManager
+	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
+
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -201,9 +203,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
 
 	deviceMgmtMgr, err := devicemgmtstate.Manager(s, o.runner, deviceMgr)
-	logger.Noticef("adding device management mgmr")
 	if err != nil {
-		logger.Noticef("failed to add device management mgmr: %v", err)
 		return nil, err
 	}
 	o.addManager(deviceMgmtMgr)
@@ -252,6 +252,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.restartMgr = x
 	case *fdestate.FDEManager:
 		o.fdeMgr = x
+	case *devicemgmtstate.DeviceMgmtManager:
+		o.deviceMgmtMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
