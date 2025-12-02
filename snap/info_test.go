@@ -2336,6 +2336,10 @@ plugs:
 
 	unscopedApps := info.AppsForPlug(unscoped)
 	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+
+	appInfo := info.Apps["one"]
+	c.Assert(appInfo.HasPlug("scoped-plug"), Equals, true)
+	c.Assert(appInfo.HasPlug("non-existing-plug"), Equals, false)
 }
 
 func (s *infoSuite) TestAppsForSlot(c *C) {
