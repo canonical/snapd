@@ -22,14 +22,21 @@ package asserts
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"golang.org/x/crypto/sha3"
 )
 
+// HardwareIdentity holds a hardware identity assertion, which is a statement
+// that verifies the identity of a physical piece of hardware
 type HardwareIdentity struct {
 	assertionBase
 
@@ -62,7 +69,7 @@ func (h *HardwareIdentity) HardwareID() string {
 }
 
 // HardwareIDKey returns hardware identity public key,
-// same as the body of a parsable form (PEM) as defined by RFC7468§13.
+// which is the body of a parsable form (PEM) as defined by RFC7468§13.
 func (h *HardwareIdentity) HardwareIDKey() crypto.PublicKey {
 	return h.hardwareKey
 }
@@ -130,7 +137,7 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 
 // checkStringIsPEM checks if string is the body of a parsable form (PEM).
 // It assumes the BEGIN and END lines are omitted. The function returns a
-// a non-nil error if the strings fails to be a PEM.
+// non-nil error if the string fails to be a PEM.
 func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	// add begin and end lines to PEM body
 	var bb bytes.Buffer
@@ -138,7 +145,6 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	bb.Write(data)
 	bb.WriteString("\n-----END PUBLIC KEY-----\n")
 
-	// the PEM block can never be nil as we added begin and end lines
 	block, _ := pem.Decode(bb.Bytes())
 	if block == nil {
 		return nil, errors.New("no PEM block was found")
@@ -150,4 +156,68 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	}
 
 	return pubKey, nil
+}
+
+// VerifyNonceSignature checks the signature of a given nonce against the hardware id key.
+// It is used by the model service to verify the request-id.
+// It currently supports key with algorithms RSA, ECDSA, and ED25519.
+// The hash algorithm used is also specified as a parameter.
+func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
+	if !hashAlg.Available() {
+		return fmt.Errorf("unsupported hash type: %s", hashAlg.String())
+	}
+
+	hash := hashAlg.New()
+
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	switch keyType := h.hardwareKey.(type) {
+	case *rsa.PublicKey:
+		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey), hashAlg)
+	case *ecdsa.PublicKey:
+		return verifySignatureWithECDSAKey(hashed, signature, h.hardwareKey.(*ecdsa.PublicKey))
+	case ed25519.PublicKey:
+		return verifySignatureWithED25519Key(hashed, signature, h.hardwareKey.(ed25519.PublicKey))
+	default:
+		return fmt.Errorf("unsupported algorithm type: %T", keyType)
+	}
+}
+
+func verifySignatureWithRSAKey(hashed, signature []byte, pubKey *rsa.PublicKey, hashAlg crypto.Hash) error {
+	if err := rsa.VerifyPKCS1v15(pubKey, hashAlg, hashed, signature); err != nil {
+		return fmt.Errorf("invalid signature: %v", err)
+	}
+	return nil
+}
+
+func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicKey) error {
+	// EcdsaSignature struct defines ASN.1 layout of ECDSA signature
+	type EcdsaSignature struct {
+		R, S *big.Int
+	}
+
+	var sig EcdsaSignature
+	rest, err := asn1.Unmarshal(signature, &sig)
+	if err != nil {
+		return err
+	}
+
+	// Ensure all bytes were consumed
+	if len(rest) > 0 {
+		return errors.New("invalid signature: trailing bytes")
+	}
+
+	if !ecdsa.Verify(pubKey, hashed, sig.R, sig.S) {
+		return errors.New("invalid signature")
+	}
+
+	return nil
+}
+
+func verifySignatureWithED25519Key(hashed, signature []byte, pubKey ed25519.PublicKey) error {
+	if !ed25519.Verify(pubKey, hashed, signature) {
+		return errors.New("invalid signature")
+	}
+	return nil
 }
