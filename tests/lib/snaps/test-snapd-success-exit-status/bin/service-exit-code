@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+trap 'echo "Exiting with 42 (SUCCESS)"; rm "$SNAP_COMMON/ready"; exit 42' USR1
+trap 'echo "Exiting with 250 (SUCCESS)"; rm "$SNAP_COMMON/ready"; exit 250' USR2
+trap 'echo "Exiting with 1 (FAILURE)"; rm "$SNAP_COMMON/ready"; exit 1' TRAP
+
+echo "Service starting (PID: $$)..."
+
+# drop ready marker
+touch "$SNAP_COMMON/ready"
+
+while true; do
+    echo "Service running..."
+    sleep 10
+done
