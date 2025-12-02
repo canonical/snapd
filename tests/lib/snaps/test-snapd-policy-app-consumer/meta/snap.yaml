@@ -324,4 +324,4 @@ plugs:
   mediatek-accel:
     interface: mediatek-accel
     apu: true
-    vpu: true
+    vcu: true
