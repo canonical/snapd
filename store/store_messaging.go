@@ -126,7 +126,6 @@ func (s *Store) ExchangeMessages(ctx context.Context, req *MessageExchangeReques
 	if err != nil {
 		return nil, fmt.Errorf("cannot exchange messages: %w", err)
 	}
-	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != 200 {
 		if len(errResp.ErrorList) > 0 {
