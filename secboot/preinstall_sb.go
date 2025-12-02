@@ -144,13 +144,16 @@ func (cc *PreinstallCheckContext) checkResult() (*preinstallCheckResult, error) 
 	}
 
 	result := cc.sbRunChecksContext.Result()
-	if result == nil {
+	//TODO: Requires new secboot method PCRPRofileOptions
+	// see: https://github.com/canonical/secboot/pull/474#discussion_r2576866748 
+	pcrProfileOptions := cc.sbRunChecksContext.PCRPRofileOptions()
+
+	if result == nil || pcrProfileOptions == nil {
 		errorCount := len(cc.sbRunChecksContext.Errors())
 		return nil, fmt.Errorf("preinstall check result unavailable: %d unresolved errors", errorCount)
 	}
 
-	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
-	return &preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault}, nil
+	return &preinstallCheckResult{result, pcrProfileOptions}, nil
 }
 
 func (cr *preinstallCheckResult) save(filename string) error {
