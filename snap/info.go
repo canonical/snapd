@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -64,6 +65,17 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
+
+	// DmVerityFile returns the name of the dm-verity hash file computed by the container's name
+	// and the digest.
+	// If the container doesn't contain integrity data or contains integrity data but not of type
+	// "dm-verity", this will return an error.
+	DmVerityFile() (string, error)
+
+	// DmVerityDigest returns the dm-verity digest of the integrity data associated with the container.
+	// If the container doesn't contain integrity data or contains integrity data but not of type
+	// "dm-verity", this will return an error.
+	DmVerityDigest() (string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -437,6 +449,9 @@ type Info struct {
 
 	// Categories this snap is in.
 	Categories []CategoryInfo
+
+	// IntegrityData available for this snap
+	IntegrityData *IntegrityDataInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -2139,4 +2154,33 @@ type RefreshFailuresInfo struct {
 	// LastFailureSeverity identifies how severe the last failure was.
 	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
+}
+
+// IntegrityDataInfo contains all the integrity metadata associated with a snap.
+type IntegrityDataInfo struct {
+	integrity.IntegrityDataParams `json:"params"`
+
+	DownloadInfo `json:"download-info,omitempty"`
+}
+
+// DmVerityFile returns the name of the dm-verity hash file computed by the snap name and the digest.
+// If the snap doesn't contain integrity data or contains integrity data but not of type
+// "dm-verity", this will return an error.
+func (s *Info) DmVerityFile() (string, error) {
+	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
+		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
+	}
+
+	return integrity.DmVerityHashFileName(s.MountFile(), s.IntegrityData.Digest), nil
+}
+
+// DmVerityDigest returns the dm-verity digest of the integrity data associated with the snap.
+// If the snap doesn't contain integrity data or contains integrity data but not of type
+// "dm-verity", this will return an error.
+func (s *Info) DmVerityDigest() (string, error) {
+	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
+		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
+	}
+
+	return s.IntegrityData.Digest, nil
 }
