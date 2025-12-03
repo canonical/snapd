@@ -55,21 +55,21 @@ func (s *mockStore) PollMessages(ctx context.Context, req *store.PollMessagesReq
 	return s.pollMessages(ctx, req)
 }
 
-type mockMessageHander struct {
+type mockMessageHandler struct {
 	validate      func(st *state.State, msg *devicemgmtstate.PendingMessage) error
 	apply         func(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error)
 	buildResponse func(chg *state.Change) (map[string]any, asserts.MessageStatus)
 }
 
-func (h *mockMessageHander) Validate(st *state.State, msg *devicemgmtstate.PendingMessage) error {
+func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.PendingMessage) error {
 	return h.validate(st, msg)
 }
 
-func (h *mockMessageHander) Apply(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
+func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
 	return h.apply(st, msg)
 }
 
-func (h *mockMessageHander) BuildResponse(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+func (h *mockMessageHandler) BuildResponse(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 	return h.buildResponse(chg)
 }
 
@@ -480,7 +480,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		validate: func(st *state.State, msg *devicemgmtstate.PendingMessage) error {
 			return nil
 		},
@@ -511,7 +511,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageSubsystemValidationFailed(c *C
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		validate: func(st *state.State, msg *devicemgmtstate.PendingMessage) error {
 			return fmt.Errorf("invalid payload: missing required field")
 		},
@@ -554,7 +554,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
 			chg := st.NewChange("subsys-op", "subsystem operation")
 			return chg.ID(), nil
@@ -615,7 +615,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfValidationFailed(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
 			c.Log("call not expected")
 			c.Fail()
@@ -637,7 +637,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyFails(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
 			return "", fmt.Errorf("system in inconsistent state")
 		},
@@ -674,7 +674,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseForFailureStatuses(c *C) {
 		expectedStatus  asserts.MessageStatus
 	}
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
@@ -765,7 +765,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseForSuccessStatus(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Check(chg.ID(), Equals, subsysChg.ID())
 			return map[string]any{"result": "ok"}, asserts.MessageStatusSuccess
@@ -821,7 +821,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
@@ -850,7 +850,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
@@ -885,7 +885,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSignerError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &mockMessageHander{
+	handler := &mockMessageHandler{
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
