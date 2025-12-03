@@ -37,7 +37,7 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
-const GRAPHICAL_SESSION_TARGET = "graphical-session.target"
+const GraphicalSessionTarget = "graphical-session.target"
 
 // SnapServicesUnitOptions is a struct for controlling the generated service
 // definition for a snap service.
@@ -329,14 +329,14 @@ WantedBy={{.ServicesTarget}}
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 		if appInfo.HasPlug("wayland") || appInfo.HasPlug("x11") {
-			wrapperData.After = append(wrapperData.After, GRAPHICAL_SESSION_TARGET)
+			wrapperData.After = append(wrapperData.After, GraphicalSessionTarget)
 			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
-				wrapperData.PartOf = append(wrapperData.PartOf, GRAPHICAL_SESSION_TARGET)
+				wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
 			} else {
-				wrapperData.BindsTo = append(wrapperData.BindsTo, GRAPHICAL_SESSION_TARGET)
+				wrapperData.BindsTo = append(wrapperData.BindsTo, GraphicalSessionTarget)
 			}
-			wrapperData.ServicesTarget = GRAPHICAL_SESSION_TARGET
-			wrapperData.Requisite = append(wrapperData.Requisite, GRAPHICAL_SESSION_TARGET)
+			wrapperData.ServicesTarget = GraphicalSessionTarget
+			wrapperData.Requisite = append(wrapperData.Requisite, GraphicalSessionTarget)
 		}
 	default:
 		panic("unknown snap.DaemonScope")
