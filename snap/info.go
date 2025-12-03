@@ -1358,7 +1358,7 @@ type AppInfo struct {
 	Autostart string
 }
 
-// returns True if this AppInfo has the requested plug
+// HasPlug returns true if this AppInfo has the requested plug.
 func (app *AppInfo) HasPlug(plug string) bool {
 	_, ok := app.Plugs[plug]
 	return ok
