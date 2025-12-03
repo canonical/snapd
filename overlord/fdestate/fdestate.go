@@ -810,6 +810,8 @@ type volumesAuthOptionsKey struct{}
 //   - container-role: system-data, name: default-fallback
 //   - container-role: system-save, name: default-fallback
 func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	// XXX: Prevent switching to passphrase/PIN if early boot xkb config is not set?
+
 	authMode := device.AuthModeNone
 	if volumesAuth != nil {
 		if err := volumesAuth.Validate(); err != nil {

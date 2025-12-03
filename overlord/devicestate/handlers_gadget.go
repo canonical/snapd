@@ -32,12 +32,10 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 func makeRollbackDir(name string) (string, error) {
@@ -242,72 +240,6 @@ func fromSystemOption(t *state.Task) bool {
 	}
 
 	return false
-}
-
-// kernelCommandLineAppendArgs returns extra arguments that we want to
-// append to the kernel command line, searching first by looking at
-// the task, and if not found, looking at the current configuration
-// options. One thing or the other could happen depending on whether
-// this is a task created when setting a kernel option or by gadget
-// installation.
-func kernelCommandLineAppendArgs(tsk *state.Task, tr *config.Transaction,
-	taskParam string) (string, error) {
-
-	var value string
-	err := tsk.Get(taskParam, &value)
-	if err == nil {
-		return value, nil
-	}
-	if !errors.Is(err, state.ErrNoState) {
-		return "", err
-	}
-
-	var option string
-	switch taskParam {
-	case "cmdline-append":
-		option = "system.kernel.cmdline-append"
-	case "dangerous-cmdline-append":
-		option = "system.kernel.dangerous-cmdline-append"
-	default:
-		return "", fmt.Errorf("internal error, unexpected task parameter %q", taskParam)
-	}
-	if err := tr.Get("core", option, &value); err != nil && !config.IsNoOption(err) {
-		return "", err
-	}
-
-	return value, nil
-}
-
-func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
-	tr := config.NewTransaction(t.State())
-	rawCmdlineAppend, err := kernelCommandLineAppendArgs(t, tr, "cmdline-append")
-	if err != nil {
-		return "", err
-	}
-	// Validation against allow list has already happened in
-	// configcore, but the gadget might have changed, so we check
-	// again and filter any unallowed argument.
-	cmdlineAppend, forbidden := gadget.FilterKernelCmdline(rawCmdlineAppend, gd.Info.KernelCmdline.Allow)
-	if forbidden != "" {
-		warnMsg := fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", forbidden)
-		logger.Notice(warnMsg)
-		t.Logf(warnMsg)
-	}
-
-	// Dangerous extra cmdline only considered for dangerous models
-	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		cmdlineAppendDanger, err := kernelCommandLineAppendArgs(t, tr,
-			"dangerous-cmdline-append")
-		if err != nil {
-			return "", err
-		}
-		cmdlineAppend = strutil.JoinNonEmpty(
-			[]string{cmdlineAppend, cmdlineAppendDanger}, " ")
-	}
-
-	logger.Debugf("appended kernel command line part is %q", cmdlineAppend)
-
-	return cmdlineAppend, nil
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
