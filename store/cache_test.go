@@ -20,6 +20,7 @@
 package store_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -212,6 +213,46 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 
 	// even though the "unremovable" file is still in the cache
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
+}
+
+func (s *cacheSuite) TestCleanupBusy(c *C) {
+	_, testFiles := s.makeTestFiles(c, s.maxItems+2)
+	for _, p := range testFiles {
+		err := os.Remove(p)
+		c.Assert(err, IsNil)
+	}
+
+	busyCheckDoneC := make(chan struct{})
+	reachedRemoveC := make(chan struct{})
+	cleanupErrC := make(chan error, 1)
+	// block in os.Remove() so that we can trigger scenario leading to ErrCleanupBusy
+	restore := store.MockOsRemove(func(name string) error {
+		select {
+		case <-busyCheckDoneC:
+		default:
+			close(reachedRemoveC)
+			<-busyCheckDoneC
+		}
+		return os.Remove(name)
+	})
+	defer restore()
+
+	go func() {
+		cleanupErrC <- s.cm.Cleanup()
+	}()
+
+	<-reachedRemoveC
+	err := s.cm.Cleanup()
+	c.Check(err, ErrorMatches, "cannot perform cache cleanup: cache is busy")
+	c.Check(errors.Is(err, store.ErrCleanupBusy), Equals, true)
+	close(busyCheckDoneC)
+
+	// verify that cleanup returns busy
+	err = <-cleanupErrC
+	c.Check(err, IsNil)
+
+	// and also verify that the cache still got cleaned up
+	c.Check(s.cm.Count(), Equals, s.maxItems)
 }
 
 func (s *cacheSuite) TestHardLinkCount(c *C) {
