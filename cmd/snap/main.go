@@ -319,7 +319,8 @@ func registerCommands(cli *client.Client, parser *flags.Parser, baseCmd *flags.C
 // from each other.
 func Parser(cli *client.Client) *flags.Parser {
 	optionsData.Version = func() {
-		printVersions(cli)
+		verbose := false
+		printVersions(cli, verbose)
 		panic(&exitStatus{0})
 	}
 	flagopts := flags.Options(flags.PassDoubleDash)

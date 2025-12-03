@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockBuildID(mock string) (restore func()) {
@@ -63,4 +64,8 @@ func MockSnapstateSnapsAffectedByTask(f func(t *state.Task) ([]string, error)) (
 	return func() {
 		snapstateSnapsAffectedByTask = old
 	}
+}
+
+func MockSnapdtoolsIsReexecd(f func() (bool, error)) (restore func()) {
+	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
