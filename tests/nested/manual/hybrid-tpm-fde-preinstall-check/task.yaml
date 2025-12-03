@@ -87,9 +87,21 @@ prepare: |
       --passphrase "ubuntu test" \
       --exit-at-preinstall \
 
+  cat <<EOF >snapd-override.conf
+  [Service]
+  Environment=SNAPD_STANDBY_WAIT=1h
+  EOF
+  remote.push snapd-override.conf
+  remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
+  remote.exec sudo systemctl daemon-reload
+  remote.exec sudo systemctl restart snapd
+
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+
+debug: |
+  cat full_snapd_log_since_boot
 
 execute: |
   # The secboot preinstall check is only available on Ubuntu 25.10+ install environment targeting
@@ -214,5 +226,7 @@ execute: |
   # - Then request an action
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
   gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+  
+  remote.exec "sudo journalctl -u snapd -b --no-pager" > full_snapd_log_since_boot
 
   diff availability-check-errors availability-check-errors.reference
