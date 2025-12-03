@@ -22,8 +22,11 @@ package secboot
 
 import (
 	"context"
+	"crypto"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -66,6 +69,8 @@ var (
 // To support testing, when the system is running in a Virtual Machine, the check
 // configuration is modified to permit this to avoid an error.
 func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+	logger.Noticef(">>> Running PreinstallCheck")
+
 	// allow value-added-retailer drivers that are:
 	//  - listed as Driver#### load options
 	//  - referenced in the DriverOrder UEFI variable
@@ -84,17 +89,29 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	var bootImages []sb_efi.Image
 	for _, image := range bootImagePaths {
 		bootImages = append(bootImages, sb_efi.NewFileImage(image))
+		f, _ := os.Open(image)
+		h := crypto.SHA256.New()
+		io.Copy(h, f)
+		f.Close()
+		logger.Noticef(">>> %s: %s", image, hex.EncodeToString(h.Sum(nil)))
 	}
 	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
+
+	logger.Noticef(">>> checkContext address: %p", checkContext)
 
 	// no actions or action args for preinstall checks
 	result, err := sbPreinstallRunChecks(checkContext.sbRunChecksContext, ctx, sb_preinstall.ActionNone, nil)
 	if err != nil {
+		logger.Noticef(">>> PreinstallCheck encountered error: %v", err)
 		errorDetails, err := unwrapPreinstallCheckError(err)
 		if err != nil {
-			return nil, errorDetails, err
+			logger.Noticef(">>> PreinstallCheck encountered error while unwrapping: %v", err)
+			return nil, nil, err
 		}
-		return checkContext, errorDetails, err
+		if jsonBytes, err := json.Marshal(errorDetails); err == nil {
+			logger.Noticef(">>> PreinstallCheck unwrapped error details: %s", jsonBytes)
+		}
+		return checkContext, errorDetails, nil
 	}
 
 	if result.Warnings != nil {
@@ -114,9 +131,22 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 // in the secboot result are logged. On failure, it returns the error
 // encountered while interpreting the secboot error.
 func (cc *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, action *PreinstallAction) ([]PreinstallErrorDetails, error) {
+	logger.Noticef(">>> Running PreinstallCheckAction")
+	logger.Noticef(">>> Action: %s", action.Action)
+
+	logger.Noticef(">>> checkContext address: %p", cc)
+
 	result, err := sbPreinstallRunChecks(cc.sbRunChecksContext, ctx, sb_preinstall.Action(action.Action), action.Args)
 	if err != nil {
-		return unwrapPreinstallCheckError(err)
+		errorDetails, err := unwrapPreinstallCheckError(err)
+		if err != nil {
+			logger.Noticef(">>> PreinstallCheckAction encountered error while unwrapping: %v", err)
+			return nil, err
+		}
+		if jsonBytes, err := json.Marshal(errorDetails); err == nil {
+			logger.Noticef(">>> PreinstallCheckAction unwrapped error details: %s", jsonBytes)
+		}
+		return errorDetails, nil
 	}
 
 	if result.Warnings != nil {
