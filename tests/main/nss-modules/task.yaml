@@ -66,30 +66,30 @@ prepare: |
     packages=
     case ${MODULE} in
         ldap)
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 packages="slapd libnss-ldapd debconf-utils"
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 packages="slapd nss-pam-ldapd openldap-clients oddjob-mkhomedir"
             fi
             ;;
         sss)
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 packages="slapd nss-pam-ldapd openldap-clients sssd-krb5 krb5-server-ldap krb5-libs krb5-server krb5-workstation sssd-ldap oddjob-mkhomedir"
             fi
             ;;
         nis)
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 packages="nis rpcbind"
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 packages="nss_nis rpcbind oddjob-mkhomedir ypbind"
             fi
             ;;
         winbind)
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 packages="winbind libnss-winbind libpam-winbind realmd adcli samba-common-bin"
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 packages="realmd oddjob oddjob-mkhomedir samba-winbind samba-winbind-clients samba-common-tools"
             fi
             ;;
@@ -109,7 +109,7 @@ prepare: |
         hostname "${host_name}"
         echo "127.0.1.10 ${host_name}" >> /etc/hosts
 
-        if os.query is_ubuntu; then
+        if os.query is-ubuntu; then
             # backup debconf
             debconf-get-selections > debconf_selections.bak
             tests.cleanup defer 'debconf-set-selections < debconf_selections.bak'
@@ -122,7 +122,7 @@ prepare: |
     slapd	slapd/password2	password	${admin_pw}
     EOF
             dpkg-reconfigure -fnoninteractive -pcritical slapd
-        elif os.query is_fedora; then
+        elif os.query is-fedora; then
             systemctl start slapd
             ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f fedora-root.ldif
             ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
@@ -139,7 +139,7 @@ prepare: |
 
         ldapdir='/etc/ldap'
         group='openldap'
-        if os.query is_fedora; then
+        if os.query is-fedora; then
             ldapdir='/etc/openldap'
             group='ldap'
         fi
@@ -179,12 +179,12 @@ prepare: |
         if [ "$MODULE" = "ldap" ]; then
             sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
             sed -i "s/^base.*/base ${ldap_suffix}/" /etc/nslcd.conf
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
                 sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
                 sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
                 systemctl restart nscd
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 authselect create-profile nss-ldap -b local --symlink-meta --symlink-pam
                 sed -i "s/^passwd\:.*/& ldap/" /etc/authselect/custom/nss-ldap/nsswitch.conf
                 sed -i "s/^shadow\:.*/& ldap/" /etc/authselect/custom/nss-ldap/nsswitch.conf
@@ -199,11 +199,11 @@ prepare: |
 
         elif [ "$MODULE" = "sss" ]; then
             # setup some defaults
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
                 envsubst < krb5.conf > /etc/krb5.conf
                 touch /etc/krb5kdc/kadm5.acl
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 sed -i "s/^\#.*default_realm.*/    default_realm = ${realm_name}/" /etc/krb5.conf
                 sed -i "/^\[realms\]/a\\
                 ${realm_name} = {\\
@@ -219,9 +219,9 @@ prepare: |
             kdb5_util create -s -P secretpassword
 
             # restart services
-            if os.query is_ubuntu; then
+            if os.query is-ubuntu; then
                 systemctl restart krb5-kdc.service krb5-admin-server.service
-            elif os.query is_fedora; then
+            elif os.query is-fedora; then
                 systemctl restart krb5kdc kadmin
             fi
 
@@ -236,7 +236,7 @@ prepare: |
                 systemctl status --lines 100 sssd
                 false
             }
-            if os.query is_fedora; then
+            if os.query is-fedora; then
                 systemctl enable --now oddjobd.service
                 authselect select sssd
             fi
@@ -272,7 +272,7 @@ prepare: |
         domainname "${domain_name}"
         echo "domain $domain_name" >> /etc/yp.conf
         echo "ypserver $(lxc ls server -c 4 -f csv | awk '{print $1}')" >> /etc/yp.conf
-        if os.query is_ubuntu_ge 25.10; then
+        if os.query is-ubuntu_ge 25.10; then
             # the apparmor profile for hostname (which covers also execution of domainname)
             # doesn't grant read permissions to /etc/defaultdomain, which is used in the
             # ExecStartPre section of the ypbind service. Since the domain name is already set,
@@ -285,12 +285,12 @@ prepare: |
         systemctl enable ypbind || true
         systemctl restart ypbind
 
-        if os.query is_ubuntu; then
+        if os.query is-ubuntu; then
             # Update NSS to use nis
             sed -i "s/^passwd\:.*/& nis/" /etc/nsswitch.conf
             sed -i "s/^group\:.*/& nis/" /etc/nsswitch.conf
             sed -i "s/^shadow\:.*/& nis/" /etc/nsswitch.conf
-        elif os.query is_fedora; then
+        elif os.query is-fedora; then
             systemctl enable --now oddjobd.service
             authselect select nis
         fi
@@ -343,7 +343,7 @@ prepare: |
         sed -i 's/.*winbind enum groups.*/winbind enum groups = yes/' /etc/samba/smb.conf
         sed -i 's/.*winbind enum users.*/winbind enum users = yes/' /etc/samba/smb.conf
 
-        if os.query is_fedora; then
+        if os.query is-fedora; then
             systemctl enable --now oddjobd.service
             authselect select winbind
         fi
@@ -357,9 +357,9 @@ prepare: |
     fi
 
     # enable home directory creation
-    if os.query is_ubuntu; then
+    if os.query is-ubuntu; then
         pam-auth-update --enable mkhomedir
-    elif os.query is_fedora; then
+    elif os.query is-fedora; then
         authselect enable-feature with-mkhomedir
     fi
     tests.cleanup defer rm -rf /home/${nss_user}*
@@ -391,7 +391,7 @@ execute: |
         exit 1
     fi
 
-    if os.query is_fedora && [[ "$MODULE" = "nis" ]]; then
+    if os.query is-fedora && [[ "$MODULE" = "nis" ]]; then
         # On Fedora, the snap uses the host's nsswitch.conf file since it's a symbolic link.
         # The nss library modules are missing for all variants except for nis. 
         # Because the core base has libnss_nis.so.2, nis-specific users are visibile inside the snap.
