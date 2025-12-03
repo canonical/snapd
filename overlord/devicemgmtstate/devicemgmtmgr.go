@@ -138,7 +138,7 @@ type DeviceMgmtManager struct {
 }
 
 // Manager creates a new DeviceMgmtManager.
-func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessageSigner) (*DeviceMgmtManager, error) {
+func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessageSigner) *DeviceMgmtManager {
 	m := &DeviceMgmtManager{
 		state:    state,
 		signer:   signer,
@@ -153,7 +153,7 @@ func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessag
 	runner.AddHandler("apply-message", m.doApplyMessage, nil)
 	runner.AddHandler("queue-response", m.doQueueResponse, nil)
 
-	return m, nil
+	return m
 }
 
 // getState retrieves the current device management state, initializing if not present.
@@ -215,6 +215,7 @@ func (m *DeviceMgmtManager) Ensure() error {
 }
 
 // shouldExchangeMessages checks whether a message exchange should happen now.
+// Caller must hold state lock.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *DeviceMgmtState) (bool, exchangeConfig) {
 	tr := config.NewTransaction(m.state)
 	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
@@ -247,7 +248,6 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	ms.LastExchange = time.Now()
 
 	deviceCtx, err := snapstate.DevicePastSeeding(m.state, nil)
 	if err != nil {
@@ -309,6 +309,7 @@ func (m *DeviceMgmtManager) processExchangeResponse(ms *DeviceMgmtState, resp *s
 	}
 
 	ms.ReadyResponses = make(map[string]store.Message)
+	ms.LastExchange = time.Now()
 }
 
 // doDispatchMessages selects pending messages for processing & queues tasks for them.
