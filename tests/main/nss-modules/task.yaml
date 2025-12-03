@@ -393,8 +393,8 @@ execute: |
 
     if os.query is-fedora && [[ "$MODULE" = "nis" ]]; then
         # On Fedora, the snap uses the host's nsswitch.conf file since it's a symbolic link.
-        # The nss library modules are missing for all variants except for nis. 
-        # Because the core base has libnss_nis.so.2, nis-specific users are visibile inside the snap.
+        # The nss library modules are missing for all variants except for nis.
+        # Because the core base has libnss_nis.so.2, nis-specific users are visible inside the snap.
         exit 0
     fi
 
