@@ -378,6 +378,7 @@ type baseInitramfsMountsSuite struct {
 	testutil.BaseTest
 
 	isClassic bool
+	mode      string
 
 	// makes available a bunch of helper (like MakeAssertedSnap)
 	*seedtest.TestingSeed20
@@ -386,6 +387,7 @@ type baseInitramfsMountsSuite struct {
 	logs   *bytes.Buffer
 
 	seedDir    string
+	runDir     string
 	byLabelDir string
 	sysLabel   string
 	model      *asserts.Model
@@ -518,31 +520,60 @@ type setupSeedOpts struct {
 }
 
 func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
-	s.setupSeedGeneric(c, modelAssertTime, gadgetSnapFiles, opts)
+	// pretend /run/mnt/ubuntu-seed has a valid seed
+	s.seedDir = boot.InitramfsUbuntuSeedDir
+
+	testSeed := &seedtest.TestingSeed20{SeedDir: s.seedDir}
+	testSeed.SetupAssertSigning("canonical")
+	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.setupSeedGeneric(c, testSeed, modelAssertTime, gadgetSnapFiles, opts)
 }
 
-func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, integrityData []asserts.IntegrityData) {
-	s.setupSeedGeneric(c, time.Time{}, nil, setupSeedOpts{
+func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, modelAssertTime time.Time, integrityData []asserts.IntegrityData) {
+	// pretend /run/mnt/ubuntu-seed has a valid seed
+	s.seedDir = boot.InitramfsUbuntuSeedDir
+
+	testSeed := &seedtest.TestingSeed20{SeedDir: s.seedDir}
+	testSeed.SetupAssertSigning("canonical")
+	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.setupSeedGeneric(c, testSeed, modelAssertTime, nil, setupSeedOpts{
 		integrityData: &integrityData,
 	})
 }
 
-func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
+func (s *baseInitramfsMountsSuite) setupRunDirWithIntegrityData(c *C, integrityData []asserts.IntegrityData) {
+	_ = s.setupRunDir(c, integrityData)
+}
+
+func (s *baseInitramfsMountsSuite) setupRunDir(c *C, integrityData []asserts.IntegrityData) *seedtest.TestingSeed20 {
+	// use the seed creation helpers to prepare a minimal valid run mode system
+	isRunMode := s.mode == "run"
+	s.runDir = filepath.Join(boot.InitramfsWritableDir(s.model, isRunMode), "/var/lib/snapd")
+	assertionsPath := filepath.Join(s.runDir, "assertions")
+
+	testRunDir := &seedtest.TestingSeed20{SeedDir: s.runDir}
+	testRunDir.SetupFsAssertSigning(assertionsPath, "canonical")
+	restore := main.MockTrusted(testRunDir.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.setupSeedGeneric(c, testRunDir, time.Time{}, nil, setupSeedOpts{
+		integrityData: &integrityData,
+	})
+
+	return testRunDir
+}
+
+func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, testSeed *seedtest.TestingSeed20, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
 	base := "core20"
 	channel := "20"
 	if opts.hasKModsComps {
 		base = "core24"
 		channel = "24"
 	}
-
-	// pretend /run/mnt/ubuntu-seed has a valid seed
-	s.seedDir = boot.InitramfsUbuntuSeedDir
-
-	// now create a minimal uc20+ seed dir with snaps/assertions
-	testSeed := &seedtest.TestingSeed20{SeedDir: s.seedDir}
-	testSeed.SetupAssertSigning("canonical")
-	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
-	s.AddCleanup(restore)
 
 	// XXX: we don't really use this but seedtest always expects my-brand
 	testSeed.Brands.Register("my-brand", brandPrivKey, map[string]any{
@@ -1282,6 +1313,10 @@ grade=signed
 
 func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	// Make sure there is no model for this test
 	err := os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))

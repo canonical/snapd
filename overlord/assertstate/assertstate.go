@@ -25,6 +25,7 @@ package assertstate
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 )
 
 // Add the given assertion to the system assertion database.
@@ -395,6 +397,8 @@ func delayedCrossMgrInit() {
 	snapstate.EnforceValidationSets = ApplyEnforcedValidationSets
 	// hook helper for enforcing already existing validation set assertions
 	snapstate.EnforceLocalValidationSets = ApplyLocalEnforcedValidationSets
+	// hook helper for getting validated integrity data
+	snapstate.ValidatedIntegrityData = ValidatedIntegrityData
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -1354,4 +1358,80 @@ func ConfdbSchema(s *state.State, account, schemaName string) (*asserts.ConfdbSc
 	}
 
 	return as.(*asserts.ConfdbSchema), nil
+}
+
+var dbFindMany = func(db asserts.RODatabase, assertionType *asserts.AssertionType, headers map[string]string) ([]asserts.Assertion, error) {
+	return db.FindMany(assertionType, headers)
+}
+
+var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
+
+// SnapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
+// a snap ID, and a revision number. This is to be used in cases where the sha3 hash which is the primary key
+// for revision assertions is not known or we don't want to incur the cost to compute it.
+func SnapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId string, revN int) (*asserts.SnapRevision, error) {
+	revs, err := dbFindMany(db, asserts.SnapRevisionType, map[string]string{
+		"snap-id":       snapId,
+		"snap-revision": strconv.Itoa(revN),
+	})
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, err
+	}
+
+	if len(revs) < 1 {
+		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%d).", ErrNoRevisionFound, snapId, revN)
+	}
+
+	// Despite the set (snap-id, snap-revision) not comprising a primary key for
+	// snap-revision assertions, none of the assertion backends currently support
+	// adding a revision with the same revision number for the same snap-id,
+	// therefore the check here should be redundant but we keep it to as a safeguard
+	// in case that behavior changes.
+	if len(revs) > 1 {
+		return nil, fmt.Errorf("multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%d).", snapId, revN)
+	}
+
+	rev := revs[0].(*asserts.SnapRevision)
+	return rev, nil
+}
+
+func ValidatedIntegrityData(st *state.State, snapID string, snapRev int) (*integrity.IntegrityDataParams, error) {
+	db := DB(st)
+
+	rev, err := SnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapRev)
+	if err != nil {
+		return nil, err
+	}
+
+	return integrity.NewIntegrityDataParamsFromRevision(rev)
+}
+
+var ErrNoDeclarationFound = errors.New("no snap-declaration assertion found")
+
+// SnapDeclarationFromNameAndAuthority is a helper that searches for a snap declaration in the database given
+// a snap's name, authority id and a series. This is to be used in cases where the snap-id which is the primary
+// key is not known.
+func SnapDeclarationFromNameAndAuthority(db asserts.RODatabase, name string, authority string) (*asserts.SnapDeclaration, error) {
+	decls, err := dbFindMany(db, asserts.SnapDeclarationType, map[string]string{
+		"authority-id": authority,
+		"series":       release.Series,
+		"snap-name":    name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(decls) < 1 {
+		return nil, fmt.Errorf("no snap-declaration assertion found that matches (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	if len(decls) > 1 {
+		return nil, fmt.Errorf("multiple snap-declaration assertions found that match (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	decl := decls[0].(*asserts.SnapDeclaration)
+
+	decl.SnapID()
+
+	return decl, nil
 }
