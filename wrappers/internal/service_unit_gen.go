@@ -280,7 +280,6 @@ WantedBy={{.ServicesTarget}}
 		After                    []string
 		Requires                 []string
 		BindsTo                  []string
-		WantedBy                 []string
 		PartOf                   []string
 		Requisite                []string
 		InterfaceServiceSnippets string
