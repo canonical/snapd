@@ -98,14 +98,14 @@ func (h *ConfdbMessageHandler) BuildResponse(chg *state.Change) (map[string]any,
 	response := map[string]any{}
 	errData, hasErr := apiData["error"]
 	if hasErr {
-		errData, ok := errData.(map[string]any)
+		errMap, ok := errData.(map[string]any)
 		if ok {
-			kind, ok := errData["kind"]
+			kind, ok := errMap["kind"]
 			if ok {
 				response["kind"] = kind
 			}
 
-			message, ok := errData["message"]
+			message, ok := errMap["message"]
 			if ok {
 				response["message"] = message
 			}

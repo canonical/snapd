@@ -20,7 +20,10 @@
 package devicemgmtstate
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 	"gopkg.in/tomb.v2"
 )
 
@@ -71,4 +74,19 @@ func (m *DeviceMgmtManager) DoApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 
 func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) error {
 	return m.doQueueResponse(t, tomb)
+}
+
+func ParsePendingMessage(msg store.Message) (*PendingMessage, error) {
+	return parsePendingMessage(msg)
+}
+
+func MockTimeNow(t time.Time) func() {
+	oldTimeNow := timeNow
+	timeNow = func() time.Time {
+		return t
+	}
+
+	return func() {
+		timeNow = oldTimeNow
+	}
 }

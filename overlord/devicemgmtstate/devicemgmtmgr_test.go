@@ -20,6 +20,7 @@
 package devicemgmtstate_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
@@ -86,10 +88,9 @@ type deviceMgmtMgrSuite struct {
 
 	st         *state.State
 	o          *overlord.Overlord
-	runner     *state.TaskRunner
 	storeStack *assertstest.StoreStack
-
-	mgr *devicemgmtstate.DeviceMgmtManager
+	mgr        *devicemgmtstate.DeviceMgmtManager
+	logbuf     *bytes.Buffer
 }
 
 var _ = Suite(&deviceMgmtMgrSuite{})
@@ -108,16 +109,18 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 
 	s.storeStack = assertstest.NewStoreStack("my-brand", nil)
 
-	s.mockModel()
+	runner := s.o.TaskRunner()
+	s.o.AddManager(runner)
 
-	s.runner = s.o.TaskRunner()
-	s.o.AddManager(s.runner)
-
-	s.mgr = devicemgmtstate.Manager(s.st, s.runner, nil)
+	s.mgr = devicemgmtstate.Manager(s.st, runner, nil)
 	s.o.AddManager(s.mgr)
 
 	err := s.o.StartUp()
 	c.Assert(err, IsNil)
+
+	var restoreLogger func()
+	s.logbuf, restoreLogger = logger.MockLogger()
+	s.AddCleanup(restoreLogger)
 }
 
 func (s *deviceMgmtMgrSuite) setFeatureFlag(c *C, value bool) {
@@ -161,9 +164,12 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 		expectedLimit  int
 	}
 
-	now := time.Now()
-	tooSoon := now.Add(-2 * time.Minute)
-	enoughTimePassed := now.Add(-8 * time.Minute)
+	wayback := time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
+	restoreTime := devicemgmtstate.MockTimeNow(wayback)
+	defer restoreTime()
+
+	tooSoon := wayback.Add(-5 * time.Second)
+	enoughTimePassed := wayback.Add(-2 * devicemgmtstate.DefaultExchangeInterval)
 
 	tests := []test{
 		{
@@ -293,6 +299,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	s.mockModel()
+
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		ago := time.Now().Add(-1 * time.Hour)
 		tomorrow := ago.Add(24 * time.Hour)
@@ -341,7 +349,6 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ms.PendingAckToken, Equals, "token-123")
 	c.Check(ms.LastExchange.IsZero(), Equals, false)
-	c.Check(ms.ReadyResponses, HasLen, 0)
 	c.Assert(ms.PendingMessages, HasLen, 1)
 
 	msg := ms.PendingMessages["someId"]
@@ -358,6 +365,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	s.mockModel()
 
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		c.Check(req.After, Equals, "token-123")
@@ -390,17 +399,82 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	ms, err = s.mgr.GetState()
 	c.Assert(err, IsNil)
 	c.Check(ms.PendingAckToken, Equals, "")
-	c.Check(ms.LastExchange.IsZero(), Equals, false)
 	c.Check(ms.ReadyResponses, HasLen, 0)
 	c.Assert(ms.PendingMessages, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				{
+					Token: "token-123",
+					Message: store.Message{
+						Format: "assertion",
+						Data:   "not-an-assertion",
+					},
+				},
+			},
+			TotalPendingMessages: 0,
+		}, nil
+	})
+
+	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	cfg := devicemgmtstate.ExchangeConfig{Limit: 10}
+	t.Set("config", &cfg)
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(s.logbuf.String(), testutil.Contains, "cannot parse message with token token-123")
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.PendingAckToken, Equals, "token-123")
+	c.Check(ms.PendingMessages, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.AddCleanup(snapstatetest.MockDeviceContext(nil))
+	s.st.Set("seeded", false)
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Log("call not expected")
+		c.Fail()
+		return nil, fmt.Errorf("call not expected")
+	})
+
+	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(
+		err, ErrorMatches,
+		"too early for operation, device not yet seeded or device model not acknowledged",
+	)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesNoConfig(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	s.mockModel()
+
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
-		return nil, fmt.Errorf("network timeout")
+		c.Log("call not expected")
+		c.Fail()
+		return nil, fmt.Errorf("call not expected")
 	})
 
 	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
@@ -414,6 +488,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesNoConfig(c *C) {
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	s.mockModel()
 
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return nil, fmt.Errorf("network timeout")
@@ -918,7 +994,52 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSignerError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot sign response: signing key not available")
 }
 
+func (s *deviceMgmtMgrSuite) TestParsePendingMessageInvalid(c *C) {
+	type test struct {
+		name        string
+		message     store.Message
+		expectedErr string
+	}
+
+	tests := []test{
+		{
+			name: "unsupported format",
+			message: store.Message{
+				Format: "json",
+				Data:   `{"some": "data"}`,
+			},
+			expectedErr: "unsupported format json",
+		},
+		{
+			name: "invalid assertion data",
+			message: store.Message{
+				Format: "assertion",
+				Data:   "not-an-assertion",
+			},
+			expectedErr: "cannot decode assertion: assertion content/signature separator not found",
+		},
+		{
+			name: "wrong assertion type",
+			message: store.Message{
+				Format: "assertion",
+				Data:   string(asserts.Encode(s.storeStack.TrustedKey)),
+			},
+			expectedErr: `assertion is "account-key", expected "request-message"`,
+		},
+	}
+
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+
+		msg, err := devicemgmtstate.ParsePendingMessage(tt.message)
+		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
+		c.Check(msg, IsNil, cmt)
+	}
+}
+
 func makePendingMessage(baseID, kind string, seqNum int, changeID string) *devicemgmtstate.PendingMessage {
+	wayback := time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
+
 	return &devicemgmtstate.PendingMessage{
 		Source:      "store",
 		BaseID:      baseID,
@@ -927,10 +1048,10 @@ func makePendingMessage(baseID, kind string, seqNum int, changeID string) *devic
 		AccountID:   "my-brand",
 		AuthorityID: "my-brand",
 		Devices:     []string{"serial-1.my-model.my-brand"},
-		ValidSince:  time.Now().Add(-1 * time.Hour),
-		ValidUntil:  time.Now().Add(24 * time.Hour),
+		ValidSince:  wayback,
+		ValidUntil:  wayback.Add(24 * time.Hour),
 		Body:        `{"action": "get", "account": "my-brand", "view": "network/access-wifi"}`,
-		Received:    time.Now(),
+		Received:    wayback.Add(6 * time.Hour),
 		ChangeID:    changeID,
 	}
 }

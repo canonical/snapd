@@ -51,7 +51,11 @@ const (
 	awaitSubsystemRetryInterval = 30 * time.Second
 )
 
-var deviceMgmtCycleChangeKind = swfeats.RegisterChangeKind("device-management-cycle")
+var (
+	timeNow = time.Now
+
+	deviceMgmtCycleChangeKind = swfeats.RegisterChangeKind("device-management-cycle")
+)
 
 // MessageHandler processes request-message messages of a specific kind.
 // Caller must hold state lock when using this interface.
@@ -225,7 +229,7 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *DeviceMgmtState) (bool, e
 	}
 
 	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
-	if time.Now().Before(nextExchange) {
+	if timeNow().Before(nextExchange) {
 		return false, exchangeConfig{}
 	}
 
@@ -309,7 +313,7 @@ func (m *DeviceMgmtManager) processExchangeResponse(ms *DeviceMgmtState, resp *s
 	}
 
 	ms.ReadyResponses = make(map[string]store.Message)
-	ms.LastExchange = time.Now()
+	ms.LastExchange = timeNow()
 }
 
 // doDispatchMessages selects pending messages for processing & queues tasks for them.
@@ -537,6 +541,6 @@ func parsePendingMessage(msg store.Message) (*PendingMessage, error) {
 		ValidSince:  reqAs.ValidSince(),
 		ValidUntil:  reqAs.ValidUntil(),
 		Body:        string(reqAs.Body()),
-		Received:    time.Now(),
+		Received:    timeNow(),
 	}, nil
 }
