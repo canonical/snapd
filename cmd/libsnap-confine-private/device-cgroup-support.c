@@ -61,7 +61,7 @@ struct sc_device_cgroup {
             int devmap_fd;
             int prog_fd;
             char *tag;
-            char name[BPF_OBJ_NAME_LEN];
+            char pretty_name[BPF_OBJ_NAME_LEN]; /* only for presentation */
             struct rlimit old_limit;
         } v2;
 #endif
@@ -335,10 +335,11 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         *c = '_';
     }
 
-    /* BPF object names have a length limit of BPF_OBJ_NAME_LEN, which most of
-     * the time is too short to include the whole security tag, so attach a `s_`
-     * prefix and then best effort copy of what fits in the name from the part
-     * of security tag that follows the `snap_` prefix */
+    /* Build a pretty name that is presented to the user when listing BPF
+     * objects. Names of BPF objects have a length limit of BPF_OBJ_NAME_LEN,
+     * which most of the time is too short to include the whole security tag, so
+     * attach a `s_` prefix and then best effort copy of what fits in the name
+     * from the part of security tag that follows the `snap_` prefix */
     /* note the tag is valid */
     const char *pref_end = strchr(self->v2.tag, '_');
     if (pref_end == NULL) {
@@ -347,17 +348,16 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     /* this is where the name starts after snap_ */
     const char *snap_name_start = pref_end + 1;
 
-    sc_must_snprintf(self->v2.name, sizeof(self->v2.name), "s_");
+    sc_must_snprintf(self->v2.pretty_name, sizeof(self->v2.pretty_name), "s_");
     /* copy what fits into BPF_OBJ_NAME_LEN-2 ('s_' prefix) and truncate the
        rest */
-    strncpy(self->v2.name + 2, snap_name_start, sizeof(self->v2.name) - 2 - 1);
+    strncpy(self->v2.pretty_name + 2, snap_name_start, sizeof(self->v2.pretty_name) - 2 - 1);
     /* Security tags may contain '+' and '-' characters that are not
-     * valid as BPF object names.
-     */
-    for (char *c = self->v2.name; *c != '\0'; c++)
+     * valid for use in BPF object names. */
+    for (char *c = self->v2.pretty_name; *c != '\0'; c++)
         if ((*c == '-') || (*c == '+')) *c = '_';
 
-    debug("bpf fs tag: %s, object names: %s", self->v2.tag, self->v2.name);
+    debug("bpf fs tag: %s, object name: %s", self->v2.tag, self->v2.pretty_name);
 
     char path[PATH_MAX] = {0};
     static const char bpf_base[] = "/sys/fs/bpf";
@@ -411,7 +411,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
          * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
         /* NOTE: the new file map must be owned by root:root. */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries,
-                                   self->v2.name);
+                                   self->v2.pretty_name);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
         }
@@ -496,7 +496,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
 
     if (!from_existing) {
         /* load and attach the BPF program */
-        int prog_fd = load_devcgroup_prog(devmap_fd, self->v2.name);
+        int prog_fd = load_devcgroup_prog(devmap_fd, self->v2.pretty_name);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
