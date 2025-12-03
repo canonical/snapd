@@ -14,6 +14,8 @@ read -r layout model variant options <<EOF
 $xkb_list
 EOF
 
+# /etc/default is not created by default
+mkdir -p /etc/default
 cat << EOF > /etc/default/keyboard
 # KEYBOARD CONFIGURATION FILE
 # THIS FILE WAS AUTOMATICALLY CREATED
