@@ -127,6 +127,10 @@ func (Store) UserInfo(email string) (userinfo *store.User, err error) {
 	panic("UserInfo not expected")
 }
 
-func (Store) PollMessages(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
-	panic("PollMessages not expected")
+func (Store) CleanDownloadsCache() error {
+	panic("CleanDownloadsCache not expected")
+}
+
+func (Store) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+	panic("ExchangeMessages not expected")
 }

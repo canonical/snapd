@@ -261,13 +261,14 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesHappy(c *C) {
 	opts := testDesktopFileRulesOptions{
 		snapName:       "some-snap",
 		desktopFiles:   []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Bar.desktop", "bar.desktop"},
-		desktopFileIDs: []string{"org.example", "org.example.Foo"},
+		desktopFileIDs: []string{"org.example.desktop", "org.example.Foo.desktop", "org.example.Foo.WithoutSuffix"},
 		isInstance:     false,
 		expectedRules: []string{
 			// allow rules for snap's desktop files
-			fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),        // prefixed with DesktopPrefix()
-			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop")),     // desktop-file-ids, unchanged
-			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")), // desktop-file-ids, unchanged
+			fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", dirs.SnapDesktopFilesDir),                      // prefixed with DesktopPrefix()
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop")),                   // desktop-file-ids, unchanged
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")),               // desktop-file-ids, unchanged
+			fmt.Sprintf("%s r,", filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.WithoutSuffix.desktop")), // desktop-file-ids, unchanged
 			// check all deny patterns are generated
 			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "[^so]**.desktop")), // ^s from some-snap and ^o from org
 			fmt.Sprintf("deny %s r,", filepath.Join(dirs.SnapDesktopFilesDir, "{o[^r],s[^o]}**.desktop")),
@@ -425,7 +426,7 @@ func (s *desktopFileRulesBaseSuite) TestDesktopFileRulesBadDesktopFileIDs(c *C) 
 		desktopFiles:   []string{"org.*.example.desktop"},
 		desktopFileIDs: []string{"org.*.example"},
 		expectedRules:  s.fallbackRules,
-		expectedErr:    `internal error: invalid desktop file ID "org.*.example" found in snap "some-snap": "org.*.example" contains a reserved apparmor char from ` + "?*[]{}^\"\x00",
+		expectedErr:    `internal error: invalid desktop file ID "org.*.example.desktop" found in snap "some-snap": "org.*.example.desktop" contains a reserved apparmor char from ` + "?*[]{}^\"\x00",
 	}
 	s.testDesktopFileRules(c, opts)
 }

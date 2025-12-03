@@ -130,10 +130,6 @@ func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
 
-func (cm *CacheManager) Cleanup() error {
-	return cm.cleanup()
-}
-
 func (cm *CacheManager) Count() int {
 	return cm.count()
 }

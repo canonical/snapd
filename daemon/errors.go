@@ -277,6 +277,28 @@ func KeyslotsNotFound(err *fdestate.KeyslotRefsNotFoundError) *apiError {
 	}
 }
 
+func KeyslotsAlreadyExist(err *fdestate.KeyslotsAlreadyExistsError) *apiError {
+	refs := make([]fdestate.KeyslotRef, len(err.Keyslots))
+	for i, keyslot := range err.Keyslots {
+		refs[i] = keyslot.Ref()
+	}
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindKeyslotsAlreadyExists,
+		Value:   refs,
+	}
+}
+
+func InsufficientContainerCapacity(err *fdestate.InsufficientContainerCapacityError) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindInsufficientContainerCapacity,
+		Value:   err.ContainerRoles,
+	}
+}
+
 func InvalidRecoveryKey(err *fdestate.InvalidRecoveryKeyError) *apiError {
 	return &apiError{
 		Status:  400,
@@ -378,6 +400,10 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			return InsufficientSpace(err)
 		case *fdestate.KeyslotRefsNotFoundError:
 			return KeyslotsNotFound(err)
+		case *fdestate.KeyslotsAlreadyExistsError:
+			return KeyslotsAlreadyExist(err)
+		case *fdestate.InsufficientContainerCapacityError:
+			return InsufficientContainerCapacity(err)
 		case *fdestate.InvalidRecoveryKeyError:
 			return InvalidRecoveryKey(err)
 		case net.Error:

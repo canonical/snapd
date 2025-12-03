@@ -72,7 +72,12 @@ type StoreService interface {
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
 
-	PollMessages(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error)
+	// CleanDownloadsCache executes a best effort, non-blocking attempt to clean
+	// the downloads cache. Can return store.ErrCleanupBusy when the cache was
+	// busy and the cleanup could not run.
+	CleanDownloadsCache() error
+
+	ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
 type managerBackend interface {

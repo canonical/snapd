@@ -89,6 +89,159 @@ func (s *fdeMgrSuite) TestKeyslotRefValidate(c *C) {
 	c.Assert(k.Validate("bad-type"), ErrorMatches, `internal error: unexpected key slot type "bad-type"`)
 }
 
+func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
+	const onClassic = true
+	manager := s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}, nil)
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ts, err := fdestate.AddRecoveryKey(s.st, recoveryKeyID, []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-recovery"},
+		{ContainerRole: "system-save", Name: "default-recovery"},
+		// Also non-system extra recovery keys can be added.
+		{ContainerRole: "system-data", Name: "some-other-slot"},
+	})
+	c.Assert(err, IsNil)
+
+	tsks := ts.Tasks()
+	c.Check(tsks, HasLen, 1)
+
+	c.Check(tsks[0].Summary(), Matches, "Add recovery key slots")
+	c.Check(tsks[0].Kind(), Equals, "fde-add-recovery-keys")
+	// check recovery key ID is passed to task
+	var tskRecoveryKeyID string
+	c.Assert(tsks[0].Get("recovery-key-id", &tskRecoveryKeyID), IsNil)
+	c.Check(tskRecoveryKeyID, Equals, recoveryKeyID)
+	// check target key slots are passed to task
+	var tskKeyslots []fdestate.KeyslotRef
+	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-recovery"},
+		{ContainerRole: "system-save", Name: "default-recovery"},
+		{ContainerRole: "system-data", Name: "some-other-slot"},
+	})
+}
+
+func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+		return &mockRecoveryKeyCache{
+			getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
+				switch keyID {
+				case "good-key-id":
+					return backend.CachedRecoverKey{Expiration: time.Now().Add(100 * time.Hour)}, nil
+				case "expired-key-id":
+					return backend.CachedRecoverKey{Expiration: time.Now().Add(-100 * time.Hour)}, nil
+				default:
+					return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
+				}
+			},
+		}
+	})()
+
+	const onClassic = true
+	s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c,
+		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-1"}},
+		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-2"}},
+	)
+
+	keyslots := []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// no key slots
+	_, err := fdestate.AddRecoveryKey(s.st, "good-key-id", nil)
+	c.Assert(err, ErrorMatches, "keyslots cannot be empty")
+
+	// invalid recovery key id
+	_, err = fdestate.AddRecoveryKey(s.st, "bad-key-id", keyslots)
+	c.Assert(err, ErrorMatches, "invalid recovery key: not found")
+	var rkeyErr *fdestate.InvalidRecoveryKeyError
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonNotFound)
+
+	// expired recovery key id
+	_, err = fdestate.AddRecoveryKey(s.st, "expired-key-id", keyslots)
+	c.Assert(err, ErrorMatches, "invalid recovery key: expired")
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonExpired)
+
+	// invalid keyslot
+	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
+
+	// invalid keyslot reference, starts with "default" or "snap"
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): only system key slot names can start with "default"`)
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snap-external"}
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "snap-external"\): only system key slot names can start with "snap"`)
+
+	// existing keyslots
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "some-key-2"}
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `key slot \(container-role: "system-data", name: "some-key-2"\) already exists`)
+	var alreadyExistsErr *fdestate.KeyslotsAlreadyExistsError
+	c.Assert(errors.As(err, &alreadyExistsErr), Equals, true)
+	c.Check(alreadyExistsErr.Keyslots, HasLen, 1)
+	c.Check(alreadyExistsErr.Keyslots[0].Ref(), DeepEquals, badKeyslot)
+
+	// container capacity exceeded
+	keyslots = []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "some-key-3"},
+		{ContainerRole: "system-data", Name: "some-key-4"},
+		{ContainerRole: "system-data", Name: "some-key-5"},
+		{ContainerRole: "system-data", Name: "some-key-6"},
+		{ContainerRole: "system-data", Name: "some-key-7"},
+		{ContainerRole: "system-data", Name: "some-key-8"},
+	}
+	// this is fine, 2 existing keyslots + 6 <= 8 (max capacity per container)
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, IsNil)
+	// adding one more key slot, but on a different container is fine
+	keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-1"})
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, IsNil)
+	// now we hit the max capacity for "system-data" container
+	keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "some-key-9"})
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, ErrorMatches, `insufficient capacity on container system-data`)
+	var insufficientCapacityErr *fdestate.InsufficientContainerCapacityError
+	c.Assert(errors.As(err, &insufficientCapacityErr), Equals, true)
+	c.Check(insufficientCapacityErr.ContainerRoles, DeepEquals, []string{"system-data"})
+	// for good measure let's do the same for the other container
+	keyslots = append(keyslots,
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-2"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-3"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-4"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-5"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-6"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-7"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-8"},
+		fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-key-9"},
+	)
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, ErrorMatches, `insufficient capacity on containers \[system-data, system-save\]`)
+	c.Assert(errors.As(err, &insufficientCapacityErr), Equals, true)
+	c.Check(insufficientCapacityErr.ContainerRoles, DeepEquals, []string{"system-data", "system-save"})
+
+	// change conflict
+	chg := s.st.NewChange("fde-change-passphrase", "")
+	task := s.st.NewTask("some-fde-task", "")
+	chg.AddTask(task)
+	_, err = fdestate.AddRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, ErrorMatches, `changing passphrase in progress, no other FDE changes allowed until this is done`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+}
+
 func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},

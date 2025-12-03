@@ -267,9 +267,9 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	}
 
 	m.state.Unlock()
-	resp, err := sto.PollMessages(
+	resp, err := sto.ExchangeMessages(
 		tomb.Context(context.Background()),
-		&store.PollMessagesRequest{
+		&store.MessageExchangeRequest{
 			After:    ms.PendingAckToken,
 			Limit:    cfg.Limit,
 			Messages: messages,
@@ -288,7 +288,7 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 
 // processExchangeResponse updates local state based on the message exchange response.
 // Caller must hold state lock.
-func (m *DeviceMgmtManager) processExchangeResponse(ms *DeviceMgmtState, resp *store.PollMessagesResponse) {
+func (m *DeviceMgmtManager) processExchangeResponse(ms *DeviceMgmtState, resp *store.MessageExchangeResponse) {
 	for _, msg := range resp.Messages {
 		pendingMsg, err := parsePendingMessage(msg.Message)
 		if err != nil {

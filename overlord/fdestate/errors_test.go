@@ -41,12 +41,25 @@ func (s *fdeMgrSuite) TestKeyslotsNotFoundErrorMessage(c *C) {
 }
 
 func (s *fdeMgrSuite) TestKeyslotsAlreadyExistsError(c *C) {
-	err := fdestate.KeyslotsAlreadyExistsError([]fdestate.Keyslot{{ContainerRole: "some-role", Name: "some-slot"}})
+	err := fdestate.KeyslotsAlreadyExistsError{Keyslots: []fdestate.Keyslot{{ContainerRole: "some-role", Name: "some-slot"}}}
 	c.Check(err.Error(), Equals, `key slot (container-role: "some-role", name: "some-slot") already exists`)
 
-	err = fdestate.KeyslotsAlreadyExistsError([]fdestate.Keyslot{
-		{ContainerRole: "some-role", Name: "some-slot-1"},
-		{ContainerRole: "some-role", Name: "some-slot-2"},
-	})
+	err = fdestate.KeyslotsAlreadyExistsError{
+		Keyslots: []fdestate.Keyslot{
+			{ContainerRole: "some-role", Name: "some-slot-1"},
+			{ContainerRole: "some-role", Name: "some-slot-2"},
+		},
+	}
 	c.Check(err.Error(), Equals, `key slots [(container-role: "some-role", name: "some-slot-1"), (container-role: "some-role", name: "some-slot-2")] already exist`)
+}
+
+func (s *fdeMgrSuite) TestInsufficientContainerCapacity(c *C) {
+	err := fdestate.InsufficientContainerCapacityError{}
+	c.Check(err.Error(), Equals, "insufficient container capacity")
+
+	err = fdestate.InsufficientContainerCapacityError{ContainerRoles: []string{"system-data"}}
+	c.Check(err.Error(), Equals, "insufficient capacity on container system-data")
+
+	err = fdestate.InsufficientContainerCapacityError{ContainerRoles: []string{"system-data", "system-save"}}
+	c.Check(err.Error(), Equals, "insufficient capacity on containers [system-data, system-save]")
 }

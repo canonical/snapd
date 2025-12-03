@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"sort"
 	"strings"
 	"time"
 
@@ -455,7 +456,7 @@ func (k KeyslotRef) Validate(keyslotType KeyslotType) error {
 	if len(k.Name) == 0 {
 		return errors.New("name cannot be empty")
 	}
-	// this constraint could be relaxed later when snapd supports user containers.
+	// This constraint could be relaxed later when snapd supports user containers.
 	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
 		return fmt.Errorf(`unsupported container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
 	}
@@ -471,7 +472,7 @@ func (k KeyslotRef) Validate(keyslotType KeyslotType) error {
 	}
 
 	if !isSystemKeyslot {
-		// external key slots cannot use reserved prefixes.
+		// External key slots cannot use reserved prefixes.
 		reservedPrefixes := []string{"snap", "default"}
 		for _, prefix := range reservedPrefixes {
 			if strings.HasPrefix(k.Name, prefix) {
@@ -487,10 +488,10 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
 		if errors.Is(err, backend.ErrNoRecoveryKey) {
-			// this might mean the recovery key id not valid or snapd restarted
-			// and the associated recovery key was lost from the cache.
+			// This might mean that the recovery key id is not valid or snapd
+			// restarted and the associated recovery key was lost from the cache.
 			//
-			// TODO: mitigate snapd restart case by introducing an alternative secrets
+			// TODO:FDEM: Mitigate snapd restart case by introducing an alternative secret
 			// backend that survives restarts.
 			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}
 		}
@@ -500,6 +501,117 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 		return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonExpired}
 	}
 	return nil
+}
+
+// LUKS header key slot limit is 32 so the theoretical maximum limit is
+// 16 key slots to allow for reprovisioning (and tmp key slots) which
+// could duplicate all existing keys.
+//
+// Practically, we should impose a more strict artificial limit that can be
+// relaxed later since the use cases for extra keys are currently fairly
+// limited anyway.
+const maxContainerCapacity = 8
+
+func checkSufficientContainerCapacity(fdemgr *FDEManager, keyslotRefs []KeyslotRef) error {
+	if len(keyslotRefs) == 0 {
+		// Nothing to do.
+		return nil
+	}
+
+	need := make(map[string]int)
+	for _, ref := range keyslotRefs {
+		need[ref.ContainerRole]++
+	}
+
+	containers, err := fdemgr.GetEncryptedContainers()
+	if err != nil {
+		return err
+	}
+
+	have := make(map[string]int, len(need))
+	for _, container := range containers {
+		// TODO:FDEM: Refactor this into a helper on EncryptedContainer
+		// that can be also used in GetKeyslots.
+		recoveryKeys, err := secbootListContainerRecoveryKeyNames(container.DevPath())
+		if err != nil {
+			return fmt.Errorf("cannot obtain recovery keys for %q: %v", container.DevPath(), err)
+		}
+		platformKeys, err := secbootListContainerUnlockKeyNames(container.DevPath())
+		if err != nil {
+			return fmt.Errorf("cannot obtain platform keys for %q: %v", container.DevPath(), err)
+		}
+		have[container.ContainerRole()] = len(recoveryKeys) + len(platformKeys)
+	}
+
+	var containersWithInsufficientCapacity []string
+	for containerRole, needed := range need {
+		if have[containerRole]+needed > maxContainerCapacity {
+			containersWithInsufficientCapacity = append(containersWithInsufficientCapacity, containerRole)
+		}
+	}
+	if len(containersWithInsufficientCapacity) != 0 {
+		sort.Strings(containersWithInsufficientCapacity)
+		return &InsufficientContainerCapacityError{ContainerRoles: containersWithInsufficientCapacity}
+	}
+
+	return nil
+}
+
+// AddRecoveryKey creates a taskset that adds a recovery key for
+// the specified target key slots using the recovery key identified
+// by recoveryKeyID.
+//
+// If the recovery key ID is invalid, an InvalidRecoveryKeyError is returned.
+//
+// If any key slot from keyslotRefs already exists, a KeyslotsAlreadyExistsError is returned.
+//
+// If some target container has insufficient capacity, an InsufficientContainerCapacity is returned.
+func AddRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	if len(keyslotRefs) == 0 {
+		return nil, fmt.Errorf("keyslots cannot be empty")
+	}
+
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(KeyslotTypeRecovery); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+	}
+
+	// Note: Checking that there are no ongoing conflicting changes and that the
+	// targeted key slots do not exist while state is locked ensures that we don't
+	// suffer from TOCTOU.
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	fdemgr := fdeMgr(st)
+
+	if err := checkRecoveryKeyIDExists(fdemgr, recoveryKeyID); err != nil {
+		// Don't wrap to expose InvalidRecoveryKeyError to the caller.
+		return nil, err
+	}
+
+	if err := checkSufficientContainerCapacity(fdemgr, keyslotRefs); err != nil {
+		return nil, err
+	}
+
+	currentKeyslots, _, err := fdemgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+	if len(currentKeyslots) != 0 {
+		return nil, &KeyslotsAlreadyExistsError{Keyslots: currentKeyslots}
+	}
+
+	ts := state.NewTaskSet()
+
+	addRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add recovery key slots")
+	addRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
+	addRecoveryKeys.Set("keyslots", keyslotRefs)
+	ts.AddTask(addRecoveryKeys)
+
+	return ts, nil
 }
 
 const tmpKeyslotPrefix = "snapd-tmp"
@@ -530,7 +642,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		}
 	}
 
-	// Note: checking that there are no ongoing conflicting changes and that the
+	// Note: Checking that there are no ongoing conflicting changes and that the
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 
@@ -610,7 +722,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	}
 
 	if len(keyslotRefs) == 0 {
-		// by default, target keys that would have been PIN/passphrase protected during installation.
+		// By default, target keys that would have been PIN/passphrase protected during installation.
 		keyslotRefs = append(keyslotRefs,
 			KeyslotRef{ContainerRole: "system-data", Name: "default"},
 			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
@@ -624,7 +736,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		}
 	}
 
-	// Note: checking that there are no ongoing conflicting changes and that the
+	// Note: Checking that there are no ongoing conflicting changes and that the
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 
@@ -719,7 +831,7 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	}
 
 	if len(keyslotRefs) == 0 {
-		// by default, target platform keys that would have been added during installation.
+		// By default, target platform keys that would have been added during installation.
 		keyslotRefs = append(keyslotRefs,
 			KeyslotRef{ContainerRole: "system-data", Name: "default"},
 			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
@@ -738,12 +850,12 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		return nil, err
 	}
 	if unlockedWithRecoveryKey {
-		// primary key might be missing from kernel keyring if disk was
+		// Primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
 		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
 	}
 
-	// Note: checking that there are no ongoing conflicting changes and that the
+	// Note: Checking that there are no ongoing conflicting changes and that the
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 

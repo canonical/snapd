@@ -137,10 +137,6 @@ func MockSecbootRenameContainerKey(f func(devicePath string, oldName string, new
 	return testutil.Mock(&secbootRenameContainerKey, f)
 }
 
-func KeyslotsAlreadyExistsError(keyslots []Keyslot) keyslotsAlreadyExistsError {
-	return keyslotsAlreadyExistsError{keyslots: keyslots}
-}
-
 func MockChangeAuthOptionsInCache(st *state.State, old, new string) (restore func()) {
 	st.Lock()
 	defer st.Unlock()

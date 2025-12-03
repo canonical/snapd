@@ -48,11 +48,11 @@ func Test(t *testing.T) { TestingT(t) }
 type mockStore struct {
 	storetest.Store
 
-	pollMessages func(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error)
+	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
-func (s *mockStore) PollMessages(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
-	return s.pollMessages(ctx, req)
+func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+	return s.exchangeMessages(ctx, req)
 }
 
 type mockMessageHandler struct {
@@ -147,8 +147,8 @@ func (s *deviceMgmtMgrSuite) mockModel() {
 	s.st.Set("seeded", true)
 }
 
-func (s *deviceMgmtMgrSuite) mockStore(pollMessages func(context.Context, *store.PollMessagesRequest) (*store.PollMessagesResponse, error)) {
-	snapstate.ReplaceStore(s.st, &mockStore{pollMessages: pollMessages})
+func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
+	snapstate.ReplaceStore(s.st, &mockStore{exchangeMessages: exchangeMessages})
 }
 
 func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
@@ -293,7 +293,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		ago := time.Now().Add(-1 * time.Hour)
 		tomorrow := ago.Add(24 * time.Hour)
 
@@ -314,7 +314,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 		)
 		c.Assert(err, IsNil)
 
-		return &store.PollMessagesResponse{
+		return &store.MessageExchangeResponse{
 			Messages: []store.MessageWithToken{
 				{
 					Token: "token-123",
@@ -359,12 +359,12 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		c.Check(req.After, Equals, "token-123")
 		c.Check(req.Limit, Equals, 10)
 		c.Check(req.Messages, HasLen, 1)
 
-		return &store.PollMessagesResponse{
+		return &store.MessageExchangeResponse{
 			Messages:             []store.MessageWithToken{},
 			TotalPendingMessages: 0,
 		}, nil
@@ -399,7 +399,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesNoConfig(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return nil, fmt.Errorf("network timeout")
 	})
 
@@ -415,7 +415,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(ctx context.Context, req *store.PollMessagesRequest) (*store.PollMessagesResponse, error) {
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return nil, fmt.Errorf("network timeout")
 	})
 

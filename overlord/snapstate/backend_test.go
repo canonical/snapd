@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -44,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -317,6 +317,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	case "prompting-client":
 		snapID = "aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj"
+	case "snap-store":
+		snapID = "gjf3IPXoRiipCu9K0kVu52f0H56fIksg"
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -445,6 +447,21 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Attrs: map[string]any{
 					"desktop-file-ids": []any{"org.example.Foo"},
 				},
+			},
+		}
+	case "channel-with-integrity-data":
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
 			},
 		}
 	}
@@ -817,6 +834,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				sar.Resources = f.snapResources(info)
 			}
 
+			// TODO by default fakestore returns a snap info for a snap with integrity data
+			// if the "channel-with-integrity-data" is used in tests. This should actually
+			// be made configurable to respect a new option in the opts field which the actual
+			// store will use and that will indicate whether it should return integrity data
+			// information.
+
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
@@ -985,6 +1008,10 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 	})
 
 	return nil, nil
+}
+
+func (f *fakeStore) CleanDownloadsCache() error {
+	return nil
 }
 
 type fakeSnappyBackend struct {
@@ -1731,23 +1758,38 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 }
 
 func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, err error) {
+	// The concern separation between callers of RunInhibitSnapForUnlink() and
+	// the backend isn't great; the fake implementation has to follow what the
+	// real backend implementation does to keep the snapstate tests realistic.
+
 	f.appendOp(&fakeOp{
 		op:          "run-inhibit-snap-for-unlink",
 		name:        info.InstanceName(),
 		inhibitHint: hint,
 	})
-	if err := decision(); err != nil {
-		return nil, err
-	}
-	if f.lockDir == "" {
-		f.lockDir = os.TempDir()
-	}
 	// XXX: returning a real lock is somewhat annoying
-	lock, err = osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
+	lock, err = snaplock.OpenLock(info.InstanceName())
 	if err != nil {
 		return nil, err
 	}
 	lock.Lock()
+
+	lockToClose := lock
+	defer func() {
+		if err != nil {
+			lockToClose.Close()
+		}
+	}()
+
+	if err := decision(); err != nil {
+		return nil, err
+	}
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
+	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo, stateUnlocker); err != nil {
+		return nil, err
+	}
+
 	return lock, err
 }
 

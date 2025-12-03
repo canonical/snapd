@@ -126,22 +126,26 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicate(c *C) {
 	c.Assert(files, HasLen, 1)
 }
 
-func (s *desktopSuite) testEnsurePackageDesktopFilesWithDesktopInterface(c *C, hasDesktopFileIDs bool) {
+func (s *desktopSuite) testEnsurePackageDesktopFilesWithDesktopInterface(c *C, desktopFileID string) {
 	var desktopAppYaml = `
 name: foo
 version: 1.0
 plugs:
   desktop:
 `
-	if hasDesktopFileIDs {
-		desktopAppYaml += "\n    desktop-file-ids: [org.example.Foo]"
+	if desktopFileID != "" {
+		desktopAppYaml += fmt.Sprintf("\n    desktop-file-ids: [%s]", desktopFileID)
 	}
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	c.Assert(info.Plugs["desktop"], NotNil)
 
 	expectedDesktopFilePath1 := filepath.Join(dirs.SnapDesktopFilesDir, "foo_org.example.Foo.desktop")
-	if hasDesktopFileIDs {
-		expectedDesktopFilePath1 = filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")
+	if desktopFileID != "" {
+		expectedDesktopID := desktopFileID
+		if !strings.HasSuffix(expectedDesktopID, ".desktop") {
+			expectedDesktopID += ".desktop"
+		}
+		expectedDesktopFilePath1 = filepath.Join(dirs.SnapDesktopFilesDir, expectedDesktopID)
 	}
 	c.Assert(osutil.FileExists(expectedDesktopFilePath1), Equals, false)
 	expectedDesktopFilePath2 := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
@@ -170,13 +174,18 @@ plugs:
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopInterface(c *C) {
-	const hasDesktopFileIDs = false
-	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, hasDesktopFileIDs)
+	const desktopFileID = ""
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopFileIDs(c *C) {
-	const hasDesktopFileIDs = true
-	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, hasDesktopFileIDs)
+	const desktopFileID = "org.example.Foo.desktop"
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
+}
+
+func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopFileName(c *C) {
+	const desktopFileID = "org.example.Foo"
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithBadDesktopFileIDs(c *C) {
@@ -549,6 +558,32 @@ Exec=%s/bin/snap.app
 `, dirs.SnapMountDir))
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecRewriteFromDesktopWithCommonID(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  common-id: io.snapcraft.app
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+Exec=snap.app.evil.evil
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap
+Name=foo
+X-SnapAppName=app
+X-SnapCommonID=io.snapcraft.app
+Exec=%s/bin/snap.app
+`, dirs.SnapMountDir))
+}
+
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -733,9 +768,27 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	appName, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(appName, Equals, "app")
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineOkWithCommonID(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  common-id: io.snapcraft.app
+`))
+	c.Assert(err, IsNil)
+
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	c.Assert(err, IsNil)
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(app.CommonID, Equals, "io.snapcraft.app")
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
 }
 

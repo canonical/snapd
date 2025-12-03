@@ -66,6 +66,7 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
+	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -82,6 +83,7 @@ type SnapManager struct {
 	ensuredMountsUpdated       bool
 	ensuredDesktopFilesUpdated bool
 	ensuredDownloadsCleaned    bool
+	ensureStoreCacheCleanNext  time.Time
 
 	changeCallbackID int
 }
@@ -179,6 +181,9 @@ type SnapSetup struct {
 	// ComponentExclusiveOperation is set if this SnapSetup exists only to deal with
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
+
+	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
+	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 
 // ConfdbSchemaID identifies a confdb schema.
@@ -1609,6 +1614,68 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	return nil
 }
 
+// TODO consolidate with other "seeded" checks
+func isSeeded(st *state.State) (bool, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+	return seeded, nil
+}
+
+// snap downloads cache cleanup runs every 24h
+const storeCacheCleanPeriodLong = 24 * time.Hour
+
+// when cache is found busy, retry in 1h
+const storeCacheCleanupHoldOffDuration = 1 * time.Hour
+
+func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+	now := timeNow()
+
+	if !m.ensureStoreCacheCleanNext.IsZero() && m.ensureStoreCacheCleanNext.After(now) {
+		return nil
+	}
+
+	// only run after we are seeded
+	seeded, err := isSeeded(m.state)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	sto := Store(m.state, nil)
+	if sto == nil {
+		// this should not happen as Store() panics internally
+		return nil
+	}
+
+	m.ensureStoreCacheCleanNext = now.Add(storeCacheCleanPeriodLong)
+
+	logger.Noticef("performing periodic snap downloads cache cleanup")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureStoreDownloadsCacheCleaned")
+
+	err = func() error {
+		m.state.Unlock()
+		defer m.state.Lock()
+		return sto.CleanDownloadsCache()
+	}()
+	if err != nil {
+		// not a fatal error
+		logger.Noticef("cannot clean store downloads cache: %v", err)
+		if errors.Is(err, store.ErrCleanupBusy) {
+			// cache was busy, let's try again in a bit, but sooner than the usual cycle
+			m.ensureStoreCacheCleanNext = now.Add(storeCacheCleanupHoldOffDuration)
+		}
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1631,6 +1698,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureMountsUpdated(),
 		m.ensureDesktopFilesUpdated(),
 		m.ensureDownloadsCleaned(),
+		m.ensureStoreDownloadsCacheCleaned(),
 	}
 
 	//FIXME: use firstErr helper
