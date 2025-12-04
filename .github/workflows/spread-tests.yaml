@@ -121,7 +121,7 @@ jobs:
 
     - name: Download previous test results
       if: ${{ github.run_attempt > 1 }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       continue-on-error: true
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
@@ -509,7 +509,7 @@ jobs:
 
     - name: Upload failed tests
       if: always() && env.TEST_FAILED == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
