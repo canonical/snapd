@@ -91,10 +91,10 @@ prepare: |
   [Service]
   Environment=SNAPD_STANDBY_WAIT=1h
   EOF
-  remote.push snapd-override.conf
+  remote.push "snapd-override.conf"
   remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
-  remote.exec sudo systemctl daemon-reload
-  remote.exec sudo systemctl restart snapd
+  remote.exec "sudo systemctl daemon-reload"
+  remote.exec "sudo systemctl restart snapd"
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"

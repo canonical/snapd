@@ -391,9 +391,11 @@ func encryptionAvailabilityCheck(
 ) (*secboot.PreinstallCheckContext, string, []secboot.PreinstallErrorDetails, error) {
 	supported, err := preinstallCheckSupportedWithEnvFallback(model)
 	if err != nil {
+		logger.Noticef(">>> preinstallCheck not supported")
 		return nil, "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
 	}
 	if supported {
+		logger.Noticef(">>> preinstallCheck is supported")
 		// use comprehensive preinstall check
 		images, err := orderedCurrentBootImages(model)
 		if err != nil {
@@ -458,18 +460,21 @@ func preinstallCheckSupportedWithEnvFallback(model *asserts.Model) (bool, error)
 // information indicates that this is a hybrid Ubuntu system with a version of
 // 25.10 or higher.
 func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
+	logger.Noticef(">>> CheckHybridQuestingRelease")
 	if !model.HybridClassic() {
+		logger.Noticef(">>> model is not hybrid classic")
 		return false, nil
 	}
 
 	if release.ReleaseInfo.ID != "ubuntu" {
-		logger.Noticef("unexpected OS release ID %q", release.ReleaseInfo.ID)
+		logger.Noticef(">>> unexpected OS release ID %q", release.ReleaseInfo.ID)
 		return false, nil
 	}
 
 	const minSupportedVersion = "25.10"
 	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
 	if err != nil {
+		logger.Noticef(">>> incorrect release version %v", release.ReleaseInfo.VersionID)
 		return false, fmt.Errorf("cannot perform version comparison with OS release version ID: %v", err)
 	}
 

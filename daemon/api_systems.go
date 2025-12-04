@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -194,6 +195,10 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
+	}
+	logger.Noticef(">>> deviceManagerSystemAndGadgetAndEncryptionInfo success")
+	if jsonBytes, err := json.Marshal(encryptionInfo); err == nil {
+		logger.Noticef(">>> encryptionInfo: %s", jsonBytes)
 	}
 
 	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
