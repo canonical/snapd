@@ -398,6 +398,14 @@ jobs:
           find tests/ -name 'requirements.txt' -exec pip install -r {} \;
           pytest tests
 
+  unit-tests-fuzzing:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Fuzz go unit tests
+      uses: ./.github/actions/go-fuzz
+      with:
+        fuzzing-search-dir: confdb	
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
