@@ -92,6 +92,7 @@ prepare: |
   Environment=SNAPD_STANDBY_WAIT=1h
   EOF
   remote.push "snapd-override.conf"
+  remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
   remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
   remote.exec "sudo systemctl daemon-reload"
   remote.exec "sudo systemctl restart snapd"
