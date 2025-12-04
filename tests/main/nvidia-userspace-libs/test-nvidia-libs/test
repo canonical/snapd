@@ -1,6 +1,7 @@
 #!/bin/bash -ex
 
-snap_lib_dir=/var/lib/snapd/lib/system/gpu/test-nvidia-interfaces/x1/usr/lib
+rev=$(readlink /snap/test-nvidia-interfaces/current)
+snap_lib_dir=/var/lib/snapd/lib/system/gpu/test-nvidia-interfaces/"$rev"/usr/lib
 snap_x86_dir="$snap_lib_dir"/x86_64-linux-gnu
 snap_x86_gbm_dir="$snap_x86_dir"/gbm
 snap_i386_dir="$snap_lib_dir"/i386-linux-gnu

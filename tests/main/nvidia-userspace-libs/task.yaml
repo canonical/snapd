@@ -19,7 +19,21 @@ restore: |
   rm -f test-nvidia-libs_*.snap
 
 execute: |
+  # Check that each interface individually grants access to the directory specified by all interfaces
+  snap install --dangerous test-nvidia-libs_*.snap
+  NVIDIA_FILE=$PWD/nvidia
+  printf "570.133.07\n" > "$NVIDIA_FILE"
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
+  for iface in cuda egl gbm nvidia-video opengl opengles vulkan; do
+      snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
+      MATCH "$iface" < "$SNAP_LDCONF_P"
+      # TODO remove after fixing problem with refreshing mount namespace
+      /usr/lib/snapd/snap-discard-ns test-nvidia-libs
+      SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test-lib
+      snap disconnect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
+  done
+
+  # Connect back all
   for iface in cuda egl gbm nvidia-video opengl opengles vulkan; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
       MATCH "$iface" < "$SNAP_LDCONF_P"
@@ -46,9 +60,8 @@ execute: |
   ldd "$snap_x86_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_x86_dir/libnvidia-glsi.so.*"
 
   # Check that snaps connected to the opengl interface can use the libraries
-  snap install --dangerous test-nvidia-libs_*.snap
-  NVIDIA_FILE=$PWD/nvidia
-  printf "570.133.07\n" > "$NVIDIA_FILE"
+  # TODO remove after fixing problem with refreshing mount namespace
+  /usr/lib/snapd/snap-discard-ns test-nvidia-libs
   SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
 
   # Re-install to test case similar to a refresh
