@@ -64,6 +64,12 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
+	var noRestart bool
+	err = t.Get("no-restart", &noRestart)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	currentData, err := CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return fmt.Errorf("cannot obtain current gadget data: %v", err)
@@ -86,14 +92,14 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 
 	// set this status already before returning to minimize wasteful redos
 	finalStatus := state.DoneStatus
-	if updated {
+	if updated && !noRestart {
 		t.Logf("updated boot config assets")
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
 		return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil)
-	} else {
-		t.SetStatus(finalStatus)
-		return nil
 	}
+
+	t.SetStatus(finalStatus)
+	return nil
 }

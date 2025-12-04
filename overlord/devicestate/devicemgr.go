@@ -158,6 +158,8 @@ type DeviceManager struct {
 
 	ensureTriedRecoverySystemRan bool
 
+	ensureEarlyBootLocaleConfigUpdatedRan bool
+
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
 	cloudInitEnabledInactiveAttemptStart *time.Time
@@ -172,6 +174,8 @@ type DeviceManager struct {
 	preseedSystemLabel string
 
 	ntpSyncedOrTimedOut bool
+
+	xkbConfigListener *osutil.XKBConfigListener
 }
 
 // Manager returns a new device manager.
@@ -362,6 +366,12 @@ func (m *DeviceManager) StartUp() error {
 	// TODO: setup proper timings measurements for this
 
 	return EarlyConfig(m.state, m.earlyPreloadGadget)
+}
+
+func (m *DeviceManager) Stop() {
+	if m.xkbConfigListener != nil {
+		m.xkbConfigListener.Close()
+	}
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
@@ -1816,6 +1826,137 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensureEarlyBootLocaleConfigUpdatedRan {
+		return nil
+	}
+
+	mode := m.SystemMode(SysHasModeenv)
+	if mode != "run" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensureEarlyBootLocaleConfigUpdatedRan = true
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil
+	}
+	// Only setup early boot XKB configs for hybrid systems
+	// with versions 25.10 or higher for FDE.
+	supported, err := install.CheckHybridQuestingRelease(deviceCtx.Model())
+	if err != nil {
+		return err
+	}
+	if !supported {
+		return nil
+	}
+
+	// Initialize config, It is fine to run this even if the config
+	// with initilized in a previous snapd startup because no change
+	// will be triggered unless the kernel command line argument are
+	// updated, otherwise it is a no-op.
+	if err := m.updateEarlyBootXKBConfig(); err != nil {
+		return fmt.Errorf("cannot update early boot locale config: %w", err)
+	}
+
+	// Setup XKB config listener to detect system keyboard layout
+	// changes and reflect it into the XKB early boot configs.
+	cb := func() {
+		m.state.Lock()
+		defer m.state.Unlock()
+		if err := m.updateEarlyBootXKBConfig(); err != nil {
+			logger.Noticef("cannot update early boot locale config: %v", err)
+			return
+		}
+	}
+	listener, err := osutil.NewXKBConfigListener(context.Background(), cb)
+	if err != nil {
+		return err
+	}
+	m.xkbConfigListener = listener
+
+	return nil
+}
+
+// updateEarlyBootXKBConfig adds an extra snapd kernel cmdline
+// argument "snapd.xkb" with a simplified xkb configuration
+// embedded into it based on the current system XKB config.
+//
+// This kernel cmdline argument would then be consumed by
+// plymouth-set-keymap.service very early in boot to construct
+// a temporary xkb configuration that can be consumed by plymouth
+// before disks are unlocked so the the correct keyboard layout
+// can be detected when entring a recovery-key, passphrase or PIN
+// in and FDE system.
+//
+// This workaround is needed because we cannot updated the initrd
+// to set the updated xkb configs for plymouth because it is
+// embedded in the signed UKI.
+func (m *DeviceManager) updateEarlyBootXKBConfig() error {
+	config, err := osutil.CurrentXKBConfig()
+	if err != nil {
+		return err
+	}
+
+	// XKB config can each have multiple comma separated values
+	// but for early boot this is simplified and only the first
+	// value is considered to able to compactly join the config
+	// fields using a comma-separator except for XKBOPTIONS=
+	// which is appended to the end as is.
+	//
+	// A typical XKB configuration looks something like this:
+	// -------------------------
+	// XKBLAYOUT="us,cz,de"
+	// XKBMODEL="pc105"
+	// XKBVARIANT=",bksl,"
+	// XKBOPTIONS="grp:alt_shift_toggle,terminate:ctrl_alt_bksp"
+	// -------------------------
+	//
+	// This example would be simplified to the following kernel cmdline
+	// argument:
+	// snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"
+	//
+	// Note that order is important and plymouth-set-keymap.service
+	// must match this ordering when parsing: layout,model,variant,option(s).
+
+	var layout, model, variant string
+	if len(config.Layouts) > 0 {
+		layout = config.Layouts[0]
+	}
+	if len(config.Models) > 0 {
+		model = config.Models[0]
+	}
+	if len(config.Variants) > 0 {
+		variant = config.Variants[0]
+	}
+	opts := strings.Join(config.Options, ",")
+
+	simplified := fmt.Sprintf("%s,%s,%s,%s", layout, model, variant, opts)
+
+	updated, err := setExtraSnapdKernelCommandLineArg(m.state, extraSnapdKernelCmdlineArgXKB, simplified)
+	if err != nil {
+		return err
+	}
+	if updated {
+		m.state.EnsureBefore(0)
+	}
+
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1892,6 +2033,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureExpiredUsersRemoved(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureEarlyBootXKBConfigUpdated(); err != nil {
 			errs = append(errs, err)
 		}
 	}
