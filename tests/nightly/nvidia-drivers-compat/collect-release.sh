@@ -25,7 +25,7 @@ echo "-- driver versions:"
 echo "$driver_versions" > "$release-drivers"
 echo "$driver_versions"
 
-lxc file push collect-driver.sh "$cname"/root/collect-driver.sh
+lxc file push collect-driver.sh "$cname"/tmp/collect-driver.sh
 
 for v in $driver_versions; do
     if [ -e "$release-$v-done" ]; then
@@ -33,7 +33,7 @@ for v in $driver_versions; do
         continue
     fi
 
-    lxc exec "$cname" -- /bin/sh -c "cd /root; ./collect-driver.sh $v" > "$release-$v.libs"
+    lxc exec "$cname" -- /bin/sh -c "cd /tmp; ./collect-driver.sh $v" > "$release-$v.libs"
     test -s "$release-$v.libs"
     touch "$release-$v-done"
 done
