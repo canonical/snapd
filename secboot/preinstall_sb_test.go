@@ -497,7 +497,7 @@ func (s *preinstallSuite) TestSave(c *C) {
       "no-drivers-and-apps-profile-support"
     ]
   },
-  "pcr-profile-opts": 0
+  "pcr-profile-opts": []
 }`
 
 	err := secboot.Save(&expectedCheckResult, filename)
