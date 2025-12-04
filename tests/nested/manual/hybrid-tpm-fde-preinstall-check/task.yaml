@@ -101,6 +101,7 @@ restore: |
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 debug: |
+  remote.exec "sudo journalctl -u snapd -b --no-pager" > full_snapd_log_since_boot
   cat full_snapd_log_since_boot
 
 execute: |
@@ -226,7 +227,5 @@ execute: |
   # - Then request an action
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
   gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
-  
-  remote.exec "sudo journalctl -u snapd -b --no-pager" > full_snapd_log_since_boot
 
   diff availability-check-errors availability-check-errors.reference
