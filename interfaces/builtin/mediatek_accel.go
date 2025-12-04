@@ -48,13 +48,13 @@ const mediatekAccelConnectedPlugAppArmorHeader = `
 
 `
 const mediatekAccelAPUConnectedPlugAppArmorSnippet = `
-# Added due to "apu" plug attribute.
+# Added due to "apu" unit in mediatek-accel plug.
 # APU (AI Processing Unit)
 /dev/apusys rw,
 `
 
 const mediatekAccelVCUConnectedPlugAppArmorSnippet = `
-# Added due to "vcu" plug attribute.
+# Added due to "vcu" unit in mediatek-accel plug.
 # VPU (MediaTek Video Processor Unit)
 /dev/vcu rw,
 # MDP (MediaTek Media Data Path) and other vcu in the future
@@ -85,21 +85,30 @@ type mediatekAccelInterface struct {
 }
 
 func (iface *mediatekAccelInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	allDisabled := true
-
-	for name := range mediatekAccelUnitRules {
-		if p, ok := plug.Attrs[name]; ok {
-			v, ok := p.(bool)
-			if !ok {
-				return fmt.Errorf(`mediatek-accel "%s" attribute must be boolean`, name)
-			}
-			if v {
-				allDisabled = false
-			}
-		}
+	attrVal, exists := plug.Lookup("units")
+	if !exists {
+		return fmt.Errorf(`mediatek-accel interface requires "units" attribute to be set`)
 	}
-	if allDisabled {
-		return fmt.Errorf(`cannot connect mediatek-accel interface without any units enabled`)
+
+	// Validate that "units" is a list of strings
+	units, ok := attrVal.([]any)
+	if !ok {
+		return fmt.Errorf(`mediatek-accel "units" attribute must be a list of strings`)
+	}
+
+	if len(units) == 0 {
+		return fmt.Errorf(`mediatek-accel interface requires at least one unit in "units" attribute`)
+	}
+
+	for _, entry := range units {
+		name, ok := entry.(string)
+		if !ok {
+			return fmt.Errorf(`mediatek-accel "units" attribute must be a list of strings`)
+		}
+
+		if _, valid := mediatekAccelUnitRules[name]; !valid {
+			return fmt.Errorf(`mediatek-accel plug has invalid unit %q in "units" attribute`, name)
+		}
 	}
 
 	return nil
@@ -110,13 +119,13 @@ func (iface *mediatekAccelInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return err
 	}
 	spec.AddSnippet(mediatekAccelConnectedPlugAppArmorHeader)
-	for name, rule := range mediatekAccelUnitRules {
-		v := false
-		// validated in BeforePreparePlug
-		_ = plug.Attr(name, &v)
-		if v {
-			spec.AddSnippet(rule.AppArmor)
-		}
+
+	units := []string{}
+	// validated in BeforePreparePlug
+	_ = plug.Attr("units", &units)
+	for _, name := range units {
+		rule := mediatekAccelUnitRules[name]
+		spec.AddSnippet(rule.AppArmor)
 	}
 	return nil
 }
@@ -126,13 +135,13 @@ func (iface *mediatekAccelInterface) UDevConnectedPlug(spec *udev.Specification,
 		return err
 	}
 
-	for name, rule := range mediatekAccelUnitRules {
-		v := false
-		_ = plug.Attr(name, &v)
-		if v {
-			for _, udev := range rule.UDev {
-				spec.TagDevice(udev)
-			}
+	units := []string{}
+	// validated in BeforePreparePlug
+	_ = plug.Attr("units", &units)
+	for _, name := range units {
+		rule := mediatekAccelUnitRules[name]
+		for _, udev := range rule.UDev {
+			spec.TagDevice(udev)
 		}
 	}
 	return nil

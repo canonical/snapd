@@ -323,5 +323,6 @@ plugs:
     flavor: dual-sd
   mediatek-accel:
     interface: mediatek-accel
-    apu: true
-    vcu: true
+    units:
+      - apu
+      - vcu

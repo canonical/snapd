@@ -58,7 +58,7 @@ apps:
   plugs: [mediatek-accel]
 plugs:
  mediatek-accel:
-  vcu: true
+  units: [vcu]
 `
 const mediatekAccelWithApuMockPlugSnapInfoYaml = `name: consumer
 version: 1.0
@@ -68,7 +68,7 @@ apps:
   plugs: [mediatek-accel]
 plugs:
  mediatek-accel:
-  apu: true
+  units: [apu]
 `
 const mediatekAccelMockPlugSnapInfoYaml = `name: consumer
 version: 1.0
@@ -78,8 +78,9 @@ apps:
   plugs: [mediatek-accel]
 plugs:
  mediatek-accel:
-  vcu: true
-  apu: true
+  units:
+  - vcu
+  - apu
 `
 
 const mediatekAccelCoreYaml = `name: core
@@ -189,38 +190,69 @@ func (s *mediatekAccelSuite) TestSanitizePlugWithVcu(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *mediatekAccelSuite) TestSanitizePlugWithApu(c *C) {
+	_, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithApuMockPlugSnapInfoYaml, nil, "mediatek-accel")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
 func (s *mediatekAccelSuite) TestSanitizePlugWithNoUnitEnabled(c *C) {
 	_, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithNoUnitEnabledMockPlugSnapInfoYaml, nil, "mediatek-accel")
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
-		`cannot connect mediatek-accel interface without any units enabled`)
+		`mediatek-accel interface requires "units" attribute to be set`)
 }
 
 func (s *mediatekAccelSuite) TestSanitizePlugWithInvalid(c *C) {
-	const badVcu = `name: consumer
+	const badUnitsNotList = `name: consumer
 version: 0
 apps:
  app:
   plugs: [mediatek-accel]
 plugs:
  mediatek-accel:
-  vcu: yes-please
+  units: yes-please
 `
-	_, s.plugInfo = MockConnectedPlug(c, badVcu, nil, "mediatek-accel")
+	_, s.plugInfo = MockConnectedPlug(c, badUnitsNotList, nil, "mediatek-accel")
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
-		`mediatek-accel "vcu" attribute must be boolean`)
+		`mediatek-accel "units" attribute must be a list of strings`)
 
-	const badApu = `name: consumer
+	const badUnitsNotStrings = `name: consumer
 version: 0
 apps:
  app:
   plugs: [mediatek-accel]
 plugs:
  mediatek-accel:
-  apu: no-sorry
+  units: [123, 456]
 `
-	_, s.plugInfo = MockConnectedPlug(c, badApu, nil, "mediatek-accel")
+	_, s.plugInfo = MockConnectedPlug(c, badUnitsNotStrings, nil, "mediatek-accel")
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
-		`mediatek-accel "apu" attribute must be boolean`)
+		`mediatek-accel "units" attribute must be a list of strings`)
+
+	const badUnitsEmpty = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [mediatek-accel]
+plugs:
+ mediatek-accel:
+  units: []
+`
+	_, s.plugInfo = MockConnectedPlug(c, badUnitsEmpty, nil, "mediatek-accel")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
+		`mediatek-accel interface requires at least one unit in "units" attribute`)
+
+	const badUnitsInvalidUnit = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [mediatek-accel]
+plugs:
+ mediatek-accel:
+  units: [invalid-unit]
+`
+	_, s.plugInfo = MockConnectedPlug(c, badUnitsInvalidUnit, nil, "mediatek-accel")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
+		`mediatek-accel plug has invalid unit "invalid-unit" in "units" attribute`)
 }
 
 func (s *mediatekAccelSuite) TestUDevConnectedPlug(c *C) {
