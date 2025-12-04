@@ -3,12 +3,7 @@ summary: Check that try command works inside lxd container
 details: |
   Verifies that the `snap try` command works inside a LXD container.
 
-# TODO enable this for 26.04. It is currently disabled for lack of a 26.04 image
-systems: 
-  - ubuntu-20*
-  - ubuntu-22*
-  - ubuntu-24*
-  - ubuntu-25*
+systems: [ubuntu-2*]
 
 prepare: |
   echo "Install lxd"
