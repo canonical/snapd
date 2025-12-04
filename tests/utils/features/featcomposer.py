@@ -186,7 +186,7 @@ def _get_original_and_rerun_list(filenames: list[str]) -> tuple[list[str], list[
         reruns.remove(no_original)
         if _get_name_without_run_number(no_original) in has_rerun:
             originals.append(no_original)
-    
+
     return originals, reruns
 
 
