@@ -22,8 +22,12 @@ package devicemgmtstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/tomb.v2"
 )
 
@@ -81,12 +85,25 @@ func ParsePendingMessage(msg store.Message) (*PendingMessage, error) {
 }
 
 func MockTimeNow(t time.Time) func() {
-	oldTimeNow := timeNow
-	timeNow = func() time.Time {
+	f := func() time.Time {
 		return t
 	}
 
-	return func() {
-		timeNow = oldTimeNow
-	}
+	return testutil.Mock(&timeNow, f)
+}
+
+func MockConfdbstateGetView(f func(*state.State, string, string, string) (*confdb.View, error)) func() {
+	return testutil.Mock(&confdbstateGetView, f)
+}
+
+func MockConfdbstateLoadConfdbAsync(f func(*state.State, *confdb.View, []string) (string, error)) func() {
+	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
+}
+
+func MockConfdbstateGetTransactionToSet(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) func() {
+	return testutil.Mock(&confdbstateGetTransactionToSet, f)
+}
+
+func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]any) error) func() {
+	return testutil.Mock(&confdbstateSetViaView, f)
 }

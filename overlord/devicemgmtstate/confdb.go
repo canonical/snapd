@@ -21,12 +21,20 @@ package devicemgmtstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/state"
+)
+
+var (
+	confdbstateGetView             = confdbstate.GetView
+	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
+	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
+	confdbstateSetViaView          = confdbstate.SetViaView
 )
 
 // ConfdbRequestPayload represents the JSON body of a confdb request-message assertion.
@@ -56,21 +64,25 @@ func (h *ConfdbMessageHandler) Apply(st *state.State, msg *PendingMessage) (stri
 	}
 
 	viewPath := strings.SplitN(payload.View, "/", 2)
-	view, err := confdbstate.GetView(st, payload.Account, viewPath[0], viewPath[1])
+	if len(viewPath) != 2 {
+		return "", fmt.Errorf("invalid view path: expected 2 parts separated by /, got %d: %s", len(viewPath), payload.View)
+	}
+
+	view, err := confdbstateGetView(st, payload.Account, viewPath[0], viewPath[1])
 	if err != nil {
 		return "", err
 	}
 
 	switch payload.Action {
 	case "get":
-		return confdbstate.LoadConfdbAsync(st, view, payload.Keys)
+		return confdbstateLoadConfdbAsync(st, view, payload.Keys)
 	case "set":
-		tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, st, view)
+		tx, commitTxFunc, err := confdbstateGetTransactionToSet(nil, st, view)
 		if err != nil {
 			return "", err
 		}
 
-		err = confdbstate.SetViaView(tx, view, payload.Values)
+		err = confdbstateSetViaView(tx, view, payload.Values)
 		if err != nil {
 			return "", err
 		}
@@ -84,41 +96,34 @@ func (h *ConfdbMessageHandler) Apply(st *state.State, msg *PendingMessage) (stri
 
 // BuildResponse converts a completed confdb change into a response body and status.
 func (h *ConfdbMessageHandler) BuildResponse(chg *state.Change) (map[string]any, asserts.MessageStatus) {
-	if chg.Status() != state.DoneStatus {
-		return map[string]any{"message": chg.Err()}, asserts.MessageStatusError
-	}
-
-	var apiData map[string]any
-	err := chg.Get("api-data", &apiData)
-	if err != nil {
-		// Nothing to return, e.g., after confdb sets
-		return map[string]any{}, asserts.MessageStatusSuccess
+	if chg.Status() != state.DoneStatus { // TODO: no error if change is still in progress
+		return map[string]any{"message": chg.Err().Error()}, asserts.MessageStatusError
 	}
 
 	response := map[string]any{}
+	var apiData map[string]any
+	err := chg.Get("api-data", &apiData)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			// Nothing to return, e.g., after confdb sets
+			return map[string]any{}, asserts.MessageStatusSuccess
+		}
+
+		return map[string]any{"message": err.Error()}, asserts.MessageStatusError
+	}
+
 	errData, hasErr := apiData["error"]
 	if hasErr {
 		errMap, ok := errData.(map[string]any)
 		if ok {
-			kind, ok := errMap["kind"]
-			if ok {
-				response["kind"] = kind
-			}
-
-			message, ok := errMap["message"]
-			if ok {
-				response["message"] = message
-			}
+			response = errMap
 		} else {
-			response["message"] = fmt.Sprintf("invalid error data format: expected map[string]any, got %T", errData)
+			response["message"] = "no error context available"
 		}
 
 		return response, asserts.MessageStatusError
-	}
-
-	values, ok := apiData["values"]
-	if ok {
-		response["values"] = values
+	} else {
+		response = apiData
 	}
 
 	return response, asserts.MessageStatusSuccess

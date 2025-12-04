@@ -1038,7 +1038,7 @@ func (s *deviceMgmtMgrSuite) TestParsePendingMessageInvalid(c *C) {
 }
 
 func makePendingMessage(baseID, kind string, seqNum int, changeID string) *devicemgmtstate.PendingMessage {
-	wayback := time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
+	wayback := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
 
 	return &devicemgmtstate.PendingMessage{
 		Source:      "store",
