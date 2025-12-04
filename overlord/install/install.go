@@ -477,7 +477,8 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 		logger.Noticef(">>> incorrect release version %v", release.ReleaseInfo.VersionID)
 		return false, fmt.Errorf("cannot perform version comparison with OS release version ID: %v", err)
 	}
-
+	logger.Noticef(">>> Release version %v", release.ReleaseInfo.VersionID)
+	logger.Noticef(">>> Preinstall Check Supported: %v", cmp >= 0)
 	return cmp >= 0, nil
 }
 
