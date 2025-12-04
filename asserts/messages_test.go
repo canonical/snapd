@@ -22,6 +22,7 @@ package asserts_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
@@ -82,6 +83,9 @@ func (s *requestMessageSuite) TestDecodeOK(c *C) {
 		{"some.legacy.serial", "model", "brand"},
 	}
 	c.Check(req.Devices(), DeepEquals, expectedDevices)
+
+	c.Check(req.ValidSince().Format(time.RFC3339), Equals, "2025-01-08T13:31:20Z")
+	c.Check(req.ValidUntil().Format(time.RFC3339), Equals, "2025-01-15T13:31:20Z")
 
 	c.Check(req.Assumes(), DeepEquals, []string{"snapd2.70"})
 
