@@ -108,7 +108,8 @@ debug: |
 execute: |
   # The secboot preinstall check is only available on Ubuntu 25.10+ install environment targeting
   # a hybrid Ubuntu system. We already target a hybrid system, fake the Ubuntu Version ID.
-  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.10/' /etc/os-release"
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"25.10\"/' /etc/os-release"
+  remote.exec "sudo systemctl restart snapd"
 
   # The secboot preinstall check currently only supports livecd install, therefore, expects the booted
   # shim, grub and kernel in specific /cdrom locations
