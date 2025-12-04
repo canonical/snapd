@@ -588,3 +588,7 @@ func MockSbWithAuthRequestor(f func(req sb.AuthRequestor) sb.ActivateContextOpti
 func MockSbWithPassphraseTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
 	return testutil.Mock(&sbWithPassphraseTries, f)
 }
+
+func MockSbWithPINTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithPINTries, f)
+}
