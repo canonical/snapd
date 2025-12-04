@@ -64,6 +64,7 @@
         "rules": "main"
       },
       {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-interim (fundamental)",
         "backend": "openstack-ps7",
         "alternative-backend": "google",
