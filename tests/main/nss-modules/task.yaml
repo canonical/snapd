@@ -27,7 +27,7 @@ environment:
     MODULE/winbind: winbind
 
 prepare: |
-    if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is_arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }; then
+    if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is-arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }; then
         tests.exec skip-test "The openstack ARM environment is not KVM-enabled and cannot run LXD VMs" && exit 0
     fi
     backup_if_exists() {
@@ -272,7 +272,7 @@ prepare: |
         domainname "${domain_name}"
         echo "domain $domain_name" >> /etc/yp.conf
         echo "ypserver $(lxc ls server -c 4 -f csv | awk '{print $1}')" >> /etc/yp.conf
-        if os.query is-ubuntu_ge 25.10; then
+        if os.query is-ubuntu-ge 25.10; then
             # the apparmor profile for hostname (which covers also execution of domainname)
             # doesn't grant read permissions to /etc/defaultdomain, which is used in the
             # ExecStartPre section of the ypbind service. Since the domain name is already set,
