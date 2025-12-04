@@ -1868,6 +1868,17 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 	})
 	defer restore()
 
+	restore = install.MockSecbootCheckResult(func(pcc *secboot.PreinstallCheckContext) (*secboot.PreinstallCheckResult, error) {
+		if hasCheckResult {
+			c.Assert(pcc, Equals, expectedCheckContext)
+			return &secboot.PreinstallCheckResult{}, nil
+		} else {
+			c.Assert(true, Equals, false, Commentf("unexpected call to secbootCheckResult"))
+			return nil, errors.New("test error")
+		}
+	})
+	defer restore()
+
 	// We are required to call ObserveExistingTrustedRecoveryAssets on trusted observers
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)

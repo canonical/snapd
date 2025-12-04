@@ -258,7 +258,12 @@ type TrustedAssetsInstallObserver interface {
 	ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error
 	// FIXME: Combine relevant FDE params into some FDE context that can be
 	// passed around instead of passing around many params.
-	SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions)
+	SetEncryptionParams(
+		key, saveKey secboot.BootstrappedContainer,
+		primaryKey []byte,
+		volumesAuth *device.VolumesAuthOptions,
+		checkResult *secboot.PreinstallCheckResult,
+	)
 	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -290,6 +295,10 @@ type trustedAssetsInstallObserverImpl struct {
 	primaryKey []byte
 
 	volumesAuth *device.VolumesAuthOptions
+
+	// checkResult contains information required during and post install
+	// for optimum PCR configuration and resealing.
+	checkResult *secboot.PreinstallCheckResult
 }
 
 func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
@@ -374,12 +383,18 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
+func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
+) {
 	o.useEncryption = true
 	o.dataBootstrappedContainer = key
 	o.saveBootstrappedContainer = saveKey
 	o.primaryKey = primaryKey
 	o.volumesAuth = volumesAuth
+	o.checkResult = checkResult
 }
 
 func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {

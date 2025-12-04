@@ -137,6 +137,7 @@ var (
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
+	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -232,6 +233,16 @@ func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, file
 	secbootSaveCheckResult = f
 	return func() {
 		secbootSaveCheckResult = old
+	}
+}
+
+// MockSecbootCheckResult mocks secbootCheckResult usage by the package for testing.
+func MockSecbootCheckResult(f func(pcc *secboot.PreinstallCheckContext) (*secboot.PreinstallCheckResult, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootCheckResult can only be mocked in tests")
+	old := secbootCheckResult
+	secbootCheckResult = f
+	return func() {
+		secbootCheckResult = old
 	}
 }
 
@@ -656,10 +667,17 @@ func PrepareEncryptedSystemData(
 		}
 	}
 
+	var checkResult *secboot.PreinstallCheckResult
 	if checkContext != nil {
 		// write check result containing information required
 		// for optimum PCR configuration and resealing
-		if err := saveCheckResult(checkContext); err != nil {
+		err := saveCheckResult(checkContext)
+		if err != nil {
+			return err
+		}
+
+		checkResult, err = secbootCheckResult(checkContext)
+		if err != nil {
 			return err
 		}
 	}
@@ -670,7 +688,7 @@ func PrepareEncryptedSystemData(
 	}
 
 	// make note of the encryption keys and auth options
-	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth)
+	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth, checkResult)
 
 	return nil
 }

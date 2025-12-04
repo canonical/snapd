@@ -86,7 +86,17 @@ func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factory
 	}
 }
 
-func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBootChains, maybePrimaryKey []byte, volumesAuth *device.VolumesAuthOptions, roleToBlName map[bootloader.Role]string, pcrHandle uint32, useTokens bool, keyRole string) ([]byte, error) {
+func sealRunObjectKeys(
+	key secboot.BootstrappedContainer,
+	pbc boot.PredictableBootChains,
+	maybePrimaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
+	roleToBlName map[bootloader.Role]string,
+	pcrHandle uint32,
+	useTokens bool,
+	keyRole string,
+) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -104,6 +114,7 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 		ModelParams:                    modelParams,
 		PrimaryKey:                     maybePrimaryKey,
 		VolumesAuth:                    volumesAuth,
+		CheckResult:                    checkResult,
 		PCRPolicyCounterHandle:         pcrHandle,
 		KeyRole:                        keyRole,
 		AllowInsufficientDmaProtection: !hasClassicModel,
@@ -127,7 +138,18 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	return primaryKey, nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot.PredictableBootChains, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32, useTokens bool, keyRole string) error {
+func sealFallbackObjectKeys(
+	key, saveKey secboot.BootstrappedContainer,
+	pbc boot.PredictableBootChains,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
+	roleToBlName map[bootloader.Role]string,
+	factoryReset bool,
+	pcrHandle uint32,
+	useTokens bool,
+	keyRole string,
+) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -146,6 +168,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 		ModelParams:                    modelParams,
 		PrimaryKey:                     primaryKey,
 		VolumesAuth:                    volumesAuth,
+		CheckResult:                    checkResult,
 		PCRPolicyCounterHandle:         pcrHandle,
 		KeyRole:                        keyRole,
 		AllowInsufficientDmaProtection: !hasClassicModel,
@@ -204,7 +227,14 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 	return nil
 }
 
-func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsBackend(
+	method device.SealingMethod,
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
+	params *boot.SealKeyForBootChainsParams,
+) error {
 	if method == device.SealingMethodFDESetupHook {
 		// volumes authentication is not supported when using secboot hooks
 		return sealKeyForBootChainsHook(method, key, saveKey, params)
@@ -231,12 +261,12 @@ func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secbo
 
 	// TODO:FDEM: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, volumesAuth, params.RoleToBlName, handle, params.UseTokens, "run+recover")
+	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, handle, params.UseTokens, "run+recover")
 	if err != nil {
 		return err
 	}
 
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, params.RoleToBlName, params.FactoryReset,
+	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, params.FactoryReset,
 		handle, params.UseTokens, "recover")
 	if err != nil {
 		return err

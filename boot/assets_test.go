@@ -481,7 +481,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	c.Assert(dataBootstrappedContainer, Not(Equals), saveBootstrappedContainer)
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
-	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, volumesAuth)
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, volumesAuth, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
@@ -509,7 +509,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(obs, NotNil)
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
-	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, nil)
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, nil, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)

@@ -549,6 +549,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 		key, saveKey secboot.BootstrappedContainer,
 		primaryKey []byte,
 		volumesAuth *device.VolumesAuthOptions,
+		checkResult *secboot.PreinstallCheckResult,
 		model *asserts.Model,
 		modeenv *boot.Modeenv,
 		flags boot.MockSealKeyToModeenvFlags,
@@ -747,7 +748,7 @@ version: 5.0
 	myKey2 := secboot.CreateMockBootstrappedContainer()
 	chosenPrimaryKey := []byte("primarykey!")
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
-	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, volumesAuth)
+	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, volumesAuth, nil)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -763,7 +764,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
@@ -1253,7 +1254,7 @@ version: 5.0
 	myKey := secboot.CreateMockBootstrappedContainer()
 	myKey2 := secboot.CreateMockBootstrappedContainer()
 	chosenPrimaryKey := []byte("primarykey!")
-	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, nil)
+	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, nil, nil)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1264,7 +1265,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
@@ -1448,7 +1449,7 @@ version: 5.0
 	myKey := secboot.CreateMockBootstrappedContainer()
 	myKey2 := secboot.CreateMockBootstrappedContainer()
 	chosenPrimaryKey := []byte("primarykey!")
-	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, nil)
+	obs.SetEncryptionParams(myKey, myKey2, chosenPrimaryKey, nil, nil)
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -1459,7 +1460,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, DeepEquals, myKey)
