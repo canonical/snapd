@@ -245,10 +245,12 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap    4.56\n"+
-		"snapd   7.89\n"+
-		"series  56\n"+
-		"ubuntu  12.34\n",
+		"snap         4.56\n"+
+		"snapd        7.89\n"+
+		"series       56\n"+
+		"ubuntu       12.34\n"+
+		"daemon-from  -\n"+
+		"client-from  snap\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -264,9 +266,11 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap    4.56\n"+
-		"snapd   7.89\n"+
-		"series  56\n",
+		"snap         4.56\n"+
+		"snapd        7.89\n"+
+		"series       56\n"+
+		"daemon-from  -\n"+
+		"client-from  snap\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }

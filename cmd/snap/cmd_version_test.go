@@ -52,39 +52,28 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 		"snapd         7.89\n"+
 		"series        56\n"+
 		"ubuntu        12.34\n"+
-		"architecture  ia64\n",
+		"architecture  ia64\n"+
+		"daemon-from   native-package\n"+
+		"client-from   snap\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
-
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
-	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, ""+
-		"snap            4.56\n"+
-		"snapd           7.89\n"+
-		"series          56\n"+
-		"ubuntu          12.34\n"+
-		"architecture    ia64\n"+
-		"snapd-bin-from  native-package\n"+
-		"snap-bin-from   snap\n",
-	)
-	c.Assert(s.Stderr(), Equals, "")
 
 	defer main.MockSnapdtoolIsReexecd(func() (bool, error) { return false, nil })()
 
 	s.ResetStdStreams()
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap            4.56\n"+
-		"snapd           7.89\n"+
-		"series          56\n"+
-		"ubuntu          12.34\n"+
-		"architecture    ia64\n"+
-		"snapd-bin-from  native-package\n"+
-		"snap-bin-from   native-package\n",
+		"snap          4.56\n"+
+		"snapd         7.89\n"+
+		"series        56\n"+
+		"ubuntu        12.34\n"+
+		"architecture  ia64\n"+
+		"daemon-from   native-package\n"+
+		"client-from   native-package\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 
@@ -95,13 +84,13 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap            4.56\n"+
-		"snapd           7.89\n"+
-		"series          56\n"+
-		"ubuntu          12.34\n"+
-		"architecture    ia64\n"+
-		"snapd-bin-from  native-package\n"+
-		"snap-bin-from   -\n",
+		"snap          4.56\n"+
+		"snapd         7.89\n"+
+		"series        56\n"+
+		"ubuntu        12.34\n"+
+		"architecture  ia64\n"+
+		"daemon-from   native-package\n"+
+		"client-from   -\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -124,23 +113,13 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 		"snap          4.56\n"+
 		"snapd         7.89\n"+
 		"series        56\n"+
-		"architecture  powerpc\n",
+		"architecture  powerpc\n"+
+		"daemon-from   snap\n"+
+		"client-from   snap\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
-
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"version", "--verbose"})
-	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, ""+
-		"snap            4.56\n"+
-		"snapd           7.89\n"+
-		"series          56\n"+
-		"architecture    powerpc\n"+
-		"snapd-bin-from  snap\n"+
-		"snap-bin-from   snap\n",
-	)
-	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
@@ -157,10 +136,12 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"snap    4.56\n"+
-		"snapd   7.89\n"+
-		"series  56\n"+
-		"arch    -\n",
+		"snap         4.56\n"+
+		"snapd        7.89\n"+
+		"series       56\n"+
+		"arch         -\n"+
+		"daemon-from  -\n"+
+		"client-from  snap\n",
 	)
 	c.Assert(s.Stderr(), Equals, "")
 }
