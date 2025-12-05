@@ -71,6 +71,7 @@ var (
 	sbWithRecoveryKeyTries                 = sb.WithRecoveryKeyTries
 	sbWithAuthRequestor                    = sb.WithAuthRequestor
 	sbWithPassphraseTries                  = sb.WithPassphraseTries
+	sbWithPINTries                         = sb.WithPINTries
 )
 
 func init() {
@@ -119,7 +120,7 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
-	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3))
+	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
 	if err != nil {
 		return nil, err
 	}

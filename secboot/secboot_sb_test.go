@@ -5451,15 +5451,22 @@ func (s *secbootSuite) TestNewActivateContext(c *C) {
 		return passphraseOption
 	})()
 
+	pinOption := &mockActivateContextOption{name: "pin"}
+	defer secboot.MockSbWithPINTries(func(n uint) sb.ActivateContextOption {
+		c.Check(n, Equals, uint(3))
+		return pinOption
+	})()
+
 	activateContext, err := sb.NewActivateContext(context.Background(), nil)
 	c.Assert(err, IsNil)
 
 	newActivateContextCalls := 0
 	defer secboot.MockSbNewActivateContext(func(ctx context.Context, state *sb.ActivateState, opts ...sb.ActivateContextOption) (*sb.ActivateContext, error) {
 		newActivateContextCalls++
-		c.Assert(opts, HasLen, 2)
+		c.Assert(opts, HasLen, 3)
 		c.Check(opts[0], Equals, authRequestorOption)
 		c.Check(opts[1], Equals, passphraseOption)
+		c.Check(opts[2], Equals, pinOption)
 		c.Check(state, IsNil)
 
 		return activateContext, nil
@@ -5482,14 +5489,21 @@ func (s *secbootSuite) TestNewActivateContextError(c *C) {
 		return passphraseOption
 	})()
 
+	pinOption := &mockActivateContextOption{name: "pin"}
+	defer secboot.MockSbWithPINTries(func(n uint) sb.ActivateContextOption {
+		c.Check(n, Equals, uint(3))
+		return pinOption
+	})()
+
 	newContextErr := errors.New("newContextErr")
 
 	newActivateContextCalls := 0
 	defer secboot.MockSbNewActivateContext(func(ctx context.Context, state *sb.ActivateState, opts ...sb.ActivateContextOption) (*sb.ActivateContext, error) {
 		newActivateContextCalls++
-		c.Assert(opts, HasLen, 2)
+		c.Assert(opts, HasLen, 3)
 		c.Check(opts[0], Equals, authRequestorOption)
 		c.Check(opts[1], Equals, passphraseOption)
+		c.Check(opts[2], Equals, pinOption)
 		c.Check(state, IsNil)
 
 		return nil, newContextErr
