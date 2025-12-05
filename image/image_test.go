@@ -979,28 +979,28 @@ func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
 		InstanceName: "core",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "required-snap1",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 }
 
@@ -1825,26 +1825,22 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
-	c.Check(s.stderr.String(), Equals, `WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward`+"\n")
-
 	// current snap info sent
 	c.Check(s.curSnaps, HasLen, 1)
 	c.Check(s.curSnaps[0], DeepEquals, []*store.CurrentSnap{
 		{
-			InstanceName:     "core",
-			SnapID:           s.AssertedSnapID("core"),
-			Revision:         snap.R(3),
-			TrackingChannel:  "stable",
-			Epoch:            snap.E("0"),
-			IgnoreValidation: true,
+			InstanceName:    "core",
+			SnapID:          s.AssertedSnapID("core"),
+			Revision:        snap.R(3),
+			TrackingChannel: "stable",
+			Epoch:           snap.E("0"),
 		},
 		{
-			InstanceName:     "required-snap1",
-			SnapID:           s.AssertedSnapID("required-snap1"),
-			Revision:         snap.R(3),
-			TrackingChannel:  "stable",
-			Epoch:            snap.E("0"),
-			IgnoreValidation: true,
+			InstanceName:    "required-snap1",
+			SnapID:          s.AssertedSnapID("required-snap1"),
+			Revision:        snap.R(3),
+			TrackingChannel: "stable",
+			Epoch:           snap.E("0"),
 		},
 	})
 
@@ -2308,19 +2304,19 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		Action:       "download",
 		InstanceName: "core",
 		Channel:      "stable",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      "18/stable",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      "18/stable",
-		Flags:        store.SnapActionIgnoreValidation,
+		Flags:        store.SnapActionEnforceValidation,
 	})
 }
 

@@ -70,7 +70,7 @@ execute: |
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --revisions $ROOT/seed.manifest --snap hello $TESTSLIB/assertions/developer1-pc.model $ROOT" 2>stderr || true
     MATCH "error: snap \"hello\" supported architectures \(ppc64el\) are incompatible with the model architecture \(amd64\)" < stderr
     # Ensure there are not other warnings/errors on stderr
-    wc -l < stderr | MATCH "^2$"
+    wc -l < stderr | MATCH "^1$"
 
     # Write a valid manifest
     cat > "$ROOT/seed.manifest" <<EOF
