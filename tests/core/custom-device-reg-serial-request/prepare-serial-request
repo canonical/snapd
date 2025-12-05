@@ -12,13 +12,10 @@ snapctl set device-service.headers='{"X-Use-Proposed": "yes"}'
 # Get the request-id that was set by snapd
 REQUEST_ID=$(snapctl get registration.request-id)
 
-# Create a signature/hash of the request ID to include in the body
-REQUEST_ID_SIGNATURE=$(printf "$REQUEST_ID" | sha256sum | cut -d' ' -f1)
-
 # Set the registration body with dynamic content based on the request-id
 snapctl set registration.body="{\"hardware-id-key\": \"${KEY}\", 
                                 \"hardware-id-key-sha384\": \"${HASH}\",
-                                \"request-id-signature\": \"${REQUEST_ID_SIGNATURE}\",
+                                \"request-id-signature\": \"${REQUEST_ID}\",
                                 }"
 
 # Set a proposed serial that will be used because of the X-Use-Proposed header
