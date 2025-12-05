@@ -12,7 +12,11 @@ details: |
 
 execute: |
     snap version > version.out
+    # does not fail, even though --verbose does not affect the output currently
     snap version --verbose > version-verbose.out
+
+    # same output
+    diff -up version.out version-verbose.out
 
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
@@ -42,9 +46,9 @@ execute: |
     MATCH "architecture *(amd64|arm64|armel|armhf|i386|ppc64el|riscv64|s390x)" < version.out
 
     if tests.info is-reexec-in-use; then
-        MATCH "snapd-bin-from +snap" < version-verbose.out
-        MATCH "snap-bin-from +snap" < version-verbose.out
+        MATCH "daemon-from +snap" < version.out
+        MATCH "client-from +snap" < version.out
     else
-        MATCH "snapd-bin-from +native-package" < version-verbose.out
-        MATCH "snap-bin-from +native-package" < version-verbose.out
+        MATCH "daemon-from +native-package" < version.out
+        MATCH "client-from +native-package" < version.out
     fi
