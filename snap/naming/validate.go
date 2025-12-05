@@ -25,6 +25,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/arch"
 )
 
 // almostValidNameRegexString is part of snap and socket name validation. The
@@ -328,6 +330,37 @@ func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet ma
 			}
 
 			if validVersion {
+				continue
+			}
+		}
+
+		if strings.HasPrefix(flag, "isa") {
+			// we allow keys like isa-<arch>-<isa_val>, so the result of the split will
+			// always be {"isa", "<arch>", "<isa_val>"}
+			tokens := strings.Split(flag, "-")
+			if len(tokens) != 3 {
+				return fmt.Errorf("%s but it's not in the format isa-<arch>-<isa_val>", flag)
+			}
+
+			if arch.DpkgArchitecture() != tokens[1] {
+				// Skip, it doesn't make sense to verify the ISA for architectures we
+				// are not running on
+				continue
+			}
+
+			// Run architecture-dependent compatibility checks
+			var err error
+			switch arch.DpkgArchitecture() {
+			case "riscv64":
+				err = validateAssumesRiscvISA(tokens[2])
+
+			default:
+				return fmt.Errorf("%s but ISA specification is not supported for arch: %s", flag, tokens[1])
+			}
+
+			if err != nil {
+				return fmt.Errorf("%s but validation failed: %s", flag, err)
+			} else {
 				continue
 			}
 		}
