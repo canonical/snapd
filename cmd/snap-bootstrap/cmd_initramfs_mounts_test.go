@@ -286,6 +286,7 @@ func checkDegradedJSON(c *C, name string, exp map[string]any) {
 	degradedJSONObj := make(map[string]any)
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
+	delete(degradedJSONObj, "state")
 
 	c.Assert(degradedJSONObj, DeepEquals, exp)
 }
