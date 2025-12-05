@@ -1033,7 +1033,7 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
 
-	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, store.CachePolicy{MaxItems: 1})
 	defer s.store.MockCacher(cache)()
 
 	snap := &snap.Info{}
@@ -1070,7 +1070,7 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 	})
 	defer restore()
 
-	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, store.CachePolicy{MaxItems: 1})
 	defer s.store.MockCacher(cache)()
 
 	// mock something that OpenFile will fail on
