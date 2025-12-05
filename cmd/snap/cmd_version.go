@@ -39,6 +39,7 @@ and operating system.
 type cmdVersion struct {
 	clientMixin
 
+	// keep the verbose flag in case people find any posts mentioning it
 	Verbose bool `long:"verbose"`
 }
 
@@ -81,29 +82,27 @@ func printVersions(cli *client.Client, verbose bool) error {
 		fmt.Fprintf(w, "architecture\t%s\n", sv.Architecture)
 	}
 
-	if verbose {
-		snapdBinOrigin := "-"
-		if sv.SnapdBinFrom != "" {
-			snapdBinOrigin = sv.SnapdBinFrom
-		}
-		fmt.Fprintf(w, "snapd-bin-from\t%s\n", snapdBinOrigin)
-
-		reexecd, err := snapdtoolIsReexecd()
-		if err != nil {
-			logger.Debugf("cannot check snap command reexec status: %v", err)
-		}
-
-		snapFrom := "-"
-		if err == nil {
-			if reexecd {
-				snapFrom = "snap"
-			} else {
-				snapFrom = "native-package"
-			}
-		}
-
-		fmt.Fprintf(w, "snap-bin-from\t%s\n", snapFrom)
+	snapdBinOrigin := "-"
+	if sv.SnapdBinFrom != "" {
+		snapdBinOrigin = sv.SnapdBinFrom
 	}
+	fmt.Fprintf(w, "daemon-from\t%s\n", snapdBinOrigin)
+
+	reexecd, err := snapdtoolIsReexecd()
+	if err != nil {
+		logger.Debugf("cannot check snap command reexec status: %v", err)
+	}
+
+	snapFrom := "-"
+	if err == nil {
+		if reexecd {
+			snapFrom = "snap"
+		} else {
+			snapFrom = "native-package"
+		}
+	}
+
+	fmt.Fprintf(w, "client-from\t%s\n", snapFrom)
 
 	w.Flush()
 
