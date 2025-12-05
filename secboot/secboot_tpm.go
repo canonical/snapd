@@ -34,6 +34,7 @@ import (
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
@@ -67,6 +68,8 @@ var (
 	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
 	sbNewTPMPassphraseProtectedKey                  = sb_tpm2.NewTPMPassphraseProtectedKey
 	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
+	sbWithAutoTCGPCRProfile                         = sb_preinstall.WithAutoTCGPCRProfile
+	sbWithKernelConfigProfile                       = sb_efi.WithKernelConfigProfile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -550,7 +553,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.AllowInsufficientDmaProtection)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult)
 	if err != nil {
 		return nil, err
 	}
@@ -789,7 +792,42 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 
 var resealKeysWithTPM = resealKeysWithTPMImpl
 
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult) (*sb_tpm2.PCRProtectionProfile, error) {
+	loadSequences := sb_efi.NewImageLoadSequences()
+
+	for _, mp := range modelParams {
+		snapModelParams := sb_efi.SnapModelParams(mp.Model)
+		kernelConfigParams := sb_efi.KernelCommandlineParams(mp.KernelCmdlines...)
+
+		efiLoadActivity := []sb_efi.ImageLoadActivity{}
+		for _, chain := range mp.EFILoadChains {
+			loadseq, err := chain.loadEventWithParams(snapModelParams, kernelConfigParams)
+			if err != nil {
+				return nil, err
+			}
+			efiLoadActivity = append(efiLoadActivity, loadseq)
+		}
+		loadSequences.Append(efiLoadActivity...)
+	}
+
+	optionsAutoTCGPCRProfile := sbWithAutoTCGPCRProfile(checkResult.sbCheckResult, checkResult.sbPCRProfileOpts)
+	optionsKernelConfig := sbWithKernelConfigProfile()
+
+	modelProfile := sb_tpm2.NewPCRProtectionProfile()
+	if err := sbefiAddPCRProfile(
+		checkResult.sbCheckResult.PCRAlg,
+		modelProfile.RootBranch(),
+		loadSequences,
+		optionsAutoTCGPCRProfile,
+		optionsKernelConfig,
+	); err != nil {
+		return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
+	}
+
+	return modelProfile, nil
+}
+
+/*func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
@@ -860,12 +898,12 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsuffici
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
 	return pcrProfile, nil
-}
+}*/
 
 // BuildPCRProtectionProfile builds and serializes a PCR profile from
 // a list of SealKeyModelParams.
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
-	pcrProfile, err := buildPCRProtectionProfile(modelParams, allowInsufficientDmaProtection)
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult)
 	if err != nil {
 		return nil, err
 	}
@@ -930,6 +968,24 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 		loadseqs.Append(loadseq)
 	}
 	return loadseqs, nil
+}
+
+// loadEventWithParams builds the corresponding load event and its tree
+func (lc *LoadChain) loadEventWithParams(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
+	for _, nextChain := range lc.Next {
+		// everything that is not the root has source shim
+		ev, err := nextChain.loadEvent()
+		if err != nil {
+			return nil, err
+		}
+		next = append(next, ev)
+	}
+	image, err := efiImageFromBootFile(lc.BootFile)
+	if err != nil {
+		return nil, err
+	}
+	return sb_efi.NewImageLoadActivity(image, params...).Loads(next...), nil
 }
 
 // loadEvent builds the corresponding load event and its tree
