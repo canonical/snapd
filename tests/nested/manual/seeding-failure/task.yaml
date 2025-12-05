@@ -75,7 +75,7 @@ prepare: |
 
 restore: |
     tests.exec is-skipped && exit 0
-    systemctl stop fakedevicesvc
+    systemctl stop fakedevicesvc || true
     "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
 execute: |
