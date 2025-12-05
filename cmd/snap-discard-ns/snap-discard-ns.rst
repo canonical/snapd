@@ -16,7 +16,7 @@ internal tool for discarding preserved namespaces of snappy applications
 SYNOPSIS
 ========
 
-	snap-discard-ns [--from-snap-confine] SNAP_INSTANCE_NAME
+	snap-discard-ns [--snap-already-locked|--from-snap-confine] SNAP_INSTANCE_NAME
 
 DESCRIPTION
 ===========
@@ -27,8 +27,10 @@ mount namespace of a particular snap.
 OPTIONS
 =======
 
-The --from-snap-confine option is used internally by snap-confine to tell
-snap-discard-ns that it is invoked from snap-confine and can disable locking.
+The --snap-already-locked is used to indicate that the snap lock has already
+been taken, which snap-discard-ns verifies internally.
+The --from-snap-confine option is an alias for this option but is used only
+internally when calling snap-discard-ns from snap-confine.
 
 ENVIRONMENT
 ===========

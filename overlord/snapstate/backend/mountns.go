@@ -27,3 +27,9 @@ import (
 func (b Backend) DiscardSnapNamespace(snapName string) error {
 	return mount.DiscardSnapNamespace(snapName)
 }
+
+// Discard the mount namespace of a locked snap, e.g. during a refresh when
+// running applications is temporarily inhibited.
+func (b Backend) DiscardLockedSnapNamespace(snapName string) error {
+	return mount.DiscardLockedSnapNamespace(snapName)
+}

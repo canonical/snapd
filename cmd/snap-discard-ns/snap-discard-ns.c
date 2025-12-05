@@ -70,20 +70,25 @@ static void assert_caps(void) {
 
 int main(int argc, char **argv) {
     if (argc != 2 && argc != 3) {
-        printf("Usage: snap-discard-ns [--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
+        printf("Usage: snap-discard-ns [--snap-already-locked|--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
         return 0;
     }
     const char *snap_instance_name;
-    bool from_snap_confine;
+    bool snap_already_locked;
 
     if (argc == 3) {
-        if (!sc_streq(argv[1], "--from-snap-confine")) {
+        /*
+         * --from-snap-confine and --snap-already-locked mean the same thing,
+         * but are invoked from different places, where depending on the
+         * context, the name makes more or less sense.
+         */
+        if (!sc_streq(argv[1], "--from-snap-confine") && !sc_streq(argv[1], "--snap-already-locked")) {
             die("unexpected argument %s", argv[1]);
         }
-        from_snap_confine = true;
+        snap_already_locked = true;
         snap_instance_name = argv[2];
     } else {
-        from_snap_confine = false;
+        snap_already_locked = false;
         snap_instance_name = argv[1];
     }
 
@@ -97,7 +102,7 @@ int main(int argc, char **argv) {
      * explicitly needed */
 
     int snap_lock_fd = -1;
-    if (from_snap_confine) {
+    if (snap_already_locked) {
         sc_verify_snap_lock(snap_instance_name);
     } else {
         /* Grab the lock holding the snap instance. This prevents races from
