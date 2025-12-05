@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,6 +42,15 @@ func (s *ValidateSuite) SetUpTest(c *C) {
 
 func (s *ValidateSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+}
+
+// MockArchitecture mocks an architecture and returns a function to
+// restore to the current value.
+func MockArchitecture(newArch arch.ArchitectureType) (restore func()) {
+	currentArch := arch.DpkgArchitecture()
+	arch.SetArchitecture(newArch)
+
+	return func() { arch.SetArchitecture(arch.ArchitectureType(currentArch)) }
 }
 
 func (s *ValidateSuite) TestValidateName(c *C) {
@@ -570,5 +580,47 @@ func (s *ValidateSuite) TestValidateAssumes(c *C) {
 		} else {
 			c.Check(err, ErrorMatches, test.err)
 		}
+	}
+}
+
+func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
+	var assumesTests = []struct {
+		assumes []string
+		arch    string
+		err     string
+	}{
+		// We do not test the explicit "success" case of checking for riscv64
+		// as that is done in a separate file
+		{
+			// Different architecture ignored with no error
+			assumes: []string{"isa-riscv64-rva23"},
+			arch:    "amd64",
+		}, {
+			// There are no specified ISA constraints for AMD64
+			assumes: []string{"isa-amd64-sampleisa"},
+			arch:    "amd64",
+			err:     "isa-amd64-sampleisa but ISA specification is not supported for arch: amd64",
+		},
+		{
+			// ISA string is malformed
+			assumes: []string{"isa-riscv64..rva23"},
+			arch:    "riscv64",
+			err:     "isa-riscv64..rva23 but it's not in the format isa-<arch>-<isa_val>",
+		},
+	}
+
+	for _, test := range assumesTests {
+		// Mock architecture
+		restoreArch := MockArchitecture(arch.ArchitectureType(test.arch))
+
+		err := naming.ValidateAssumes(test.assumes, "snapd-version", map[string]bool{})
+
+		if test.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, test.err)
+		}
+
+		restoreArch()
 	}
 }
