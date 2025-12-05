@@ -1535,7 +1535,14 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 			}
 		}
 
-		// we're still holding the snap lock
+		// We're still holding the snap lock, new instances of the snap cannot
+		// be started and we have confirmed that no applications of that snap
+		// are running. Now is a good time to attempt to discard the preserved
+		// mount namespace of the snap. The motivation for this is that on the
+		// next start of application we will not attempt to modify the mount
+		// namespace to match what the new revision of the snap desires (which
+		// sometimes is almost impossible), but instead the app starts with a
+		// clean slate.
 		logger.Debugf("discarding snap %q mount namespace", snapsup.InstanceName())
 		if err := m.backend.DiscardSnapNamespaceLocked(snapsup.InstanceName()); err != nil {
 			return err
