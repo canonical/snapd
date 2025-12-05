@@ -3,11 +3,9 @@
 # This hook is called during the serial request preparation
 # It receives the request-id and can modify the registration body
 
-# Set the device service URL (this is done for mocking purposes)
-snapctl set device-service.url=http://localhost:11029
-
-# Set the header to use the proposed serial
-snapctl set device-service.headers='{"X-Use-Proposed": "yes"}'
+# Read the hardware ID key and its SHA384 hash from files
+KEY="some-random-key-value"
+HASH="some-random-hash-value"
 
 # Get the request-id that was set by snapd
 REQUEST_ID=$(snapctl get registration.request-id)
@@ -17,6 +15,3 @@ snapctl set registration.body="{\"hardware-id-key\": \"${KEY}\",
                                 \"hardware-id-key-sha384\": \"${HASH}\",
                                 \"request-id-signature\": \"${REQUEST_ID}\",
                                 }"
-
-# Set a proposed serial that will be used because of the X-Use-Proposed header
-snapctl set registration.proposed-serial="7777"
