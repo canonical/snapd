@@ -62,6 +62,15 @@
         "systems": "arch-linux-64",
         "tasks": "tests/...",
         "rules": "main"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "ubuntu-interim (fundamental)",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google",
+        "systems": "ubuntu-25.10-64",
+        "tasks": "tests/...",
+        "rules": "main"
       }
     ]
   }

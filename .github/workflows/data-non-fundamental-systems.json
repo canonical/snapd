@@ -77,7 +77,7 @@
         "group": "ubuntu-daily",
         "backend": "openstack-ps7",
         "alternative-backend": "google",
-        "systems": "ubuntu-25.10-64",
+        "systems": "ubuntu-26.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },

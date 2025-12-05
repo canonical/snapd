@@ -428,6 +428,9 @@ backends:
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
+            - ubuntu-26.04-64:
+                image: snapd-spread/ubuntu-26.04-64
+                workers: 8
 
             - ubuntu-core-18-64:
                 image: snapd-spread/ubuntu-18.04-64
@@ -541,12 +544,18 @@ backends:
             - ubuntu-24.04-arm-64:
                 image: snapd-spread/ubuntu-24.04-arm-64
                 workers: 8
+            - ubuntu-26.04-arm-64:
+                image: snapd-spread/ubuntu-26.04-arm-64
+                workers: 8
 
             - ubuntu-core-22-arm-64:
                 image: snapd-spread/ubuntu-22.04-arm-64-uefi
                 workers: 8
             - ubuntu-core-24-arm-64:
                 image: snapd-spread/ubuntu-24.04-arm-64-uefi
+                workers: 8
+            - ubuntu-core-26-arm-64:
+                image: snapd-spread/ubuntu-26.04-arm-64-uefi
                 workers: 8
 
     openstack-arm-ext-ps7:
@@ -676,6 +685,9 @@ backends:
             - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-26.04-64:
+                  username: ubuntu
+                  password: ubuntu
             - debian-12-64:
                   username: debian
                   password: debian
@@ -755,6 +767,9 @@ backends:
                   username: root
                   password: root
             - ubuntu-25.10-64:
+                  username: root
+                  password: root
+            - ubuntu-26.04-64:
                   username: root
                   password: root
             - debian-12-64:
@@ -862,6 +877,38 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # noble
+            - ubuntu-24.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # resolute
+            - ubuntu-26.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-arm64:
                   username: ubuntu
                   password: ubuntu
             # Debian Forky
@@ -976,6 +1023,12 @@ backends:
                   username: external
                   password: ubuntu123
             - ubuntu-core-24-arm-64:
+                  username: external
+                  password: ubuntu123
+            - ubuntu-core-26-64:
+                  username: external
+                  password: ubuntu123
+            - ubuntu-core-26-arm-64:
                   username: external
                   password: ubuntu123
 

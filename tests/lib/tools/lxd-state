@@ -96,10 +96,9 @@ launch() {
 }
 
 default_remote() {
-    # There isn't an official image for noble yet, let's use the community one
     remote=ubuntu
-    # There isn't an official image for 25.10 yet, let's use the daily one
-    if os.query is-ubuntu 25.10; then
+    # No official image for 26.04 yet
+    if os.query is-ubuntu 26.04; then
         remote=ubuntu-daily
     fi
     echo "$remote"

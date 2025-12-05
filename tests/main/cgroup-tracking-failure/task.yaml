@@ -120,7 +120,7 @@ execute: |
             MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-22*|ubuntu-24*|ubuntu-25*)
+        ubuntu-22*|ubuntu-24*|ubuntu-25*|ubuntu-26*)
             # Ubuntu > 22 uses unified cgroup hierarchy, where we wait
             # for the systemd to complete the job that creates a transient scope
             MATCH 'DEBUG:?.*using session bus' <debug.txt
@@ -249,7 +249,7 @@ execute: |
             MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
             MATCH '0::/user.slice/user-12345.slice/user@12345.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-24*|ubuntu-25*)
+        ubuntu-24*|ubuntu-25*|ubuntu-26*)
             # Ubuntu >= 24.04 uses systemd-run instead of busctl to run commands using tests.session
             MATCH '0::/user.slice/user-12345.slice/user@12345.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
