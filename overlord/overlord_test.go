@@ -151,7 +151,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	// store is setup
 	sto := snapstate.Store(s, nil)
 	c.Check(sto, FitsTypeOf, &store.Store{})
-	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+	c.Check(sto.(*store.Store).CachePolicy(), Equals, overlord.DefaultCachePolicy)
 }
 
 func (ovs *overlordSuite) TestNewStore(c *C) {
@@ -164,7 +164,7 @@ func (ovs *overlordSuite) TestNewStore(c *C) {
 
 	sto := o.NewStore(devBE)
 	c.Check(sto, FitsTypeOf, &store.Store{})
-	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+	c.Check(sto.(*store.Store).CachePolicy(), Equals, overlord.DefaultCachePolicy)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
