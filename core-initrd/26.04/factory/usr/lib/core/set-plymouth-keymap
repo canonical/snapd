@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -eu
+
+# Keymap has the structure layout,model,variant,options
+xkb_list="$(/usr/libexec/core/get-arg snapd.xkb || true)"
+
+[ -z "$xkb_list" ] && exit 0
+
+# Multiple options are allowed, this will read everything after the 
+# fourth value into options while preserving commas
+IFS=',' 
+read -r layout model variant options <<EOF
+$xkb_list
+EOF
+
+# /etc/default is not created by default
+mkdir -p /etc/default
+cat << EOF > /etc/default/keyboard
+# KEYBOARD CONFIGURATION FILE
+# THIS FILE WAS AUTOMATICALLY CREATED
+# BY THE "snapd.xkb" KERNEL ARGUMENT
+
+XKBMODEL="${model}"
+XKBLAYOUT="${layout}"
+XKBVARIANT="${variant}"
+XKBOPTIONS="${options}"
+
+BACKSPACE="guess"
+EOF
+
