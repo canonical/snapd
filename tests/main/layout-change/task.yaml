@@ -55,7 +55,7 @@ execute: |
     old_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt)"
 
     echo "Refreshing test snap with daemon to newer version"
-    # daemon is of type 'simple' and it gets restart during the refresh
+    # daemon is of type 'simple' and it gets restarted during the refresh
     snap refresh --edge test-snapd-layout-change-with-daemon
     # mount ns got discarded across refresh
     new_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt)"
