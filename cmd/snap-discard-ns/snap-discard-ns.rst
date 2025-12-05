@@ -28,9 +28,9 @@ OPTIONS
 =======
 
 The --snap-already-locked is used to indicate that the snap lock has already
-been taken, snap-discard-ns verifies this fact internally.
+been taken, which snap-discard-ns verifies internally.
 The --from-snap-confine option is an alias for this option but is used only
-internally whe calling snap-discard-ns from snap-confine.
+internally when calling snap-discard-ns from snap-confine.
 
 ENVIRONMENT
 ===========
