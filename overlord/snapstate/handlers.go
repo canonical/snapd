@@ -3153,7 +3153,7 @@ func installModeDisabledSystemServices(snapst *SnapState, currentInfo *snap.Info
 		enabledByHookSvcs[svcName] = true
 	}
 	for _, svc := range currentInfo.Services() {
-		if svc.DaemonScope != snap.SystemDaemon {
+		if !svc.DaemonScope.IsSystemDaemon() {
 			continue
 		}
 
@@ -3188,7 +3188,7 @@ func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, 
 
 	svcsToDisable := make(map[int][]string)
 	for _, svc := range currentInfo.Services() {
-		if svc.DaemonScope != snap.UserDaemon {
+		if !svc.DaemonScope.IsUserDaemon() {
 			continue
 		}
 
