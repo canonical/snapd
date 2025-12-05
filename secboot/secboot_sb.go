@@ -136,7 +136,7 @@ func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*LegacyKeyFile, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// TODO:FDEM: this function is big. We need to split it.
 
 	res := UnlockResult{}
@@ -189,18 +189,13 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 
 	res.PartDevice = partDevice
 
-	expectFDEHook := fdeHasRevealKey()
-	loadedKey := &defaultKeyLoader{}
-	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, expectFDEHook); err != nil {
-		if !os.IsNotExist(err) {
-			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
-		}
-	}
-
 	var options []sb.ActivateOption
-	if loadedKey.KeyData != nil {
-		options = append(options, sbWithExternalKeyData(loadedKey.KeyData.ReadableName(), loadedKey.KeyData))
-	}
+
+	sbSetBootMode(opts.BootMode)
+	defer sbSetBootMode("")
+
+	sbSetKeyRevealer(&keyRevealerV3{})
+	defer sbSetKeyRevealer(nil)
 
 	if opts.WhichModel != nil {
 		model, err := opts.WhichModel()
@@ -212,27 +207,37 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		//defer sbSetModel(nil)
 	}
 
-	sbSetBootMode(opts.BootMode)
-	defer sbSetBootMode("")
+	expectFDEHook := fdeHasRevealKey()
 
-	sbSetKeyRevealer(&keyRevealerV3{})
-	defer sbSetKeyRevealer(nil)
-
-	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
-	if loadedKey.FDEHookKeyV1 != nil {
-		// Special case for hook keys v1. They do not have
-		// primary keys. So we cannot wrap them in KeyData
-		err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.FDEHookKeyV1)
-		if err == nil {
-			res.FsDevice = targetDevice
-			res.UnlockMethod = UnlockedWithSealedKey
-			return res, nil
+	for _, sealedEncryptionKeyFile := range sealedEncryptionKeyFiles {
+		loadedKey := &defaultKeyLoader{}
+		if err := readKeyFile(sealedEncryptionKeyFile.Path, loadedKey, expectFDEHook); err != nil {
+			if !os.IsNotExist(err) {
+				logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile.Path, err)
+			}
 		}
-		// If we did not manage we should still try unlocking
-		// with key data if there are some on the tokens.
-		// Also the request for recovery key will happen in
-		// ActivateVolumeWithKeyData
-		logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
+
+		if loadedKey.KeyData != nil {
+			options = append(options, sbWithExternalKeyData(sealedEncryptionKeyFile.Name, loadedKey.KeyData))
+		}
+
+		// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
+		if loadedKey.FDEHookKeyV1 != nil {
+			// Special case for hook keys v1. They do not have
+			// primary keys. So we cannot wrap them in KeyData
+			err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.FDEHookKeyV1)
+			if err == nil {
+				res.FsDevice = targetDevice
+				res.UnlockMethod = UnlockedWithSealedKey
+				res.Keyslot = sealedEncryptionKeyFile.Name
+				return res, nil
+			}
+			// If we did not manage we should still try unlocking
+			// with key data if there are some on the tokens.
+			// Also the request for recovery key will happen in
+			// ActivateVolumeWithKeyData
+			logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile.Path, err)
+		}
 	}
 
 	container, err := sbFindStorageContainer(context.Background(), sourceDevice)
@@ -254,9 +259,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		if activationState.Status == sb.ActivationSucceededWithRecoveryKey {
 			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 			res.UnlockMethod = UnlockedWithRecoveryKey
+			res.Keyslot = activationState.Keyslot
 		} else {
 			logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
 			res.UnlockMethod = UnlockedWithSealedKey
+			res.Keyslot = activationState.Keyslot
 		}
 	}
 	res.FsDevice = targetDevice

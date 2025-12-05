@@ -875,7 +875,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				},
 				BootMode: "some-weird-mode",
 			}
-			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, tc.disk, defaultDevice, keyPath, opts)
+			legacyKey := &secboot.LegacyKeyFile{
+				Name: "legacy",
+				Path: keyPath,
+			}
+			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, tc.disk, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 			if tc.errorReadKeyFile {
 				c.Check(logbuf.String(), testutil.Contains, `WARNING: there was an error loading key /some/path: some other error`)
 			} else {
@@ -1984,7 +1988,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 			return fakeModel, nil
 		},
 	}
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: mockSealedKeyFile,
+	}
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": cannot perform action because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
 }
 
@@ -2384,7 +2392,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 		return storage, nil
 	})()
 
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, "device-name", keyPath, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: keyPath,
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, "device-name", []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -2486,7 +2498,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		c.Check(path, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
 		return storage, nil
 	})()
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: mockSealedKeyFile,
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -2543,7 +2559,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 		return storage, nil
 	})()
 
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: mockSealedKeyFile,
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, ErrorMatches, `cannot activate encrypted device "/dev/disk/by-uuid/enc-dev-uuid": some activation error`)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		IsEncrypted: true,
@@ -2606,7 +2626,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		return storage, nil
 	})()
 
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: mockSealedKeyFile,
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithRecoveryKey,
@@ -2683,13 +2707,18 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	defaultDevice := "device-name"
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: "the-key-file",
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+		Keyslot:      "legacy",
 	})
 	c.Check(activated, Equals, 1)
 	c.Assert(reqs, HasLen, 1)
@@ -2778,7 +2807,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1Fa
 		c.Check(path, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
 		return storage, nil
 	})()
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, "the-key-file", opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: "the-key-file",
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -2861,7 +2894,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	defaultDevice := "device-name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	legacyKey := &secboot.LegacyKeyFile{
+		Name: "legacy",
+		Path: mockSealedKeyFile,
+	}
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, mockDiskWithEncDev, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
 
 	c.Check(err, ErrorMatches, `cannot activate encrypted device \".*\": invalid key data: cannot unmarshal cleartext key payload: EOF`)
 }

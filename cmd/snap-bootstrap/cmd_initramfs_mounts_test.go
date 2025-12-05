@@ -210,12 +210,13 @@ func foundUnencrypted(name string) secboot.UnlockResult {
 	}
 }
 
-func happyUnlocked(name string, method secboot.UnlockMethod) secboot.UnlockResult {
+func happyUnlocked(name string, method secboot.UnlockMethod, keyslot string) secboot.UnlockResult {
 	return secboot.UnlockResult{
 		PartDevice:   filepath.Join("/dev/disk/by-partuuid", name+"-enc-partuuid"),
 		FsDevice:     filepath.Join("/dev/mapper", name+"-random"),
 		IsEncrypted:  true,
 		UnlockMethod: method,
+		Keyslot:      keyslot,
 	}
 }
 
@@ -495,7 +496,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 		c.Check(f, NotNil)
 		return nil
 	}))
-	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		return foundUnencrypted(name), nil
 	}))
 	s.AddCleanup(main.MockSecbootLockSealedKeys(func() error {
