@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# This hook is called during the serial request preparation
+# It receives the request-id and can modify the registration body
+
+# Read the hardware ID key and its SHA384 hash from files
+KEY="some-random-key-value"
+HASH="some-random-hash-value"
+
+# Get the request-id that was set by snapd
+REQUEST_ID=$(snapctl get registration.request-id)
+
+# Set the registration body with dynamic content based on the request-id
+snapctl set registration.body="{\"hardware-id-key\": \"${KEY}\", 
+                                \"hardware-id-key-sha384\": \"${HASH}\",
+                                \"request-id-signature\": \"${REQUEST_ID}\",
+                                }"

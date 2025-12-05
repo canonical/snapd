@@ -54,6 +54,7 @@ const (
 	ReqIDBadRequest         = "REQID-BAD-REQ"
 	ReqIDPoll               = "REQID-POLL"
 	ReqIDSerialWithBadModel = "REQID-SERIAL-W-BAD-MODEL"
+	ReqIDPrepareSerialHook  = "REQID-PREPARE-SERIAL-HOOK"
 )
 
 const (
