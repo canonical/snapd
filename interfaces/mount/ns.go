@@ -65,7 +65,7 @@ func runNamespaceTool(toolName, snapName string, runOpts runNamespaceToolOpts) (
 func DiscardSnapNamespace(snapName string) error {
 	output, err := runNamespaceTool("snap-discard-ns", snapName, runNamespaceToolOpts{})
 	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot discard preserved mount namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
@@ -77,7 +77,7 @@ func DiscardLockedSnapNamespace(snapName string) error {
 		SnapIsLocked: true,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot discard preserved mount namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func DiscardLockedSnapNamespace(snapName string) error {
 func UpdateSnapNamespace(snapName string) error {
 	output, err := runNamespaceTool("snap-update-ns", snapName, runNamespaceToolOpts{})
 	if err != nil {
-		return fmt.Errorf("cannot update preserved namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot update preserved mount namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
 	}
 	return nil
 }
