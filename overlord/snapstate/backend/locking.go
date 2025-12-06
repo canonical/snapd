@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, err error) {
+func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, retErr error) {
 	if stateUnlocker == nil {
 		return nil, errors.New("internal error: stateUnlocker cannot be nil")
 	}
@@ -40,7 +40,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	// sufficient to perform the check, even though individual processes
 	// may fork or exit, we will have per-security-tag information about
 	// what is running.
-	lock, err = snaplock.OpenLock(info.InstanceName())
+	lock, err := snaplock.OpenLock(info.InstanceName())
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	defer func() {
 		// If we have a lock but we are returning an error then unlock the lock
 		// by closing it.
-		if lockToClose != nil && err != nil {
+		if lockToClose != nil && retErr != nil {
 			lockToClose.Close()
 		}
 	}()

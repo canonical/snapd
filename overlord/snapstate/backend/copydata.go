@@ -308,7 +308,7 @@ type UndoInfo struct {
 // specified revision. If no error occurred, returns a non-nil undoInfo so that
 // the operation can be undone. If an error occurred, an attempt is made to undo
 // so no undoInfo is returned.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, err error) {
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, retErr error) {
 	users, err := allUsers(opts)
 	if err != nil {
 		return nil, err
@@ -316,7 +316,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *d
 
 	undoInfo = &UndoInfo{}
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			if err := b.UndoInitExposedSnapHome(snapName, undoInfo); err != nil {
 				logger.Noticef("cannot undo ~/Snap init for %q after it failed: %v", snapName, err)
 			}

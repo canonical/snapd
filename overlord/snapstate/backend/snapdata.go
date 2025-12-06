@@ -225,14 +225,14 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 
 // Copy all data for oldSnap to newSnap
 // (but never overwrite)
-func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (err error) {
+func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (retErr error) {
 	oldDataDirs, err := snapDataDirs(oldSnap, opts)
 	if err != nil {
 		return err
 	}
 	done := make([]string, 0, len(oldDataDirs))
 	defer func() {
-		if err == nil {
+		if retErr == nil {
 			return
 		}
 		// something went wrong, but we'd already written stuff. Fix that.
