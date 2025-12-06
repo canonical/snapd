@@ -169,6 +169,16 @@ class TestReplace(unittest.TestCase):
                 assert 'system.version' in actual and actual['system.version'] == run_once_json['system.version']
                 assert 'tests' in actual and actual['tests'] == run_once_json['tests']
 
+    def test_replace_missing_original(self):
+        filenames = ["f_1", "f_2", "f_3", "g_2", "g_3", "h_5", "i_1"]
+        originals, reruns = featcomposer._get_original_and_rerun_list(filenames)
+        assert "f_1" in originals
+        assert "g_2" in originals
+
+        assert "f_2" in reruns
+        assert "f_3" in reruns
+        assert "g_3" in reruns
+
 
 if __name__ == '__main__':
     unittest.main()
