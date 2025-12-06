@@ -138,7 +138,7 @@ static void test_group_policy_nomatch_user(void) {
     g_assert_cmpint(sc_error_code(err), ==, SC_NO_GROUP_PRIVS);
     g_assert_cmpstr(
         sc_error_msg(err), ==,
-        "user is not a member of group owning snap-confine, check you distribution's policy for running snaps");
+        "user is not a member of group owning snap-confine; check your distribution's policy for running snaps");
 }
 
 static void test_group_policy_root(void) {
