@@ -5957,6 +5957,14 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 		paths, _ := s.prereqSnapAssertions(c, nil, "", params.integrity, 10)
 		snapPath := paths[10]
 
+		// Compute the expected integrity data size explicitly since the test snap file size
+		// differs between distributions.
+		if params.expIntegrityData != nil {
+			si, err := os.Stat(snapPath)
+			c.Assert(err, IsNil)
+			params.expIntegrityData.DataBlocks = uint64(si.Size()) / params.expIntegrityData.DataBlockSize
+		}
+
 		if params.createMultiple {
 			rev := 10
 			snapPath := s.makeTestSnap(c, rev, "")
@@ -6024,7 +6032,6 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataSuccess(c *C) {
 			Type:          "dm-verity",
 			Version:       1,
 			HashAlg:       "sha256",
-			DataBlocks:    4,
 			DataBlockSize: 4096,
 			HashBlockSize: 4096,
 			Digest:        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
