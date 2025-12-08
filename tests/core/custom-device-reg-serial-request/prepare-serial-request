@@ -13,5 +13,5 @@ REQUEST_ID=$(snapctl get registration.request-id)
 # Set the registration body with dynamic content based on the request-id
 snapctl set registration.body="{\"hardware-id-key\": \"${KEY}\", 
                                 \"hardware-id-key-sha384\": \"${HASH}\",
-                                \"request-id-signature\": \"${REQUEST_ID}\",
+                                \"request-id-signature\": \"${REQUEST_ID}\"
                                 }"
