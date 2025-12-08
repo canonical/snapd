@@ -43,7 +43,7 @@ import (
 type MockObserver struct {
 	BootLoaderSupportsEfiVariablesFunc       func() bool
 	ObserveExistingTrustedRecoveryAssetsFunc func(recoveryRootDir string) error
-	SetEncryptionParamsFunc                  func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions)
+	SetEncryptionParamsFunc                  func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult)
 	UpdateBootEntryFunc                      func() error
 	ObserveFunc                              func(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 }
@@ -56,8 +56,8 @@ func (m *MockObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir stri
 	return m.ObserveExistingTrustedRecoveryAssetsFunc(recoveryRootDir)
 }
 
-func (m *MockObserver) SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
-	m.SetEncryptionParamsFunc(key, saveKey, primaryKey, volumesAuth)
+func (m *MockObserver) SetEncryptionParams(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult) {
+	m.SetEncryptionParamsFunc(key, saveKey, primaryKey, volumesAuth, checkResult)
 }
 
 func (m *MockObserver) UpdateBootEntry() error {
@@ -197,7 +197,7 @@ echo '{"features":[]}'
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
+		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult) {
 			setBootstrappedContainersCalled++
 			c.Check(key, Equals, dataContainer)
 			c.Check(saveKey, Equals, saveContainer)
@@ -364,7 +364,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			observeExistingTrustedRecoveryAssetsCalled += 1
 			return nil
 		},
-		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions) {
+		SetEncryptionParamsFunc: func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult) {
 			c.Errorf("unexpected call")
 		},
 		UpdateBootEntryFunc: func() error {

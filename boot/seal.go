@@ -76,7 +76,7 @@ func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, opts Reseal
 type MockSealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 // MockSealKeyToModeenv is used for testing from other packages.
-func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
+func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
 	old := sealKeyToModeenv
 	sealKeyToModeenv = f
 	return func() {
@@ -112,6 +112,7 @@ func sealKeyToModeenvImpl(
 	key, saveKey secboot.BootstrappedContainer,
 	primaryKey []byte,
 	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
@@ -143,7 +144,7 @@ func sealKeyToModeenvImpl(
 		defer relock()
 	}
 
-	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, model, modeenv, flags)
+	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, checkResult, model, modeenv, flags)
 }
 
 type BootChains struct {
@@ -180,6 +181,7 @@ func sealKeyForBootChainsImpl(
 	key, saveKey secboot.BootstrappedContainer,
 	primaryKey []byte,
 	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
 	params *SealKeyForBootChainsParams,
 ) error {
 	return fmt.Errorf("FDE manager backend was not built in")
@@ -192,6 +194,7 @@ func sealKeyToModeenvForMethod(
 	key, saveKey secboot.BootstrappedContainer,
 	primaryKey []byte,
 	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
@@ -261,7 +264,7 @@ func sealKeyToModeenvForMethod(
 		params.RoleToBlName[bootloader.RoleRunMode] = bl.Name()
 	}
 
-	return SealKeyForBootChains(method, key, saveKey, primaryKey, volumesAuth, params)
+	return SealKeyForBootChains(method, key, saveKey, primaryKey, volumesAuth, checkResult, params)
 }
 
 var resealKeyToModeenv = resealKeyToModeenvImpl

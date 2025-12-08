@@ -499,10 +499,21 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	})
 	s.AddCleanup(restore)
 
+	var checkContext *secboot.PreinstallCheckContext
+	var checkResult *secboot.PreinstallCheckResult
+
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock sealing, not required to mock encryption check because install finish step uses encryption information from cache
-		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+		restore = boot.MockSealKeyToModeenv(func(
+			key, saveKey secboot.BootstrappedContainer,
+			primaryKey []byte,
+			volumesAuth *device.VolumesAuthOptions,
+			checkResult *secboot.PreinstallCheckResult,
+			model *asserts.Model,
+			modeenv *boot.Modeenv,
+			flags boot.MockSealKeyToModeenvFlags,
+		) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
@@ -518,12 +529,15 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			c.Check(modeenv.CurrentKernelCommandLines[0], testutil.Contains, "snapd_recovery_mode=run")
 			// Check that volume authentication options where propagated
 			c.Check(volumesAuth, Equals, opts.volumesAuth)
+
+			if opts.hasSystemSeed && opts.installClassic {
+				c.Check(checkResult, Equals, preinstallCheckResult)
+			}
 			return nil
 		})
 		s.AddCleanup(restore)
 
 		// Insert encryption set-up data in state cache
-		var checkContext *secboot.PreinstallCheckContext
 		if opts.hasSystemSeed && opts.installClassic {
 			// hybrid classic
 			checkContext = preinstallCheckContext
@@ -542,7 +556,17 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 				if err = osutil.AtomicWriteFile(filename, []byte{}, 0600, 0); err != nil {
 					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create file %s", filename)
 				}
-				return err
+				return nil
+			})
+			s.AddCleanup(restore)
+
+			checkResult = preinstallCheckResult
+			restore = installLogic.MockSecbootCheckResult(func(pcc *secboot.PreinstallCheckContext) (*secboot.PreinstallCheckResult, error) {
+				if pcc != preinstallCheckContext {
+					return nil, fmt.Errorf("test error: MockSecbootCheckResult received unexpected check context")
+				}
+
+				return checkResult, nil
 			})
 			s.AddCleanup(restore)
 		}

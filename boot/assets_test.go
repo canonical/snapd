@@ -481,7 +481,8 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	c.Assert(dataBootstrappedContainer, Not(Equals), saveBootstrappedContainer)
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
-	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, volumesAuth)
+	checkResult := &secboot.PreinstallCheckResult{}
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, volumesAuth, checkResult)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
@@ -489,6 +490,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
 	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
 	c.Check(observerImpl.CurrentVolumesAuth(), Equals, volumesAuth)
+	c.Check(observerImpl.CurrentCheckResult(), Equals, checkResult)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -509,13 +511,14 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(obs, NotNil)
 	dataBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
 	saveBootstrappedContainer := secboot.CreateMockBootstrappedContainer()
-	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, nil)
+	obs.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, nil, nil, nil)
 
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
 	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
 	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(observerImpl.CurrentCheckResult(), IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {

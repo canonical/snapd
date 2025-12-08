@@ -646,12 +646,13 @@ func PrepareEncryptedSystemData(
 	var checkResult *secboot.PreinstallCheckResult
 	// non nil checkContext means that a preinstall check was performed
 	if checkContext != nil {
-		if checkResult, err := secbootCheckResult(checkContext); err != nil {
+		var err error
+		if checkResult, err = secbootCheckResult(checkContext); err != nil {
 			return err
 		}
 		// write the check result to file to make it available post-install for
 		// resealing operations
-		if err := saveCheckResult(checkContext); err != nil {
+		if err = saveCheckResult(checkContext); err != nil {
 			return err
 		}
 	}
