@@ -2,8 +2,7 @@ summary: Test the customized device registration through prepare-serial-request 
 
 details: |
     Test that device registration can be customized with the prepare-serial-request
-    gadget hook, which receives a request-id and can modify the registration body
-    dynamically before the serial request is sent
+    gadget hook
 
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
 #            which we don't have currently
@@ -25,7 +24,6 @@ prepare: |
 
     mkdir -p squashfs-root/meta/hooks
     cp prepare-serial-request squashfs-root/meta/hooks
-    chmod +x squashfs-root/meta/hooks/prepare-serial-request
 
     pack_pc_snap
 
@@ -38,7 +36,6 @@ prepare: |
     prepare_testrootorg_store
 
     # start fake device svc
-    #shellcheck disable=SC2148
     systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
     # kick first boot again
@@ -81,9 +78,6 @@ execute: |
 
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-
-    echo "Wait for first boot to be done"
-    wait_for_first_boot_change
 
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* my-model"
