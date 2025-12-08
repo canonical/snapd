@@ -127,7 +127,7 @@ jobs:
   unit-tests-fuzzing:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
