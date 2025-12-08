@@ -41,9 +41,17 @@ type PreinstallCheckContext struct {
 	sbRunChecksContext *sb_preinstall.RunChecksContext
 }
 
-// preinstallCheckResult contains information required post install
-// for optimum PCR configuration and resealing.
-type preinstallCheckResult struct {
+// PreinstallCheckResult contains information required during and post
+// install for optimum PCR configuration and resealing. Contents are
+// opaque outside of secboot to ensure that only secboot interprets them.
+type PreinstallCheckResult struct {
+	sbCheckResult    *sb_preinstall.CheckResult
+	sbPCRProfileOpts sb_preinstall.PCRProfileOptionsFlags
+}
+
+// PreinstallCheckResultJSON is an auxiliary type for JSON marshalling
+// of PreinstallCheckResult. It is for internal use and testing only.
+type PreinstallCheckResultJSON struct {
 	Result         *sb_preinstall.CheckResult           `json:"result"`
 	PCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
 }
@@ -130,7 +138,7 @@ func (cc *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, act
 // SaveCheckResult writes the serialized preinstall check result in the
 // location specified by the filename.
 func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
-	checkResult, err := cc.checkResult()
+	checkResult, err := cc.CheckResult()
 	if err != nil {
 		return err
 	}
@@ -138,7 +146,11 @@ func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
 	return checkResult.save(filename)
 }
 
-func (cc *PreinstallCheckContext) checkResult() (*preinstallCheckResult, error) {
+// CheckResult retrieves the preinstall check result from the preinstall
+// check context. On success, it returns the preinstall check result required
+// post install for optimum PCR configuration and resealing. On failure, it
+// returns the error encountered while retrieving the result.
+func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) {
 	if cc.sbRunChecksContext == nil {
 		return nil, fmt.Errorf("preinstall check context unavailable")
 	}
@@ -148,12 +160,12 @@ func (cc *PreinstallCheckContext) checkResult() (*preinstallCheckResult, error) 
 		errorCount := len(cc.sbRunChecksContext.Errors())
 		return nil, fmt.Errorf("preinstall check result unavailable: %d unresolved errors", errorCount)
 	}
+	pcrProfileOpts := cc.sbRunChecksContext.ProfileOpts()
 
-	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
-	return &preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault}, nil
+	return &PreinstallCheckResult{sbCheckResult: result, sbPCRProfileOpts: pcrProfileOpts}, nil
 }
 
-func (cr *preinstallCheckResult) save(filename string) error {
+func (cr *PreinstallCheckResult) save(filename string) error {
 	bytes, err := json.Marshal(cr)
 	if err != nil {
 		return fmt.Errorf("cannot serialize preinstall check result: %v", err)
@@ -163,6 +175,16 @@ func (cr *preinstallCheckResult) save(filename string) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)
+}
+
+// MarshalJSON implements the json.Marshaler interface for PreinstallCheckResult.
+func (cr *PreinstallCheckResult) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		PreinstallCheckResultJSON{
+			Result:         cr.sbCheckResult,
+			PCRProfileOpts: cr.sbPCRProfileOpts,
+		},
+	)
 }
 
 // unwrapPreinstallCheckError converts a single or compound preinstall check
