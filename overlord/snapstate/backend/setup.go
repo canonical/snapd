@@ -53,7 +53,7 @@ type SetupSnapOptions struct {
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, retErr error) {
 	if setupOpts == nil {
 		setupOpts = &SetupSnapOptions{}
 	}
@@ -71,7 +71,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	instdir := s.MountDir()
 
 	defer func() {
-		if err == nil {
+		if retErr == nil {
 			return
 		}
 
@@ -100,8 +100,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		opts.MustNotCrossDevices = true
 	}
 
-	var didNothing bool
-	if didNothing, err = snapf.Install(s.MountFile(), instdir, opts); err != nil {
+	didNothing, err := snapf.Install(s.MountFile(), instdir, opts)
+	if err != nil {
 		return snapType, nil, err
 	}
 
@@ -148,7 +148,7 @@ func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, m
 }
 
 // SetupComponent prepares and mounts a component for further processing.
-func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
+func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, retErr error) {
 	// This assumes that the component was already verified or --dangerous was used.
 
 	compInfo, snapf, oErr := OpenComponentFile(compFilePath, nil, nil)
@@ -157,7 +157,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	defer func() {
-		if err == nil {
+		if retErr == nil {
 			return
 		}
 
@@ -184,8 +184,8 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// Copy file to snaps folder
-	var didNothing bool
-	if didNothing, err = snapf.Install(compPi.MountFile(), mntDir, opts); err != nil {
+	didNothing, err := snapf.Install(compPi.MountFile(), mntDir, opts)
+	if err != nil {
 		return nil, err
 	}
 
