@@ -40,14 +40,13 @@ import (
 
 type (
 	ResealKeysWithTPMParams = resealKeysWithTPMParams
-	PreinstallCheckResult   = preinstallCheckResult
 )
 
 var (
 	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
 	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
-	Save                               = (*preinstallCheckResult).save
+	Save                               = (*PreinstallCheckResult).save
 
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
@@ -70,6 +69,10 @@ func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.Check
 	return func() {
 		sbPreinstallNewRunChecksContext = old
 	}
+}
+
+func NewPreinstallCheckResult(sbcheckResult *sb_preinstall.CheckResult, sbPCRProfileOptions sb_preinstall.PCRProfileOptionsFlags) *PreinstallCheckResult {
+	return &PreinstallCheckResult{sbcheckResult, sbPCRProfileOptions}
 }
 
 func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args map[string]json.RawMessage) (*sb_preinstall.CheckResult, error)) (restore func()) {
