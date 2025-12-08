@@ -275,7 +275,7 @@ func (s *notifySuite) TestRegisterFileDescriptorLoadsListenerID(c *C) {
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, listenerIDBytes[:])
 }
 
-func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
+func (s *notifySuite) TestRegisterFileDescriptorTimedOutOrNoAccess(c *C) {
 	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restore()
 
@@ -285,145 +285,74 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOut(c *C) {
 		fakeFD      uintptr = 1234
 		fakeReady   uint32  = 0xf00
 		fakePending uint32  = 0xba4
+		initialID   uint64  = 0x11235813
 		listenerID  uint64  = 0x1234
 	)
 
 	var initialIDBytes [8]byte
-	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], initialID)
 
 	var expectedIDBytes [8]byte
 	notify.NativeByteOrder.PutUint64(expectedIDBytes[:], listenerID)
 
-	ioctlCalls := 0
-	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
-		c.Assert(fd, Equals, fakeFD)
+	for _, errorCode := range []error{unix.ENOENT, unix.EACCES} {
+		ioctlCalls := 0
+		restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+			c.Assert(fd, Equals, fakeFD)
 
-		ioctlCalls++
+			ioctlCalls++
 
-		// Expect version 7, but we'll be registering listeners twice, so
-		// expect each request twice.
-		switch ioctlCalls {
-		case 1:
-			// v7 APPARMOR_NOTIF_REGISTER first time
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0x11235813, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0x11235813, 0x12345678)
-			// Return ENOENT, as if listener has timed out
-			return respBuf, unix.ENOENT
-		case 2:
-			// v7 APPARMOR_NOTIF_REGISTER second time
-			// Check that the listener ID file no longer exists
-			c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID)
-			return respBuf, nil
-		case 3:
-			// v7 APPARMOR_NOTIF_RESEND
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			// Expect the saved listener ID, set fakeReady/fakePending
-			respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, fakeReady, fakePending)
-			return respBuf, nil
-		case 4:
-			// v7 APPARMOR_NOTIF_SET_FILTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
-			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
-			return respBuf, nil
-		default:
-			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
-			return buf, nil
-		}
-	})
-	defer restore()
+			// Expect version 7, but we'll be registering listeners twice, so
+			// expect each request twice.
+			switch ioctlCalls {
+			case 1:
+				// v7 APPARMOR_NOTIF_REGISTER first time
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+				// Expect listener ID initialID, set listener ID arbitrarily
+				respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, initialID, 0x12345678)
+				// Return ENOENT, as if listener has timed out, or EACCES
+				return respBuf, errorCode
+			case 2:
+				// v7 APPARMOR_NOTIF_REGISTER second time
+				// Check that the listener ID file no longer exists
+				c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+				// Expect listener ID 0, set listener ID
+				respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID)
+				return respBuf, nil
+			case 3:
+				// v7 APPARMOR_NOTIF_RESEND
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
+				// Expect the saved listener ID, set fakeReady/fakePending
+				respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, fakeReady, fakePending)
+				return respBuf, nil
+			case 4:
+				// v7 APPARMOR_NOTIF_SET_FILTER
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+				respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+				return respBuf, nil
+			default:
+				c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+				return buf, nil
+			}
+		})
+		defer restore()
 
-	// Write listener ID to disk
-	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
-	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+		// Write listener ID to disk
+		c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
+		c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
 
-	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, IsNil)
-	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, int(fakePending))
+		receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+		c.Check(err, IsNil)
+		c.Check(receivedVersion, Equals, expectedVersion)
+		c.Check(pendingCount, Equals, int(fakePending))
 
-	// Check that the new listener ID stored
-	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
+		// Check that the new listener ID stored
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
+	}
 }
 
-func (s *notifySuite) TestRegisterFileDescriptorNoAccess(c *C) {
-	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restore()
-
-	var (
-		expectedVersion = notify.ProtocolVersion(7)
-
-		fakeFD      uintptr = 1234
-		fakeReady   uint32  = 0xf00
-		fakePending uint32  = 0xba4
-		listenerID  uint64  = 0x1234
-	)
-
-	var initialIDBytes [8]byte
-	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
-
-	var expectedIDBytes [8]byte
-	notify.NativeByteOrder.PutUint64(expectedIDBytes[:], listenerID)
-
-	ioctlCalls := 0
-	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
-		c.Assert(fd, Equals, fakeFD)
-
-		ioctlCalls++
-
-		// Expect version 7, but we'll be registering listeners twice, so
-		// expect each request twice.
-		switch ioctlCalls {
-		case 1:
-			// v7 APPARMOR_NOTIF_REGISTER first time
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0x11235813, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0x11235813, 0x12345678)
-			// Return EACCES, as if policy denied access to listener
-			return respBuf, unix.EACCES
-		case 2:
-			// v7 APPARMOR_NOTIF_REGISTER second time
-			// Check that the listener ID file no longer exists
-			c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, expectedVersion, 0, listenerID)
-			return respBuf, nil
-		case 3:
-			// v7 APPARMOR_NOTIF_RESEND
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_RESEND)
-			// Expect the saved listener ID, set fakeReady/fakePending
-			respBuf := checkIoctlBufferResend(c, buf, expectedVersion, listenerID, fakeReady, fakePending)
-			return respBuf, nil
-		case 4:
-			// v7 APPARMOR_NOTIF_SET_FILTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
-			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
-			return respBuf, nil
-		default:
-			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
-			return buf, nil
-		}
-	})
-	defer restore()
-
-	// Write listener ID to disk
-	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
-	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
-
-	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, IsNil)
-	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, int(fakePending))
-
-	// Check that the new listener ID stored
-	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
-}
-
-func (s *notifySuite) TestRegisterFileDescriptorTimedOutRemoveFailed(c *C) {
+func (s *notifySuite) TestRegisterFileDescriptorTimedOutOrNoAccessThenRemoveFailed(c *C) {
 	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restore()
 
@@ -435,57 +364,58 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOutRemoveFailed(c *C) {
 	var (
 		expectedVersion = notify.ProtocolVersion(3)
 
-		fakeFD uintptr = 1234
+		fakeFD    uintptr = 1234
+		initialID uint64  = 0x11235813
 	)
 
 	var initialIDBytes [8]byte
-	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
-
-	ioctlCalls := 0
-	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
-		c.Assert(fd, Equals, fakeFD)
-
-		ioctlCalls++
-
-		// Expect version 7, but we'll be failing to register, then failing to
-		// remove the existing listener ID, so falling back to the next version
-		switch ioctlCalls {
-		case 1:
-			// v7 APPARMOR_NOTIF_REGISTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0x11235813, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0x11235813, 0x12345678)
-			// Return ENOENT, as if listener has timed out
-			return respBuf, unix.ENOENT
-		case 2:
-			// v3 APPARMOR_NOTIF_SET_FILTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
-			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
-			return respBuf, nil
-		default:
-			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
-			return buf, nil
-		}
-	})
-	defer restore()
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], initialID)
 
 	// Write listener ID to disk
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
 
-	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, IsNil)
-	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, 0)
+	for _, errorCode := range []error{unix.ENOENT, unix.EACCES} {
+		ioctlCalls := 0
+		restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+			c.Assert(fd, Equals, fakeFD)
+
+			ioctlCalls++
+
+			// Expect version 7, but we'll be failing to register, then failing to
+			// remove the existing listener ID, so falling back to the next version
+			switch ioctlCalls {
+			case 1:
+				// v7 APPARMOR_NOTIF_REGISTER
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+				// Expect listener ID initialID, set listener ID arbitrarily
+				respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), initialID, 0x12345678)
+				// Return the error, as if listener has timed out or has no access
+				return respBuf, errorCode
+			case 2:
+				// v3 APPARMOR_NOTIF_SET_FILTER
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+				respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+				return respBuf, nil
+			default:
+				c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+				return buf, nil
+			}
+		})
+		defer restore()
+
+		receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+		c.Check(err, IsNil)
+		c.Check(receivedVersion, Equals, expectedVersion)
+		c.Check(pendingCount, Equals, 0)
+
+		// Check that the initial listener ID is still stored
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, initialIDBytes[:])
+	}
 }
 
-func (s *notifySuite) TestRegisterFileDescriptorNoAccessRemoveFailed(c *C) {
+func (s *notifySuite) TestRegisterFileDescriptorTimedOutOrNoAccessWithIDZero(c *C) {
 	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
-	defer restore()
-
-	restore = notify.MockOsRemove(func(path string) error {
-		return fmt.Errorf("failed to remove: %q", path)
-	})
 	defer restore()
 
 	var (
@@ -494,45 +424,43 @@ func (s *notifySuite) TestRegisterFileDescriptorNoAccessRemoveFailed(c *C) {
 		fakeFD uintptr = 1234
 	)
 
-	var initialIDBytes [8]byte
-	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
+	for _, errorCode := range []error{unix.ENOENT, unix.EACCES} {
+		ioctlCalls := 0
+		restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+			c.Assert(fd, Equals, fakeFD)
 
-	ioctlCalls := 0
-	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
-		c.Assert(fd, Equals, fakeFD)
+			ioctlCalls++
 
-		ioctlCalls++
+			// Expect version 7, but we'll be failing to register even without
+			// an existing listener ID, so falling back to the next version.
+			switch ioctlCalls {
+			case 1:
+				// v7 APPARMOR_NOTIF_REGISTER
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+				// Expect listener ID 0, set listener ID to something arbitrary
+				respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0, 0x12345678)
+				// Return the error, as if listener has timed out or has no access
+				return respBuf, errorCode
+			case 2:
+				// v3 APPARMOR_NOTIF_SET_FILTER
+				c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+				respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+				return respBuf, nil
+			default:
+				c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+				return buf, nil
+			}
+		})
+		defer restore()
 
-		// Expect version 7, but we'll be failing to register, then failing to
-		// remove the existing listener ID, so falling back to the next version
-		switch ioctlCalls {
-		case 1:
-			// v7 APPARMOR_NOTIF_REGISTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
-			// Expect listener ID 0x11235813, set listener ID
-			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0x11235813, 0x12345678)
-			// Return EACCES, as if policy denied access to listener
-			return respBuf, unix.EACCES
-		case 2:
-			// v3 APPARMOR_NOTIF_SET_FILTER
-			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
-			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
-			return respBuf, nil
-		default:
-			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
-			return buf, nil
-		}
-	})
-	defer restore()
+		receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+		c.Check(err, IsNil)
+		c.Check(receivedVersion, Equals, expectedVersion)
+		c.Check(pendingCount, Equals, 0)
 
-	// Write listener ID to disk
-	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
-	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
-
-	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
-	c.Check(err, IsNil)
-	c.Check(receivedVersion, Equals, expectedVersion)
-	c.Check(pendingCount, Equals, 0)
+		// Check that no listener ID is stored
+		c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileAbsent)
+	}
 }
 
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
