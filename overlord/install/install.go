@@ -137,6 +137,7 @@ var (
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
+	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -232,6 +233,16 @@ func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, file
 	secbootSaveCheckResult = f
 	return func() {
 		secbootSaveCheckResult = old
+	}
+}
+
+// MockSecbootCheckResult mocks secbootCheckResult usage by the package for testing.
+func MockSecbootCheckResult(f func(pcc *secboot.PreinstallCheckContext) (*secboot.PreinstallCheckResult, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootCheckResult can only be mocked in tests")
+	old := secbootCheckResult
+	secbootCheckResult = f
+	return func() {
+		secbootCheckResult = old
 	}
 }
 
@@ -630,9 +641,16 @@ func PrepareEncryptedSystemData(
 		}
 	}
 
+	// the check result contains information required for sealing and resealing
+	// using the optimum PCR configuration determined during preinstall check
+	var checkResult *secboot.PreinstallCheckResult
+	// non nil checkContext means that a preinstall check was performed
 	if checkContext != nil {
-		// write check result containing information required
-		// for optimum PCR configuration and resealing
+		if checkResult, err := secbootCheckResult(checkContext); err != nil {
+			return err
+		}
+		// write the check result to file to make it available post-install for
+		// resealing operations
 		if err := saveCheckResult(checkContext); err != nil {
 			return err
 		}
@@ -643,8 +661,8 @@ func PrepareEncryptedSystemData(
 		return err
 	}
 
-	// make note of the encryption keys and auth options
-	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth)
+	// make note of the encryption keys and auth options, and the check result
+	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth, checkResult)
 
 	return nil
 }
