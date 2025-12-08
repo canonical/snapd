@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	doIoctl = Ioctl
+	doIoctl  = Ioctl
+	osRemove = os.Remove
 
 	// TODO:GOVERSION: replace with binary.NativeEndian once we're at go 1.21+
 	nativeByteOrder = arch.Endian() // ioctl messages are native byte order
@@ -56,6 +57,9 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 					logger.Noticef("kernel returned EACCES from APPARMOR_NOTIF_REGISTER with protocol version %d: policy denied access to listener; removing saved listener ID and retrying", protocolVersion)
 					if e := removeSavedListenerID(); e != nil {
 						logger.Noticef("cannot remove saved listener ID: %v", e)
+						// This shouldn't happen, but to avoid infinite loop,
+						// mark the protocol version as unsupported.
+						unsupported[protocolVersion] = true
 					}
 					continue
 				} else if errors.Is(err, unix.EPERM) {
@@ -73,6 +77,9 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 					logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER with protocol version %d: the requested notification listener does not exist (listener probably timed out); removing saved listener ID and retrying", protocolVersion)
 					if e := removeSavedListenerID(); e != nil {
 						logger.Noticef("cannot remove saved listener ID: %v", e)
+						// This shouldn't happen, but to avoid infinite loop,
+						// mark the protocol version as unsupported.
+						unsupported[protocolVersion] = true
 					}
 					continue
 				}
@@ -199,7 +206,7 @@ func saveListenerID(id uint64) error {
 
 // removeSavedListenerID removes the file which stores the listener ID on disk.
 func removeSavedListenerID() error {
-	return os.Remove(listenerIDFilepath())
+	return osRemove(listenerIDFilepath())
 }
 
 // resendRequests tells the kernel to resend all pending requests previously

@@ -423,6 +423,118 @@ func (s *notifySuite) TestRegisterFileDescriptorNoAccess(c *C) {
 	c.Check(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), testutil.FileEquals, expectedIDBytes[:])
 }
 
+func (s *notifySuite) TestRegisterFileDescriptorTimedOutRemoveFailed(c *C) {
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
+
+	restore = notify.MockOsRemove(func(path string) error {
+		return fmt.Errorf("failed to remove: %q", path)
+	})
+	defer restore()
+
+	var (
+		expectedVersion = notify.ProtocolVersion(3)
+
+		fakeFD uintptr = 1234
+	)
+
+	var initialIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
+
+	ioctlCalls := 0
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+
+		ioctlCalls++
+
+		// Expect version 7, but we'll be failing to register, then failing to
+		// remove the existing listener ID, so falling back to the next version
+		switch ioctlCalls {
+		case 1:
+			// v7 APPARMOR_NOTIF_REGISTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0x11235813, set listener ID
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0x11235813, 0x12345678)
+			// Return ENOENT, as if listener has timed out
+			return respBuf, unix.ENOENT
+		case 2:
+			// v3 APPARMOR_NOTIF_SET_FILTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+			return respBuf, nil
+		default:
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+			return buf, nil
+		}
+	})
+	defer restore()
+
+	// Write listener ID to disk
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
+	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, IsNil)
+	c.Check(receivedVersion, Equals, expectedVersion)
+	c.Check(pendingCount, Equals, 0)
+}
+
+func (s *notifySuite) TestRegisterFileDescriptorNoAccessRemoveFailed(c *C) {
+	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
+	defer restore()
+
+	restore = notify.MockOsRemove(func(path string) error {
+		return fmt.Errorf("failed to remove: %q", path)
+	})
+	defer restore()
+
+	var (
+		expectedVersion = notify.ProtocolVersion(3)
+
+		fakeFD uintptr = 1234
+	)
+
+	var initialIDBytes [8]byte
+	notify.NativeByteOrder.PutUint64(initialIDBytes[:], 0x11235813)
+
+	ioctlCalls := 0
+	restore = notify.MockIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		c.Assert(fd, Equals, fakeFD)
+
+		ioctlCalls++
+
+		// Expect version 7, but we'll be failing to register, then failing to
+		// remove the existing listener ID, so falling back to the next version
+		switch ioctlCalls {
+		case 1:
+			// v7 APPARMOR_NOTIF_REGISTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_REGISTER)
+			// Expect listener ID 0x11235813, set listener ID
+			respBuf := checkIoctlBufferRegister(c, buf, notify.ProtocolVersion(7), 0x11235813, 0x12345678)
+			// Return EACCES, as if policy denied access to listener
+			return respBuf, unix.EACCES
+		case 2:
+			// v3 APPARMOR_NOTIF_SET_FILTER
+			c.Check(req, Equals, notify.APPARMOR_NOTIF_SET_FILTER)
+			respBuf := checkIoctlBufferSetFilter(c, buf, expectedVersion)
+			return respBuf, nil
+		default:
+			c.Fatalf("called Ioctl more than expected: %d (most recent: %v, %v)", ioctlCalls, req, buf)
+			return buf, nil
+		}
+	})
+	defer restore()
+
+	// Write listener ID to disk
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
+	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+
+	receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
+	c.Check(err, IsNil)
+	c.Check(receivedVersion, Equals, expectedVersion)
+	c.Check(pendingCount, Equals, 0)
+}
+
 func (s *notifySuite) TestRegisterFileDescriptorErrors(c *C) {
 	restore := notify.MockVersionLikelySupportedChecks(fakeNotifyVersions)
 	defer restore()

@@ -54,3 +54,7 @@ func MockVersionLikelySupportedChecks(pairs []VersionAndCheck) (restore func()) 
 func MockIoctl(f func(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&doIoctl, f)
 }
+
+func MockOsRemove(f func(path string) error) (restore func()) {
+	return testutil.Mock(&osRemove, f)
+}
