@@ -52,8 +52,18 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 			// Attempt to register the listener ID before setting the filter
 			listenerID, err := registerListenerID(fd, protocolVersion)
 			if err != nil {
+				// listenerID is set to the listener ID which appeared on disk
+				// prior to this registration attempt, or 0 if no ID on disk.
 				if errors.Is(err, unix.EACCES) {
 					// XXX: This shouldn't happen, so Noticef instead of Debugf
+					if listenerID == 0 {
+						// Kernel should never return EACCES when we aren't
+						// trying to reclaim an existing listener, so assume
+						// it's a kernel bug with this protocol version.
+						logger.Noticef("kernel returned EACCES from APPARMOR_NOTIF_REGISTER with protocol version %d when attempting to re-register listener with ID 0, which should never occur; marking version as unsupported and retrying", protocolVersion)
+						unsupported[protocolVersion] = true
+						continue
+					}
 					logger.Noticef("kernel returned EACCES from APPARMOR_NOTIF_REGISTER with protocol version %d: policy denied access to listener; removing saved listener ID and retrying", protocolVersion)
 					if e := removeSavedListenerID(); e != nil {
 						logger.Noticef("cannot remove saved listener ID: %v", e)
@@ -72,6 +82,14 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 					unsupported[protocolVersion] = true
 					continue
 				} else if errors.Is(err, unix.ENOENT) {
+					if listenerID == 0 {
+						// Kernel should never return ENOENT when we aren't
+						// trying to reclaim an existing listener, so assume
+						// it's a kernel bug with this protocol version.
+						logger.Noticef("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER with protocol version %d when attempting to re-register listener with ID 0, which should never occur; marking version as unsupported and retrying", protocolVersion)
+						unsupported[protocolVersion] = true
+						continue
+					}
 					// Listener probably timed out in the kernel, so remove the
 					// saved ID and retry registration
 					logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER with protocol version %d: the requested notification listener does not exist (listener probably timed out); removing saved listener ID and retrying", protocolVersion)
@@ -123,6 +141,9 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 // attempts to register the given file descriptor with it. If not, or if a
 // listener with the saved ID is not found, requests the new listener ID and
 // saves it to disk. Returns the ID of the listener.
+//
+// If an error occurs, returns the listener ID which was previously found on
+// disk, along with the error.
 func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64, err error) {
 	listenerID, ok := retrieveSavedListenerID()
 	if !ok {
@@ -142,13 +163,13 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	}
 	data, err := msg.MarshalBinary()
 	if err != nil {
-		return 0, err
+		return listenerID, err
 	}
 	ioctlBuf := IoctlRequestBuffer(data)
 	logger.Debugf("performing APPARMOR_NOTIF_REGISTER with listener ID set to %d", listenerID)
 	buf, err := doIoctl(fd, APPARMOR_NOTIF_REGISTER, ioctlBuf)
 	if err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	// Success, now get the listener ID and pending request count, which were
@@ -157,7 +178,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	// Otherwise, it should be the same ID that we passed to the kernel.
 	// Regardless, we want to save it to disk.
 	if err = msg.UnmarshalBinary(buf); err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	// Now save the listener ID to disk so we can retrieve it later. It may be
@@ -166,7 +187,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	// filter. This way the caller of this function doesn't have to worry about
 	// the listener ID file.
 	if err = saveListenerID(msg.KernelListenerID); err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	return msg.KernelListenerID, nil
