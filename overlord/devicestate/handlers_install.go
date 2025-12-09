@@ -1257,6 +1257,40 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
+	var err error
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var targetChroot string
+	var systemLabel string
+	if err := t.Get("target-chroot", &targetChroot); err != nil {
+		return err
+	}
+
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+
+	logger.Debugf("writing content to partitions")
+	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+
+		cmd := exec.Command("snap", "debug", "preseed-chroot", targetChroot, systemLabel)
+		err = cmd.Run()
+	})
+	if err != nil {
+		return fmt.Errorf("cannot write content: %v", err)
+	}
+
+	return nil
+}
+
 func checkVolumesAuth(volumesAuth *device.VolumesAuthOptions, encryptInfo *installLogic.EncryptionSupportInfo) error {
 	if volumesAuth == nil {
 		return nil
