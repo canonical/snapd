@@ -191,7 +191,7 @@ func (s *cacheSuite) TestStats(c *C) {
 }
 
 func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
-	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
+	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+3)
 	for _, p := range testFiles {
 		err := os.Remove(p)
 		c.Assert(err, IsNil)
@@ -201,7 +201,10 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	// simulate error with the removal of a file in cachedir
 	restore := store.MockOsRemove(func(name string) error {
 		if name == filepath.Join(s.cm.CacheDir(), cacheKeys[0]) && fail {
-			return fmt.Errorf("simulated error")
+			return fmt.Errorf("simulated error 1")
+		}
+		if name == filepath.Join(s.cm.CacheDir(), cacheKeys[1]) && fail {
+			return fmt.Errorf("simulated error 2")
 		}
 		return os.Remove(name)
 	})
@@ -209,13 +212,14 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 
 	// verify that cleanup returns the last error
 	err := s.cm.Cleanup()
-	c.Check(err, ErrorMatches, "simulated error")
+	c.Check(err, ErrorMatches, "simulated error 1\nsimulated error 2")
 
 	// and also verify that the cache still got cleaned up
-	c.Check(s.cm.Count(), Equals, s.maxItems+1)
+	c.Check(s.cm.Count(), Equals, s.maxItems+2)
 
 	// even though the "unremovable" file is still in the cache
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, true)
 
 	fail = false
 	// try again
@@ -226,6 +230,7 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	c.Check(s.cm.Count(), Equals, s.maxItems)
 	// the file is gone now
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, false)
 }
 
 func (s *cacheSuite) TestCleanupBusy(c *C) {
