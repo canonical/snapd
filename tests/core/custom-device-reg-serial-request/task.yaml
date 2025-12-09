@@ -23,6 +23,7 @@ prepare: |
     unpack_pc_snap
 
     mkdir -p squashfs-root/meta/hooks
+    cp prepare-device squashfs-root/meta/hooks
     cp prepare-serial-request squashfs-root/meta/hooks
 
     pack_pc_snap
