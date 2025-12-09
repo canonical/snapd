@@ -177,6 +177,7 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 var (
 	devicestateInstallFinish                 = devicestate.InstallFinish
 	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
+	devicestateInstallPreseed                = devicestate.InstallPreseed
 	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
 	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
 	devicestateGeneratePreInstallRecoveryKey = devicestate.GeneratePreInstallRecoveryKey
@@ -236,6 +237,7 @@ type systemActionRequest struct {
 	client.CreateSystemOptions
 	client.QualityCheckOptions
 	client.FixEncryptionSupportOptions
+	client.PreseedInstalledSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -414,6 +416,19 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		}
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
+	case client.InstallStepPreseed:
+		if req.Chroot == nil {
+			return BadRequest("cannot preseed installed system without its chroot")
+		}
+
+		chg, err := devicestateInstallPreseed(st, *req.Chroot)
+		if err != nil {
+			return InternalError("cannot preseed installed system: %v", err)
+		}
+
+		ensureStateSoon(st)
+		return AsyncResponse(nil, chg.ID())
+
 	default:
 		return BadRequest("unsupported install step %q", req.Step)
 	}
