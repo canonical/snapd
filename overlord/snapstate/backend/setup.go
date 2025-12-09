@@ -261,14 +261,17 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
-			// remove the snap and other associated companion files such as integrity data
-			// dm-verity data follow the naming convention:
-			// foo_1.snap.dmverity_<digest>
-			snapFiles, err := filepath.Glob(snapPath + "*")
+			// remove the snap
+			if err := os.RemoveAll(snapPath); err != nil {
+				return err
+			}
+
+			// remove the snap's integrity files
+			snapVerityFiles, err := filepath.Glob(snapPath + ".dmverity_*")
 			if err != nil {
 				return err
 			}
-			for _, f := range snapFiles {
+			for _, f := range snapVerityFiles {
 				err = os.RemoveAll(f)
 				if err != nil {
 					return err
