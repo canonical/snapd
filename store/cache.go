@@ -202,39 +202,34 @@ func (cm *CacheManager) Cleanup() error {
 		return err
 	}
 
-	toRemove, err := cm.cachePolicy.Apply(entries, time.Now())
-	if err != nil {
-		logger.Noticef("cannot apply downloads cache policy: %v", err)
-	}
-
-	if len(toRemove) == 0 {
-		return nil
-	}
-
-	var lastErr error
 	var removedSize uint64
 	var removedCount uint
-	for _, fi := range toRemove {
+	err = cm.cachePolicy.Apply(entries, time.Now(), func(fi os.FileInfo) error {
 		path := cm.path(fi.Name())
 		sz := fi.Size()
 		logger.Debugf("removing %v", path)
-		if err := osRemove(path); err != nil {
+		err := osRemove(path)
+		if err != nil {
 			if !os.IsNotExist(err) {
-				// If there is any error we cleanup the file later again (it is
-				// just a cache after all).
+				// error here does not interrupt the cleanup, the cache policy
+				// still tries to meet the targets
 				logger.Noticef("cannot remove cache entry: %s", err)
-				lastErr = strutil.JoinErrors(lastErr, err)
+				return err
 			}
 		} else {
 			removedCount++
 			removedSize += uint64(sz)
 		}
+		return nil
+	})
+	if err != nil {
+		logger.Noticef("cannot apply downloads cache policy: %v", err)
 	}
 
 	logger.Noticef("removed %v entries/%s from downloads cache",
 		removedCount, quantity.FormatAmount(removedSize, -1))
 
-	return lastErr
+	return err
 }
 
 // hardLinkCount returns the number of hardlinks for the given path
@@ -269,14 +264,13 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 		return nil, err
 	}
 
-	toRemove, err := cm.cachePolicy.Apply(entries, time.Now())
+	removeByName := map[string]bool{}
+	err = cm.cachePolicy.Apply(entries, time.Now(), func(info os.FileInfo) error {
+		removeByName[info.Name()] = true
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	removeByName := make(map[string]bool, len(toRemove))
-	for _, en := range toRemove {
-		removeByName[en.Name()] = true
 	}
 
 	stats := StoreCacheStats{}
@@ -327,12 +321,14 @@ func (cp *CachePolicy) isCandidate(fi os.FileInfo) bool {
 	return n <= 1
 }
 
-// Apply applies the cache policy for a given set of items and returns a list of
-// items that should be removed.
+// Apply applies the cache policy for a given set of items and calls the
+// provided drop callback to remove items from the cache.
 //
-// Internally, it attempts to meet all targets defined in the cache policy, by
-// processing unique cache items starting from oldest ones.
-func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time) (remove []os.FileInfo, err error) {
+// Internally, attempts to meet all targets defined in the cache policy, by
+// processing unique cache items starting from oldest ones. Errors to drop items
+// are collected and returned, but processing continues until targets are met or
+// candidates list is exhausted.
+func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, drop func(info os.FileInfo) error) error {
 	// most of the entries will have more than one hardlink, but a minority may
 	// be referenced only from the cache and thus be a candidate for pruning
 	candidates := make([]os.FileInfo, 0, len(entries)/5)
@@ -341,7 +337,7 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time) (remove []os.
 	for _, entry := range entries {
 		fi, err := entry.Info()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if cp.isCandidate(fi) {
@@ -360,6 +356,7 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time) (remove []os.
 		}
 	}
 
+	var lastErr error
 	removeCount := 0
 	removeSize := uint64(0)
 	for _, c := range candidates {
@@ -378,13 +375,17 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time) (remove []os.
 
 		logger.Debugf("entry %v remove %v", c.Name(), doRemove)
 		if doRemove {
-			remove = append(remove, c)
-			removeCount++
-			removeSize += uint64(c.Size())
+			if err := drop(c); err != nil {
+				lastErr = strutil.JoinErrors(lastErr, err)
+			} else {
+				// managed top drop the items, update the counts
+				removeCount++
+				removeSize += uint64(c.Size())
+			}
 		}
 	}
 
 	logger.Debugf("cache candidates to remove %v/%s", removeCount, quantity.FormatAmount(removeSize, -1))
 
-	return remove, nil
+	return lastErr
 }
