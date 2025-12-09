@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -710,6 +711,10 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePa
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	const authMode = device.AuthModePIN
 	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
 }

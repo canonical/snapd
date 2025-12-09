@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -177,6 +178,10 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 }
 
 func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	// Bad auth mode
 	opts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
