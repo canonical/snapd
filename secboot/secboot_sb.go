@@ -64,6 +64,7 @@ var (
 	sbNewActivateContext         = sb.NewActivateContext
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
+	sbKeyDataChangePIN        = (*sb.KeyData).ChangePIN
 	sbKeyDataPlatformName     = (*sb.KeyData).PlatformName
 
 	sbWithVolumeName                       = sb_luks2.WithVolumeName
@@ -685,6 +686,18 @@ func (k *keyData) Roles() []string {
 
 func (k *keyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	return sbKeyDataChangePassphrase(k.kd, oldPassphrase, newPassphrase)
+}
+
+func (k *keyData) ChangePIN(oldPIN, newPIN string) error {
+	old, err := sb.ParsePIN(oldPIN)
+	if err != nil {
+		return err
+	}
+	new, err := sb.ParsePIN(newPIN)
+	if err != nil {
+		return err
+	}
+	return sbKeyDataChangePIN(k.kd, old, new)
 }
 
 func (k *keyData) WriteTokenAtomic(devicePath, slotName string) error {

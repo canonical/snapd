@@ -4834,6 +4834,32 @@ func (s *secbootSuite) TestKeyDataChangePassphrase(c *C) {
 	c.Check(called, Equals, 1)
 }
 
+func (s *secbootSuite) TestKeyDataChangePIN(c *C) {
+	sbKeyData := &sb.KeyData{}
+
+	called := 0
+	defer secboot.MockSbKeyDataChangePIN(func(d *sb.KeyData, oldPIN sb.PIN, newPIN sb.PIN) error {
+		called++
+		c.Check(d, Equals, sbKeyData)
+		c.Check(oldPIN.String(), Equals, "1234")
+		c.Check(newPIN.String(), Equals, "4321")
+		return nil
+	})()
+
+	kd := secboot.NewKeyData(sbKeyData)
+	err := kd.ChangePIN("1234", "4321")
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *secbootSuite) TestKeyDataChangePINErrors(c *C) {
+	sbKeyData := &sb.KeyData{}
+
+	kd := secboot.NewKeyData(sbKeyData)
+	c.Assert(kd.ChangePIN("bad", "1234"), ErrorMatches, "invalid PIN: unexpected character")
+	c.Assert(kd.ChangePIN("1234", "bad"), ErrorMatches, "invalid PIN: unexpected character")
+}
+
 func (s *secbootSuite) TestAddContainerRecoveryKeyKeyringError(c *C) {
 	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
 		return nil, errors.New("boom!")

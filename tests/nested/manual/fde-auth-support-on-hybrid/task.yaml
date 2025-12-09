@@ -228,12 +228,12 @@ execute: |
 
   reboot_with_passphrase "1234"
 
-  # TODO:FDEM: Test changing PINs
-  # remote_action_request '{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}'
-  # change_id="$(gojq --raw-output .change < resp)"
-  # remote.exec sudo snap watch "$change_id"
+  # Test changing PINs
+  remote_action_request '{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
 
-  # reboot_with_passphrase "4321"
+  reboot_with_passphrase "4321"
 
   # Let's remove auth protection completely
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'

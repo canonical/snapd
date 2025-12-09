@@ -60,6 +60,12 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		case "fde-change-pin":
+			return &snapstate.ChangeConflictError{
+				Message:    "changing pin in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		default:
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.
