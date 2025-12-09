@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -1252,6 +1253,33 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
 	if err := bootMakeRunnableStandalone(systemAndSnaps.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
+	var err error
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var targetChroot string
+	if err := t.Get("target-chroot", &targetChroot); err != nil {
+		return err
+	}
+
+	logger.Debugf("writing content to partitions")
+	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+		err = preseed.Classic(targetChroot)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	return nil

@@ -78,6 +78,7 @@ var (
 	createRecoverySystemChangeKind              = swfeats.RegisterChangeKind("create-recovery-system")
 	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
 	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
+	installStepTargetPreseedChangeKind          = swfeats.RegisterChangeKind("install-step-preseed")
 )
 
 // findModel returns the device model assertion.
@@ -2358,6 +2359,23 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		setupStorageEncryptionTask.Set("volumes-auth-required", true)
 	}
 	chg.AddTask(setupStorageEncryptionTask)
+
+	return chg, nil
+}
+
+func InstallPreseed(st *state.State, chroot string) (*state.Change, error) {
+	if chroot == "" {
+		return nil, fmt.Errorf("cannot preseed installed system without a chroot")
+	}
+
+	if !osutil.IsDirectory(chroot) {
+		return nil, fmt.Errorf("target chroot must be a directory")
+	}
+
+	chg := st.NewChange(installStepTargetPreseedChangeKind, fmt.Sprintf("Preseed installed system in %q", chroot))
+	preseedRunTask := st.NewTask("install-preseed", fmt.Sprintf("Preseed installed system in %q", chroot))
+	preseedRunTask.Set("target-chroot", chroot)
+	chg.AddTask(preseedRunTask)
 
 	return chg, nil
 }

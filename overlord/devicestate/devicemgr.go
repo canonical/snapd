@@ -271,6 +271,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// TODO: use better task names that are close to our usual pattern
 	runner.AddHandler("install-finish", m.doInstallFinish, nil)
 	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
+	runner.AddHandler("install-preseed", m.doInstallPreseed, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
