@@ -132,6 +132,10 @@ type Disk interface {
 	// the case for DOS disks, but not for GPT disks. GPT disks have a backup
 	// header section at the end of the disk that is not usable for partitions.
 	UsableSectorsEnd() (uint64, error)
+
+	// Model is the model name of the disk as an identifier that can
+	// be recognized by a user.
+	Model() string
 }
 
 // Partition represents a partition on a Disk device.
