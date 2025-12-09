@@ -254,7 +254,7 @@ const (
 
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
-	// or "finish".
+	// or "finish", or "preseed".
 	Step InstallStep `json:"step,omitempty"`
 
 	// OnVolumes is the volume description of the volumes that the
@@ -270,6 +270,10 @@ type InstallSystemOptions struct {
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
+
+	// Chroot is a path to the rootfs of a mounted target system for the
+	// "preseed" step.
+	Chroot *string `json:"target-chroot,omitempty"`
 }
 
 type OptionalInstallRequest struct {
@@ -371,11 +375,4 @@ type QualityCheckOptions struct {
 type FixEncryptionSupportOptions struct {
 	FixAction *string                    `json:"fix-action,omitempty"`
 	Args      map[string]json.RawMessage `json:"args,omitempty"`
-}
-
-// PreseedInstalledSystemOptions specifies options for requesting a preseeding
-// of an installed system.
-type PreseedInstalledSystemOptions struct {
-	// Chroot is a path to the rootfs of a mounted target system.
-	Chroot *string `json:"target-chroot,omitempty"`
 }
