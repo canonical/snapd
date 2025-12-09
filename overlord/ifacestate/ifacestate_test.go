@@ -2013,40 +2013,52 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
-func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsRemovesStale(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
-
-	// Put a stray connection in the state so that it automatically gets set up
-	// when we create the manager.
 	s.state.Lock()
-	s.state.Set("conns", map[string]any{
-		"consumer:plug producer:slot": map[string]any{"interface": "test"},
-	})
-	s.state.Unlock()
+	defer s.state.Unlock()
 
-	restore := ifacestate.MockRemoveStaleConnections(func(s *state.State) error { return nil })
-	defer restore()
+	// 1. Setup a connection in the state
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// 2. Setup ONLY the producer in state (Healthy)
+	// We intentionally DO NOT add "consumer" to the state.
+	producerInfo := &snap.SideInfo{RealName: "producer", Revision: snap.R(1)}
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{producerInfo}),
+		Current:  producerInfo.Revision,
+		SnapType: "app",
+	})
+
+	// 3. We do NOT create the consumer in state.
+	// This means snapstate.Get(st, "consumer", ...) will return state.ErrNoState.
+	// This triggers the "return false, false, nil" path in checkSnap.
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	// 4. Run Manager (triggers removeStaleConnections)
 	mgr := s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Ensure that nothing got connected.
+	// 5. Assertions
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+
+	// The connection should be REMOVED because 'consumer' is missing (stale)
+	c.Check(conns, HasLen, 0)
+
 	repo := mgr.Repository()
 	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, HasLen, 0)
+	c.Check(ifaces.Connections, HasLen, 0)
 
-	// Ensure that nothing to setup.
-	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
-	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-
-	// Ensure that nothing, crucially, got logged about that connection.
-	// We still have an error logged about the system key but this is just
-	// a bit of test mocking missing.
-	logLines := strings.Split(s.log.String(), "\n")
-	c.Assert(logLines, HasLen, 2)
-	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
-	c.Assert(logLines[1], Equals, "")
+	// Check log for specific removal message
+	c.Check(s.log.String(), testutil.Contains, "removed stale connections: consumer:plug producer:slot")
 }
 
 func (s *interfaceManagerSuite) testRemoveStaleConnectionsSkipsBrokenSnaps(c *C, brokenSnapName string) {
@@ -2129,7 +2141,7 @@ func (s *interfaceManagerSuite) testRemoveStaleConnectionsSkipsBrokenSnaps(c *C,
 	snapBlobDir := dirs.SnapBlobDir
 	c.Assert(os.MkdirAll(snapBlobDir, 0o755), IsNil)
 	blobPath := filepath.Join(snapBlobDir, fmt.Sprintf("%s_1.snap", otherSnapName))
-	c.Assert(os.WriteFile(blobPath, []byte("dummy-content"), 0o644), IsNil)
+	c.Assert(os.WriteFile(blobPath, []byte("test-content"), 0o644), IsNil)
 
 	// validity check - broken snap is broken, other snap is working
 	var snapst snapstate.SnapState
@@ -2174,6 +2186,42 @@ func (s *interfaceManagerSuite) TestRemoveStaleConnectionsSkipsBrokenConsumer(c 
 
 func (s *interfaceManagerSuite) TestRemoveStaleConnectionsSkipsBrokenProducer(c *C) {
 	s.testRemoveStaleConnectionsSkipsBrokenSnaps(c, "producer")
+}
+
+func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	// Put a stray connection in the state so that it automatically gets set up
+	// when we create the manager.
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	restore := ifacestate.MockRemoveStaleConnections(func(s *state.State) error { return nil })
+	defer restore()
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing got connected.
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// Ensure that nothing to setup.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+
+	// Ensure that nothing, crucially, got logged about that connection.
+	// We still have an error logged about the system key but this is just
+	// a bit of test mocking missing.
+	logLines := strings.Split(s.log.String(), "\n")
+	c.Assert(logLines, HasLen, 2)
+	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
+	c.Assert(logLines[1], Equals, "")
 }
 
 func (s *interfaceManagerSuite) testReloadConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
