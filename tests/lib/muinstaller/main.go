@@ -322,10 +322,8 @@ func postSystemsInstallPreseed(cli *client.Client,
 
 	// Finish steps does the writing of assets
 	opts := &client.InstallSystemOptions{
-		Step: client.InstallStepPreseed,
-		InstallSystemOptions: client.InstallSystemOptions{
-			Chroot: chroot,
-		},
+		Step:   client.InstallStepPreseed,
+		Chroot: &chroot,
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
 	if err != nil {
