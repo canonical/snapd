@@ -246,6 +246,10 @@ const (
 	// sets up boot, kernel etc and when finished the installed
 	// system is ready for reboot.
 	InstallStepFinish InstallStep = "finish"
+
+	// Creates a change to preseed the installed system. This action is
+	// expected to be invoked after the target system had been fully set up.
+	InstallStepPreseed InstallStep = "preseed"
 )
 
 type InstallSystemOptions struct {
@@ -367,4 +371,11 @@ type QualityCheckOptions struct {
 type FixEncryptionSupportOptions struct {
 	FixAction *string                    `json:"fix-action,omitempty"`
 	Args      map[string]json.RawMessage `json:"args,omitempty"`
+}
+
+// PreseedInstalledSystemOptions specifies options for requesting a preseeding
+// of an installed system.
+type PreseedInstalledSystemOptions struct {
+	// Chroot is a path to the rootfs of a mounted target system.
+	Chroot *string `json:"target-chroot,omitempty"`
 }
