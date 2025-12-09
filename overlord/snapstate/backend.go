@@ -114,6 +114,7 @@ type managerBackend interface {
 	RemoveComponentDir(cpi snap.ContainerPlaceInfo) error
 	RemoveContainerMountUnits(cpi snap.ContainerPlaceInfo, meter progress.Meter) error
 	DiscardSnapNamespace(snapName string) error
+	DiscardLockedSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error
 	RemoveAllSnapAppArmorProfiles() error
 	RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error

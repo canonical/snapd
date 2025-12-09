@@ -2700,6 +2700,10 @@ epoch: 1*
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "mock",
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
@@ -2841,6 +2845,10 @@ epoch: 1*
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "mock",
 		},
 		{
 			op:   "unlink-snap",

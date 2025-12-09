@@ -572,6 +572,10 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "pkg",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 		},
@@ -650,6 +654,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 		name:        "pkg",
 		inhibitHint: "refresh",
 	}, {
+		op:   "discard-namespace-locked",
+		name: "pkg",
+	}, {
 		op:   "unlink-snap",
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 	}, {
@@ -725,6 +732,10 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "foo",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
 		},
@@ -782,12 +793,16 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(20))
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	// backend unlink was not called
-	c.Check(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops, HasLen, 2)
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "snapd",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "snapd",
 		}})
 }
 
@@ -858,6 +873,10 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "snapd",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "snapd",
 		},
 		{
 			op: "update-aliases",
