@@ -84,6 +84,7 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 		c.Check(account, Equals, "system")
 		c.Check(schemaName, Equals, "network")
 		c.Check(viewName, Equals, "wifi-setup")
+
 		return s.schema.View(viewName), nil
 	})
 	defer restore()
@@ -91,6 +92,7 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	restore = devicemgmtstate.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string) (string, error) {
 		c.Check(view.Name, Equals, "wifi-setup")
 		c.Check(requests, DeepEquals, []string{"ssid"})
+
 		return "16384", nil
 	})
 	defer restore()
@@ -126,6 +128,7 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	restore = devicemgmtstate.MockConfdbstateSetViaView(func(_ confdb.Databag, view *confdb.View, values map[string]any) error {
 		c.Check(view.Name, Equals, "wifi-setup")
 		c.Check(values, DeepEquals, map[string]any{"ssid": "my-network"})
+
 		return nil
 	})
 	defer restore()

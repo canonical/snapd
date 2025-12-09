@@ -451,6 +451,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		c.Log("call not expected")
 		c.Fail()
+
 		return nil, fmt.Errorf("call not expected")
 	})
 
@@ -474,6 +475,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesNoConfig(c *C) {
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		c.Log("call not expected")
 		c.Fail()
+
 		return nil, fmt.Errorf("call not expected")
 	})
 
@@ -695,6 +697,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfValidationFailed(c *C) {
 		apply: func(st *state.State, msg *devicemgmtstate.PendingMessage) (string, error) {
 			c.Log("call not expected")
 			c.Fail()
+
 			return "", fmt.Errorf("call not expected")
 		},
 	}
@@ -754,6 +757,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseForFailureStatuses(c *C) {
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
+
 			return nil, ""
 		},
 	}
@@ -930,6 +934,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
+
 			return nil, ""
 		},
 	}
@@ -965,6 +970,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSignerError(c *C) {
 		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
 			c.Log("call not expected")
 			c.Fail()
+
 			return nil, ""
 		},
 	}
