@@ -1224,10 +1224,19 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	op1, err := fdestate.AddEFISecurebootDBUpdateChange(st, device.SealingMethodTPM, []byte("payload 1"))
+	op1, err := fdestate.AddEFISecurebootDBUpdateChange(
+		st,
+		device.SealingMethodTPM,
+		fdestate.EFISecurebootDBX,
+		[]byte("payload 1"),
+	)
 	c.Assert(err, IsNil)
 
-	op2, err := fdestate.AddEFISecurebootDBUpdateChange(st, device.SealingMethodTPM, []byte("payload 2"))
+	op2, err := fdestate.AddEFISecurebootDBUpdateChange(st,
+		device.SealingMethodTPM,
+		fdestate.EFISecurebootDBX,
+		[]byte("payload 2"),
+	)
 	c.Assert(err, IsNil)
 
 	sync1PreparedC := fdestate.DbxUpdatePreparedOKChan(st, op1.ChangeID)
