@@ -1395,6 +1395,8 @@ func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId strin
 	return rev, nil
 }
 
+// ValidatedIntegrityData returns the integrity parameters found in the assertion database for a specific
+// snap's revision.
 func ValidatedIntegrityData(st *state.State, snapID string, snapRev int) (*integrity.IntegrityDataParams, error) {
 	db := DB(st)
 
