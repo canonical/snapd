@@ -1161,7 +1161,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePassphrase)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1229,7 +1229,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 			"passphrase": tc.passphrase,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePassphrase)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
@@ -1266,7 +1266,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePIN)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1334,7 +1334,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 			"pin":    tc.pin,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePIN)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},

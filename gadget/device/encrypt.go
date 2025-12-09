@@ -266,7 +266,7 @@ type AuthQuality struct {
 // Hook setup by secboot to calculate entropy for PINs and passphrases.
 // PINs will be supplied as a numeric passphrase.
 //
-// Note: in most cases ValidatePassphrase should be used instead.
+// Note: in most cases CheckAuthQuality should be used instead.
 var EntropyBits func(passphrase string) (uint32, error) = entropyBitsImpl
 
 func entropyBitsImpl(passphrase string) (uint32, error) {
@@ -283,14 +283,12 @@ const (
 	optimalPINEntropyBits uint32 = 64
 )
 
-// ValidatePassphrase checks quality of given passphrase or PIN based
+// CheckAuthQuality checks quality of given passphrase or PIN based
 // on their entropy. An AuthQualityError error is returned which contains
 // more information about the given passphrase or PIN quality.
 //
 // PINs will be supplied as a numeric passphrase.
-//
-// TODO:FDEM: s/ValidatePassphrase/CheckAuthQuality to avoid confusion with ValidatePIN.
-func ValidatePassphrase(mode AuthMode, passphrase string) (AuthQuality, error) {
+func CheckAuthQuality(mode AuthMode, passphrase string) (AuthQuality, error) {
 	minEntropy, optimalEntropy := minPassphraseEntropyBits, optimalPassphraseEntropyBits
 	if mode == AuthModePIN {
 		minEntropy, optimalEntropy = minPINEntropyBits, optimalPINEntropyBits

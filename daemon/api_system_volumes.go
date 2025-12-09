@@ -429,7 +429,7 @@ func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response 
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
+	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
 func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
@@ -437,7 +437,7 @@ func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+	return postCheckAuthQuality(device.AuthModePIN, req.PIN)
 }
 
 func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActionRequest) Response {
