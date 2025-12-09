@@ -1,8 +1,10 @@
-summary: End-to-end test for FDE passphrase support on hybrid systems
+summary: End-to-end test for FDE PIN and passphrase support on hybrid systems
 
 details: |
   This test installs an encrypted hybrid Ubuntu system using muinstaller
-  which is then protected by passphrase authentication after first boot.
+  which is then protected by PIN and passphrase authentication after
+  first boot. Multiple transitions between the available authentication
+  modes are excercised (PIN <-> Passphrase <-> None).
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
