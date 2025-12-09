@@ -298,9 +298,10 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 }
 
 // CachePolicy defines the caching policy. Setting any of the limits to its zero
-// value effectively disables it. A zero value of CachePolicy means that no
-// items would be dropped from cache, however places where it is used, such as
-// Store.SetCachePolicy() may choose to disable all caching instead.
+// value effectively disables it. A zero value (all fields in their default
+// values) of CachePolicy means that no items would be dropped from cache,
+// however places where it is used, such as Store.SetCachePolicy() may choose to
+// disable all caching instead.
 type CachePolicy struct {
 	// MaxItems sets a target for maximum number of unique cache items.
 	MaxItems int
