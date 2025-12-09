@@ -378,7 +378,7 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, drop func(inf
 			if err := drop(c); err != nil {
 				lastErr = strutil.JoinErrors(lastErr, err)
 			} else {
-				// managed top drop the items, update the counts
+				// managed to drop the items, update the counts
 				removeCount++
 				removeSize += uint64(c.Size())
 			}
