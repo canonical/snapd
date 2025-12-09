@@ -123,10 +123,11 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 
 			if entry.Candidate {
 				candidatesSize += entry.Info.Size()
-			}
 
-			if entry.Remove {
-				removedSize += entry.Info.Size()
+				if entry.Remove {
+					// must be a candidate to be eligible for removal
+					removedSize += entry.Info.Size()
+				}
 			}
 
 			fmt.Fprintf(tw, "%s\t%v\t%s\t%v\t%s\n",
