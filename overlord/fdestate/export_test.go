@@ -45,8 +45,8 @@ var (
 	AddEFISecurebootDBUpdateChange          = addEFISecurebootDBUpdateChange
 	UpdateExternalOperation                 = updateExternalOperation
 
-	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
-	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
+	NotifyDBXUpdatePrepareDoneOK = notifySecurebootUpdatePrepareDoneOK
+	DbxUpdatePreparedOKChan      = securebootUpdatePreparedOKChan
 
 	DbxUpdateAffectedSnaps       = dbxUpdateAffectedSnaps
 	AddPlatformKeysAffectedSnaps = addPlatformKeysAffectedSnaps

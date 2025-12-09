@@ -19,6 +19,7 @@
 package fdestate
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/logger"
@@ -38,7 +39,7 @@ func checkFDEChangeConflict(st *state.State) error {
 		switch chg.Kind() {
 		case "fde-efi-secureboot-db-update":
 			return &snapstate.ChangeConflictError{
-				Message:    "external EFI DBX update in progress, no other FDE changes allowed until this is done",
+				Message: "external EFI SecureBoot Key Database update in progress, no other FDE changes allowed until this is done",
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
@@ -91,11 +92,11 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 	return fdeRelevantSnaps(t.State())
 }
 
-// checkDBXChangeConflicts check that there are no conflicting
-// changes for DBX updates. It is a finer grained conflict check
-// that can produce more useful error when exercising DBX related
+// checkSecureBootChangeConflicts check that there are no conflicting
+// changes for SecureBoot Key Database updates. It is a finer grained conflict
+// check that can produce more useful error when exercising SecureBoot related
 // APIs, but should be used in combination with checkFDEChangeConflict.
-func checkDBXChangeConflicts(st *state.State) error {
+func checkSecureBootChangeConflicts(st *state.State, db EFISecurebootKeyDatabase) error {
 	// TODO:FDEM: check if we have sealed keys at all
 
 	snaps, err := fdeRelevantSnaps(st)
@@ -107,16 +108,20 @@ func checkDBXChangeConflicts(st *state.State) error {
 		return nil
 	}
 
-	// make sure that there are no other DBX changes in progress
+	// make sure that there are no other SecureBoot changes in progress
 	op, err := findFirstPendingExternalOperationByKind(st, "fde-efi-secureboot-db-update")
 	if err != nil {
 		return err
 	}
 
+	updateKindStr := EFISecurebootKeyDatabaseString(db)
 	if op != nil {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot start a new DBX update when conflicting actions are in progress",
+			Message: fmt.Sprintf(
+				"cannot start a new %s update when conflicting actions are in progress",
+				updateKindStr,
+			),
 		}
 	}
 
