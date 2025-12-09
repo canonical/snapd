@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -40,6 +41,7 @@ var (
 	secbootBuildPCRProtectionProfile = secboot.BuildPCRProtectionProfile
 	secbootGetPrimaryKey             = secboot.GetPrimaryKey
 	secbootRevokeOldKeys             = (*secboot.UpdatedKeys).RevokeOldKeys
+	secbootLoadCheckResult           = secboot.LoadCheckResult
 	bootIsResealNeeded               = boot.IsResealNeeded
 )
 
@@ -54,7 +56,11 @@ func MockSecbootResealKey(f func(key secboot.KeyDataLocation, params *secboot.Re
 	}
 }
 
-func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error)) (restore func()) {
+func MockSecbootBuildPCRProtectionProfile(f func(
+	modelParams []*secboot.SealKeyModelParams,
+	checkResult *secboot.PreinstallCheckResult,
+	allowInsufficientDmaProtection bool,
+) (secboot.SerializedPCRProfile, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootBuildPCRProtectionProfile only can be mocked in tests")
 	old := secbootBuildPCRProtectionProfile
 	secbootBuildPCRProtectionProfile = f
@@ -69,6 +75,15 @@ func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFiles []string
 	secbootGetPrimaryKey = f
 	return func() {
 		secbootGetPrimaryKey = old
+	}
+}
+
+func MockSecbootLoadCheckResult(f func(filename string) (*secboot.PreinstallCheckResult, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootLoadCheckResult only can be mocked in tests")
+	old := secbootLoadCheckResult
+	secbootLoadCheckResult = f
+	return func() {
+		secbootLoadCheckResult = old
 	}
 }
 
@@ -413,17 +428,29 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 
 	needed, nextCount, err := bootIsResealNeeded(pbc, BootChainsFileUnder(rootdir), opts.ExpectReseal)
-
 	if err != nil {
 		return err
 	}
+
+	// TODO:FDEM: is it sufficient to assume that missing preinstall check file is intentional?
+	// Alternatively we need some other indication that we use/rely on it, perhaps it can be
+	// loaded into FDE state, which can be refreshed after any run time changes.
+	loadCheckResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+	checkResult, err := secbootLoadCheckResult(loadCheckResultPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("cannot load preinstall check result: %v", err)
+		}
+		logger.Noticef("preinstall check result not available: file %s not found", loadCheckResultPath)
+	}
+
 	if needed || opts.Force {
 		runOnlyPbc := boot.ToPredictableBootChains(params.RunModeBootChains)
 
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName, checkResult)
 		if err != nil {
 			return err
 		}
@@ -450,7 +477,7 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName, checkResult)
 		if err != nil {
 			return err
 		}
@@ -482,6 +509,7 @@ func updateRunProtectionProfile(
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
+	checkResult *secboot.PreinstallCheckResult,
 ) error {
 	// get model parameters from bootchains
 	modelParams, err := boot.SealKeyModelParams(pbcWithRecovery, roleToBlName)
@@ -512,12 +540,12 @@ func updateRunProtectionProfile(
 	err = func() error {
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, !hasClassicModel)
 		if err != nil {
 			return err
 		}
 
-		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, !hasClassicModel)
+		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, checkResult, !hasClassicModel)
 		if err != nil {
 			return err
 		}
@@ -550,6 +578,7 @@ func updateFallbackProtectionProfile(
 	pbc boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
+	checkResult *secboot.PreinstallCheckResult,
 ) error {
 	// get model parameters from bootchains
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
@@ -573,7 +602,7 @@ func updateFallbackProtectionProfile(
 	err = func() error {
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, !hasClassicModel)
 		if err != nil {
 			return err
 		}

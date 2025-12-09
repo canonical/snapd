@@ -1507,7 +1507,8 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		})
 		defer restore()
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, tc.noDmaProtection)
+		// TODO:FDEM: need to test with actual check result here
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, nil, tc.noDmaProtection)
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
@@ -4839,7 +4840,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	} {
 		c.Logf("tc: %v", idx)
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, false)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false)
 		c.Assert(err, IsNil)
 
 		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.PrimaryKey, error) {

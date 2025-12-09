@@ -383,7 +383,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	}
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, !tc.onClassic)
@@ -787,7 +787,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		mockAssetsCache(c, rootdir, "grub", expectedCache)
 
 		buildProfileCalls := 0
-		restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+		restore := backend.MockSecbootBuildPCRProtectionProfile(func(
+			modelParams []*secboot.SealKeyModelParams,
+			checkResult *secboot.PreinstallCheckResult,
+			allowInsufficientDmaProtection bool,
+		) (secboot.SerializedPCRProfile, error) {
 			buildProfileCalls++
 
 			c.Check(allowInsufficientDmaProtection, Equals, true)
@@ -1359,7 +1363,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	})
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, true)
@@ -1656,7 +1660,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	})
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, true)
@@ -2018,7 +2022,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	defer bootloader.Force(nil)
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, true)
@@ -2481,7 +2485,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	}
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, true)
@@ -2664,7 +2668,7 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 		},
 	}
 
-	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		return []byte(`"serialized-pcr-profile"`), nil
 	})()
 
