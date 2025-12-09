@@ -317,6 +317,24 @@ func postSystemsInstallFinish(cli *client.Client,
 	return waitChange(chgId)
 }
 
+func postSystemsInstallPreseed(cli *client.Client,
+	details *client.SystemDetails, chroot string) error {
+
+	// Finish steps does the writing of assets
+	opts := &client.InstallSystemOptions{
+		Step: client.InstallStepPreseed,
+		InstallSystemOptions: client.InstallSystemOptions{
+			Chroot: chroot,
+		},
+	}
+	chgId, err := cli.InstallSystem(details.Label, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Change %s created\n", chgId)
+	return waitChange(chgId)
+}
+
 func maybeGetOptionalInstall(path string) (*client.OptionalInstallRequest, error) {
 	if path == "" {
 		return nil, nil
@@ -622,6 +640,12 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyO
 	if err := postSystemsInstallFinish(cli, details, bootDevice, optionalInstallPath, dgpairs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
+
+	// TODO when to run this?
+	if err := postSystemsInstallPreseed(cli, details, runMntFor("ubuntu-data")); err != nil {
+		return fmt.Errorf("cannot preseed installed system: %w", err)
+	}
+
 	// TODO: reboot here automatically (optional)
 
 	return nil
