@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/quantity"
 )
 
@@ -219,10 +220,10 @@ func (cm *CacheManager) Cleanup() error {
 		logger.Debugf("removing %v", path)
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
-				// If there is any error we cleanup the file (it is just a cache
-				// after all).
+				// If there is any error we cleanup the file later again (it is
+				// just a cache after all).
 				logger.Noticef("cannot remove cache entry: %s", err)
-				lastErr = err
+				lastErr = strutil.JoinErrors(lastErr, err)
 			}
 		} else {
 			removedCount++
@@ -256,7 +257,8 @@ type CacheEntry struct {
 type StoreCacheStats struct {
 	// TotalSize is a sum of sizes of all entries in the cache.
 	TotalSize uint64
-	// Entries in the cache
+	// Entries in the cache, sorted by their modification time, starting from
+	// oldest.
 	Entries []CacheEntry
 }
 
@@ -294,6 +296,10 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 		})
 	}
 
+	// TODO: use slices.SortFunc
+	sort.Slice(stats.Entries, func(i, j int) bool {
+		return stats.Entries[i].Info.ModTime().Before(stats.Entries[j].Info.ModTime())
+	})
 	return &stats, nil
 }
 
