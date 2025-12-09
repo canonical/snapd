@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"sort"
 	"text/tabwriter"
 	"time"
 
@@ -57,13 +56,6 @@ func init() {
 			"all":            "List all entries",
 		}, nil)
 }
-
-// entriesByMtime sorts by the mtime of files
-type entriesByMtime []store.CacheEntry
-
-func (s entriesByMtime) Len() int           { return len(s) }
-func (s entriesByMtime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s entriesByMtime) Less(i, j int) bool { return s[i].Info.ModTime().Before(s[j].Info.ModTime()) }
 
 func boolYesNo(b bool) string {
 	if b {
@@ -109,8 +101,6 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 	}
 
 	// TODO add ability to invoke cleanup?
-
-	sort.Sort(entriesByMtime(stats.Entries))
 
 	fmt.Fprintf(Stdout, "Cache location: %v\n", cacheDir)
 	fmt.Fprintf(Stdout, "Max cache-unique items: %v\n", policy.MaxItems)
