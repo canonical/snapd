@@ -1540,7 +1540,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 				PreventRestartIfModified: true,
 			}
 
-			fsType, options, mountUnitType := sysd.MountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
+			fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
 
 			mountOptions.Fstype = fsType
 			mountOptions.MountUnitType = mountUnitType

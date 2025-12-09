@@ -124,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
+func (s *emulation) ConfigureMountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
 	// We don't build the options in exactly the same way as in the systemd
 	// type because these options will be written in a unit that is used in
 	// a host different to where this is running (the one used while

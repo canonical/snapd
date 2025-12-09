@@ -72,7 +72,7 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, systemd.MountUnitType) {
+func (s *FakeSystemd) ConfigureMountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, systemd.MountUnitType) {
 	s.MountUnitOptionsCalls = append(s.MountUnitOptionsCalls, ParamsForMountUnitOptions{what, fstype, startBeforeDrivers})
 	return s.MountUnitOptionsResults.fsType, s.MountUnitOptionsResults.options, s.MountUnitOptionsResults.mountUnitType
 }

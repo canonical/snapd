@@ -413,8 +413,8 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// MountUnitOptions configures the options of the mount unit
-	MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType)
+	// ConfigureMountUnitOptions configures several options of the mount unit
+	ConfigureMountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1496,7 +1496,7 @@ func HostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
+func (s *systemd) ConfigureMountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
 	hostFsType, options := HostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
