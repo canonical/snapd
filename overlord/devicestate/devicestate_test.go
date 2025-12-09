@@ -3016,3 +3016,40 @@ func (s *deviceMgrSuite) TestSignResponseMessageInvalid(c *C) {
 		"cannot assemble assertion response-message: invalid account id: 🤫",
 	)
 }
+
+type myStateDeviceInitialized struct {
+	called int
+}
+
+func (m *myStateDeviceInitialized) DeviceInitialized() {
+	m.called++
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	callA := &myStateDeviceInitialized{called: 0}
+	callB := &myStateDeviceInitialized{called: 0}
+	mgr.AddOnInit(callA)
+	mgr.AddOnInit(callB)
+
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
+
+	c.Check(callA.called, Equals, 1)
+	c.Check(callB.called, Equals, 1)
+}

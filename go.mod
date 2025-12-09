@@ -22,7 +22,7 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20251127141641-de0b33dd60c2
+	github.com/snapcore/secboot v0.0.0-20251204121233-e67750cd7939
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sys v0.21.0
@@ -44,9 +44,11 @@ require (
 	github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9 // indirect
 	github.com/canonical/go-password-validator v0.0.0-20250617132709-1b205303ca54 // indirect
 	github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981 // indirect
-	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
-	github.com/kr/text v0.1.0 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/pilebones/go-udev v0.9.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/term v0.20.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect

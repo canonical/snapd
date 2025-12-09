@@ -7660,14 +7660,14 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	fdemgr := s.o.FDEManager()
 	c.Assert(fdemgr, NotNil)
 	c.Assert(fdemgr.ReloadModeenv(), IsNil)
-	func() {
-		st.Unlock()
-		defer st.Lock()
-		err = fdemgr.StartUp()
-	}()
-	c.Assert(err, IsNil)
 
 	if encrypted {
+		func() {
+			st.Unlock()
+			defer st.Lock()
+			fdemgr.Reinitialize()
+		}()
+
 		// FDE state should have been initialized when the system uses encryption
 		var fdeState map[string]any
 		c.Assert(st.Get("fde", &fdeState), IsNil)

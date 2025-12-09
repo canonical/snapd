@@ -111,6 +111,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -208,6 +209,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -277,6 +279,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -322,6 +325,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -372,6 +376,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -502,6 +507,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -667,6 +673,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -784,6 +791,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -848,6 +856,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -954,6 +963,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -1286,6 +1296,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 	s.o.AddManager(fdemgr)
 	s.o.AddManager(s.o.TaskRunner())
 	c.Assert(s.o.StartUp(), IsNil)
+	fdemgr.DeviceInitialized()
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")

@@ -87,14 +87,22 @@ prepare: |
       --passphrase "ubuntu test" \
       --exit-at-preinstall \
 
-restore: |
-  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+  # Create override to avoid standby mode interrupting API calls after 5 seconds
+  cat <<EOF >snapd-override.conf
+  [Service]
+  Environment=SNAPD_STANDBY_WAIT=1h
+  EOF
+  remote.push "snapd-override.conf"
+  remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+  remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
+  remote.exec "sudo systemctl daemon-reload"
 
-execute: |
   # The secboot preinstall check is only available on Ubuntu 25.10+ install environment targeting
   # a hybrid Ubuntu system. We already target a hybrid system, fake the Ubuntu Version ID.
-  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.10/' /etc/os-release"
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"25.10\"/' /etc/os-release"
+
+  # Restart to ensure the snapd override and modified release version ID is taken into account
+  remote.exec "sudo systemctl restart snapd.service"
 
   # The secboot preinstall check currently only supports livecd install, therefore, expects the booted
   # shim, grub and kernel in specific /cdrom locations
@@ -104,6 +112,11 @@ execute: |
   remote.exec "sudo mkdir -p /cdrom/casper"
   remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
 
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+
+execute: |
   # Helper functions for remote API calls
   api_get_v2_systems_classic() {
     remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null"
@@ -114,8 +127,8 @@ execute: |
   }
 
   # Check that encryption is available for the targeted system
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
   # Cause an error by configuring bogus shim
   remote.exec "sudo cp /cdrom/EFI/boot/bootx64.efi /cdrom/EFI/boot/bootx64.efi.orig"
@@ -143,12 +156,14 @@ execute: |
   diff availability-check-errors availability-check-errors.reference
 
   # Check that the basic availability check that do not consider shim, grub and kernel still works
-  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.04/' /etc/os-release"
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"25.04\"/' /etc/os-release"
+  remote.exec "sudo systemctl restart snapd.service"
   api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"
 
   # Revert back to working preinstall check
   remote.exec "sudo cp /cdrom/EFI/boot/bootx64.efi.orig /cdrom/EFI/boot/bootx64.efi" # restore correct shim
-  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.10/' /etc/os-release"     # enable secboot preinstall check
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"25.10\"/' /etc/os-release" # enable secboot preinstall check
+  remote.exec "sudo systemctl restart snapd.service"
 
   # Check that encryption is again available for the targeted system
   api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"

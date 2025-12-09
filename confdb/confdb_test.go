@@ -22,7 +22,10 @@ package confdb_test
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	. "gopkg.in/check.v1"
 
@@ -4406,4 +4409,156 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 
 	_, err = view.Get(bag, "foo", map[string]string{"baz": "c", "bar": "b"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+// matches field filters
+var fieldFilterReg = regexp.MustCompile(fmt.Sprintf("\\[\\.%[1]s={%[1]s}\\]", confdb.SubkeyRegex))
+
+// matches anything that begins with a '[' and does not have a '[' or a '.'
+var indexReg = `\[[^.\[]*`
+
+// matches everything except for a '[' or a '.'
+var variables = `[^.\[]+`
+
+var subkeyOnlyReg = regexp.MustCompile(fmt.Sprintf("%s|%s|%s", fieldFilterReg, indexReg, variables))
+var subkeyWithDot = regexp.MustCompile(fmt.Sprintf("%s|[.]", subkeyOnlyReg))
+
+func (*viewSuite) TestSubkeyRegex(c *C) {
+	s := "[∀.∃][.0][..[.a={e}]]"
+	d := subkeyWithDot.FindAllString(s, -1)
+	c.Check(len(d), Equals, 11)
+	c.Check(d[0], Equals, "[∀")
+	c.Check(d[1], Equals, ".")
+	c.Check(d[2], Equals, "∃]")
+	c.Check(d[3], Equals, "[")
+	c.Check(d[4], Equals, ".")
+	c.Check(d[5], Equals, "0]")
+	c.Check(d[6], Equals, "[")
+	c.Check(d[7], Equals, ".")
+	c.Check(d[8], Equals, ".")
+	c.Check(d[9], Equals, "[.a={e}]")
+	c.Check(d[10], Equals, "]")
+	d = subkeyOnlyReg.FindAllString(s, -1)
+	c.Check(len(d), Equals, 7)
+	c.Check(d[0], Equals, "[∀")
+	c.Check(d[1], Equals, "∃]")
+	c.Check(d[2], Equals, "[")
+	c.Check(d[3], Equals, "0]")
+	c.Check(d[4], Equals, "[")
+	c.Check(d[5], Equals, "[.a={e}]")
+	c.Check(d[6], Equals, "]")
+}
+
+func hasInvalidSubkeys(s string, o confdb.ParseOptions) bool {
+	subStrings := subkeyOnlyReg.FindAllString(s, -1)
+	for _, ss := range subStrings {
+		// valid if it's a basic sub-key
+		if confdb.ValidSubkey.MatchString(ss) ||
+			// or it's a placeholder and we're expecting them
+			(confdb.ValidPlaceholder.MatchString(ss) && o.AllowPlaceholders) ||
+			// or it's an index and we're expecting them
+			(confdb.ValidIndexSubkey.MatchString(ss) && !o.ForbidIndexes) ||
+			// or it's an index placeholder and we're expecting them
+			(confdb.ValidIndexPlaceholder.MatchString(ss) && o.AllowPlaceholders) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func hasEmptySubkey(s string) bool {
+	subStrings := subkeyWithDot.FindAllString(s, -1)
+	if len(subStrings) == 0 {
+		return true
+	}
+	if subStrings[0] == "." || subStrings[len(subStrings)-1] == "." {
+		return true
+	}
+	// Only if partial paths are allowed can a path begin with '['
+	if strings.HasPrefix(subStrings[0], "[") {
+		return true
+	}
+	for i, ss := range subStrings {
+		// A subkey can never begin with a '[' unless it's the first rune
+		// Two successive '.' means an empty string subkey
+		if i > 0 && subStrings[i-1] == "." && (strings.HasPrefix(ss, "[") || ss == ".") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUnexpectedFieldFilterTermination(s string) bool {
+	subStrings := subkeyWithDot.FindAllString(s, -1)
+	for i, ss := range subStrings {
+		// The regex will break up any sequence that has "[." not followed by a closing ']'
+		// The '[' with therefore always be alone as well as the '.'
+		if i > 0 && subStrings[i-1] == "[" && ss == "." {
+			return true
+		}
+	}
+	return false
+}
+
+func isProblematicSubkeyError(s string) bool {
+	return strings.Contains(s, "invalid subkey") ||
+		strings.Contains(s, "must conform to base format") ||
+		strings.Contains(s, "field filters, if present, must be at the end of a sub-key")
+}
+
+func isFieldFilterError(s string) bool {
+	return strings.Contains(s, "field filter terminated unexpectedly") ||
+		strings.Contains(s, "field filter must be in the format") ||
+		strings.Contains(s, "invalid field filter")
+}
+
+func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
+	f.Add(seed)
+	f.Fuzz(func(t *testing.T, s string) {
+		accessors, err := confdb.ParsePathIntoAccessors(s, o)
+		if err != nil && isProblematicSubkeyError(err.Error()) && hasInvalidSubkeys(s, o) {
+			t.Skip()
+		}
+		if err != nil && err.Error() == "cannot have empty subkeys" && hasEmptySubkey(s) {
+			t.Skip()
+		}
+		if err != nil && err.Error() == "non UTF-8 character" && !utf8.ValidString(s) {
+			t.Skip()
+		}
+		if err != nil && isFieldFilterError(err.Error()) && hasUnexpectedFieldFilterTermination(s) {
+			t.Skip()
+		}
+		if err != nil && strings.Contains(err.Error(), "cannot apply more than one filter to the same field") {
+			t.Skip()
+		}
+		if err != nil {
+			t.Errorf("encountered error %s with input %s", err, s)
+		}
+		expected := subkeyOnlyReg.FindAllString(s, -1)
+		if len(accessors) == len(expected) {
+			for i, e := range expected {
+				if accessors[i].Access() != e {
+					t.Errorf("unexpected type of accessor %T with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
+				}
+			}
+		} else if len(accessors) != len(expected)-len(fieldFilterReg.FindAllString(s, -1)) {
+			t.Errorf("unexpected number of accessors %d vs. %d", len(accessors), len(expected))
+		}
+	})
+}
+
+func FuzzParsePathIntoAccessors(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: false, ForbidIndexes: false}
+	fuzzHelper(f, o, "foo-bar.baz[3][2]")
+}
+
+func FuzzParsePathIntoAccessorsAllowPlaceholders(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: false}
+	fuzzHelper(f, o, "foo-bar[.status={status}].{baz}[{n}].foo[3][{m}]")
+}
+
+func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
+	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: true}
+	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
 }
