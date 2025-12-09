@@ -237,7 +237,6 @@ type systemActionRequest struct {
 	client.CreateSystemOptions
 	client.QualityCheckOptions
 	client.FixEncryptionSupportOptions
-	client.PreseedInstalledSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
