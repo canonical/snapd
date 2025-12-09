@@ -73,6 +73,28 @@ type securebootRequest struct {
 	KeyDatabase string `json:"key-database,omitempty"`
 }
 
+func keyDatabaseFromString(db string) (fdestate.EFISecurebootKeyDatabase, error) {
+	switch db {
+	case "PK":
+		return fdestate.EFISecurebootPK, nil
+	case "KEK":
+		return fdestate.EFISecurebootKEK, nil
+	case "DB":
+		return fdestate.EFISecurebootDB, nil
+	case "DBX":
+		return fdestate.EFISecurebootDBX, nil
+	default:
+		// return -1 to indicate invalid value and prevent possible confusion with valid
+		// enum values
+		return -1, fmt.Errorf("invalid key database %q", db)
+	}
+}
+
+func isValidKeyDatabase(db string) bool {
+	_, err := keyDatabaseFromString(db)
+	return err == nil
+}
+
 func (r *securebootRequest) Validate() error {
 	switch r.Action {
 	case "efi-secureboot-update-startup", "efi-secureboot-update-db-cleanup":
@@ -84,9 +106,7 @@ func (r *securebootRequest) Validate() error {
 			return fmt.Errorf("unexpected payload for action %q", r.Action)
 		}
 	case "efi-secureboot-update-db-prepare":
-		switch r.KeyDatabase {
-		case "PK", "KEK", "DB", "DBX":
-		default:
+		if !isValidKeyDatabase(r.KeyDatabase) {
 			return fmt.Errorf("invalid key database %q", r.KeyDatabase)
 		}
 
@@ -131,8 +151,8 @@ func postSystemSecurebootActionJSON(c *Command, r *http.Request) Response {
 var fdestateEFISecurebootDBUpdatePrepare = fdestate.EFISecurebootDBUpdatePrepare
 
 func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootRequest) Response {
-	if req.KeyDatabase != "DBX" {
-		return InternalError("support for key database %q is not implemented", req.KeyDatabase)
+	if !isValidKeyDatabase(req.KeyDatabase) {
+		return InternalError("internal error: unexpected key database %q", req.KeyDatabase)
 	}
 
 	payload, err := base64.StdEncoding.DecodeString(req.Payload)
@@ -140,8 +160,15 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 		return BadRequest("cannot decode payload: %v", err)
 	}
 
+	// extra sanity check on KeyDatabase string, should not be needed due to earlier
+	// validation but just in case of future code changes
+	keyDatabase, err := keyDatabaseFromString(req.KeyDatabase)
+	if err != nil {
+		return InternalError("internal error: cannot convert key database %q: %v", req.KeyDatabase, err)
+	}
+
 	err = fdestateEFISecurebootDBUpdatePrepare(c.d.state,
-		fdestate.EFISecurebootDBX, // only DBX updates are supported
+		keyDatabase,
 		payload)
 	if err != nil {
 		return BadRequest("cannot notify of update prepare: %v", err)
