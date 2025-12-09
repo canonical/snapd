@@ -885,6 +885,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		keyslots                      []fdestate.KeyslotRef
 		authMode                      device.AuthMode
 		noVolumesAuth                 bool
+		badAuthValue                  bool
 		recoveryMode                  bool
 		noop                          bool
 		roles                         [][]string
@@ -902,8 +903,16 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default"},
 		},
 		{
-			authMode:    device.AuthModePIN,
-			expectedErr: `internal error: invalid authentication options: "pin" authentication mode is not implemented`,
+			authMode:     device.AuthModePIN,
+			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default"},
+		},
+		{
+			authMode: device.AuthModePassphrase, badAuthValue: true,
+			expectedErr: "internal error: invalid authentication options: passphrase cannot be empty",
+		},
+		{
+			authMode: device.AuthModePIN, badAuthValue: true,
+			expectedErr: "internal error: invalid authentication options: pin cannot be empty",
 		},
 		{
 			authMode: device.AuthModePIN, noVolumesAuth: true,
@@ -990,6 +999,10 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 				volumesAuth.PIN = "1234"
 			}
 			s.st.Cache(fdestate.VolumesAuthOptionsKey(), volumesAuth)
+			if tc.badAuthValue {
+				volumesAuth.Passphrase = ""
+				volumesAuth.PIN = ""
+			}
 		}
 
 		defer fdestate.MockSecbootAddContainerTPMProtectedKey(func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error {

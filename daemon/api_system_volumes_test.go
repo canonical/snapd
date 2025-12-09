@@ -634,8 +634,8 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 			})
 		case device.AuthModePIN:
 			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
-				// TODO:FDEM: check PIN is passed
 				Mode: device.AuthModePIN,
+				PIN:  "1234",
 			})
 		default:
 			c.Errorf("unexpected auth-mode %q", authMode)
@@ -675,7 +675,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	case device.AuthModePIN:
 		bodyRaw = fmt.Sprintf(bodyTemplate, `
 	"auth-mode": "pin",
-	"pin": "p1n"
+	"pin": "1234"
 `)
 	}
 
@@ -683,14 +683,6 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
-
-	if authMode == device.AuthModePIN {
-		// PIN support is not implemented
-		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, Equals, 400)
-		c.Check(rsp.Message, Equals, `invalid platform key options: "pin" authentication mode is not implemented`)
-		return
-	}
 
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)

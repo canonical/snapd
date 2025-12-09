@@ -213,3 +213,7 @@ type ActivateContext interface {
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return nil, nil
 }
+
+func ValidatePIN(pin string) error {
+	return errBuildWithoutSecboot
+}

@@ -158,6 +158,15 @@ func (et EncryptionType) IsLUKS() bool {
 	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
 }
 
+// Hook setup by secboot to validate PIN format.
+//
+// Note: in most cases VolumesAuthOptions.Validate() should be used instead.
+var ValidatePIN func(pin string) error = validatePINImpl
+
+func validatePINImpl(pin string) error {
+	panic("PIN validation callback not set up")
+}
+
 // AuthMode corresponds to an authentication mechanism.
 type AuthMode string
 
@@ -196,10 +205,12 @@ func (o *VolumesAuthOptions) Validate() error {
 		if len(o.PIN) == 0 {
 			return fmt.Errorf("pin cannot be empty")
 		}
+		if err := ValidatePIN(o.PIN); err != nil {
+			return err
+		}
 		if o.KDFType != "" {
 			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
 		}
-		return fmt.Errorf("%q authentication mode is not implemented", AuthModePIN)
 	default:
 		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", o.Mode, AuthModePassphrase, AuthModePIN)
 	}
@@ -277,6 +288,8 @@ const (
 // more information about the given passphrase or PIN quality.
 //
 // PINs will be supplied as a numeric passphrase.
+//
+// TODO:FDEM: s/ValidatePassphrase/CheckAuthQuality to avoid confusion with ValidatePIN.
 func ValidatePassphrase(mode AuthMode, passphrase string) (AuthQuality, error) {
 	minEntropy, optimalEntropy := minPassphraseEntropyBits, optimalPassphraseEntropyBits
 	if mode == AuthModePIN {

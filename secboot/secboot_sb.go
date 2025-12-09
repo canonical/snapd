@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
 	sb_luks2 "github.com/snapcore/secboot/luks2"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
@@ -78,6 +79,7 @@ func init() {
 	WithSecbootSupport = true
 
 	device.EntropyBits = EntropyBits
+	device.ValidatePIN = ValidatePIN
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
@@ -661,7 +663,8 @@ func (k *keyData) AuthMode() device.AuthMode {
 		return device.AuthModeNone
 	case sb.AuthModePassphrase:
 		return device.AuthModePassphrase
-	// TODO:FDEM: add AuthModePIN when it lands in secboot
+	case sb.AuthModePIN:
+		return device.AuthModePIN
 	default:
 		return ""
 	}
@@ -801,4 +804,12 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 	default:
 		return nil, fmt.Errorf("internal error: unknown reseal kind")
 	}
+}
+
+// ValidatePIN checks that the passed PIN is formatted properly.
+// If the supplied PIN larger than 255 characters or contains
+// anything other than base-10 digits, an error will be returned.
+func ValidatePIN(pin string) error {
+	_, err := secboot.ParsePIN(pin)
+	return err
 }

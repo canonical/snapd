@@ -858,11 +858,12 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	}
 
 	for _, tc := range []struct {
-		disabled, available, passphraseAuthAvailable bool
-		storageSafety                                asserts.StorageSafety
-		typ                                          device.EncryptionType
-		unavailableErr, unavailableWarning           string
-		availabilityCheckErrs                        []secboot.PreinstallErrorDetails
+		disabled, available                       bool
+		passphraseAuthAvailable, pinAuthAvailable bool
+		storageSafety                             asserts.StorageSafety
+		typ                                       device.EncryptionType
+		unavailableErr, unavailableWarning        string
+		availabilityCheckErrs                     []secboot.PreinstallErrorDetails
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
@@ -918,6 +919,28 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			expectedStorageSafety:      "encrypted",
 			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePassphraseAuth},
 		},
+		{
+			available:        true,
+			pinAuthAvailable: true,
+			storageSafety:    asserts.StorageSafetyEncrypted,
+
+			expectedSupport:            client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety:      "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePINAuth},
+		},
+		{
+			available:               true,
+			passphraseAuthAvailable: true,
+			pinAuthAvailable:        true,
+			storageSafety:           asserts.StorageSafetyEncrypted,
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{
+				client.StorageEncryptionFeaturePassphraseAuth,
+				client.StorageEncryptionFeaturePINAuth,
+			},
+		},
 	} {
 		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
 			Available:               tc.available,
@@ -927,6 +950,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			UnavailableWarning:      tc.unavailableWarning,
 			AvailabilityCheckErrors: tc.availabilityCheckErrs,
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
+			PINAuthAvailable:        tc.pinAuthAvailable,
 		}
 
 		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(

@@ -21,8 +21,10 @@ package device_test
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -181,15 +183,22 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	// Empty passphrase
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
-	// PIN mode not implemented yet
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
-	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
 	// PIN mode + custom kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i", PIN: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
 	// Empty PIN
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
 	c.Assert(opts.Validate(), ErrorMatches, `pin cannot be empty`)
+	// Long PIN
+	var longPIN strings.Builder
+	for i := 0; i < math.MaxUint8+2; i++ {
+		longPIN.WriteString("0")
+	}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: longPIN.String()}
+	c.Assert(opts.Validate(), ErrorMatches, "invalid PIN: too long")
+	// Non-digit PIN
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "abc123"}
+	c.Assert(opts.Validate(), ErrorMatches, "invalid PIN: unexpected character")
 	// Passphrase and PIN cannot be set at the same time
 	opts = &device.VolumesAuthOptions{PIN: "1234", Passphrase: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `passphrase and pin cannot be set at the same time`)

@@ -267,6 +267,14 @@ func MockSbNewTPMPassphraseProtectedKey(f func(tpm *sb_tpm2.Connection, params *
 	}
 }
 
+func MockSbNewTPMPINProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error)) (restore func()) {
+	old := sbNewTPMPINProtectedKey
+	sbNewTPMPINProtectedKey = f
+	return func() {
+		sbNewTPMPINProtectedKey = old
+	}
+}
+
 func MockSbSetModel(f func(model sb.SnapModel)) (restore func()) {
 	old := sbSetModel
 	sbSetModel = f
