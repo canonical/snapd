@@ -473,6 +473,66 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyError(c *C) {
 	c.Assert(err, ErrorMatches, `failed to copy all: "error" \(1\)`)
 }
 
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteLinkedSnapOnVerityLinkError(c *C) {
+	// mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
+	// mock link but still link
+	linked := 0
+	r := squashfs.MockLink(func(a, b string) error {
+		// fail link for verity
+		if strings.Contains(b, "dmverity") {
+			return errors.New("some error")
+		}
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
+	sn := makeSnap(c, "name: test", "")
+
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	didNothing, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, ErrorMatches, "some error")
+	c.Assert(didNothing, Equals, false)
+	c.Check(linked, Equals, 1)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, false)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteCopiedSnapOnVerityCopyError(c *C) {
+	// first, disable os.Link
+	defer noLink()()
+
+	// then, mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+[[ "$3" == *"dmverity"* ]] && { echo error; exit 1; }
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
+	sn := makeSnap(c, "name: test2", "")
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	_, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, ErrorMatches, `failed to copy all: "error" \(1\)`)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, false)
+}
+
 func (s *SquashfsTestSuite) TestPath(c *C) {
 	p := "/path/to/foo.snap"
 	sn := squashfs.New("/path/to/foo.snap")
