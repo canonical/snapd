@@ -420,7 +420,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 			return BadRequest("cannot preseed installed system without its chroot")
 		}
 
-		chg, err := devicestateInstallPreseed(st, *req.Chroot)
+		chg, err := devicestateInstallPreseed(st, systemLabel, *req.Chroot)
 		if err != nil {
 			return InternalError("cannot preseed installed system: %v", err)
 		}
