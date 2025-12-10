@@ -1601,7 +1601,7 @@ func (s *RunSuite) TestSnapRunXdgRuntimeDirCreation(c *check.C) {
 	c.Assert(os.RemoveAll(toplevelXdgRuntimeDir), check.IsNil)
 
 	// Third run should fail
-	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
 	c.Assert(err, check.ErrorMatches, "cannot create XDG_RUNTIME_DIR folder .*")
 }
 
