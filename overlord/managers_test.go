@@ -7469,11 +7469,6 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
-	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
-		return []byte(`"some-profile"`), nil
-	})
-	defer restore()
-
 	restore = fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
 		case filepath.Join(dirs.GlobalRootDir, "writable"):
