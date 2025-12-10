@@ -513,8 +513,8 @@ func mountSnapdSnap(rootDir string, coreSnapPath string) (cleanup func(), err er
 	}, nil
 }
 
-func getSnapdVersion(rootDir string) (string, error) {
-	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), "")
+func getSnapdVersion(rootDir, label string) (string, error) {
+	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), label)
 	if err != nil {
 		return "", err
 	}
@@ -838,14 +838,14 @@ func Hybrid(chrootDir, label string) error {
 	return runPreseedMode(chrootDir, targetSnapd, hybrid)
 }
 
-func ClassicReset(chrootDir string) error {
+func classicLikeReset(chrootDir, label string) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
 		return err
 	}
 
-	snapdVersion, err := getSnapdVersion(chrootDir)
+	snapdVersion, err := getSnapdVersion(chrootDir, label)
 	if err != nil {
 		return err
 	}
@@ -858,7 +858,6 @@ func ClassicReset(chrootDir string) error {
 	}
 
 	const reset = true
-	const label = ""
 	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
 	if err != nil {
 		return err
@@ -866,6 +865,16 @@ func ClassicReset(chrootDir string) error {
 	defer cleanup()
 
 	return reexecReset(chrootDir, targetSnapd)
+}
+
+func ClassicReset(chrootDir string) error {
+	const label = ""
+	return classicLikeReset(chrootDir, label)
+}
+
+func HybridReset(chrootDir, label string) error {
+	logger.Debugf("reset hybrid %q", label)
+	return classicLikeReset(chrootDir, label)
 }
 
 func MockSyscallChroot(f func(string) error) (restore func()) {
