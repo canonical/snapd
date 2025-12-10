@@ -168,6 +168,25 @@ def _get_original_and_rerun_list(filenames: list[str]) -> tuple[list[str], list[
                  if _remove_json_extension(file).endswith('_1') and
                  any(rerun for rerun in reruns if rerun.startswith(_remove_json_extension(file)[:-2]))]
     reruns.sort(key=lambda x: int(_remove_json_extension(x).split('_')[-1]))
+
+    # If something went drastically wrong during testing, there might not be an original run.
+    # ( e.g. we have my-system_2.json and my-system_3.json but not my-system_1.json)
+    # Search for any reruns that don't have an original and remove them from the rerun list.
+    # Then, if there is another rerun present, add that instance to the originals.
+    no_originals = []
+    has_rerun = set()
+    for rerun in reruns:
+        bare_filename = _get_name_without_run_number(rerun)
+        if any(o for o in no_originals if o.startswith(bare_filename)):
+            has_rerun.add(bare_filename)
+            continue
+        if not any(original for original in originals if original.startswith(bare_filename)):
+            no_originals.append(rerun)
+    for no_original in no_originals:
+        reruns.remove(no_original)
+        if _get_name_without_run_number(no_original) in has_rerun:
+            originals.append(no_original)
+
     return originals, reruns
 
 
