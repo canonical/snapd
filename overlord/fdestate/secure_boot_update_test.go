@@ -1232,7 +1232,8 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	op2, err := fdestate.AddEFISecurebootDBUpdateChange(st,
+	op2, err := fdestate.AddEFISecurebootDBUpdateChange(
+		st,
 		device.SealingMethodTPM,
 		fdestate.EFISecurebootDBX,
 		[]byte("payload 2"),

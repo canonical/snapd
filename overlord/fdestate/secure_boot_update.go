@@ -84,8 +84,8 @@ func EFISecurebootKeyDatabaseFromString(dbString string) EFISecurebootKeyDatabas
 	}
 }
 
-// EFISecureBootKeyDatabaseIsSupportedString returns whether the provided 
-// database kind string is supported. 
+// EFISecureBootKeyDatabaseIsSupportedString returns whether the provided
+// database kind string is supported.
 //
 // This is intended for API calls where the string is provided by the user.
 func EFISecureBootKeyDatabaseIsSupportedString(dbString string) bool {
