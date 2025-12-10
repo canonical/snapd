@@ -31,6 +31,10 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	return nil, nil, errBuildWithoutSecboot
 }
 
+func LoadCheckResult(filename string) (*PreinstallCheckResult, error) {
+	return nil, errBuildWithoutSecboot
+}
+
 func (c *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, action *PreinstallAction) ([]PreinstallErrorDetails, error) {
 	return nil, errBuildWithoutSecboot
 }
