@@ -2061,6 +2061,64 @@ func (s *interfaceManagerSuite) TestRemoveStaleConnectionsRemovesStale(c *C) {
 	c.Check(s.log.String(), testutil.Contains, "removed stale connections: consumer:plug producer:slot")
 }
 
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsFailsOnInvalidConnRef(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Inject an invalid connection ID that cannot be parsed
+	// (missing the space between plug and slot)
+	s.state.Set("conns", map[string]any{
+		"malformed-connection-id": map[string]any{"interface": "test", "auto": true},
+	})
+
+	err := ifacestate.RemoveStaleConnections(s.state)
+
+	c.Assert(err, ErrorMatches, `.*malformed connection identifier: "malformed-connection-id"`)
+}
+
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsFailsOnStateGetError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// snapstate.Get looks up "snaps" -> "consumer".
+	// Inject a map where "consumer" is garbage that cannot be unmarshaled.
+	s.state.Set("snaps", map[string]any{
+		"consumer": map[string]any{
+			"active": "invalid-type-causing-unmarshal-error",
+		},
+	})
+
+	err := ifacestate.RemoveStaleConnections(s.state)
+
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `.*cannot unmarshal.*`)
+}
+
+func (s *interfaceManagerSuite) TestIsBrokenReturnsErrorOnStateFailure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapName := "corrupted-snap"
+
+	// place the corrupted data inside the "snaps" map.
+	// snapstate.Get reads s.state.Get("snaps"), then looks up the specific snap.
+	s.state.Set("snaps", map[string]any{
+		snapName: map[string]any{
+			"active": "invalid-type-causing-unmarshal-error",
+		},
+	})
+
+	broken, err := ifacestate.IsBroken(s.state, snapName)
+
+	c.Assert(broken, Equals, false)
+	c.Assert(err, NotNil)
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, false)
+}
+
 func (s *interfaceManagerSuite) testRemoveStaleConnectionsSkipsBrokenSnaps(c *C, brokenSnapName string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.state.Lock()

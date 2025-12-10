@@ -62,6 +62,7 @@ var (
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
 	HasActiveConnection          = hasActiveConnection
+	RemoveStaleConnections       = removeStaleConnections
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
@@ -223,4 +224,8 @@ func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*i
 
 func MockIsSnapVerified(new func(st *state.State, snapID string) bool) (restore func()) {
 	return testutil.Mock(&isSnapVerified, new)
+}
+
+func IsBroken(st *state.State, snapName string) (bool, error) {
+	return isBroken(st, snapName)
 }
