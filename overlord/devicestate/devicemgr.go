@@ -178,6 +178,7 @@ type DeviceManager struct {
 	noRegister                   bool
 
 	preseed            bool
+	preseedHybrid      bool
 	preseedSystemLabel string
 
 	ntpSyncedOrTimedOut bool
@@ -190,11 +191,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	delayedCrossMgrInit()
 
 	m := &DeviceManager{
-		state:    s,
-		hookMgr:  hookManager,
-		newStore: newStore,
-		reg:      make(chan struct{}),
-		preseed:  snapdenv.Preseeding(),
+		state:         s,
+		hookMgr:       hookManager,
+		newStore:      newStore,
+		reg:           make(chan struct{}),
+		preseed:       snapdenv.Preseeding(),
+		preseedHybrid: snapdenv.PreseedingHybrid(),
 	}
 	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
@@ -212,7 +214,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// cache system label for preseeding of core20; note, this will fail on
 		// core16/core18 (they are not supported by preseeding) as core20 system
 		// label is expected.
-		if !release.OnClassic {
+		if !release.OnClassic || m.preseedHybrid {
 			var err error
 			m.preseedSystemLabel, err = systemForPreseeding()
 			if err != nil {
@@ -911,7 +913,7 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 		return m.seedLabel, m.seedMode, nil
 	}
 	if m.preseed {
-		if !release.OnClassic {
+		if !release.OnClassic || m.preseedHybrid {
 			seedMode = "run"
 			seedLabel = m.systemForPreseeding()
 		}
