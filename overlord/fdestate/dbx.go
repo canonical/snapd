@@ -197,7 +197,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot perform SecureBoot Key Database 'cleanup' action when conflicting actions are in progress",
+			Message:    "cannot perform SecureBoot Key Database update 'cleanup' action when conflicting actions are in progress",
 		}
 	}
 
@@ -410,7 +410,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 	}()
 
 	if err != nil {
-		err = fmt.Errorf("cannot perform initial reseal of keys for SecureBoot Key Database: %w", err)
+		err = fmt.Errorf("cannot perform initial reseal of keys for SecureBoot Key Database update: %w", err)
 		op.SetFailed(err.Error())
 	} else {
 		op.SetStatus(DoingStatus)

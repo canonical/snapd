@@ -306,13 +306,13 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 	err := fdestate.EFISecureBootDBUpdateCleanup(st)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
-		Message:    "cannot perform DBX update 'cleanup' action when conflicting actions are in progress",
+		Message:    "cannot perform SecureBoot Key Database update 'cleanup' action when conflicting actions are in progress",
 	})
 
 	err = fdestate.EFISecureBootDBManagerStartup(st)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
-		Message:    "cannot perform DBX update 'startup' action when conflicting actions are in progress",
+		Message:    "cannot perform SecureBoot Key Database 'startup' action when conflicting actions are in progress",
 	})
 }
 
@@ -816,7 +816,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	defer s.o.Stop()
 
 	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
-	c.Assert(err, ErrorMatches, "(?sm).*cannot perform initial reseal of keys for DBX update: mock error.*")
+	c.Assert(err, ErrorMatches, "(?sm).*cannot perform initial reseal of keys for SecureBoot Key Database update: mock error.*")
 
 	st.Lock()
 	defer st.Unlock()
@@ -842,7 +842,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
-		"- Prepare for external EFI DBX update .cannot perform initial reseal of keys for DBX update: mock error.")
+		"- Prepare for external EFI DBX update .cannot perform initial reseal of keys for SecureBoot Key Database update: mock error.")
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
