@@ -12,6 +12,7 @@ details: |
 systems:
   - -amazon-*
   - -opensuse-15*
+  - -opensuse-16*
   - -ubuntu-14.04-*
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*

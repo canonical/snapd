@@ -38,8 +38,8 @@ jobs:
         env:
           SPREAD_USE_PREBUILT_SNAPD_SNAP: true
         run: |
-          # Run spread in all the systems defined for openstack-ps7 environment
-          spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
+          # Run spread in all the systems defined for openstack environment
+          spread -no-debug-output -json report.json openstack:tests/smoke/empty
 
       - name: Write the metrics to prometheus
         if: always()
@@ -99,7 +99,7 @@ jobs:
           # spread -list is measured because this is the time any spread execution takes to compute
           # all the backend:system:tasks combinations and filter based on the expressions used.
           start_ms=$(date +%s%3N)
-          spread -list openstack-ps7:tests/smoke/install &> /dev/null
+          spread -list openstack:tests/smoke/install &> /dev/null
           end_ms=$(date +%s%3N)
           diff_ms=$(( end_ms - start_ms ))
 

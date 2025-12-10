@@ -24,12 +24,12 @@ jobs:
       matrix:
         include:
           - group: "ubuntu-24.04"
-            backend: "openstack-ps7"
+            backend: ""
             systems: "ubuntu-24.04-64"
             tasks: "tests/main/"
             rules: "main"
           - group: "ubuntu-core-24"
-            backend: "openstack-ps7"
+            backend: "openstack"
             systems: "ubuntu-core-24-64"
             tasks: "tests/core/"
             rules: "main"

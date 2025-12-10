@@ -119,6 +119,7 @@ jobs:
         build-config:
           - { system: "opensuse-tumbleweed-64", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
           - { system: "opensuse-15.6-64",       image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
+          - { system: "opensuse-16.0-64",       image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
 
   package-snapd-arch:
     needs: create-vendor-dir

@@ -365,30 +365,7 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
         systems:
-            - fedora-41-64:
-                image: snapd-spread/fedora-41-64
-                workers: 6
-            - fedora-42-64:
-                  image: snapd-spread/fedora-42-64
-                  workers: 12
 
-            - opensuse-15.6-64:
-                image: snapd-spread/opensuse-15.6-64
-                workers: 6
-            - opensuse-tumbleweed-64:
-                image: snapd-spread/opensuse-tumbleweed-64
-                workers: 6
-            - opensuse-tumbleweed-selinux-64:
-                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
-                  workers: 6
-
-            - centos-9-64:
-                image: snapd-spread/centos-9-64
-                workers: 6
-
-            - debian-sid-64:
-                image: snapd-spread/debian-sid-64
-                workers: 6
 
     openstack-ps7:
         type: openstack
@@ -445,6 +422,9 @@ backends:
             - debian-12-64:
                 image: snapd-spread/debian-12-64
                 workers: 6
+            - debian-sid-64:
+                image: snapd-spread/debian-sid-64
+                workers: 6
 
             - amazon-linux-2-64:
                 image: snapd-spread/amazon-linux-2-64
@@ -457,6 +437,30 @@ backends:
 
             - arch-linux-64:
                 image: snapd-spread/arch-linux-64
+                workers: 6
+
+            - fedora-41-64:
+                image: snapd-spread/fedora-41-64
+                workers: 6
+            - fedora-42-64:
+                  image: snapd-spread/fedora-42-64
+                  workers: 12
+
+            - opensuse-15.6-64:
+                image: snapd-spread/opensuse-15.6-64
+                workers: 6
+            - opensuse-16.0-64:
+                image: snapd-spread/opensuse-16.0-64
+                workers: 6
+            - opensuse-tumbleweed-64:
+                image: snapd-spread/opensuse-tumbleweed-64
+                workers: 6
+            - opensuse-tumbleweed-selinux-64:
+                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
+                  workers: 6
+
+            - centos-9-64:
+                image: snapd-spread/centos-9-64
                 workers: 6
 
     openstack-dev-ps7:
