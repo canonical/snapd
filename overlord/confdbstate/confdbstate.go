@@ -126,10 +126,9 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (any, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]string) (any, error) {
 	if len(requests) == 0 {
-		// TODO: support passing constraints
-		val, err := view.Get(bag, "", nil)
+		val, err := view.Get(bag, "", constraints)
 		if err != nil {
 			return nil, err
 		}
@@ -139,8 +138,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (any, 
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		// TODO: support passing constraints
-		value, err := view.Get(bag, request, nil)
+		value, err := view.Get(bag, request, constraints)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
@@ -553,7 +551,7 @@ func CanHookSetConfdb(ctx *hookstate.Context) bool {
 // schedules tasks to load the confdb as needed, unless no custodian defined
 // relevant hooks. Blocks until the confdb has been loaded into the Transaction.
 // If no tasks need to run to load the confdb, returns without blocking.
-func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, paths []string) (*Transaction, error) {
+func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, paths []string, constraints map[string]string) (*Transaction, error) {
 	st := ctx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
@@ -593,7 +591,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 		return nil, fmt.Errorf("cannot load confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	ts, err := createLoadConfdbTasks(st, tx, view, paths)
+	ts, err := createLoadConfdbTasks(st, tx, view, paths, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +651,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 // LoadConfdbAsync schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the resulting
 // data in the change's data (so it can be read by the client).
-func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (changeID string, err error) {
+func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]string) (changeID string, err error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	txs, _, err := getOngoingTxs(st, account, schemaName)
@@ -672,7 +670,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		return "", fmt.Errorf("cannot access confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	ts, err := createLoadConfdbTasks(st, tx, view, requests)
+	ts, err := createLoadConfdbTasks(st, tx, view, requests, constraints)
 	if err != nil {
 		return "", err
 	}
@@ -689,6 +687,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		// change so it can be read by the client
 		loadConfdbTask := st.NewTask("load-confdb-change", "Load confdb data into the change")
 		loadConfdbTask.Set("requests", requests)
+		loadConfdbTask.Set("constraints", constraints)
 		loadConfdbTask.Set("view-name", view.Name)
 
 		loadConfdbTask.Set("tx-task", clearTxTask.ID())
@@ -703,7 +702,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 	} else {
 		// no hooks to run so we can just load the values directly into the change
 		// (we still need the change because the API is async)
-		err := readViewIntoChange(chg, tx, view, requests)
+		err := readViewIntoChange(chg, tx, view, requests, constraints)
 		if err != nil {
 			return "", err
 		}
@@ -717,7 +716,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 // read a transaction through the given view. In case no custodian snap has any
 // load-view or query-view hooks, nil is returned. If there are hooks to run,
 // a clear-confdb-tx task is also scheduled to remove the ongoing transaction at the end.
-func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, requests []string) (*state.TaskSet, error) {
+func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, requests []string, constraints map[string]string) (*state.TaskSet, error) {
 	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
 	if err != nil {
 		return nil, err
@@ -736,8 +735,7 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 		ts.AddTask(t)
 	}
 
-	// TODO: take constraints into account
-	mightAffectEph, err := view.ReadAffectsEphemeral(requests, nil)
+	mightAffectEph, err := view.ReadAffectsEphemeral(requests, constraints)
 	if err != nil {
 		return nil, err
 	}

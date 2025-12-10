@@ -619,7 +619,7 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -643,7 +643,7 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -672,7 +672,7 @@ func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
 		c.Assert(requests, IsNil)
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -835,7 +835,7 @@ func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	err = tx.Set(parsePath(c, "wifi.ssid"), "bar")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1002,7 +1002,7 @@ func (s *confdbSuite) TestConfdbAccessUnconnectedPlug(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
 		c.Fatal("should not allow access to confdb")
 		return tx, nil
 	})
@@ -1062,7 +1062,7 @@ func (s *confdbSuite) TestConfdbDefaultIfNoData(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1083,7 +1083,7 @@ func (s *confdbSuite) TestConfdbDefaultNoFallbackIfTyped(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1102,7 +1102,7 @@ func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
