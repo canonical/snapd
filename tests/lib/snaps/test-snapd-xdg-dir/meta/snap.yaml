@@ -1,9 +1,8 @@
 name: test-snapd-xdg-dir
 version: '1.4'
 summary: A test to check the existence of the XDG_RUNTIME_DIR folder
-description: 'A test to check the existence of the XDG_RUNTIME_DIR folder
-
-  '
+description: |
+  A test to check the existence of the XDG_RUNTIME_DIR folder
 apps:
   test-snapd-xdg-dir:
     command: snap/command-chain/script.sh
