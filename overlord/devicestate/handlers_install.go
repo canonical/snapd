@@ -1268,7 +1268,12 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 	defer perfTimings.Save(st)
 
 	var targetChroot string
+	var systemLabel string
 	if err := t.Get("target-chroot", &targetChroot); err != nil {
+		return err
+	}
+
+	if err := t.Get("system-label", &systemLabel); err != nil {
 		return err
 	}
 
@@ -1276,7 +1281,7 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		err = preseed.Classic(targetChroot)
+		err = preseed.Hybrid(targetChroot, systemLabel)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)

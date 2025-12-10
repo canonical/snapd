@@ -2363,7 +2363,7 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	return chg, nil
 }
 
-func InstallPreseed(st *state.State, chroot string) (*state.Change, error) {
+func InstallPreseed(st *state.State, label string, chroot string) (*state.Change, error) {
 	if chroot == "" {
 		return nil, fmt.Errorf("cannot preseed installed system without a chroot")
 	}
@@ -2375,6 +2375,7 @@ func InstallPreseed(st *state.State, chroot string) (*state.Change, error) {
 	chg := st.NewChange(installStepTargetPreseedChangeKind, fmt.Sprintf("Preseed installed system in %q", chroot))
 	preseedRunTask := st.NewTask("install-preseed", fmt.Sprintf("Preseed installed system in %q", chroot))
 	preseedRunTask.Set("target-chroot", chroot)
+	preseedRunTask.Set("system-label", label)
 	chg.AddTask(preseedRunTask)
 
 	return chg, nil
