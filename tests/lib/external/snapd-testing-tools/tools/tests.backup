@@ -23,7 +23,7 @@ cmd_restore() {
     if [ -f "${BACKUP_PATH}.tar" ]; then
         # Find all the files in the path $BACKUP_PATH and delete them
         # This command deletes also the hidden files
-        find "${BACKUP_PATH}" -maxdepth 1 -mindepth 1 -exec rm -rf {} \;
+        find "${BACKUP_PATH}" -maxdepth 1 -mindepth 1 -exec rm -rf {} \; 2>/dev/null || true
         tar -C/ -xf "${BACKUP_PATH}.tar"
         rm "${BACKUP_PATH}.tar"
     else
