@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -178,6 +179,7 @@ type interfaceManagerSuite struct {
 	o              *overlord.Overlord
 	state          *state.State
 	se             *overlord.StateEngine
+	noticeMgr      *notices.NoticeManager
 	privateMgr     *ifacestate.InterfaceManager
 	privateHookMgr *hookstate.HookManager
 	extraIfaces    []interfaces.Interface
@@ -244,6 +246,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
 
+	s.noticeMgr = notices.NewNoticeManager(s.state)
+
 	s.SetupAsserts(c, s.state, &s.BaseTest)
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -306,7 +310,7 @@ slots:
 	s.BaseTest.AddCleanup(ifacestate.MockInterfacesRequestsManagerStop(fakeInterfacesRequestsManagerStop))
 }
 
-var fakeCreateInterfacesRequestsManager = func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+var fakeCreateInterfacesRequestsManager = func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 	return nil, nil
 }
 
@@ -335,7 +339,7 @@ func addForeignTaskHandlers(runner *state.TaskRunner) {
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
+		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.noticeMgr, s.o.TaskRunner(), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
 		addForeignTaskHandlers(s.o.TaskRunner())
 		mgr.DisableUDevMonitor()
@@ -387,12 +391,8 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingEnabled(c *C) {
 	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		createCount++
-		// InterfacesRequestsManager may record notices during creation, so
-		// simulate it acquiring the state lock to do so.
-		s.Lock()
-		defer s.Unlock()
 		return fakeManager, nil
 	})
 	defer restore()
@@ -437,7 +437,7 @@ func (s *interfaceManagerSuite) TestSmokeAppArmorPromptingDisabled(c *C) {
 	defer restore()
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		c.Errorf("unexpectedly called m.initInterfacesRequestsManager")
 		createCount++
 		return fakeManager, nil
@@ -7032,13 +7032,13 @@ func (s *interfaceManagerSuite) TestInterfacesRequestsManagerNoHandlerService(c 
 
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		createCount++
 		return fakeManager, nil
 	})
 	defer restore()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -7079,13 +7079,13 @@ func (s *interfaceManagerSuite) TestInterfacesRequestsManagerHandlerServicePrese
 
 	createCount := 0
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		createCount++
 		return fakeManager, nil
 	})
 	defer restore()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -7120,12 +7120,12 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	defer restore()
 
 	createError := fmt.Errorf("custom error")
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		return nil, createError
 	})
 	defer restore()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -7157,7 +7157,7 @@ func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 	})
 	defer restore()
 	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
-	restore = ifacestate.MockCreateInterfacesRequestsManager(func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error) {
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
 		return fakeManager, nil
 	})
 	defer restore()
@@ -8382,7 +8382,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	})
 	defer restoreCreate()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
 	c.Assert(s.o.StartUp(), IsNil)
@@ -8423,7 +8423,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	})
 	defer restoreCreate()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
 	c.Assert(s.o.StartUp(), IsNil)
@@ -8459,7 +8459,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	})
 	defer restoreCreate()
 
-	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
 	c.Assert(s.o.StartUp(), IsNil)
