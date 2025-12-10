@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -1281,7 +1280,9 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		err = preseed.Hybrid(targetChroot, systemLabel)
+
+		cmd := exec.Command("snap", "debug", "preseed-chroot", targetChroot, systemLabel)
+		err = cmd.Run()
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
