@@ -32,6 +32,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap/naming"
@@ -532,6 +533,8 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
 
+	logger.Debugf("inside chroot: %s", preseedChroot)
+
 	if err := os.Chdir("/"); err != nil {
 		return nil, nil, fmt.Errorf("cannot chdir to /: %v", err)
 	}
@@ -802,7 +805,7 @@ func Hybrid(chrootDir, label string) error {
 	}
 
 	if err := checkChroot(chrootDir); err != nil {
-		return err
+		return fmt.Errorf("chroot verification failed: %w", err)
 	}
 
 	var targetSnapd *targetSnapdInfo
@@ -815,7 +818,7 @@ func Hybrid(chrootDir, label string) error {
 	const reset = false
 	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot prepare chroot: %w", err)
 	}
 	defer cleanup()
 
