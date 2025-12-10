@@ -53,6 +53,9 @@ var (
 
 	ResealKeysWithTPM          = resealKeysWithTPM
 	ResealKeysWithFDESetupHook = resealKeysWithFDESetupHook
+
+	EntropyBits = entropyBitsImpl
+	ValidatePIN = validatePINImpl
 )
 
 func ExtractSbRunChecksContext(checkContext *PreinstallCheckContext) *sb_preinstall.RunChecksContext {

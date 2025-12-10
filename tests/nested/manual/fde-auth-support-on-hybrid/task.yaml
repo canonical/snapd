@@ -4,7 +4,7 @@ details: |
   This test installs an encrypted hybrid Ubuntu system using muinstaller
   which is then protected by PIN and passphrase authentication after
   first boot. Multiple transitions between the available authentication
-  modes are excercised (PIN <-> Passphrase <-> None).
+  modes are exercised (PIN <-> Passphrase <-> None).
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
@@ -222,7 +222,7 @@ execute: |
   reboot_with_passphrase "ubuntu-3"
 
   # Let's switch to PINs as root
-   remote_action_request '{"action": "replace-platform-key", "auth-mode": "pin", "pin": "1234"}'
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "pin", "pin": "1234"}'
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"
 
@@ -290,7 +290,7 @@ execute: |
   snap pack --filename=pc-new.snap pc-gadget/
   refresh_rebooting_snap pc-new.snap pc
 
-  # We expect a reseals, PCR profile should have been updated.
+  # We expect a reseal, PCR profile should have been updated.
   remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
   not diff pcr_profile pcr_profile_current
   mv pcr_profile_current pcr_profile
@@ -301,7 +301,7 @@ execute: |
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$PWD/pc-kernel-new.snap"
   refresh_rebooting_snap pc-kernel-new.snap pc
 
-  # We expect a reseals, PCR profile should have been updated.
+  # We expect a reseal, PCR profile should have been updated.
   remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
   not diff pcr_profile pcr_profile_current
   mv pcr_profile_current pcr_profile

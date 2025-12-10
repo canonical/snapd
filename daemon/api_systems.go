@@ -657,8 +657,8 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 
 var deviceCheckAuthQuality = device.CheckAuthQuality
 
-func postCheckAuthQuality(mode device.AuthMode, passphrase string) Response {
-	result, err := deviceCheckAuthQuality(mode, passphrase)
+func postCheckAuthQuality(mode device.AuthMode, authVal string) Response {
+	result, err := deviceCheckAuthQuality(mode, authVal)
 	if err != nil {
 		var qualityErr *device.AuthQualityError
 		if errors.As(err, &qualityErr) {

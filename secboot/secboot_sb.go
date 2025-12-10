@@ -78,8 +78,8 @@ var (
 func init() {
 	WithSecbootSupport = true
 
-	device.EntropyBits = EntropyBits
-	device.ValidatePIN = ValidatePIN
+	device.EntropyBits = entropyBitsImpl
+	device.ValidatePIN = validatePINImpl
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
@@ -707,11 +707,11 @@ func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return &keyData{kd: kd}, nil
 }
 
-// EntropyBits calculates entropy for PINs and passphrases.
+// entropyBitsImpl calculates entropy for PINs and passphrases.
 //
 // PINs will be supplied as a numeric passphrase.
-func EntropyBits(passphrase string) (uint32, error) {
-	stats, err := sbCheckPassphraseEntropy(passphrase)
+func entropyBitsImpl(authVal string) (uint32, error) {
+	stats, err := sbCheckPassphraseEntropy(authVal)
 	if err != nil {
 		return 0, err
 	}
@@ -806,10 +806,10 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 	}
 }
 
-// ValidatePIN checks that the passed PIN is formatted properly.
+// validatePINImpl checks that the passed PIN is formatted properly.
 // If the supplied PIN larger than 255 characters or contains
 // anything other than base-10 digits, an error will be returned.
-func ValidatePIN(pin string) error {
+func validatePINImpl(pin string) error {
 	_, err := secboot.ParsePIN(pin)
 	return err
 }

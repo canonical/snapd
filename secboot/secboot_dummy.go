@@ -183,10 +183,6 @@ func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return nil, errBuildWithoutSecboot
 }
 
-func EntropyBits(passphrase string) (uint32, error) {
-	return 0, errBuildWithoutSecboot
-}
-
 func RenameContainerKey(devicePath, oldName, newName string) error {
 	return errBuildWithoutSecboot
 }
@@ -212,8 +208,4 @@ type ActivateContext interface {
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return nil, nil
-}
-
-func ValidatePIN(pin string) error {
-	return errBuildWithoutSecboot
 }

@@ -158,9 +158,9 @@ func (et EncryptionType) IsLUKS() bool {
 	return et == EncryptionTypeLUKS || et == EncryptionTypeLUKSWithICE
 }
 
-// Hook setup by secboot to validate PIN format.
-//
-// Note: in most cases VolumesAuthOptions.Validate() should be used instead.
+// ValidatePIN checks that the passed PIN is formatted properly.
+// If the supplied PIN larger than 255 characters or contains
+// anything other than base-10 digits, an error will be returned.
 var ValidatePIN func(pin string) error = validatePINImpl
 
 func validatePINImpl(pin string) error {
@@ -212,13 +212,13 @@ func (o *VolumesAuthOptions) Validate() error {
 			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
 		}
 	default:
-		return fmt.Errorf("invalid authentication mode %q, only %q and %q modes are supported", o.Mode, AuthModePassphrase, AuthModePIN)
+		return fmt.Errorf("cannot use authentication mode %q, only %q and %q modes are supported", o.Mode, AuthModePassphrase, AuthModePIN)
 	}
 
 	switch o.KDFType {
 	case "argon2i", "argon2id", "pbkdf2", "":
 	default:
-		return fmt.Errorf("invalid kdf type %q, only \"argon2i\", \"argon2id\" and \"pbkdf2\" are supported", o.KDFType)
+		return fmt.Errorf("cannot use kdf type %q, only \"argon2i\", \"argon2id\" and \"pbkdf2\" are supported", o.KDFType)
 	}
 
 	if o.KDFTime != 0 {
@@ -266,10 +266,11 @@ type AuthQuality struct {
 // Hook setup by secboot to calculate entropy for PINs and passphrases.
 // PINs will be supplied as a numeric passphrase.
 //
-// Note: in most cases CheckAuthQuality should be used instead.
-var EntropyBits func(passphrase string) (uint32, error) = entropyBitsImpl
+// Note: in most cases CheckAuthQuality should be used instead
+// as it provides structured errors instead of raw entropy values.
+var EntropyBits func(authVal string) (uint32, error) = entropyBitsImpl
 
-func entropyBitsImpl(passphrase string) (uint32, error) {
+func entropyBitsImpl(authVal string) (uint32, error) {
 	panic("entropy bits calculation callback not set up")
 }
 
@@ -288,13 +289,13 @@ const (
 // more information about the given passphrase or PIN quality.
 //
 // PINs will be supplied as a numeric passphrase.
-func CheckAuthQuality(mode AuthMode, passphrase string) (AuthQuality, error) {
+func CheckAuthQuality(mode AuthMode, authVal string) (AuthQuality, error) {
 	minEntropy, optimalEntropy := minPassphraseEntropyBits, optimalPassphraseEntropyBits
 	if mode == AuthModePIN {
 		minEntropy, optimalEntropy = minPINEntropyBits, optimalPINEntropyBits
 	}
 
-	entropy, err := EntropyBits(passphrase)
+	entropy, err := EntropyBits(authVal)
 	if err != nil {
 		return AuthQuality{}, err
 	}

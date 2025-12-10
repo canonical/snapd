@@ -184,7 +184,7 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 
 	// Bad auth mode
 	opts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `cannot use authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	// Empty passphrase
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
@@ -209,7 +209,7 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	c.Assert(opts.Validate(), ErrorMatches, `passphrase and pin cannot be set at the same time`)
 	// Bad kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `cannot use kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
 	// Setting kdf time is not supported
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
 	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be set")

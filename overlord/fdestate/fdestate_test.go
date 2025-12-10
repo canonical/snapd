@@ -830,7 +830,7 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 
 	// unsupported auth mode
 	_, err := fdestate.ReplacePlatformKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
-	c.Assert(err, ErrorMatches, `invalid authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
+	c.Assert(err, ErrorMatches, `cannot use authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
 
 	// invalid key slot reference
 	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
