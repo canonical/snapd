@@ -76,7 +76,8 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys)
+	// TODO: support constraints
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, nil)
 	if err != nil {
 		return toAPIError(err)
 	}
