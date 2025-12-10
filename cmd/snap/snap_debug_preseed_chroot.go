@@ -28,6 +28,7 @@ import (
 )
 
 type cmdPreseedChroot struct {
+	Reset      bool `long:"reset"`
 	Positional struct {
 		Chroot      string `positional-arg-name:"<chroot>"`
 		SystemLabel string `positional-arg-name:"<system-label>"`
@@ -44,8 +45,15 @@ func init() {
 }
 
 func (x *cmdPreseedChroot) Execute(args []string) error {
-	if err := preseed.Hybrid(x.Positional.Chroot, x.Positional.SystemLabel); err != nil {
-		return fmt.Errorf("cannot preseed hybrid system: %w", err)
+	if !x.Reset {
+		if err := preseed.Hybrid(x.Positional.Chroot, x.Positional.SystemLabel); err != nil {
+			return fmt.Errorf("cannot preseed hybrid system: %w", err)
+		}
+	} else {
+		if err := preseed.HybridReset(x.Positional.Chroot, x.Positional.SystemLabel); err != nil {
+			return fmt.Errorf("cannot reset hybrid system: %w", err)
+		}
+
 	}
 	return nil
 }
