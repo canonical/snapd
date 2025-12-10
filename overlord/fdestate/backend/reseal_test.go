@@ -382,11 +382,30 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 		},
 	}
 
+	expectedCheckResult := &secboot.PreinstallCheckResult{}
+	loadCheckResultCalls := 0
+	defer backend.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		loadCheckResultCalls++
+
+		c.Check(filename, Equals, device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir))
+
+		if !tc.onClassic {
+			return nil, nil
+		}
+		return expectedCheckResult, nil
+	})()
+
 	buildProfileCalls := 0
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
 		c.Check(allowInsufficientDmaProtection, Equals, !tc.onClassic)
+
+		if tc.onClassic {
+			c.Check(checkResult, Equals, expectedCheckResult)
+		} else {
+			c.Check(checkResult, IsNil)
+		}
 
 		c.Assert(modelParams, HasLen, 1)
 		mp := modelParams[0]
@@ -577,6 +596,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	c.Assert(bootIsResealNeededCalls, Equals, 2)
 
 	c.Check(resealCalls, Equals, 3)
+	c.Check(loadCheckResultCalls, Equals, 1)
 
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
@@ -2668,7 +2688,9 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 		},
 	}
 
+	buildPCRProtectionProfileCalls := 0
 	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
+		buildPCRProtectionProfileCalls++
 		return []byte(`"serialized-pcr-profile"`), nil
 	})()
 
