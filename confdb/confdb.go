@@ -1768,24 +1768,21 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
-// TODO: when constraints are applied to path placeholders, this should take
-// constraints to be passed into matchGetRequest (it's not unsafe not to do it
-// but it would include more paths in the check than necessary)
-func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
+func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]string) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
 		requests = []string{""}
 	}
 
 	opts := ParseOptions{AllowPlaceholders: false}
-	var matches []requestMatch
+	var paths [][]Accessor
 	for _, request := range requests {
 		accessors, err := ParsePathIntoAccessors(request, opts)
 		if err != nil {
 			return false, err
 		}
 
-		reqMatches, err := v.matchGetRequest(accessors)
+		matches, err := v.matchGetRequest(accessors)
 		if err != nil {
 			if errors.Is(err, &NoMatchError{}) {
 				// we serve partial reads so check other paths
@@ -1795,18 +1792,35 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 			return false, err
 		}
 
-		if len(reqMatches) != 0 {
-			matches = append(matches, reqMatches...)
+		for _, match := range matches {
+			// use constraints to fill in placeholders so ephemeral check cuts out
+			// unnecessary branches
+			if len(constraints) != 0 {
+				for i, acc := range match.storagePath {
+					if acc.Type() != KeyPlaceholderType {
+						continue
+					}
+
+					val, ok := constraints[acc.Name()]
+					if !ok {
+						continue
+					}
+
+					match.storagePath[i] = newKey(val, acc.FieldFilters())
+				}
+			}
+
+			paths = append(paths, match.storagePath)
 		}
 	}
 
-	if len(matches) == 0 {
+	if len(paths) == 0 {
 		return false, NewNoMatchError(v, "get", requests)
 	}
 
 	schema := []DatabagSchema{v.schema.DatabagSchema}
-	for _, match := range matches {
-		ephemeral, err := anyEphemeralSchema(schema, match.storagePath)
+	for _, path := range paths {
+		ephemeral, err := anyEphemeralSchema(schema, path)
 		if err != nil {
 			// shouldn't be possible unless there's a view/schema mismatch
 			return false, fmt.Errorf("cannot check if read affects ephemeral data: %v", err)

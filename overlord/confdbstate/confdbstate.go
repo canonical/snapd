@@ -736,7 +736,8 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 		ts.AddTask(t)
 	}
 
-	mightAffectEph, err := view.ReadAffectsEphemeral(requests)
+	// TODO: take constraints into account
+	mightAffectEph, err := view.ReadAffectsEphemeral(requests, nil)
 	if err != nil {
 		return nil, err
 	}
