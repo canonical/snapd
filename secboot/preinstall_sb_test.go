@@ -485,7 +485,7 @@ func (s *preinstallSuite) TestSave(c *C) {
 			PCRAlg: tpm2.HashAlgorithmSHA512,
 			Flags:  sb_preinstall.NoPlatformConfigProfileSupport | sb_preinstall.NoDriversAndAppsProfileSupport,
 		},
-		sb_preinstall.PCRProfileOptionsDefault,
+		sb_preinstall.PCRProfileOptionsDefault|sb_preinstall.PCRProfileOptionMostSecure|sb_preinstall.PCRProfileOptionNoDiscreteTPMResetMitigation,
 	)
 
 	expectedData :=
@@ -498,7 +498,10 @@ func (s *preinstallSuite) TestSave(c *C) {
       "no-drivers-and-apps-profile-support"
     ]
   },
-  "pcr-profile-opts": []
+  "pcr-profile-opts": [
+    "most-secure",
+    "no-discrete-tpm-reset-mitigation"
+  ]
 }`
 
 	err := secboot.Save(expectedCheckResult, filename)
