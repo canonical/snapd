@@ -317,21 +317,21 @@ func postSystemsInstallFinish(cli *client.Client,
 	return waitChange(chgId)
 }
 
-func postSystemsInstallPreseed(cli *client.Client,
-	details *client.SystemDetails, chroot string) error {
+// func postSystemsInstallPreseed(cli *client.Client,
+// 	details *client.SystemDetails, chroot string) error {
 
-	// Finish steps does the writing of assets
-	opts := &client.InstallSystemOptions{
-		Step:   client.InstallStepPreseed,
-		Chroot: &chroot,
-	}
-	chgId, err := cli.InstallSystem(details.Label, opts)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Change %s created\n", chgId)
-	return waitChange(chgId)
-}
+// 	// Finish steps does the writing of assets
+// 	opts := &client.InstallSystemOptions{
+// 		Step:   client.InstallStepPreseed,
+// 		Chroot: &chroot,
+// 	}
+// 	chgId, err := cli.InstallSystem(details.Label, opts)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("Change %s created\n", chgId)
+// 	return waitChange(chgId)
+// }
 
 func maybeGetOptionalInstall(path string) (*client.OptionalInstallRequest, error) {
 	if path == "" {
@@ -640,9 +640,9 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyO
 	}
 
 	// TODO when to run this?
-	if err := postSystemsInstallPreseed(cli, details, runMntFor("ubuntu-data")); err != nil {
-		return fmt.Errorf("cannot preseed installed system: %w", err)
-	}
+	// if err := postSystemsInstallPreseed(cli, details, runMntFor("ubuntu-data")); err != nil {
+	// 	return fmt.Errorf("cannot preseed installed system: %w", err)
+	// }
 
 	// TODO: reboot here automatically (optional)
 
