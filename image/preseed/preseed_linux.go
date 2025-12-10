@@ -31,6 +31,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -107,10 +108,13 @@ func checkChroot(preseedChroot string) error {
 }
 
 var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, baseSnap string, err error) {
+	logger.Debugf("open seed directory: %v, system label: %q", seedDir, sysLabel)
 	seed, err := seedOpen(seedDir, sysLabel)
 	if err != nil {
 		return "", "", err
 	}
+
+	logger.Debugf("seed: %+v", seed)
 
 	// load assertions into temporary database
 	if err := seed.LoadAssertions(nil, nil); err != nil {
@@ -125,7 +129,11 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	}
 
 	if model.Classic() {
-		fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
+		if model.Grade() != asserts.ModelGradeUnset {
+			fmt.Fprintf(Stdout, "ubuntu hybrid preseeding, base: %q\n", model.Base())
+		} else {
+			fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
+		}
 	} else {
 		coreVersion, err := naming.CoreVersion(model.Base())
 		if err != nil {
@@ -686,11 +694,14 @@ func createPreseedArtifact(opts *preseedCoreOptions) (digest []byte, err error) 
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
+func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid bool) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1", "SNAPD_DEBUG=1")
+	if hybrid {
+		cmd.Env = append(cmd.Env, "SNAPD_PRESEED_HYBRID=1")
+	}
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
@@ -792,7 +803,8 @@ func Classic(chrootDir string) error {
 	defer cleanup()
 
 	// executing inside the chroot
-	return runPreseedMode(chrootDir, targetSnapd)
+	const hybrid = false
+	return runPreseedMode(chrootDir, targetSnapd, hybrid)
 }
 
 // Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
@@ -823,7 +835,8 @@ func Hybrid(chrootDir, label string) error {
 	defer cleanup()
 
 	// executing inside the chroot
-	return runPreseedMode(chrootDir, targetSnapd)
+	const hybrid = true
+	return runPreseedMode(chrootDir, targetSnapd, hybrid)
 }
 
 func ClassicReset(chrootDir string) error {
