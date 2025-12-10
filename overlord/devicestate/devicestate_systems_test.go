@@ -2968,6 +2968,10 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 // preinstall check context returned by preinstall check
 var preinstallCheckContext = &secboot.PreinstallCheckContext{}
 
+// preinstall check result returned by preinstall check, in reality subcomponent
+// of preinstall check context, but declared separately for testing
+var preinstallCheckResult = &secboot.PreinstallCheckResult{}
+
 // representative preinstall action
 var preinstallAction = &secboot.PreinstallAction{
 	Action: "SecbootAction",

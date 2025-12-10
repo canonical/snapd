@@ -97,6 +97,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		expSealCalls      int
 		disableTokens     bool
 		withVolumesAuth   bool
+		withCheckResult   bool
 		onCore            bool
 	}{
 		{
@@ -108,7 +109,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			expProvisionCalls: 1, expSealCalls: 2, onCore: true,
 		}, {
 			sealErr: nil, expErr: "",
-			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true,
+			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true, withCheckResult: true,
 		}, {
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true,
@@ -126,7 +127,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, factoryReset: true,
-			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true,
+			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true, withCheckResult: true,
 		}, {
 			sealErr: nil, factoryReset: true,
 			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true,
@@ -184,6 +185,11 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		var volumesAuth *device.VolumesAuthOptions
 		if tc.withVolumesAuth {
 			volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+		}
+
+		var checkResult *secboot.PreinstallCheckResult
+		if tc.withCheckResult {
+			checkResult = &secboot.PreinstallCheckResult{}
 		}
 
 		provisionCalls := 0
@@ -246,6 +252,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
 			c.Assert(params.VolumesAuth, Equals, volumesAuth)
+			c.Assert(params.CheckResult, Equals, checkResult)
 			c.Assert(params.ModelParams, HasLen, 1)
 
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
@@ -379,7 +386,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 			UseTokens:              !tc.disableTokens,
 		}
-		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, params)
+		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, checkResult, params)
 
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
@@ -583,7 +590,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		PrimaryKey:             []byte{1, 2, 3, 4},
 		KeyProtectorFactory:    mockFactory,
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, nil, params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -668,7 +675,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, nil, params)
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
