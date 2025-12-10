@@ -129,7 +129,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	}
 
 	if model.Classic() {
-		if model.Grade() != asserts.ModelGradeUnset {
+		if model.HybridClassic() {
 			fmt.Fprintf(Stdout, "ubuntu hybrid preseeding, base: %q\n", model.Base())
 		} else {
 			fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
