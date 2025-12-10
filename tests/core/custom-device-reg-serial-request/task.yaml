@@ -37,7 +37,7 @@ prepare: |
     prepare_testrootorg_store
 
     # start fake device svc
-    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+    systemd-run --unit fakedevicesvc 'fakedevicesvc' localhost:11029
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -90,4 +90,4 @@ execute: |
     snap model --serial --assertion|MATCH "authority-id: developer1"
     snap model --serial --assertion|MATCH "brand-id: developer1"
     snap model --serial --assertion|MATCH "model: my-model"
-    snap model --serial --assertion|MATCH "serial: 7777"
+    snap model --serial --assertion|MATCH "serial: 3333"
