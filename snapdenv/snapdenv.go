@@ -92,3 +92,9 @@ func MockPreseeding(preseeding bool) (restore func()) {
 		mockPreseeding = old
 	}
 }
+
+// Preseeding returns whether snapd is preseeding, i.e. performing a
+// partial first boot updating only filesystem state inside a chroot.
+func PreseedingHybrid() bool {
+	return Preseeding() && osutil.GetenvBool("SNAPD_PRESEED_HYBRID")
+}
