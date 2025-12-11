@@ -92,7 +92,7 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 	return fdeRelevantSnaps(t.State())
 }
 
-// checkSecureBootChangeConflicts check that there are no conflicting
+// checkSecureBootChangeConflicts checks that there are no conflicting
 // changes for SecureBoot Key Database updates. It is a finer grained conflict
 // check that can produce more useful error when exercising SecureBoot related
 // APIs, but should be used in combination with checkFDEChangeConflict.
@@ -143,7 +143,7 @@ func addPlatformKeysAffectedSnaps(t *state.Task) ([]string, error) {
 	return fdeRelevantSnaps(t.State())
 }
 
-// checkFDEParametersChangeConflicts check that there are no conflicting
+// checkFDEParametersChangeConflicts checks that there are no conflicting
 // changes affecting the FDE parameters.
 //
 // Note: This does not check for DBX updates and should be used in
