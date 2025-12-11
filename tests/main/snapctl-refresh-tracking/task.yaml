@@ -24,6 +24,6 @@ execute: |
     echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "latest/stable"
 
     if [ "$USER" != "root" ]; then
-        not tests.session exec test sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-pending.log 2>&1
+        not tests.session exec sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-pending.log 2>&1
         MATCH "^non-root users can only use --tracking with the refresh command$" < user-err-pending.log
     fi
