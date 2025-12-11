@@ -484,7 +484,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 
 	componentsTSS, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, prepare.ID(), ic.FromChange,
+		compsups, st, snapst, snapsup, prepare, ic.FromChange,
 	)
 	if err != nil {
 		return nil, err
@@ -917,16 +917,16 @@ func splitComponentTasksForInstall(
 	st *state.State,
 	snapst *SnapState,
 	snapsup SnapSetup,
-	snapSetupTaskID string,
+	snapsupTask *state.Task,
 	fromChange string,
 ) (multiComponentInstallTaskSet, error) {
 	componentTSS := make([]componentInstallTaskSet, 0, len(compsups))
 	for _, compsup := range compsups {
-		componentTS, err := doInstallComponent(st, snapst, compsup, snapsup, snapSetupTaskID, nil, nil, fromChange)
+		cts, _, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, fromChange)
 		if err != nil {
 			return multiComponentInstallTaskSet{}, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}
-		componentTSS = append(componentTSS, componentTS)
+		componentTSS = append(componentTSS, cts)
 	}
 	return newMultiComponentInstallTaskSet(componentTSS...), nil
 }
