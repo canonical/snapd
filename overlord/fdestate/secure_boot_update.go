@@ -61,33 +61,8 @@ func (db EFISecurebootKeyDatabase) String() string {
 	case EFISecurebootDBX:
 		return "DBX"
 	default:
-		return "unknown"
+		return fmt.Sprintf("unknown EFISecurebootKeyDatabase: <%d>", db)
 	}
-}
-
-// EFISecurebootKeyDatabaseFromString returns the EFISecurebootKeyDatabase value
-// matching the provided string, or -1 if the string is not recognized.
-func EFISecurebootKeyDatabaseFromString(dbString string) EFISecurebootKeyDatabase {
-	switch dbString {
-	case "PK":
-		return EFISecurebootPK
-	case "KEK":
-		return EFISecurebootKEK
-	case "DB":
-		return EFISecurebootDB
-	case "DBX":
-		return EFISecurebootDBX
-	default:
-		return -1
-	}
-}
-
-// EFISecureBootKeyDatabaseIsSupportedString returns whether the provided
-// database kind string is supported.
-//
-// This is intended for API calls where the string is provided by the user.
-func EFISecureBootKeyDatabaseIsSupportedString(dbString string) bool {
-	return EFISecurebootKeyDatabaseFromString(dbString) != -1
 }
 
 // EFISecureBootDBUpdatePrepare notifies that the local EFI key
