@@ -60,12 +60,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// control flags for doInstall
-const (
-	skipConfigure = 1 << iota
-	noRestartBoundaries
-)
-
 // control flags for "Configure()"
 const (
 	IgnoreHookError = 1 << iota
@@ -336,7 +330,20 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, deviceCtx DeviceContext) (*state.TaskSet, error) {
+// installContext carries auxiliary, per-invocation settings that affect how
+// installation task graphs are constructed.
+//
+// This type would also carry information like a preexisting snap-setup
+// task, or maybe sets of preexisting tasks that need to be considered when
+// creating the installation graph.
+type installContext struct {
+	FromChange          string
+	DeviceCtx           DeviceContext
+	SkipConfigure       bool
+	NoRestartBoundaries bool
+}
+
+func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -372,7 +379,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.FromChange); err != nil {
 		return nil, err
 	}
 
@@ -395,7 +402,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			}
 			// If snapsup.Version was smaller, 1 is returned.
 			if res == 1 {
-				if err := checkChangeConflictExclusiveKinds(st, "snapd downgrade", fromChange); err != nil {
+				if err := checkChangeConflictExclusiveKinds(st, "snapd downgrade", ic.FromChange); err != nil {
 					return nil, err
 				}
 			}
@@ -477,7 +484,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 
 	componentsTSS, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, prepare.ID(), fromChange,
+		compsups, st, snapst, snapsup, prepare.ID(), ic.FromChange,
 	)
 	if err != nil {
 		return nil, err
@@ -561,6 +568,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	// we need to know some of the characteristics of the device - it is
 	// expected to always have a model/device context at this point.
+	deviceCtx := ic.DeviceCtx
 	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
 	if err != nil {
 		return nil, err
@@ -580,7 +588,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	// kernel command line from gadget is for core boot systems only
 	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeGadget {
 		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
+		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
 			return nil, err
 		}
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
@@ -661,7 +669,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
+		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
 			return nil, err
 		}
 		// only run for core devices and the snapd snap, run late enough
@@ -832,12 +840,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
 	installSet.MarkEdge(finalBeforeLocalSystemModifications, LastBeforeLocalModificationsEdge)
-	if flags&noRestartBoundaries == 0 {
+	if !ic.NoRestartBoundaries {
 		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{installSet}); err != nil {
 			return nil, err
 		}
 	}
-	if flags&skipConfigure != 0 {
+	if ic.SkipConfigure {
 		if cleanupTask != nil {
 			installSet.MarkEdge(cleanupTask, EndEdge)
 		} else {
@@ -2448,7 +2456,11 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, opts.DeviceCtx)
+		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, installContext{
+			FromChange:          opts.FromChange,
+			DeviceCtx:           opts.DeviceCtx,
+			NoRestartBoundaries: true,
+		})
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -4371,7 +4383,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
+	return doInstall(st, &snapst, snapsup, compsups, installContext{FromChange: fromChange})
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4425,7 +4437,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, nil, 0, "", nil)
+		}, nil, installContext{})
 		if err != nil {
 			return nil, err
 		}
