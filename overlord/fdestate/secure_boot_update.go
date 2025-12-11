@@ -50,9 +50,7 @@ const (
 	EFISecurebootDBX
 )
 
-// EFISecurebootKeyDatabaseString returns a string representation of the
-// database kind.
-func EFISecurebootKeyDatabaseString(db EFISecurebootKeyDatabase) string {
+func (db EFISecurebootKeyDatabase) String() string {
 	switch db {
 	case EFISecurebootPK:
 		return "PK"
@@ -67,7 +65,7 @@ func EFISecurebootKeyDatabaseString(db EFISecurebootKeyDatabase) string {
 	}
 }
 
-// EFISecurebootKeyDatabaseFromString returns the EFISecurebootKeyDatabase value 
+// EFISecurebootKeyDatabaseFromString returns the EFISecurebootKeyDatabase value
 // matching the provided string, or -1 if the string is not recognized.
 func EFISecurebootKeyDatabaseFromString(dbString string) EFISecurebootKeyDatabase {
 	switch dbString {
@@ -282,7 +280,7 @@ func addEFISecurebootDBUpdateChange(
 	// if the original requester never calls cleanup/startup, the change
 	// will be pruned automatically and the undo will perform a reseal
 
-	updateKindStr := EFISecurebootKeyDatabaseString(db)
+	updateKindStr := db.String()
 	tPrep := st.NewTask("efi-secureboot-db-update-prepare",
 		fmt.Sprintf("Prepare for external EFI %s update", updateKindStr))
 	tUpdateWait := st.NewTask("efi-secureboot-db-update",

@@ -39,7 +39,7 @@ func checkFDEChangeConflict(st *state.State) error {
 		switch chg.Kind() {
 		case "fde-efi-secureboot-db-update":
 			return &snapstate.ChangeConflictError{
-				Message: "external EFI SecureBoot Key Database update in progress, no other FDE changes allowed until this is done",
+				Message:    "external EFI SecureBoot Key Database update in progress, no other FDE changes allowed until this is done",
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
@@ -82,9 +82,9 @@ func checkFDEChangeConflict(st *state.State) error {
 func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 	// TODO:FDEM: check if we have sealed keys at all
 
-	// DBX updates cause a reseal, so any snaps which are either directly
-	// measured or their content is measured during the boot will count as
-	// affected
+	// SecureBoot updates can cause a reseal, so any snaps
+	// which are either directly measured or their content is measured
+	// during the boot will count as affected
 
 	// XXX this effectively blocks updates of gadget, kernel & base until the
 	// change completes
@@ -114,7 +114,7 @@ func checkSecureBootChangeConflicts(st *state.State, db EFISecurebootKeyDatabase
 		return err
 	}
 
-	updateKindStr := EFISecurebootKeyDatabaseString(db)
+	updateKindStr := db.String()
 	if op != nil {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
@@ -146,7 +146,7 @@ func addPlatformKeysAffectedSnaps(t *state.Task) ([]string, error) {
 // checkFDEParametersChangeConflicts checks that there are no conflicting
 // changes affecting the FDE parameters.
 //
-// Note: This does not check for DBX updates and should be used in
+// Note: This does not check for SecureBoot updates and should be used in
 // combination with checkFDEChangeConflict.
 func checkFDEParametersChangeConflicts(st *state.State) error {
 	snaps, err := fdeRelevantSnaps(st)
