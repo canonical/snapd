@@ -48,6 +48,8 @@ type (
 	TooSoonError = tooSoonError
 
 	Target = target
+
+	InstallContext = installContext
 )
 
 var ComponentSetupTask = componentSetupTask
@@ -143,10 +145,6 @@ var (
 	ReRefreshSummary                     = reRefreshSummary
 
 	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
-)
-
-const (
-	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
