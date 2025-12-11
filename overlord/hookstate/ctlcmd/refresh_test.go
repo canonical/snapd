@@ -531,12 +531,7 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	var actualData map[string]string
 	err = yaml.Unmarshal([]byte(stdout), &actualData)
 	c.Check(err, IsNil)
-
-	expectedData := map[string]string{
-		"channel": "latest/stable",
-	}
-
-	c.Check(actualData, DeepEquals, expectedData)
+	c.Check(actualData, DeepEquals, map[string]string{"channel": "latest/stable"})
 }
 
 func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
