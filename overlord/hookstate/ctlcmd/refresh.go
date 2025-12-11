@@ -55,10 +55,10 @@ type refreshCommand struct {
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
 var longRefreshHelp = i18n.G(`
-The refresh command prints pending refreshes or the tracking channel of the 
-calling snap and can hold back disruptive refreshes of other snaps, such as 
-refreshes of the kernel or base snaps that can trigger a restart. 
-This command can be used from the gate-auto-refresh hook which is only run 
+The refresh command prints pending refreshes or the tracking channel of the
+calling snap and can hold back disruptive refreshes of other snaps, such as
+refreshes of the kernel or base snaps that can trigger a restart.
+This command can be used from the gate-auto-refresh hook which is only run
 during auto-refresh.
 
 To show the channel the current snap is tracking:
