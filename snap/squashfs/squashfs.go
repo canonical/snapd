@@ -186,6 +186,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// if it fails for whatever reason
 		err := tryLink(osLink, s.path, targetPath, srcVerityPath, destVerityPath)
 		if err == nil {
+			// Success, no need to do the copy
 			return false, nil
 		}
 		if !errors.Is(err, errLinkError) {
@@ -206,6 +207,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
 			err := tryLink(os.Symlink, s.path, targetPath, srcVerityPath, destVerityPath)
 			if err == nil {
+				// Success, no need to do the copy
 				return false, nil
 			}
 			if !errors.Is(err, errLinkError) {
