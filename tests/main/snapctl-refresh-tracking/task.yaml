@@ -25,5 +25,6 @@ execute: |
 
     if [ "$USER" != "root" ]; then
         not tests.session exec -u test sh -c "test-snapd-sh-core24.sh -c 'snapctl refresh --pending'" > user-err-pending.log
+        cat user-err-pending.log
         MATCH "^non-root users can only use --tracking with the refresh command$" < user-err-pending.log
     fi
