@@ -174,6 +174,10 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/**/cvs_ctrl_data_fwupd r,
   /sys/devices/**/cvs_ctrl_data_pre rw,
 
+  # Needed for reboot notification, both reboot-required and reboot-required.pkgs.
+  # As well as temporary files for atomic write.
+  /run/reboot-required* rw,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
