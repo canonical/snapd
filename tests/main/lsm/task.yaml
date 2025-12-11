@@ -33,7 +33,7 @@ execute: |
       amazon-linux-*)
           no_kernel_support=1
           ;;
-      opensuse-15*|opensuse-16*)
+      opensuse-15*)
           no_kernel_support=1
           ;;
   esac

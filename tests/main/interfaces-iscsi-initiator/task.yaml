@@ -17,7 +17,7 @@ details: |
 # Disable tests for ubuntu 1* environments, as they are not a target of this change
 # and `--collect` argument to systemd-run is not supported there.
 # Disable tests for opensuse-1* environments
-systems: [-ubuntu-core-*, -ubuntu-1*, -opensuse-15*, -opensuse-16*]
+systems: [-ubuntu-core-*, -ubuntu-1*, -opensuse-15*]
 
 environment:
   TEST_SNAP: test-iscsi-initiator-interfaces
