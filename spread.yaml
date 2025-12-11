@@ -352,23 +352,6 @@ backends:
                   workers: 8
 
     openstack:
-        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS6")'
-        plan: staging-cpu2-ram4-disk20
-        halt-timeout: 2h
-        wait-timeout: 10m
-        groups: [default]
-        environment:
-            HTTP_PROXY: "http://squid.internal:3128"
-            HTTPS_PROXY: "http://squid.internal:3128"
-            http_proxy: "http://squid.internal:3128"
-            https_proxy: "http://squid.internal:3128"
-            no_proxy: '127.0.0.1,127.0.0.53,localhost'
-            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
-        systems:
-
-
-    openstack-ps7:
-        type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
@@ -377,7 +360,7 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
         volume-auto-delete: true
-        environment: &openstack-ps7-env
+        environment: &openstack-env
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
             HTTPS_PROXY: 'http://egress.ps7.internal:3128'
@@ -386,7 +369,7 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
-        systems: &openstack-ps7-systems
+        systems: &openstack-systems
             - ubuntu-16.04-64:
                 image: snapd-spread/ubuntu-16.04-64
                 workers: 8
@@ -463,7 +446,7 @@ backends:
                 image: snapd-spread/centos-9-64
                 workers: 6
 
-    openstack-dev-ps7:
+    openstack-dev:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
         plan: shared.xsmall
@@ -473,10 +456,10 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.54.0/24:4000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
-        systems: *openstack-ps7-systems
+        environment: *openstack-env
+        systems: *openstack-systems
 
-    openstack-ext-ps7:
+    openstack-ext:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.medium
@@ -487,8 +470,8 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
-        systems: &openstack-ps7-nested-systems
+        environment: *openstack-env
+        systems: &openstack-nested-systems
             - ubuntu-16.04-64:
                   image: snapd-spread/ubuntu-16.04-64
                   storage: 20G
@@ -510,7 +493,7 @@ backends:
                   storage: 25G
                   workers: 12
 
-    openstack-validation-ps7:
+    openstack-validation:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.medium
@@ -521,10 +504,10 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
-        systems: *openstack-ps7-nested-systems
+        environment: *openstack-env
+        systems: *openstack-nested-systems
 
-    openstack-arm-ps7:
+    openstack-arm:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
         plan: shared.xsmall.arm64
@@ -534,7 +517,7 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
+        environment: *openstack-env
         systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
                 image: snapd-spread/ubuntu-20.04-arm-64
@@ -553,7 +536,7 @@ backends:
                 image: snapd-spread/ubuntu-24.04-arm-64-uefi
                 workers: 8
 
-    openstack-arm-ext-ps7:
+    openstack-arm-ext:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
         plan: shared.medium.arm64
@@ -563,10 +546,10 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
+        environment: *openstack-env
         systems: *openstack-arm-systems
 
-    openstack-arm-dev-ps7:
+    openstack-arm-dev:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
         plan: shared.xsmall.arm64
@@ -576,10 +559,10 @@ backends:
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.53.0/24:3000]
         volume-auto-delete: true
-        environment: *openstack-ps7-env
+        environment: *openstack-env
         systems: *openstack-arm-systems
 
-    openstack-sru-ps7:
+    openstack-sru:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
@@ -1635,8 +1618,8 @@ suites:
             - qemu-nested
             - google-nested-arm
             - garden
-            - openstack-ext-ps7
-            - openstack-arm-ext-ps7
+            - openstack-ext
+            - openstack-arm-ext
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1714,8 +1697,8 @@ suites:
             - google-nested
             - qemu-nested
             - google-nested-arm
-            - openstack-ext-ps7
-            - openstack-arm-ext-ps7
+            - openstack-ext
+            - openstack-arm-ext
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1775,8 +1758,8 @@ suites:
             - google-nested
             - qemu-nested
             - google-nested-arm
-            - openstack-ext-ps7
-            - openstack-arm-ext-ps7
+            - openstack-ext
+            - openstack-arm-ext
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1847,8 +1830,8 @@ suites:
             - google-nested
             - qemu-nested
             - google-nested-arm
-            - openstack-ext-ps7
-            - openstack-arm-ext-ps7
+            - openstack-ext
+            - openstack-arm-ext
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line

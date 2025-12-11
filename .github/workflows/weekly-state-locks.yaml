@@ -24,7 +24,7 @@ jobs:
       matrix:
         include:
           - group: "ubuntu-24.04"
-            backend: ""
+            backend: "openstack"
             systems: "ubuntu-24.04-64"
             tasks: "tests/main/"
             rules: "main"

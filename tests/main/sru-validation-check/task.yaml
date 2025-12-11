@@ -4,7 +4,7 @@ details: |
     When sru validation is being executed, it is needed to check the correct
     snapd deb is being used and no-reexec policy is applied. 
 
-backends: [openstack-sru-ps7, garden]
+backends: [openstack-sru, garden]
 
 environment: 
     SRU_VALIDATION_VERSION: '$(HOST: echo "${SPREAD_SRU_VALIDATION_VERSION:-}")'
