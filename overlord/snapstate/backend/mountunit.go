@@ -50,7 +50,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 		PreventRestartIfModified: mountFlags.PreventRestartIfModified,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(squashfsPath, "squashfs", mountFlags.StartBeforeDriversLoad)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(squashfsPath, "squashfs", mountFlags.StartBeforeDriversLoad)
 
 	rootHash, err := c.DmVerityDigest()
 	// TODO: in the future, if verity data is not found in the info, the error should be

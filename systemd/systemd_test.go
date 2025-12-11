@@ -1182,7 +1182,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1259,7 +1259,7 @@ WantedBy=multi-user.target
 
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1343,7 +1343,7 @@ WantedBy=multi-user.target
 
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1397,7 +1397,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(snapDir, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(snapDir, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1449,7 +1449,7 @@ func (s *SystemdTestSuite) TestAddMountUnitStartBeforeDriversLoad(c *C) {
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", true)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", true)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1700,7 +1700,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1761,7 +1761,7 @@ exit 0
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -1818,7 +1818,7 @@ exit 0
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2012,7 +2012,7 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2145,7 +2145,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2203,7 +2203,7 @@ WantedBy=multi-user.target
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2261,7 +2261,7 @@ WantedBy=multi-user.target
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2296,7 +2296,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2439,7 +2439,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2519,7 +2519,7 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 		PreventRestartIfModified: true,
 	}
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
@@ -2964,7 +2964,7 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 
 	sysd := New(SystemMode, nil)
 
-	fsType, options, mountUnitType := sysd.ConfigureMountUnitOptions(mockSnapPath, "squashfs", false)
+	fsType, options, mountUnitType := sysd.MountUnitConfiguration(mockSnapPath, "squashfs", false)
 
 	mountOptions.Fstype = fsType
 	mountOptions.Options = options
