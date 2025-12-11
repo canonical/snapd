@@ -1988,6 +1988,9 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
+	restore = osutil.MockMountInfo("")
+	defer restore()
+
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
 	defer mockMountCmd.Restore()
 
@@ -2008,6 +2011,9 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitUnchanged(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	restore = osutil.MockMountInfo("")
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -2047,10 +2053,14 @@ WantedBy=multi-user.target
 	c.Check(mockMountCmd.Calls(), HasLen, 0)
 }
 
-func (s *SystemdTestSuite) TestPreseedModeAddMountUniModified(c *C) {
+func (s *SystemdTestSuite) TestPreseedModeAddMountUniModifiedAlreadyMounted(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mountInfoContent := `24 0 8:18 / /snap/snapname/123 rw,relatime shared:1 - squashfs /dev/loop1 rw,errors=remount-ro,data=ordered`
+	restore = osutil.MockMountInfo(mountInfoContent)
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -2087,7 +2097,58 @@ WantedBy=multi-user.target
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
 	// mount was called with remount option
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide,remount"})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{
+		"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide,remount",
+	})
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUniModifiedButNotMounted(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	restore = osutil.MockMountInfo("")
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	// Note the "anotheroption"
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,anotheroption
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
+	c.Assert(err, IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
+	// no remount option in mount command
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{
+		"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide",
+	})
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
@@ -2095,6 +2156,9 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := MockSquashFsType(func() (string, []string) { return "fuse.squashfuse", []string{"a,b,c"} })
+	defer restore()
+
+	restore = osutil.MockMountInfo("")
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -2115,6 +2179,9 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithOptions(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := MockSquashFsType(func() (string, []string) { return "fuse.squashfuse", []string{"a,b,c"} })
+	defer restore()
+
+	restore = osutil.MockMountInfo("")
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -2226,6 +2293,9 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
+	restore = osutil.MockMountInfo("")
+	defer restore()
+
 	mockMountCmd := testutil.MockCommand(c, "mount", `echo "some failure"; exit 1`)
 	defer mockMountCmd.Restore()
 
@@ -2243,6 +2313,9 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 		c.Check(path, Equals, mountDir)
 		return true, nil
 	})
+	defer restore()
+
+	restore = osutil.MockMountInfo("")
 	defer restore()
 
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
