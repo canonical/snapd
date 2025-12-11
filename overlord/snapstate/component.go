@@ -126,18 +126,16 @@ func InstallComponents(
 
 		// here we share the setupSecurity and kmodSetup tasks between all of
 		// the component task chains. this results in multiple parallel tasks
-		// (one per copmonent) that have synchronization points at the
+		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		componentTS, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity.ID(), setupSecurity, kmodSetup, opts.FromChange)
+		cts, ts, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
 		}
 
-		compSetupIDs = append(compSetupIDs, componentTS.compSetupTaskID)
+		compSetupIDs = append(compSetupIDs, cts.compSetupTaskID)
 
-		ts := componentTS.taskSet()
 		ts.JoinLane(lane)
-
 		tss = append(tss, ts)
 	}
 
@@ -287,12 +285,10 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	componentTS, err := doInstallComponent(st, &snapst, compSetup, snapsup, "", nil, nil, "")
+	cts, ts, err := doInstallComponent(st, &snapst, compSetup, snapsup, nil, nil, nil, "")
 	if err != nil {
 		return nil, err
 	}
-
-	ts := componentTS.taskSet()
 
 	// TODO:COMPS: instead of doing this, we should convert this function to
 	// operate on multiple components so that it works like InstallComponents.
@@ -303,7 +299,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, fmt.Errorf("internal error: cannot find begin edge on component install task set: %v", err)
 	}
 
-	begin.Set("component-setup-tasks", []string{componentTS.compSetupTaskID})
+	begin.Set("component-setup-tasks", []string{cts.compSetupTaskID})
 	ts.MarkEdge(begin, SnapSetupEdge)
 
 	ts.JoinLane(generateLane(st, opts))
@@ -325,6 +321,8 @@ type componentInstallTaskSet struct {
 	maybeDiscardTask                    *state.Task
 }
 
+// taskSet is part of the legacy doInstallComponentLegacy implementation.
+// It is preserved here for review comparison purposes.
 func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 	tasks := make([]*state.Task, 0, len(c.beforeLocalSystemModificationsTasks)+len(c.beforeLinkTasks)+1+len(c.postHookToDiscardTasks)+1)
 	tasks = append(tasks, c.beforeLocalSystemModificationsTasks...)
@@ -359,8 +357,299 @@ func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 	return ts
 }
 
-// doInstallComponent might be called with the owner snap installed or not.
-func doInstallComponent(
+// componentInstallChoreographer orchestrates the construction of a task graph
+// for installing a snap component. It provides phase methods that correspond to
+// different stages of the installation.
+type componentInstallChoreographer struct {
+	compsup ComponentSetup
+	snapsup SnapSetup
+	snapst  SnapState
+
+	// compsupTask is the task that carries the ComponentSetup for this
+	// operation. Can optionally be injected by the caller.
+	compsupTask *state.Task
+
+	// snapsupTask is the task that carries the SnapSetup for this operation.
+	// Can optionally be injected by the caller.
+	snapsupTask *state.Task
+
+	// setupSecurityTask is the "setup-security" task that might be injected by the
+	// caller.
+	setupSecurityTask *state.Task
+
+	// kmodSetupTask is the "prepare-kernel-modules-components" task that might be
+	// injected by the caller.
+	kmodSetupTask *state.Task
+}
+
+func newComponentInstallChoreographer(
+	st *state.State,
+	snapsup SnapSetup,
+	snapst SnapState,
+	compsup ComponentSetup,
+	fromChange string,
+) (*componentInstallChoreographer, error) {
+	if compsup.SkipAssertionsDownload {
+		return nil, errors.New("internal error: component setup cannot have SkipFetchingAssertions set by caller")
+	}
+
+	// if we're doing a revert, we shouldn't attempt to fetch assertions from
+	// the store again.
+	//
+	// if we're installing a component from somewhere on disk, we can't reach
+	// out to the store. thus, try and validate the component with what we
+	// already have.
+	compsup.SkipAssertionsDownload = snapsup.Revert || compsup.CompPath != ""
+
+	if err := ensureSnapAndComponentsAssertionStatus(
+		*snapsup.SideInfo, []snap.ComponentSideInfo{*compsup.CompSideInfo},
+	); err != nil {
+		return nil, err
+	}
+
+	if snapst.IsInstalled() && !snapst.Active {
+		return nil, fmt.Errorf(
+			"cannot install component %q for disabled snap %q",
+			compsup.CompSideInfo.Component, snapsup.SideInfo.RealName,
+		)
+	}
+
+	// we consider the same conflicts as if the component was actually the snap.
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), &snapst, fromChange); err != nil {
+		return nil, err
+	}
+
+	return &componentInstallChoreographer{
+		snapsup: snapsup,
+		snapst:  snapst,
+		compsup: compsup,
+	}, nil
+}
+
+// revisionString returns the formatted revision string for task descriptions.
+func (cc *componentInstallChoreographer) revisionString() string {
+	return fmt.Sprintf(" (%s)", cc.compsup.CompSideInfo.Revision)
+}
+
+// revisionIsPresent checks if the component revision already exists on disk.
+func (cc *componentInstallChoreographer) revisionIsPresent() bool {
+	return cc.snapst.IsComponentRevPresent(cc.compsup.CompSideInfo)
+}
+
+// installed checks if the component is currently installed for the current snap
+// revision.
+func (cc *componentInstallChoreographer) installed() bool {
+	return cc.snapst.IsComponentInCurrentSeq(cc.compsup.CompSideInfo.Component)
+}
+
+// canDiscardOldRevision checks if the old component revision can be discarded
+// after installation.
+func (cc *componentInstallChoreographer) canDiscardOldRevision() bool {
+	si := cc.snapsup.SideInfo
+	csi := cc.compsup.CompSideInfo
+
+	changingComponentRev := false
+	if cc.installed() {
+		currentRev := cc.snapst.CurrentComponentSideInfo(csi.Component).Revision
+		changingComponentRev = currentRev != csi.Revision
+	}
+
+	changingSnapRev := cc.snapst.IsInstalled() && cc.snapst.Current != si.Revision
+
+	return !changingSnapRev && changingComponentRev &&
+		!cc.snapst.IsCurrentComponentRevInAnyNonCurrentSeq(csi.Component)
+}
+
+func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan) error {
+	// Check if we already have the revision in the snaps folder (alters tasks).
+	// Note that this will search for all snap revisions in the system.
+	needsDownload := cc.compsup.CompPath == "" && !cc.revisionIsPresent()
+
+	var prepare *state.Task
+	if needsDownload {
+		// if we have a local revision here we go back to that
+		prepare = st.NewTask("download-component", fmt.Sprintf(
+			i18n.G("Download component %q%s"), cc.compsup.ComponentName(), cc.revisionString()))
+	} else {
+		prepare = st.NewTask("prepare-component", fmt.Sprintf(
+			i18n.G("Prepare component %q%s"), cc.compsup.CompPath, cc.revisionString()))
+	}
+
+	if cc.compsupTask != nil {
+		prepare.Set("component-setup-task", cc.compsupTask.ID())
+	} else {
+		prepare.Set("component-setup", cc.compsup)
+		prepare.Set("component-setup-task", prepare.ID())
+		cc.compsupTask = prepare
+	}
+
+	if cc.snapsupTask != nil {
+		prepare.Set("snap-setup-task", cc.snapsupTask.ID())
+	} else {
+		prepare.Set("snap-setup", cc.snapsup)
+		prepare.Set("snap-setup-task", prepare.ID())
+		cc.snapsupTask = prepare
+	}
+
+	// let the task chain builder know that future tasks should have this task data
+	// attached to them
+	s.SetTaskData(map[string]any{
+		"component-setup-task": cc.compsupTask.ID(),
+		"snap-setup-task":      cc.snapsupTask.ID(),
+	})
+
+	// prepare already has the needed task data attached to it
+	s.AppendWithoutData(prepare)
+	s.UpdateEdge(prepare, BeginEdge)
+	s.UpdateEdge(prepare, LastBeforeLocalModificationsEdge)
+
+	// if the component we're installing has a revision from the store, then we
+	// need to validate it. note that we will still run this task even if we're
+	// reusing an already installed component, since we will most likely need to
+	// fetch a new snap-resource-pair assertion. note that the behavior of
+	// validate-component is dependent on ComponentSetup.SkipAssertionsDownload.
+	if cc.compsup.Revision().Store() {
+		validate := st.NewTask("validate-component", fmt.Sprintf(
+			i18n.G("Fetch and check assertions for component %q%s"), cc.compsup.ComponentName(), cc.revisionString()))
+		s.Append(validate)
+		s.UpdateEdge(validate, LastBeforeLocalModificationsEdge)
+	}
+
+	return nil
+}
+
+func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChainSpan) error {
+	csi := cc.compsup.CompSideInfo
+	si := cc.snapsup.SideInfo
+
+	// Task that copies the file and creates mount units
+	if !cc.revisionIsPresent() {
+		mount := st.NewTask("mount-component", fmt.Sprintf(i18n.G("Mount component %q%s"), csi.Component, cc.revisionString()))
+		s.Append(mount)
+	} else if cc.compsup.RemoveComponentPath {
+		// If the revision is local, we will not need the temporary snap. This can happen when e.g.
+		// side-loading a local revision again. The path is only needed in the "mount-snap" handler
+		// and that is skipped for local revisions.
+		if err := os.Remove(cc.compsup.CompPath); err != nil {
+			return err
+		}
+	}
+
+	if !cc.snapsup.Revert && cc.installed() {
+		preRefreshHook := SetupPreRefreshComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		s.Append(preRefreshHook)
+	}
+
+	changingSnapRev := cc.snapst.IsInstalled() && cc.snapst.Current != si.Revision
+
+	// note that we don't unlink the current component if we're also changing
+	// snap revisions while installing this component. that is because we don't
+	// want to remove the component from the state of the previous snap revision
+	// (for the purpose of something like a revert). additionally, this is
+	// consistent with us keeping previous snap revisions mounted after changing
+	// their revision. so we really only want to create this task if we are
+	// replacing a component in the current snap revision
+	if !changingSnapRev && cc.installed() {
+		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G("Make current revision for component %q unavailable"), csi.Component))
+		s.Append(unlink)
+	}
+
+	// (MultiComponentInstall && securityTask == nil) results in the absence of
+	// a setup-profiles task. this happens during snap installation, where we
+	// reuse the snap's setup-profiles task
+	if !cc.compsup.MultiComponentInstall && cc.setupSecurityTask == nil {
+		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup component %q%s security profiles"), csi.Component, cc.revisionString()))
+		s.Append(setupSecurity)
+	} else if cc.setupSecurityTask != nil {
+		// pre-existing tasks don't get task data added to them, nor do they get
+		// added to the task set. just set up the dependency
+		s.b.ChainWithoutAppending(cc.setupSecurityTask)
+	}
+
+	return nil
+}
+
+func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State, s *taskChainSpan) error {
+	csi := cc.compsup.CompSideInfo
+
+	if !cc.installed() {
+		hook := SetupInstallComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		s.Append(hook)
+	} else {
+		hook := SetupPostRefreshComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		s.Append(hook)
+	}
+
+	// kernel-modules preparation when not handled by a shared task
+	if !cc.compsup.MultiComponentInstall && cc.kmodSetupTask == nil && cc.compsup.CompType == snap.KernelModulesComponent {
+		cc.kmodSetupTask = st.NewTask("prepare-kernel-modules-components",
+			fmt.Sprintf(i18n.G("Prepare kernel-modules component %q%s"), csi.Component, cc.revisionString()))
+		s.Append(cc.kmodSetupTask)
+	} else if cc.kmodSetupTask != nil {
+		// pre-existing tasks don't get task data added to them, nor do they get
+		// added to the task set. just set up the dependency
+		s.b.ChainWithoutAppending(cc.kmodSetupTask)
+	}
+
+	return nil
+}
+
+func (cc *componentInstallChoreographer) choreograph(st *state.State) (componentInstallTaskSet, *state.TaskSet, error) {
+	b := newTaskChainBuilder()
+
+	beforeLocalSystemMods := b.NewSpan()
+	if err := cc.BeforeLocalSystemMod(st, &beforeLocalSystemMods); err != nil {
+		return componentInstallTaskSet{}, nil, err
+	}
+
+	beforeLink := b.NewSpan()
+	if err := cc.BeforeLink(st, &beforeLink); err != nil {
+		return componentInstallTaskSet{}, nil, err
+	}
+
+	csi := cc.compsup.CompSideInfo
+
+	var maybeLink *state.Task
+	if !cc.snapsup.Revert {
+		// finalize (sets SnapState). if we're reverting, there isn't anything to
+		// change in SnapState regarding the component
+		maybeLink = st.NewTask(
+			"link-component", fmt.Sprintf(
+				i18n.G("Make component %q (%s) available to the system"), csi.Component, csi.Revision,
+			),
+		)
+		b.Append(maybeLink)
+	}
+
+	postOpHookToBeforeDiscard := b.NewSpan()
+	if err := cc.PostHookToBeforeDiscard(st, &postOpHookToBeforeDiscard); err != nil {
+		return componentInstallTaskSet{}, nil, err
+	}
+
+	var maybeDiscard *state.Task
+	if cc.canDiscardOldRevision() {
+		// we can only discard the component if all of the following are true:
+		// * we are not changing the snap revision
+		// * we are actually changing the component revision (or it is not installed)
+		// * the component is not used in any other sequence point
+		maybeDiscard = st.NewTask("discard-component", fmt.Sprintf(i18n.G("Discard previous revision for component %q"), csi.Component))
+		b.Append(maybeDiscard)
+	}
+
+	return componentInstallTaskSet{
+		compSetupTaskID:                     cc.compsupTask.ID(),
+		beforeLocalSystemModificationsTasks: beforeLocalSystemMods.Tasks(),
+		beforeLinkTasks:                     beforeLink.Tasks(),
+		maybeLinkTask:                       maybeLink,
+		postHookToDiscardTasks:              postOpHookToBeforeDiscard.Tasks(),
+		maybeDiscardTask:                    maybeDiscard,
+	}, b.ts, nil
+}
+
+// doInstallComponentLegacy is the original implementation of
+// doInstallComponent, preserved here for review comparison with the new
+// builder-based approach.
+func doInstallComponentLegacy(
 	st *state.State,
 	snapst *SnapState,
 	compSetup ComponentSetup,
@@ -572,6 +861,36 @@ func doInstallComponent(
 	}
 
 	return componentTS, nil
+}
+
+// doInstallComponent might be called with the owner snap installed or not.
+func doInstallComponent(
+	st *state.State,
+	snapst *SnapState,
+	compsup ComponentSetup,
+	snapsup SnapSetup,
+	snapsupTask *state.Task,
+	setupSecurity, kmodSetup *state.Task,
+	fromChange string,
+) (componentInstallTaskSet, *state.TaskSet, error) {
+	cc, err := newComponentInstallChoreographer(st, snapsup, *snapst, compsup, fromChange)
+	if err != nil {
+		return componentInstallTaskSet{}, nil, err
+	}
+
+	// we inject some tasks here. the choreographer considers these when building the
+	// full chain and splices them into the correct places. if they're nil, then
+	// the choreographer will create them on demand.
+	cc.setupSecurityTask = setupSecurity
+	cc.kmodSetupTask = kmodSetup
+	cc.snapsupTask = snapsupTask
+
+	cts, ts, err := cc.choreograph(st)
+	if err != nil {
+		return componentInstallTaskSet{}, nil, err
+	}
+
+	return cts, ts, nil
 }
 
 type RemoveComponentsOpts struct {
