@@ -41,7 +41,7 @@
         "group": "opensuse",
         "backend": "openstack",
         "alternative-backend": "google-distro-2",
-        "systems": "opensuse-15.6-64 opensuse-16.0-64 opensuse-tumbleweed-64 opensuse-tumbleweed-selinux-64",
+        "systems": "opensuse-15.6-64 opensuse-tumbleweed-64 opensuse-tumbleweed-selinux-64",
         "tasks": "tests/...",
         "rules": "main"
       },
@@ -93,7 +93,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-arm64",
-        "backend": "openstack-arm-ps7",
+        "backend": "openstack-arm",
         "alternative-backend": "google-arm",
         "systems": "ubuntu-24.04-arm-64 ubuntu-core-24-arm-64",
         "tasks": "tests/...",
