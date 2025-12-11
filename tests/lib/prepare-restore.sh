@@ -372,7 +372,7 @@ prepare_project() {
     elif os.query is-ubuntu; then
         # TODO generate packaging appropriate for a given ubuntu release
         ln -sf packaging/ubuntu-16.04 debian
-    elif os.query is-debian-sid ; then
+    elif os.query is-debian sid ; then
         # debian sid has special packaging
         ln -sf packaging/debian-sid debian
     elif os.query is-debian; then

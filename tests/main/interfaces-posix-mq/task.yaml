@@ -15,7 +15,6 @@ systems:
     # Distribution AppArmor parser does not support mqueue mediation.
     # AppArmor parser does not re-execute despite SNAPD_APPARMOR_REEXEC=1 in /usr/lib/snapd/info.
     - -opensuse-15.6-64
-    - -opensuse-16.0-64
     # Affected by https://gitlab.com/apparmor/apparmor/-/issues/492
     - -ubuntu-16.04-64
     - -ubuntu-18.04-64
