@@ -336,7 +336,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error), deviceCtx DeviceContext) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -352,11 +352,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
-	}
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		if inUseCheck == nil {
-			return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
-		}
 	}
 
 	if snapsup.Flags.Classic {
@@ -782,7 +777,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		for i := 0; i <= currentIndex-retain; i++ {
 			if inUse == nil {
 				var err error
-				inUse, err = inUseCheck(snapsup.Type)
+				inUse, err = boot.InUse(snapsup.Type, deviceCtx)
 				if err != nil {
 					return nil, err
 				}
@@ -2453,7 +2448,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
+		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, opts.DeviceCtx)
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -4376,7 +4371,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil, nil)
+	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4430,7 +4425,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, nil, 0, "", nil, nil)
+		}, nil, 0, "", nil)
 		if err != nil {
 			return nil, err
 		}
