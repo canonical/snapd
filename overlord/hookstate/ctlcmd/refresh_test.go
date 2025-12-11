@@ -499,7 +499,7 @@ version: 1
 	c.Assert(called, Equals, false)
 }
 
-func (s *refreshSuite) TestRefreshTracking(c *C) {
+func (s *refreshSuite) testRefreshTracking(c *C, uid uint32) {
 	yesterday := time.Now().Add(-24 * time.Hour)
 	myAppSnapState := snapstate.SnapState{
 		SnapType: string(snap.TypeApp),
@@ -524,7 +524,7 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, uid)
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 
@@ -532,6 +532,14 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	err = yaml.Unmarshal([]byte(stdout), &actualData)
 	c.Check(err, IsNil)
 	c.Check(actualData, DeepEquals, map[string]string{"channel": "latest/stable"})
+}
+
+func (s *refreshSuite) TestRefreshTrackingNonRoot(c *C) {
+	s.testRefreshTracking(c, 1000)
+}
+
+func (s *refreshSuite) TestRefreshTrackingRoot(c *C) {
+	s.testRefreshTracking(c, 0)
 }
 
 func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
