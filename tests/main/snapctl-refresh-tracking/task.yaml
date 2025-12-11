@@ -1,13 +1,13 @@
 summary: Check that 'snapctl refresh' works with the tracking flag
 
-environment:
-    USER/root: root
-    USER/user0: user0
-
 details: |
     Verifies the snapctl refresh command works as expected when using the --tracking flag.
     The test checks that other snapctl refresh commands still require root privileges, and
     tests how snapctl refresh behaves with different channels set.
+
+environment:
+    USER/root: root
+    USER/user0: user0
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
