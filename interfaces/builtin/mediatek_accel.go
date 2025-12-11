@@ -115,12 +115,9 @@ func (iface *mediatekAccelInterface) BeforePreparePlug(plug *snap.PlugInfo) erro
 }
 
 func (iface *mediatekAccelInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
-		return err
-	}
 	spec.AddSnippet(mediatekAccelConnectedPlugAppArmorHeader)
 
-	units := []string{}
+	var units []string
 	// validated in BeforePreparePlug
 	_ = plug.Attr("units", &units)
 	for _, name := range units {
@@ -131,11 +128,7 @@ func (iface *mediatekAccelInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 }
 
 func (iface *mediatekAccelInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if err := iface.commonInterface.UDevConnectedPlug(spec, plug, slot); err != nil {
-		return err
-	}
-
-	units := []string{}
+	var units []string
 	// validated in BeforePreparePlug
 	_ = plug.Attr("units", &units)
 	for _, name := range units {
