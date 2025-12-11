@@ -271,6 +271,9 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 			if err != nil {
 				return err
 			}
+
+			// only one dmverity file is expected to be matched via the glob above. We use a glob because
+			// the digest is not known at this point (i.e via snap.PlaceInfo or the InstallRecord)
 			for _, f := range snapVerityFiles {
 				err = os.RemoveAll(f)
 				if err != nil {
