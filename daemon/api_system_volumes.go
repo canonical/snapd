@@ -478,10 +478,10 @@ func postSystemVolumesActionChangePIN(c *Command, req *systemVolumesActionReques
 	}
 
 	if err := device.ValidatePIN(req.OldPIN); err != nil {
-		return BadRequest("invalid old-pin value: %v", err)
+		return BadRequest("cannot change pin: invalid old-pin: %v", err)
 	}
 	if err := device.ValidatePIN(req.NewPIN); err != nil {
-		return BadRequest("invalid new-pin value: %v", err)
+		return BadRequest("cannot change pin: invalid new-pin: %v", err)
 	}
 
 	st := c.d.overlord.State()

@@ -947,6 +947,11 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
 	d := s.daemon(c)
 	s.mockHybridSystem()
 	st := d.Overlord().State()
@@ -1011,6 +1016,11 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINMissingOldPIN(c *C)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidOldPIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1023,7 +1033,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidOldPIN(c *C)
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "invalid old-pin value: invalid PIN: unexpected character")
+	c.Assert(rsp.Message, Equals, "cannot change pin: invalid old-pin: invalid PIN: unexpected character")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePINMissingNewPIN(c *C) {
@@ -1041,6 +1051,11 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINMissingNewPIN(c *C)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidNewPIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1051,10 +1066,15 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidNewPIN(c *C)
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "invalid new-pin value: invalid PIN: unexpected character")
+	c.Assert(rsp.Message, Equals, "cannot change pin: invalid new-pin: invalid PIN: unexpected character")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePINChangeAuthError(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
 	s.daemon(c)
 	s.mockHybridSystem()
 

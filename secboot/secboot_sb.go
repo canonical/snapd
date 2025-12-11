@@ -684,10 +684,16 @@ func (k *keyData) Roles() []string {
 	return []string{k.kd.Role()}
 }
 
+// ChangePassphrase changes passphrase given old passphrase.
+//
+// AuthMode must be device.AuthModePassphrase.
 func (k *keyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	return sbKeyDataChangePassphrase(k.kd, oldPassphrase, newPassphrase)
 }
 
+// ChangePIN changes pin given old pin.
+//
+// AuthMode must be device.AuthModePIN.
 func (k *keyData) ChangePIN(oldPIN, newPIN string) error {
 	old, err := sb.ParsePIN(oldPIN)
 	if err != nil {
@@ -700,6 +706,7 @@ func (k *keyData) ChangePIN(oldPIN, newPIN string) error {
 	return sbKeyDataChangePIN(k.kd, old, new)
 }
 
+// WriteTokenAtomic saves this key data to the specified LUKS2 token.
 func (k *keyData) WriteTokenAtomic(devicePath, slotName string) error {
 	writer, err := newLUKS2KeyDataWriter(devicePath, slotName)
 	if err != nil {

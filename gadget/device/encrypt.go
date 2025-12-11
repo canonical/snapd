@@ -164,7 +164,7 @@ func (et EncryptionType) IsLUKS() bool {
 var ValidatePIN func(pin string) error = validatePINImpl
 
 func validatePINImpl(pin string) error {
-	panic("PIN validation callback not set up")
+	return errors.New("PIN validation callback not set up")
 }
 
 // AuthMode corresponds to an authentication mechanism.
@@ -271,7 +271,7 @@ type AuthQuality struct {
 var EntropyBits func(authVal string) (uint32, error) = entropyBitsImpl
 
 func entropyBitsImpl(authVal string) (uint32, error) {
-	panic("entropy bits calculation callback not set up")
+	return 0, errors.New("entropy bits calculation callback not set up")
 }
 
 const (
