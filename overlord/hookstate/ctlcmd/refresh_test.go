@@ -529,14 +529,14 @@ func (s *refreshSuite) TestRefreshTracking(c *C) {
 	c.Check(err, IsNil)
 
 	var actualData map[string]string
-    err = yaml.Unmarshal([]byte(stdout), &actualData)
-    c.Check(err, IsNil)
+	err = yaml.Unmarshal([]byte(stdout), &actualData)
+	c.Check(err, IsNil)
 
 	expectedData := map[string]string{
-        "channel": "latest/stable",
-    }
+		"channel": "latest/stable",
+	}
 
-    c.Check(actualData, DeepEquals, expectedData)
+	c.Check(actualData, DeepEquals, expectedData)
 }
 
 func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
@@ -571,14 +571,14 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 	c.Check(err, IsNil)
 
 	var actualData map[string]*string
-    err = yaml.Unmarshal([]byte(stdout), &actualData)
-    c.Check(err, IsNil)
+	err = yaml.Unmarshal([]byte(stdout), &actualData)
+	c.Check(err, IsNil)
 
 	expectedData := map[string]*string{
-        "channel": nil,
-    }
+		"channel": nil,
+	}
 
-    c.Check(actualData, DeepEquals, expectedData)
+	c.Check(actualData, DeepEquals, expectedData)
 }
 
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
