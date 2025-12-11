@@ -65,9 +65,9 @@ func (db EFISecurebootKeyDatabase) String() string {
 	}
 }
 
-// EFISecureBootDBUpdatePrepare notifies that the local EFI key
+// EFISecurebootDBUpdatePrepare notifies that the local EFI key
 // database manager is about to update the database.
-func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
+func EFISecurebootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
 		if err == device.ErrNoSealedKeys {
@@ -79,7 +79,7 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	st.Lock()
 	defer st.Unlock()
 
-	if err := checkSecureBootChangeConflicts(st, db); err != nil {
+	if err := checkSecurebootChangeConflicts(st, db); err != nil {
 		return err
 	}
 
@@ -141,9 +141,9 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	return nil
 }
 
-// EFISecureBootDBUpdateCleanup notifies that the local EFI key database manager
+// EFISecurebootDBUpdateCleanup notifies that the local EFI key database manager
 // has reached a cleanup stage of the update process.
-func EFISecureBootDBUpdateCleanup(st *state.State) error {
+func EFISecurebootDBUpdateCleanup(st *state.State) error {
 	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
 		return nil
 	} else if err != nil {
@@ -159,7 +159,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	}
 
 	if op == nil {
-		logger.Debugf("no pending SecureBoot Key Database update request for cleanup")
+		logger.Debugf("no pending Secureboot Key Database update request for cleanup")
 		return nil
 	}
 
@@ -170,7 +170,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot perform SecureBoot Key Database update 'cleanup' action when conflicting actions are in progress",
+			Message:    "cannot perform Secureboot Key Database update 'cleanup' action when conflicting actions are in progress",
 		}
 	}
 
@@ -186,9 +186,9 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	return completeEFISecurebootDBUpdateChange(chg)
 }
 
-// EFISecureBootDBManagerStartup indicates that the local EFI key database
+// EFISecurebootDBManagerStartup indicates that the local EFI key database
 // manager has started.
-func EFISecureBootDBManagerStartup(st *state.State) error {
+func EFISecurebootDBManagerStartup(st *state.State) error {
 	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
 		return nil
 	} else if err != nil {
@@ -204,7 +204,7 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	}
 
 	if op == nil {
-		logger.Debugf("no pending SecureBoot Key Database request")
+		logger.Debugf("no pending Secureboot Key Database request")
 		return nil
 	}
 
@@ -218,7 +218,7 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot perform SecureBoot Key Database 'startup' action when conflicting actions are in progress",
+			Message:    "cannot perform Secureboot Key Database 'startup' action when conflicting actions are in progress",
 		}
 	}
 
@@ -238,7 +238,7 @@ type securebootUpdateContext struct {
 	Method  device.SealingMethod `json:"sealing-method"`
 }
 
-// addEFISecurebootDBUpdateChange adds a state change related to the SecureBoot
+// addEFISecurebootDBUpdateChange adds a state change related to the Secureboot
 // update. The state must be locked by the caller.
 func addEFISecurebootDBUpdateChange(
 	st *state.State,
@@ -305,23 +305,23 @@ func completeEFISecurebootDBUpdateChange(chg *state.Change) error {
 	// successfully or with an error; note we are not holding the state lock so
 	// other tasks are not blocked
 	st.Unlock()
-	logger.Debugf("waiting for FDE SecureBoot Key Database change %v to become ready", chg.ID())
+	logger.Debugf("waiting for FDE Secureboot Key Database change %v to become ready", chg.ID())
 	<-chg.Ready()
-	logger.Debugf("SecureBoot Key Database change complete")
+	logger.Debugf("Secureboot Key Database change complete")
 	st.Lock()
 
 	chg = st.Change(chg.ID())
 	if err := chg.Err(); err != nil {
-		logger.Debugf("completed SecureBoot Key Database change error: %v", chg.Err())
+		logger.Debugf("completed Secureboot Key Database change error: %v", chg.Err())
 	}
 
 	return nil
 }
 
-// postUpdateReseal performs a reseal after a SecureBoot Key Database update.
+// postUpdateReseal performs a reseal after a Secureboot Key Database update.
 func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.SealingMethod) error {
 	return boot.WithBootChains(func(bc boot.BootChains) error {
-		logger.Debugf("attempting post SecureBoot Key Database reseal")
+		logger.Debugf("attempting post Secureboot Key Database reseal")
 
 		params := &boot.ResealKeyForBootChainsParams{
 			BootChains: bc,
@@ -356,7 +356,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 
 	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal SecureBoot Key Database context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
 	err = func() error {
@@ -364,9 +364,9 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 
 		return boot.WithBootChains(func(bc boot.BootChains) error {
 			// TODO: are we logging too much?
-			logger.Debugf("attempting reseal for SecureBoot Key Database")
+			logger.Debugf("attempting reseal for Secureboot Key Database")
 			logger.Debugf("boot chains: %v\n", bc)
-			logger.Debugf("SecureBoot Key Database payload: %x", updateData.Payload)
+			logger.Debugf("Secureboot Key Database payload: %x", updateData.Payload)
 
 			params := &boot.ResealKeyForBootChainsParams{
 				BootChains: bc,
@@ -383,7 +383,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 	}()
 
 	if err != nil {
-		err = fmt.Errorf("cannot perform initial reseal of keys for SecureBoot Key Database update: %w", err)
+		err = fmt.Errorf("cannot perform initial reseal of keys for Secureboot Key Database update: %w", err)
 		op.SetFailed(err.Error())
 	} else {
 		op.SetStatus(DoingStatus)
@@ -415,10 +415,10 @@ func (m *FDEManager) undoEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.
 
 	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal SecureBoot Key Database context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
-	t.Logf("SecureBoot Key Database prepare undo called with operation in status: %v", op.Status)
+	t.Logf("Secureboot Key Database prepare undo called with operation in status: %v", op.Status)
 
 	switch op.Status {
 	case ErrorStatus:
@@ -495,7 +495,7 @@ func (m *FDEManager) doEFISecurebootDBUpdate(t *state.Task, tomb *tomb.Tomb) err
 
 	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal SecureBoot Key Database context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
 	mgr := fdeMgr(st)

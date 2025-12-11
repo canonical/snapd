@@ -632,7 +632,7 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	task := s.st.NewTask("some-fde-task", "")
 	chg.AddTask(task)
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{})
-	c.Assert(err, ErrorMatches, `external EFI SecureBoot Key Database update in progress, no other FDE changes allowed until this is done`)
+	c.Assert(err, ErrorMatches, `external EFI Secureboot Key Database update in progress, no other FDE changes allowed until this is done`)
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }
 

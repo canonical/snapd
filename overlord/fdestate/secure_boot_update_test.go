@@ -68,13 +68,13 @@ func (s *fdeMgrSuite) TestEFIDBXNoSealedKeys(c *C) {
 		c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
 	}()
 
-	err = fdestate.EFISecureBootDBManagerStartup(st)
+	err = fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, IsNil)
 
-	err = fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err = fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
-	err = fdestate.EFISecureBootDBUpdateCleanup(st)
+	err = fdestate.EFISecurebootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
 }
 
@@ -89,7 +89,7 @@ func (s *fdeMgrSuite) TestEFIDBXStartupClean(c *C) {
 		panic("unexpected call")
 	})()
 
-	err := fdestate.EFISecureBootDBManagerStartup(st)
+	err := fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -137,7 +137,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -225,7 +225,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -242,7 +242,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	err = func() error {
 		st.Unlock()
 		defer st.Lock()
-		return fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+		return fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	}()
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
@@ -264,7 +264,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictFDEChange(c *C) {
 	chg.AddTask(tsk)
 	st.Unlock()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, ErrorMatches, "FDE change in progress, no other FDE changes allowed until this is done")
 }
 
@@ -303,16 +303,16 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 
 	st.Unlock()
 	defer st.Lock()
-	err := fdestate.EFISecureBootDBUpdateCleanup(st)
+	err := fdestate.EFISecurebootDBUpdateCleanup(st)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
-		Message:    "cannot perform SecureBoot Key Database update 'cleanup' action when conflicting actions are in progress",
+		Message:    "cannot perform Secureboot Key Database update 'cleanup' action when conflicting actions are in progress",
 	})
 
-	err = fdestate.EFISecureBootDBManagerStartup(st)
+	err = fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
-		Message:    "cannot perform SecureBoot Key Database 'startup' action when conflicting actions are in progress",
+		Message:    "cannot perform Secureboot Key Database 'startup' action when conflicting actions are in progress",
 	})
 }
 
@@ -359,7 +359,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 
 	st.Unlock()
 	defer st.Lock()
-	err = fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err = fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "kernel-snap-remove",
 		Snap:       "pc-kernel",
@@ -413,7 +413,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -451,7 +451,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 	defer st.Lock()
 
 	// cleanup completes the change, and waits internally for change to become ready
-	err = fdestate.EFISecureBootDBUpdateCleanup(st)
+	err = fdestate.EFISecurebootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -544,7 +544,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -600,7 +600,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 
 	// startup aborts the change and reseals with current boot chains, waits for
 	// change to be complete
-	err = fdestate.EFISecureBootDBManagerStartup(st)
+	err = fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, IsNil)
 
 	// wait for helper to complete
@@ -699,7 +699,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -815,8 +815,8 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
-	c.Assert(err, ErrorMatches, "(?sm).*cannot perform initial reseal of keys for SecureBoot Key Database update: mock error.*")
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, ErrorMatches, "(?sm).*cannot perform initial reseal of keys for Secureboot Key Database update: mock error.*")
 
 	st.Lock()
 	defer st.Unlock()
@@ -842,7 +842,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
-		"- Prepare for external EFI DBX update .cannot perform initial reseal of keys for SecureBoot Key Database update: mock error.")
+		"- Prepare for external EFI DBX update .cannot perform initial reseal of keys for Secureboot Key Database update: mock error.")
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
@@ -880,7 +880,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -919,7 +919,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	}()
 
 	// blocks internally waiting for change to complete
-	err = fdestate.EFISecureBootDBUpdateCleanup(st)
+	err = fdestate.EFISecurebootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
 
 	// wait for helper to complete
@@ -988,7 +988,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -1027,7 +1027,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	}()
 
 	// 'external' DBX manger restarted, blocks internally waiting for the change to complete
-	err = fdestate.EFISecureBootDBManagerStartup(st)
+	err = fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, IsNil)
 
 	// wait for helper to complete
@@ -1070,7 +1070,7 @@ func (s *fdeMgrSuite) TestEFIDBXCleanupNoChange(c *C) {
 		panic("unexpected call")
 	})()
 
-	err := fdestate.EFISecureBootDBUpdateCleanup(st)
+	err := fdestate.EFISecurebootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -1335,7 +1335,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
 	c.Assert(err, IsNil)
 
 	st.Lock()
