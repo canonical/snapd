@@ -390,7 +390,6 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 }
 
 func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesActionRequest) Response {
-	// XXX: Only support passphrase auth mode for now?
 	if req.AuthMode == "" {
 		return BadRequest("system volume action requires auth-mode to be provided")
 	}
@@ -430,7 +429,7 @@ func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response 
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
+	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
 func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
@@ -438,11 +437,10 @@ func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+	return postCheckAuthQuality(device.AuthModePIN, req.PIN)
 }
 
 func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActionRequest) Response {
-	// TODO:FDEM: allow root to reset passphrase without providing old passphrase.
 	if req.OldPassphrase == "" {
 		return BadRequest("system volume action requires old-passphrase to be provided")
 	}

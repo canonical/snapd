@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -634,8 +635,8 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 			})
 		case device.AuthModePIN:
 			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
-				// TODO:FDEM: check PIN is passed
 				Mode: device.AuthModePIN,
+				PIN:  "1234",
 			})
 		default:
 			c.Errorf("unexpected auth-mode %q", authMode)
@@ -675,7 +676,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	case device.AuthModePIN:
 		bodyRaw = fmt.Sprintf(bodyTemplate, `
 	"auth-mode": "pin",
-	"pin": "p1n"
+	"pin": "1234"
 `)
 	}
 
@@ -683,14 +684,6 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
-
-	if authMode == device.AuthModePIN {
-		// PIN support is not implemented
-		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, Equals, 400)
-		c.Check(rsp.Message, Equals, `invalid platform key options: "pin" authentication mode is not implemented`)
-		return
-	}
 
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)
@@ -718,6 +711,10 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePa
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	const authMode = device.AuthModePIN
 	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
 }
@@ -1169,7 +1166,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePassphrase)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1237,7 +1234,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 			"passphrase": tc.passphrase,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePassphrase)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
@@ -1274,7 +1271,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePIN)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1342,7 +1339,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 			"pin":    tc.pin,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePIN)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},

@@ -837,16 +837,15 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM, withVolumesAuth bool) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM bool, mockVolumesAuth *device.VolumesAuthOptions) {
 	// Mock label
 	label := "classic"
 	isClassic := true
-	mockVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
 	var snapdVersionByType map[snap.Type]string
-	if withVolumesAuth {
+	if mockVolumesAuth != nil {
 		// Passphrase auth requires snapd 2.68 as a minimum in target install system
 		snapdVersionByType = map[snap.Type]string{
 			snap.TypeSnapd:  "2.68",
@@ -900,11 +899,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 				dataFound = true
 			}
 		}
-		if withVolumesAuth {
-			c.Check(volumesAuth, Equals, mockVolumesAuth)
-		} else {
-			c.Check(volumesAuth, IsNil)
-		}
+		c.Check(volumesAuth, Equals, mockVolumesAuth)
 		c.Check(saveFound, Equals, true)
 		c.Check(dataFound, Equals, true)
 		return &install.EncryptionSetupData{}, nil
@@ -921,7 +916,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 		"install API set-up encryption step")
 	encryptTask.Set("system-label", label)
 	encryptTask.Set("on-volumes", ginfo.Volumes)
-	if withVolumesAuth {
+	if mockVolumesAuth != nil {
 		encryptTask.Set("volumes-auth-required", true)
 		s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), mockVolumesAuth)
 	}
@@ -955,10 +950,11 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 		return
 	}
 
-	if withVolumesAuth {
+	if mockVolumesAuth != nil {
 		// TODO:FDEM: PIN and passphrase support is temporarily disabled
 		// during install even with supported snapd versions.
-		c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*"passphrase" authentication mode is not supported by target system.*`)
+		expectedErr := fmt.Sprintf("cannot perform the following tasks:\n.*%q authentication mode is not supported by target system.*", mockVolumesAuth.Mode)
+		c.Assert(chg.Err(), ErrorMatches, expectedErr)
 		return
 	} else {
 		c.Assert(chg.Err(), IsNil)
@@ -986,49 +982,57 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappy(c *C) {
 	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
-	const withVolumesAuth = false
 	const isSupportedHybrid = true
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	var volumesAuth *device.VolumesAuthOptions = nil
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappy(c *C) {
 	// unsupported hybrid system uses general encryption availability check
 	const hasTPM = true
-	const withVolumesAuth = false
 	const isSupportedHybrid = false
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	var volumesAuth *device.VolumesAuthOptions = nil
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithVolumesAuth(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithPassphrase(c *C) {
 	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
-	const withVolumesAuth = true
 	const isSupportedHybrid = true
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithPIN(c *C) {
+	// supported hybrid system uses specialized encryption availability check
+	const hasTPM = true
+	const isSupportedHybrid = true
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappyWithVolumesAuth(c *C) {
 	// unsupported hybrid system uses general encryption availability check
 	const hasTPM = true
-	const withVolumesAuth = true
 	const isSupportedHybrid = false
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridNoCrypto(c *C) {
 	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = false
-	const withVolumesAuth = false
 	const isSupportedHybrid = true
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	var volumesAuth *device.VolumesAuthOptions = nil
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridNoCrypto(c *C) {
 	// unsupported hybrid system uses general encryption availability check
 	const hasTPM = false
-	const withVolumesAuth = false
 	const isSupportedHybrid = false
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+	var volumesAuth *device.VolumesAuthOptions = nil
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {

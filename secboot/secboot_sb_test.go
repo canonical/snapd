@@ -32,9 +32,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/canonical/go-tpm2"
@@ -1034,13 +1036,19 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 
 }
 
-func mockAuthOptions(mode device.AuthMode, kdfType string) *device.VolumesAuthOptions {
-	return &device.VolumesAuthOptions{
-		Mode:       mode,
-		KDFType:    kdfType,
-		KDFTime:    200 * time.Millisecond,
-		Passphrase: "test",
+func mockAuthOptions(authMode device.AuthMode, kdfType string) *device.VolumesAuthOptions {
+	opts := &device.VolumesAuthOptions{
+		Mode:    authMode,
+		KDFType: kdfType,
+		KDFTime: 200 * time.Millisecond,
 	}
+	switch authMode {
+	case device.AuthModePassphrase:
+		opts.Passphrase = "test"
+	case device.AuthModePIN:
+		opts.PIN = "1234"
+	}
+	return opts
 }
 
 func (s *secbootSuite) TestSealKey(c *C) {
@@ -1059,6 +1067,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		sealErr              error
 		sealCalls            int
 		passphraseSealCalls  int
+		pinSealCalls         int
 		expectedErr          string
 		saveToFile           bool
 	}{
@@ -1076,10 +1085,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
 		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
 		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "pbkdf2"), expectedErr: ""},
+		{tpmEnabled: true, pinSealCalls: 2, volumesAuth: mockAuthOptions("pin", ""), expectedErr: ""},
+		{tpmEnabled: true, pinSealCalls: 2, volumesAuth: mockAuthOptions("pin", "pbkdf2"), expectedErr: ""},
 		{tpmEnabled: true, volumesAuth: mockAuthOptions("passphrase", "bad-kdf"), expectedErr: `internal error: unknown kdfType passed "bad-kdf"`},
 		{tpmEnabled: true, sealErr: mockErr, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: "some error"},
 		{tpmErr: mockErr, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: `cannot connect to TPM: some error`},
-		{tpmEnabled: true, volumesAuth: mockAuthOptions("pin", ""), expectedErr: `"pin" authentication mode is not implemented`},
+		{tpmEnabled: true, volumesAuth: &device.VolumesAuthOptions{Mode: device.AuthModePIN}, expectedErr: "invalid PIN: zero length"},
 		{tpmEnabled: true, volumesAuth: mockAuthOptions("bad-mode", ""), expectedErr: `internal error: invalid authentication mode "bad-mode"`},
 	} {
 		c.Logf("tc: %v", idx)
@@ -1298,6 +1309,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
 		})
 		defer restore()
+		pinSealCalls := 0
+		restore = secboot.MockSbNewTPMPINProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+			pinSealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			c.Check(params.Role, Equals, "somerole")
+			expectedKDFOptions := &sb.PBKDF2Options{TargetDuration: tc.volumesAuth.KDFTime}
+			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
+			c.Assert(pin.String(), Equals, tc.volumesAuth.PIN)
+			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
+		})
+		defer restore()
 
 		// mock TPM enabled check
 		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
@@ -1334,6 +1357,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
 		c.Assert(passphraseSealCalls, Equals, tc.passphraseSealCalls)
+		c.Assert(pinSealCalls, Equals, tc.pinSealCalls)
 
 	}
 }
@@ -4517,18 +4541,28 @@ func (h *mockPlatformKeyDataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old
 	return nil, nil
 }
 
-func (s *secbootSuite) mockSecbootPassphraseKeyData(c *C, role, platform string) *sb.KeyData {
+func (s *secbootSuite) mockSecbootAuthKeyData(c *C, role, platform string, authMode device.AuthMode) *sb.KeyData {
 	keyParams := sb.KeyParams{Role: role, PlatformName: platform, KDFAlg: crypto.SHA256}
-	passphraseParams := sb.KeyWithPassphraseParams{
-		KeyParams:  keyParams,
-		KDFOptions: &sb.PBKDF2Options{},
-	}
+	kdf := &sb.PBKDF2Options{}
 	sb.RegisterPlatformKeyDataHandler(platform, &mockPlatformKeyDataHandler{}, 0)
 	s.AddCleanup(func() {
 		sb.RegisterPlatformKeyDataHandler(platform, nil, 0)
 	})
-	kd, err := sb.NewKeyDataWithPassphrase(&passphraseParams, "passphrase")
-	c.Assert(err, IsNil)
+	var err error
+	var kd *sb.KeyData
+	switch authMode {
+	case device.AuthModePassphrase:
+		kd, err = sb.NewKeyDataWithPassphrase(&sb.KeyWithPassphraseParams{KeyParams: keyParams, KDFOptions: kdf}, "passphrase")
+		c.Assert(err, IsNil)
+	case device.AuthModePIN:
+		pin, err := sb.ParsePIN("1234")
+		c.Assert(err, IsNil)
+		kd, err = sb.NewKeyDataWithPIN(&sb.KeyWithPINParams{KeyParams: keyParams, KDFOptions: kdf}, pin)
+		c.Assert(err, IsNil)
+	default:
+		c.Fatalf("unexpected auth mode %q", authMode)
+	}
+
 	return kd
 }
 
@@ -4538,10 +4572,12 @@ func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 		called++
 		c.Check(devicePath, Equals, "/dev/some-device")
 		switch slotName {
-		case "some-slot-1":
+		case "some-slot":
 			return sb.NewKeyData(&sb.KeyParams{Role: "recover", PlatformName: "mock-platform-1"})
-		case "some-slot-2":
-			return s.mockSecbootPassphraseKeyData(c, "run+recover", "mock-platform-2"), nil
+		case "some-passphrase-slot":
+			return s.mockSecbootAuthKeyData(c, "run+recover", "mock-platform-2", device.AuthModePassphrase), nil
+		case "some-pin-slot":
+			return s.mockSecbootAuthKeyData(c, "run+recover", "mock-platform-2", device.AuthModePIN), nil
 		case "no-data":
 			return &sb.KeyData{}, nil
 		default:
@@ -4549,7 +4585,7 @@ func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 		}
 	})()
 
-	kd, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot-1")
+	kd, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot")
 	c.Assert(err, IsNil)
 	c.Check(kd, NotNil)
 	c.Check(called, Equals, 1)
@@ -4558,7 +4594,7 @@ func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 	c.Check(kd.PlatformName(), Equals, "mock-platform-1")
 	c.Check(kd.Roles(), DeepEquals, []string{"recover"})
 
-	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "some-slot-2")
+	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "some-passphrase-slot")
 	c.Assert(err, IsNil)
 	c.Check(kd, NotNil)
 	c.Check(called, Equals, 2)
@@ -4567,10 +4603,19 @@ func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 	c.Check(kd.PlatformName(), Equals, "mock-platform-2")
 	c.Check(kd.Roles(), DeepEquals, []string{"run+recover"})
 
-	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "no-data")
+	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "some-pin-slot")
 	c.Assert(err, IsNil)
 	c.Check(kd, NotNil)
 	c.Check(called, Equals, 3)
+
+	c.Check(kd.AuthMode(), Equals, device.AuthModePIN)
+	c.Check(kd.PlatformName(), Equals, "mock-platform-2")
+	c.Check(kd.Roles(), DeepEquals, []string{"run+recover"})
+
+	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "no-data")
+	c.Assert(err, IsNil)
+	c.Check(kd, NotNil)
+	c.Check(called, Equals, 4)
 
 	c.Check(kd.AuthMode(), Equals, device.AuthModeNone)
 	c.Check(kd.PlatformName(), Equals, "")
@@ -5511,4 +5556,17 @@ func (s *secbootSuite) TestNewActivateContextError(c *C) {
 
 	_, err := secboot.NewActivateContext(context.Background())
 	c.Check(err, Equals, newContextErr)
+}
+
+func (s *secbootSuite) TestValidatePIN(c *C) {
+	c.Assert(secboot.ValidatePIN("1234"), IsNil)
+	var longPIN strings.Builder
+	for i := 0; i <= math.MaxUint8; i++ {
+		longPIN.WriteString("0")
+	}
+	c.Assert(secboot.ValidatePIN(longPIN.String()), IsNil)
+
+	c.Assert(secboot.ValidatePIN(longPIN.String()+"0"), ErrorMatches, "invalid PIN: too long")
+	c.Assert(secboot.ValidatePIN(""), ErrorMatches, "invalid PIN: zero length")
+	c.Assert(secboot.ValidatePIN("bad"), ErrorMatches, "invalid PIN: unexpected character")
 }

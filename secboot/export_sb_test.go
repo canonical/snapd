@@ -53,6 +53,9 @@ var (
 
 	ResealKeysWithTPM          = resealKeysWithTPM
 	ResealKeysWithFDESetupHook = resealKeysWithFDESetupHook
+
+	EntropyBits = entropyBitsImpl
+	ValidatePIN = validatePINImpl
 )
 
 func ExtractSbRunChecksContext(checkContext *PreinstallCheckContext) *sb_preinstall.RunChecksContext {
@@ -264,6 +267,14 @@ func MockSbNewTPMPassphraseProtectedKey(f func(tpm *sb_tpm2.Connection, params *
 	sbNewTPMPassphraseProtectedKey = f
 	return func() {
 		sbNewTPMPassphraseProtectedKey = old
+	}
+}
+
+func MockSbNewTPMPINProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error)) (restore func()) {
+	old := sbNewTPMPINProtectedKey
+	sbNewTPMPINProtectedKey = f
+	return func() {
+		sbNewTPMPINProtectedKey = old
 	}
 }
 

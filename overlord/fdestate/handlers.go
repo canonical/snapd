@@ -422,6 +422,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 				return fmt.Errorf("cannot change passphrase for %s: %v", keyslot.Ref().String(), err)
 			}
 		case device.AuthModePIN:
+			// TODO:FDEM: support changing PINs
 			return fmt.Errorf("internal error: changing PINs is not implemented")
 		default:
 			return fmt.Errorf("internal error: unexpected auth-mode %q", authMode)
