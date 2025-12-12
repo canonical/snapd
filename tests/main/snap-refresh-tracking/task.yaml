@@ -11,9 +11,13 @@ restore: |
     snap remove --purge test-snapd-sh-core24
 
 execute: |
-    snap_release=$(snap refresh --tracking')
+    snap_release=$(snap refresh --tracking test-snapd-sh-core24)
     echo "$snap_release" | gojq --yaml-input -r .channel | MATCH null
 
     snap switch test-snapd-sh-core24 --channel latest/stable
-    snap_release=$(snap refresh --tracking')
+
+    snap_release=$(snap refresh --tracking test-snapd-sh-core24)
     echo "$snap_release" | gojq --yaml-input -r .channel | MATCH "latest/stable"
+
+    snap_release=$(snap refresh --tracking)
+    echo "$snap_release" | gojq --yaml-input . > /dev/null
