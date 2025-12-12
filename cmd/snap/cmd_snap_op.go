@@ -29,7 +29,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 
 	"github.com/jessevdk/go-flags"
 
@@ -131,15 +131,15 @@ snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
 
-type SnapChannel struct {
+type snapChannel struct {
 	Channel string `yaml:"channel"`
 }
 
-// SnapConfig represents the top-level structure.
+// snapConfig represents the top-level structure.
 // The "snaps" field is a map where the key is the
 // snap name (like "lxd") and the value is its channel info.
-type SnapConfig struct {
-	Snaps map[string]SnapChannel `yaml:"snaps"`
+type snapConfig struct {
+	Snaps map[string]snapChannel `yaml:"snaps"`
 }
 
 type cmdRemove struct {
@@ -1238,33 +1238,25 @@ func (x *cmdRefresh) TrackRefreshes() (err error) {
 		return err
 	}
 
-	// This sort is no longer strictly necessary because the YAML library
-	// will sort the map keys by default, but it doesn't hurt.
 	sort.Sort(snapsByName(snaps))
 
-	// 1. Create the Go struct to hold all the snap data
-	config := SnapConfig{
-		Snaps: make(map[string]SnapChannel),
+	// Create the struct to hold all the snap data
+	config := snapConfig{
+		Snaps: make(map[string]snapChannel),
 	}
 
-	// 2. Populate the map instead of printing
+	// Populate the map
 	for _, snap := range snaps {
-		config.Snaps[snap.Name] = SnapChannel{
+		config.Snaps[snap.Name] = snapChannel{
 			Channel: snap.TrackingChannel,
 		}
 	}
 
-	// 3. Marshal the entire struct into YAML
-	yamlData, err := yaml.Marshal(&config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal snap tracking info: %w", err)
-	}
+	// Use the YAML encoder directly to Stdout
+    enc := yaml.NewEncoder(Stdout)
+    defer enc.Close()
 
-	// 4. Print the final YAML output to Stdout
-	//    (Fprintln adds a newline at the end)
-	fmt.Fprintln(Stdout, string(yamlData))
-
-	return nil
+    return enc.Encode(&config)
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
