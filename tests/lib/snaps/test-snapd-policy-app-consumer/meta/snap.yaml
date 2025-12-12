@@ -131,6 +131,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  mediatek-accel:
+    command: bin/run
+    plugs: [ mediatek-accel ]
   microceph:
     command: bin/run
     plugs: [ microceph ]
@@ -321,3 +324,8 @@ plugs:
   sd-control:
     interface: sd-control
     flavor: dual-sd
+  mediatek-accel:
+    interface: mediatek-accel
+    units:
+      - apu
+      - vcu
