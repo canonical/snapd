@@ -234,8 +234,9 @@ func EFISecurebootDBManagerStartup(st *state.State) error {
 }
 
 type securebootUpdateContext struct {
-	Payload []byte               `json:"payload"`
-	Method  device.SealingMethod `json:"sealing-method"`
+	Payload []byte                   `json:"payload"`
+	Method  device.SealingMethod     `json:"sealing-method"`
+	DB      EFISecurebootKeyDatabase `json:"db"`
 }
 
 // addEFISecurebootDBUpdateChange adds a state change related to the Secureboot
@@ -270,6 +271,7 @@ func addEFISecurebootDBUpdateChange(
 	data, err := json.Marshal(securebootUpdateContext{
 		Payload: payload,
 		Method:  method,
+		DB:      db,
 	})
 	if err != nil {
 		return nil, err
