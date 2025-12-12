@@ -128,7 +128,7 @@ func postSystemSecurebootActionJSON(c *Command, r *http.Request) Response {
 	}
 }
 
-var fdestateEFISecureBootDBUpdatePrepare = fdestate.EFISecureBootDBUpdatePrepare
+var fdestateEFISecurebootDBUpdatePrepare = fdestate.EFISecurebootDBUpdatePrepare
 
 func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootRequest) Response {
 	if req.KeyDatabase != "DBX" {
@@ -140,7 +140,7 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 		return BadRequest("cannot decode payload: %v", err)
 	}
 
-	err = fdestateEFISecureBootDBUpdatePrepare(c.d.state,
+	err = fdestateEFISecurebootDBUpdatePrepare(c.d.state,
 		fdestate.EFISecurebootDBX, // only DBX updates are supported
 		payload)
 	if err != nil {
@@ -150,20 +150,20 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 	return SyncResponse(nil)
 }
 
-var fdestateEFISecureBootDBUpdateCleanup = fdestate.EFISecureBootDBUpdateCleanup
+var fdestateEFISecurebootDBUpdateCleanup = fdestate.EFISecurebootDBUpdateCleanup
 
 func postSystemActionEFISecurebootUpdateDBCleanup(c *Command) Response {
-	if err := fdestateEFISecureBootDBUpdateCleanup(c.d.state); err != nil {
+	if err := fdestateEFISecurebootDBUpdateCleanup(c.d.state); err != nil {
 		return BadRequest("cannot notify of update cleanup: %v", err)
 	}
 
 	return SyncResponse(nil)
 }
 
-var fdestateEFISecureBootDBManagerStartup = fdestate.EFISecureBootDBManagerStartup
+var fdestateEFISecurebootDBManagerStartup = fdestate.EFISecurebootDBManagerStartup
 
 func postSystemActionEFISecurebootUpdateStartup(c *Command) Response {
-	if err := fdestateEFISecureBootDBManagerStartup(c.d.state); err != nil {
+	if err := fdestateEFISecurebootDBManagerStartup(c.d.state); err != nil {
 		return BadRequest("cannot notify of manager startup: %v", err)
 	}
 
