@@ -146,11 +146,12 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 }
 
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(task)
-	defer perfTimings.Save(task.State())
+	defer perfTimings.Save(st)
 
 	// Get snap.Info from bits handed by the snap manager.
 	snapsup, err := snapstate.TaskSnapSetup(task)
@@ -164,7 +165,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	}
 
 	if len(snapInfo.BadInterfaces) > 0 {
-		task.State().Warnf("%s", snap.BadInterfacesSummary(snapInfo))
+		st.Warnf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
 	// We no longer do/need core-phase-2, see
@@ -180,12 +181,12 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts, err := m.buildConfinementOptions(task.State(), task, snapInfo, snapsup.Flags)
+	opts, err := m.buildConfinementOptions(st, task, snapInfo, snapsup.Flags)
 	if err != nil {
 		return err
 	}
 
-	if err := addImplicitInterfaces(task.State(), snapInfo); err != nil {
+	if err := addImplicitInterfaces(st, snapInfo); err != nil {
 		return err
 	}
 
@@ -235,6 +236,30 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 	}
 
 	snapstate.Set(st, instanceName, &snapst)
+	return nil
+}
+
+// prepareAppSetInterfaces does the minimal amount of setup for auto-connect to work and correctly
+// detect plugs/slots for auto-connection. The real work of setting up profiles is done in
+// setupProfilesForAppSet, and is called after auto-connect in the "setup-profiles" task.
+func (m *InterfaceManager) prepareAppSetInterfaces(st *state.State, appSet *interfaces.SnapAppSet) error {
+	installed, err := isSnapInstalled(st, appSet.InstanceName())
+	if err != nil {
+		return err
+	} else if installed {
+		// For installed snaps, we don't need to pre-fill the repo, instead
+		// mark pending security.
+		return setPendingProfilesSideInfo(st, appSet.InstanceName(), appSet)
+	}
+
+	// For non-installed snaps, we just need to add the app set to the
+	// to the repo, to ensure auto-connect can find plugs/slots by the snap.
+	if err := addImplicitInterfaces(st, appSet.Info()); err != nil {
+		return err
+	}
+	if err := m.repo.AddAppSet(appSet); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -454,6 +479,60 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	return nil
 }
 
+func isSnapInstalled(st *state.State, snapName string) (bool, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	} else if errors.Is(err, state.ErrNoState) {
+		return false, nil
+	}
+	return snapst.IsInstalled(), nil
+}
+
+func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	appSet, err := appSetForTask(task, snapInfo)
+	if err != nil {
+		return err
+	}
+
+	return m.prepareAppSetInterfaces(st, appSet)
+}
+
+// This function expects to be called with the state locked
+func shouldUndoSetupProfiles(task *state.Task) bool {
+	// Check if there is a "prepare-profiles" task in the change.
+	// If there is not, then we should always do the undo of setup-profiles.
+	var hasPrepareProfiles bool
+	for _, t := range task.Change().Tasks() {
+		if t.Kind() == "prepare-profiles" {
+			hasPrepareProfiles = true
+			break
+		}
+	}
+
+	if !hasPrepareProfiles {
+		return true
+	}
+
+	// Okay, we have it, now check if this task is "prepare-profiles",
+	// we only do it for the new task kind.
+	return task.Kind() == "prepare-profiles"
+}
+
 func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -468,6 +547,11 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	}
 	if corePhase2 {
 		// let the first setup-profiles deal with this
+		return nil
+	}
+
+	if !shouldUndoSetupProfiles(task) {
+		logger.Debugf("skipping undo of setup-profiles for task %q", task.ID())
 		return nil
 	}
 
@@ -508,27 +592,25 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts, err := m.buildConfinementOptions(task.State(), task, snapInfo, snapst.Flags)
+
+		// When undoing, ignore any component setup data attached to the task and
+		// regenerate profiles based on the components that are currently installed
+		// for this revision.
+		opts, err := m.buildConfinementOptions(st, task, snapInfo, snapsup.Flags)
 		if err != nil {
 			return err
 		}
-
 		if err := addImplicitInterfaces(st, snapInfo); err != nil {
 			return err
 		}
-
-		// this app set is derived from the currently installed revision of the
-		// snap (not the revision that we are reverting from). it only includes
-		// components that were installed with that revision.
 		appSet, err := appSetForSnapRevision(st, snapInfo)
 		if err != nil {
 			return err
 		}
-
 		if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(task.State(), snapName, appSet)
+		return setPendingProfilesSideInfo(st, snapsup.InstanceName(), appSet)
 	}
 }
 
@@ -1338,6 +1420,19 @@ func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) boo
 	return false
 }
 
+func findSetupProfilesTaskAfterAutoConnect(chg *state.Change) *state.Task {
+	for _, task := range chg.Tasks() {
+		if task.Kind() == "setup-profiles" {
+			for _, waitTask := range task.WaitTasks() {
+				if waitTask.Kind() == "auto-connect" {
+					return task
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // batchConnectTasks creates connect tasks and interface hooks for
 // conns and sets their wait chain with regard to the setupProfiles
 // task.
@@ -1348,15 +1443,27 @@ func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) boo
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
+func batchConnectTasks(task *state.Task, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
 	if len(conns) == 0 {
 		return nil, false, nil
 	}
 
-	var newConnections []string
-	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
-	setupProfiles.Set("snap-setup", snapsup)
+	st := task.State()
+	setupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change())
+	var injectSetupProfiles bool
+	if setupProfiles == nil {
+		// In old style setup, there will be one setup-profiles task before
+		// the "link-snap" task. In the new style, the setup-profiles task will be
+		// located after "auto-connect" task.
+		// If we don't find the new style setup-profiles task, we fall back
+		// to old style behaviour and inject our own setup-profiles task.
+		setupProfiles = st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
+		setupProfiles.Set("snap-setup", snapsup)
+		logger.Noticef("INFO: new \"setup-profiles\" task not found, falling back on prior behaviour")
+		injectSetupProfiles = true
+	}
 
+	var newConnections []string
 	ts = state.NewTaskSet()
 	for connID, conn := range conns {
 		var opts connectOpts
@@ -1392,10 +1499,13 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 
 		newConnections = append(newConnections, conn.ID())
 	}
+
 	if len(ts.Tasks()) > 0 {
 		sort.Strings(newConnections)
 		setupProfiles.Set("new-connections", newConnections)
+	}
 
+	if injectSetupProfiles {
 		ts.AddTask(setupProfiles)
 	}
 	return ts, hasInterfaceHooks, nil
@@ -1636,7 +1746,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autots, hasInterfaceHooks, err := batchConnectTasks(st, snapsup, newconns, connOpts)
+	autots, hasInterfaceHooks, err := batchConnectTasks(task, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}

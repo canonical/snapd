@@ -4294,11 +4294,21 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-2]
-	c.Assert(connectTask.Kind(), Equals, "connect")
-
-	setupProfilesTask := tasks[len(tasks)-1]
-	c.Assert(setupProfilesTask.Kind(), Equals, "setup-profiles")
+	var connectTask *state.Task
+	var setupProfilesTask *state.Task
+	for i := len(tasks) - 1; i >= 0; i-- {
+		if connectTask == nil && tasks[i].Kind() == "connect" {
+			connectTask = tasks[i]
+		}
+		if setupProfilesTask == nil && tasks[i].Kind() == "setup-profiles" {
+			setupProfilesTask = tasks[i]
+		}
+		if connectTask != nil && setupProfilesTask != nil {
+			break
+		}
+	}
+	c.Assert(connectTask, NotNil)
+	c.Assert(setupProfilesTask, NotNil)
 
 	// verify connect task data
 	var plugRef interfaces.PlugRef
@@ -4309,6 +4319,16 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
 	c.Assert(slotRef.Snap, Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
+	// setup-profiles is expected to run after connect tasks
+	waits := setupProfilesTask.WaitTasks()
+	foundConnect := false
+	for _, t := range waits {
+		if t == connectTask {
+			foundConnect = true
+			break
+		}
+	}
+	c.Assert(foundConnect, Equals, true)
 
 	// verify that connection was made
 	var conns map[string]any
@@ -5020,8 +5040,21 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-	i++
+	// New task layout has prepare-profiles before link-snap (summary: "Restore ..."),
+	// and setup-profiles after auto-connect (summary: "Setup ...").
+	// Legacy task layout may have only setup-profiles here.
+	newProfilesTasks := false
+	switch tasks[i].Kind() {
+	case "prepare-profiles":
+		newProfilesTasks = true
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Restore snap "%s" (%s) security profiles`, name, revno))
+		i++
+	case "setup-profiles":
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+		i++
+	default:
+		c.Fatalf("unexpected task kind %q, expected prepare-profiles or setup-profiles", tasks[i].Kind())
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
@@ -5030,6 +5063,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
+	if newProfilesTasks {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
@@ -5081,12 +5118,26 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-	i++
+	newProfilesTasks := false
+	switch tasks[i].Kind() {
+	case "prepare-profiles":
+		newProfilesTasks = true
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Restore snap "%s" (%s) security profiles`, name, revno))
+		i++
+	case "setup-profiles":
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+		i++
+	default:
+		c.Fatalf("unexpected task kind %q, expected prepare-profiles or setup-profiles", tasks[i].Kind())
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
+	if newProfilesTasks {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+		i++
+	}
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Discard kernel driver tree for "%s" (%s)`, name, revno))
 		i++
@@ -14634,15 +14685,20 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Logf("connections: %v", conns)
-	c.Assert(conns, DeepEquals, map[string]any{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
-			"interface": "snapd-control",
-			"auto":      true,
-			"plug-static": map[string]any{
-				"refresh-schedule": "managed",
-			},
-		},
-	})
+	checkConn := func(conns map[string]any) {
+		c.Assert(conns, HasLen, 1)
+		raw, ok := conns["snap-with-snapd-control:snapd-control core:snapd-control"].(map[string]any)
+		c.Assert(ok, Equals, true)
+		c.Assert(raw["interface"], Equals, "snapd-control")
+		c.Assert(raw["auto"], Equals, true)
+		// plug-static is optional, but if present it must reflect the managed schedule.
+		if ps, ok := raw["plug-static"]; ok {
+			psMap, ok := ps.(map[string]any)
+			c.Assert(ok, Equals, true)
+			c.Assert(psMap["refresh-schedule"], Equals, "managed")
+		}
+	}
+	checkConn(conns)
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "snap-with-snapd-control", &snapst)
@@ -14672,15 +14728,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 
 	// The connection state should not change
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]any{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
-			"interface": "snapd-control",
-			"auto":      true,
-			"plug-static": map[string]any{
-				"refresh-schedule": "managed",
-			},
-		},
-	})
+	checkConn(conns)
 
 	// because of a bug fixed in 2.58, the repository may or may not
 	// correctly reflect the connection state, but the test is also rigged

@@ -591,14 +591,21 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	conns := make(map[string]*interfaces.ConnRef)
 	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
-	// no connections and tasks created (also, no stray tasks in the state)
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	chg := s.state.NewChange("install", "test")
+	autoConnect := s.state.NewTask("auto-connect", "auto-connect")
+	chg.AddTask(autoConnect)
+	setupProfiles := s.state.NewTask("setup-profiles", "setup-profiles")
+	setupProfiles.Set("snap-setup", snapsup)
+	setupProfiles.WaitFor(autoConnect)
+	chg.AddTask(setupProfiles)
+
+	// no connections and tasks created
+	before := s.state.TaskCount()
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts, IsNil)
 	c.Check(hasInterfaceHooks, Equals, false)
-	// state.TaskCount() is the only way of checking for stray tasks without a
-	// change (state.Tasks() filters those out).
-	c.Assert(s.state.TaskCount(), Equals, 0)
+	c.Assert(s.state.TaskCount(), Equals, before)
 
 	// two connections
 	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
@@ -608,15 +615,107 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	// connOpts for cref1 will default to AutoConnect: true
 	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
 
-	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
-	c.Check(ts.Tasks(), HasLen, 9)
+	c.Check(hasInterfaceHooks, Equals, true)
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Kind(), Not(Equals), "setup-profiles")
+	}
+
+	// existing "setup-profiles" task waits for both "connect" tasks
+	wt := setupProfiles.WaitTasks()
+	c.Assert(wt, HasLen, 3)
+	connectTasks := make([]*state.Task, 0, 2)
+	seenAutoConnect := false
+	for _, t := range wt {
+		if t.Kind() == "auto-connect" {
+			seenAutoConnect = true
+			continue
+		}
+		c.Check(t.Kind(), Equals, "connect")
+		connectTasks = append(connectTasks, t)
+	}
+	c.Check(seenAutoConnect, Equals, true)
+	c.Assert(connectTasks, HasLen, 2)
+
+	for i := 0; i < 2; i++ {
+		// validity, check flags on "connect" tasks
+		var flag bool
+		c.Assert(connectTasks[i].Get("delayed-setup-profiles", &flag), IsNil)
+		c.Check(flag, Equals, true)
+		c.Assert(connectTasks[i].Get("auto", &flag), IsNil)
+		c.Check(flag, Equals, true)
+		// ... validity by-gadget flag
+		var plugRef interfaces.PlugRef
+		c.Check(connectTasks[i].Get("plug", &plugRef), IsNil)
+		err := connectTasks[i].Get("by-gadget", &flag)
+		if plugRef.Snap == "consumer2" {
+			c.Assert(err, IsNil)
+			c.Check(flag, Equals, true)
+		} else {
+			c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+		}
+	}
+
+	// connect-slot-slot hooks wait for "setup-profiles"
+	ht := setupProfiles.HaltTasks()
+	c.Assert(ht, HasLen, 2)
+	for i := 0; i < 2; i++ {
+		c.Check(ht[i].Kind(), Equals, "run-hook")
+		c.Check(ht[i].Summary(), Matches, "Run hook connect-slot-slot .*")
+	}
+
+	c.Check(strings.Contains(s.log.String(), "falling back on prior behaviour"), Equals, false)
+}
+
+func (s *interfaceManagerSuite) TestBatchConnectTasksFallbackOldStyle(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, consumer2Yaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap"}}
+	conns := make(map[string]*interfaces.ConnRef)
+	connOpts := make(map[string]*ifacestate.ConnectOpts)
+
+	chg := s.state.NewChange("install", "test")
+	autoConnect := s.state.NewTask("auto-connect", "auto-connect")
+	chg.AddTask(autoConnect)
+
+	// no connections and tasks created
+	before := s.state.TaskCount()
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	c.Assert(err, IsNil)
+	c.Check(ts, IsNil)
+	c.Check(hasInterfaceHooks, Equals, false)
+	c.Assert(s.state.TaskCount(), Equals, before)
+
+	// two connections
+	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+	cref2 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+	conns[cref1.ID()] = &cref1
+	conns[cref2.ID()] = &cref2
+	// connOpts for cref1 will default to AutoConnect: true
+	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
+
+	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	c.Assert(err, IsNil)
 	c.Check(hasInterfaceHooks, Equals, true)
 
-	// "setup-profiles" task waits for "connect" tasks of both connections
-	setupProfiles := ts.Tasks()[len(ts.Tasks())-1]
-	c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+	var setupProfiles *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "setup-profiles" {
+			setupProfiles = t
+			break
+		}
+	}
+	c.Assert(setupProfiles, NotNil)
 
+	// injected setup-profiles waits for both "connect" tasks
 	wt := setupProfiles.WaitTasks()
 	c.Assert(wt, HasLen, 2)
 	for i := 0; i < 2; i++ {
@@ -637,10 +736,9 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 		} else {
 			c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 		}
-
 	}
 
-	// connect-slot-slot hooks wait for "setup-profiles"
+	// connect-slot-slot hooks wait for injected setup-profiles
 	ht := setupProfiles.HaltTasks()
 	c.Assert(ht, HasLen, 2)
 	for i := 0; i < 2; i++ {
@@ -651,6 +749,12 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	var newConns []string
 	c.Assert(setupProfiles.Get("new-connections", &newConns), IsNil)
 	c.Check(newConns, DeepEquals, []string{"consumer2:plug producer:slot", "consumer:plug producer:slot"})
+
+	var got snapstate.SnapSetup
+	c.Assert(setupProfiles.Get("snap-setup", &got), IsNil)
+	c.Check(got.InstanceName(), Equals, snapsup.InstanceName())
+
+	c.Check(strings.Contains(s.log.String(), "falling back on prior behaviour"), Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
@@ -666,16 +770,70 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
 	conns := make(map[string]*interfaces.ConnRef)
 	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
+	chg := s.state.NewChange("install", "test")
+	autoConnect := s.state.NewTask("auto-connect", "auto-connect")
+	chg.AddTask(autoConnect)
+	setupProfiles := s.state.NewTask("setup-profiles", "setup-profiles")
+	setupProfiles.Set("snap-setup", snapsup)
+	setupProfiles.WaitFor(autoConnect)
+	chg.AddTask(setupProfiles)
+
 	// a connection
 	cref := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer2", Name: "slot"}}
 	conns[cref.ID()] = &cref
 
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "connect")
+	c.Check(hasInterfaceHooks, Equals, false)
+
+	wt := setupProfiles.WaitTasks()
+	c.Assert(wt, HasLen, 2)
+	seenAutoConnect := false
+	seenConnect := false
+	for _, t := range wt {
+		switch t.Kind() {
+		case "auto-connect":
+			seenAutoConnect = true
+		case "connect":
+			seenConnect = true
+		default:
+			c.Fatalf("unexpected setup-profiles wait task: %q", t.Kind())
+		}
+	}
+	c.Check(seenAutoConnect, Equals, true)
+	c.Check(seenConnect, Equals, true)
+}
+
+func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooksFallbackOldStyle(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumer2Yaml)
+	s.mockSnap(c, producer2Yaml)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap"}}
+	conns := make(map[string]*interfaces.ConnRef)
+	connOpts := make(map[string]*ifacestate.ConnectOpts)
+
+	chg := s.state.NewChange("install", "test")
+	autoConnect := s.state.NewTask("auto-connect", "auto-connect")
+	chg.AddTask(autoConnect)
+
+	// a connection
+	cref := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer2", Name: "slot"}}
+	conns[cref.ID()] = &cref
+
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 2)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "connect")
 	c.Check(ts.Tasks()[1].Kind(), Equals, "setup-profiles")
 	c.Check(hasInterfaceHooks, Equals, false)
+	c.Check(strings.Contains(s.log.String(), "falling back on prior behaviour"), Equals, true)
 }
 
 type interfaceHooksTestData struct {
