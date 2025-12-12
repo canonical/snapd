@@ -3,7 +3,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "amazon-linux",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google-distro-1",
         "systems": "amazon-linux-2-64 amazon-linux-2023-64",
         "tasks": "tests/...",
@@ -57,7 +57,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-xenial-bionic",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-16.04-64 ubuntu-18.04-64",
         "tasks": "tests/...",
@@ -66,7 +66,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-jammy",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-22.04-64",
         "tasks": "tests/...",
@@ -75,7 +75,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-daily",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-26.04-64",
         "tasks": "tests/...",
@@ -84,7 +84,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-core-22",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-22-64",
         "tasks": "tests/...",
@@ -93,7 +93,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-arm64",
-        "backend": "openstack-arm-ps7",
+        "backend": "openstack-arm",
         "alternative-backend": "google-arm",
         "systems": "ubuntu-24.04-arm-64 ubuntu-core-24-arm-64",
         "tasks": "tests/...",
@@ -129,7 +129,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-deb",
-        "backend": "openstack-ps7",
+        "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-24.04-64",
         "tasks": "tests/...",

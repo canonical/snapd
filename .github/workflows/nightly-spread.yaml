@@ -32,8 +32,8 @@ jobs:
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
-      group: openstack-ps7
-      backend: openstack-ps7
+      group: openstack
+      backend: openstack
       systems: 'ALL'
       tasks: 'tests/nightly/...'
       rules: ''
@@ -92,20 +92,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: openstack-ps7
-            backend: openstack-ps7
-            systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 debian-12-64'
           - group: openstack
             backend: openstack
-            systems: 'debian-sid-64'
+            systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 debian-12-64 debian-sid-64'
 
   spread-test-experimental:
     if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
-      group: 'openstack-ps7'
-      backend: 'openstack-ps7'
+      group: openstack
+      backend: openstack
       systems: 'ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 ubuntu-core-24-64'
       tasks: 'tests/...'
       rules: ''
@@ -245,42 +242,42 @@ jobs:
         include:
           # Xenial is not needed as it is already being tested with kernel 4.4.0-210-generic
           - group: bionic-4.15
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-18.04-64'
             kernel: '4\.15.*-generic'
             support: '2030-04-30'
           - group: bionic-5.4
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-18.04-64'
             kernel: '5\.4.*-generic'
             support: '2030-04-30'
           - group: focal-5.4
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-20.04-64'
             kernel: '5\.4.*-generic'
             support: '2032-04-30'
           - group: focal-5.15
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-20.04-64'
             kernel: '5\.15.*-generic'
             support: '2032-04-30'
           - group: jammy-5.15
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-22.04-64'
             kernel: '5\.15.*-generic'
             support: '2034-04-30'
           - group: jammy-6.8
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-22.04-64'
             kernel: '6\.8.*-generic'
             support: '2034-04-30'
           - group: noble-6.8
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-24.04-64'
             kernel: '6\.8.*-generic'
             support: '2036-04-30'
           - group: noble-6.14
-            backend: openstack-ps7
+            backend: openstack
             systems: 'ubuntu-24.04-64'
             kernel: '6\.14.*-generic'
             support: '2036-04-30'
