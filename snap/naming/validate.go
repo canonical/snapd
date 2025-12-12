@@ -313,6 +313,44 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 	return true, nil
 }
 
+// validateAssumedISAArch checks that, when a snap requires an ISA to be supported:
+//  1. compares the specified <arch> with the device's one. If they differ, it exits
+//     without error signaling that they flag is valid
+//  2. if the specified <arch> matches the device's one, the support for specifying ISAs
+//     for that architecture is verified. If it's absent, an error is returned
+//  3. if ISA specification is supported for that architecture, the arch-specific function,
+//     defined in the arch-specific file, is called. If no error is returned then the key
+//     is considered valid.
+func validateAssumedISAArch(flag string, dpkgArchitecture func() string) error {
+	// we allow keys like isa-<arch>-<isa_val>, so the result of the split will
+	// always be {"isa", "<arch>", "<isa_val>"}
+	tokens := strings.SplitN(flag, "-", 3)
+	if len(tokens) != 3 {
+		return fmt.Errorf("%s: must be in the format isa-<arch>-<isa_val>", flag)
+	}
+
+	if dpkgArchitecture() != tokens[1] {
+		// Skip, it doesn't make sense to verify the ISA for architectures we
+		// are not running on
+		return nil
+	}
+
+	// Run architecture-dependent compatibility checks
+	var err error
+	switch tokens[1] {
+	case "riscv64":
+		err = validateAssumesRiscvISA(tokens[2])
+
+	default:
+		return fmt.Errorf("%s: ISA specification is not supported for arch: %s", flag, tokens[1])
+	}
+
+	if err != nil {
+		return fmt.Errorf("%s: validation failed: %s", flag, err)
+	}
+	return nil
+}
+
 // assumeFormat matches the expected string format for assume flags.
 var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -334,35 +372,13 @@ func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet ma
 			}
 		}
 
-		if strings.HasPrefix(flag, "isa") {
-			// we allow keys like isa-<arch>-<isa_val>, so the result of the split will
-			// always be {"isa", "<arch>", "<isa_val>"}
-			tokens := strings.Split(flag, "-")
-			if len(tokens) != 3 {
-				return fmt.Errorf("%s but it's not in the format isa-<arch>-<isa_val>", flag)
-			}
-
-			if arch.DpkgArchitecture() != tokens[1] {
-				// Skip, it doesn't make sense to verify the ISA for architectures we
-				// are not running on
-				continue
-			}
-
-			// Run architecture-dependent compatibility checks
-			var err error
-			switch arch.DpkgArchitecture() {
-			case "riscv64":
-				err = validateAssumesRiscvISA(tokens[2])
-
-			default:
-				return fmt.Errorf("%s but ISA specification is not supported for arch: %s", flag, tokens[1])
-			}
-
+		if strings.HasPrefix(flag, "isa-") {
+			// TODO: replace arch.DpkgArchitecture with argument of ValidateAssumes function?
+			err := validateAssumedISAArch(flag, arch.DpkgArchitecture)
 			if err != nil {
-				return fmt.Errorf("%s but validation failed: %s", flag, err)
-			} else {
-				continue
+				return err
 			}
+			continue
 		}
 
 		// if featureSet is provided, check feature support;

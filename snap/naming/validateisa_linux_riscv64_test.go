@@ -124,7 +124,7 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 			assumes:                  []string{"isa-riscv64-badisa"},
 			arch:                     "riscv64",
 			expectedRISCVHWProbeCall: false,
-			err:                      "isa-riscv64-badisa but validation failed: unsupported ISA for riscv64 architecture: badisa",
+			err:                      "isa-riscv64-badisa: validation failed: unsupported ISA for riscv64 architecture: badisa",
 		}, {
 			// Base IMA support missing
 			assumes: []string{"isa-riscv64-rva23"},
@@ -137,7 +137,7 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 				minimumRVA23Extensions[1],
 			},
 			expectedRISCVHWProbeCall: true,
-			err:                      "isa-riscv64-rva23 but validation failed: missing base RISC-V support",
+			err:                      "isa-riscv64-rva23: validation failed: missing base RISC-V support",
 		}, {
 			// Missing required Zicboz extension
 			assumes: []string{"isa-riscv64-rva23"},
@@ -151,7 +151,7 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 				},
 			},
 			expectedRISCVHWProbeCall: true,
-			err:                      "isa-riscv64-rva23 but validation failed: missing required RVA23 extension: Zicboz",
+			err:                      "isa-riscv64-rva23: validation failed: missing required RVA23 extension: Zicboz",
 		}, {
 			// Error in the syscall
 			assumes:                  []string{"isa-riscv64-rva23"},
@@ -159,7 +159,7 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 			supportedExtensions:      minimumRVA23Extensions,
 			expectedRISCVHWProbeCall: true,
 			syscallError:             "missing CPU...",
-			err:                      "isa-riscv64-rva23 but validation failed: error while querying RVA23 extensions supported by CPU: missing CPU...",
+			err:                      "isa-riscv64-rva23: validation failed: error while querying RVA23 extensions supported by CPU: missing CPU...",
 		},
 	}
 

@@ -589,23 +589,23 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 		arch    string
 		err     string
 	}{
-		// We do not test the explicit "success" case of checking for riscv64
-		// as that is done in a separate file
+		// We do not test the explicit "success" case as that is done in architecture-specific
+		// files
 		{
 			// Different architecture ignored with no error
 			assumes: []string{"isa-riscv64-rva23"},
 			arch:    "amd64",
 		}, {
-			// There are no specified ISA constraints for AMD64
+			// There are no specified ISA constraints for amd64
 			assumes: []string{"isa-amd64-sampleisa"},
 			arch:    "amd64",
-			err:     "isa-amd64-sampleisa but ISA specification is not supported for arch: amd64",
+			err:     "isa-amd64-sampleisa: ISA specification is not supported for arch: amd64",
 		},
 		{
 			// ISA string is malformed
 			assumes: []string{"isa-riscv64..rva23"},
 			arch:    "riscv64",
-			err:     "isa-riscv64..rva23 but it's not in the format isa-<arch>-<isa_val>",
+			err:     "isa-riscv64..rva23: must be in the format isa-<arch>-<isa_val>",
 		},
 	}
 

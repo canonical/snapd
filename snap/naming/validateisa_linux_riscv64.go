@@ -177,7 +177,6 @@ var RiscVExtensions = []extDesc{
 var RISCVHWProbe = unix.RISCVHWProbe
 
 func validateAssumesRiscvISA(isa string) error {
-
 	// Only the RVA23 instruction set is currently supported for RiscV
 	if isa != "rva23" {
 		return fmt.Errorf("unsupported ISA for riscv64 architecture: %s", isa)
