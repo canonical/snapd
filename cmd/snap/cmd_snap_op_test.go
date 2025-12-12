@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"gopkg.in/check.v1"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -1851,8 +1851,7 @@ foo +4.2update1 +17 +436MB +bar +-.*
 
 func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
-	expect := "cannot use --tracking with other flags"
-	c.Check(err.Error(), check.Equals, expect)
+	c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
 	c.Check(err, check.NotNil)
 }
 
@@ -1879,13 +1878,20 @@ func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
 	c.Check(err, check.IsNil)
 
-	expectedData := snap.SnapConfig{
-		Snaps: map[string]snap.SnapChannel{
+	type snapChannel struct {
+        Channel string `yaml:"channel"`
+    }
+    type snapConfig struct {
+        Snaps map[string]snapChannel `yaml:"snaps"`
+    }
+
+	expectedData := snapConfig{
+		Snaps: map[string]snapChannel{
 			"multipass": {Channel: "latest/stable"},
 		},
 	}
 
-	var actualData snap.SnapConfig
+	var actualData snapConfig
 	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
 	c.Assert(err, check.IsNil)
 	c.Check(actualData, check.DeepEquals, expectedData)
@@ -1920,14 +1926,21 @@ func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass", "lxd"})
 	c.Check(err, check.IsNil)
 
-	expectedData := snap.SnapConfig{
-		Snaps: map[string]snap.SnapChannel{
+	type snapChannel struct {
+        Channel string `yaml:"channel"`
+    }
+    type snapConfig struct {
+        Snaps map[string]snapChannel `yaml:"snaps"`
+    }
+
+	expectedData := snapConfig{
+		Snaps: map[string]snapChannel{
 			"lxd":       {Channel: "5.21/stable"},
 			"multipass": {Channel: "latest/stable"},
 		},
 	}
 
-	var actualData snap.SnapConfig
+	var actualData snapConfig
 	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
 	c.Assert(err, check.IsNil)
 	c.Check(actualData, check.DeepEquals, expectedData)
