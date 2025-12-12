@@ -1850,9 +1850,13 @@ foo +4.2update1 +17 +436MB +bar +-.*
 }
 
 func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
-	c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
-	c.Check(err, check.NotNil)
+    s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(200)
+    })
+
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
+    c.Check(err, check.NotNil)
+    c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
 }
 
 func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
@@ -1947,9 +1951,31 @@ func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
 }
 
 func (s *SnapSuite) TestRefreshTrackingInvalid(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
-	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(err.Error(), check.Equals, "no snaps installed")
+    n := 0
+    s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+        c.Assert(n, check.Equals, 0)
+        n++
+
+        c.Check(r.Method, check.Equals, "GET")
+        c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+        // Verify the client is asking for the specific invalid app
+        c.Check(r.URL.Query().Get("snaps"), check.Equals, "invalidapp")
+
+        // Return an empty list in "result" to simulate that the snap is not installed
+        fmt.Fprintln(w, `
+{
+    "type": "sync",
+    "status-code": 200,
+    "result": []
+}`)
+    })
+
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
+    
+    // Verify that stdout is empty and the error matches expectations
+    c.Check(s.Stdout(), check.Equals, "")
+    c.Assert(err, check.NotNil)
+    c.Check(err.Error(), check.Equals, "no snaps installed")
 }
 
 func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {
