@@ -151,9 +151,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 
 	expected = append(expected, "copy-snap-data")
 
-	expected = append(expected, "setup-profiles", "link-snap")
+	expected = append(expected, "prepare-profiles", "link-snap")
 	expected = append(expected, tasksAfterLinkSnap...)
-	expected = append(expected, "auto-connect")
+	expected = append(expected, "auto-connect", "setup-profiles")
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
@@ -263,7 +263,7 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
-		case "setup-profiles":
+		case "prepare-profiles", "setup-profiles":
 			c.Assert(t.Has("component-setup-task"), Equals, false)
 			c.Assert(t.Has("component-setup"), Equals, false)
 		}
@@ -1469,7 +1469,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -1495,6 +1495,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -1516,16 +1521,18 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "channel-for-media"`)
 
 	// check install-record present
-	mountTask := ta[len(ta)-13]
-	c.Check(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(ta, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, false)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -1688,7 +1695,7 @@ func (s *snapmgrTestSuite) TestInstallRunThroughInCloudNoIcons(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -1710,6 +1717,11 @@ func (s *snapmgrTestSuite) TestInstallRunThroughInCloudNoIcons(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -1827,7 +1839,7 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(11),
 		},
@@ -1849,6 +1861,11 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(11),
 		},
@@ -1877,13 +1894,11 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTaskOffset := 10
-	if inputFlags.Prefer {
-		linkTaskOffset = 11
-	}
-	linkTask := ta[len(ta)-linkTaskOffset]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -1977,8 +1992,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-13]
-	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(tasks, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, false)
@@ -2043,7 +2058,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -2069,10 +2084,20 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -2090,7 +2115,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			unlinkFirstInstallUndo: true,
 		},
 		{
-			op:    "setup-profiles:Undoing",
+			op:    "prepare-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -2202,7 +2227,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(666),
 		},
@@ -2228,6 +2253,11 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 			revno: snap.R(666),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(666),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -2249,9 +2279,11 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (666) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (666) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (666) services`)
 
 	// verify snap-setup in the task state
@@ -2404,7 +2436,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  snapName,
 			revno: snap.R(42),
 		},
@@ -2426,6 +2458,11 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  snapName,
+			revno: snap.R(42),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: snap.R(42),
 		},
@@ -2464,9 +2501,11 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, fmt.Sprintf(`Make snap "%s" (42) available to the system`, snapName))
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, fmt.Sprintf(`Start snap "%s" (42) services`, snapName))
 
 	// verify snap-setup in the task state
@@ -2609,7 +2648,7 @@ version: 1.0`)
 			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
 		},
@@ -2629,6 +2668,11 @@ version: 1.0`)
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
 		},
@@ -2749,7 +2793,7 @@ epoch: 1*
 			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "mock",
 			revno: snap.R(-3),
 		},
@@ -2769,6 +2813,11 @@ epoch: 1*
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x3"),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x3"),
 		},
@@ -2896,7 +2945,7 @@ epoch: 1*
 			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
 		},
@@ -2916,6 +2965,11 @@ epoch: 1*
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
 		},
@@ -2970,7 +3024,7 @@ version: 1.0`)
 	s.settle(c)
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 12)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -3141,7 +3195,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "core"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
 		},
@@ -3163,6 +3217,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
 		},
@@ -3209,7 +3268,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
@@ -3231,6 +3290,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
@@ -3308,7 +3372,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 30)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 31)
 	c.Assert(taskKinds(chg2.Tasks()), HasLen, 16)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
@@ -3609,7 +3673,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "setup-snap-save-data",
 		path: filepath.Join(dirs.SnapDataSaveDir, "snap-content-slot"),
 	}, {
-		op:    "setup-profiles:Doing",
+		op:    "prepare-profiles:Doing",
 		name:  "snap-content-slot",
 		revno: snap.R(11),
 	}, {
@@ -3627,6 +3691,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op: "maybe-set-next-boot",
 	}, {
 		op:    "auto-connect:Doing",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	}, {
+		op:    "setup-profiles:Doing",
 		name:  "snap-content-slot",
 		revno: snap.R(11),
 	}, {
@@ -3663,7 +3731,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "setup-snap-save-data",
 		path: filepath.Join(dirs.SnapDataSaveDir, "snap-content-plug"),
 	}, {
-		op:    "setup-profiles:Doing",
+		op:    "prepare-profiles:Doing",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
 	}, {
@@ -3681,6 +3749,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op: "maybe-set-next-boot",
 	}, {
 		op:    "auto-connect:Doing",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op:    "setup-profiles:Doing",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
 	}, {
@@ -4155,8 +4227,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-13]
-	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(tasks, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), testutil.ErrorIs, state.ErrNoState)
 }
@@ -6910,6 +6982,10 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 	ops = append(ops, []fakeOp{{
 		op: "update-aliases",
 	}, {
+		op:    "setup-profiles:Undoing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
 		op:    "auto-connect:Undoing",
 		name:  instanceName,
 		revno: snapRevision,
@@ -6942,7 +7018,7 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 		path:                   snapMount,
 		unlinkFirstInstallUndo: !forRefresh,
 	}, {
-		op:    "setup-profiles:Undoing",
+		op:    "prepare-profiles:Undoing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7264,7 +7340,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		op:   "setup-snap-save-data",
 		path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 	}, {
-		op:    "setup-profiles:Doing",
+		op:    "prepare-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7311,6 +7387,10 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	// ops that follow linking components
 	expected = append(expected, []fakeOp{{
 		op:    "auto-connect:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
+		op:    "setup-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7692,7 +7772,7 @@ components:
 		op:   "setup-snap-save-data",
 		path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 	}, {
-		op:    "setup-profiles:Doing",
+		op:    "prepare-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7730,6 +7810,10 @@ components:
 
 	expected = append(expected, []fakeOp{{
 		op:    "auto-connect:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
+		op:    "setup-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7828,6 +7912,16 @@ func printTasks(ts []*state.Task) string {
 		}
 	}
 	return b.String()
+}
+
+func findLastTaskInTasks(tasks []*state.Task, kind string) *state.Task {
+	var last *state.Task
+	for _, task := range tasks {
+		if task.Kind() == kind {
+			last = task
+		}
+	}
+	return last
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {

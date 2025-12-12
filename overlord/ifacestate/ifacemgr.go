@@ -106,6 +106,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("disconnect", m.doDisconnect, m.undoDisconnect)
 	addHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	addHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
+	addHandler("prepare-profiles", m.doPrepareProfiles, m.undoSetupProfiles)
+
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)

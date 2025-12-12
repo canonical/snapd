@@ -683,9 +683,10 @@ var (
 		"validate-snap",
 		"mount-snap",
 		"copy-snap-data",
-		"setup-profiles",
+		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
+		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[install]",
@@ -705,9 +706,10 @@ var (
 		"remove-aliases",
 		"unlink-current-snap",
 		"copy-snap-data",
-		"setup-profiles",
+		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
+		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
@@ -757,10 +759,10 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	checkLaneTasks := func(lane int) {
 		laneTasks := chg.LaneTasks(lane)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
-		c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
-		c.Check(laneTasks[15].Summary(), Equals, "stop of [test-snap.test-service]")
-		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
-		c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
+		c.Check(laneTasks[14].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[16].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[18].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[20].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
 	checkLaneTasks(1)
 	checkLaneTasks(2)
@@ -1133,22 +1135,22 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
-		c.Check(laneTasks[17].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[18].Summary(), Matches, `Run configure hook of .* snap if present`)
 
-		stopTask := laneTasks[19]
+		stopTask := laneTasks[20]
 		c.Check(stopTask.Summary(), Equals, "stop of [test-snap.test-service]")
 		c.Check(taskKinds(stopTask.WaitTasks()), DeepEquals, refreshTaskKinds)
-		c.Check(laneTasks[20].Summary(), Equals, `Run service command "stop" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[21].Summary(), Equals, `Run service command "stop" for services ["test-service"] of snap "test-snap"`)
 
-		startTask := laneTasks[21]
-		c.Check(laneTasks[21].Summary(), Equals, "start of [test-snap.test-service]")
+		startTask := laneTasks[22]
+		c.Check(laneTasks[22].Summary(), Equals, "start of [test-snap.test-service]")
 		c.Check(taskKinds(startTask.WaitTasks()), DeepEquals, append(refreshTaskKinds, stopTask.Kind(), "service-control"))
-		c.Check(laneTasks[22].Summary(), Equals, `Run service command "start" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[23].Summary(), Equals, `Run service command "start" for services ["test-service"] of snap "test-snap"`)
 
-		restartTask := laneTasks[23]
+		restartTask := laneTasks[24]
 		c.Check(restartTask.Summary(), Equals, "restart of [test-snap.test-service]")
 		c.Check(taskKinds(restartTask.WaitTasks()), DeepEquals, append(refreshTaskKinds, stopTask.Kind(), "service-control", startTask.Kind(), "service-control"))
-		c.Check(laneTasks[24].Summary(), Equals, `Run service command "restart" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[25].Summary(), Equals, `Run service command "restart" for services ["test-service"] of snap "test-snap"`)
 	}
 
 	// double check no new dependencies were added
@@ -1198,7 +1200,7 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	laneTasks := chg.LaneTasks(0)
 	c.Assert(taskKinds(laneTasks), DeepEquals, append(installTaskKinds,
 		"process-delayed-security-backend-effects", "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control"))
-	c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
+	c.Check(laneTasks[14].Summary(), Matches, `Run configure hook of .* snap if present`)
 	stopTask := laneTasks[16]
 	c.Check(stopTask.Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(taskKinds(stopTask.WaitTasks()), DeepEquals, installTaskKinds)
