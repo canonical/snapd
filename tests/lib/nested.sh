@@ -1204,9 +1204,10 @@ nested_force_start_vm() {
     systemctl start "$NESTED_VM"
 }
 
-nested_start_core_vm_unit() {
-    local QEMU CURRENT_IMAGE
+nested_create_vm_service() {
+    local QEMU CURRENT_IMAGE PARAM_OPT
     CURRENT_IMAGE=$1
+    PARAM_OPT="${2:-}"
     QEMU=$(nested_qemu_name)
 
     # Now qemu parameters are defined
@@ -1414,7 +1415,16 @@ nested_start_core_vm_unit() {
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
         ${PARAM_CD}  \
+        ${PARAM_OPT} \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
+}
+
+nested_start_core_vm_unit() {
+    local CURRENT_IMAGE
+    CURRENT_IMAGE=$1
+
+    # Now qemu parameters are defined
+    nested_create_vm_service "$CURRENT_IMAGE"
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1677,119 +1687,18 @@ nested_start_classic_vm() {
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
+
     # Give extra disk space for the image
-    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +2G
+    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
 
-    # Now qemu parameters are defined
-    local PARAM_SMP PARAM_MEM
-    PARAM_SMP="-smp 1"
-    # use only 2G of RAM for qemu-nested
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-2048}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack* ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"        
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
-    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_CD PARAM_RANDOM PARAM_SNAPSHOT
-    PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
-    PARAM_USB="-usb"
-    PARAM_CPU=""
-    PARAM_CD="${NESTED_PARAM_CD:-}"
-    PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
-    # TODO: can this be removed? we create a "pristine" copy above?
-    #PARAM_SNAPSHOT="-snapshot"
-    PARAM_SNAPSHOT=""
-    PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
+    # HACK: convert "classic" qcow2 to raw "core" image because we need
+    # to boot with OVMF, but we do this to use shared vm code
+    qemu-img convert -f qcow2 -O raw \
+        "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
+        "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw"
+    mv -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
-    # XXX: duplicated from nested core vm
-    # Set kvm attribute
-    local ATTR_KVM
-    ATTR_KVM=""
-    if nested_is_kvm_enabled; then
-        ATTR_KVM=",accel=kvm"
-        # CPU can be defined just when kvm is enabled
-        PARAM_CPU="-cpu host"
-    fi
-
-    local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    if [[ "$SPREAD_BACKEND" = google-nested* ]] || [[ "$SPREAD_BACKEND" = openstack* ]]; then
-        PARAM_MACHINE="-machine ubuntu,accel=kvm"
-        PARAM_CPU="-cpu host"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-        # check if we have nested kvm
-        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        else
-            # and if not reset kvm related parameters
-            PARAM_MACHINE=""
-            PARAM_CPU=""
-            ATTR_KVM=""
-        fi
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
-
-    PARAM_IMAGE="-drive file=$NESTED_IMAGES_DIR/$IMAGE_NAME,if=none,id=disk1 -device virtio-blk-pci,drive=disk1,bootindex=1"
-    PARAM_SEED="-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
-    # Open port 7777 on the host so that failures in the nested VM (e.g. to
-    # create users) can be debugged interactively via
-    # "telnet localhost 7777". Also keeps the logs
-    #
-    # XXX: should serial just be logged to stdout so that we just need
-    #      to "journalctl -u $NESTED_VM" to see what is going on ?
-    if "$QEMU" -version | grep '2\.5'; then
-        # XXX: remove once we no longer support xenial hosts
-        PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
-    else
-        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
-    fi
-    PARAM_BIOS=""
-    PARAM_TPM=""
-
-    # ensure we have a log dir
-    mkdir -p "$NESTED_LOGS_DIR"
-    # save logs from previous runs
-    nested_save_serial_log
-
-    rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
-    mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
-    if [ "${NESTED_FDE_PASSWORD+set}" = set ]; then
-        echo -n "${NESTED_FDE_PASSWORD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
-    fi
-
-    # Systemd unit is created, it is important to respect the qemu parameters 
-    # order
-    tests.systemd create-and-start-unit "$NESTED_VM" "${TESTSLIB}/qemu-runner.sh ${NESTED_ASSETS_DIR}/qemu-creds ${QEMU}  \
-        ${PARAM_SMP} \
-        ${PARAM_CPU} \
-        ${PARAM_MEM} \
-        ${PARAM_SNAPSHOT} \
-        ${PARAM_MACHINE} \
-        ${PARAM_DISPLAY} \
-        ${PARAM_NETWORK} \
-        ${PARAM_BIOS} \
-        ${PARAM_TPM} \
-        ${PARAM_RANDOM} \
-        ${PARAM_IMAGE} \
-        ${PARAM_SEED} \
-        ${PARAM_SERIAL} \
-        ${PARAM_MONITOR} \
-        ${PARAM_USB} \
-        ${PARAM_EXTRA} \
-        ${PARAM_CD} "
+    nested_create_vm_service "$NESTED_IMAGES_DIR/$IMAGE_NAME" "-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
 
     if ! nested_wait_vm_ready 60; then
         echo "failed to wait for the vm becomes ready to receive connections"
