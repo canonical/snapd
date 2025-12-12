@@ -85,7 +85,7 @@ func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to u2f hidraw devices.`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/hidraw* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/hidraw* rwk,`)
 }
 
 func (s *u2fDevicesInterfaceSuite) TestUDevSpec(c *C) {

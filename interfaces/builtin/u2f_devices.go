@@ -223,7 +223,7 @@ const u2fDevicesConnectedPlugAppArmor = `
 # Description: Allow write access to u2f hidraw devices.
 
 # Use a glob rule and rely on device cgroup for mediation.
-/dev/hidraw* rw,
+/dev/hidraw* rwk,
 
 # char 234-254 are used for dynamic assignment, which u2f devices are
 /run/udev/data/c23[4-9]:* r,
