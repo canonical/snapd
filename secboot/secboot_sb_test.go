@@ -1151,7 +1151,8 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			PCRPolicyCounterHandle: 42,
 			VolumesAuth:            tc.volumesAuth,
-			KeyRole:                "somerole",
+			// TODO: Add check result here
+			KeyRole: "somerole",
 		}
 
 		containerA := secboot.CreateMockBootstrappedContainer()

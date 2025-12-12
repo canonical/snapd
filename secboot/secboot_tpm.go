@@ -799,57 +799,80 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *P
 		return buildPCRProtectionProfileLegacy(modelParams, allowInsufficientDmaProtection)
 	}
 
-	loadSequences := sb_efi.NewImageLoadSequences()
-	var dbUpdates []*sb_efi.SignatureDBUpdate
-
 	// build EFI load image event trees
-	for i, mp := range modelParams {
-		snapModelParams := sb_efi.SnapModelParams(mp.Model)
-		kernelConfigParams := sb_efi.KernelCommandlineParams(mp.KernelCmdlines...)
-
-		efiLoadActivity := []sb_efi.ImageLoadActivity{}
-		for _, chain := range mp.EFILoadChains {
-			loadseq, err := chain.loadEventWithParams(snapModelParams, kernelConfigParams)
-			if err != nil {
-				return nil, err
-			}
-			efiLoadActivity = append(efiLoadActivity, loadseq)
+	loadSequences := sb_efi.NewImageLoadSequences()
+	for _, mp := range modelParams {
+		efiLoadActivities, err := buildEFILoadActivitiesFromChains(
+			mp.EFILoadChains,
+			sb_efi.SnapModelParams(mp.Model),
+			sb_efi.KernelCommandlineParams(mp.KernelCmdlines...),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
-		loadSequences.Append(efiLoadActivity...)
-
-		// TODO:FDEM: need to move the dbx update out of the SealKeyModelParams data
-		// structure to not duplicate dbx for every model
-
-		// all models have the same dbx data, get it from the first model params
-		if i == 0 && len(mp.EFISignatureDbxUpdate) > 0 {
-			dbUpdates = append(
-				dbUpdates,
-				&sb_efi.SignatureDBUpdate{
-					Name: sb_efi.Dbx,
-					Data: mp.EFISignatureDbxUpdate,
-				},
-			)
-		}
+		loadSequences.Append(efiLoadActivities...)
 	}
 
-	optionAutoTCGPCRProfile := sbWithAutoTCGPCRProfile(checkResult.sbCheckResult, checkResult.sbPCRProfileOpts)
-	optionKernelConfig := sbWithKernelConfigProfile()
-	optionSignatureDBUpdates := sb_efi.WithSignatureDBUpdates(dbUpdates...)
+	// all models have the same dbx data, get it from the first one
+	var dbUpdates []*sb_efi.SignatureDBUpdate
+	if len(modelParams) > 0 && len(modelParams[0].EFISignatureDbxUpdate) > 0 {
+		dbUpdates = append(dbUpdates, &sb_efi.SignatureDBUpdate{
+			Name: sb_efi.Dbx,
+			Data: modelParams[0].EFISignatureDbxUpdate,
+		})
+	}
 
 	// build PCR protection policy
-	pcrProtectionProfile := sb_tpm2.NewPCRProtectionProfile()
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile()
 	if err := sbefiAddPCRProfile(
 		checkResult.sbCheckResult.PCRAlg,
-		pcrProtectionProfile.RootBranch(),
+		pcrProfile.RootBranch(),
 		loadSequences,
-		optionAutoTCGPCRProfile,
-		optionKernelConfig,
-		optionSignatureDBUpdates,
+		sbWithAutoTCGPCRProfile(checkResult.sbCheckResult, checkResult.sbPCRProfileOpts),
+		sbWithKernelConfigProfile(),
+		sb_efi.WithSignatureDBUpdates(dbUpdates...),
 	); err != nil {
 		return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 	}
 
-	return pcrProtectionProfile, nil
+	logger.Debugf("Preinstall check based PCR protection profile:\n%s", pcrProfile.String())
+
+	return pcrProfile, nil
+}
+
+func buildEFILoadActivitiesFromChains(
+	chains []*LoadChain,
+	params ...sb_efi.ImageLoadParams,
+) ([]sb_efi.ImageLoadActivity, error) {
+	activities := make([]sb_efi.ImageLoadActivity, 0, len(chains))
+
+	for _, chain := range chains {
+		loadseq, err := chain.loadEvent(params...)
+		if err != nil {
+			return nil, err
+		}
+		activities = append(activities, loadseq)
+	}
+
+	return activities, nil
+}
+
+// loadEventWithParams builds the corresponding load event and its tree.
+func (lc *LoadChain) loadEvent(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
+	for _, nextChain := range lc.Next {
+		// everything that is not the root has source shim
+		ev, err := nextChain.loadEvent()
+		if err != nil {
+			return nil, err
+		}
+		next = append(next, ev)
+	}
+	image, err := efiImageFromBootFile(lc.BootFile)
+	if err != nil {
+		return nil, err
+	}
+	return sb_efi.NewImageLoadActivity(image, params...).Loads(next...), nil
 }
 
 // buildPCRProtectionProfileLegacy constructs a PCR protection profile used for
@@ -922,9 +945,33 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 
 	pcrProfile := sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
-	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
+	logger.Debugf("Legacy PCR protection profile:\n%s", pcrProfile.String())
 
 	return pcrProfile, nil
+}
+
+// buildLoadSequences builds EFI load image event trees from this package LoadChains
+func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
+	// this will build load event trees for the current
+	// device configuration, e.g. something like:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	//                      |-> recovery kernel 2
+	//                      |-> recovery kernel ...
+	//                      |-> normal grub -> run kernel good
+	//                                     |-> run kernel try
+
+	loadseqs = sb_efi.NewImageLoadSequences()
+
+	for _, chain := range chains {
+		// root of load events has source Firmware
+		loadseq, err := chain.loadEvent()
+		if err != nil {
+			return nil, err
+		}
+		loadseqs.Append(loadseq)
+	}
+	return loadseqs, nil
 }
 
 // BuildPCRProtectionProfile builds and serializes a PCR profile from
@@ -980,66 +1027,6 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
-}
-
-// buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
-	// this will build load event trees for the current
-	// device configuration, e.g. something like:
-	//
-	// shim -> recovery grub -> recovery kernel 1
-	//                      |-> recovery kernel 2
-	//                      |-> recovery kernel ...
-	//                      |-> normal grub -> run kernel good
-	//                                     |-> run kernel try
-
-	loadseqs = sb_efi.NewImageLoadSequences()
-
-	for _, chain := range chains {
-		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent()
-		if err != nil {
-			return nil, err
-		}
-		loadseqs.Append(loadseq)
-	}
-	return loadseqs, nil
-}
-
-// loadEventWithParams builds the corresponding load event and its tree
-func (lc *LoadChain) loadEventWithParams(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLoadActivity, error) {
-	var next []sb_efi.ImageLoadActivity
-	for _, nextChain := range lc.Next {
-		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent()
-		if err != nil {
-			return nil, err
-		}
-		next = append(next, ev)
-	}
-	image, err := efiImageFromBootFile(lc.BootFile)
-	if err != nil {
-		return nil, err
-	}
-	return sb_efi.NewImageLoadActivity(image, params...).Loads(next...), nil
-}
-
-// loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent() (sb_efi.ImageLoadActivity, error) {
-	var next []sb_efi.ImageLoadActivity
-	for _, nextChain := range lc.Next {
-		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent()
-		if err != nil {
-			return nil, err
-		}
-		next = append(next, ev)
-	}
-	image, err := efiImageFromBootFile(lc.BootFile)
-	if err != nil {
-		return nil, err
-	}
-	return sb_efi.NewImageLoadActivity(image).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
