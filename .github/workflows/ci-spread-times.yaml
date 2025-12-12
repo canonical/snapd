@@ -140,7 +140,7 @@ jobs:
         run: |
           # Run spread several times to get the avg time for the prepare/restore task
           # Test task is executed just in the some systems
-          spread -no-debug-output -repeat 10 -json report.json openstack-ps7:ubuntu-24.04-64:tests/smoke/empty openstack-ps7:ubuntu-core-24-64:tests/smoke/empty openstack-ps7:arch-linux-64:tests/smoke/empty openstack-ps7:amazon-linux-2023-64:tests/smoke/empty
+          spread -no-debug-output -repeat 10 -json report.json openstack:ubuntu-24.04-64:tests/smoke/empty openstack:ubuntu-core-24-64:tests/smoke/empty openstack:arch-linux-64:tests/smoke/empty openstack:amazon-linux-2023-64:tests/smoke/empty
 
       - name: Write the metrics to prometheus
         if: always()
