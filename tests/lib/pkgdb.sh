@@ -643,7 +643,7 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-25.*)
+        ubuntu-25.*|ubuntu-26.*)
             # bpftool is part of linux-tools package
             # ubuntu-25.04+ systemd-dev is optional
             echo "
