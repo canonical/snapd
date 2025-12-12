@@ -41,16 +41,6 @@ type parser interface {
 	parseConstraints(map[string]json.RawMessage) error
 }
 
-type visibilityHolder interface {
-	DatabagSchema
-
-	// nestedVisibilitySecret returns true if any of its nested types have secret visibility
-	nestedVisibilitySecret() bool
-
-	// restrictVisibility sets the visibility, if more restrictive, for the databag and all its descendents to the indicated value
-	restrictVisibility(Visibility)
-}
-
 // ParseStorageSchema parses a JSON confdb schema and returns a Schema that can be
 // used to validate storage.
 func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
@@ -99,8 +89,7 @@ func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot use "ephemeral" in user-defined type: %s`, alias)
 			}
 
-			as, ok := aliasSchema.(visibilityHolder)
-			if ok && as.nestedVisibilitySecret() {
+			if aliasSchema.NestedVisibility(SecretVisibility) {
 				return nil, fmt.Errorf(`cannot use "visibility" in user-defined type: %s`, alias)
 			}
 
@@ -141,15 +130,8 @@ func (v *userDefinedType) Visibility() Visibility {
 	return v.visibility
 }
 
-func (v *userDefinedType) nestedVisibilitySecret() bool {
-	return v.visibility == SecretVisibility
-}
-
-func (v *userDefinedType) restrictVisibility(vis Visibility) {
-	if vis <= v.visibility {
-		return
-	}
-	v.visibility = vis
+func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
+	return v.visibility == vis
 }
 
 // aliasReference represents a reference to a user-defined type in the schema.
@@ -177,7 +159,7 @@ func (v *aliasReference) parseConstraints(constraints map[string]json.RawMessage
 	if err != nil {
 		return err
 	}
-	v.restrictVisibility(visibility)
+	v.visibility = visibility
 	return nil
 }
 
@@ -221,15 +203,8 @@ func (s *aliasReference) Visibility() Visibility {
 	return s.visibility
 }
 
-func (s *aliasReference) nestedVisibilitySecret() bool {
-	return s.visibility == SecretVisibility
-}
-
-func (s *aliasReference) restrictVisibility(vis Visibility) {
-	if vis <= s.visibility {
-		return
-	}
-	s.visibility = vis
+func (s *aliasReference) NestedVisibility(vis Visibility) bool {
+	return s.visibility == vis
 }
 
 // scalarSchema holds the data and behaviours common to all types.
@@ -252,15 +227,8 @@ func (s scalarSchema) Visibility() Visibility {
 	return s.visibility
 }
 
-func (s scalarSchema) nestedVisibilitySecret() bool {
-	return s.Visibility() == SecretVisibility
-}
-
-func (s *scalarSchema) restrictVisibility(vis Visibility) {
-	if vis <= s.visibility {
-		return
-	}
-	s.visibility = vis
+func (s scalarSchema) NestedVisibility(vis Visibility) bool {
+	return s.Visibility() == vis
 }
 
 func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
@@ -272,7 +240,7 @@ func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) 
 	if err != nil {
 		return err
 	}
-	b.restrictVisibility(visibility)
+	b.visibility = visibility
 	return nil
 }
 
@@ -342,16 +310,8 @@ func (s *StorageSchema) Visibility() Visibility {
 	return DefaultVisibility
 }
 
-func (s *StorageSchema) nestedVisibilitySecret() bool {
-	vh, ok := s.topLevel.(visibilityHolder)
-	return ok && vh.nestedVisibilitySecret()
-}
-
-func (s *StorageSchema) restrictVisibility(vis Visibility) {
-	vh, ok := s.topLevel.(visibilityHolder)
-	if ok {
-		vh.restrictVisibility(vis)
-	}
+func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
+	return s.topLevel.NestedVisibility(vis)
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -625,24 +585,14 @@ func (v *alternativesSchema) Visibility() Visibility {
 	return v.schemas[0].Visibility()
 }
 
-func (v *alternativesSchema) nestedVisibilitySecret() bool {
+func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 	for _, schema := range v.schemas {
-		vs, ok := schema.(visibilityHolder)
-		if ok && vs.nestedVisibilitySecret() {
+		if schema.NestedVisibility(vis) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func (v *alternativesSchema) restrictVisibility(vis Visibility) {
-	for _, schema := range v.schemas {
-		vs, ok := schema.(visibilityHolder)
-		if ok {
-			vs.restrictVisibility(vis)
-		}
-	}
 }
 
 type mapSchema struct {
@@ -856,63 +806,30 @@ func (v *mapSchema) Visibility() Visibility {
 	return v.visibility
 }
 
-func (v *mapSchema) nestedVisibilitySecret() bool {
-	if v.Visibility() == SecretVisibility {
+func (v *mapSchema) NestedVisibility(vis Visibility) bool {
+	if v.visibility == vis {
 		return true
 	}
 
 	for _, schema := range v.entrySchemas {
-		vh, ok := schema.(visibilityHolder)
-		if !ok {
-			continue
-		}
-		if vh.nestedVisibilitySecret() {
+		if schema.NestedVisibility(vis) {
 			return true
 		}
 	}
 
 	if v.keySchema != nil {
-		vh, ok := v.keySchema.(visibilityHolder)
-		if ok && vh.nestedVisibilitySecret() {
+		if v.keySchema.NestedVisibility(vis) {
 			return true
 		}
 	}
 
 	if v.valueSchema != nil {
-		vh, ok := v.valueSchema.(visibilityHolder)
-		if ok && vh.nestedVisibilitySecret() {
+		if v.valueSchema.NestedVisibility(vis) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func (v *mapSchema) restrictVisibility(vis Visibility) {
-	if vis <= v.visibility {
-		return
-	}
-	v.visibility = vis
-
-	for _, schema := range v.entrySchemas {
-		vh, ok := schema.(visibilityHolder)
-		if ok {
-			vh.restrictVisibility(vis)
-		}
-	}
-
-	if v.keySchema != nil {
-		vh, ok := v.keySchema.(visibilityHolder)
-		if ok {
-			vh.restrictVisibility(vis)
-		}
-	}
-	if v.valueSchema != nil {
-		vh, ok := v.valueSchema.(visibilityHolder)
-		if ok {
-			vh.restrictVisibility(vis)
-		}
-	}
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -921,6 +838,12 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		return err
 	}
 	v.ephemeral = ephemeral
+
+	visibility, err := parseVisibility(constraints)
+	if err != nil {
+		return err
+	}
+	v.visibility = visibility
 
 	err = checkExclusiveMapConstraints(constraints)
 	if err != nil {
@@ -975,11 +898,6 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 				}
 			}
 		}
-		visibility, err := parseVisibility(constraints)
-		if err != nil {
-			return err
-		}
-		v.restrictVisibility(visibility)
 		return nil
 	}
 
@@ -1002,12 +920,6 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 	if v.entrySchemas == nil && v.keySchema == nil && v.valueSchema == nil {
 		return fmt.Errorf(`cannot parse map: must have "schema" or "keys"/"values" constraint`)
 	}
-
-	visibility, err := parseVisibility(constraints)
-	if err != nil {
-		return err
-	}
-	v.restrictVisibility(visibility)
 
 	return nil
 }
@@ -1581,23 +1493,11 @@ func (v *arraySchema) Visibility() Visibility {
 	return v.visibility
 }
 
-func (v *arraySchema) nestedVisibilitySecret() bool {
-	if v.Visibility() == SecretVisibility {
+func (v *arraySchema) NestedVisibility(vis Visibility) bool {
+	if v.Visibility() == vis {
 		return true
 	}
-	vh, ok := v.elementType.(visibilityHolder)
-	return ok && vh.nestedVisibilitySecret()
-}
-
-func (v *arraySchema) restrictVisibility(vis Visibility) {
-	if vis <= v.visibility {
-		return
-	}
-	v.visibility = vis
-	vh, ok := v.elementType.(visibilityHolder)
-	if ok {
-		vh.restrictVisibility(vis)
-	}
+	return v.elementType.NestedVisibility(vis)
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1606,6 +1506,12 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 		return err
 	}
 	v.ephemeral = eph
+
+	visibility, err := parseVisibility(constraints)
+	if err != nil {
+		return err
+	}
+	v.visibility = visibility
 
 	rawValues, ok := constraints["values"]
 	if !ok {
@@ -1627,12 +1533,6 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 
 		v.unique = unique
 	}
-	visibility, err := parseVisibility(constraints)
-	if err != nil {
-		return err
-	}
-	v.restrictVisibility(visibility)
-
 	return nil
 }
 

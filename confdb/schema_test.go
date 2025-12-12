@@ -2619,6 +2619,27 @@ func (*schemaSuite) TestNonSecretVisibility(c *C) {
 	c.Assert(err.Error(), Equals, `cannot have a visibility field set to a value other than secret`)
 }
 
+func (*schemaSuite) TestSecretVisibility(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "string",
+			"visibility": "secret"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	top, err := schema.SchemaAt(parsePath(c, ""))
+	c.Assert(err, IsNil)
+	foo, err := schema.SchemaAt(parsePath(c, "foo"))
+	c.Assert(err, IsNil)
+	c.Assert(top, HasLen, 1)
+	c.Assert(foo, HasLen, 1)
+	c.Assert(top[0].Visibility(), Equals, confdb.DefaultVisibility)
+	c.Assert(foo[0].Visibility(), Equals, confdb.SecretVisibility)
+}
+
 func (*schemaSuite) TestSecretNestedTopLevelSchema(c *C) {
 	schemaStr := []byte(`{
 	"aliases": {
@@ -2641,60 +2662,9 @@ func (*schemaSuite) TestSecretNestedTopLevelSchema(c *C) {
 
 	top, err := schema.SchemaAt(parsePath(c, ""))
 	c.Assert(err, IsNil)
-	fooSchema, err := schema.SchemaAt(parsePath(c, "foo"))
-	c.Assert(err, IsNil)
-	bazSchema, err := schema.SchemaAt(parsePath(c, "foo[0].baz"))
-	c.Assert(err, IsNil)
 	c.Assert(top, HasLen, 1)
-	c.Assert(fooSchema, HasLen, 1)
-	c.Assert(bazSchema, HasLen, 1)
 	c.Assert(schema.Visibility(), Equals, confdb.DefaultVisibility)
 	c.Assert(top[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(fooSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(bazSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-}
-
-func (*schemaSuite) TestSecretNested(c *C) {
-	schemaStr := []byte(`{
-	"aliases": {
-		"bar": "string"
-	},
-	"schema": {
-		"foo": {
-			"schema": {
-				"bar": {
-					"schema": {
-						"baz": "${bar}"
-					}
-				},
-				"bat": "int"
-			},
-			"visibility": "secret"
-		}
-	}
-}`)
-	schema, err := confdb.ParseStorageSchema(schemaStr)
-	c.Assert(err, IsNil)
-	top, err := schema.SchemaAt(parsePath(c, ""))
-	c.Assert(err, IsNil)
-	fooSchema, err := schema.SchemaAt(parsePath(c, "foo"))
-	c.Assert(err, IsNil)
-	foobarSchema, err := schema.SchemaAt(parsePath(c, "foo.bar"))
-	c.Assert(err, IsNil)
-	foobarbazSchema, err := schema.SchemaAt(parsePath(c, "foo.bar.baz"))
-	c.Assert(err, IsNil)
-	foobatSchema, err := schema.SchemaAt(parsePath(c, "foo.bat"))
-	c.Assert(err, IsNil)
-	c.Assert(top, HasLen, 1)
-	c.Assert(fooSchema, HasLen, 1)
-	c.Assert(foobarSchema, HasLen, 1)
-	c.Assert(foobarbazSchema, HasLen, 1)
-	c.Assert(foobatSchema, HasLen, 1)
-	c.Assert(top[0].Visibility(), Equals, confdb.DefaultVisibility)
-	c.Assert(fooSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(foobarSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(foobarbazSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(foobatSchema[0].Visibility(), Equals, confdb.SecretVisibility)
 }
 
 func (*schemaSuite) TestSecretAlternativesInLeavesAllSame(c *C) {
@@ -2808,50 +2778,25 @@ func (*schemaSuite) TestSecretAllTypes(c *C) {
 	}
 }
 
-func (*schemaSuite) TestSecretPropagation(c *C) {
-	schemaStr := []byte(`{
+func (*schemaSuite) TestNonSecretAllTypes(c *C) {
+	for _, typ := range []string{"number", "int", "bool", "string", "any", `array", "values": "string`} {
+		cmt := Commentf("default visiblity broken for type %q", typ)
+
+		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
 		"foo": {
-			"keys": {
-				"type": "string"
-			},
-			"values": {
-				"schema": {
-					"bar": [
-					{
-						"type": "array",
-						"values": {
-							"keys": {
-								"type": "string"
-							},
-							"values": "int"
-						}
-					},
-					{
-						"type": "int"
-					}
-					]
-				}
-			}
+			"type": "%s"
 		}
-	},
-	"visibility": "secret"
-}`)
-	schema, err := confdb.ParseStorageSchema(schemaStr)
-	c.Assert(err, IsNil)
-	topSchema, err := schema.SchemaAt(parsePath(c, ""))
-	c.Assert(err, IsNil)
-	fooSchema, err := schema.SchemaAt(parsePath(c, "foo"))
-	c.Assert(err, IsNil)
-	foobarSchema, err := schema.SchemaAt(parsePath(c, `foo.baz.bar`))
-	c.Assert(err, IsNil)
-	c.Assert(topSchema, HasLen, 1)
-	c.Assert(fooSchema, HasLen, 1)
-	c.Assert(foobarSchema, HasLen, 2)
-	c.Assert(topSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(fooSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(foobarSchema[0].Visibility(), Equals, confdb.SecretVisibility)
-	c.Assert(foobarSchema[1].Visibility(), Equals, confdb.SecretVisibility)
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+
+		nestedSchema, err := schema.SchemaAt(parsePath(c, "foo"))
+		c.Assert(err, IsNil, cmt)
+		c.Assert(nestedSchema, HasLen, 1, cmt)
+		c.Check(nestedSchema[0].Visibility(), Equals, confdb.DefaultVisibility, cmt)
+	}
 }
 
 func (*schemaSuite) TestUserDefinedTypeSecretArray(c *C) {

@@ -44,10 +44,11 @@ func (f *failingSchema) Validate([]byte) error { return f.err }
 func (f *failingSchema) SchemaAt(path []confdb.Accessor) ([]confdb.DatabagSchema, error) {
 	return []confdb.DatabagSchema{f}, nil
 }
-func (f *failingSchema) Type() confdb.SchemaType       { return confdb.Any }
-func (f *failingSchema) Ephemeral() bool               { return false }
-func (f *failingSchema) NestedEphemeral() bool         { return false }
-func (f *failingSchema) Visibility() confdb.Visibility { return confdb.DefaultVisibility }
+func (f *failingSchema) Type() confdb.SchemaType                 { return confdb.Any }
+func (f *failingSchema) Ephemeral() bool                         { return false }
+func (f *failingSchema) NestedEphemeral() bool                   { return false }
+func (f *failingSchema) Visibility() confdb.Visibility           { return confdb.DefaultVisibility }
+func (f *failingSchema) NestedVisibility(confdb.Visibility) bool { return false }
 
 func parsePath(c *C, path string) []confdb.Accessor {
 	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
