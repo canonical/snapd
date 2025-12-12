@@ -114,7 +114,7 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
-TimeoutStopSec=10
+TimeoutStopSec=10s
 Type=%s
 
 [Install]
@@ -138,7 +138,7 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
-TimeoutStopSec=10
+TimeoutStopSec=10s
 Type=%s
 
 [Install]
@@ -162,7 +162,7 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
-TimeoutStopSec=10
+TimeoutStopSec=10s
 Type=%s
 `
 
