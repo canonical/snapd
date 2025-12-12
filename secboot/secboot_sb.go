@@ -35,7 +35,6 @@ import (
 	sb "github.com/snapcore/secboot"
 	sb_luks2 "github.com/snapcore/secboot/luks2"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
@@ -156,7 +155,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		res.IsEncrypted = true
 	} else {
 		var errNotFound disks.PartitionNotFoundError
-		if !xerrors.As(err, &errNotFound) {
+		if !errors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			return res, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
 		}
@@ -233,7 +232,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		}
 	}
 
-	container, err := sbFindStorageContainer(context.Background(), sourceDevice)
+	// Use the partition device node, we do not want to rely on udevd
+	// having created the symlinks at this point in the boot process.
+	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
 	if err != nil {
 		return res, err
 	}
@@ -327,7 +328,9 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
 
-	foundPlainKey, err := deviceHasPlainKey(encdev)
+	// Use the partition device node, we do not want to rely on udevd
+	// having created the symlinks at this point in the boot process.
+	foundPlainKey, err := deviceHasPlainKey(part.KernelDeviceNode)
 	if err != nil {
 		return unlockRes, err
 	}
@@ -350,7 +353,7 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 		options = append(options, sbWithExternalUnlockKey("protector", key, sb.ExternalUnlockKeyFromStorageContainer))
 	}
 
-	container, err := sbFindStorageContainer(context.Background(), encdev)
+	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
 	if err != nil {
 		return unlockRes, err
 	}
