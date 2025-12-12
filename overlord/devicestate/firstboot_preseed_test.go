@@ -55,6 +55,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 		"prepare-snap":     true,
 		"link-snap":        true,
 		"mount-snap":       true,
+		"prepare-profiles": true,
 		"setup-profiles":   true,
 		"copy-snap-data":   true,
 		"set-auto-aliases": true,

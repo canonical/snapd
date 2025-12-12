@@ -1226,7 +1226,11 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 
 		doneProfiles := false
 		for _, t1 := range t.WaitTasks() {
-			if t1.Kind() == "setup-profiles" && t1.Status() == state.DoneStatus {
+			if t1.Kind() != "setup-profiles" {
+				continue
+			}
+
+			if t1.Status() == state.DoneStatus {
 				snapsup1, err := snapstate.TaskSnapSetup(t1)
 				if err != nil {
 					return nil, err
