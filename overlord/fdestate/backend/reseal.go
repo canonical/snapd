@@ -427,9 +427,6 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 
-	// TODO:FDEM: is it sufficient to assume that missing preinstall check file is intentional?
-	// Alternatively we need some other indication that we use/rely on it, perhaps it can be
-	// loaded into FDE state, which can be refreshed after any run time changes.
 	loadCheckResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
 	checkResult, err := secbootLoadCheckResult(loadCheckResultPath)
 	if err != nil {
