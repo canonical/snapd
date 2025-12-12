@@ -3077,13 +3077,7 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"my-view": map[string]any{
 			"rules": []any{
-				map[string]any{
-					"storage": "foo.bar",
-					"content": []any{
-						map[string]any{"storage": "baz"},
-						map[string]any{"storage": "eph"},
-					},
-				},
+				map[string]any{"storage": "foo.bar.{nested}"},
 				map[string]any{
 					"request": "a.b",
 					"storage": "foo.bar",
@@ -3094,9 +3088,10 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 	c.Assert(err, IsNil)
 
 	type testcase struct {
-		requests  []string
-		ephemeral bool
-		err       string
+		requests    []string
+		constraints map[string]string
+		ephemeral   bool
+		err         string
 	}
 
 	tcs := []testcase{
@@ -3127,23 +3122,32 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 		},
 		{
 			requests: []string{"non.existent"},
-			err:      `cannot get "non.existent" through acc/foo/my-view: no matching rule`,
+			err:      `cannot get "non\.existent" through acc/foo/my-view: no matching rule`,
 		},
 		{
 			requests: []string{"abc[12]", "mk"},
-			err:      `cannot get "abc[12]", "mk" through acc/foo/my-view: no matching rule`,
+			err:      `cannot get "abc\[12\]", "mk" through acc/foo/my-view: no matching rule`,
+		},
+		{
+			requests:    []string{"foo.bar"},
+			constraints: map[string]string{"nested": "baz"},
+			ephemeral:   false,
+		},
+		{
+			requests:    []string{"foo.bar"},
+			constraints: map[string]string{"nested": "eph"},
+			ephemeral:   true,
 		},
 	}
 
 	v := schema.View("my-view")
 	for i, tc := range tcs {
-		cmt := Commentf("failed test number %d", i+1)
+		cmt := Commentf("failed test number %d/%d", i+1, len(tcs))
+		eph, err := v.ReadAffectsEphemeral(tc.requests, tc.constraints)
 		if tc.err != "" {
-			_, err := v.ReadAffectsEphemeral(tc.requests)
-			c.Assert(err, NotNil)
-			c.Assert(err.Error(), Equals, tc.err, cmt)
+			c.Assert(err, ErrorMatches, tc.err, cmt)
+			c.Assert(eph, Equals, false, cmt)
 		} else {
-			eph, err := v.ReadAffectsEphemeral(tc.requests)
 			c.Assert(err, IsNil, cmt)
 			c.Assert(eph, Equals, tc.ephemeral, cmt)
 		}

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -64,11 +65,30 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	vars := muxVars(r)
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
-	keysStr := r.URL.Query().Get("keys")
 
+	keysStr := r.URL.Query().Get("keys")
 	var keys []string
 	if keysStr != "" {
 		keys = strutil.CommaSeparatedList(keysStr)
+	}
+
+	constraintsRaw := r.URL.Query().Get("constraints")
+	var constraints map[string]string
+	if constraintsRaw != "" {
+		cstrList := strutil.CommaSeparatedList(constraintsRaw)
+		if len(cstrList) == 0 {
+			return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
+		}
+
+		constraints = make(map[string]string, len(cstrList))
+		for _, cstr := range cstrList {
+			parts := strings.Split(cstr, "=")
+			if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
+				return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
+			}
+
+			constraints[parts[0]] = parts[1]
+		}
 	}
 
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
@@ -76,7 +96,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys)
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -163,7 +183,6 @@ func toAPIError(err error) *apiError {
 		}
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())
-
 	default:
 		return InternalError(err.Error())
 	}
