@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -91,6 +93,18 @@ var refreshFromHookTests = []struct {
 }, {
 	args: []string{"refresh", "--hold", "--show-lock"},
 	err:  "cannot use --hold and --show-lock together",
+}, {
+	args: []string{"refresh", "--tracking", "--hold"},
+	err:  "cannot use --tracking and --hold together",
+}, {
+	args: []string{"refresh", "--tracking", "--proceed"},
+	err:  "cannot use --tracking and --proceed together",
+}, {
+	args: []string{"refresh", "--tracking", "--show-lock"},
+	err:  "cannot use --tracking and --show-lock together",
+}, {
+	args: []string{"refresh", "--tracking", "--pending"},
+	err:  "--tracking cannot be used with --pending",
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]any{
@@ -485,6 +499,91 @@ version: 1
 	c.Assert(called, Equals, false)
 }
 
+func (s *refreshSuite) testRefreshTracking(c *C, uid uint32) {
+	yesterday := time.Now().Add(-24 * time.Hour)
+	myAppSnapState := snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Current:  snap.R(42),
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "my-app", Revision: snap.R(42)},
+		}),
+		TrackingChannel: "latest/stable",
+		Flags:           snapstate.Flags{},
+		InstanceKey:     "my-app",
+		LastRefreshTime: &yesterday,
+		Base:            "core22",
+		UserID:          1000,
+	}
+
+	s.st.Lock()
+	snapstate.Set(s.st, "my-app", &myAppSnapState)
+	s.st.Unlock()
+
+	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, uid)
+	c.Check(string(stderr), Equals, "")
+	c.Check(err, IsNil)
+
+	var actualData map[string]string
+	err = yaml.Unmarshal([]byte(stdout), &actualData)
+	c.Check(err, IsNil)
+	c.Check(actualData, DeepEquals, map[string]string{"channel": "latest/stable"})
+}
+
+func (s *refreshSuite) TestRefreshTrackingNonRoot(c *C) {
+	s.testRefreshTracking(c, 1000)
+}
+
+func (s *refreshSuite) TestRefreshTrackingRoot(c *C) {
+	s.testRefreshTracking(c, 0)
+}
+
+func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
+	revN := -42
+	yesterday := time.Now().Add(-24 * time.Hour)
+	myAppSnapState := snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Current:  snap.R(revN),
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "my-app", Revision: snap.R(revN)},
+		}),
+		TrackingChannel: "",
+		Flags:           snapstate.Flags{},
+		InstanceKey:     "my-app",
+		LastRefreshTime: &yesterday,
+		Base:            "core22",
+		UserID:          1000,
+	}
+
+	s.st.Lock()
+	snapstate.Set(s.st, "my-app", &myAppSnapState)
+
+	s.st.Unlock()
+
+	setup := &hookstate.HookSetup{Snap: "my-app", Revision: snap.R(revN)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
+	c.Check(string(stderr), Equals, "")
+	c.Check(err, IsNil)
+
+	var actualData map[string]*string
+	err = yaml.Unmarshal([]byte(stdout), &actualData)
+	c.Check(err, IsNil)
+
+	expectedData := map[string]*string{
+		"channel": nil,
+	}
+
+	c.Check(actualData, DeepEquals, expectedData)
+}
+
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	s.st.Lock()
 	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1)}
@@ -493,9 +592,7 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000)
-	c.Assert(err, ErrorMatches, `cannot use "refresh" with uid 1000, try with sudo`)
-	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
-	c.Assert(forbidden, NotNil)
+	c.Assert(err, DeepEquals, &ctlcmd.ForbiddenCommandError{Message: `non-root users can only use --tracking with the refresh command`})
 }
 
 func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
