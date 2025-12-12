@@ -551,6 +551,10 @@ func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, n
 	return testutil.Mock(&sbKeyDataChangePassphrase, f)
 }
 
+func MockSbKeyDataChangePIN(f func(d *sb.KeyData, oldPIN sb.PIN, newPIN sb.PIN) error) (restore func()) {
+	return testutil.Mock(&sbKeyDataChangePIN, f)
+}
+
 func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
 }

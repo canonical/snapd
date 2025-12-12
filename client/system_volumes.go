@@ -61,6 +61,11 @@ type ChangePassphraseOptions struct {
 	NewPassphrase string `json:"new-passphrase"`
 }
 
+type ChangePINOptions struct {
+	OldPIN string `json:"old-pin"`
+	NewPIN string `json:"new-pin"`
+}
+
 type PlatformKeyOptions struct {
 	Passphrase string `json:"passphrase,omitempty"`
 	PIN        string `json:"pin,omitempty"`

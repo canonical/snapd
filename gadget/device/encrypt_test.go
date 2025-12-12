@@ -196,7 +196,7 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	c.Assert(opts.Validate(), ErrorMatches, `pin cannot be empty`)
 	// Long PIN
 	var longPIN strings.Builder
-	for i := 0; i < math.MaxUint8+2; i++ {
+	for i := 0; i <= math.MaxUint8+1; i++ {
 		longPIN.WriteString("0")
 	}
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: longPIN.String()}

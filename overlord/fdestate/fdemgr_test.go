@@ -1069,6 +1069,7 @@ type mockKeyData struct {
 	roles        []string
 
 	changePassphrase func(oldPassphrase, newPassphrase string) error
+	changePIN        func(oldPIN, newPIN string) error
 	writeTokenAtomic func(devicePath, slotName string) error
 }
 
@@ -1087,6 +1088,13 @@ func (k *mockKeyData) Roles() []string {
 func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	if k.changePassphrase != nil {
 		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) ChangePIN(oldPIN, newPIN string) error {
+	if k.changePIN != nil {
+		return k.changePIN(oldPIN, newPIN)
 	}
 	return nil
 }

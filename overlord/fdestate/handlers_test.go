@@ -707,6 +707,19 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			authMode: device.AuthModePassphrase,
 		},
 		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default"},
+				{ContainerRole: "system-data", Name: "default-fallback"},
+				{ContainerRole: "system-save", Name: "default-fallback"},
+			},
+			expectedChanges: []string{
+				"/dev/disk/by-uuid/data:default",
+				"/dev/disk/by-uuid/data:default-fallback",
+				"/dev/disk/by-uuid/save:default-fallback",
+			},
+			authMode: device.AuthModePIN,
+		},
+		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
 			noOpt:       true,
 			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
@@ -734,14 +747,15 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
-			authMode:    device.AuthModePassphrase,
-			errOn:       []string{"write:/dev/disk/by-uuid/data:default"},
-			expectedErr: `cannot write key data for \(container-role: "system-data", name: "default"\): write error on /dev/disk/by-uuid/data:default`,
+			authMode:    device.AuthModePIN,
+			errOn:       []string{"change:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot change PIN for \(container-role: "system-data", name: "default"\): change error on /dev/disk/by-uuid/data:default`,
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
-			authMode:    device.AuthModePIN,
-			expectedErr: "internal error: changing PINs is not implemented",
+			authMode:    device.AuthModePassphrase,
+			errOn:       []string{"write:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot write key data for \(container-role: "system-data", name: "default"\): write error on /dev/disk/by-uuid/data:default`,
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
@@ -754,9 +768,13 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 
+		old, new := "old", "new"
+		if tc.authMode == device.AuthModePIN {
+			old, new = "1234", "4321"
+		}
 		if !tc.noOpt {
 			s.st.Unlock()
-			defer fdestate.MockChangeAuthOptionsInCache(s.st, "old", "new")()
+			defer fdestate.MockChangeAuthOptionsInCache(s.st, old, new)()
 			s.st.Lock()
 		}
 
@@ -767,23 +785,25 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			if strutil.ListContains(tc.errOn, fmt.Sprintf("read:%s:%s", devicePath, slotName)) {
 				return nil, fmt.Errorf("read error on %s", entry)
 			}
+			changeHandler := func(oldVal, newVal string) error {
+				switch changeCalls[entry] {
+				case 0:
+					c.Check(oldVal, Equals, old)
+					c.Check(newVal, Equals, new)
+				case 1:
+					c.Check(oldVal, Equals, new)
+					c.Check(newVal, Equals, old)
+				default:
+					panic("unexpected number of change calls")
+				}
+				if strutil.ListContains(tc.errOn, fmt.Sprintf("change:%s", entry)) {
+					return fmt.Errorf("change error on %s", entry)
+				}
+				return nil
+			}
 			return &mockKeyData{
-				changePassphrase: func(oldPassphrase, newPassphrase string) error {
-					switch changeCalls[entry] {
-					case 0:
-						c.Check(oldPassphrase, Equals, "old")
-						c.Check(newPassphrase, Equals, "new")
-					case 1:
-						c.Check(oldPassphrase, Equals, "new")
-						c.Check(newPassphrase, Equals, "old")
-					default:
-						panic("unexpected number of change calls")
-					}
-					if strutil.ListContains(tc.errOn, fmt.Sprintf("change:%s", entry)) {
-						return fmt.Errorf("change error on %s", entry)
-					}
-					return nil
-				},
+				changePassphrase: changeHandler,
+				changePIN:        changeHandler,
 				writeTokenAtomic: func(devicePath, slotName string) error {
 					if strutil.ListContains(tc.errOn, fmt.Sprintf("write:%s", entry)) {
 						return fmt.Errorf("write error on %s", entry)
@@ -832,8 +852,8 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			if !tc.noOpt {
 				// Auth options are kept to account for re-runs
 				opts := fdestate.GetChangeAuthOptionsFromCache(s.st)
-				c.Assert(opts.New(), Equals, "new")
-				c.Assert(opts.Old(), Equals, "old")
+				c.Assert(opts.New(), Equals, new)
+				c.Assert(opts.Old(), Equals, old)
 			}
 		}
 	}

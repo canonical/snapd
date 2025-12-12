@@ -195,7 +195,9 @@ type KeyData interface {
 	// ChangePassphrase changes passphrase given old passphrase.
 	// AuthMode must be device.AuthModePassphrase.
 	ChangePassphrase(oldPassphrase, newPassphrase string) error
-	// TODO:FDEM: ChangePIN(oldPIN, newPIN string) error
+	// ChangePIN changes pin given old pin.
+	// AuthMode must be device.AuthModePIN.
+	ChangePIN(oldPIN, newPIN string) error
 	// WriteTokenAtomic saves this key data to the specified LUKS2 token.
 	WriteTokenAtomic(devicePath, slotName string) error
 }
