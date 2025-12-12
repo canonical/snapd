@@ -38,26 +38,26 @@ type ValidateISASuite struct {
 
 var _ = Suite(&ValidateISASuite{})
 
-func (s *ValidateISASuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
+func (s *ValidateISASuite) SetUpSuite(c *C) {
+	// Construct bitmasks with the minimal extensions needed
+	minimumRVA23Extensions = []unix.RISCVHWProbePairs{
+		{
+			Key:   unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
+			Value: unix.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
+		},
+		{Key: unix.RISCV_HWPROBE_KEY_IMA_EXT_0},
+	}
 
-	// If necessary, construct bitmasks with the minimal extensions needed
-	if minimumRVA23Extensions == nil {
-		minimumRVA23Extensions = []unix.RISCVHWProbePairs{
-			{
-				Key:   unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
-				Value: unix.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
-			},
-			{Key: unix.RISCV_HWPROBE_KEY_IMA_EXT_0},
-		}
-
-		// OR all the required extensions' keys
-		for _, ext := range naming.RiscVExtensions {
-			if ext.Required {
-				minimumRVA23Extensions[1].Value |= ext.Key
-			}
+	// OR all the required extensions' keys
+	for _, ext := range naming.RiscVExtensions {
+		if ext.Required {
+			minimumRVA23Extensions[1].Value |= ext.Key
 		}
 	}
+}
+
+func (s *ValidateISASuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 }
 
 func (s *ValidateISASuite) TearDownTest(c *C) {
@@ -69,18 +69,19 @@ func (s *ValidateISASuite) TearDownTest(c *C) {
 func MockRISCVHWProbe(supportedExtensions []unix.RISCVHWProbePairs, syscallError string) (restore func()) {
 	// Mock probe function that copies the test case's supportedExtensions over the input
 	var mockRISCVHWProbe = func(pairs []unix.RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) {
-		pairs[0] = supportedExtensions[0]
-		pairs[1] = supportedExtensions[1]
-
 		// Mark that we called the function for some tests
 		riscvHWProbeCalled = true
 
-		// And return an error if detailed in the test case
-		if syscallError == "" {
-			return nil
-		} else {
+		// Return an error if specified in the test case
+		if syscallError != "" {
 			return fmt.Errorf(syscallError)
 		}
+
+		// Otherwise, behave correctly and mock the syscall
+		pairs[0] = supportedExtensions[0]
+		pairs[1] = supportedExtensions[1]
+
+		return nil
 	}
 
 	// Replace the normal function with the mock one
