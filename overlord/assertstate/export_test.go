@@ -19,6 +19,8 @@
 
 package assertstate
 
+import "github.com/snapcore/snapd/asserts"
+
 // expose for testing
 var (
 	DoFetch                                   = doFetch
@@ -41,5 +43,13 @@ func MockMaxValidationSetsHistorySize(n int) (restore func()) {
 	maxValidationSetsHistorySize = n
 	return func() {
 		maxValidationSetsHistorySize = oldMaxValidationSetsHistorySize
+	}
+}
+
+func MockDBFindMany(f func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error)) (restore func()) {
+	origDBFindMany := dbFindMany
+	dbFindMany = f
+	return func() {
+		dbFindMany = origDBFindMany
 	}
 }
