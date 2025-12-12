@@ -56,6 +56,7 @@ type MockDiskMapping struct {
 	DevPath string
 
 	ID                  string
+	IDModel             string
 	DiskSchema          string
 	SectorSizeBytes     uint64
 	DiskUsableSectorEnd uint64
@@ -175,6 +176,10 @@ func (d *MockDiskMapping) KernelDevicePath() string {
 
 func (d *MockDiskMapping) DiskID() string {
 	return d.ID
+}
+
+func (d *MockDiskMapping) Model() string {
+	return d.IDModel
 }
 
 func (d *MockDiskMapping) Schema() string {

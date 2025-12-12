@@ -74,6 +74,7 @@ var (
 	sbWithAuthRequestor                    = sb.WithAuthRequestor
 	sbWithPassphraseTries                  = sb.WithPassphraseTries
 	sbWithPINTries                         = sb.WithPINTries
+	sbWithAuthRequestorUserVisibleName     = sb.WithAuthRequestorUserVisibleName
 )
 
 func init() {
@@ -237,7 +238,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 		return res, err
 	}
 
-	options = append(options, sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice))
+	options = append(options,
+		sbWithVolumeName(mapperName),
+		sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice),
+		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.Model(), part.PartitionLabel)),
+	)
 	if opts.AllowRecoveryKey {
 		options = append(options, sbWithRecoveryKeyTries(3))
 	}

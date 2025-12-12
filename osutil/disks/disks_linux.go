@@ -212,6 +212,7 @@ func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[s
 		devname:       devname,
 		devpath:       devpath,
 		hasPartitions: len(paths) != 0,
+		model:         props["ID_MODEL"],
 	}, nil
 }
 
@@ -327,6 +328,8 @@ type disk struct {
 	// whether the disk device has partitions, and thus is of type "disk", or
 	// whether the disk device is a volume that is not a physical disk
 	hasPartitions bool
+
+	model string
 }
 
 func (d *disk) KernelDeviceNode() string {
@@ -339,6 +342,10 @@ func (d *disk) KernelDevicePath() string {
 
 func (d *disk) DiskID() string {
 	return d.diskID
+}
+
+func (d *disk) Model() string {
+	return d.model
 }
 
 func (d *disk) Partitions() ([]Partition, error) {
@@ -588,6 +595,7 @@ func diskFromPartUDevProps(props map[string]string) (*disk, error) {
 
 	d.schema = schema
 	d.diskID = partTableID
+	d.model = realDiskProps["ID_MODEL"]
 
 	// since the mountpoint device has a disk, the mountpoint source itself
 	// must be a partition from a disk, thus the disk has partitions

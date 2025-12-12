@@ -535,8 +535,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	// defer restore()
 
 	mockDiskWithEncDev := &disks.MockDiskMapping{
+		IDModel: "MY SUPER DISK",
 		Structure: []disks.Partition{
 			{
+				PartitionLabel:  "name",
 				FilesystemLabel: "name-enc",
 				PartitionUUID:   "enc-dev-partuuid",
 				FilesystemUUID:  "enc-dev-uuid",
@@ -825,31 +827,39 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				return storage, nil
 			})()
 
+			nameOption := &mockActivateOption{"name"}
+			defer secboot.MockSbWithAuthRequestorUserVisibleName(func(name string) sb.ActivateOption {
+				c.Check(name, Equals, "MY SUPER DISK (name)")
+				return nameOption
+			})()
+
 			activateContext := newMockActivateContext(
 				func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 					c.Check(container, Equals, storage)
 					if tc.rkAllow {
 						if tc.noKeyFile || tc.errorReadKeyFile {
-							c.Assert(opts, HasLen, 3)
-							c.Check(opts[2], Equals, recoveryOption)
-						} else {
 							c.Assert(opts, HasLen, 4)
 							c.Check(opts[3], Equals, recoveryOption)
+						} else {
+							c.Assert(opts, HasLen, 5)
+							c.Check(opts[4], Equals, recoveryOption)
 						}
 					} else {
 						if tc.noKeyFile || tc.errorReadKeyFile {
-							c.Assert(opts, HasLen, 2)
-						} else {
 							c.Assert(opts, HasLen, 3)
+						} else {
+							c.Assert(opts, HasLen, 4)
 						}
 					}
 					if tc.noKeyFile || tc.errorReadKeyFile {
 						c.Check(opts[0], Equals, volumeNameOption)
 						c.Check(opts[1], Equals, legacyKeyringPaths)
+						c.Check(opts[2], Equals, nameOption)
 					} else {
 						c.Check(opts[0], Equals, externalKey)
 						c.Check(opts[1], Equals, volumeNameOption)
 						c.Check(opts[2], Equals, legacyKeyringPaths)
+						c.Check(opts[3], Equals, nameOption)
 					}
 
 					return tc.activateErr
@@ -2011,7 +2021,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 		func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
 			c.Check(container, Equals, storage)
-			c.Assert(opts, HasLen, 3)
+			c.Assert(opts, HasLen, 4)
 			c.Check(opts[0], Equals, externalKey)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
@@ -2465,8 +2475,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	defer restore()
 
 	mockDiskWithEncDev := &disks.MockDiskMapping{
+		IDModel: "MY SUPER DISK",
 		Structure: []disks.Partition{
 			{
+				PartitionLabel:  "device-name",
 				FilesystemLabel: "device-name-enc",
 				FilesystemUUID:  "enc-dev-uuid",
 				PartitionUUID:   "enc-dev-partuuid",
@@ -2503,16 +2515,23 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		return legacyKeyringPaths
 	})()
 
+	nameOption := &mockActivateOption{"name"}
+	defer secboot.MockSbWithAuthRequestorUserVisibleName(func(name string) sb.ActivateOption {
+		c.Check(name, Equals, "MY SUPER DISK (device-name)")
+		return nameOption
+	})()
+
 	activated := 0
 	storage := &mockStorageContainer{name: "storage"}
 	activateContext := newMockActivateContext(
 		func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
 			c.Check(container, Equals, storage)
-			c.Assert(opts, HasLen, 3)
+			c.Assert(opts, HasLen, 4)
 			c.Check(opts[0], Equals, externalKey)
 			c.Check(opts[1], Equals, volumeNameOption)
 			c.Check(opts[2], Equals, legacyKeyringPaths)
+			c.Check(opts[3], Equals, nameOption)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
 			c.Assert(foundKeyData, NotNil)
@@ -2721,7 +2740,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	activateContext := newMockActivateContext(
 		func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
-			c.Assert(opts, HasLen, 3)
+			c.Assert(opts, HasLen, 4)
 			//c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
 			//c.Check(sourceDevicePath, Equals, "/dev/disk/by-uuid/enc-dev-uuid")
 			//c.Check(key, DeepEquals, mockDiskKey)
@@ -2791,7 +2810,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 		func(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 			activated++
 			c.Check(container, Equals, storage)
-			c.Assert(opts, HasLen, 3)
+			c.Assert(opts, HasLen, 4)
 			c.Check(opts[0], Equals, externalKey)
 			// XXX: this is what the real
 			// MockSbActivateVolumeWithKeyData will do
