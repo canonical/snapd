@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (71+2.73+g76.6a5ca6a+25.04) plucky; urgency=medium
+
+  * Update to snapd version 2.73+g76.6a5ca6a
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Tue, 09 Dec 2025 11:55:16 -0500
+
 ubuntu-core-initramfs (71+2.73+g61.07ddf16+25.04) plucky; urgency=medium
 
   * Update to snapd version 2.73+g61.07ddf16
