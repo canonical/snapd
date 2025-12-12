@@ -948,7 +948,7 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 		// Skip stop on refresh when refresh mode is set to something
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
-			logger.Debugf(" %s refresh-mode: %v", app.Name, app.StopMode)
+			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
 			switch app.RefreshMode {
 			case "endure":
 				// skip this service
@@ -1009,8 +1009,13 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
 	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
 
+	if len(systemServices) > 0 {
+		logger.Debugf("stopping system services: %v", systemServices)
+	}
+
 	// Save any potentionally expensive calls if there is no need
 	if len(userServices) != 0 {
+		logger.Debugf("stopping user services: %v", userServices)
 		timings.Run(tm, "stop-user-services", "stop user services", func(nested timings.Measurer) {
 			err = cli.stopServices(opts.Disable, reason, userServices...)
 		})
