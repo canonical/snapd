@@ -1,0 +1,89 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2025 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap/squashfs"
+)
+
+var shortDeltaHelp = i18n.G("Apply/Generate snap detla")
+var longDeltaHelp = i18n.G(`
+Generate / apply 'smart' delta between source and target snaps
+
+Operations:
+  generate : generate delta between source and target
+  apply    : apply delta on the source
+
+Examples:
+  $ snap delta generate --source <source snap file>  --target <output file> --delta <delta file>
+  $ snap delta apply    --source <source snap file>  --target <output file> --delta <delta file>
+`)
+
+type cmdDelta struct {
+	clientMixin
+	Positional struct {
+		Operation string `positional-args:"yes" choices:"apply|generate"`
+	} `positional-args:"yes" required:"yes"`
+
+	Source string `long:"source" short:"s" required:"yes"`
+	Target string `long:"target" short:"t" required:"yes"`
+	Delta  string `long:"delta" short:"d" required:"yes"`
+}
+
+func init() {
+	addCommand("delta", shortDeltaHelp, longDeltaHelp, func() flags.Commander { return &cmdDelta{} },
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"source": i18n.G("Source snap package"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"target": i18n.G("Target snap package"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"delta": i18n.G("Delta between source and target snap package"),
+		}, []argDesc{
+			{
+				// TRANSLATORS: This needs to begin with < and end with >
+				name: i18n.G("<operation>"),
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The delta operation to perform, one of: apply|generate"),
+			},
+		})
+}
+
+func (x *cmdDelta) Execute(args []string) error {
+	algo, _, _, _, err := squashfs.CheckSupportedDetlaFormats(nil)
+	if err != nil {
+		return fmt.Errorf(i18n.G("snap delta not supported: %v"), err)
+	}
+	fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), strings.Split(algo, ";")[0])
+	if "generate" == x.Positional.Operation {
+		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
+		return squashfs.GenerateSnapDelta(x.Source, x.Target, x.Delta)
+	} else if "apply" == x.Positional.Operation {
+		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
+		return squashfs.ApplySnapDelta(x.Source, x.Delta, x.Target)
+	}
+	return fmt.Errorf(i18n.G("unknown operation: %s"), x.Positional.Operation)
+}
