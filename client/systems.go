@@ -246,11 +246,15 @@ const (
 	// sets up boot, kernel etc and when finished the installed
 	// system is ready for reboot.
 	InstallStepFinish InstallStep = "finish"
+
+	// Creates a change to preseed the installed system. This action is
+	// expected to be invoked after the target system had been fully set up.
+	InstallStepPreseed InstallStep = "preseed"
 )
 
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
-	// or "finish".
+	// or "finish", or "preseed".
 	Step InstallStep `json:"step,omitempty"`
 
 	// OnVolumes is the volume description of the volumes that the
@@ -266,6 +270,10 @@ type InstallSystemOptions struct {
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
+
+	// Chroot is a path to the rootfs of a mounted target system for the
+	// "preseed" step.
+	Chroot *string `json:"target-chroot,omitempty"`
 }
 
 type OptionalInstallRequest struct {
