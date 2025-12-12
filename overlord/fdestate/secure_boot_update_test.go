@@ -152,8 +152,9 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	c.Check(fdeSt.PendingExternalOperations[0], DeepEquals, fdestate.ExternalOperation{
 		Kind:     "fde-efi-secureboot-db-update",
 		ChangeID: "1",
-		Context:  []byte(`{"payload":"cGF5bG9hZA==","sealing-method":"tpm"}`),
-		Status:   fdestate.DoingStatus,
+		Context: []byte(
+			fmt.Sprintf(`{"payload":"cGF5bG9hZA==","sealing-method":"tpm","db":%d}`, fdestate.EFISecurebootDBX)),
+		Status: fdestate.DoingStatus,
 	})
 	c.Check(fdeSt.KeyslotRoles, DeepEquals, map[string]fdestate.KeyslotRoleInfo{
 		"recover": {
@@ -1240,8 +1241,8 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	sync1PreparedC := fdestate.DbxUpdatePreparedOKChan(st, op1.ChangeID)
-	sync2PreparedC := fdestate.DbxUpdatePreparedOKChan(st, op2.ChangeID)
+	sync1PreparedC := fdestate.SecurebootUpdatePreparedOKChan(st, op1.ChangeID)
+	sync2PreparedC := fdestate.SecurebootUpdatePreparedOKChan(st, op2.ChangeID)
 
 	syncC := make(chan struct{})
 	defer close(syncC)
@@ -1250,12 +1251,12 @@ func (s *fdeMgrSuite) TestEFIDBXOperationAddWait(c *C) {
 	go func() {
 		<-syncC
 		st.Lock()
-		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op1.ChangeID)
+		fdestate.NotifySecurebootUpdatePrepareDoneOK(st, op1.ChangeID)
 		st.Unlock()
 
 		<-syncC
 		st.Lock()
-		fdestate.NotifyDBXUpdatePrepareDoneOK(st, op2.ChangeID)
+		fdestate.NotifySecurebootUpdatePrepareDoneOK(st, op2.ChangeID)
 		st.Unlock()
 
 		close(doneC)
@@ -1286,7 +1287,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 
 	tsk := st.NewTask("foo", "foo task")
 
-	names, err := fdestate.DbxUpdateAffectedSnaps(tsk)
+	names, err := fdestate.SecurebootUpdateAffectedSnaps(tsk)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{
 		"pc",        // gadget

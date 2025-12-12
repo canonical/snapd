@@ -45,11 +45,11 @@ var (
 	AddEFISecurebootDBUpdateChange          = addEFISecurebootDBUpdateChange
 	UpdateExternalOperation                 = updateExternalOperation
 
-	NotifyDBXUpdatePrepareDoneOK = notifySecurebootUpdatePrepareDoneOK
-	DbxUpdatePreparedOKChan      = securebootUpdatePreparedOKChan
+	NotifySecurebootUpdatePrepareDoneOK = notifySecurebootUpdatePrepareDoneOK
+	SecurebootUpdatePreparedOKChan      = securebootUpdatePreparedOKChan
 
-	DbxUpdateAffectedSnaps       = dbxUpdateAffectedSnaps
-	AddPlatformKeysAffectedSnaps = addPlatformKeysAffectedSnaps
+	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
 	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
