@@ -1,0 +1,19 @@
+summary: Check that 'snap refresh' works with the tracking flag
+
+details: |
+    Verifies the snap refresh command works as expected when using the --tracking flag.
+    Tests how snapctl refresh behaves with different channels set.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+restore: |
+    snap remove --purge test-snapd-sh-core24
+
+execute: |
+    snap_release=$(snap refresh --tracking')
+    echo "$snap_release" | gojq --yaml-input -r .channel | MATCH null
+
+    snap switch test-snapd-sh-core24 --channel latest/stable
+    snap_release=$(snap refresh --tracking')
+    echo "$snap_release" | gojq --yaml-input -r .channel | MATCH "latest/stable"
