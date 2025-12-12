@@ -1,0 +1,45 @@
+summary: |
+  Ensure that broken connections are not removed by the interface manager.
+
+details: |
+  Installs two test snaps using 'snap try', connects them, deletes their backing
+  directories to force a 'try,broken' state, and verifies the connection persists
+  in snapd's state manager.
+
+prepare: |
+  chmod +x test-snap1/bin/test.sh
+  chmod +x test-snap2/bin/test.sh
+  snap try test-snap1
+  snap try test-snap2
+
+restore: |
+  snap remove --purge test-snap1 || true
+  snap remove --purge test-snap2 || true
+
+execute: |
+  # 1. Connect the snaps
+  snap connect test-snap1:ciplug test-snap2:ciiface
+
+  # 2. Verify initial connection
+  # We look for the manual connection in the list
+  snap connections test-snap1 | MATCH "content.*test-snap1:ciplug.*test-snap2:ciiface.*manual"
+
+  # 3. Break the FIRST snap (The Consumer)
+  rm -rf test-snap1
+  
+  # Verify it is actually broken
+  snap list test-snap1 | MATCH ".*try,broken.*"
+
+  # 4. Verify connection still exists despite snap1 being broken
+  # snapd should retain the interface state even if the snap is unresponsive
+  snap connections test-snap1 | MATCH "content.*test-snap1:ciplug.*test-snap2:ciiface.*manual"
+
+  # 5. Break the SECOND snap (The Provider)
+  rm -rf test-snap2
+  
+  # Verify it is broken
+  snap list test-snap2 | MATCH ".*try,broken.*"
+
+  # 6. Verify connection still exists when BOTH are broken
+  # The interface manager should not garbage collect connections just because the backing files are gone
+  snap connections test-snap1 | MATCH "content.*test-snap1:ciplug.*test-snap2:ciiface.*manual"

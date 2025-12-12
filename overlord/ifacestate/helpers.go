@@ -343,28 +343,63 @@ var removeStaleConnections = func(st *state.State) error {
 	if err != nil {
 		return err
 	}
+
+	// Returns: (exists, broken, error)
+	checkSnap := func(name string) (bool, bool, error) {
+		var snapst snapstate.SnapState
+		// 1. Check if snap exists in state
+		if err := snapstate.Get(st, name, &snapst); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				return false, false, nil // Snap is missing
+			}
+			return false, false, err
+		}
+
+		// 2. Snap exists, check if it is broken
+		broken, err := isBroken(st, name)
+		if err != nil {
+			return true, false, err
+		}
+		return true, broken, nil
+	}
+
 	var staleConns []string
+
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
 		}
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
-			if !errors.Is(err, state.ErrNoState) {
+
+		shouldKeep := false
+		shouldRemove := false
+		for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+			exists, broken, err := checkSnap(snapName)
+			if err != nil {
 				return err
 			}
-			staleConns = append(staleConns, id)
+
+			if broken {
+				logger.Noticef("Snap %q is broken, ignored by removeStaleConnections", snapName)
+				shouldKeep = true
+				break
+			}
+
+			if !exists {
+				shouldRemove = true
+				break
+			}
+		}
+
+		if shouldKeep {
 			continue
 		}
-		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return err
-			}
+
+		if shouldRemove {
 			staleConns = append(staleConns, id)
-			continue
 		}
 	}
+
 	if len(staleConns) > 0 {
 		for _, id := range staleConns {
 			delete(conns, id)

@@ -1,0 +1,17 @@
+name: test-snap1
+version: '1.0'
+summary: Consumer snap
+description: Consumer snap
+base: core24
+confinement: strict
+grade: stable
+
+plugs:
+  ciplug:
+    interface: content
+    content: broken-conn-test
+    target: $SNAP_DATA/target
+
+apps:
+  test:
+    command: bin/test.sh

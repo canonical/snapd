@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -2012,6 +2013,239 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsRemovesStale(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// 1. Setup a connection in the state
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// 2. Setup ONLY the producer in state (Healthy)
+	// We intentionally DO NOT add "consumer" to the state.
+	producerInfo := &snap.SideInfo{RealName: "producer", Revision: snap.R(1)}
+	snapstate.Set(s.state, "producer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{producerInfo}),
+		Current:  producerInfo.Revision,
+		SnapType: "app",
+	})
+
+	// 3. We do NOT create the consumer in state.
+	// This means snapstate.Get(st, "consumer", ...) will return state.ErrNoState.
+	// This triggers the "return false, false, nil" path in checkSnap.
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	// 4. Run Manager (triggers removeStaleConnections)
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// 5. Assertions
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+
+	// The connection should be REMOVED because 'consumer' is missing (stale)
+	c.Check(conns, HasLen, 0)
+
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Check(ifaces.Connections, HasLen, 0)
+
+	// Check log for specific removal message
+	c.Check(s.log.String(), testutil.Contains, "removed stale connections: consumer:plug producer:slot")
+}
+
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsFailsOnInvalidConnRef(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Inject an invalid connection ID that cannot be parsed
+	// (missing the space between plug and slot)
+	s.state.Set("conns", map[string]any{
+		"malformed-connection-id": map[string]any{"interface": "test", "auto": true},
+	})
+
+	err := ifacestate.RemoveStaleConnections(s.state)
+
+	c.Assert(err, ErrorMatches, `.*malformed connection identifier: "malformed-connection-id"`)
+}
+
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsFailsOnStateGetError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// snapstate.Get looks up "snaps" -> "consumer".
+	// Inject a map where "consumer" is garbage that cannot be unmarshaled.
+	s.state.Set("snaps", map[string]any{
+		"consumer": map[string]any{
+			"active": "invalid-type-causing-unmarshal-error",
+		},
+	})
+
+	err := ifacestate.RemoveStaleConnections(s.state)
+
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `.*cannot unmarshal.*`)
+}
+
+func (s *interfaceManagerSuite) TestIsBrokenReturnsErrorOnStateFailure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapName := "corrupted-snap"
+
+	// place the corrupted data inside the "snaps" map.
+	// snapstate.Get reads s.state.Get("snaps"), then looks up the specific snap.
+	s.state.Set("snaps", map[string]any{
+		snapName: map[string]any{
+			"active": "invalid-type-causing-unmarshal-error",
+		},
+	})
+
+	broken, err := ifacestate.IsBroken(s.state, snapName)
+
+	c.Assert(broken, Equals, false)
+	c.Assert(err, NotNil)
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, false)
+}
+
+func (s *interfaceManagerSuite) testRemoveStaleConnectionsSkipsBrokenSnaps(c *C, brokenSnapName string) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	type minimalSnap struct {
+		Name    string         `yaml:"name"`
+		Version string         `yaml:"version"`
+		Plugs   map[string]any `yaml:"plugs,omitempty"`
+		Slots   map[string]any `yaml:"slots,omitempty"`
+	}
+
+	var otherSnapName string
+	var snapData minimalSnap
+
+	switch brokenSnapName {
+	case "consumer":
+		otherSnapName = "producer"
+		snapData = minimalSnap{
+			Name:    "producer",
+			Version: "1.0",
+			Slots: map[string]any{
+				"slot": map[string]any{"interface": "test"},
+			},
+		}
+	case "producer":
+		otherSnapName = "consumer"
+		snapData = minimalSnap{
+			Name:    "consumer",
+			Version: "1.0",
+			Plugs: map[string]any{
+				"plug": map[string]any{"interface": "test"},
+			},
+		}
+	default:
+		c.Fatalf("unknown broken snap name: %s", brokenSnapName)
+	}
+
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot":             map[string]any{"interface": "test", "auto": true},
+		"other-consumer:plug other-producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// have both snaps in state, but the one passed is broken due to missing snap.yaml
+	// Setup the broken snap (state only, no file on disk)
+	brokenSideInfo := &snap.SideInfo{
+		RealName: brokenSnapName,
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, brokenSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{brokenSideInfo}),
+		Current:  brokenSideInfo.Revision,
+		SnapType: "app",
+	})
+
+	// Setup the other snap (state + file on disk)
+	otherSideInfo := &snap.SideInfo{
+		RealName: otherSnapName,
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, otherSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{otherSideInfo}),
+		Current:  otherSideInfo.Revision,
+		SnapType: "app",
+	})
+
+	snapYamlBytes, err := yaml.Marshal(&snapData)
+	c.Assert(err, IsNil)
+
+	// Write valid snap.yaml to disk
+	snapDir := filepath.Join(dirs.SnapMountDir, otherSnapName, "1", "meta")
+	c.Assert(os.MkdirAll(snapDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapDir, "snap.yaml"), snapYamlBytes, 0o644), IsNil)
+
+	// Write valid .snap blob for working snap
+	snapBlobDir := dirs.SnapBlobDir
+	c.Assert(os.MkdirAll(snapBlobDir, 0o755), IsNil)
+	blobPath := filepath.Join(snapBlobDir, fmt.Sprintf("%s_1.snap", otherSnapName))
+	c.Assert(os.WriteFile(blobPath, []byte("test-content"), 0o644), IsNil)
+
+	// validity check - broken snap is broken, other snap is working
+	var snapst snapstate.SnapState
+
+	c.Assert(snapstate.Get(s.state, brokenSnapName, &snapst), IsNil)
+	curInfo, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Matches, fmt.Sprintf(`cannot find installed snap "%s" at revision 1: missing file .*/1/meta/snap.yaml`, brokenSnapName))
+
+	c.Assert(snapstate.Get(s.state, otherSnapName, &snapst), IsNil)
+	curInfo, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Equals, "")
+
+	// Let the manager initialize, which runs removeStaleConnections
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that connection to broken snap isn't connected, but still exists
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test", "auto": true},
+	})
+
+	// check that the log from removeStaleConnections now mentions that the snap is broken
+	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by removeStaleConnections", brokenSnapName))
+}
+
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsSkipsBrokenConsumer(c *C) {
+	s.testRemoveStaleConnectionsSkipsBrokenSnaps(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestRemoveStaleConnectionsSkipsBrokenProducer(c *C) {
+	s.testRemoveStaleConnectionsSkipsBrokenSnaps(c, "producer")
+}
+
 func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 
@@ -2048,7 +2282,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 	c.Assert(logLines[1], Equals, "")
 }
 
-func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
+func (s *interfaceManagerSuite) testReloadConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2103,12 +2337,12 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by reloadConnections", brokenSnapName))
 }
 
-func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfPlugSnapBroken(c *C) {
-	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "consumer")
+func (s *interfaceManagerSuite) TestReloadConnectionsNotRemovedIfPlugSnapBroken(c *C) {
+	s.testReloadConnectionsNotRemovedIfSnapBroken(c, "consumer")
 }
 
-func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfSlotSnapBroken(c *C) {
-	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "producer")
+func (s *interfaceManagerSuite) TestReloadConnectionsNotRemovedIfSlotSnapBroken(c *C) {
+	s.testReloadConnectionsNotRemovedIfSnapBroken(c, "producer")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
