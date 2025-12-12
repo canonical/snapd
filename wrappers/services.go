@@ -1013,7 +1013,7 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 		logger.Debugf("stopping system services: %v", systemServices)
 	}
 
-	// Save any potentionally expensive calls if there is no need
+	// Save any potentially expensive calls if there is no need
 	if len(userServices) != 0 {
 		logger.Debugf("stopping user services: %v", userServices)
 		timings.Run(tm, "stop-user-services", "stop user services", func(nested timings.Measurer) {
