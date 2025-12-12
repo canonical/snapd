@@ -369,6 +369,11 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			revno: snap.R(11),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -502,11 +507,12 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"unlink-snap",
 		"copy-data",
 		"setup-snap-save-data",
-		"setup-profiles:Doing",
+		"prepare-profiles:Doing",
 		"candidate",
 		"link-snap",
 		"maybe-set-next-boot",
 		"auto-connect:Doing",
+		"setup-profiles:Doing",
 		"update-aliases",
 		"cleanup-trash",
 	}, comment)
@@ -640,7 +646,7 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -662,6 +668,11 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -1184,7 +1195,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 		"update-gadget-assets:Doing",
 		"copy-data",
 		"setup-snap-save-data",
-		"setup-profiles:Doing",
+		"prepare-profiles:Doing",
 		"candidate",
 		"link-snap",
 	}...)
@@ -1196,6 +1207,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	}
 	ops = append(ops, []string{
 		"auto-connect:Doing",
+		"setup-profiles:Doing",
 		"update-aliases",
 	}...)
 	if len(currentKmodComps) > 0 {
@@ -1256,9 +1268,17 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[16+(len(components)*5)]
-	c.Assert(task.Kind(), Equals, "run-hook", Commentf(printTasks(ts.Tasks())))
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-kernel" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+		if strings.Contains(t.Summary(), `Run post-refresh hook of "some-kernel" snap if present`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil, Commentf(printTasks(ts.Tasks())))
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1438,7 +1458,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
@@ -1460,6 +1480,11 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "services-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
@@ -1528,9 +1553,17 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
-	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+		if strings.Contains(t.Summary(), `Run post-refresh hook of "services-snap" snap if present`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil, Commentf(printTasks(ts.Tasks())))
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1822,7 +1855,7 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap_instance"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "services-snap_instance",
 			revno: snap.R(11),
 		},
@@ -1844,6 +1877,11 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  "services-snap_instance",
 			revno: snap.R(11),
 		},
@@ -1912,9 +1950,15 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
-	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "run-hook" && strings.Contains(t.Summary(), `Run post-refresh hook of "services-snap_instance" snap`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil)
+	c.Assert(postRefreshHookTask.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -2742,7 +2786,7 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -2765,7 +2809,7 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			unlinkSkipBinaries: false,
 		},
 		{
-			op:    "setup-profiles:Undoing",
+			op:    "prepare-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -3090,7 +3134,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -3116,6 +3160,11 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			revno: snap.R(11),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 	}...)
@@ -3133,6 +3182,11 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 	}
 	expected = append(expected, fakeOps{
 		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -3142,7 +3196,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op:    "setup-profiles:Undoing",
+			op:    "prepare-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -4737,7 +4791,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 20
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -9473,17 +9527,32 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "kernel/11",
-		"setup-profiles:Doing-core18/11", "core18/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-core18", "cleanup-trash-kernel",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	setupProfilesOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "kernel/11" || op == "core18/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "setup-profiles:"):
+			setupProfilesOps = append(setupProfilesOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(setupProfilesOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "core18/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11"})
+	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-core18/11", "setup-profiles:Doing-kernel/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-core18", "cleanup-trash-kernel"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelAndSnapdSingleRebootHappy(c *C) {
@@ -9816,17 +9885,32 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "kernel/11",
-		"setup-profiles:Doing-gadget/11", "gadget/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-gadget/11", "auto-connect:Doing-kernel/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-gadget", "cleanup-trash-kernel",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	setupProfilesOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "kernel/11" || op == "gadget/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "setup-profiles:"):
+			setupProfilesOps = append(setupProfilesOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(setupProfilesOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "gadget/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-gadget/11", "auto-connect:Doing-kernel/11"})
+	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-gadget/11", "setup-profiles:Doing-kernel/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-kernel"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
@@ -10003,17 +10087,32 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-core18/11", "core18/11",
-		"setup-profiles:Doing-gadget/11", "gadget/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-gadget/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-gadget", "cleanup-trash-core18",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	setupProfilesOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "core18/11" || op == "gadget/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "setup-profiles:"):
+			setupProfilesOps = append(setupProfilesOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(setupProfilesOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"core18/11", "gadget/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-gadget/11"})
+	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-core18/11", "setup-profiles:Doing-gadget/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-core18"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootWithCannotRebootSetHappy(c *C) {
@@ -15266,7 +15365,7 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -15288,6 +15387,11 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -15508,7 +15612,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			inhibitHint: "refresh",
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -15534,6 +15638,11 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			revno: prevSnapRev,
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
+			revno: prevSnapRev,
+		},
+		{
 			op: "update-aliases",
 		},
 	}...)
@@ -15545,6 +15654,11 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 				name: instanceName,
 			},
 			{
+				op:    "setup-profiles:Undoing",
+				name:  instanceName,
+				revno: prevSnapRev,
+			},
+			{
 				op:    "auto-connect:Undoing",
 				name:  instanceName,
 				revno: prevSnapRev,
@@ -15554,7 +15668,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 				path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 			},
 			{
-				op:    "setup-profiles:Undoing",
+				op:    "prepare-profiles:Undoing",
 				name:  instanceName,
 				revno: prevSnapRev,
 			},
@@ -15917,7 +16031,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  snapName,
 			revno: prevSnapRev,
 		},
@@ -15948,6 +16062,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		{
 			op:    "auto-connect:Doing",
 			name:  snapName,
+			revno: prevSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
 			revno: prevSnapRev,
 		},
 		{
@@ -16268,7 +16387,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  snapName,
 			revno: prevSnapRev,
 		},
@@ -16301,6 +16420,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 		{
 			op:    "auto-connect:Doing",
 			name:  snapName,
+			revno: prevSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
 			revno: prevSnapRev,
 		},
 		{
@@ -16849,7 +16973,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 				revno: newSnapRev,
 			},
 		}
-
 		for _, cs := range expectedComponentStates {
 			compName := cs.SideInfo.Component.ComponentName
 			compRev := cs.SideInfo.Revision
@@ -16973,7 +17096,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: newSnapRev,
 		},
@@ -17019,6 +17142,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: newSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: newSnapRev,
 		},
@@ -17495,7 +17623,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  snapName,
 			revno: newSnapRev,
 		},
@@ -17527,6 +17655,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
+			name:  snapName,
+			revno: newSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: newSnapRev,
 		},
@@ -17794,9 +17927,10 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		"remove-aliases",
 		"unlink-current-snap",
 		"copy-snap-data",
-		"setup-profiles",
+		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
+		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
@@ -18221,7 +18355,7 @@ components:
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: snap.R(11),
 		},
@@ -18273,6 +18407,11 @@ components:
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: snap.R(11),
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: snap.R(11),
 		},
@@ -18619,7 +18758,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 		},
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: oldSnapRev,
 		},
@@ -18667,6 +18806,11 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: oldSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: oldSnapRev,
 		},
@@ -19105,7 +19249,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "setup-profiles:Doing",
+			op:    "prepare-profiles:Doing",
 			name:  instanceName,
 			revno: currentSnapRev,
 		},
@@ -19159,6 +19303,11 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: currentSnapRev,
+		},
+		{
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: currentSnapRev,
 		},
