@@ -61,13 +61,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 	defer restore()
 
 	saveActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-save")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
-		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
 		c.Assert(opts.WhichModel, NotNil)
 		mod, err := opts.WhichModel()
@@ -80,7 +80,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 	})
 	defer restore()
 
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
@@ -186,12 +186,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	)
 	defer restore()
 
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
@@ -263,12 +263,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	)
 	defer restore()
 
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
@@ -334,19 +334,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 	defer restore()
 
 	saveActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-save")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
-		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
 		saveActivated = true
 		return foundEncrypted("ubuntu-save"), fmt.Errorf("ubuntu-save unlock fail")
 	})
 	defer restore()
 
-	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingProtectorKey(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Errorf("unexpected call")
 		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
 	})
@@ -445,13 +445,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 	defer restore()
 
 	saveActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(name, Equals, "ubuntu-save")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
-		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
 		saveActivated = true
 		// all went good here
 		return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil

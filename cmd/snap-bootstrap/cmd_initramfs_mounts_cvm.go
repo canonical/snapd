@@ -219,13 +219,17 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	}
 
 	// Mount ESP as UbuntuSeedDir which has UEFI label
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI", mountOpts); err != nil {
+	_, bootPart, err := findBootDisk("UEFI")
+	if err != nil {
+		return err
+	}
+	if err := doSystemdMount(bootPart, boot.InitramfsUbuntuSeedDir, mountOpts); err != nil {
 		return err
 	}
 
 	// get the disk that we mounted the ESP from as a reference
 	// point for future mounts
-	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	disk, err := probeDiskFromMountpoint(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
 	}
@@ -260,8 +264,11 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// the public key and then measure a digest of the public key to the TPM.
 			// A later remote attestation step will be able to verify that the public
 			// key that was measured is an expected one.
-
-			partitionMounts, err = generateMountsFromManifest(im, disk)
+			ddisk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+			if err != nil {
+				return err
+			}
+			partitionMounts, err = generateMountsFromManifest(im, ddisk)
 			if err != nil {
 				return err
 			}
