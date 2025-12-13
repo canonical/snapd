@@ -164,13 +164,18 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 		return "", err
 	}
 
+	mounted, err := osutil.IsMounted(unitOptions.Where)
+	if err != nil {
+		return "", fmt.Errorf("cannot check mountpoint in preseed mode: %w", err)
+	}
+
 	// Here we need options that work for the system where we create the
 	// tarball, so things are similar to what is done for
 	// systemd.EnsureMountUnitFile. For instance, when preseeding in a lxd
 	// container, the snap will be mounted with fuse, but mount unit will
 	// use squashfs.
 	hostFsType, actualOptions := HostFsTypeAndMountOptions(unitOptions.Fstype)
-	if modified == MountUpdated {
+	if modified == MountUpdated && mounted {
 		actualOptions = append(actualOptions, "remount")
 	}
 	cmd := exec.Command("mount", "-t", hostFsType, unitOptions.What, unitOptions.Where, "-o", strings.Join(actualOptions, ","))
