@@ -91,7 +91,7 @@ func systemSnapSupportsReExec(coreOrSnapdPath string) bool {
 		return false
 	}
 	if res > 0 {
-		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q)", coreOrSnapdPath, ver, Version)
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, Version, filepath.Join(infoDir, "info"))
 		return false
 	}
 	return true
