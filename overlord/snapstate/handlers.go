@@ -1281,6 +1281,11 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	setupOpts := &backend.SetupSnapOptions{
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
+
+	if snapsup.IntegrityDataInfo != nil {
+		setupOpts.IntegrityRootHash = snapsup.IntegrityDataInfo.Digest
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
@@ -5526,6 +5531,40 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 	perfTimings.Save(st)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) doDownloadIntegrityData(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	var rate int64
+
+	st.Lock()
+	perfTimings := state.TimingsForTask(t)
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	if snapsup != nil && snapsup.IsAutoRefresh {
+		// NOTE rate is never negative
+		rate = autoRefreshRateLimited(st)
+	}
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	meter := NewTaskProgressAdapterUnlocked(t)
+
+	targetFn := snapsup.IntegrityBlobPath()
+
+	dlOpts := &store.DownloadOptions{
+		Scheduled: snapsup.IsAutoRefresh,
+		RateLimit: rate,
+	}
+
+	ctx := tomb.Context(context.TODO())
+
+	timings.Run(perfTimings, "download", fmt.Sprintf("download integrity data for snap %q", snapsup.SnapName()), func(timings.Measurer) {
+		err = theStore.Download(ctx, snapsup.SnapName(), targetFn, &snapsup.IntegrityDataInfo.DownloadInfo, meter, user, dlOpts)
+	})
 
 	return nil
 }

@@ -56,6 +56,10 @@ func (s *initramfsClassicMountsSuite) SetUpTest(c *C) {
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
@@ -106,6 +110,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedWithS
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedPartNotInGadget(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -158,6 +166,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedP
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedInGadgetNotInVolume(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultNoSeedWithSaveDisk,
@@ -207,6 +219,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedI
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSeedHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultNoSeedWithSaveDisk,
@@ -255,6 +271,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSee
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappySystemSeedNull(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -306,6 +326,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappySystemSeedN
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -445,6 +469,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 func (s *initramfsClassicMountsSuite) testInitramfsMountsRunModeHappySeedCapsLabel(c *C, role string) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
@@ -512,6 +540,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsTryRecoveryHappyTried(c
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamName(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_system_disk=/dev/sda snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
 
@@ -576,6 +608,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamName(c *
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamPath(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_system_disk=/devices/some/bus/disk snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
@@ -648,6 +684,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHa
 		}
 		return ""
 	})()
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -731,6 +771,10 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunMode24KernelClassicN
 		}
 		return ""
 	})()
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -834,6 +878,10 @@ Options=bind
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
