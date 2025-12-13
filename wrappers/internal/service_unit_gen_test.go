@@ -97,15 +97,87 @@ Type=%s
 WantedBy=default.target
 `
 
+const expectedGraphicalUserServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+After=graphical-session.target
+Requisite=graphical-session.target
+BindsTo=graphical-session.target
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
+ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
+TimeoutStopSec=10
+Type=%s
+
+[Install]
+WantedBy=graphical-session.target
+`
+
+const expectedDBusGraphicalUserServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+After=graphical-session.target
+Requisite=graphical-session.target
+PartOf=graphical-session.target
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
+ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
+TimeoutStopSec=10
+Type=%s
+
+[Install]
+WantedBy=graphical-session.target
+`
+
+const expectedSocketGraphicalUserServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+After=graphical-session.target
+Requisite=graphical-session.target
+PartOf=graphical-session.target
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+ExecStop=/usr/bin/snap run --command=stop snap.app
+ExecReload=/usr/bin/snap run --command=reload snap.app
+ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
+TimeoutStopSec=10
+Type=%s
+`
+
 var (
 	mountUnitPrefix = strings.Replace(dirs.SnapMountDir[1:], "/", "-", -1)
 )
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple", expectedInstallSection)
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", "")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes", expectedInstallSection)
-	expectedUserAppService = fmt.Sprintf(expectedUserServiceFmt, "on-failure", "simple")
+	expectedAppService                    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple", expectedInstallSection)
+	expectedDbusService                   = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", "")
+	expectedOneshotService                = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes", expectedInstallSection)
+	expectedUserAppService                = fmt.Sprintf(expectedUserServiceFmt, "on-failure", "simple")
+	expectedGraphicalUserAppService       = fmt.Sprintf(expectedGraphicalUserServiceFmt, "on-failure", "simple")
+	expectedDBusGraphicalUserAppService   = fmt.Sprintf(expectedDBusGraphicalUserServiceFmt, "on-failure", "dbus")
+	expectedSocketGraphicalUserAppService = fmt.Sprintf(expectedSocketGraphicalUserServiceFmt, "on-failure", "simple")
 )
 
 var (
@@ -344,7 +416,7 @@ func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileTypeForking(c *C) {
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "forking",
-		DaemonScope:     snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemonScope,
 	}
 
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
@@ -366,7 +438,7 @@ func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileIllegalChars(c *C) {
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "simple",
-		DaemonScope:     snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemonScope,
 	}
 
 	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
@@ -518,6 +590,84 @@ apps:
 	c.Check(string(generatedWrapper), Equals, expectedUserAppService)
 }
 
+func (s *serviceUnitGenSuite) TestGenerateSnapGraphicalUserServiceFile(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: simple
+        daemon-scope: user-graphical-session
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedGraphicalUserAppService)
+}
+
+func (s *serviceUnitGenSuite) TestGenerateSnapDBusGraphicalUserServiceFile(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: dbus
+        daemon-scope: user-graphical-session
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedDBusGraphicalUserAppService)
+}
+
+func (s *serviceUnitGenSuite) TestGenerateSnapSocketGraphicalUserServiceFile(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: simple
+        sockets:
+            testsocket:
+                listen-stream: $SNAP_USER_COMMON/unix.socket
+                socket-mode: 0644
+        daemon-scope: user-graphical-session
+        plugs:
+            - network-bind
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedSocketGraphicalUserAppService)
+}
+
 func (s *serviceUnitGenSuite) TestServiceAfterBefore(c *C) {
 	const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -551,32 +701,32 @@ WantedBy=multi-user.target
 					Name:        "foo",
 					Snap:        &snap.Info{SuggestedName: "snap"},
 					Daemon:      "forking",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 				},
 				"bar": {
 					Name:        "bar",
 					Snap:        &snap.Info{SuggestedName: "snap"},
 					Daemon:      "forking",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 				},
 				"zed": {
 					Name:        "zed",
 					Snap:        &snap.Info{SuggestedName: "snap"},
 					Daemon:      "forking",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 				},
 				"baz": {
 					Name:        "baz",
 					Snap:        &snap.Info{SuggestedName: "snap"},
 					Daemon:      "forking",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 				},
 			},
 		},
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 		StopTimeout: timeout.DefaultTimeout,
 	}
 
@@ -620,7 +770,7 @@ func (s *serviceUnitGenSuite) TestKillModeSig(c *C) {
 			Name:        "app",
 			Command:     "bin/foo start",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 			StopMode:    snap.StopModeType(rm),
 		}
 
@@ -662,7 +812,7 @@ func (s *serviceUnitGenSuite) TestRestartDelay(c *C) {
 		Name:         "app",
 		Command:      "bin/foo start",
 		Daemon:       "simple",
-		DaemonScope:  snap.SystemDaemon,
+		DaemonScope:  snap.SystemDaemonScope,
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
@@ -702,7 +852,7 @@ func (s *serviceUnitGenSuite) TestVitalityScore(c *C) {
 		Name:         "app",
 		Command:      "bin/foo start",
 		Daemon:       "simple",
-		DaemonScope:  snap.SystemDaemon,
+		DaemonScope:  snap.SystemDaemonScope,
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
@@ -744,7 +894,7 @@ func (s *serviceUnitGenSuite) TestQuotaGroupSlice(c *C) {
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 	}
 
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
@@ -787,7 +937,7 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespace(c *C) {
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 	}
 
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
@@ -831,7 +981,7 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 	}
 
 	testCases := []struct {
