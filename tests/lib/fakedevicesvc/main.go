@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -124,6 +125,20 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		serialStr := "7777"
+
+		var serialReqBody map[string]any
+
+		err = json.Unmarshal(serialReq.Body(), &serialReqBody)
+		if err != nil {
+			badRequestError(w, "bad serial-request body: %v", err)
+			return
+		}
+
+		// Modify serial id for prepare serial request
+		if serialReqBody["request-id-signature"] == "REQ-ID" {
+			serialStr = "3333"
+		}
+
 		if r.Header.Get("X-Use-Proposed") == "yes" {
 			// use proposed serial
 			serialStr = serialReq.Serial()
