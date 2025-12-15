@@ -39,6 +39,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -47,8 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -1196,11 +1195,11 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 
 	sp, err := os.Open(sourcePipe)
 	if err != nil {
-		return fmt.Errorf("failed to open source pipe:%v")
+		return fmt.Errorf("failed to open source pipe:%v", err)
 	}
 	tp, err := os.Open(targetPipe)
 	if err != nil {
-		return fmt.Errorf("failed to open target pipe:%v")
+		return fmt.Errorf("failed to open target pipe:%v", err)
 	}
 	sourceReader := bufio.NewReaderSize(sp, CopyBufferSize)
 	targetReader := bufio.NewReaderSize(tp, CopyBufferSize)
@@ -1244,11 +1243,11 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 	defer diffMem.Close()
 
 	// calculate header Delta and write it to the delta stream, use prepare mem processors
-	_, err = unix.Write(srcMem.Fd, sourceHeaderBuff.Bytes())
+	_, err = srcMem.File.Write(sourceHeaderBuff.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to write source header to memFd: %w", err)
 	}
-	_, err = unix.Write(targetMem.Fd, targetHeaderBuff.Bytes())
+	_, err = targetMem.File.Write(targetHeaderBuff.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to write target header to memFd: %w", err)
 	}
@@ -2010,7 +2009,7 @@ type ReusableMemFD struct {
 }
 
 func NewReusableMemFD(name string) (*ReusableMemFD, error) {
-	fd, err := unix.MemfdCreate(name, 0)
+	fd, err := memfdCreate(name, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -2024,7 +2023,7 @@ func NewReusableMemFD(name string) (*ReusableMemFD, error) {
 
 func (m *ReusableMemFD) Reset() error {
 	// Truncate file to 0 size
-	if err := unix.Ftruncate(m.Fd, 0); err != nil {
+	if err := syscall.Ftruncate(m.Fd, 0); err != nil {
 		return err
 	}
 	// Seek to start
@@ -2034,6 +2033,19 @@ func (m *ReusableMemFD) Reset() error {
 
 func (m *ReusableMemFD) Close() {
 	m.File.Close() // This closes the FD as well
+}
+
+// create mem backed file
+func memfdCreate(name string, flags int) (int, error) {
+	s, err := syscall.BytePtrFromString(name)
+	if err != nil {
+		return 0, err
+	}
+	r1, _, e1 := syscall.Syscall(syscall.SYS_MEMFD_CREATE, uintptr(unsafe.Pointer(s)), uintptr(flags), 0)
+	if e1 != 0 {
+		return 0, e1
+	}
+	return int(r1), nil
 }
 
 // Loads timestamp, compression, and flags from a squashfs superblock.
@@ -2193,7 +2205,8 @@ func getSimilarityScore(a, b int64, maxDelta int) int {
 	}
 }
 
-func minInt[T comparable](x, y T) T {
+// TODO:GOVERSION: remove once we are on go>=1.21
+func minInt(x int, y int) int {
 	if x < y {
 		return x
 	}
