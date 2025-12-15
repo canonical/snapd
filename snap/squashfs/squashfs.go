@@ -687,8 +687,8 @@ func BuildDate(path string) time.Time {
 // --- Constants & Configuration ---
 const (
 	// Tool IDs
-	DetlaToolXdelta3 = uint16(0x1)
-	DetlaToolHdiffz  = uint16(0x2)
+	DeltaToolXdelta3 = uint16(0x1)
+	DeltaToolHdiffz  = uint16(0x2)
 )
 
 const (
@@ -731,7 +731,7 @@ var (
 	// unsquashfs tuning
 	// by default unsquashfs would allocated ~2x256 for any size of squashfs image
 	// We need to tame it down use different tuning for:
-	// - generating detla: running server side -> no tuning, we have memory
+	// - generating delta: running server side -> no tuning, we have memory
 	// - apply delta: possibly low spec systems
 	unsquashfsTuningGenerate = []string{"-da", "128", "-fr", "128"}
 	unsquashfsTuningApply    = []string{"-da", "8", "-fr", "8"}
@@ -855,9 +855,9 @@ func GenerateSnapDelta(sourceSnap, targetSnap, delta string, deltaTool uint16) e
 
 	// run delta producer for given deta tool
 	switch deltaTool {
-	case DetlaToolXdelta3:
+	case DeltaToolXdelta3:
 		return generateXdelta3Delta(ctx, deltaFile, sourceSnap, targetSnap)
-	case DetlaToolHdiffz:
+	case DeltaToolHdiffz:
 		return generateHdiffzDelta(ctx, deltaFile, sourceSnap, targetSnap)
 	default:
 		return fmt.Errorf("unsupported delta tool 0x%X", hdr.DeltaTool)
@@ -893,7 +893,7 @@ func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
 	if hdr.Version != deltaFormatVersion {
 		return fmt.Errorf("version mismatch %d!=%d", hdr.Version, deltaFormatVersion)
 	}
-	if hdr.DeltaTool != DetlaToolXdelta3 && hdr.DeltaTool != DetlaToolHdiffz {
+	if hdr.DeltaTool != DeltaToolXdelta3 && hdr.DeltaTool != DeltaToolHdiffz {
 		return fmt.Errorf("unsupported delta tool %d", hdr.DeltaTool)
 	}
 
@@ -907,9 +907,9 @@ func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
 	}
 	// run delta apply for given deta tool
 	switch hdr.DeltaTool {
-	case DetlaToolXdelta3:
+	case DeltaToolXdelta3:
 		return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, hdr, mksqfsArgs)
-	case DetlaToolHdiffz:
+	case DeltaToolHdiffz:
 		return applyHdiffzDelta(ctx, sourceSnap, targetSnap, deltaFile, hdr, mksqfsArgs)
 	default:
 		return fmt.Errorf("unsupported delta tool 0x%X", hdr.DeltaTool)
@@ -918,7 +918,7 @@ func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
 
 func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
 	// Ensure we have required tooling
-	supportedFormats, xdelta3ToolCmdFn, _, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(ctx)
+	supportedFormats, xdelta3ToolCmdFn, _, unsquashfsCmdFn, _, _, err := CheckSupportedDeltaFormats(ctx)
 	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
 		return fmt.Errorf("missing delta tooling for xdelta3: %v", err)
 	}
@@ -1004,7 +1004,7 @@ func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, t
 
 func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader, mksqfsArgs []string) error {
 	// check if we have required tooling to apply delta
-	supportedFormats, xdelta3CmdFn, mksquashfsCmdFn, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(ctx)
+	supportedFormats, xdelta3CmdFn, mksquashfsCmdFn, unsquashfsCmdFn, _, _, err := CheckSupportedDeltaFormats(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
 	}
@@ -1139,7 +1139,7 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
 
 	// Ensure we have required tooling
-	supportedFormats, _, _, unsquashfsCmdFn, hdiffzCmdFn, _, err := CheckSupportedDetlaFormats(ctx)
+	supportedFormats, _, _, unsquashfsCmdFn, hdiffzCmdFn, _, err := CheckSupportedDeltaFormats(ctx)
 	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatHdiffz) {
 		return fmt.Errorf("failed to validate required tooling for snap-delta: %v", err)
 	}
@@ -1424,7 +1424,7 @@ LOOP:
 
 func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader, mksqfsArgs []string) error {
 	// check if we have required tooling to apply delta
-	supportedFormats, _, mksquashfsCmdFn, unsquashfsCmdFn, _, hpatchzCmdFn, err := CheckSupportedDetlaFormats(ctx)
+	supportedFormats, _, mksquashfsCmdFn, unsquashfsCmdFn, _, hpatchzCmdFn, err := CheckSupportedDeltaFormats(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
 	}
@@ -1908,7 +1908,7 @@ func setupPipes(pipeNames ...string) (string, []string, error) {
 
 // Check if all the required tools are actually present
 // returns ready to use commands for xdelta3, mksquashfs and unsquashfs, hdiffz, hpatchz
-func CheckSupportedDetlaFormats(ctx context.Context) (string, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, error) {
+func CheckSupportedDeltaFormats(ctx context.Context) (string, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, error) {
 	// Run checks in parallel to speed up startup
 	type res struct {
 		name string
