@@ -596,6 +596,7 @@ var defaultCoreRuntimeTemplateRules = `
   @{SNAP_COREUTIL_DIRS}id ixr,
   /{,usr/}bin/igawk ixr,
   /{,usr/}bin/infocmp ixr,
+  @{SNAP_COREUTIL_DIRS}install ixr,
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
