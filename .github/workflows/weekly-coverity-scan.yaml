@@ -22,6 +22,7 @@ jobs:
       run: |
           sudo apt clean
           sudo apt update
+          ln -s packaging/ubuntu-16.04 debian
           sudo apt build-dep -y .
 
     - name: Get deps
