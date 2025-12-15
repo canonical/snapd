@@ -28,6 +28,7 @@ import (
 	"hash/crc32"
 	"io"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path"
@@ -1091,8 +1092,10 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 	if err != nil {
 		return fmt.Errorf("failed to parse source header: %w", err)
 	}
+
+	sourceEntriesCount := len(sourceEntries)
 	// Map for fast lookups: FilePath -> Entry
-	sourceMap := make(map[string]*PseudoEntry, len(sourceEntries))
+	sourceMap := make(map[string]*PseudoEntry, sourceEntriesCount)
 	for i := range sourceEntries {
 		sourceEntries[i].OriginalIndex = i
 		sourceMap[sourceEntries[i].FilePath] = &sourceEntries[i]
@@ -1140,38 +1143,70 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 	bufferPool.Put(targetHeaderBuff)
 
 	sourceRead := int64(0)
-	targetRead := int64(0)
 	totalDeltaSize := int64(24 + segmentDeltaSize)
+	lastSourceIndex := 0
+	logger.Noticef("Processing %d target entries against %d source entries\n", len(targetEntries), sourceEntriesCount)
 
-	logger.Noticef("Processing %d target entries against %d source entries\n", len(targetEntries), len(sourceEntries))
-
-	// 5. Main Processing Loop
-	for _, e := range targetEntries {
+	// Main Processing Loop
+	for _, te := range targetEntries {
 		// Reset MemFDs for reuse
 		srcMem.Reset()
 		targetMem.Reset()
 		diffMem.Reset()
 
-		sourceEntry := sourceMap[e.FilePath]
+		// Try Exact Match
+		sourceEntry := sourceMap[te.FilePath]
+		// Fallback: Fuzzy Match for directory or filename change
+		if sourceEntry == nil {
+			// We must select a candidate that is physically AHEAD in the stream as cannot rewind the source pipe
+			// We do not want to advance too much either, it could be false "match"
+			// assuming we compare software, allow "version" change in fuzzy match
+			// find first fuzzy match, max 20 entries eahead
+			// build score from different criteria
+			//  - exact basefilename match: or exact directory match: 10
+			//  - size +-20% difference: up to 10
+			//  - index delta from last index: 20 - index delta
+			// if score > 25 it's match
+			lookout := min(lastSourceIndex+20, sourceEntriesCount) // which ever is smaller
+			for i := lastSourceIndex + 1; i < lookout; i++ {
+				se := sourceEntries[i]
+				fuzzyMatch := pathsMatchFuzzy(se.FilePath, te.FilePath)
+				if fuzzyMatch != 0 {
+					// build the rest of the score
+					score := getSimilarityScore(se.DataSize, te.DataSize, 20) / 10
+					score += 20 + lastSourceIndex + 1 - i
+					if fuzzyMatch < 3 {
+						score += 10
+					}
+					if score > 25 {
+						logger.Noticef(("Fuzzy Match(%d): %s matched with old %s\n", score, te.FilePath, se.FilePath)
+						sourceEntry = &sourceEntries[i]
+						break
+					} else {
+						logger.Noticef(("Ignoring Fuzzy Match(%d): %s with old %s\n", score, te.FilePath, se.FilePath)
+					}
+				}
+			}
+		}
 		sourceSize := int64(0)
 		sourceOffset := int64(0)
-		lastSourceIndex := 0
 
 		if sourceEntry != nil {
 			sourceSize = sourceEntry.DataSize
 			sourceOffset = sourceEntry.DataOffset
 			lastSourceIndex = sourceEntry.OriginalIndex
 		} else {
-			// logger.Noticef("\tNo original version for: %s\n", e.FilePath)
+			logger.Noticef("\tNo original version for: %s\n", te.FilePath)
 		}
 
 		// Handle Source Stream extraction
 		// Calculate Source CRC while copying to detect identity without re-reading
 		srcCRC := crc32.NewIEEE()
-		if sourceSize > 0 {
+		// Only attempt to read source if we have a valid entry AND it's not behind us
+		// (The fuzzy logic ensures offset >= sourceRead, but exact match might not if the stream was mixed up)
+		if sourceSize > 0 && sourceOffset >= sourceRead {
 			toSkip := sourceOffset - sourceRead
 			if toSkip > 0 {
-				// Efficient skip
 				if _, err := copyNBuffer(io.Discard, sourceReader, toSkip); err != nil {
 					return fmt.Errorf("failed to skip source stream: %w", err)
 				}
@@ -1184,19 +1219,24 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 				return fmt.Errorf("failed to extract source segment: %w", err)
 			}
 			sourceRead += sourceSize
+		} else if sourceEntry != nil && sourceOffset < sourceRead {
+			// Edge case: We found a match (exact or fuzzy), but it is physically located
+			// BEFORE our current pipe position. We cannot use it.
+			// Reset sourceSize so we treat this as a "New File" insertion.
+			sourceSize = 0
+			logger.Noticef("Skipping unsearchable source match (stream moved past): %s\n", sourceEntry.FilePath)
 		}
 
 		// Handle Target Stream extraction
 		targetCRC := crc32.NewIEEE()
 		mw := io.MultiWriter(targetMem.File, targetCRC)
-		if _, err := copyNBuffer(mw, targetReader, e.DataSize); err != nil {
+		if _, err := copyNBuffer(mw, targetReader, te.DataSize); err != nil {
 			return fmt.Errorf("failed to extract target segment: %w", err)
 		}
-		targetRead += e.DataSize
 
 		// Determine Identity
 		isIdentical := false
-		if sourceEntry != nil && sourceSize == e.DataSize {
+		if sourceEntry != nil && sourceSize == te.DataSize {
 			if sourceSize == 0 {
 				isIdentical = true
 			} else {
@@ -1211,7 +1251,7 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 			// Files match, write negative index header
 			headerBuf := bufferPool.Get().(*bytes.Buffer)
 			headerBuf.Reset()
-			binary.Write(headerBuf, binary.LittleEndian, int64(-lastSourceIndex))
+			binary.Write(headerBuf, binary.LittleEndian, int64(-sourceEntry.OriginalIndex))
 			if _, err := deltaFile.Write(headerBuf.Bytes()); err != nil {
 				bufferPool.Put(headerBuf)
 				return err
@@ -1225,7 +1265,7 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 				return err
 			}
 			totalDeltaSize += (segSize + 24)
-			logger.Noticef("Delta: %s (%d bytes -> %d bytes)\n", e.FilePath, e.DataSize, segSize)
+			logger.Noticef("Delta: %s (%d bytes -> %d bytes)\n", re.FilePath, re.DataSize, segSize)
 		}
 	}
 
@@ -1909,4 +1949,65 @@ func parseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
 	}
 
 	return mksqfsArgs, nil
+}
+
+// regex to find all sequences of digits.
+var digitPattern = regexp.MustCompile(`\d+`)
+
+// PathsMatchFuzzy compares two paths. It returns true if they are identical
+// OR if they only differ by the numbers contained within them (versions).
+// the returned score is 0: no match, 1: perfect match, 1<: 1 + number of fuzzy matches
+func pathsMatchFuzzy(pathA, pathB string) int {
+	// split paths into components (directories/filenames)
+	partsA := strings.Split(pathA, "/")
+	partsB := strings.Split(pathB, "/")
+
+	// Structural check: Paths must have the same depth
+	if len(partsA) != len(partsB) {
+		return 0
+	}
+	fuzzyMatches := 0
+	// Component-wise comparison
+	for i := 0; i < len(partsA); i++ {
+		partA := partsA[i]
+		partB := partsB[i]
+		// idential, next one
+		if partA == partB {
+			continue
+		}
+		// normalize strings by replacing all numbers with a placeholder "#"
+		// if components match, we assume it's version change
+		normA := digitPattern.ReplaceAllString(partA, "#")
+		normB := digitPattern.ReplaceAllString(partB, "#")
+		if normA != normB {
+			return 0
+		}
+		fuzzyMatches++
+	}
+	return 1 + fuzzyMatches
+}
+
+// GetSimilarityScore takes two int64s and returns a score
+// maxDelta is maximum delta in %, otherwise 0 is returned
+
+func getSimilarityScore(a, b int64, maxDelta int) int {
+	// edge cases when both or one is zero
+	if a == 0 && b == 0 {
+		return 100
+	}
+	if a == 0 || b == 0 {
+		return 0
+	}
+
+	// Convert to float for calculations
+	floatA := math.Abs(float64(a))
+	floatB := math.Abs(float64(b))
+	minVal := math.Min(floatA, floatB)
+	maxVal := math.Max(floatA, floatB)
+	score := int(math.Round(minVal/maxVal) * 100)
+	if score < 100-maxDelta {
+		return 0
+	} else {
+		return score
+	}
 }
