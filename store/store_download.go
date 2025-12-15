@@ -106,7 +106,7 @@ func (s *Store) useDeltas() (use bool) {
 	}
 
 	var err error
-	s.deltaFormats, _, _, _, err = squashfs.CheckSupportedDetlaFormats(nil)
+	s.deltaFormats, _, _, _, _, _, err = squashfs.CheckSupportedDeltaFormats(nil)
 	if err != nil {
 		logger.Noticef("snap delta not supported: %v", err)
 		return false
