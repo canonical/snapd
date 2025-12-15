@@ -1,0 +1,32 @@
+summary: Ensure that the graphical user daemons work as expected
+
+details: |
+    This test ensures that an user daemon with the desktop, x11 or wayland plugs
+    will be launched with the destkop session only.
+
+# Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
+# TODO: extend tests.session and run this test on 14.04 as well.
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
+
+prepare: |
+    echo Testing desktop daemons
+    # enable user daemons
+    snap set system experimental.user-daemons=true
+
+    # Build and install a snap with the graphical environment daemon
+    snap install snapcraft
+    snapcraft pack -v
+    snap install --dangerous ./test-snapd-daemon-desktop*.snap
+    tests.cleanup defer snap remove --purge test-snapd-daemon-desktop
+
+debug: |
+    NORMAL_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-normal.service
+    DESKTOP_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
+    echo "Ensure graphical daemon has the right dependencies"
+    test -f ${NORMAL_SERVICE}
+    test -f ${DESKTOP_SERVICE
+    grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
+    grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
+    grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
+    grep "Binds-to=graphical-session\.target" ${DESKTOP_SERVICE}
+    grep "WantedBy=defaul\.target" ${NORMAL_SERVICE}
