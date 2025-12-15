@@ -1600,9 +1600,19 @@ func (s *RunSuite) TestSnapRunXdgRuntimeDirCreation(c *check.C) {
 	// Remove toplevel XDG_RUNTIME_DIR so creation of snap runtime dir will fail
 	c.Assert(os.RemoveAll(toplevelXdgRuntimeDir), check.IsNil)
 
-	// Third run should fail
+	// Third run should "succeed" as the special case where the parent doesn't exist
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Assert(toplevelXdgRuntimeDir, testutil.FileAbsent)
+	c.Assert(snapXdgRuntimeDir, testutil.FileAbsent)
+
+	// Create a file in place of XDG_RUNTIME_DIR so creation of snap runtime dir will fail with an error
+	c.Assert(os.WriteFile(toplevelXdgRuntimeDir, []byte{}, 0o644), check.IsNil)
+
+	// Fourth run should fail
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
 	c.Assert(err, check.ErrorMatches, "cannot create XDG_RUNTIME_DIR folder .*")
+	c.Assert(snapXdgRuntimeDir, testutil.FileAbsent)
 }
 
 func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
