@@ -1,11 +1,6 @@
-name: test-snapd-daemon-desktop
-version: "1"
+name: test-implicit-graphical-user-daemon
+version: 1
 summary: test-snapd-daemon-user-in-graphical-desktop
-description: |
- Test the snap_daemon user in graphical desktop
-confinement: strict
-grade: devel
-base: core24
 
 apps:
   test-snapd-daemon-user-in-graphical-desktop:
@@ -50,10 +45,4 @@ apps:
       daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
-
-parts:
-  test-snapd-daemon-user-in-graphical-desktop:
-    plugin: nil
-    stage-packages:
-    - coreutils
 
