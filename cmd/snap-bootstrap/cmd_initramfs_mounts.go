@@ -1343,8 +1343,15 @@ func (m *recoverModeStateMachine) unlockData() (stateFunc, error) {
 	}
 	if unlockErr != nil {
 		if unlockRes.IsEncrypted {
-			// we know the device is encrypted, so the next state is to try
-			// unlocking with the fallback key
+			// we know the device is encrypted, so the
+			// next state is to try unlocking encrypted
+			// save disk (and not look at unencrypte save
+			// disk).
+			// Future refactoring will merge
+			// unlockEncryptedSaveFallbackKey and
+			// unlockEncryptedSaveRunKey. But for
+			// now we can jump directly to the fallback
+			// since we cannot have a protector key.
 			return m.unlockEncryptedSaveFallbackKey, nil
 		} else {
 			return m.unlockMaybeEncryptedAloneSaveFallbackKey, nil
