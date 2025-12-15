@@ -132,7 +132,7 @@ and the snap can easily be enabled again.
 `)
 
 type snapChannel struct {
-	Channel string `yaml:"channel"`
+	Channel *string `yaml:"channel"`
 }
 
 // snapConfig represents the top-level structure.
@@ -1240,15 +1240,21 @@ func (x *cmdRefresh) TrackRefreshes() (err error) {
 
 	sort.Sort(snapsByName(snaps))
 
-	// Create the struct to hold all the snap data
 	config := snapConfig{
 		Snaps: make(map[string]snapChannel),
 	}
 
 	// Populate the map
 	for _, snap := range snaps {
+		var channelPtr *string = nil
+
+		if snap.TrackingChannel != "" {
+            val := snap.TrackingChannel
+            channelPtr = &val
+        }
+
 		config.Snaps[snap.Name] = snapChannel{
-			Channel: snap.TrackingChannel,
+			Channel: channelPtr,
 		}
 	}
 
