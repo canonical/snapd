@@ -766,7 +766,7 @@ type PseudoEntry struct {
 }
 
 // type DeltaToolingCmd func(ctx context.Context, args ...string) *exec.Cmd
-type DeltaToolingCmd func(args ...string) *exec.Cmd
+type DeltaToolingCmd func(ctx context.Context, args ...string) *exec.Cmd
 
 // --- Memory Pools ---
 
@@ -856,7 +856,7 @@ func GenerateSnapDelta(sourceSnap, targetSnap, delta string, deltaTool uint16) e
 	case detlaToolHdiffz:
 		return generateHdiffzDelta(ctx, deltaFile, sourceSnap, targetSnap)
 	default:
-		return fmt.Errorf("Unknown delta tool requested: 0x%X\n", deltaTool)
+		return fmt.Errorf("unsupported delta tool 0x%X", hdr.DeltaTool)
 	}
 }
 
@@ -906,17 +906,13 @@ func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
 	case detlaToolHdiffz:
 		return applyHdiffzDelta(ctx, sourceSnap, targetSnap, deltaFile, hdr, mksqfsArgs)
 	default:
-		return fmt.Errorf("Unknown delta tool requested: 0x%X\n", hdr.DeltaTool)
+		return fmt.Errorf("unsupported delta tool 0x%X", hdr.DeltaTool)
 	}
-
 }
 
 func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
-	// Setup Context & ErrGroup
-	g, gctx := errgroup.WithContext(ctx)
-
 	// Ensure we have required tooling
-	supportedFormats, xdelta3ToolCmdFn, _, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(gctx)
+	supportedFormats, xdelta3ToolCmdFn, _, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(ctx)
 	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
 		return fmt.Errorf("missing delta tooling for xdelta3: %v", err)
 	}
@@ -930,49 +926,46 @@ func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, t
 	sourcePipe := pipes[0]
 	targetPipe := pipes[1]
 
+	// Setup Context & ErrGroup
+	g, gctx := errgroup.WithContext(ctx)
+
 	// Prepare all the commands
 	// unsquashfs source -> source-pipe
 	unsquashSourceArg := append(unsquashfsTuningGenerate, "-n", "-pf", sourcePipe, sourceSnap)
-	unsquashSourceCmd := unsquashfsCmdFn(unsquashSourceArg...)
+	unsquashSourceCmd := unsquashfsCmdFn(gctx, unsquashSourceArg...)
 	// unsquashfs target -> target-pipe
 	unsquashTargetArg := append(unsquashfsTuningGenerate, "-n", "-pf", targetPipe, targetSnap)
-	unsquashTargetCmd := unsquashfsCmdFn(unsquashTargetArg...)
+	unsquashTargetCmd := unsquashfsCmdFn(gctx, unsquashTargetArg...)
 	// xdelta3 source-pipe, target-pipe -> delta-file
 	// Note: We use the tuning args and append specific inputs
 	xdelta3Args := append(xdelta3Tuning, "-e", "-f", "-A", "-s", sourcePipe, targetPipe)
-	xdelta3Cmd := xdelta3ToolCmdFn(xdelta3Args...)
+	xdelta3Cmd := xdelta3ToolCmdFn(gctx, xdelta3Args...)
 	xdelta3Cmd.Stdout = deltaFile
 
 	// 5. Run Concurrent Processes
 
 	// Run unsquashfs (Source)
 	g.Go(func() error {
-		return wrapErr(runService(gctx, unsquashSourceCmd), "unsquashfs (source)")
+		return wrapErr(runService(unsquashSourceCmd), "unsquashfs (source)")
 	})
 
 	// Run unsquashfs (Target)
 	g.Go(func() error {
-		return wrapErr(runService(gctx, unsquashTargetCmd), "unsquashfs (target)")
+		return wrapErr(runService(unsquashTargetCmd), "unsquashfs (target)")
 	})
 
 	// Run xdelta3
 	g.Go(func() error {
-		return wrapErr(runService(gctx, xdelta3Cmd), "xdelta3")
+		return wrapErr(runService(xdelta3Cmd), "xdelta3")
 	})
 
 	// wait: first error cancels all others
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("delta generation failed: %w", err)
-	}
-
-	return nil
+	return g.Wait()
 }
 
 func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader, mksqfsArgs []string) error {
-	// Setup Context & ErrGroup
-	g, gctx := errgroup.WithContext(ctx)
 	// check if we have required tooling to apply delta
-	supportedFormats, xdelta3CmdFn, mksquashfsCmdFn, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(gctx)
+	supportedFormats, xdelta3CmdFn, mksquashfsCmdFn, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
 	}
@@ -990,8 +983,11 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 	srcPipe := pipes[0]
 	deltaPipe := pipes[1]
 
-	unsq := unsquashfsCmdFn("-n", "-pf", srcPipe, sourceSnap)
-	xdelta := xdelta3CmdFn("-f", "-d", "-s", srcPipe, deltaPipe)
+	// Setup Context & ErrGroup
+	g, gctx := errgroup.WithContext(ctx)
+
+	unsq := unsquashfsCmdFn(gctx, "-n", "-pf", srcPipe, sourceSnap)
+	xdelta := xdelta3CmdFn(gctx, "-f", "-d", "-s", srcPipe, deltaPipe)
 
 	sqfsArgs := append([]string{
 		"-", targetSnap,
@@ -1001,7 +997,7 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 		"-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10),
 	}, mksqfsArgs...)
 	sqfsArgs = append(sqfsArgs, mksquashfsTuningApply...)
-	mksqfs := mksquashfsCmdFn(sqfsArgs...)
+	mksqfs := mksquashfsCmdFn(gctx, sqfsArgs...)
 
 	// connect xdelta → mksquashfs
 	mksqfs.Stdin, err = xdelta.StdoutPipe()
@@ -1010,13 +1006,13 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 	}
 
 	// unsquash source → src pipe
-	g.Go(func() error { return wrapErr(runService(gctx, unsq), "unsquashfs") })
+	g.Go(func() error { return wrapErr(runService(unsq), "unsquashfs") })
 
 	// xdelta3 filters (src pipe, delta pipe) → output
-	g.Go(func() error { return wrapErr(runService(gctx, xdelta), "xdelta3") })
+	g.Go(func() error { return wrapErr(runService(xdelta), "xdelta3") })
 
 	// mksquashfs builds final snap
-	g.Go(func() error { return wrapErr(runService(gctx, mksqfs), "mksquashfs") })
+	g.Go(func() error { return wrapErr(runService(mksqfs), "mksquashfs") })
 
 	// delta-body writer ("dd")
 	g.Go(func() error {
@@ -1025,12 +1021,6 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 			return wrapErr(err, "delta pipe open")
 		}
 		defer pf.Close()
-
-		// cancel copy cleanly
-		go func() {
-			<-gctx.Done()
-			pf.Close()
-		}()
 
 		// seek past header
 		if _, err := deltaFile.Seek(deltaHeaderSize, io.SeekStart); err != nil {
@@ -1060,14 +1050,14 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 
 	// Setup Pipes
 	unsquashSourceArg := append(unsquashfsTuningGenerate, "-n", "-pf", "-", sourceSnap)
-	unsquashSourceCmd := unsquashfsCmdFn(unsquashSourceArg...)
+	unsquashSourceCmd := unsquashfsCmdFn(ctx, unsquashSourceArg...)
 	sourcePipe, err := unsquashSourceCmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create source pf pipe: %w", err)
 	}
 
 	unsquashTargetArg := append(unsquashfsTuningGenerate, "-n", "-pf", "-", targetSnap)
-	unsquashTargetCmd := unsquashfsCmdFn(unsquashTargetArg...)
+	unsquashTargetCmd := unsquashfsCmdFn(ctx, unsquashTargetArg...)
 	targetPipe, err := unsquashTargetCmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create target pf pipe: %w", err)
@@ -1133,7 +1123,7 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 	if err != nil {
 		return fmt.Errorf("failed to write target header to memFd: %w", err)
 	}
-	segmentDeltaSize, err := writeHdiffzToDeltaStream(deltaFile, 0, int64(sourceHeaderBuff.Len()), srcMem, targetMem, diffMem, hdiffzCmdFn)
+	segmentDeltaSize, err := writeHdiffzToDeltaStream(ctx, deltaFile, 0, int64(sourceHeaderBuff.Len()), srcMem, targetMem, diffMem, hdiffzCmdFn)
 	if err != nil {
 		return fmt.Errorf("failed to calculate delta on headers: %w", err)
 	}
@@ -1237,13 +1227,9 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 		// Determine Identity
 		isIdentical := false
 		if sourceEntry != nil && sourceSize == te.DataSize {
-			if sourceSize == 0 {
+			// Compare checksums instead of reading files again
+			if sourceSize == 0 || srcCRC.Sum32() == targetCRC.Sum32() {
 				isIdentical = true
-			} else {
-				// Compare checksums instead of reading files again
-				if srcCRC.Sum32() == targetCRC.Sum32() {
-					isIdentical = true
-				}
 			}
 		}
 
@@ -1260,12 +1246,12 @@ func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, ta
 			totalDeltaSize += 8
 		} else {
 			// Files differ, run hdiffz and store the delta
-			segSize, err := writeHdiffzToDeltaStream(deltaFile, sourceHeaderSize+sourceOffset, sourceSize, srcMem, targetMem, diffMem, hdiffzCmdFn)
+			segSize, err := writeHdiffzToDeltaStream(ctx, deltaFile, sourceHeaderSize+sourceOffset, sourceSize, srcMem, targetMem, diffMem, hdiffzCmdFn)
 			if err != nil {
 				return err
 			}
 			totalDeltaSize += (segSize + 24)
-			logger.Noticef("Delta: %s (%d bytes -> %d bytes)\n", re.FilePath, re.DataSize, segSize)
+			logger.Noticef("Delta: %s (%d bytes -> %d bytes)\n", te.FilePath, te.DataSize, segSize)
 		}
 	}
 
@@ -1290,7 +1276,7 @@ func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaF
 
 	// Start Source Stream (unsquashfs)
 	// We read FROM this pipe
-	sourceCmd := unsquashfsCmdFn("-n", "-pf", "-", sourceSnap)
+	sourceCmd := unsquashfsCmdFn(ctx, "-n", "-pf", "-", sourceSnap)
 	sourcePipe, err := sourceCmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create source pipe: %w", err)
@@ -1312,7 +1298,7 @@ func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaF
 		"-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10),
 	}, mksqfsArgs...)
 	sqfsArgs = append(sqfsArgs, mksquashfsTuningApply...)
-	targetCmd := mksquashfsCmdFn(sqfsArgs...)
+	targetCmd := mksquashfsCmdFn(ctx, sqfsArgs...)
 
 	targetStdin, err := targetCmd.StdinPipe()
 	if err != nil {
@@ -1378,7 +1364,7 @@ func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaF
 	}
 
 	// Apply Patch: Source Header + Patch -> Target Header
-	if err := applyPatch(srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
+	if err := applyPatch(ctx, srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
 		return fmt.Errorf("failed to patch header: %w", err)
 	}
 
@@ -1485,7 +1471,7 @@ func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaF
 			// 3. Apply Patch
 			targetMem.Reset()
 			// if srcSize is 0, hpatchz treats it as creating a new file from patch
-			if err := applyPatch(srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
+			if err := applyPatch(ctx, srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
 				return fmt.Errorf("failed to patch file %s: %w", entry.FilePath, err)
 			}
 			// write reconstructed result to mksquashfs
@@ -1508,11 +1494,11 @@ func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaF
 // --- Shared Helpers ---
 
 // writeHdiffzToltaStream
-func writeHdiffzToDeltaStream(deltaFile *os.File, sourceOffset, sourceSize int64, source, target, diff *ReusableMemFD, hdiffzCmdFn DeltaToolingCmd) (int64, error) {
+func writeHdiffzToDeltaStream(ctx context.Context, deltaFile *os.File, sourceOffset, sourceSize int64, source, target, diff *ReusableMemFD, hdiffzCmdFn DeltaToolingCmd) (int64, error) {
 
 	// Files differ, run hdiffz, use the /proc paths which remain valid for the reused FDs
 	hdiffzArgs := append(hdiffzTuning, "-f", source.Path, target.Path, diff.Path)
-	hdiffzCmd := hdiffzCmdFn(hdiffzArgs...)
+	hdiffzCmd := hdiffzCmdFn(ctx, hdiffzArgs...)
 	if output, err := hdiffzCmd.CombinedOutput(); err != nil {
 		return 0, fmt.Errorf("hdiffz failed: %v %s", err, string(output))
 	}
@@ -1548,9 +1534,9 @@ func writeHdiffzToDeltaStream(deltaFile *os.File, sourceOffset, sourceSize int64
 	return segSize, nil
 }
 
-func applyPatch(oldPath, diffPath, outPath string, hpatchzCmdFn DeltaToolingCmd) error {
+func applyPatch(ctx context.Context, oldPath, diffPath, outPath string, hpatchzCmdFn DeltaToolingCmd) error {
 	xdhpatchzArgs := append(hpatchzTuning, "-f", oldPath, diffPath, outPath)
-	cmd := hpatchzCmdFn(xdhpatchzArgs...)
+	cmd := hpatchzCmdFn(ctx, xdhpatchzArgs...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %s", err, string(output))
 	}
@@ -1719,36 +1705,67 @@ func setupPipes(pipeNames ...string) (string, []string, error) {
 // Check if all the required tools are actually present
 // returns ready to use commands for xdelta3, mksquashfs and unsquashfs, hdiffz, hpatchz
 func CheckSupportedDetlaFormats(ctx context.Context) (string, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, error) {
-	// check if we have required tools available
-	xdeltaCmd, err := checkForTooling(ctx, xdelta3, "xdelta3", "config")
-	if err != nil {
-		return "", nil, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	// from here we can support plain xdelta3
-	mksquashfsCmd, err := checkForTooling(ctx, mksquashfs, "mksquashfs", "-version")
-	if err != nil {
-		return xdelta3Format, xdeltaCmd, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	// use -help since '-version' does not return 0 error code
-	unsquashfsCmd, err := checkForTooling(ctx, unsquashfs, "unsquashfs", "-help")
-	if err != nil {
-		return xdelta3Format, xdeltaCmd, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	// from here we support snapDeltaFormatXdelta3 + xdelta3Format
-	hdiffzCmd, err := checkForTooling(ctx, hdiffz, "hdiffz", "-v")
-	if err != nil {
-		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	hpatchzCmd, err := checkForTooling(ctx, hpatchz, "hpatchz", "-v")
-	if err != nil {
-		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	// Run checks in parallel to speed up startup
+	type res struct {
+		name string
+		cmd  DeltaToolingCmd
+		err  error
 	}
 
-	return snapDeltaFormatHdiffz + "," + snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, hdiffzCmd, hpatchzCmd, nil
+	check := func(path, tool, opt string) res {
+		c, err := checkForTooling(ctx, path, tool, opt)
+		return res{tool, c, err}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(5)
+
+	var xdelta, mksq, unsq, hdiff, hpatch res
+
+	go func() { defer wg.Done(); xdelta = check(xdelta3, "xdelta3", "config") }()
+	// use -help since '-version' does not return 0 error code
+	go func() { defer wg.Done(); mksq = check(mksquashfs, "mksquashfs", "-version") }()
+	go func() { defer wg.Done(); unsq = check(unsquashfs, "unsquashfs", "-help") }()
+	go func() { defer wg.Done(); hdiff = check(hdiffz, "hdiffz", "-v") }()
+	go func() { defer wg.Done(); hpatch = check(hpatchz, "hpatchz", "-v") }()
+
+	wg.Wait()
+
+	if xdelta.err != nil {
+		return "", nil, nil, nil, nil, nil, xdelta.err
+	}
+	// Fallback level 1: only xdelta3
+	if mksq.err != nil || unsq.err != nil {
+		return xdelta3Format, xdelta.cmd, nil, nil, nil, nil, fmt.Errorf("squashfs tools missing")
+	}
+	// Fallback level 2: streaming xdelta3
+	if hdiff.err != nil || hpatch.err != nil {
+		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdelta.cmd, mksq.cmd, unsq.cmd, nil, nil, fmt.Errorf("hdiffz tools missing")
+	}
+
+	return snapDeltaFormatHdiffz + "," + snapDeltaFormatXdelta3 + "," + xdelta3Format,
+		xdelta.cmd, mksq.cmd, unsq.cmd, hdiff.cmd, hpatch.cmd, nil
 }
 
 // helper to check for the presence of the required tools
 func checkForTooling(ctx context.Context, toolPath, tool, option string) (DeltaToolingCmd, error) {
+	// // check if the 'tool' 'option' command works from the system snap
+	cmd, err := snapdtool.CommandFromSystemSnapWithCtx(ctx, toolPath)
+	if err == nil {
+		// we have tool in the system snap, use it
+		exe := cmd.Path
+		args := cmd.Args[:len(cmd.Args)-1]
+		env := cmd.Env
+		dir := cmd.Dir
+		return func(toolArgs ...string) *exec.Cmd {
+			return &exec.Cmd{
+				Path: exe,
+				Args: append(args, toolArgs...),
+				Env:  env,
+				Dir:  dir,
+			}
+		}, nil
+	}
 	loc := toolPath
 	if _, err := os.Stat(toolPath); err != nil {
 		if p, err := exec.LookPath(tool); err == nil {
@@ -1763,15 +1780,12 @@ func checkForTooling(ctx context.Context, toolPath, tool, option string) (DeltaT
 	}
 	// TODO: check minimal required version
 	// the 'tool' in the env worked, so use that one
-	if ctx == nil {
-		return func(toolArgs ...string) *exec.Cmd {
-			return exec.Command(loc, toolArgs...)
-		}, nil
-	} else {
-		return func(toolArgs ...string) *exec.Cmd {
-			return exec.CommandContext(ctx, loc, toolArgs...)
-		}, nil
-	}
+	return func(c context.Context, args ...string) *exec.Cmd {
+		if c == nil {
+			return exec.Command(loc, args...)
+		}
+		return exec.CommandContext(c, loc, args...)
+	}, nil
 }
 
 // --- Utils ---
@@ -1781,7 +1795,7 @@ func generatePlainXdelta3Delta(ctx context.Context, sourceSnap, targetSnap, delt
 	if err != nil {
 		return fmt.Errorf("missing xdelta3 tooling: %v", err)
 	}
-	return cmd(append(xdelta3PlainTuning, "-f", "-e", "-s", sourceSnap, targetSnap, delta)...).Run()
+	return cmd(ctx, append(xdelta3PlainTuning, "-f", "-e", "-s", sourceSnap, targetSnap, delta)...).Run()
 }
 
 func applyPlainXdelta3Delta(ctx context.Context, sourceSnap, delta, targetSnap string) error {
@@ -1789,29 +1803,15 @@ func applyPlainXdelta3Delta(ctx context.Context, sourceSnap, delta, targetSnap s
 	if err != nil {
 		return fmt.Errorf("missing xdelta3 tooling: %v", err)
 	}
-	return cmd("-f", "-d", "-s", sourceSnap, delta, targetSnap).Run()
+	return cmd(ctx, "-f", "-d", "-s", sourceSnap, delta, targetSnap).Run()
 }
 
 // // run command in context, ensure commans is terminated if context is cancelled
-func runService(ctx context.Context, cmd *exec.Cmd) error {
+func runService(cmd *exec.Cmd) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	waitDone := make(chan error, 1)
-	go func() {
-		waitDone <- cmd.Wait()
-	}()
-
-	select {
-	case <-ctx.Done():
-		if err := cmd.Process.Kill(); err != nil {
-			logger.Noticef("Failed to kill process (%s): %v\n", cmd.Path, err)
-		}
-		<-waitDone
-		return ctx.Err()
-	case err := <-waitDone:
-		return err
-	}
+	return cmd.Wait()
 }
 
 func wrapErr(err error, msg string) error {
