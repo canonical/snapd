@@ -25,7 +25,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -42,15 +41,6 @@ func (s *ValidateSuite) SetUpTest(c *C) {
 
 func (s *ValidateSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-}
-
-// MockArchitecture mocks an architecture and returns a function to
-// restore to the current value.
-func MockArchitecture(newArch arch.ArchitectureType) (restore func()) {
-	currentArch := arch.DpkgArchitecture()
-	arch.SetArchitecture(newArch)
-
-	return func() { arch.SetArchitecture(arch.ArchitectureType(currentArch)) }
 }
 
 func (s *ValidateSuite) TestValidateName(c *C) {
@@ -574,7 +564,7 @@ func (s *ValidateSuite) TestValidateAssumes(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		err := naming.ValidateAssumes(test.assumes, test.version, test.features)
+		err := naming.ValidateAssumes(test.assumes, test.version, test.features, "")
 		if test.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -610,17 +600,12 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock architecture
-		restoreArch := MockArchitecture(arch.ArchitectureType(test.arch))
-
-		err := naming.ValidateAssumes(test.assumes, "snapd-version", map[string]bool{})
+		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
 		if test.err == "" {
 			c.Check(err, IsNil)
 		} else {
 			c.Check(err, ErrorMatches, test.err)
 		}
-
-		restoreArch()
 	}
 }

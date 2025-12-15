@@ -25,8 +25,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/snapcore/snapd/arch"
 )
 
 // almostValidNameRegexString is part of snap and socket name validation. The
@@ -321,7 +319,12 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 //  3. if ISA specification is supported for that architecture, the arch-specific function,
 //     defined in the arch-specific file, is called. If no error is returned then the key
 //     is considered valid.
-func validateAssumedISAArch(flag string, dpkgArchitecture func() string) error {
+func validateAssumedISAArch(flag string, currentArchitecture string) error {
+	if currentArchitecture == "" {
+		// Skip checking the assumed ISA against the currently running architecture
+		return nil
+	}
+
 	// we allow keys like isa-<arch>-<isa_val>, so the result of the split will
 	// always be {"isa", "<arch>", "<isa_val>"}
 	tokens := strings.SplitN(flag, "-", 3)
@@ -329,7 +332,7 @@ func validateAssumedISAArch(flag string, dpkgArchitecture func() string) error {
 		return fmt.Errorf("%s: must be in the format isa-<arch>-<isa_val>", flag)
 	}
 
-	if dpkgArchitecture() != tokens[1] {
+	if currentArchitecture != tokens[1] {
 		// Skip, it doesn't make sense to verify the ISA for architectures we
 		// are not running on
 		return nil
@@ -357,7 +360,8 @@ var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 // ValidateAssumes checks if `assumes` lists features that are all supported.
 // Pass empty currentSnapdVersion to skip checking the assumed version against the current snap version.
 // Pass nil/empty featureSet to only validate assumes format & not feature support.
-func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool) error {
+// Pass empty currentArchitecture to skip checking the assumed ISAs against the current device architecture
+func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool, currentArchitecture string) error {
 	var failed []string
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
@@ -373,8 +377,7 @@ func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet ma
 		}
 
 		if strings.HasPrefix(flag, "isa-") {
-			// TODO: replace arch.DpkgArchitecture with argument of ValidateAssumes function?
-			err := validateAssumedISAArch(flag, arch.DpkgArchitecture)
+			err := validateAssumedISAArch(flag, currentArchitecture)
 			if err != nil {
 				return err
 			}

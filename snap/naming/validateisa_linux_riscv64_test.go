@@ -27,7 +27,6 @@ import (
 	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -164,11 +163,10 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock architecture and probe function
-		restoreArch := MockArchitecture(arch.ArchitectureType(test.arch))
+		// Mock probe function
 		restoreRISCVHWProbe := MockRISCVHWProbe(test.supportedExtensions, test.syscallError)
 
-		err := naming.ValidateAssumes(test.assumes, "snapd-version", map[string]bool{})
+		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
 		if test.err == "" {
 			c.Check(err, IsNil)
@@ -178,7 +176,6 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 
 		c.Check(riscvHWProbeCalled, Equals, test.expectedRISCVHWProbeCall)
 
-		restoreArch()
 		restoreRISCVHWProbe()
 	}
 }

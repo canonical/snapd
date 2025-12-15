@@ -142,7 +142,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 	}
 
 	// check assumes
-	err := naming.ValidateAssumes(info.Assumes, snapdtool.Version, featureSet)
+	err := naming.ValidateAssumes(info.Assumes, snapdtool.Version, featureSet, arch.DpkgArchitecture())
 	if err != nil {
 		return fmt.Errorf("snap %q assumes %w (try to refresh snapd)", info.InstanceName(), err)
 	}
