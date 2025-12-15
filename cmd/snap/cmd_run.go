@@ -1691,7 +1691,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	if xdg_runtime_dir, ok := env["XDG_RUNTIME_DIR"]; ok {
 		if err = os.Mkdir(xdg_runtime_dir, 0700); err != nil {
 			// The directory may already exist if snap was ran before, or one of the
-			// parent path components may not exist if /run/user/<uid>, which we 
+			// parent path components may not exist if /run/user/<uid>, which we
 			// expect as the path prefix, was not created during session setup.
 			if !errors.Is(err, os.ErrExist) && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("cannot create XDG_RUNTIME_DIR folder %q: %w", xdg_runtime_dir, err)
