@@ -40,3 +40,4 @@ execute: |
     grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
 
     grep "WantedBy=default\.target" ${NORMAL_SERVICE}
+    jkfi
