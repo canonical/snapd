@@ -1685,7 +1685,7 @@ nested_start_classic_vm() {
     IMAGE_NAME="$(nested_get_image_name classic)"
 
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     fi
 
     # Give extra disk space for the image

@@ -1,8 +1,8 @@
 summary: Check installation of Azure CVM kernel
 
 details: |
-  This test checks that we are able to perform a single reboot installation of
-  Azure CVM kernel
+  This test checks that we are able to perform an installation with a single reboot of
+  the Azure CVM kernel
 
 # Run this test for jammy+
 # The azure-fde kernel does not currently work, as when installed the
@@ -19,7 +19,7 @@ prepare: |
   remote.push "${GOHOME}"/snapd_*.deb
   if os.query is-ubuntu-lt 24.04; then
     # carries ubuntu-core-initramfs
-    remote.exec "add-apt-repository ppa:snappy-dev/image -y"
+    remote.exec "sudo add-apt-repository ppa:snappy-dev/image -y"
   fi
   remote.exec "sudo apt update -y"
   remote.exec "sudo apt install -y ./snapd_*.deb"
