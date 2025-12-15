@@ -16,7 +16,7 @@ details: |
 # Disable tests for core environments, needs to install additional packages
 # Disable tests for ubuntu 1* environments, as they are not a target of this change
 # and `--collect` argument to systemd-run is not supported there.
-# Disable tests for opensuse-1* environments
+# Disable tests for opensuse-15* environments
 systems: [-ubuntu-core-*, -ubuntu-1*, -opensuse-15*]
 
 environment:
