@@ -1697,8 +1697,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				return fmt.Errorf("cannot create XDG_RUNTIME_DIR folder %q: %w", xdg_runtime_dir, err)
 			}
 		}
-			return fmt.Errorf("cannot create XDG_RUNTIME_DIR folder %q: %w", xdg_runtime_dir, err)
-		}
 	}
 
 	// on each run variant path this will be used once to get
