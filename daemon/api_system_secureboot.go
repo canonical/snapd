@@ -160,7 +160,7 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 		return BadRequest("cannot decode payload: %v", err)
 	}
 
-	// extra sanity check on KeyDatabase string, should not be needed due to earlier
+	// extra smoke test on KeyDatabase string, should not be needed due to earlier
 	// validation but just in case of future code changes
 	keyDatabase, err := keyDatabaseFromString(req.KeyDatabase)
 	if err != nil {
