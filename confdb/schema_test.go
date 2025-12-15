@@ -2616,7 +2616,7 @@ func (*schemaSuite) TestNonSecretVisibility(c *C) {
 }`)
 	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot have a visibility field set to a value other than secret`)
+	c.Assert(err, ErrorMatches, `cannot have a visibility field set to a value other than secret`)
 }
 
 func (*schemaSuite) TestSecretVisibility(c *C) {
@@ -2663,7 +2663,7 @@ func (*schemaSuite) TestSecretNestedTopLevelSchema(c *C) {
 	top, err := schema.SchemaAt(parsePath(c, ""))
 	c.Assert(err, IsNil)
 	c.Assert(top, HasLen, 1)
-	c.Assert(schema.Visibility(), Equals, confdb.DefaultVisibility)
+	c.Assert(schema.Visibility(), Equals, confdb.SecretVisibility)
 	c.Assert(top[0].Visibility(), Equals, confdb.SecretVisibility)
 }
 

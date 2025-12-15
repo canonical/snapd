@@ -306,8 +306,7 @@ func (s *StorageSchema) NestedEphemeral() bool {
 }
 
 func (s *StorageSchema) Visibility() Visibility {
-	// A storage schema can never be secret
-	return DefaultVisibility
+	return s.topLevel.Visibility()
 }
 
 func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
