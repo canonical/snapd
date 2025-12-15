@@ -39,8 +39,13 @@ prepare: |
 
   # install linux-firmware as the current version of
   # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
-  # to build the initrd, also install the linux-azure kernel
-  remote.exec "sudo apt install -y linux-firmware linux-azure"
+  # to build the initrd, also install the linux-azure-fde kernel
+  remote.exec "sudo apt install -y linux-firmware linux-azure-fde binutils"
+
+  # copy the fde kernel into /boot/vmlinuz to allow rebooting into it
+  remote.exec "sudo objcopy -O binary --only-section=.linux /usr/lib/linux/efi/kernel.efi*-azure-fde /boot/vmlinuz-fde"
+  CURR_VMLINUZ="$(remote.exec "ls -l /boot/vmlinuz" | rev | cut -d' ' -f1 | rev)"
+  remote.exec "sudo cp /boot/vmlinuz-fde '/boot/$CURR_VMLINUZ'"
 
   # reboot into the azure kernel
   BOOT_ID="$(tests.nested boot-id)"
@@ -56,7 +61,7 @@ debug: |
   echo "Current kernel: $UNAME_R"
   echo "Kernel cmdline: $CMDLINE"
   echo "Installed kernels:"
-  remote.exec "dpkg -l" | grep linux-azure || true
+  remote.exec "dpkg -l" | grep linux-azure-fde || true
   echo "Boot entries:"
   remote.exec "efibootmgr" || true
   echo "Disk layout:"
@@ -69,12 +74,12 @@ debug: |
 execute: |
   # verify after the reboot that we are running an azure kernel
   UNAME_R="$(remote.exec "uname -r")"
-  CMDLINE="$(remote.exec "cat /proc/cmdline")"
 
-  # -f1-2 if azure-fde
-  KERNEL_TYPE=$(echo "$UNAME_R" | rev | cut -d'-' -f1 | rev)
-  if [ "$KERNEL_TYPE" != "azure" ]; then
-    echo "not running expected -azure kernel, found: $KERNEL_TYPE"
+  remote.exec "sudo mv /boot/vmlinuz-fde /boot/vmlinuz-$UNAME_R"
+
+  KERNEL_TYPE=$(echo "$UNAME_R" | rev | cut -d'-' -f1-2 | rev)
+  if [ "$KERNEL_TYPE" != "azure-fde" ]; then
+    echo "not running expected -azure-fde kernel, found: $KERNEL_TYPE"
     exit 1
   fi
 
@@ -85,9 +90,9 @@ execute: |
   remote.exec "sudo ubuntu-core-initramfs create-efi --unsigned --kernelver \"$UNAME_R\" \
     --cmdline \"snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1\""
 
-  UKI_FILE="$(remote.exec "find /boot -maxdepth 1 -type f -name 'kernel.efi*-azure'" | head -n1)"
+  UKI_FILE="$(remote.exec "find /boot -maxdepth 1 -type f -name 'kernel.efi*-azure-fde'" | head -n1)"
   if [ -z "$UKI_FILE" ]; then
-    echo "expected kernel.efi*-azure was not found in /boot: $UKI_FILE"
+    echo "expected kernel.efi*-azure-fde was not found in /boot: $UKI_FILE"
     exit 1
   fi
 
