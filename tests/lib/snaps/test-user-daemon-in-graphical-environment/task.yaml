@@ -31,5 +31,5 @@ execute: |
     grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
-    grep "Binds-to=graphical-session\.target" ${DESKTOP_SERVICE}
+    grep "Binds-to=graphical-session\.target" ${NORMAL_SERVICE}
     grep "WantedBy=defaul\.target" ${NORMAL_SERVICE}
