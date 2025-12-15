@@ -561,6 +561,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	for idx, tc := range []struct {
 		tpmEnabled          bool  // TPM storage and endorsement hierarchies disabled, only relevant if TPM available
 		hasEncdev           bool  // an encrypted device exists
+		multipleLegacyKeys  bool  // has multiple legacy keys to try
 		rkAllow             bool  // allow recovery key activation
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
 		activateErr         error // the activation error
@@ -576,6 +577,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		{
 			// happy case with tpm and encrypted device
 			tpmEnabled: true, hasEncdev: true,
+			disk:            mockDiskWithEncDev,
+			expUnlockMethod: secboot.UnlockedWithSealedKey,
+		}, {
+			// happy case with tpm and encrypted device and 2 legacy keys
+			tpmEnabled: true, hasEncdev: true, multipleLegacyKeys: true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
 		}, {
@@ -697,6 +703,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
 
 			var keyPath string
+			var keyPath2 string
 			var expectedKeyPath fs.FileInfo
 
 			if !tc.noKeyFile && !tc.errorReadKeyFile {
@@ -704,6 +711,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					keyPath = filepath.Join("test-data", "keyfile")
 				} else {
 					keyPath = filepath.Join("test-data", "keydata")
+					keyPath2 = filepath.Join("test-data", "keydata2")
 				}
 				finfo, err := os.Lstat(keyPath)
 				c.Assert(err, IsNil)
@@ -713,11 +721,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			}
 
 			var expectedKeyData *sb.KeyData
+			var expectedKeyData2 *sb.KeyData
 
 			restore = secboot.MockSbNewKeyDataFromSealedKeyObjectFile(func(path string) (*sb.KeyData, error) {
 				if !tc.oldKeyFormat {
 					c.Errorf("unexpected call")
 				}
+
 				info, err := os.Lstat(path)
 				c.Assert(err, IsNil)
 				sameFile := os.SameFile(expectedKeyPath, info)
@@ -736,21 +746,28 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			defer restore()
 
 			var expectedKeyDataReader *sb.FileKeyDataReader
+			var expectedKeyDataReader2 *sb.FileKeyDataReader
 
 			restore = secboot.MockSbNewFileKeyDataReader(func(path string) (*sb.FileKeyDataReader, error) {
 				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
 					c.Errorf("unexpected call")
 				}
-				info, err := os.Lstat(path)
-				c.Assert(err, IsNil)
-				sameFile := os.SameFile(expectedKeyPath, info)
-				c.Check(sameFile, Equals, true)
 
-				kdr, err := sb.NewFileKeyDataReader(keyPath)
+				var kdr *sb.FileKeyDataReader
+				var err error
+
+				if path == keyPath2 {
+					c.Check(tc.multipleLegacyKeys, Equals, true)
+					kdr, err = sb.NewFileKeyDataReader(keyPath2)
+				} else {
+					c.Assert(path, Equals, keyPath)
+					kdr, err = sb.NewFileKeyDataReader(keyPath)
+				}
 				c.Assert(err, IsNil)
 
-				if sameFile {
-					c.Check(expectedKeyDataReader, IsNil)
+				if path == keyPath2 {
+					expectedKeyDataReader2 = kdr
+				} else {
 					expectedKeyDataReader = kdr
 				}
 
@@ -776,13 +793,19 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				if tc.oldKeyFormat || tc.noKeyFile || tc.errorReadKeyFile {
 					c.Errorf("unexpected call")
 				}
-				c.Check(expectedKeyDataReader, Equals, reader)
+				if expectedKeyDataReader != reader {
+					c.Check(tc.multipleLegacyKeys, Equals, true)
+					c.Check(reader, Equals, expectedKeyDataReader2)
+				}
 				kd, err := sb.ReadKeyData(reader)
 				c.Assert(err, IsNil)
 
 				if expectedKeyDataReader == reader {
 					c.Check(expectedKeyData, IsNil)
 					expectedKeyData = kd
+				} else if expectedKeyDataReader2 == reader {
+					c.Check(expectedKeyData2, IsNil)
+					expectedKeyData2 = kd
 				}
 
 				return kd, nil
@@ -796,13 +819,19 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			})()
 
 			externalKey := &mockActivateOption{name: "external-key"}
+			externalKey2 := &mockActivateOption{name: "external-key-2"}
 			defer secboot.MockSbWithExternalKeyData(func(name string, keyData *sb.KeyData) sb.ActivateOption {
 				c.Assert(tc.noKeyFile, Equals, false)
 				c.Assert(tc.errorReadKeyFile, Equals, false)
-
-				c.Check(keyData, Equals, expectedKeyData)
-
-				return externalKey
+				if name == "legacy2" {
+					c.Check(tc.multipleLegacyKeys, Equals, true)
+					c.Check(keyData, Equals, expectedKeyData2)
+					return externalKey2
+				} else {
+					c.Check(name, Equals, "legacy")
+					c.Check(keyData, Equals, expectedKeyData)
+					return externalKey
+				}
 			})()
 
 			legacyKeyringPaths := &mockActivateOption{"legacy-keyring-paths"}
@@ -847,6 +876,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					} else {
 						if tc.noKeyFile || tc.errorReadKeyFile {
 							c.Assert(opts, HasLen, 3)
+						} else if tc.multipleLegacyKeys {
+							c.Assert(opts, HasLen, 5)
 						} else {
 							c.Assert(opts, HasLen, 4)
 						}
@@ -855,6 +886,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 						c.Check(opts[0], Equals, volumeNameOption)
 						c.Check(opts[1], Equals, legacyKeyringPaths)
 						c.Check(opts[2], Equals, nameOption)
+					} else if tc.multipleLegacyKeys {
+						c.Check(opts[0], Equals, externalKey)
+						c.Check(opts[1], Equals, externalKey2)
+						c.Check(opts[2], Equals, volumeNameOption)
+						c.Check(opts[3], Equals, legacyKeyringPaths)
+						c.Check(opts[4], Equals, nameOption)
 					} else {
 						c.Check(opts[0], Equals, externalKey)
 						c.Check(opts[1], Equals, volumeNameOption)
@@ -887,11 +924,22 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				},
 				BootMode: "some-weird-mode",
 			}
+
 			legacyKey := &secboot.LegacyKeyFile{
 				Name: "legacy",
 				Path: keyPath,
 			}
-			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, tc.disk, defaultDevice, []*secboot.LegacyKeyFile{legacyKey}, opts)
+			legacyKeys := []*secboot.LegacyKeyFile{legacyKey}
+
+			if tc.multipleLegacyKeys {
+				legacyKey2 := &secboot.LegacyKeyFile{
+					Name: "legacy2",
+					Path: keyPath2,
+				}
+				legacyKeys = append(legacyKeys, legacyKey2)
+			}
+
+			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(activateContext, tc.disk, defaultDevice, legacyKeys, opts)
 			if tc.errorReadKeyFile {
 				c.Check(logbuf.String(), testutil.Contains, `WARNING: there was an error loading key /some/path: some other error`)
 			} else {
