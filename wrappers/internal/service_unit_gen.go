@@ -355,7 +355,7 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
-		if appInfo.HasPlug("desktop") || appInfo.HasPlug("wayland") || appInfo.HasPlug("x11") {
+		if appInfo.HasPlug("desktop") {
 			wrapperData.After = append(wrapperData.After, GraphicalSessionTarget)
 			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
 				wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)

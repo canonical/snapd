@@ -8,29 +8,26 @@ apps:
     plugs:
       - desktop
     daemon: simple
-    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
-      daemon-scope: user
+    daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
 
   test-snapd-daemon-user-in-graphical-desktop-dbus:
     command: usr/bin/ls
     plugs:
-      - wayland
+      - desktop
     daemon: dbus
-    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
-      daemon-scope: user
+    daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
 
   test-snapd-daemon-user-in-graphical-desktop-dbus2:
     command: usr/bin/ls
     plugs:
-      - x11
+      - desktop
       - network-bind
     daemon: simple
-    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
-      daemon-scope: user
+    daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
     sockets:
@@ -41,8 +38,7 @@ apps:
   test-snapd-daemon-user-normal:
     command: usr/bin/ls
     daemon: simple
-    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
-      daemon-scope: user
+    daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
 
