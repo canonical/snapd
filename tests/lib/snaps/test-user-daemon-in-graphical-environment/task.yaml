@@ -19,17 +19,32 @@ prepare: |
     snap install --dangerous ./test-snapd-daemon-desktop*.snap
     tests.cleanup defer snap remove --purge test-snapd-daemon-desktop
 
-debug: |
-    echo Debug
-
 execute: |
     NORMAL_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-normal.service
     DESKTOP_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
+    DESKTOP_DBUS_SERVICE1=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
+    DESKTOP_DBUS_SERVICE2=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
+
     echo "Ensure graphical daemon has the right dependencies"
+
     test -f ${NORMAL_SERVICE}
     test -f ${DESKTOP_SERVICE}
+    test -f ${DESKTOP_DBUS_SERVICE1}
+    test -f ${DESKTOP_DBUS_SERVICE2}
+
     grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
-    grep "Binds-to=graphical-session\.target" ${NORMAL_SERVICE}
+    grep "BindsTo=graphical-session\.target" ${DESKTOP_SERVICE}
+
+    grep "WantedBy=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
+    grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
+    grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
+    grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
+
+    grep "WantedBy=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
+    grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
+    grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
+    grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
+
     grep "WantedBy=default\.target" ${NORMAL_SERVICE}
