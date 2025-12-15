@@ -616,3 +616,31 @@ parts:
       - liblzo2-dev
       - libzstd-dev
       - zlib1g-dev
+
+  hdiff:
+    plugin: dump
+    source: https://api.github.com/repos/sisong/HDiffPatch/releases/latest
+    source-type: zip
+    override-pull: |
+      release="248607914" # v4.12.0
+      if [ "armhf" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_arm32"
+      elif [ "arm64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_arm64"
+      elif [ "amd64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux64"
+      elif [ "riscv64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_riscv64"
+      fi
+      if [ -n "${linux_flavour}" ]; then
+        url=$(curl -sL "https://api.github.com/repos/sisong/HDiffPatch/releases/"${release}"" | jq -r '.assets[].browser_download_url' | grep "${linux_flavour}")
+        wget --quiet -O "${CRAFT_PART_SRC}/hdiffpatch_linux.zip" "${url}"
+        unzip -j "${CRAFT_PART_SRC}/hdiffpatch_linux.zip"
+        chmod 755 *
+      fi
+    organize:
+      '*': usr/bin/
+    stage:
+      - usr/bin/hpatchz
+    build-packages:
+      - jq
