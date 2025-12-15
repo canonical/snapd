@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"log"
 	"os"
@@ -799,128 +800,861 @@ func SupportedDeltaFormats() string {
 	return snapDeltaFormatHdiffz + "," + snapDeltaFormatXdelta3 + "," + xdelta3Format
 }
 
-type SquashfsCommand func(args ...string) *exec.Cmd
+// generate delta file.
+func GenerateSnapDelta(sourceSnap, targetSnap, delta string, deltaTool uint16) error {
+	logger.Noticef("Generating delta...")
 
-// Check if all the required tools are actually present
-// returns ready to use commands for xdelta3, bsdiff, mksquashfs and unsquashfs
-func CheckSupportedDetlaFormats(ctx context.Context) (string, SquashfsCommand, SquashfsCommand, SquashfsCommand, SquashfsCommand, SquashfsCommand, error) {
-	// check if we have required tools available
-	xdeltaCmd, err := checkForTooling(ctx, "/usr/bin/xdelta3", "xdelta3", "config")
+	// we need to get some basic info from the target snap
+	f, err := os.Open(targetSnap)
 	if err != nil {
-		return "", nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+		return fmt.Errorf("open target: %w", err)
 	}
-	// from here we can support plain xdelta3
-	mksquashfsCmd, err := checkForTooling(ctx, "/usr/bin/mksquashfs", "mksquashfs", "-version")
-	if err != nil {
-		return xdelta3Format, xdeltaCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	defer f.Close()
+
+	// Check compressor options flag
+	var flagsBuf [2]byte
+	if _, err := f.ReadAt(flagsBuf[:], 24); err != nil {
+		return fmt.Errorf("read flags: %w", err)
 	}
-	// use -help since '-version' does not return 0 error code
-	unsquashfsCmd, err := checkForTooling(ctx, "/usr/bin/unsquashfs", "unsquashfs", "-help")
-	if err != nil {
-		return xdelta3Format, xdeltaCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	// from here we support snapDeltaFormatXdelta3 + xdelta3Format
-	hdiffzCmd, err := checkForTooling(ctx, "/usr/bin/hdiffz", "hdiffz", "-v")
-	if err != nil {
-		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
-	}
-	hpatchzCmd, err := checkForTooling(ctx, "/usr/bin/hpatchz", "hpatchz", "-v")
-	if err != nil {
-		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	if binary.LittleEndian.Uint16(flagsBuf[:])&flagCompressorOptions != 0 {
+		logger.Noticef("Custom compression options detected. Falling back to plain xdelta3.")
+		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
 	}
 
-	return snapDeltaFormatHdiffz + "," + snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, hdiffzCmd, hpatchzCmd, nil
-}
-
-// helper to check for the presence of the required tools
-func checkForTooling(ctx context.Context, toolPath, tool, option string) (SquashfsCommand, error) {
-	// // check if the 'tool' 'option' command works from the system snap
-	cmd, err := snapdtool.CommandFromSystemSnapWithCtx(ctx, toolPath)
-	if err == nil {
-		// we have tool in the system snap, use it
-		exe := cmd.Path
-		args := cmd.Args[:len(cmd.Args)-1]
-		env := cmd.Env
-		dir := cmd.Dir
-		return func(toolArgs ...string) *exec.Cmd {
-			return &exec.Cmd{
-				Path: exe,
-				Args: append(args, toolArgs...),
-				Env:  env,
-				Dir:  dir,
-			}
-		}, nil
+	// Build delta header
+	hdr := SnapDeltaHeader{
+		Magic:     deltaMagicNumber,
+		Version:   deltaFormatVersion,
+		DeltaTool: deltaTool,
 	}
 
-	// we didn't have one from a system snap or it didn't work, fallback to
-	// trying 'tool' from the system
-	loc, err := exec.LookPath(tool)
+	if err := hdr.loadDeltaHeaderFromSnap(f); err != nil {
+		return err
+	}
+
+	headerBytes, err := hdr.toBytes()
 	if err != nil {
-		// no 'tool' in the env, so no deltas
-		return nil, fmt.Errorf("no host system %s available", tool)
+		return fmt.Errorf("build delta header: %w", err)
 	}
 
-	if err := exec.Command(loc, option).Run(); err != nil {
-		// xdelta3 in the env failed to run, so no deltas
-		return nil, fmt.Errorf("unable to use host system %s, running '%s %s' command failed: %v", tool, loc, option, err)
+	// prepare delta file
+	deltaFile, err := os.OpenFile(delta, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("create delta file: %w", err)
 	}
-	// TODO: check minimal required version
-	// the 'tool' in the env worked, so use that one
-	if ctx == nil {
-		return func(toolArgs ...string) *exec.Cmd {
-			return exec.Command(loc, toolArgs...)
-		}, nil
-	} else {
-		return func(toolArgs ...string) *exec.Cmd {
-			return exec.CommandContext(ctx, loc, toolArgs...)
-		}, nil
-	}
-}
+	defer deltaFile.Close()
 
-// parseCompression converts SquashFS compression ID to a name.
-func parseCompression(id uint16, mksqfsArgs []string) ([]string, error) {
-	switch id {
-	case 1:
-		return append(mksqfsArgs, "-comp", "gzip"), nil
-	case 2:
-		return append(mksqfsArgs, "-comp", "lzma"), nil
-	case 3:
-		return append(mksqfsArgs, "-comp", "lzo"), nil
-	case 4:
-		return append(mksqfsArgs, "-comp", "xz"), nil
-	case 5:
-		return append(mksqfsArgs, "-comp", "lz4"), nil
-	case 6:
-		return append(mksqfsArgs, "-comp", "zstd"), nil
+	if _, err := deltaFile.Write(headerBytes); err != nil {
+		return fmt.Errorf("write delta header: %w", err)
+	}
+
+	// run delta producer for given deta tool
+	switch deltaTool {
+	case detlaToolXdelta3:
+		return generateXdelta3Delta(ctx, deltaFile, sourceSnap, targetSnap)
+	case detlaToolHdiffz:
+		return generateHdiffzDelta(ctx, deltaFile, sourceSnap, targetSnap)
 	default:
-		return nil, fmt.Errorf("unknown compression id: %d", id)
+		return fmt.Errorf("Unknown delta tool requested: 0x%X\n", deltaTool)
 	}
 }
 
-// parseSuperblockFlags converts SquashFS flags to mksquashfs arguments.
-func parseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
-	if (flags & flagCheck) != 0 {
-		return nil, fmt.Errorf("this does not look like Squashfs 4+ superblock flags")
+// --- Apply Delta ---
+func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
+	logger.Noticef("Applying delta...")
+
+	deltaFile, err := os.Open(delta)
+	if err != nil {
+		return fmt.Errorf("open delta: %w", err)
 	}
-	if (flags & flagNoFragments) != 0 {
-		mksqfsArgs = append(mksqfsArgs, "-no-fragments")
-	}
-	// Note: The flag is "DUPLICATES", so if it's *not* set add -no-duplicates.
-	if (flags & flagDuplicates) == 0 {
-		mksqfsArgs = append(mksqfsArgs, "-no-duplicates")
-	}
-	if (flags & flagExports) != 0 {
-		mksqfsArgs = append(mksqfsArgs, "-exports")
-	}
-	if (flags & flagNoXattrs) != 0 {
-		mksqfsArgs = append(mksqfsArgs, "-no-xattrs")
-	}
-	if (flags & flagCompressorOptions) != 0 {
-		logger.Noticef("warning: Custom compression options detected, created target snap is likely be different from target snap!")
+	defer deltaFile.Close()
+
+	// get delta header and check it
+	hdr, err := readDeltaHeader(deltaFile)
+	if err != nil {
+		return err
 	}
 
-	return mksqfsArgs, nil
+	if hdr.Magic == xdelta3MagicNumber {
+		logger.Noticef("Plain xdelta3 detected; using fallback.")
+		return applyPlainXdelta3Delta(ctx, sourceSnap, delta, targetSnap)
+	}
+
+	if hdr.Magic != deltaMagicNumber {
+		return fmt.Errorf("invalid magic 0x%X", hdr.Magic)
+	}
+	if hdr.Version != deltaFormatVersion {
+		return fmt.Errorf("version mismatch %d!=%d", hdr.Version, deltaFormatVersion)
+	}
+	if hdr.DeltaTool != detlaToolXdelta3 && hdr.DeltaTool != detlaToolHdiffz {
+		return fmt.Errorf("unsupported delta tool %d", hdr.DeltaTool)
+	}
+
+	// Prepare mksquashfs arguments from delta header
+	mksqfsArgs := []string{}
+	if mksqfsArgs, err = parseCompression(hdr.Compression, mksqfsArgs); err != nil {
+		return fmt.Errorf("failed to parse compression from delta header:%v", err)
+	}
+	if mksqfsArgs, err = parseSuperblockFlags(hdr.Flags, mksqfsArgs); err != nil {
+		return fmt.Errorf("failed to parse flags from delta header:%v", err)
+	}
+	// run delta apply for given deta tool
+	switch hdr.DeltaTool {
+	case detlaToolXdelta3:
+		return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, hdr, mksqfsArgs)
+	case detlaToolHdiffz:
+		return applyHdiffzDelta(ctx, sourceSnap, targetSnap, deltaFile, hdr, mksqfsArgs)
+	default:
+		return fmt.Errorf("Unknown delta tool requested: 0x%X\n", hdr.DeltaTool)
+	}
+
 }
+
+func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
+	// Setup Context & ErrGroup
+	g, gctx := errgroup.WithContext(ctx)
+
+	// Ensure we have required tooling
+	supportedFormats, xdelta3ToolCmdFn, _, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(gctx)
+	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
+		return fmt.Errorf("missing delta tooling for xdelta3: %v", err)
+	}
+
+	// Setup all pipes
+	tempDir, pipes, err := setupPipes("source-pipe", "target-pipe")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+	sourcePipe := pipes[0]
+	targetPipe := pipes[1]
+
+	// Prepare all the commands
+	// unsquashfs source -> source-pipe
+	unsquashSourceArg := append(unsquashfsTuningGenerate, "-n", "-pf", sourcePipe, sourceSnap)
+	unsquashSourceCmd := unsquashfsCmdFn(unsquashSourceArg...)
+	// unsquashfs target -> target-pipe
+	unsquashTargetArg := append(unsquashfsTuningGenerate, "-n", "-pf", targetPipe, targetSnap)
+	unsquashTargetCmd := unsquashfsCmdFn(unsquashTargetArg...)
+	// xdelta3 source-pipe, target-pipe -> delta-file
+	// Note: We use the tuning args and append specific inputs
+	xdelta3Args := append(xdelta3Tuning, "-e", "-f", "-A", "-s", sourcePipe, targetPipe)
+	xdelta3Cmd := xdelta3ToolCmdFn(xdelta3Args...)
+	xdelta3Cmd.Stdout = deltaFile
+
+	// 5. Run Concurrent Processes
+
+	// Run unsquashfs (Source)
+	g.Go(func() error {
+		return wrapErr(runService(gctx, unsquashSourceCmd), "unsquashfs (source)")
+	})
+
+	// Run unsquashfs (Target)
+	g.Go(func() error {
+		return wrapErr(runService(gctx, unsquashTargetCmd), "unsquashfs (target)")
+	})
+
+	// Run xdelta3
+	g.Go(func() error {
+		return wrapErr(runService(gctx, xdelta3Cmd), "xdelta3")
+	})
+
+	// wait: first error cancels all others
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("delta generation failed: %w", err)
+	}
+
+	return nil
+}
+
+func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader, mksqfsArgs []string) error {
+	// Setup Context & ErrGroup
+	g, gctx := errgroup.WithContext(ctx)
+	// check if we have required tooling to apply delta
+	supportedFormats, xdelta3CmdFn, mksquashfsCmdFn, unsquashfsCmdFn, _, _, err := CheckSupportedDetlaFormats(gctx)
+	if err != nil {
+		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
+	}
+	if !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
+		return fmt.Errorf("failed to validate required tooling for delta format'%s', supported: '%s': %v", supportedFormats, snapDeltaFormatHdiffz)
+	}
+
+	// setup pipes to apply delta
+	tempDir, pipes, err := setupPipes("src", "delta")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	srcPipe := pipes[0]
+	deltaPipe := pipes[1]
+
+	unsq := unsquashfsCmdFn("-n", "-pf", srcPipe, sourceSnap)
+	xdelta := xdelta3CmdFn("-f", "-d", "-s", srcPipe, deltaPipe)
+
+	sqfsArgs := append([]string{
+		"-", targetSnap,
+		"-pf", "-",
+		"-noappend",
+		"-no-progress", "-quiet",
+		"-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10),
+	}, mksqfsArgs...)
+	sqfsArgs = append(sqfsArgs, mksquashfsTuningApply...)
+	mksqfs := mksquashfsCmdFn(sqfsArgs...)
+
+	// connect xdelta → mksquashfs
+	mksqfs.Stdin, err = xdelta.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("pipe xdelta→mksqfs: %w", err)
+	}
+
+	// unsquash source → src pipe
+	g.Go(func() error { return wrapErr(runService(gctx, unsq), "unsquashfs") })
+
+	// xdelta3 filters (src pipe, delta pipe) → output
+	g.Go(func() error { return wrapErr(runService(gctx, xdelta), "xdelta3") })
+
+	// mksquashfs builds final snap
+	g.Go(func() error { return wrapErr(runService(gctx, mksqfs), "mksquashfs") })
+
+	// delta-body writer ("dd")
+	g.Go(func() error {
+		pf, err := os.OpenFile(deltaPipe, os.O_WRONLY, 0)
+		if err != nil {
+			return wrapErr(err, "delta pipe open")
+		}
+		defer pf.Close()
+
+		// cancel copy cleanly
+		go func() {
+			<-gctx.Done()
+			pf.Close()
+		}()
+
+		// seek past header
+		if _, err := deltaFile.Seek(deltaHeaderSize, io.SeekStart); err != nil {
+			if gctx.Err() == nil {
+				return wrapErr(err, "delta seek")
+			}
+			return nil
+		}
+
+		if _, err := copyBuffer(pf, deltaFile); err != nil && gctx.Err() == nil {
+			return wrapErr(err, "delta copy")
+		}
+		return nil
+	})
+
+	return g.Wait()
+}
+
+// --- Hdiffz Implementations ---
+func generateHdiffzDelta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
+
+	// Ensure we have required tooling
+	supportedFormats, _, _, unsquashfsCmdFn, hdiffzCmdFn, _, err := CheckSupportedDetlaFormats(ctx)
+	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatHdiffz) {
+		return fmt.Errorf("failed to validate required tooling for snap-delta: %v", err)
+	}
+
+	// Setup Pipes
+	unsquashSourceArg := append(unsquashfsTuningGenerate, "-n", "-pf", "-", sourceSnap)
+	unsquashSourceCmd := unsquashfsCmdFn(unsquashSourceArg...)
+	sourcePipe, err := unsquashSourceCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create source pf pipe: %w", err)
+	}
+
+	unsquashTargetArg := append(unsquashfsTuningGenerate, "-n", "-pf", "-", targetSnap)
+	unsquashTargetCmd := unsquashfsCmdFn(unsquashTargetArg...)
+	targetPipe, err := unsquashTargetCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create target pf pipe: %w", err)
+	}
+
+	if err := unsquashSourceCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start source cmd: %w", err)
+	}
+	defer unsquashSourceCmd.Process.Kill() // Ensure cleanup
+
+	if err := unsquashTargetCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start target cmd: %w", err)
+	}
+	defer unsquashTargetCmd.Process.Kill()
+
+	sourceReader := bufio.NewReaderSize(sourcePipe, CopyBufferSize)
+	targetReader := bufio.NewReaderSize(targetPipe, CopyBufferSize)
+
+	// 2. Parse Headers
+	// Parse source into a Map for O(1) lookup
+	sourceEntries, sourceHeaderBuff, err := parsePseudoStream(sourceReader)
+	if err != nil {
+		return fmt.Errorf("failed to parse source header: %w", err)
+	}
+	// Map for fast lookups: FilePath -> Entry
+	sourceMap := make(map[string]*PseudoEntry, len(sourceEntries))
+	for i := range sourceEntries {
+		sourceEntries[i].OriginalIndex = i
+		sourceMap[sourceEntries[i].FilePath] = &sourceEntries[i]
+	}
+
+	targetEntries, targetHeaderBuff, err := parsePseudoStream(targetReader)
+	if err != nil {
+		return fmt.Errorf("failed to parse target header: %w", err)
+	}
+
+	// Prepare reusable Processors for diffing
+	srcMem, err := NewReusableMemFD("src-seg")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer srcMem.Close()
+	targetMem, err := NewReusableMemFD("target-seg")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer targetMem.Close()
+
+	diffMem, err := NewReusableMemFD("seg-diff")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer diffMem.Close()
+
+	// calculate header Delta and write it to the delta stream, use prepare mem processors
+	_, err = unix.Write(srcMem.Fd, sourceHeaderBuff.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed to write source header to memFd: %w", err)
+	}
+	_, err = unix.Write(targetMem.Fd, targetHeaderBuff.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed to write target header to memFd: %w", err)
+	}
+	segmentDeltaSize, err := writeHdiffzToDeltaStream(deltaFile, 0, int64(sourceHeaderBuff.Len()), srcMem, targetMem, diffMem, hdiffzCmdFn)
+	if err != nil {
+		return fmt.Errorf("failed to calculate delta on headers: %w", err)
+	}
+
+	sourceHeaderSize := int64(sourceHeaderBuff.Len())
+	bufferPool.Put(sourceHeaderBuff)
+	bufferPool.Put(targetHeaderBuff)
+
+	sourceRead := int64(0)
+	targetRead := int64(0)
+	totalDeltaSize := int64(24 + segmentDeltaSize)
+
+	logger.Noticef("Processing %d target entries against %d source entries\n", len(targetEntries), len(sourceEntries))
+
+	// 5. Main Processing Loop
+	for _, e := range targetEntries {
+		// Reset MemFDs for reuse
+		srcMem.Reset()
+		targetMem.Reset()
+		diffMem.Reset()
+
+		sourceEntry := sourceMap[e.FilePath]
+		sourceSize := int64(0)
+		sourceOffset := int64(0)
+		lastSourceIndex := 0
+
+		if sourceEntry != nil {
+			sourceSize = sourceEntry.DataSize
+			sourceOffset = sourceEntry.DataOffset
+			lastSourceIndex = sourceEntry.OriginalIndex
+		} else {
+			// logger.Noticef("\tNo original version for: %s\n", e.FilePath)
+		}
+
+		// Handle Source Stream extraction
+		// Calculate Source CRC while copying to detect identity without re-reading
+		srcCRC := crc32.NewIEEE()
+		if sourceSize > 0 {
+			toSkip := sourceOffset - sourceRead
+			if toSkip > 0 {
+				// Efficient skip
+				if _, err := copyNBuffer(io.Discard, sourceReader, toSkip); err != nil {
+					return fmt.Errorf("failed to skip source stream: %w", err)
+				}
+				sourceRead += toSkip
+			}
+
+			// TeeReader reads from source, writes to srcMem AND srcCRC
+			mw := io.MultiWriter(srcMem.File, srcCRC)
+			if _, err := copyNBuffer(mw, sourceReader, sourceSize); err != nil {
+				return fmt.Errorf("failed to extract source segment: %w", err)
+			}
+			sourceRead += sourceSize
+		}
+
+		// Handle Target Stream extraction
+		targetCRC := crc32.NewIEEE()
+		mw := io.MultiWriter(targetMem.File, targetCRC)
+		if _, err := copyNBuffer(mw, targetReader, e.DataSize); err != nil {
+			return fmt.Errorf("failed to extract target segment: %w", err)
+		}
+		targetRead += e.DataSize
+
+		// Determine Identity
+		isIdentical := false
+		if sourceEntry != nil && sourceSize == e.DataSize {
+			if sourceSize == 0 {
+				isIdentical = true
+			} else {
+				// Compare checksums instead of reading files again
+				if srcCRC.Sum32() == targetCRC.Sum32() {
+					isIdentical = true
+				}
+			}
+		}
+
+		if isIdentical {
+			// Files match, write negative index header
+			headerBuf := bufferPool.Get().(*bytes.Buffer)
+			headerBuf.Reset()
+			binary.Write(headerBuf, binary.LittleEndian, int64(-lastSourceIndex))
+			if _, err := deltaFile.Write(headerBuf.Bytes()); err != nil {
+				bufferPool.Put(headerBuf)
+				return err
+			}
+			bufferPool.Put(headerBuf)
+			totalDeltaSize += 8
+		} else {
+			// Files differ, run hdiffz and store the delta
+			segSize, err := writeHdiffzToDeltaStream(deltaFile, sourceHeaderSize+sourceOffset, sourceSize, srcMem, targetMem, diffMem, hdiffzCmdFn)
+			if err != nil {
+				return err
+			}
+			totalDeltaSize += (segSize + 24)
+			logger.Noticef("Delta: %s (%d bytes -> %d bytes)\n", e.FilePath, e.DataSize, segSize)
+		}
+	}
+
+	// Validation
+	if b := targetReader.Buffered(); b > 0 {
+		return fmt.Errorf("target stream has %d bytes left unconsumed", b)
+	}
+
+	logger.Noticef("Delta generation complete. Total size: %d\n", totalDeltaSize)
+	return nil
+}
+
+func applyHdiffzDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader, mksqfsArgs []string) error {
+	// check if we have required tooling to apply delta
+	supportedFormats, _, mksquashfsCmdFn, unsquashfsCmdFn, _, hpatchzCmdFn, err := CheckSupportedDetlaFormats(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
+	}
+	if !strings.Contains(supportedFormats, snapDeltaFormatHdiffz) {
+		return fmt.Errorf("failed to validate required tooling for delta format'%s', supported: '%s': %v", supportedFormats, snapDeltaFormatHdiffz)
+	}
+
+	// Start Source Stream (unsquashfs)
+	// We read FROM this pipe
+	sourceCmd := unsquashfsCmdFn("-n", "-pf", "-", sourceSnap)
+	sourcePipe, err := sourceCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create source pipe: %w", err)
+	}
+	if err := sourceCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start source stream: %w", err)
+	}
+	defer sourceCmd.Process.Kill()
+
+	// Wrap source in a buffered reader for efficient seeking/skipping
+	sourceReader := bufio.NewReaderSize(sourcePipe, CopyBufferSize)
+
+	// Start Target Stream consumer (mksquashfs)
+	sqfsArgs := append([]string{
+		"-", targetSnap,
+		"-pf", "-",
+		"-noappend",
+		"-no-progress", "-quiet",
+		"-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10),
+	}, mksqfsArgs...)
+	sqfsArgs = append(sqfsArgs, mksquashfsTuningApply...)
+	targetCmd := mksquashfsCmdFn(sqfsArgs...)
+
+	targetStdin, err := targetCmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create target stdin pipe: %w", err)
+	}
+
+	// Capture stderr to debug mksquashfs failures
+	var targetStderr bytes.Buffer
+	targetCmd.Stderr = &targetStderr
+
+	if err := targetCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start mksquashfs: %w", err)
+	}
+
+	// Parse Source Header
+	// We need the source entries to resolve "Identical" file references (negative indices)
+	sourceEntries, sourceHeaderBuff, err := parsePseudoStream(sourceReader)
+	if err != nil {
+		return fmt.Errorf("failed to parse source header: %w", err)
+	}
+	sourceHeaderSize := int64(sourceHeaderBuff.Len())
+
+	// Reconstruct and Write Target Header
+	// The first segment in the delta file is ALWAYS the header patch
+	// Read Header Patch Metadata: [Offset (0)][SourceSize][PatchSize]
+	var headOffset, headSrcSize, headPatchSize int64
+	if err := binary.Read(deltaFile, binary.LittleEndian, &headOffset); err != nil {
+		return fmt.Errorf("failed to read header delta offset: %w", err)
+	}
+	if err := binary.Read(deltaFile, binary.LittleEndian, &headSrcSize); err != nil {
+		return fmt.Errorf("failed to read header source size: %w", err)
+	}
+	if err := binary.Read(deltaFile, binary.LittleEndian, &headPatchSize); err != nil {
+		return fmt.Errorf("failed to read header patch size: %w", err)
+	}
+
+	// Prepare reusable mem Processors for patch applying
+	srcMem, err := NewReusableMemFD("src-seg")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer srcMem.Close()
+	targetMem, err := NewReusableMemFD("target_seg")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer targetMem.Close()
+
+	patchMem, err := NewReusableMemFD("seg-patch")
+	if err != nil {
+		return fmt.Errorf("failed to prepare reusable memFd: %w", err)
+	}
+	defer patchMem.Close()
+
+	// get header patch into memory
+	if _, err := copyNBuffer(patchMem.File, deltaFile, headPatchSize); err != nil {
+		return fmt.Errorf("failed to read header patch data: %w", err)
+	}
+
+	// get source header to the memory
+	if _, err := copyNBuffer(srcMem.File, sourceHeaderBuff, sourceHeaderSize); err != nil {
+		return fmt.Errorf("failed to copy source header data: %w", err)
+	}
+
+	// Apply Patch: Source Header + Patch -> Target Header
+	if err := applyPatch(srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
+		return fmt.Errorf("failed to patch header: %w", err)
+	}
+
+	// We don't need the raw source header text anymore, so return to pool
+	bufferPool.Put(sourceHeaderBuff)
+
+	// Write Reconstructed Header to mksquashfs
+	// This tells mksquashfs what files are coming
+	if _, err := copyBuffer(targetStdin, targetMem.File); err != nil {
+		return fmt.Errorf("failed to write target header to mksquashfs: %w", err)
+	}
+
+	// Parse the *Target* header we just generated so we know the order of files expected
+	// We need to rewind the targetMem to parse it
+	targetMem.File.Seek(0, 0)
+	targetHeadReader := bufio.NewReader(targetMem.File)
+	targetEntries, _, err := parsePseudoStream(targetHeadReader)
+	if err != nil {
+		return fmt.Errorf("failed to parse reconstructed target header: %w", err)
+	}
+	logger.Noticef("Reconstructing %d entries...\n", len(targetEntries))
+
+	// Process Stream Loop
+	// we can process delta stream directly, it has all the information we need
+	// but using reconstructed target header as entry for the loop
+	// gives us debug info at which file we failed to apply patch
+	srcMem.Reset()
+	patchMem.Reset()
+	targetMem.Reset()
+	sourceReadCursor := sourceHeaderSize
+	for _, entry := range targetEntries {
+		// Read Control Int64
+		var controlVal int64
+		if err := binary.Read(deltaFile, binary.LittleEndian, &controlVal); err != nil {
+			return fmt.Errorf("failed to read control value for %s: %w", entry.FilePath, err)
+		}
+		if controlVal <= 0 {
+			// source file is idential to target file, just stream it
+			// control value is negative index to the source header
+			sourceIndex := int(-controlVal)
+			srcEntry := sourceEntries[sourceIndex]
+
+			// stream can only move forward, do sanity check we haven't advanced allready too far
+			neededOffset := srcEntry.DataOffset + sourceHeaderSize
+			if sourceReadCursor > neededOffset {
+				return fmt.Errorf("critical: source stream cursor (%d) passed needed offset (%d). Generator logic flaw or unsorted input", sourceReadCursor, neededOffset)
+			}
+			// do we need to skip some data in the source stream?
+			skip := neededOffset - sourceReadCursor
+			if skip > 0 {
+				copyNBuffer(io.Discard, sourceReader, skip)
+				sourceReadCursor += skip
+			}
+
+			// ready to pump data from source stream to -> mksquashfs
+			if _, err := copyNBuffer(targetStdin, sourceReader, srcEntry.DataSize); err != nil {
+				return fmt.Errorf("failed to copy source data for %s: %w", entry.FilePath, err)
+			}
+			sourceReadCursor += srcEntry.DataSize
+
+		} else {
+			// source and tatget file differ, apply patch on the source
+			// controlVal becomes SourceOffset
+			srcOffset := controlVal
+			var srcSize, patchSize int64
+
+			if err := binary.Read(deltaFile, binary.LittleEndian, &srcSize); err != nil {
+				return err
+			}
+			if err := binary.Read(deltaFile, binary.LittleEndian, &patchSize); err != nil {
+				return err
+			}
+			// prepare patch file
+			patchMem.Reset()
+			if _, err := copyNBuffer(patchMem.File, deltaFile, patchSize); err != nil {
+				return fmt.Errorf("failed to read patch data: %w", err)
+			}
+
+			// Prepare Source Segment
+			srcMem.Reset()
+			if srcSize > 0 {
+				// align source stream to what patch applies to
+				// mostl likely files from source are not present in the target
+				// !! sourceOffset in delta includes source header size for consistency with header delta which has offset 0
+				// offset values in the header start at 0 after the header ends
+
+				if sourceReadCursor > srcOffset {
+					return fmt.Errorf("critical: source cursor advanced too far for patch %s", entry.FilePath)
+				}
+
+				skip := srcOffset - sourceReadCursor
+				if skip > 0 {
+					copyNBuffer(io.Discard, sourceReader, skip)
+					sourceReadCursor += skip
+				}
+
+				// Read from stream to MemFD
+				if _, err := copyNBuffer(srcMem.File, sourceReader, srcSize); err != nil {
+					return fmt.Errorf("failed to extract source segment for patch: %w", err)
+				}
+				sourceReadCursor += srcSize
+			}
+
+			// 3. Apply Patch
+			targetMem.Reset()
+			// if srcSize is 0, hpatchz treats it as creating a new file from patch
+			if err := applyPatch(srcMem.Path, patchMem.Path, targetMem.Path, hpatchzCmdFn); err != nil {
+				return fmt.Errorf("failed to patch file %s: %w", entry.FilePath, err)
+			}
+			// write reconstructed result to mksquashfs
+			// DEBUG: logger.Noticef("%s\t(from %d bytes delta)\n", entry.FilePath, patchSize)
+			if _, err := copyBuffer(targetStdin, targetMem.File); err != nil {
+				return fmt.Errorf("failed to write patched data to mksquashfs: %w", err)
+			}
+		}
+	}
+
+	targetStdin.Close() // Close stdin to signal EOF to mksquashfs
+
+	if err := targetCmd.Wait(); err != nil {
+		return fmt.Errorf("mksquashfs failed: %v\nStderr: %s", err, targetStderr.String())
+	}
+
+	return nil
+}
+
+// --- Shared Helpers ---
+
+// writeHdiffzToltaStream
+func writeHdiffzToDeltaStream(deltaFile *os.File, sourceOffset, sourceSize int64, source, target, diff *ReusableMemFD, hdiffzCmdFn DeltaToolingCmd) (int64, error) {
+
+	// Files differ, run hdiffz, use the /proc paths which remain valid for the reused FDs
+	hdiffzArgs := append(hdiffzTuning, "-f", source.Path, target.Path, diff.Path)
+	hdiffzCmd := hdiffzCmdFn(hdiffzArgs...)
+	if output, err := hdiffzCmd.CombinedOutput(); err != nil {
+		return 0, fmt.Errorf("hdiffz failed: %v %s", err, string(output))
+	}
+
+	headerBuf := bufferPool.Get().(*bytes.Buffer)
+	headerBuf.Reset()
+	defer bufferPool.Put(headerBuf)
+
+	// Get segment size
+	st, err := diff.File.Stat()
+	if err != nil {
+		return 0, err
+	}
+	segSize := st.Size()
+
+	binary.Write(headerBuf, binary.LittleEndian, int64(sourceOffset))
+	binary.Write(headerBuf, binary.LittleEndian, int64(sourceSize))
+	binary.Write(headerBuf, binary.LittleEndian, int64(segSize))
+
+	if _, err := deltaFile.Write(headerBuf.Bytes()); err != nil {
+		return 0, err
+	}
+
+	// Rewind segment file
+	if _, err := diff.File.Seek(0, 0); err != nil {
+		return 0, err
+	}
+
+	// Copy data
+	if _, err := copyBuffer(deltaFile, diff.File); err != nil {
+		return 0, err
+	}
+	return segSize, nil
+}
+
+func applyPatch(oldPath, diffPath, outPath string, hpatchzCmdFn DeltaToolingCmd) error {
+	xdhpatchzArgs := append(hpatchzTuning, "-f", oldPath, diffPath, outPath)
+	cmd := hpatchzCmdFn(xdhpatchzArgs...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%v: %s", err, string(output))
+	}
+	return nil
+}
+
+// unescape: only allocates if backslash is present
+func unescape(s string) string {
+	if strings.IndexByte(s, '\\') == -1 {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && (s[i+1] == ' ' || s[i+1] == '\\') {
+			i++
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func parsePseudoDefinitionLine(line string) []string {
+	// find first space not preceded by escape
+	splitIdx := -1
+	for i := 0; i < len(line); i++ {
+		if line[i] == ' ' && (i == 0 || line[i-1] != '\\') {
+			splitIdx = i
+			break
+		}
+	}
+
+	if splitIdx == -1 {
+		return []string{unescape(line)}
+	}
+
+	name := unescape(line[:splitIdx])
+	rest := strings.Fields(line[splitIdx+1:])
+
+	// Pre-allocate slice
+	out := make([]string, 1, len(rest)+1)
+	out[0] = name
+	out = append(out, rest...)
+	return out
+}
+
+// parsePseudoStream encapsulates the logic to read the mixed text/binary stream
+func parsePseudoStream(reader *bufio.Reader) ([]PseudoEntry, *bytes.Buffer, error) {
+
+	// 2. Storage for parsed data
+	var entries []PseudoEntry
+	headerBuffer := bufferPool.Get().(*bytes.Buffer)
+	headerBuffer.Reset()
+	headerEnd := false
+
+	for {
+		// Read until the next newline (Text Mode)
+		lineBytes, err := reader.ReadBytes('\n')
+		if err != nil && err != io.EOF {
+			return nil, nil, fmt.Errorf("Stream read error: %v", err)
+		}
+
+		// If we got no bytes and EOF, we are done
+		if len(lineBytes) == 0 && err == io.EOF {
+			break
+		}
+
+		// Store this raw line in our header buffer
+		headerBuffer.Write(lineBytes)
+
+		// Trim whitespace for parsing
+		lineStr := string(lineBytes)
+		trimmed := strings.TrimSpace(lineStr)
+
+		// Skip empty lines or comments
+		if len(trimmed) == 0 {
+			if err == io.EOF {
+				break
+			}
+		}
+		if trimmed[0] == '#' {
+			// is this the comment after "# START OF DATA - DO NOT MODIFY"
+			if headerEnd {
+				break
+			}
+			// detect if this is end of the header "# START OF DATA - DO NOT MODIFY"
+			if trimmed == "# START OF DATA - DO NOT MODIFY" {
+				// read one more line and break
+				headerEnd = true
+				continue
+			}
+		}
+
+		// Parse the Text Line
+		fields := parsePseudoDefinitionLine(trimmed)
+		if len(fields) < 3 {
+			// Handle malformed lines gracefully
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		entry := PseudoEntry{
+			FilePath: fields[0],
+			Type:     fields[1],
+		}
+
+		// Logic to handle different types
+		switch entry.Type {
+		// ignore all the types without inline data
+		// D: Directory, S: Symbolic Link, L: hard link, C: Char device
+		// x: extended security capability
+		case "D", "S", "L", "C", "x":
+			continue
+
+		// R: Regular File with INLINE DATA
+		// Format: Path  Type  Time  Mode  UID  GID  Size  Offset  XattrIndex
+		case "R":
+			var parseErr error
+			// Format: FilePath R Time Mode UID GID Size Offset <>
+			entry.DataSize, parseErr = strconv.ParseInt(fields[6], 10, 64)
+			if parseErr != nil {
+				log.Fatalf("Invalid data size: %v", parseErr)
+			}
+			entry.DataOffset, parseErr = strconv.ParseInt(fields[7], 10, 64)
+			if parseErr != nil {
+				log.Fatalf("Invalid data offset: %v", parseErr)
+			}
+		default:
+			log.Fatalf("unknown type in pseudo definition!!: %s", trimmed)
+		}
+
+		entries = append(entries, entry)
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	return entries, headerBuffer, nil
+}
+
+// --- Infrastructure ---
 
 // setupPipes creates a temporary directory and named pipes within it.
 func setupPipes(pipeNames ...string) (string, []string, error) {
@@ -942,419 +1676,237 @@ func setupPipes(pipeNames ...string) (string, []string, error) {
 	return tempDir, pipePaths, nil
 }
 
-func generatePlainXdelta3Delta(sourceSnap, targetSnap, delta string) error {
-	xdelta3Cmd, err := checkForTooling(nil, "/usr/bin/xdelta3", "xdelta3", "config")
+// Check if all the required tools are actually present
+// returns ready to use commands for xdelta3, bsdiff, mksquashfs and unsquashfs
+func CheckSupportedDetlaFormats(ctx context.Context) (string, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, error) {
+	// check if we have required tools available
+	xdeltaCmd, err := checkForTooling(ctx, xdelta3, "xdelta3", "config")
+	if err != nil {
+		return "", nil, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	}
+	// from here we can support plain xdelta3
+	mksquashfsCmd, err := checkForTooling(ctx, mksquashfs, "mksquashfs", "-version")
+	if err != nil {
+		return xdelta3Format, xdeltaCmd, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	}
+	// use -help since '-version' does not return 0 error code
+	unsquashfsCmd, err := checkForTooling(ctx, unsquashfs, "unsquashfs", "-help")
+	if err != nil {
+		return xdelta3Format, xdeltaCmd, nil, nil, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	}
+	// from here we support snapDeltaFormatXdelta3 + xdelta3Format
+	hdiffzCmd, err := checkForTooling(ctx, hdiffz, "hdiffz", "-v")
+	if err != nil {
+		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	}
+	hpatchzCmd, err := checkForTooling(ctx, hpatchz, "hpatchz", "-v")
+	if err != nil {
+		return snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, nil, nil, fmt.Errorf("missing snapd delta dependencies: %v", err)
+	}
+
+	return snapDeltaFormatHdiffz + "," + snapDeltaFormatXdelta3 + "," + xdelta3Format, xdeltaCmd, mksquashfsCmd, unsquashfsCmd, hdiffzCmd, hpatchzCmd, nil
+}
+
+// helper to check for the presence of the required tools
+func checkForTooling(ctx context.Context, toolPath, tool, option string) (DeltaToolingCmd, error) {
+	loc := toolPath
+	if _, err := os.Stat(toolPath); err != nil {
+		if p, err := exec.LookPath(tool); err == nil {
+			loc = p
+		} else {
+			return nil, fmt.Errorf("tool not found")
+		}
+	}
+	// Verify execution
+	if err := exec.Command(loc, option).Run(); err != nil {
+		return nil, fmt.Errorf("tool verification failed: %v", err)
+	}
+	// TODO: check minimal required version
+	// the 'tool' in the env worked, so use that one
+	if ctx == nil {
+		return func(toolArgs ...string) *exec.Cmd {
+			return exec.Command(loc, toolArgs...)
+		}, nil
+	} else {
+		return func(toolArgs ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, loc, toolArgs...)
+		}, nil
+	}
+}
+
+// --- Utils ---
+
+func generatePlainXdelta3Delta(ctx context.Context, sourceSnap, targetSnap, delta string) error {
+	cmd, err := checkForTooling(ctx, "/usr/bin/xdelta3", "xdelta3", "config")
 	if err != nil {
 		return fmt.Errorf("missing xdelta3 tooling: %v", err)
 	}
-	xdelta3Args := append(xdelta3PlainTuning, "-f", "-e", "-s", sourceSnap, targetSnap, delta)
-	cmd := xdelta3Cmd(xdelta3Args...)
-	return cmd.Run()
+	return cmd(append(xdelta3PlainTuning, "-f", "-e", "-s", sourceSnap, targetSnap, delta)...).Run()
 }
 
-func applyPlainXdelta3Delta(sourceSnap, delta, targetSnap string) error {
-	xdelta3Cmd, err := checkForTooling(nil, "/usr/bin/xdelta3", "xdelta3", "config")
+func applyPlainXdelta3Delta(ctx context.Context, sourceSnap, delta, targetSnap string) error {
+	cmd, err := checkForTooling(ctx, "/usr/bin/xdelta3", "xdelta3", "config")
 	if err != nil {
 		return fmt.Errorf("missing xdelta3 tooling: %v", err)
 	}
-	xdelta3Args := []string{
-		"-f", "-d", "-s", sourceSnap, delta, targetSnap,
-	}
-	cmd := xdelta3Cmd(xdelta3Args...)
-	return cmd.Run()
+	return cmd("-f", "-d", "-s", sourceSnap, delta, targetSnap).Run()
 }
 
-// generate delta file.
-func GenerateSnapDelta(sourceSnap, targetSnap, delta string, deltaTool uint16) error {
-	fmt.Println("Generating delta...")
-
-	// Open target snap to read superblock
-	targetFile, err := os.Open(targetSnap)
-	if err != nil {
-		return fmt.Errorf("failed to open target file %s: %w", targetSnap, err)
-	}
-	defer targetFile.Close()
-
-	// Read superblock flags and check for custom compression options (flag flagCompressorOptions)
-	flagsBuf := make([]byte, 2)
-	if _, err := targetFile.ReadAt(flagsBuf, 24); err != nil {
-		return fmt.Errorf("failed to read flags from target: %w", err)
-	}
-	targetFlags := binary.LittleEndian.Uint16(flagsBuf)
-
-	if (targetFlags & flagCompressorOptions) != 0 {
-		log.Println("Custom compression options detected. Falling back to plain xdelta3.")
-		return generatePlainXdelta3Delta(sourceSnap, targetSnap, delta)
-	}
-
-	// --- Write Custom Header ---
-	headerBuf := new(bytes.Buffer)
-
-	// Magic number (32b)
-	if err := binary.Write(headerBuf, binary.LittleEndian, uint32(deltaMagicNumber)); err != nil {
-		return fmt.Errorf("failed to write snap-delta magic: %w", err)
-	}
-
-	// Version (16b)
-	if err := binary.Write(headerBuf, binary.LittleEndian, uint16(deltaFormatVersion)); err != nil {
-		return fmt.Errorf("failed to write snap-delta version: %w", err)
-	}
-
-	// Delta tool used (16b)
-	if err := binary.Write(headerBuf, binary.LittleEndian, uint16(deltaTool)); err != nil {
-		return fmt.Errorf("failed to write snap-delta tool info: %w", err)
-	}
-
-	// Read/Write Timestamp (32b at offset 8)
-	tsBuf := make([]byte, 4)
-	if _, err := targetFile.ReadAt(tsBuf, 8); err != nil {
-		return fmt.Errorf("failed to read target snap timestamp: %w", err)
-	}
-	headerBuf.Write(tsBuf)
-
-	// Read/Write Compression (16b at offset 20)
-	compBuf := make([]byte, 2)
-	if _, err := targetFile.ReadAt(compBuf, 20); err != nil {
-		return fmt.Errorf("failed to read target snap compression: %w", err)
-	}
-	headerBuf.Write(compBuf)
-
-	// Super block flags (16b) - read from target (16b at offset 24)
-	headerBuf.Write(flagsBuf) // We already read this
-
-	// Padding to deltaHeaderSize
-	padding := make([]byte, deltaHeaderSize-headerBuf.Len())
-	headerBuf.Write(padding)
-
-	// --- End Header ---
-
-	// Create delta file and write header there
-	deltaFile, err := os.OpenFile(delta, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to create delta file %s: %w", delta, err)
-	}
-	defer deltaFile.Close()
-	if _, err := deltaFile.Write(headerBuf.Bytes()); err != nil {
-		return fmt.Errorf("failed to write header to delta file: %w", err)
-	}
-	return generateXdelta3Delta(deltaFile, sourceSnap, targetSnap)
-}
-
-// --- Apply Delta ---
-func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
-	logger.Noticef("Applying delta...")
-
-	// Open delta file to read header
-	deltaFile, err := os.Open(delta)
-	if err != nil {
-		return fmt.Errorf("failed to open delta file %s: %w", delta, err)
-	}
-	defer deltaFile.Close()
-
-	// --- Read Custom Header ---
-	header := make([]byte, deltaHeaderSize)
-	n, err := io.ReadFull(deltaFile, header)
-	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-		return fmt.Errorf("failed to read delta header: %w", err)
-	}
-	if n < 14 { // Size of magic + version + time + comp + flags
-		return fmt.Errorf("delta file is too small to be valid")
-	}
-
-	headerReader := bytes.NewReader(header)
-	var magicNumber uint32
-	binary.Read(headerReader, binary.LittleEndian, &magicNumber)
-
-	// Check for plain xdelta3
-	if magicNumber == xdelta3MagicNumber {
-		logger.Noticef("This is a plain xdelta3 diff, falling back to plain xdelta3!!")
-		return applyPlainXdelta3Delta(sourceSnap, delta, targetSnap)
-	}
-
-	if magicNumber != deltaMagicNumber {
-		return fmt.Errorf("wrong magic number! (Expected 0x%X, Got 0x%X)", deltaMagicNumber, magicNumber)
-	}
-
-	var versionNumber uint16
-	binary.Read(headerReader, binary.LittleEndian, &versionNumber)
-	if versionNumber != deltaFormatVersion {
-		return fmt.Errorf("mismatch delta version number! (Expected 0x%X, Got 0x%X)", deltaFormatVersion, versionNumber)
-	}
-
-	// delta tool used (16b)
-	var deltaTool uint16
-	binary.Read(headerReader, binary.LittleEndian, &deltaTool)
-	if (deltaTool != detlaToolXdelta3) && (deltaTool != detlaToolHdiffz) {
-		return fmt.Errorf("unrecognised delta tool! (Expected 0x%X or 0x%X but got 0x%X)", detlaToolXdelta3, detlaToolHdiffz, deltaTool)
-	}
-
-	var fstimeint uint32
-	var targetCompressionID uint16
-	var targetFlags uint16
-	binary.Read(headerReader, binary.LittleEndian, &fstimeint)
-	binary.Read(headerReader, binary.LittleEndian, &targetCompressionID)
-	binary.Read(headerReader, binary.LittleEndian, &targetFlags)
-
-	var mksqfsArgs []string
-	mksqfsArgs, err = parseCompression(targetCompressionID, mksqfsArgs)
-	if err != nil {
-		return fmt.Errorf("failed to parse target compression from snap-delta: %v", err)
-	}
-
-	mksqfsArgs, err = parseSuperblockFlags(targetFlags, mksqfsArgs)
-	if err != nil {
-		return fmt.Errorf("failed to parse target supper block flags from snap-delta:%v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	// Defer cancel to clean up, though fail() will usually call it first
-	defer cancel()
-
-	// prepare tooling, make sure we have enough for snapDeltaV1 format
-	supportedFormats, xdelta3Cmd, mksquashfsCmd, unsquashfsCmd, _, _, err := CheckSupportedDetlaFormats(ctx)
-	// check we have required tooling
-	if err != nil {
-		return fmt.Errorf("failed to validate required tooling for delta format: %v", err)
-	}
-	if deltaTool == detlaToolHdiffz && !strings.Contains(supportedFormats, snapDeltaFormatHdiffz) {
-		return fmt.Errorf("failed to validate required tooling for delta format'%s', supported: '%s': %v", supportedFormats, snapDeltaFormatHdiffz)
-	}
-	// check we have required tooling
-	if deltaTool == detlaToolXdelta3 && !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
-		return fmt.Errorf("failed to validate required tooling for delta format'%s', supported: '%s': %v", supportedFormats, snapDeltaFormatXdelta3)
-	}
-
-	// prepare pipes
-	tempDir, pipePaths, err := setupPipes("source-pipe", "delta-pipe")
-	if err != nil {
-		return fmt.Errorf("failed to prepare pipes for snap delta: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-	sourceSnapPipe := pipePaths[0]
-	deltaPipe := pipePaths[1]
-
-	// Run concurrent processes
-	var wg sync.WaitGroup
-	errChan := make(chan error, 4) // unsq, dd, xdelta, mksqfs
-	// cancellable context for all tasks
-
-	// Setup command chains
-	// xdelta3 between two pipes (source and delta pipes)
-	xdelta3Args := []string{
-		"-f", "-d", "-s", sourceSnapPipe, deltaPipe,
-	}
-	xdeltaCmd := xdelta3Cmd(xdelta3Args...)
-
-	// mksquashfs from xdelta3 stream to target snap with correct extra arguments
-	mksqfsFullArgs := []string{
-		"-", // Source from stdin
-		targetSnap,
-		"-pf", "-", // Read patch file list from stdin
-		"-no-progress",
-		"-quiet",
-		"-noappend",
-		"-mkfs-time", strconv.FormatUint(uint64(fstimeint), 10),
-	}
-	mksqfsFullArgs = append(mksqfsFullArgs, mksqfsArgs...)
-	mksqfsCmd := mksquashfsCmd(mksqfsFullArgs...)
-
-	// Connect xdelta3 stdout to mksquashfs stdin
-	mksqfsCmd.Stdin, err = xdeltaCmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create pipe between xdelta3 and mksquashfs: %w", err)
-	}
-
-	// unsquash source snap into source pipe
-	unsquashfsArgs := []string{
-		"-n", "-pf", sourceSnapPipe, sourceSnap,
-	}
-	unsquashSourceCmd := unsquashfsCmd(unsquashfsArgs...)
-
-	// handle fail of any task
-	var failOnce sync.Once
-	fail := func(err error) {
-		failOnce.Do(func() {
-			cancel() // <-- This signals all other tasks to stop
-			errChan <- err
-		})
-	}
-
-	// Start target consumers
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := osutil.RunWithContext(ctx, mksqfsCmd); err != nil {
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("mksquashfs (target) failed: %w", err))
-			}
-		}
-	}()
-
-	// start delta consumers: xdelta3
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := osutil.RunWithContext(ctx, xdeltaCmd); err != nil {
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("xdelta3 failed: %w", err))
-			}
-		}
-	}()
-
-	// Start source producers: unsquashfs source -> source-pipe
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := osutil.RunWithContext(ctx, unsquashSourceCmd); err != nil {
-			fail(fmt.Errorf("unsquashfs (source) failed: %w:", err))
-		}
-	}()
-
-	// dd (Go copy) delta-body -> delta-pipe
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		pipeF, err := os.OpenFile(deltaPipe, os.O_WRONLY, 0)
-		if err != nil {
-			fail(fmt.Errorf("failed to open delta pipe for writing: %w", err))
-			return
-		}
-		defer pipeF.Close()
-
-		// Make io.Copy cancellable by closing its pipe.
-		go func() {
-			<-ctx.Done()  // Wait for cancellation
-			pipeF.Close() // This will force io.Copy to unblock with an error
-		}()
-
-		// Seek delta file to start of body
-		if _, err := deltaFile.Seek(deltaHeaderSize, io.SeekStart); err != nil {
-			// Check context, as this could fail if pipeF was closed
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("failed to seek delta file: %w", err))
-			}
-			return
-		}
-
-		if _, err := io.Copy(pipeF, deltaFile); err != nil {
-			// If context is cancelled, io.Copy will fail.
-			// We check if this error was an *expected* cancellation.
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("failed to copy delta body to pipe: %w", err))
-			}
-		}
-	}()
-
-	// Wait for all processes and collect errors
-	wg.Wait()
-	close(errChan)
-
-	var allErrors []string
-	for err := range errChan {
-		allErrors = append(allErrors, err.Error())
-	}
-
-	if len(allErrors) > 0 {
-		return fmt.Errorf("applying snap delta failed: %s", strings.Join(allErrors, "\n"))
-	}
-	return nil
-}
-
-func generateXdelta3Delta(deltaFile *os.File, sourceSnap, targetSnap string) error {
-	// 1. Setup pipes
-	tempDir, pipePaths, err := setupPipes("source-pipe", "target-pipe")
-	if err != nil {
+// // run command in context, ensure commans is terminated if context is cancelled
+func runService(ctx context.Context, cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
-	sourcePipe := pipePaths[0]
-	targetPipe := pipePaths[1]
-
-	// Run all as concurrent processes
-	var wg sync.WaitGroup
-	errChan := make(chan error, 3)
-
-	// cancellable context for all tasks
-	ctx, cancel := context.WithCancel(context.Background())
-	// Defer cancel to clean up, though fail() will usually call it first
-	defer cancel()
-
-	// prepare tooling, make sure we have enough for snapDeltaV1 format
-	supportedFormats, xdelta3Cmd, _, unsquashfsCmd, _, _, err := CheckSupportedDetlaFormats(ctx)
-	if err != nil || !strings.Contains(supportedFormats, snapDeltaFormatXdelta3) {
-		return fmt.Errorf("failed to validate required tooling for snap-delta: %v", err)
-	}
-
-	// unsquashfs source -> source-pipe
-	unsquashfsSourceArgs := []string{
-		"-pf", sourcePipe, sourceSnap,
-	}
-	unsquashSourceCmd := unsquashfsCmd(unsquashfsSourceArgs...)
-
-	// unsquashfs target -> target-pipe
-	unsquashfsTargetArgs := []string{
-		"-pf", targetPipe, targetSnap,
-	}
-	unsquashfsTargetCmd := unsquashfsCmd(unsquashfsTargetArgs...)
-
-	// xdelta3 source-pipe, target-pipe -> delta-file (append)
-	xdelta3Args := append(xdelta3Tuning, "-e", "-f", "-A", "-s", sourcePipe, targetPipe)
-	xdeltaCmd := xdelta3Cmd(xdelta3Args...)
-	xdeltaCmd.Stdout = deltaFile // Append to the already open delta file
-
-	// handle fail of any task
-	var failOnce sync.Once
-	fail := func(err error) {
-		failOnce.Do(func() {
-			cancel() // <-- This signals all other tasks to stop
-			errChan <- err
-		})
-	}
-
-	// run unsquashfs source
-	wg.Add(1)
+	waitDone := make(chan error, 1)
 	go func() {
-		defer wg.Done()
-		if err := sutil.RunWithContext(ctx, unsquashSourceCmd); err != nil {
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("unsquashfs (source) failed: %w", err))
-			}
-		}
+		waitDone <- cmd.Wait()
 	}()
 
-	// run unsquashfs target
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := sutil.RunWithContext(ctx, unsquashfsTargetCmd); err != nil {
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("unsquashfs (target) failed: %w", err))
-			}
+	select {
+	case <-ctx.Done():
+		if err := cmd.Process.Kill(); err != nil {
+			logger.Noticef("Failed to kill process (%s): %v\n", cmd.Path, err)
 		}
-	}()
+		<-waitDone
+		return ctx.Err()
+	case err := <-waitDone:
+		return err
+	}
+}
 
-	// run xdelta3 source-pipe, target-pipe -> delta-file, appending
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := sutil.RunWithContext(ctx, xdeltaCmd); err != nil {
-			if ctx.Err() == nil {
-				fail(fmt.Errorf("xdelta3 failed: %w", err))
-			}
-		}
-	}()
+func wrapErr(err error, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s failed: %w", msg, err)
+}
 
-	// Wait for all processes and collect errors
-	wg.Wait()
-	close(errChan)
+// ReusableMemFD wraps the file descriptor logic to reuse resources
+type ReusableMemFD struct {
+	Fd   int
+	File *os.File
+	Path string
+}
 
-	var allErrors []string
-	for err := range errChan {
-		allErrors = append(allErrors, err.Error())
+func NewReusableMemFD(name string) (*ReusableMemFD, error) {
+	fd, err := unix.MemfdCreate(name, 0)
+	if err != nil {
+		return nil, err
+	}
+	// Wrap in os.File for easy Go IO, but we manage the FD manually mostly
+	return &ReusableMemFD{
+		Fd:   fd,
+		File: os.NewFile(uintptr(fd), name),
+		Path: fmt.Sprintf("/proc/self/fd/%d", fd),
+	}, nil
+}
+
+func (m *ReusableMemFD) Reset() error {
+	// Truncate file to 0 size
+	if err := unix.Ftruncate(m.Fd, 0); err != nil {
+		return err
+	}
+	// Seek to start
+	_, err := m.File.Seek(0, 0)
+	return err
+}
+
+func (m *ReusableMemFD) Close() {
+	m.File.Close() // This closes the FD as well
+}
+
+// Loads timestamp, compression, and flags from a squashfs superblock.
+func (h *SnapDeltaHeader) loadDeltaHeaderFromSnap(f *os.File) error {
+	buf := make([]byte, 26) // Read enough for all fields
+	if _, err := f.ReadAt(buf, 8); err != nil {
+		return err
 	}
 
-	if len(allErrors) > 0 {
-		return fmt.Errorf("delta generation failed:%s", strings.Join(allErrors, "\n"))
-	}
+	// Timestamp @ offset 8 (u32): 8 -> 0
+	h.Timestamp = binary.LittleEndian.Uint32(buf[0:4])
+	// Compression @ offset 20 (u16): 20 -> 12
+	h.Compression = binary.LittleEndian.Uint16(buf[12:14])
+	// Flags @ offset 24 (u16): 24 -> 16
+	h.Flags = binary.LittleEndian.Uint16(buf[16:18])
 	return nil
+}
+
+// Serialises delta header into deltaHeaderSize
+func (h *SnapDeltaHeader) toBytes() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, h.Magic); err != nil {
+		return nil, fmt.Errorf("failed to write header magic: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, h.Version); err != nil {
+		return nil, fmt.Errorf("failed to write header version: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, h.DeltaTool); err != nil {
+		return nil, fmt.Errorf("failed to write header tooling: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, h.Timestamp); err != nil {
+		return nil, fmt.Errorf("failed to write header timestamp: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, h.Compression); err != nil {
+		return nil, fmt.Errorf("failed to write header compression: %w", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, h.Flags); err != nil {
+		return nil, fmt.Errorf("failed to write header flags: %w", err)
+	}
+	// Pad to full size
+	if buf.Len() < deltaHeaderSize {
+		buf.Write(make([]byte, deltaHeaderSize-buf.Len()))
+	}
+	return buf.Bytes(), nil
+}
+
+func readDeltaHeader(r io.Reader) (*SnapDeltaHeader, error) {
+	buf := make([]byte, deltaHeaderSize)
+	n, err := io.ReadFull(r, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return nil, fmt.Errorf("read header: %w", err)
+	}
+	if n < deltaHeaderSize {
+		return nil, fmt.Errorf("header too short")
+	}
+
+	hdr := &SnapDeltaHeader{}
+	if err := binary.Read(bytes.NewReader(buf), binary.LittleEndian, hdr); err != nil {
+		return nil, fmt.Errorf("decode header: %w", err)
+	}
+	return hdr, nil
+}
+
+// parseCompression converts SquashFS compression ID to a name.
+func parseCompression(id uint16, mksqfsArgs []string) ([]string, error) {
+	// compression map from squashfs spec
+	m := map[uint16]string{1: "gzip", 2: "lzma", 3: "lzo", 4: "xz", 5: "lz4", 6: "zstd"}
+	if s, ok := m[id]; ok {
+		return append(mksqfsArgs, "-comp", s), nil
+	}
+	return nil, fmt.Errorf("unknown compression: %d", id)
+}
+
+// parseSuperblockFlags converts SquashFS flags to mksquashfs arguments.
+func parseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
+	if (flags & flagCheck) != 0 {
+		return nil, fmt.Errorf("this does not look like Squashfs 4+ superblock flags")
+	}
+	if (flags & flagNoFragments) != 0 {
+		mksqfsArgs = append(mksqfsArgs, "-no-fragments")
+	}
+	// Note: The flag is "DUPLICATES", so if it's *not* set add -no-duplicates.
+	if (flags & flagDuplicates) == 0 {
+		mksqfsArgs = append(mksqfsArgs, "-no-duplicates")
+	}
+	if (flags & flagExports) != 0 {
+		mksqfsArgs = append(mksqfsArgs, "-exports")
+	}
+	if (flags & flagNoXattrs) != 0 {
+		mksqfsArgs = append(mksqfsArgs, "-no-xattrs")
+	}
+	if (flags & flagCompressorOptions) != 0 {
+		log.Println("warning: Custom compression options detected, created target snap is likely be different from target snap!")
+	}
+
+	return mksqfsArgs, nil
 }
