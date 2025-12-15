@@ -597,6 +597,11 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 			arch:    "riscv64",
 			err:     "isa-riscv64..rva23: must be in the format isa-<arch>-<isa_val>",
 		},
+		{
+			// Skip ISA validation when currentArchitecture is empty
+			assumes: []string{"isa-badarch-badisa"},
+			arch:    "",
+		},
 	}
 
 	for _, test := range assumesTests {

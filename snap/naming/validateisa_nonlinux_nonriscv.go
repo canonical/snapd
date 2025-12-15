@@ -12,5 +12,5 @@ import (
 
 func validateAssumesRiscvISA(_ string) error {
 	// Shouldn't get here, error out just in case
-	return fmt.Errorf("cannot validate RiscV ISA support for OS and architecture combination: %s, %s", runtime.GOOS, runtime.GOARCH)
+	return fmt.Errorf("cannot validate RiscV ISA support while running on: %s, %s", runtime.GOOS, runtime.GOARCH)
 }
