@@ -1717,7 +1717,7 @@ func setupPipes(pipeNames ...string) (string, []string, error) {
 }
 
 // Check if all the required tools are actually present
-// returns ready to use commands for xdelta3, bsdiff, mksquashfs and unsquashfs
+// returns ready to use commands for xdelta3, mksquashfs and unsquashfs, hdiffz, hpatchz
 func CheckSupportedDetlaFormats(ctx context.Context) (string, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, DeltaToolingCmd, error) {
 	// check if we have required tools available
 	xdeltaCmd, err := checkForTooling(ctx, xdelta3, "xdelta3", "config")
