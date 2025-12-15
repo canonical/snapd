@@ -1849,7 +1849,6 @@ foo +4.2update1 +17 +436MB +bar +-.*
 	c.Check(n, check.Equals, 1)
 }
 
-// testSnapChannel uses *string to correctly verify if output is null or ""
 type testSnapChannel struct {
     Channel *string `yaml:"channel"`
 }
@@ -1863,14 +1862,14 @@ func mockTrackingResponse(w io.Writer, snaps map[string]string) {
         Name    string `json:"name"`
         Channel string `json:"tracking-channel"`
     }
-    
-    var results []snapResult
+
+    results := make([]snapResult, 0, len(snaps))
     for name, channel := range snaps {
         results = append(results, snapResult{Name: name, Channel: channel})
     }
 
     // Wrap in the standard response envelope
-    resp := map[string]interface{}{
+    resp := map[string]any{
         "type":        "sync",
         "status-code": 200,
         "result":      results,
