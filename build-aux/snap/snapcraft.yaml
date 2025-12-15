@@ -605,15 +605,9 @@ parts:
     source: https://github.com/plougher/squashfs-tools.git
     source-type: git
     source-subdir: squashfs-tools
+    source-commit: bad1d213ab6df587d6fa0ef7286180fbf7b86167 # 4.7.4
     make-parameters:
       - INSTALL_PREFIX=${CRAFT_PART_INSTALL}/usr
-    override-pull: |
-      # pull the latest tag
-      craftctl default
-      git_url="https://github.com/plougher/squashfs-tools.git"
-      tag=$(git ls-remote --tags --refs  --sort='version:refname' "${git_url}" "refs/tags/4.*" | tail -1 | awk '{print $2}' | cut -c 11-)
-      echo "building tag: ${tag}"
-      git checkout "${tag}"
     stage:
       - usr/bin
     build-packages:
