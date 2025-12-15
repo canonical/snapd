@@ -20,6 +20,9 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-daemon-desktop
 
 debug: |
+    echo Debug
+
+execute: |
     NORMAL_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-normal.service
     DESKTOP_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
     echo "Ensure graphical daemon has the right dependencies"
