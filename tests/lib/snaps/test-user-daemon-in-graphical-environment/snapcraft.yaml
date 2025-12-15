@@ -12,13 +12,36 @@ apps:
     command: usr/bin/ls
     plugs:
       - desktop
-      - wayland
-      - x11
     daemon: simple
     passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
       daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
+
+  test-snapd-daemon-user-in-graphical-desktop-dbus:
+    command: usr/bin/ls
+    plugs:
+      - wayland
+    daemon: dbus
+    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
+      daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+
+  test-snapd-daemon-user-in-graphical-desktop-dbus2:
+    command: usr/bin/ls
+    plugs:
+      - x11
+      - network-bind
+    daemon: simple
+    passthrough: #///! TODO: Remove once daemon-scope lands in snapcraft
+      daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+    sockets:
+      mysocket:
+        listen-stream: $XDG_RUNTIME_DIR/mysocket-0
+        socket-mode: 0644
 
   test-snapd-daemon-user-normal:
     command: usr/bin/ls
