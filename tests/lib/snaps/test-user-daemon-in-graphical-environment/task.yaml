@@ -24,7 +24,7 @@ debug: |
     DESKTOP_SERVICE=/etc/systemd/user/snap.test-snapd-daemon-desktop.test-snapd-daemon-user-in-graphical-desktop.service
     echo "Ensure graphical daemon has the right dependencies"
     test -f ${NORMAL_SERVICE}
-    test -f ${DESKTOP_SERVICE
+    test -f ${DESKTOP_SERVICE}
     grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
