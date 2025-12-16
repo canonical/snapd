@@ -901,7 +901,7 @@ func ApplySnapDelta(sourceSnap, delta, targetSnap string) error {
 	if mksqfsArgs, err = parseCompression(hdr.Compression, mksqfsArgs); err != nil {
 		return fmt.Errorf("failed to parse compression from delta header:%v", err)
 	}
-	if mksqfsArgs, err = parseSuperblockFlags(hdr.Flags, mksqfsArgs); err != nil {
+	if mksqfsArgs, err = appendSuperBlockFlagArguments(hdr.Flags, mksqfsArgs); err != nil {
 		return fmt.Errorf("failed to parse flags from delta header:%v", err)
 	}
 	// run delta apply for given deta tool
@@ -2119,8 +2119,8 @@ func parseCompression(id uint16, mksqfsArgs []string) ([]string, error) {
 	return nil, fmt.Errorf("unknown compression: %d", id)
 }
 
-// parseSuperblockFlags converts SquashFS flags to mksquashfs arguments.
-func parseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
+// appendSuperBlockFlagArguments converts SquashFS flags to mksquashfs arguments.
+func appendSuperBlockFlagArguments(flags uint16, mksqfsArgs []string) ([]string, error) {
 	if (flags & flagCheck) != 0 {
 		return nil, fmt.Errorf("this does not look like Squashfs 4+ superblock flags")
 	}
