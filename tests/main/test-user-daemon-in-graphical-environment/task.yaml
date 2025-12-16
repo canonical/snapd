@@ -19,10 +19,10 @@ execute: |
 
     echo "Ensure graphical daemon has the right dependencies"
 
-    test -f ${NORMAL_SERVICE}
-    test -f ${DESKTOP_SERVICE}
-    test -f ${DESKTOP_DBUS_SERVICE1}
-    test -f ${DESKTOP_DBUS_SERVICE2}
+    test -f "${NORMAL_SERVICE}"
+    test -f "${DESKTOP_SERVICE}"
+    test -f "${DESKTOP_DBUS_SERVICE}"
+    test -f "${DESKTOP_DBUS_SOCKET_SERVICE}"
 
     grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
