@@ -1,4 +1,4 @@
-name: implicit-graphical-user-daemon
+name: test-implicit-graphical-user-daemon
 version: 1
 summary: test snapd daemon user in graphical desktop
 
