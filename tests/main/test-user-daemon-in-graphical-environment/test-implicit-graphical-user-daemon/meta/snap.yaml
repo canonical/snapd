@@ -35,7 +35,7 @@ apps:
         listen-stream: $XDG_RUNTIME_DIR/mysocket-0
         socket-mode: 0644
 
-  test-snapd-daemon-user-normal:
+  normal:
     command: usr/bin/ls
     daemon: simple
     daemon-scope: user
