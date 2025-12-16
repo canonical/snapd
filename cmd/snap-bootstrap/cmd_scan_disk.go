@@ -68,7 +68,6 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -93,108 +92,6 @@ func (c *cmdScanDisk) Execute([]string) error {
 	return ScanDisk(os.Stdout)
 }
 
-type Partition struct {
-	Name string
-	UUID string
-
-	// FilesystemLabel is the label of the filesystem of the
-	// partition. On MBR schemas, partitions do not have a name,
-	// instead we probe for the label of the filesystem. So this
-	// will only be set if it's a non-GPT.
-	FilesystemLabel string
-}
-
-func isGpt(probe blkid.AbstractBlkidProbe) bool {
-	pttype, err := probe.LookupValue("PTTYPE")
-	if err != nil {
-		return false
-	}
-	return pttype == "gpt"
-}
-
-// probeFilesystem probes filesystem information in leiu of when
-// we cannot retrieve enough information from the partition table.
-// <start> and <size> must be byte offsets, not sector counts.
-func probeFilesystem(node string, start, size int64) (Partition, error) {
-	var p Partition
-
-	probe, err := blkid.NewProbeFromRange(node, start, size)
-	if err != nil {
-		return p, err
-	}
-	defer probe.Close()
-
-	probe.EnableSuperblocks(true)
-	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL)
-
-	if err := probe.DoSafeprobe(); err != nil {
-		return p, err
-	}
-
-	val, err := probe.LookupValue("LABEL")
-	if err != nil {
-		return p, err
-	}
-	p.FilesystemLabel = val
-	return p, nil
-}
-
-func probeDisk(node string) ([]Partition, error) {
-	probe, err := blkid.NewProbeFromFilename(node)
-	if err != nil {
-		return nil, err
-	}
-	defer probe.Close()
-
-	probe.EnablePartitions(true)
-	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
-
-	if err := probe.DoSafeprobe(); err != nil {
-		return nil, err
-	}
-
-	gpt := isGpt(probe)
-	partitions, err := probe.GetPartitions()
-	if err != nil {
-		return nil, err
-	} else if partitions == nil {
-		// Observed on rpi4 with loop-devices from snaps, no
-		// partitions exists, but no error is returned either, so
-		// catch the partitions == nil cases to avoid crashes.
-		return nil, nil
-	}
-
-	sectorSize, err := probe.GetSectorSize()
-	if sectorSize == 0 && err != nil {
-		return nil, err
-	}
-
-	ret := make([]Partition, 0)
-	ss64 := int64(sectorSize)
-	for _, partition := range partitions.GetPartitions() {
-		if gpt {
-			ret = append(ret, Partition{
-				Name: partition.GetName(),
-				UUID: partition.GetUUID(),
-			})
-		} else {
-			// For MBR we have to probe the filesystem for details
-			p, err := probeFilesystem(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
-			if err != nil {
-				// On the pi, it has been observed during the installation of a preseeded image, that it
-				// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
-				// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
-				// So log a warning, but continue processing other partitions.
-				logger.Noticef("WARNING: cannot probe filesystem on non-GPT partition: %s", err)
-				continue
-			}
-			ret = append(ret, p)
-		}
-	}
-
-	return ret, nil
-}
-
 func samePath(a, b string) (bool, error) {
 	aSt, err := os.Stat(a)
 	if err != nil {
@@ -210,7 +107,7 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	partitions, err := probeDisk(node)
+	disk, err := probeDisk(node, probeDiskOpts{probeFsAlways: false})
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -278,7 +175,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 		}
 	}
 
-	for _, part := range partitions {
+	for _, part := range disk.Parts {
 		if part.Name == fallbackPartition || part.FilesystemLabel == fallbackPartition {
 			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 			return nil
@@ -317,7 +214,7 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	partitions, err := probeDisk(node)
+	disk, err := probeDisk(node, probeDiskOpts{probeFsAlways: false})
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -329,7 +226,7 @@ func scanDiskNode(output io.Writer, node string) error {
 	found := false
 	hasSeed := false
 	hasBoot := false
-	for _, part := range partitions {
+	for _, part := range disk.Parts {
 		if part.UUID == bootUUID {
 			/*
 			 * We have just found the ESP boot partition!
@@ -337,9 +234,10 @@ func scanDiskNode(output io.Writer, node string) error {
 			found = true
 		}
 
-		if part.Name == "ubuntu-seed" {
+		switch part.Name {
+		case "ubuntu-seed":
 			hasSeed = true
-		} else if part.Name == "ubuntu-boot" {
+		case "ubuntu-boot":
 			hasBoot = true
 		}
 	}
