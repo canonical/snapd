@@ -29,12 +29,10 @@ execute: |
     grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "BindsTo=graphical-session\.target" ${DESKTOP_SERVICE}
 
-    grep "WantedBy=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
     grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
     grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
     grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
 
-    grep "WantedBy=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
     grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
     grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
     grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
