@@ -3,7 +3,7 @@ version: 1
 summary: test-snapd-daemon-user-in-graphical-desktop
 
 apps:
-  test-snapd-daemon-user-in-graphical-desktop:
+  graphical:
     command: usr/bin/ls
     plugs:
       - desktop
