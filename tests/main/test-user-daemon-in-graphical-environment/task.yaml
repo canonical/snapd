@@ -4,9 +4,8 @@ details: |
     This test ensures that an user daemon with the desktop, x11 or wayland plugs
     will be launched with the destkop session only.
 
-# Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
-# TODO: extend tests.session and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
+# Same systems than `interfaces-desktop`, since we require that plug.
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-implicit-graphical-user-daemon
