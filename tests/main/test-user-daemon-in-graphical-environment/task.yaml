@@ -8,6 +8,7 @@ details: |
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
 
 prepare: |
+    snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-implicit-graphical-user-daemon
 
 execute: |
