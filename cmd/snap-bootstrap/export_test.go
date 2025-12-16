@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	gadgetInstall "github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap/integrity"
@@ -40,7 +39,7 @@ var (
 
 	DoSystemdMount = doSystemdMountImpl
 
-	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
+	FindPartitionsOfBootDisk = findBootDisk
 
 	GetNonUEFISystemDisk = getNonUEFISystemDisk
 
@@ -130,7 +129,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
@@ -138,7 +137,7 @@ func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(activateContext sec
 	}
 }
 
-func MockSecbootUnlockEncryptedVolumeUsingProtectorKey(f func(activateContext secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
+func MockSecbootUnlockEncryptedVolumeUsingProtectorKey(f func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
 	old := secbootUnlockEncryptedVolumeUsingProtectorKey
 	secbootUnlockEncryptedVolumeUsingProtectorKey = f
 	return func() {

@@ -68,7 +68,6 @@ func (s *authRequestorSuite) SetUpTest(c *C) {
 	err := os.WriteFile(s.errorFile, []byte("unset"), 0644)
 	c.Assert(err, IsNil)
 	script := fmt.Sprintf(`if [ -r '%[1]s' ]; then cat '%[1]s'; else cat '%[2]s'; exit 1; fi`, s.inputFile, s.errorFile)
-	fmt.Printf("%s\n", script)
 	s.systemdAskPasswordCmd = testutil.MockCommand(c, "systemd-ask-password", script)
 	s.AddCleanup(s.systemdAskPasswordCmd.Restore)
 	systemctlResults := c.MkDir()
