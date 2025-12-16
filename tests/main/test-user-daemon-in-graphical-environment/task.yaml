@@ -24,10 +24,10 @@ execute: |
     test -f "${DESKTOP_DBUS_SERVICE}"
     test -f "${DESKTOP_DBUS_SOCKET_SERVICE}"
 
-    grep "WantedBy=graphical-session\.target" ${DESKTOP_SERVICE}
-    grep "After=graphical-session\.target" ${DESKTOP_SERVICE}
-    grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
-    grep "BindsTo=graphical-session\.target" ${DESKTOP_SERVICE}
+    MATCH "WantedBy=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "After=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "BindsTo=graphical-session\.target" < "${DESKTOP_SERVICE}"
 
     MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
     MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
