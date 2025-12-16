@@ -14,8 +14,8 @@ prepare: |
 execute: |
     NORMAL_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.normal.service
     DESKTOP_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical.service
-    DESKTOP_DBUS_SERVICE1=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus.service
-    DESKTOP_DBUS_SERVICE2=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus2.service
+    DESKTOP_DBUS_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus.service
+    DESKTOP_DBUS_SOCKET_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus-socket.service
 
     echo "Ensure graphical daemon has the right dependencies"
 
