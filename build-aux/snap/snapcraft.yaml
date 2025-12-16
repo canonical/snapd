@@ -604,12 +604,12 @@ parts:
     plugin: make
     source: https://github.com/plougher/squashfs-tools.git
     source-type: git
-    source-subdir: squashfs-tools
     source-commit: bad1d213ab6df587d6fa0ef7286180fbf7b86167 # 4.7.4
-    make-parameters:
-      - INSTALL_PREFIX=${CRAFT_PART_INSTALL}/usr
-    stage:
-      - usr/bin
+    override-build: |
+      cd squashfs-tools
+      make -j${CRAFT_PARALLEL_BUILD_COUNT}
+      install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/mksquashfs"
+      install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/unsquashfs"
     build-packages:
       - liblz4-dev
       - liblzma-dev
@@ -636,11 +636,7 @@ parts:
         url=$(curl -sL "https://api.github.com/repos/sisong/HDiffPatch/releases/"${release}"" | jq -r '.assets[].browser_download_url' | grep "${linux_flavour}")
         wget --quiet -O "${CRAFT_PART_SRC}/hdiffpatch_linux.zip" "${url}"
         unzip -j "${CRAFT_PART_SRC}/hdiffpatch_linux.zip"
-        chmod 755 *
+        install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/bin" hpatchz
       fi
-    organize:
-      '*': usr/bin/
-    stage:
-      - usr/bin/hpatchz
     build-packages:
       - jq
