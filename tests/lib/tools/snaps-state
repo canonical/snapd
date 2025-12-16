@@ -23,21 +23,23 @@ show_help() {
 }
 
 pack_local() {
+    echo paso A
     local SNAP_NAME="$1"
     local SNAP_DIR="${2:-$TESTSLIB/snaps/${SNAP_NAME}}"
     local SNAP_VERSION="${3:-1.0}"
-
+    echo paso B
     # Use local snap in case it exists
     if [ -d "$SNAP_NAME" ]; then
         SNAP_DIR="$PWD/$SNAP_NAME"
     fi
-
+    echo paso C $SNAP_DIR
     if [ ! -d "$SNAP_DIR" ]; then
         echo "snaps-state: can't pack $SNAP_NAME, snap directory not found"
         exit 1
     fi
-
+    echo paso D
     local META_FILE META_NAME SNAP_FILE
+    echo Paso E
     META_FILE="$SNAP_DIR/meta/snap.yaml"
     if [ ! -f "$META_FILE" ]; then
         echo "snap.yaml file not found for $SNAP_NAME snap"
@@ -46,26 +48,34 @@ pack_local() {
     META_NAME="$(grep '^name:' "$META_FILE" | awk '{ print $2 }' | tr -d ' ')"
     SNAP_FILE="${SNAP_DIR}/${META_NAME}_${SNAP_VERSION}_all.snap"
     # assigned in a separate step to avoid hiding a failure
+    echo $SNAP_FILE
+    echo $SNAP_DIR
     if [ ! -f "$SNAP_FILE" ]; then
         snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
     fi
+    echo paso1
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
+        echo paso2
         find "$SNAP_DIR" -name "${META_NAME}_*.snap"| head -n1
     fi
+    echo paso3
 }
 
 install_local() {
     local SNAP_NAME="$1"
     local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    echo Folder: ${SNAP_DIR}
     shift
 
     if [ -d "$SNAP_NAME" ]; then
         SNAP_DIR="$PWD/$SNAP_NAME"
     fi
-    SNAP_FILE=$(pack_local "$SNAP_NAME" "$SNAP_DIR")
+    echo paso 0
+    pack_local "$SNAP_NAME" "$SNAP_DIR"
+    echo paso 5
 
     snap install --dangerous "$@" "$SNAP_FILE"
 }
