@@ -62,7 +62,6 @@ import (
 	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
@@ -170,6 +169,53 @@ type secbootSuite struct {
 	testutil.BaseTest
 
 	currentModel sb.SnapModel
+}
+
+type MockDiskMapping struct {
+	IDModel   string
+	Structure []MockPartition
+}
+
+var _ = secboot.Disk(&MockDiskMapping{})
+
+func (d *MockDiskMapping) PartitionWithFsLabel(label string) (secboot.Partition, error) {
+	for _, p := range d.Structure {
+		if p.filesystemLabel == label {
+			return &p, nil
+		}
+	}
+
+	return nil, fmt.Errorf("filesystem label %q not found", label)
+}
+
+func (d *MockDiskMapping) DiskModel() string {
+	return d.IDModel
+}
+
+type MockPartition struct {
+	node            string
+	filesystemLabel string
+	partitionLabel  string
+	partitionUUID   string
+	filesystemUUID  string
+}
+
+var _ = secboot.Partition(&MockPartition{})
+
+func (p *MockPartition) PartitionNode() string {
+	return p.node
+}
+
+func (p *MockPartition) PartitionUUID() string {
+	return p.partitionUUID
+}
+
+func (p *MockPartition) PartitionLabel() string {
+	return p.partitionLabel
+}
+
+func (p *MockPartition) FilesystemUUID() string {
+	return p.filesystemUUID
 }
 
 var _ = Suite(&secbootSuite{})
@@ -540,28 +586,28 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	// restore := disks.MockMountPointDisksToPartitionMapping()
 	// defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
+	mockDiskWithEncDev := &MockDiskMapping{
 		IDModel: "MY SUPER DISK",
-		Structure: []disks.Partition{
+		Structure: []MockPartition{
 			{
-				PartitionLabel:   "name",
-				FilesystemLabel:  "name-enc",
-				PartitionUUID:    "enc-dev-partuuid",
-				FilesystemUUID:   "enc-dev-uuid",
-				KernelDeviceNode: "/dev/sda3",
+				partitionLabel:  "name",
+				node:            "/dev/sda4",
+				filesystemLabel: "name-enc",
+				partitionUUID:   "enc-dev-partuuid",
+				filesystemUUID:  "enc-dev-uuid",
 			},
 		},
 	}
 
-	mockDiskWithoutAnyDev := &disks.MockDiskMapping{}
+	mockDiskWithoutAnyDev := &MockDiskMapping{}
 
-	mockDiskWithUnencDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithUnencDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "name",
-				PartitionUUID:    "unenc-dev-partuuid",
-				FilesystemUUID:   "unenc-dev-uuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda4",
+				filesystemLabel: "name",
+				partitionUUID:   "unenc-dev-partuuid",
+				filesystemUUID:  "unenc-dev-uuid",
 			},
 		},
 	}
@@ -577,7 +623,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
-		disk                *disks.MockDiskMapping
+		disk                *MockDiskMapping
 		oldKeyFormat        bool
 		noKeyFile           bool // when no key file is present, then we expect the key data is in the token
 		errorReadKeyFile    bool
@@ -697,9 +743,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			partUUID := ""
 			if !tc.skipDiskEnsureCheck {
 				for _, p := range tc.disk.Structure {
-					if p.FilesystemLabel == fsLabel {
-						uuid = p.FilesystemUUID
-						partUUID = p.PartitionUUID
+					if p.filesystemLabel == fsLabel {
+						uuid = p.filesystemUUID
+						partUUID = p.partitionUUID
 						break
 					}
 				}
@@ -709,7 +755,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 			devicePath := filepath.Join("/dev/disk/by-partuuid", partUUID)
 			devicePathUUID := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
-			partNode := "/dev/sda3"
+			partNode := "/dev/sda4"
 
 			var keyPath string
 			var keyPath2 string
@@ -962,7 +1008,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					c.Check(modeSet, Equals, 2)
 					c.Assert(unlockRes.FsDevice, Equals, filepath.Join("/dev/mapper", defaultDevice+"-"+randomUUID))
 				} else {
-					c.Assert(unlockRes.FsDevice, Equals, devicePath)
+					c.Assert(unlockRes.FsDevice, Equals, "/dev/sda4")
 				}
 			} else {
 				c.Assert(err, ErrorMatches, tc.err)
@@ -1916,20 +1962,20 @@ func mockSbTPMConnection(c *C, tpmErr error) (*sb_tpm2.Connection, func()) {
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyBadDisk(c *C) {
-	disk := &disks.MockDiskMapping{}
+	disk := &MockDiskMapping{}
 	unlockRes, err := secboot.UnlockEncryptedVolumeUsingProtectorKey(newMockActivateContext(nil), disk, "ubuntu-save", []byte("fooo"))
 	c.Assert(err, ErrorMatches, `filesystem label "ubuntu-save-enc" not found`)
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyUUIDError(c *C) {
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	disk := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "ubuntu-save-enc",
-				FilesystemUUID:   "321-321-321",
-				PartitionUUID:    "123-123-123",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "ubuntu-save-enc",
+				filesystemUUID:  "321-321-321",
+				partitionUUID:   "123-123-123",
 			},
 		},
 	}
@@ -1947,13 +1993,13 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyUUIDError(c *C)
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyOldKeyHappy(c *C) {
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	disk := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "ubuntu-save-enc",
-				FilesystemUUID:   "321-321-321",
-				PartitionUUID:    "123-123-123",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "ubuntu-save-enc",
+				filesystemUUID:  "321-321-321",
+				partitionUUID:   "123-123-123",
 			},
 		},
 	}
@@ -2025,13 +2071,13 @@ func (f *fakeKeyDataReader) ReadableName() string {
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	disk := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "ubuntu-save-enc",
-				FilesystemUUID:   "321-321-321",
-				PartitionUUID:    "123-123-123",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "ubuntu-save-enc",
+				filesystemUUID:  "321-321-321",
+				partitionUUID:   "123-123-123",
 			},
 		},
 	}
@@ -2108,13 +2154,13 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyHappy(c *C) {
 }
 
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingProtectorKeyErr(c *C) {
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	disk := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "ubuntu-save-enc",
-				FilesystemUUID:   "321-321-321",
-				PartitionUUID:    "123-123-123",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "ubuntu-save-enc",
+				filesystemUUID:  "321-321-321",
+				partitionUUID:   "123-123-123",
 			},
 		},
 	}
@@ -2153,13 +2199,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2576,13 +2622,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
 	restore = secboot.MockSbSetKeyRevealer(sb_hooks.SetKeyRevealer)
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2641,15 +2687,15 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
+	mockDiskWithEncDev := &MockDiskMapping{
 		IDModel: "MY SUPER DISK",
-		Structure: []disks.Partition{
+		Structure: []MockPartition{
 			{
-				PartitionLabel:   "device-name",
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				partitionLabel:  "device-name",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2750,13 +2796,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Ac
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2817,13 +2863,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2893,13 +2939,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
@@ -2977,13 +3023,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	})
 	defer restore()
 
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
+	mockDiskWithEncDev := &MockDiskMapping{
+		Structure: []MockPartition{
 			{
-				FilesystemLabel:  "device-name-enc",
-				FilesystemUUID:   "enc-dev-uuid",
-				PartitionUUID:    "enc-dev-partuuid",
-				KernelDeviceNode: "/dev/sda3",
+				node:            "/dev/sda3",
+				filesystemLabel: "device-name-enc",
+				filesystemUUID:  "enc-dev-uuid",
+				partitionUUID:   "enc-dev-partuuid",
 			},
 		},
 	}
