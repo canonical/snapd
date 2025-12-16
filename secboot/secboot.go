@@ -327,3 +327,17 @@ type ResealKeyParams struct {
 	// Whether old ambiguous key formats interpreted as FDE hook keys.
 	HintExpectFDEHook bool
 }
+
+// Partition implementations return partition information required by secboot.
+type Partition interface {
+	PartitionNode() string
+	PartitionUUID() string
+	PartitionLabel() string
+	FilesystemUUID() string
+}
+
+// Disk implementations provide disk information required by secboot.
+type Disk interface {
+	SecbootPartitionWithFsLabel(string) (Partition, error)
+	Model() string
+}
