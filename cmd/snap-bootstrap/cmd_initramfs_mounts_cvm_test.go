@@ -136,8 +136,15 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeOn24PlusHappy(c *
 func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeHappy(c *C, onCore24Plus bool) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
+	s.mockBlkidDisk("gpt", 2)
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-seed-partuuid")
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda2")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
 	restore = main.MockOsGetenv(func(envVar string) string {
 		if onCore24Plus && envVar == "CORE24_PLUS_INITRAMFS" {
@@ -204,7 +211,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeHappy(c *C, onCor
 	defer restore()
 
 	cloudimgActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(provisionTPMCVMCalled, Equals, true)
 		c.Assert(name, Equals, "cloudimg-rootfs")
 		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
@@ -231,7 +238,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeHappy(c *C, onCor
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			"/dev/sda2",
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -277,8 +284,15 @@ func (s *initramfsCVMMountsSuite) TestInitramfsMountsRunCVMModeEphemeralOverlayO
 func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayHappy(c *C, onCore24Plus bool) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{{"ubuntu-seed", "ubuntu-seed-partuuid"}})
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-seed-partuuid")
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda2")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -358,7 +372,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 	defer restore()
 
 	cloudimgActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk secboot.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(provisionTPMCVMCalled, Equals, true)
 		c.Assert(name, Equals, "cloudimg-rootfs")
 		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
@@ -389,7 +403,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			"/dev/sda2",
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -399,7 +413,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 		},
 		{
 			"systemd-mount",
-			"/dev/disk/by-partuuid/cloudimg-rootfs-partuuid",
+			"/dev/sda1",
 			filepath.Join(boot.InitramfsRunMntDir, "cloudimg-rootfs"),
 			"--no-pager",
 			"--no-ask-password",
@@ -419,7 +433,7 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 		},
 		{
 			"systemd-mount",
-			"/dev/disk/by-partuuid/cloudimg-rootfs-partuuid",
+			"/dev/sda1",
 			boot.InitramfsDataDir,
 			"--no-pager",
 			"--no-ask-password",
