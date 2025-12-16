@@ -29,12 +29,12 @@ execute: |
     grep "Requisite=graphical-session\.target" ${DESKTOP_SERVICE}
     grep "BindsTo=graphical-session\.target" ${DESKTOP_SERVICE}
 
-    grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
-    grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
-    grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE1}
+    MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
+    MATCH "PartOf=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
 
-    grep "After=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
-    grep "Requisite=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
-    grep "PartOf=graphical-session\.target" ${DESKTOP_DBUS_SERVICE2}
+    MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
+    MATCH "PartOf=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
 
-    grep "WantedBy=default\.target" ${NORMAL_SERVICE}
+    MATCH "WantedBy=default\.target" < "${NORMAL_SERVICE}"
