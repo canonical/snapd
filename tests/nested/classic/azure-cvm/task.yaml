@@ -111,7 +111,9 @@ execute: |
     echo "cannot detect EFI system partition number"
     exit 1
   fi
-  DISK_DEV="$(echo "$EFI_PART_DEV" | sed 's/[0-9]*$//')"
+  
+  # get the parent device
+  DISK_DEV="/dev/$(remote.exec "lsblk -no PKNAME '$EFI_PART_DEV'")"
 
   # create a new UEFI boot entry for the UKI and set it as the next boot target
   EFIMGR_OUT="$(remote.exec "sudo efibootmgr --create --disk ${DISK_DEV} --part $EFI_PART_NUM --label \"CVM UKI\" --loader /EFI/ubuntu/$KERNEL_EFI")"
