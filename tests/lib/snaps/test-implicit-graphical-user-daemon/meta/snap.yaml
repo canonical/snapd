@@ -2,6 +2,12 @@ name: test-implicit-graphical-user-daemon
 version: 1
 summary: test-snapd-daemon-user-in-graphical-desktop
 
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: session
+    name: org.example.implicit-graphical-daemon
+
 apps:
   graphical:
     command: usr/bin/ls
@@ -20,6 +26,8 @@ apps:
     daemon-scope: user
     restart-condition: on-success
     restart-delay: 2s
+    activates-on:
+      - dbus-slot
 
   graphical-dbus2:
     command: usr/bin/ls
