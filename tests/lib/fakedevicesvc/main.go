@@ -128,8 +128,8 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 		serialReqBody := string(serialReq.Body())
 
-		
 		// Modify serial id for prepare serial request
+		// The JSON was not successfully marshalled
 		if strings.Contains(serialReqBody, "request-id-signature") {
 			serialStr = "3333"
 		}
