@@ -21,7 +21,7 @@ apps:
     restart-condition: on-success
     restart-delay: 2s
 
-  test-snapd-daemon-user-in-graphical-desktop-dbus2:
+  graphical-dbus2:
     command: usr/bin/ls
     plugs:
       - desktop
