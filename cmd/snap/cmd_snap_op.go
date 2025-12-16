@@ -131,17 +131,6 @@ snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
 
-type snapChannel struct {
-	Channel *string `yaml:"channel"`
-}
-
-// snapConfig represents the top-level structure.
-// The "snaps" field is a map where the key is the
-// snap name (like "lxd") and the value is its channel info.
-type snapConfig struct {
-	Snaps map[string]snapChannel `yaml:"snaps"`
-}
-
 type cmdRemove struct {
 	waitMixin
 
@@ -1180,20 +1169,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
 		x.Transaction != client.TransactionPerSnap
 
-	// Ensure --tracking is mutually exclusive
-	if x.Tracking && (x.Hold != "" || x.Unhold || otherFlags) {
-		return errors.New(i18n.G("cannot use --tracking with other flags"))
-	} else if x.Tracking {
-		return x.TrackRefreshes()
-	}
-
-	if x.Hold != "" && (x.Unhold || otherFlags) {
-		return errors.New(i18n.G("cannot use --hold with other flags"))
-	} else if x.Unhold && (x.Hold != "" || otherFlags) {
-		return errors.New(i18n.G("cannot use --unhold with other flags"))
+	if x.Tracking {
+		if x.Hold != "" || x.Unhold || otherFlags {
+			return errors.New(i18n.G("cannot use --tracking with other flags"))
+		}
+		return x.trackRefreshes()
 	} else if x.Hold != "" {
+		if x.Unhold || otherFlags || x.Tracking {
+			return errors.New(i18n.G("cannot use --hold with other flags"))
+		}
 		return x.holdRefreshes()
 	} else if x.Unhold {
+		if x.Hold != "" || otherFlags || x.Tracking {
+			return errors.New(i18n.G("cannot use --unhold with other flags"))
+		}
 		return x.unholdRefreshes()
 	}
 
@@ -1230,39 +1219,48 @@ func (x *cmdRefresh) Execute([]string) error {
 	return x.refreshMany(names, opts)
 }
 
-func (x *cmdRefresh) TrackRefreshes() (err error) {
-	names := installedSnapNames(x.Positional.Snaps)
+func (x *cmdRefresh) trackRefreshes() (err error) {
+	type snapChannel struct {
+		Channel *string `yaml:"channel"` // A pointer is used here so nil can be encoded for snaps lacking a tracked channel
+	}
 
+	names := installedSnapNames(x.Positional.Snaps)
 	snaps, err := x.client.List(names, nil)
 	if err != nil {
+		if err == client.ErrNoSnapsInstalled {
+			if len(names) == 0 {
+				return err
+			} else {
+				return errors.New(i18n.G("no matching snaps installed"))
+			}
+		}
 		return err
 	}
 
-	sort.Sort(snapsByName(snaps))
-
-	config := snapConfig{
-		Snaps: make(map[string]snapChannel),
-	}
+	config := make(map[string]snapChannel, len(snaps))
 
 	// Populate the map
 	for _, snap := range snaps {
-		var channelPtr *string = nil
-
+		var channelPtr *string
 		if snap.TrackingChannel != "" {
-            val := snap.TrackingChannel
-            channelPtr = &val
-        }
+			val := snap.TrackingChannel
+			channelPtr = &val
+		}
 
-		config.Snaps[snap.Name] = snapChannel{
+		config[snap.Name] = snapChannel{
 			Channel: channelPtr,
 		}
 	}
 
 	// Use the YAML encoder directly to Stdout
-    enc := yaml.NewEncoder(Stdout)
-    defer enc.Close()
+	enc := yaml.NewEncoder(Stdout)
+	defer enc.Close()
 
-    return enc.Encode(&config)
+	return enc.Encode(struct {
+		Snaps map[string]snapChannel `yaml:"snaps"`
+	}{
+		Snaps: config,
+	})
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {

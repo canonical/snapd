@@ -1849,70 +1849,70 @@ foo +4.2update1 +17 +436MB +bar +-.*
 	c.Check(n, check.Equals, 1)
 }
 
-type testSnapChannel struct {
-    Channel *string `yaml:"channel"`
-}
-
-type testSnapConfig struct {
-    Snaps map[string]testSnapChannel `yaml:"snaps"`
-}
-
 func mockTrackingResponse(w io.Writer, snaps map[string]string) {
-    type snapResult struct {
-        Name    string `json:"name"`
-        Channel string `json:"tracking-channel"`
-    }
+	type snapResult struct {
+		Name    string `json:"name"`
+		Channel string `json:"tracking-channel"`
+	}
 
-    results := make([]snapResult, 0, len(snaps))
-    for name, channel := range snaps {
-        results = append(results, snapResult{Name: name, Channel: channel})
-    }
+	results := make([]snapResult, 0, len(snaps))
+	for name, channel := range snaps {
+		results = append(results, snapResult{Name: name, Channel: channel})
+	}
 
-    // Wrap in the standard response envelope
-    resp := map[string]any{
-        "type":        "sync",
-        "status-code": 200,
-        "result":      results,
-    }
-    json.NewEncoder(w).Encode(resp)
+	// Wrap in the standard response envelope
+	resp := map[string]any{
+		"type":        "sync",
+		"status-code": 200,
+		"result":      results,
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (s *SnapSuite) TestRefreshTrackingNull(c *check.C) {
-    n := 0
-    s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-        c.Assert(n, check.Equals, 0)
-        n++
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
 
-        // Simulate a response where tracking-channel is empty string
-        mockTrackingResponse(w, map[string]string{
-            "multipass": "", 
-        })
-    })
+		// Simulate a response where tracking-channel is empty string
+		mockTrackingResponse(w, map[string]string{
+			"multipass": "",
+		})
+	})
 
-    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
-    c.Check(err, check.IsNil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
+	c.Check(err, check.IsNil)
 
-    expectedData := testSnapConfig{
-        Snaps: map[string]testSnapChannel{
-            "multipass": {Channel: nil}, 
-        },
-    }
+	var actualData map[string]map[string]map[string]*string
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"multipass": {
+				"channel": nil,
+			},
+		},
+	}
 
-    var actualData testSnapConfig
-    err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
-    c.Assert(err, check.IsNil)
-    c.Check(actualData, check.DeepEquals, expectedData)
+	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
+	c.Assert(err, check.IsNil)
+	c.Check(actualData, check.DeepEquals, expectedData)
 }
 
 func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
-    s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-        w.WriteHeader(200)
-    })
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	})
 
-    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
 
-    c.Check(err, check.NotNil)
-    c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
+	c.Check(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
+}
+
+const expectedChannel = "latest/stable"
+
+func strPtr(s string) *string {
+	return &s
 }
 
 func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
@@ -1925,24 +1925,29 @@ func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		c.Check(r.URL.Query().Get("snaps"), check.Equals, "multipass")
 
-		mockTrackingResponse(w, map[string]string{"multipass": "latest/stable"})
+		mockTrackingResponse(w, map[string]string{"multipass": expectedChannel})
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
 	c.Check(err, check.IsNil)
 
-	expectedChannel := "latest/stable"
-	expectedData := testSnapConfig{
-		Snaps: map[string]testSnapChannel{
-			"multipass": {Channel: &expectedChannel},
+	var actualData map[string]map[string]map[string]*string
+
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"multipass": {
+				"channel": strPtr(expectedChannel),
+			},
 		},
 	}
 
-	var actualData testSnapConfig
 	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
 	c.Assert(err, check.IsNil)
 	c.Check(actualData, check.DeepEquals, expectedData)
 }
+
+const lxdChannel = "5.21/stable"
+const multipassChannel = "latest/stable"
 
 func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
 	n := 0
@@ -1960,51 +1965,70 @@ func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
 		c.Check(snaps, check.DeepEquals, []string{"lxd", "multipass"})
 
 		mockTrackingResponse(w, map[string]string{
-            "lxd":       "5.21/stable",
-            "multipass": "latest/stable",
-        })
+			"lxd":       lxdChannel,
+			"multipass": multipassChannel,
+		})
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass", "lxd"})
 	c.Check(err, check.IsNil)
 
-	lxdChannel := "5.21/stable"
-	multipassChannel := "latest/stable"
+	var actualData map[string]map[string]map[string]*string
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"lxd":       {"channel": strPtr(lxdChannel)},
+			"multipass": {"channel": strPtr(multipassChannel)},
+		},
+	}
 
-	expectedData := testSnapConfig{
-        Snaps: map[string]testSnapChannel{
-            "lxd":       {Channel: &lxdChannel},
-            "multipass": {Channel: &multipassChannel},
-        },
-    }
-
-	var actualData testSnapConfig
 	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
 	c.Assert(err, check.IsNil)
 	c.Check(actualData, check.DeepEquals, expectedData)
 }
 
-func (s *SnapSuite) TestRefreshTrackingInvalid(c *check.C) {
-    n := 0
-    s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-        c.Assert(n, check.Equals, 0)
-        n++
+func (s *SnapSuite) TestRefreshTrackingNoneInstalled(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
 
-        c.Check(r.Method, check.Equals, "GET")
-        c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-        // Verify the client is asking for the specific invalid app
-        c.Check(r.URL.Query().Get("snaps"), check.Equals, "invalidapp")
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 
-        // Return an empty list in "result" to simulate that the snap is not installed
-        mockTrackingResponse(w, map[string]string{})
-    })
+		// Return an empty list in "result" to simulate that the snap is not installed
+		mockTrackingResponse(w, map[string]string{})
+	})
 
-    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
-    
-    // Verify that stdout is empty and the error matches expectations
-    c.Check(s.Stdout(), check.Equals, "")
-    c.Assert(err, check.NotNil)
-    c.Check(err.Error(), check.Equals, "no snaps installed")
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking"})
+
+	// Verify that stdout is empty and the error matches expectations
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "no snaps installed")
+}
+
+func (s *SnapSuite) TestRefreshTrackingNoMatching(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		q := r.URL.Query()["snaps"]
+		c.Assert(len(q), check.Equals, 1)
+		snaps := strings.Split(q[0], ",")
+		sort.Strings(snaps)
+		c.Check(snaps, check.DeepEquals, []string{"invalidapp"})
+
+		mockTrackingResponse(w, map[string]string{})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
+
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "no matching snaps installed")
 }
 
 func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {

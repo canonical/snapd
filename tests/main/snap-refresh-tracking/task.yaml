@@ -5,9 +5,11 @@ details: |
     Tests how snapctl refresh behaves with different channels set.
 
 prepare: |
+    "$TESTSTOOLS"/snaps-state install-local basic-desktop
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
 restore: |
+    snap remove --purge basic-desktop
     snap remove --purge test-snapd-sh-core24
 
 execute: |
@@ -20,4 +22,4 @@ execute: |
     echo "$snap_release" | gojq --yaml-input -r 'snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
     
     snap_release=$(snap refresh --tracking)
-    echo "$snap_release" | gojq --yaml-input . > /dev/null
+    echo "$snap_release" | gojq --yaml-input -r 'snaps | select(length > 1) | .["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
