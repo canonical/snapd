@@ -1,6 +1,6 @@
-name: test-implicit-graphical-user-daemon
+name: implicit-graphical-user-daemon
 version: 1
-summary: test-snapd-daemon-user-in-graphical-desktop
+summary: test snapd daemon user in graphical desktop
 
 slots:
   dbus-slot:
@@ -29,7 +29,7 @@ apps:
     activates-on:
       - dbus-slot
 
-  graphical-dbus2:
+  graphical-dbus-socket:
     command: usr/bin/ls
     plugs:
       - desktop
