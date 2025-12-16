@@ -618,7 +618,7 @@ parts:
       - zlib1g-dev
 
   hdiff:
-    plugin: dump
+    plugin: nil
     source: https://api.github.com/repos/sisong/HDiffPatch/releases/latest
     source-type: zip
     override-pull: |
