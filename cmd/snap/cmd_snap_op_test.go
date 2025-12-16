@@ -1909,13 +1909,12 @@ func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
 	c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
 }
 
-const expectedChannel = "latest/stable"
-
 func strPtr(s string) *string {
 	return &s
 }
 
 func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
+	const expectedChannel = "latest/stable"
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(n, check.Equals, 0) // Expect only one request
@@ -1946,10 +1945,9 @@ func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
 	c.Check(actualData, check.DeepEquals, expectedData)
 }
 
-const lxdChannel = "5.21/stable"
-const multipassChannel = "latest/stable"
-
 func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
+	const lxdChannel = "5.21/stable"
+	const multipassChannel = "latest/stable"
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(n, check.Equals, 0)

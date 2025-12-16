@@ -2,7 +2,7 @@ summary: Check that 'snap refresh' works with the tracking flag
 
 details: |
     Verifies the snap refresh command works as expected when using the --tracking flag.
-    Tests how snapctl refresh behaves with different channels set.
+    Tests how snap refresh behaves with different channels set.
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-desktop
@@ -19,7 +19,9 @@ execute: |
     snap switch test-snapd-sh-core24 --channel latest/stable
 
     snap_release=$(snap refresh --tracking test-snapd-sh-core24)
-    echo "$snap_release" | gojq --yaml-input -r 'snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH '^1$'
     
     snap_release=$(snap refresh --tracking)
-    echo "$snap_release" | gojq --yaml-input -r 'snaps | select(length > 1) | .["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | NOMATCH '^1$'
