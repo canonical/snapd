@@ -10,13 +10,13 @@ details: |
 # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
 systems: [-ubuntu-core-*]
 
-restore: |
-    snap logout || true
-
 skip:
     - reason: "Account store credentials are no available"
       if: |
         [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
+
+restore: |
+    snap logout || true
 
 execute: |
     echo "And the user has logged in"
