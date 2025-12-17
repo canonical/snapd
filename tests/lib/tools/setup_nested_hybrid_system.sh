@@ -127,6 +127,8 @@ run_muinstaller() {
     tests.nested vm stop
     sync
 
+    mv "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" \
+        "$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
     # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
     #       from running, we already have a user so this is not needed
     local image_name
