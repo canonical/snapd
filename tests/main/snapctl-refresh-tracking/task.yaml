@@ -11,6 +11,7 @@ environment:
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    useradd -m user0
 
 restore: |
     snap remove --purge test-snapd-sh-core24
