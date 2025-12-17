@@ -29,4 +29,5 @@ execute: |
     
     snap_release=$(snap refresh --tracking)
     echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["basic-desktop"].channel' | MATCH null
     echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | NOMATCH '^1$'
