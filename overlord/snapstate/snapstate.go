@@ -343,6 +343,71 @@ type installContext struct {
 	NoRestartBoundaries bool
 }
 
+type builder struct {
+	ts   *state.TaskSet
+	tail *state.Task
+	meta map[string]any
+}
+
+func (b *builder) Add(t *state.Task) {
+	tmp := span{b: b}
+	tmp.Add(t)
+}
+
+func (b *builder) NewSpan() span {
+	return span{b: b}
+}
+
+type span struct {
+	b     *builder
+	tasks []*state.Task
+}
+
+func (s *span) SetMetadata(meta map[string]any) {
+	s.b.meta = meta
+}
+
+func (s *span) Add(t *state.Task) {
+	for k, v := range s.b.meta {
+		t.Set(k, v)
+	}
+	s.AddWithoutMetadata(t)
+}
+
+func (s *span) AddWithoutMetadata(t *state.Task) {
+	if s.b.tail != nil {
+		t.WaitFor(s.b.tail)
+	}
+	s.b.tail = t
+	s.b.ts.AddTask(t)
+	s.tasks = append(s.tasks, t)
+}
+
+func (s *span) Splice(t *state.Task) {
+	if s.b.tail != nil {
+		t.WaitFor(s.b.tail)
+	}
+	s.b.tail = t
+}
+
+func (s *span) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
+	s.b.ts.MarkEdge(t, e)
+}
+
+func (s *span) AddTSWithoutMeta(ts *state.TaskSet) {
+	tasks := ts.Tasks()
+	if len(tasks) == 0 {
+		return
+	}
+
+	if s.b.tail != nil {
+		ts.WaitFor(s.b.tail)
+	}
+	s.b.ts.AddAll(ts)
+	s.b.tail = tasks[len(tasks)-1]
+	s.tasks = append(s.tasks, ts.Tasks()...)
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
