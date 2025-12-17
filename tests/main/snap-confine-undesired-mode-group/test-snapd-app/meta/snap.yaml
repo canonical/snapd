@@ -1,9 +1,0 @@
-name: test-snapd-app
-version: 1.0
-architectures: ["all"]
-apps:
-    sh:
-        command: bin/sh
-        # The joystick and opengl plugs are used to ensure that a device cgroup
-        # is created.
-        plugs: [joystick, opengl]

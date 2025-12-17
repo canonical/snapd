@@ -1,4 +1,0 @@
-#!/bin/sh
-
-env > "$SNAP_DATA/env"
-printf "configure" >> "$SNAP_DATA/breadcrumb"

@@ -1,8 +1,0 @@
-name: test-snapd-sh-core18
-version: 1.0
-architectures: ["all"]
-base: core18
-
-apps:
-    sh:
-        command: bin/sh

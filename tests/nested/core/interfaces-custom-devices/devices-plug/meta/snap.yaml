@@ -1,9 +1,0 @@
-name: devices-plug
-version: 1.0
-apps:
-  cmd:
-    command: bin/cmd
-    plugs: [v4l]
-plugs:
-  v4l:
-    interface: custom-device

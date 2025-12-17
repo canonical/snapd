@@ -1,8 +1,0 @@
-name: test-snap
-version: 1
-summary: Basic test snap
-
-apps:
-  checkconn:
-    command: bin/checkconn
-    plugs: [network]

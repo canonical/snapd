@@ -1,9 +1,0 @@
-name: test-app
-version: 1.0
-summary: Basic desktop app test snap
-description: A basic snap to act as a target for the launcher
-
-apps:
-  test-app:
-    command: bin/app.sh
-    plugs: [desktop]

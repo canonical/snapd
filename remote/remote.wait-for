@@ -1,0 +1,310 @@
+#!/bin/bash -e
+
+# The default values have been selected trying to match with most of
+# the wait times in the tests and also trying to follow common sense.
+DEFAULT_WAIT_FOR_SSH_ATTEMPTS=800
+DEFAULT_WAIT_FOR_SSH_WAIT=1
+DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS=200
+DEFAULT_WAIT_FOR_NO_SSH_WAIT=1
+DEFAULT_WAIT_FOR_SNAP_COMMAND_ATTEMPTS=200
+DEFAULT_WAIT_FOR_SNAP_COMMAND_WAIT=1
+DEFAULT_WAIT_FOR_DEV_INIT_ATTEMPTS=60
+DEFAULT_WAIT_FOR_DEV_INIT_WAIT=1
+DEFAULT_WAIT_FOR_REBOOT_ATTEMPTS=120
+DEFAULT_WAIT_FOR_REBOOT_WAIT=5
+
+show_help() {
+    echo "usage: remote.wait-for ssh [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for no-ssh  [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for snap-command [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for reboot [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for device-initialized [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for refresh [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo ""
+    echo "Available options:"
+    echo "  -h --help   show this help message."
+    echo ""
+}
+
+wait_for_ssh() {
+    local attempts=${1:-$DEFAULT_WAIT_FOR_SSH_ATTEMPTS}
+    local wait=${2:-$DEFAULT_WAIT_FOR_SSH_WAIT}
+    echo "remote.wait-for: waiting for ssh connection"
+
+    until remote.exec "true" &>/dev/null; do
+        echo -n '.'
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo ""
+            echo "remote.wait-for: timed out waiting for ssh connection to succeed"
+            return 1
+        fi
+        sleep "$wait"
+    done
+    echo ""
+    echo "remote.wait-for: ssh connection stablished"
+}
+
+wait_for_no_ssh() {
+    local attempts=${1:-$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS}
+    local wait=${2:-$DEFAULT_WAIT_FOR_NO_SSH_WAIT}
+
+    echo "remote.wait-for: waiting for no ssh connection"
+
+    while remote.exec "true" &>/dev/null; do
+        echo -n '.'
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo ""
+            echo "remote.wait-for: timed out waiting for ssh connection to fail"
+            return 1
+        fi
+        sleep "$wait"
+    done
+    echo ""
+    echo "remote.wait-for: ssh connection lost"
+}
+
+
+wait_for_snap_command() {
+    local attempts=${1:-$DEFAULT_WAIT_FOR_SNAP_COMMAND_ATTEMPTS}
+    local wait=${2:-$DEFAULT_WAIT_FOR_SNAP_COMMAND_WAIT}
+
+    echo "remote.wait-for: waiting for snap command"
+
+    while ! remote.exec "command -v snap" &>/dev/null; do
+        echo -n '.'
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo ""
+            echo "remote.wait-for: timed out waiting for snap command to succeed"
+            return 1
+        fi
+        sleep "$wait"
+    done
+    echo ""
+    echo "remote.wait-for: snap command ready"   
+}
+
+get_boot_id() {
+    remote.exec "cat /proc/sys/kernel/random/boot_id"
+}
+
+wait_for_reconnect_ssh() {
+    echo "remote.wait-for: waiting for ssh is recoonected"
+    wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+}
+
+wait_for_reboot() {
+    local attempts=${1:-$DEFAULT_WAIT_FOR_REBOOT_ATTEMPTS}
+    local wait=${2:-$DEFAULT_WAIT_FOR_REBOOT_WAIT}
+    local initial_boot_id=$3
+    local last_boot_id
+
+    echo "remote.wait-for: waiting for reboot"
+
+    if [ -z "$initial_boot_id" ]; then
+        echo "remote.wait-for: initial boot id not set"
+        wait_for_reconnect_ssh
+        return
+    fi
+
+    while [ "$attempts" -ge 0 ]; do
+        echo -n '.'
+        attempts=$(( attempts - 1 ))
+        # The get_boot_id could fail because the connection is broken due to the reboot
+        last_boot_id="$(get_boot_id)" || true
+        # The boot_id is a GUID, i.e. 450d12a1-9811-464e-8c9e-cec1c60e8684
+        if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
+            break
+        fi
+        sleep "$wait"
+    done
+
+    echo ""
+    if [ "$last_boot_id" != "$initial_boot_id" ]; then
+        echo "remote.wait-for: reboot completed"
+    else
+        echo "remote.wait-for: boot id did not change"
+        return 1
+    fi
+
+}
+
+wait_for_device_initialized() {
+    local attempts=${1:-$DEFAULT_WAIT_FOR_DEV_INIT_ATTEMPTS}
+    local wait=${2:-$DEFAULT_WAIT_FOR_DEV_INIT_WAIT}
+
+    echo "remote.wait-for: waiting for device initialized"
+
+    while ! remote.exec "snap changes" | grep -Eq "Done.*Initialize device"; do
+        echo -n '.'
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo ""
+            echo "remote.wait-for: timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+    echo ""
+    echo "remote.wait-for: device initialized"
+}
+
+wait_for_refresh_reboot() {
+    echo "remote.wait-for: waiting for refresh reboot"
+
+    local change_id=${1:-}
+    local boot_id=${2:-}
+    if [ -z "$change_id" ] || [ -z "$boot_id" ]; then
+        echo "remote.wait-for: either change_id or boot_id not provided"
+        return 1
+    fi
+
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+    for _ in $(seq 5); do
+        # The refresh is being executed
+        # It checks a that refresh is in state either Do or Doing (and not Done)
+        if remote.exec "snap changes" | grep -Eq "$change_id.*( Do | Doing ).*(Auto-refresh|Refresh)"; then
+            # The systems is waiting for reboot
+            if remote.exec "sudo journalctl -u snapd -n 30" | grep -q "Waiting for system reboot"; then
+                echo "remote.wait-for: waiting for system reboot"
+                remote.exec "sudo reboot" || true
+                wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
+                break
+            fi
+            echo "remote.wait-for: either auto-refresh or refresh in progress"
+        fi
+
+        # when the refresh has finished and no reboot needed, the function returns
+        if remote.exec "snap changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh completed, reboot not required"
+            return
+        fi
+
+        if remote.exec "snap changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh finished with error"
+            return 1
+        fi
+
+        echo "remote.wait-for: system reboot not detected"
+        sleep 1
+    done
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+    if [ "$(remote.exec "cat /proc/sys/kernel/random/boot_id")" == "$boot_id" ]; then
+        echo "remote.wait-for: boot id did not change"
+        return 1
+    else
+        echo "remote.wait-for: boot id changed, refresh completed with reboot"
+    fi
+}
+
+wait_for_refresh(){
+    echo "remote.wait-for: waiting for either auto-refresh or refresh"
+
+    # It checks a that refresh is in state either Do or Doing (and not Done)
+    change_line="$(remote.exec 'snap changes' | grep -E '( Do | Doing ).*(Auto-refresh|Refresh)' || true)"
+    if [ -n "$change_line" ]; then
+        echo "remote.wait-for: refresh in progress"
+        change_id="$(echo "$change_line" | awk '{ print $1 }')"
+        boot_id="$(remote.exec "cat /proc/sys/kernel/random/boot_id")"
+
+        for _ in $(seq 20); do
+            if wait_for_refresh_reboot "$change_id" "$boot_id"; then
+                break
+            fi
+        done
+        echo ""
+
+        changes="$(remote.exec 'snap changes')"
+        # It checks a that refresh is in state either Do or Doing (and not Done)
+        if echo "$changes" | grep -Eq "$change_id.*( Do | Doing ).*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: still doing refresh, exiting"
+        elif echo "$changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh failed"
+        elif echo "$changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
+            echo "remote.wait-for: refresh completed"
+        else
+            echo "remote.wait-for: refresh results unknown"
+            echo "$changes"
+            return 1
+        fi
+    else
+        echo "remote.wait-for: no refresh in progress"
+    fi
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit
+    fi
+
+    local action wait attempts others
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        ssh)
+            action=wait_for_ssh
+            shift
+            ;;
+        no-ssh)
+            action=wait_for_no_ssh
+            shift
+            ;;
+        snap-command)
+            action=wait_for_snap_command
+            shift
+            ;;
+        reboot)
+            action=wait_for_reboot
+            shift
+            ;;
+        device-initialized)
+            action=wait_for_device_initialized
+            shift
+            ;;
+        refresh)
+            action=wait_for_refresh
+            shift
+            ;;
+        *)
+            echo "remote.wait-for: unsupported parameter $1" >&2
+            exit 1
+            ;;
+    esac
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "remote.wait-for: no such command: $action"
+        show_help
+        exit 1
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait=$2
+                shift 2
+                ;;
+            --attempts|-n)
+                attempts=$2
+                shift 2
+                ;;
+            *)
+                if [ -z "$others" ]; then
+                    others=$1
+                else
+                    others="$others $1"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    "$action" "$attempts" "$wait" "$others"
+}
+
+main "$@"

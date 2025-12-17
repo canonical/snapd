@@ -1,8 +1,0 @@
-name: snap-store
-version: 1.0
-summary: Fake snap-store
-description: A fake snap-store snap to test the snap URI handler
-
-apps:
-    snap-store:
-        command: bin/snap-store

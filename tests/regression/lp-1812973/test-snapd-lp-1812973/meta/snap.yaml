@@ -1,9 +1,0 @@
-name: test-snapd-lp-1812973
-summary: regression test for https://bugs.launchpad.net/snappy/+bug/1812973
-version: 1
-# NOTE: we don't really care about this in the test.
-# architectures: [amd64]
-
-apps:
-    test-snapd-lp-1812973:
-        command: /usr/bin/lp-1812973

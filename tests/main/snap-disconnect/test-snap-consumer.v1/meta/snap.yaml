@@ -1,7 +1,0 @@
-name: test-snap-consumer
-version: 1
-plugs:
-    shared-content-plug:
-        interface: content
-        target: import
-        content: mylib

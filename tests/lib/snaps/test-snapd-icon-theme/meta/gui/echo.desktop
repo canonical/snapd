@@ -1,5 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Echo
-Exec=test-snapd-icon-theme.echo
-Icon=snap.test-snapd-icon-theme.foo

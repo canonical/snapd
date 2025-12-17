@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "stop $1 process"
-rm -f "$SNAP_COMMON/ready"

@@ -1,2 +1,0 @@
-/snap/test-snapd-layout/x1/opt/foo /opt/foo none rbind,rw,x-snapd.origin=layout 0 0
-/snap/test-snapd-content/x2/opt /snap/test-snapd-layout/x1/opt none bind,ro 0 0

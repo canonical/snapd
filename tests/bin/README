@@ -1,4 +1,0 @@
-This directory contains symlinks to tools in tests/lib/tools that are
-frequently used and we want accessible over PATH by spread tests.
-
-See tests/lib/tools/README.

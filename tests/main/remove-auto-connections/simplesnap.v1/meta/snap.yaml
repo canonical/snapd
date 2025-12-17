@@ -1,5 +1,0 @@
-name: simplesnap
-version: 1
-summary: Simple snap
-plugs:
-  home:

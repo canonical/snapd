@@ -1,8 +1,0 @@
-name: test-snapd-docker-support-app
-version: 1
-
-apps:
-    test-snapd-docker-support:
-        command: bin/test-snapd-docker-support
-        plugs:
-            - docker-support

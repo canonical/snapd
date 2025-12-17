@@ -1,5 +1,0 @@
-#!/bin/sh -e
-
-if [ -e /root/disabled-svcs-kept-fail ]; then
-    exit 1
-fi

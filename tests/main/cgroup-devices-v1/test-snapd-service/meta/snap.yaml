@@ -1,7 +1,0 @@
-name: test-snapd-service
-version: 1.0
-apps:
-    test-snapd-service:
-        command: bin/service
-        daemon: simple
-        plugs: [joystick]

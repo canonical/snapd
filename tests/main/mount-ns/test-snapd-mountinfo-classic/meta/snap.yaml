@@ -1,8 +1,0 @@
-name: test-snapd-mountinfo-classic
-summary: app for displaying mountinfo inside the snap mount namespace
-version: 1
-architecture: [all]
-confinement: classic
-apps:
-    test-snapd-mountinfo-classic:
-        command: bin/mountinfo

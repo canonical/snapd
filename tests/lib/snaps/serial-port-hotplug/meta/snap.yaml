@@ -1,9 +1,0 @@
-name: serial-port-hotplug
-version: 1.0
-summary: Basic serial-port consumer snap
-description: A basic snap declaring a plug on serial-port
-
-apps:
-  consumer:
-    command: bin/consumer
-    plugs: [serial-port]

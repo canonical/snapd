@@ -1,7 +1,0 @@
-source lib.exp0
-
-# download with 3+ chars completes store stuff
-chat "snap download test-\t\t" "test-assumes"
-
-cancel
-brexit

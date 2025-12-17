@@ -1,6 +1,0 @@
-name: test-snapd-service-try
-version: 1.0
-apps:
- service:
-  command: bin/service
-  daemon: simple

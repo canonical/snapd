@@ -1,4 +1,0 @@
-version=3
-opts=filenamemangle=s/.+\/snapd_(\d\S*)\.no-vendor\.tar\.xz/snapd-\$1\.tar\.gz/,\
-uversionmangle=s/(\d)[_\.\-\+]?(RC|rc|pre|dev|beta|alpha)[.]?(\d*)$/\$1~\$2\$3/ \
-  https://github.com/snapcore/snapd/releases .*/snapd_(\d\S*)\.no-vendor\.tar\.xz

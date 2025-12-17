@@ -1,6 +1,0 @@
-[Desktop]
-Name=test-desktop
-Comment=test-desktop comment
-Exec=test-policy-app-consumer.desktop
-Terminal=False
-Type=Application

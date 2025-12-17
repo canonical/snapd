@@ -1,7 +1,0 @@
-#cloud-config
-users:
-  - default
-  - name: normal-user
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    lock_passwd: false
-    plain_text_passwd: "ubuntu"

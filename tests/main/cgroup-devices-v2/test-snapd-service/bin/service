@@ -1,6 +1,0 @@
-#!/bin/sh
-rm -f "$SNAP_COMMON/remove-me"
-while true; do
-    echo "running"
-    sleep 10
-done

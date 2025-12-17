@@ -1,5 +1,0 @@
-# -*- sh -*-
-
-complete -A directory -o dirnames test-snapd-complexion
-complete -A directory -o dirnames test-snapd-complexion.two
-

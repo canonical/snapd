@@ -1,9 +1,0 @@
-name: test-snapd-with-configure
-version: 1.0
-summary: Basic snap with a configure hook
-description: A basic snap with a passthrough configure hook
-
-apps:
-  some:
-    command: service
-    daemon: simple

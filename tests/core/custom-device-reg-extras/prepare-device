@@ -1,5 +1,0 @@
-#!/bin/sh
-snapctl set device-service.url=http://localhost:11029
-snapctl set device-service.headers='{"X-Use-Proposed": "yes"}'
-snapctl set registration.proposed-serial="Y1234"
-snapctl set registration.body='mac: "00:00:00:00:ff:00"'

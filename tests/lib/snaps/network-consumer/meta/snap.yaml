@@ -1,9 +1,0 @@
-name: network-consumer
-version: 1.0
-summary: Basic network consumer snap
-description: A basic snap declaring a plug on network
-
-apps:
-  network-consumer:
-    command: bin/consumer
-    plugs: [network]

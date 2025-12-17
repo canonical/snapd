@@ -1,8 +1,0 @@
-# this validation set is uploaded to the store for use in this test
-account-id: test-snapd
-name: test-snapd-invalid-hello-world
-sequence: 1
-snaps:
-- id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
-  name: hello-world
-  presence: invalid

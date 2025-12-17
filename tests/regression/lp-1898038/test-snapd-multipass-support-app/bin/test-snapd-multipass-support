@@ -1,2 +1,0 @@
-#!/bin/sh
-/sbin/apparmor_parser --skip-kernel-load "$SNAP/test-snapd-multipass-support.profile"

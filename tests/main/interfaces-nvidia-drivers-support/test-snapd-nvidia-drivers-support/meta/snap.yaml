@@ -1,9 +1,0 @@
-name: test-snapd-nvidia-drivers-support
-version: 1.0
-summary: Basic nvidia-drivers-support snap
-description: A basic snap which creates NVIDIA chardevs
-
-apps:
-  check:
-    command: bin/check
-    plugs: [nvidia-drivers-support]

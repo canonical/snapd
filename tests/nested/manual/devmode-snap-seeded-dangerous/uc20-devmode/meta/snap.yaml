@@ -1,9 +1,0 @@
-name: test-snapd-devmode-core20
-version: 1.0
-base: core20
-summary: Basic core20 snap with devmode confinement
-description: A basic buildable snap that asks for devmode confinement
-confinement: devmode
-apps:
-  test-snapd-devmode-core20:
-    command: true

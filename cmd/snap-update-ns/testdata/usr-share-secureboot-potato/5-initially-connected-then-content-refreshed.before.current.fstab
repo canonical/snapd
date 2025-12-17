@@ -1,5 +1,0 @@
-tmpfs / tmpfs x-snapd.origin=rootfs 0 0
-/snap/test-snapd-content/x1 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0
-tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,mode=0755,uid=0,gid=0 0 0
-/usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
-/snap/test-snapd-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0

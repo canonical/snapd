@@ -1,2 +1,0 @@
-This directory contains the vendored C code - with `go mod` it is
-not possible to vendor non-go directories anymore.

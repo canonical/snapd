@@ -1,2 +1,0 @@
-#!/bin/sh
-exec cat /proc/self/cgroup > "$SNAP_COMMON/configure.cgroup"

@@ -1,8 +1,0 @@
-[Plymouth Theme]
-Name=Ubuntu Core
-Description=The default theme for Ubuntu Core.
-ModuleName=script
-
-[script]
-ImageDir=/
-ScriptFile=/usr/share/plymouth/themes/ubuntu-core/ubuntu-core.script
