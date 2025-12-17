@@ -19,7 +19,7 @@ execute: |
     snap switch test-snapd-sh-core24 --channel latest/stable
 
     snap_release=$(snap refresh --tracking test-snapd-sh-core24)
-    
+
     echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
     echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH '^1$'
 
@@ -35,4 +35,4 @@ execute: |
     echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
     echo "$snap_release" | gojq --yaml-input -r '.snaps["basic-desktop"].channel' | MATCH null
 
-    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH '$count'
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH "^${count}\$"
