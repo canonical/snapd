@@ -856,7 +856,9 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 	return nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
+// doInstallLegacy is the original implementation of doInstall, preserved here
+// for review comparison with the new choreographer-based approach.
+func doInstallLegacy(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -1379,6 +1381,178 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups 
 	installSet.MarkEdge(healthCheck, EndEdge)
 
 	return installSet, nil
+}
+
+func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
+	if ic.DeviceCtx == nil {
+		dctx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		ic.DeviceCtx = dctx
+	}
+
+	if err := checkInstallPreconditions(st, snapst, snapsup, ic); err != nil {
+		return nil, err
+	}
+
+	// TODO: this feels like a hack that we could drop in some way?
+	if snapst.IsInstalled() {
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+
+		// adjust plugs-only hint to match existing behavior
+		snapsup.PlugsOnly = snapsup.PlugsOnly && len(info.Slots) == 0
+	}
+
+	// note that because we are modifying the snap state inside of
+	// shouldPreDownloadSnap, this check must be located after the precondition
+	// checks done above
+	busyErr, err := shouldPreDownloadSnap(st, snapsup, snapst)
+	if err != nil {
+		return nil, err
+	}
+
+	// snap is busy, return a pre-download task set and the busyErr for the
+	// caller to handle
+	if busyErr != nil {
+		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+		if err != nil {
+			return nil, err
+		}
+		for _, task := range existing {
+			switch task.Status() {
+			case state.DoStatus, state.DoingStatus:
+				return nil, busyErr
+			}
+		}
+
+		ts := state.NewTaskSet()
+
+		preDownload := st.NewTask("pre-download-snap", fmt.Sprintf(
+			i18n.G("Pre-download snap %q (%s) from channel %q"),
+			snapsup.InstanceName(), snapsup.Revision(), snapsup.Channel))
+		preDownload.Set("snap-setup", snapsup)
+
+		preDownload.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
+		ts.AddTask(preDownload)
+
+		return ts, busyErr
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if experimentalGateAutoRefreshHook && snapst.IsInstalled() {
+		// If this snap was held, then remove it from snaps-hold.
+		if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
+			return nil, err
+		}
+	}
+
+	choreo := newSnapInstallChoreographer(snapst, snapsup, compsups)
+	_, ts, err := choreo.choreograph(st, ic)
+	if err != nil {
+		return nil, err
+	}
+
+	return ts, nil
+}
+
+// shouldPreDownloadSnap returns a timedBusySnapError when we should enqueue a
+// pre-download-snap task for the given snap revision. A nil busyErr means no
+// pre-download is needed. Errors unrelated to a busy snap are returned via err.
+func shouldPreDownloadSnap(st *state.State, snapsup *SnapSetup, snapst *SnapState) (*timedBusySnapError, error) {
+	if !snapst.IsInstalled() {
+		return nil, nil
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if !experimentalRefreshAppAwareness || excludeFromRefreshAppAwareness(snapsup.Type) || snapsup.Flags.IgnoreRunning {
+		return nil, nil
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
+		var busyErr *timedBusySnapError
+		if !errors.As(err, &busyErr) || !snapsup.IsAutoRefresh {
+			return nil, err
+		}
+		return busyErr, nil
+	}
+
+	return nil, nil
+}
+
+// checkInstallPreconditions performs the pre-flight checks currently done at the
+// start of doInstall. It may mutate snapsup (e.g. PlugsOnly tweak) to keep
+// semantics identical to the existing flow.
+func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *SnapSetup, ic installContext) error {
+	if snapsup.InstanceName() == "system" {
+		return fmt.Errorf("cannot install reserved snap name 'system'")
+	}
+
+	if snapst.IsInstalled() && !snapst.Active {
+		return fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
+	}
+
+	if snapsup.Flags.Classic {
+		if !release.OnClassic {
+			return fmt.Errorf("classic confinement is only supported on classic systems")
+		}
+		if !dirs.SupportsClassicConfinement() {
+			return fmt.Errorf(i18n.G("classic confinement requires snaps under /snap or symlink from /snap to %s"), dirs.SnapMountDir)
+		}
+	}
+
+	if !snapst.IsInstalled() {
+		if err := checkSnapAliasConflict(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+	}
+
+	if err := isParallelInstallable(snapsup); err != nil {
+		return err
+	}
+
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.FromChange); err != nil {
+		return err
+	}
+
+	if snapst.IsInstalled() {
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		// When downgrading snapd we want to make sure that it's an exclusive change.
+		if snapsup.SnapName() == "snapd" {
+			res, err := strutil.VersionCompare(info.Version, snapsup.Version)
+			if err != nil {
+				return fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", info.Version, snapsup.Version, err)
+			}
+			// If snapsup.Version was smaller, 1 is returned.
+			if res == 1 {
+				if err := checkChangeConflictExclusiveKinds(st, "snapd downgrade", ic.FromChange); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func requiresKmodSetup(snapst *SnapState, compsups []ComponentSetup) bool {
@@ -2968,7 +3142,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, &up.Setup, up.Components, installContext{
+		ts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
 			FromChange:          opts.FromChange,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
@@ -4895,7 +5069,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	return doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4943,7 +5117,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		newInfo := result.Info
 
 		// start by installing the new snap
-		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
+		tsInst, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
