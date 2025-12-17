@@ -441,7 +441,7 @@ jobs:
                     echo "Adding failed test line to filtered log"
                     echo "GRAFANA FAILED: $line $ACTIONS_URL" | tee -a "$FILTERED_LOG_FILE"
                 fi
-            done <<< $(jq -r '.items[] | select(.level == "task" and .success == false and .skipped == false) | "\(.verb) \(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u)
+            done <<< $(jq -r '.items[] | select(.level == "task" and .success == false and .skipped == false and .verb != "checking") | "\(.verb) \(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u)
         else
             echo "No spread log found, skipping errors reporting"
         fi
@@ -454,10 +454,11 @@ jobs:
               # Tests to be re-executed are:
               # - Aborted tests (level is empty and aborted is true)
               # - Failed tasks (level is task and success is false)
+              # - Need to be ignored the checking verb (checking skip condition)
               # The format is backend:system:name:variant (variant is optional)
               # Duplicates are removed and the list is sorted
               # The list is saved in the FAILED_TESTS_FILE
-              jq -r '.items[] | select(.level == "task" and .success == false and .skipped == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u | xargs > "$FAILED_TESTS_FILE"
+              jq -r '.items[] | select(.level == "task" and .success == false and .skipped == false and .verb != "checking") | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' results.json | sort -u | xargs > "$FAILED_TESTS_FILE"
 
               if [ -n "${{ inputs.upload-artifacts }}" ] && \
                   [ -d "$ARTIFACTS_FOLDER" ] && \
