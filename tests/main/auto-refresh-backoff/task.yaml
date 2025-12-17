@@ -13,8 +13,9 @@ environment:
     SNAP_TWO_ID: WOc8eDNKuk1POWZIfcCX08smZrUGY0QV
 
 skip:
-    - if: [ "$TRUST_TEST_KEYS" = "false" ]
-      reason: This test needs test keys to be trusted
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
 prepare: |
     # Install snaps as baseline since we want to test what happens in refreshes not installs

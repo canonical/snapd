@@ -14,8 +14,9 @@ restore: |
     snap logout || true
 
 skip:
-    - if: [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
-      reason: "Account store credentials are no available"
+    - reason: "Account store credentials are no available"
+      if: |
+        [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
 
 execute: |
     echo "And the user has logged in"
