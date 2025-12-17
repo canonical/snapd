@@ -13,12 +13,11 @@ systems: [-ubuntu-core-*]
 restore: |
     snap logout || true
 
-execute: |
-    echo "Given account store credentials are available"
-    if [ -z "$SPREAD_STORE_USER" ] || [  -z "$SPREAD_STORE_PASSWORD" ]; then
-        exit 0
-    fi
+skip:
+    - if: [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
+      reason: "Account store credentials are no available"
 
+execute: |
     echo "And the user has logged in"
     expect -f "$TESTSLIB"/successful_login.exp
 

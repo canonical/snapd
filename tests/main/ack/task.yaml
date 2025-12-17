@@ -5,11 +5,11 @@ details: |
 
 systems: [-ubuntu-core-*-arm-*]
 
+skip:
+    - if: [ "$TRUST_TEST_KEYS" = "false" ]
+      reason: This test needs test keys to be trusted
+
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     echo "Ack the test store key in case"
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
