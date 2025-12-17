@@ -1244,7 +1244,7 @@ func (x *cmdRefresh) trackRefreshes() (err error) {
 	for _, snap := range snaps {
 		var channelPtr *string
 		if snap.TrackingChannel != "" {
-			val := snap.TrackingChannel		// Prior to Go 1.21, taking the address of loop variable directly would lead to every iteration pointing to the same memory location
+			val := snap.TrackingChannel // Prior to Go 1.21, taking the address of loop variable directly would lead to every iteration pointing to the same memory location
 			channelPtr = &val
 		}
 
