@@ -2,6 +2,10 @@ summary: this is the summary
 
 details: details
 
+skip:
+    - reason: This is the skip reason
+      if: [ -d /path/to/dir ]
+
 execute: |
     echo "execute"
 

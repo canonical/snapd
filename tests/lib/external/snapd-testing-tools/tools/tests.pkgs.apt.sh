@@ -10,7 +10,7 @@ remap_one() {
             fi
             ;;
         printer-driver-cups-pdf)
-            if (os.query is-debian && ! os.query is-debian sid) || os.query is-trusty; then
+            if os.query is-debian || os.query is-trusty; then
                 echo "cups-pdf"
             else
                 echo "$1"
@@ -27,8 +27,10 @@ remap_one() {
                 echo cpp:i386
             elif os.query is-xenial || os.query is-bionic; then
                 echo cpp-5:i386
-            else
+            elif os.query is-jammy || os.query is-focal || os.query is-noble; then
                 echo cpp-9:i386
+            else
+                echo cpp-11:i386
             fi
             ;;
         *)
