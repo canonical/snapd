@@ -83,6 +83,28 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
+# Allow managing per-link NTP settings via systemd-networkd
+dbus (send)
+    bus=system
+    path=/org/freedesktop/network1
+    interface=org.freedesktop.network1.Manager
+    member="SetLinkNTP"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/network1
+    interface=org.freedesktop.network1.Manager
+    member="RevertLinkNTP"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/network1
+    interface=org.freedesktop.network1.Manager
+    member="GetLinkByName"
+    peer=(label=unconfined),
+
 # As the core snap ships the timedatectl utility we can also allow
 # clients to use it now that they have access to the relevant
 # D-Bus method for controlling network time synchronization via
