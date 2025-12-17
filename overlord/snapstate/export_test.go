@@ -120,7 +120,7 @@ var (
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshScheduleStr
-	DoInstall              = doInstall
+	DoInstallOrPreDownload = doInstallOrPreDownload
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
