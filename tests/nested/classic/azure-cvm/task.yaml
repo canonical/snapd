@@ -5,8 +5,6 @@ details: |
   the Azure CVM kernel
 
 # Run this test for jammy+
-# The azure-fde kernel does not currently work, as when installed the
-# kernel itself does not actually seem to be installed.
 systems:
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*
@@ -92,7 +90,7 @@ execute: |
 
   UKI_FILE="$(remote.exec "find /boot -maxdepth 1 -type f -name 'kernel.efi*-azure-fde'" | head -n1)"
   if [ -z "$UKI_FILE" ]; then
-    echo "expected kernel.efi*-azure-fde was not found in /boot: $UKI_FILE"
+    echo "expected kernel.efi*-azure-fde was not found in /boot"
     exit 1
   fi
 
@@ -113,7 +111,7 @@ execute: |
   fi
   
   # get the parent device
-  DISK_DEV="/dev/$(remote.exec "lsblk -no PKNAME '$EFI_PART_DEV'")"
+  DISK_DEV="/dev/$(remote.exec "lsblk -no PKNAME \"$EFI_PART_DEV\"")"
 
   # create a new UEFI boot entry for the UKI and set it as the next boot target
   EFIMGR_OUT="$(remote.exec "sudo efibootmgr --create --disk ${DISK_DEV} --part $EFI_PART_NUM --label \"CVM UKI\" --loader /EFI/ubuntu/$KERNEL_EFI")"
