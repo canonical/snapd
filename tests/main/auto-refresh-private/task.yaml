@@ -11,7 +11,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 skip:
-    - reason: "Account store credentials are no available"
+    - reason: "Account store credentials are not available"
       if: |
         [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
 
