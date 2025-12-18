@@ -1331,7 +1331,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 
 	var hasUserService, usesDbusActivation bool
 	for _, app := range info.Apps {
-		if app.IsService() && app.DaemonScope == snap.UserDaemon {
+		if app.IsService() && app.DaemonScope.IsUserDaemon() {
 			hasUserService = true
 		}
 		if len(app.ActivatesOn) != 0 {

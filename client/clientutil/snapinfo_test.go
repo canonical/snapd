@@ -194,7 +194,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 		},
 	}
 	si.Apps = map[string]*snap.AppInfo{
-		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
+		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemonScope},
 		"app": {Snap: si, Name: "app", CommonID: "common.id"},
 	}
 	// validity
@@ -222,7 +222,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 			Snap:        "the-snap_insta",
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 	})
 	// not called on inactive snaps
@@ -241,7 +241,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 		},
 	}
 	si.Apps = map[string]*snap.AppInfo{
-		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
+		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemonScope},
 	}
 	// make it active
 	err := os.MkdirAll(si.MountDir(), 0755)
@@ -260,7 +260,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 			Snap:        "the-snap_insta",
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 			Enabled:     true,
 			Active:      true,
 		},
@@ -280,7 +280,7 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 
 	ai = client.AppInfo{
 		Daemon:      "simple",
-		DaemonScope: snap.UserDaemon,
+		DaemonScope: snap.UserDaemonScope,
 	}
 	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "user")
 
@@ -320,7 +320,7 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated,dbus-activated")
 	ai = client.AppInfo{
 		Daemon:      "oneshot",
-		DaemonScope: snap.UserDaemon,
+		DaemonScope: snap.UserDaemonScope,
 		Activators: []client.AppActivator{
 			{Type: "dbus"},
 			{Type: "socket"},

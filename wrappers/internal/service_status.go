@@ -96,10 +96,10 @@ func appServiceUnitsMany(apps []*snap.AppInfo) (sys, usr []string) {
 			continue
 		}
 		svc, activators := SnapServiceUnits(app)
-		if app.DaemonScope == snap.SystemDaemon {
+		if app.DaemonScope.IsSystemDaemon() {
 			sys = append(sys, svc)
 			sys = append(sys, activators...)
-		} else if app.DaemonScope == snap.UserDaemon {
+		} else if app.DaemonScope.IsUserDaemon() {
 			usr = append(usr, svc)
 			usr = append(usr, activators...)
 		}
@@ -171,7 +171,7 @@ func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][
 			if !app.IsService() {
 				continue
 			}
-			if app.DaemonScope != snap.UserDaemon {
+			if !app.DaemonScope.IsUserDaemon() {
 				continue
 			}
 			svc := constructStatus(app, stsMap)
@@ -214,7 +214,7 @@ func querySystemServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo, un
 		if !app.IsService() {
 			continue
 		}
-		if app.DaemonScope != snap.SystemDaemon {
+		if !app.DaemonScope.IsSystemDaemon() {
 			continue
 		}
 

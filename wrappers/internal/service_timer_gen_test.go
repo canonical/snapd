@@ -67,7 +67,7 @@ WantedBy=timers.target
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "10:00-12:00/2",
@@ -92,7 +92,7 @@ func (s *serviceTimerUnitGenSuite) TestServiceTimerUnitBadTimer(c *C) {
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "bad-timer",
@@ -134,7 +134,7 @@ Type=%s
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "10:00-12:00,,mon,23:00~01:00/2",

@@ -98,7 +98,7 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 	}
 
 	var notes = make([]string, 0, 4)
-	if app.DaemonScope == snap.UserDaemon {
+	if app.DaemonScope.IsUserDaemon() {
 		notes = append(notes, "user")
 	}
 	var seenTimer, seenSocket, seenDbus bool

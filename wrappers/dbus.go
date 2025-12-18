@@ -139,11 +139,11 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 				Content: content,
 				Mode:    0644,
 			}
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
+			switch {
+			case app.DaemonScope.IsSystemDaemon():
 				systemContent[filename] = fileState
 				systemServices = append(systemServices, filename)
-			case snap.UserDaemon:
+			case app.DaemonScope.IsUserDaemon():
 				sessionContent[filename] = fileState
 				sessionServices = append(sessionServices, filename)
 			}
