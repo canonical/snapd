@@ -1,0 +1,31 @@
+summary: Check that 'snapctl refresh' works with the tracking flag
+
+details: |
+    Verifies the snapctl refresh command works as expected when using the --tracking flag.
+    The test checks that other snapctl refresh commands still require root privileges, and
+    tests how snapctl refresh behaves with different channels set.
+
+environment:
+    USER/root: root
+    USER/test: test
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    tests.session -u test prepare
+
+restore: |
+    snap remove --purge test-snapd-sh-core24
+    tests.session -u test restore
+
+execute: |
+    snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
+    echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "null"
+
+    snap switch test-snapd-sh-core24 --channel latest/stable
+    snapd_release=$(test-snapd-sh-core24.sh -c 'snapctl refresh --tracking')
+    echo "$snapd_release" | gojq --yaml-input -r .channel | MATCH "latest/stable"
+
+    if [ "$USER" != "root" ]; then
+        not tests.session -u test exec test-snapd-sh-core24.sh -c 'snapctl refresh --pending' > user-err-pending.log 2>&1
+        MATCH "^error: non-root users can only use --tracking with the refresh command$" < user-err-pending.log
+    fi
