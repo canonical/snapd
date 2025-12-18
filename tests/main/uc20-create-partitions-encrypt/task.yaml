@@ -16,9 +16,8 @@ details: |
     recovery modes, and also it is possible to add/remove new keys. Finally
     check the disk-mapping.json has expected contents.
 
-# use the same system and tooling as uc20
-# TODO: revert skip for ubuntu-23*
-systems: [ubuntu-20.*, ubuntu-22.*]
+systems:
+  - ubuntu-2*
 
 environment:
     SNAPD_DEBUG: "1"
@@ -66,12 +65,15 @@ prepare: |
     losetup -c "${LOOP}"
     partx -u "${LOOP}"
 
-    echo "Get the UC20 gadget"
-    if os.query is-focal; then
-        snap download --channel=20/edge pc
-    elif os.query is-ubuntu 22.04; then
-        snap download --channel=22/edge pc
+    echo "Get the UC gadget"
+    if os.query is-ubuntu-lt 22.04; then
+        VERSION=20
+    elif os.query is-ubuntu-ge 22.04 && os.query is-ubuntu-lt 24.04; then
+        VERSION=22
+    elif os.query is-ubuntu-ge 24.04; then
+        VERSION=24
     fi
+    snap download --channel="${VERSION}/edge" pc
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
@@ -116,9 +118,12 @@ execute: |
         exit
     fi
 
-    channel=20
-    if os.query is-ubuntu-ge 22.04; then
-        channel=22
+    if os.query is-ubuntu-lt 22.04; then
+        VERSION=20
+    elif os.query is-ubuntu-ge 22.04 && os.query is-ubuntu-lt 24.04; then
+        VERSION=22
+    elif os.query is-ubuntu-ge 24.04; then
+        VERSION=24
     fi
 
     # this test simulates a reinstall, to clear the TPM this requires
@@ -168,7 +173,7 @@ execute: |
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p2 .*size=\s*2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,.*ubuntu-seed"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p3 .*size=\s*1536000, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-boot"
-    if [ "$channel" = "20" ]; then
+    if [ "${VERSION}" = "20" ]; then
         sfdisk -d "$LOOP" | MATCH "^${LOOP}p4 .*size=\s*32768, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-save"
         sfdisk -d "$LOOP" | MATCH "^${LOOP}p5 .*size=\s*15500753, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-data"
     else
@@ -261,7 +266,7 @@ execute: |
     gojq -r '.pc.structure[3]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-save-enc
     gojq -r '.pc.structure[3]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     gojq -r '.pc.structure[3].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    if [ "$channel" = "20" ]; then
+    if [ "${VERSION}" = "20" ]; then
         gojq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
         gojq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 16777216
     else
@@ -275,7 +280,7 @@ execute: |
     gojq -r '.pc.structure[4]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-data-enc
     gojq -r '.pc.structure[4]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     gojq -r '.pc.structure[4].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    if [ "$channel" = "20" ]; then
+    if [ "${VERSION}" = "20" ]; then
         gojq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2063597568
         gojq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 7936385536
     else
