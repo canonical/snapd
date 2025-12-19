@@ -12,12 +12,12 @@ environment:
     SNAP_TWO: test-snapd-sh
     SNAP_TWO_ID: WOc8eDNKuk1POWZIfcCX08smZrUGY0QV
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     # Install snaps as baseline since we want to test what happens in refreshes not installs
     echo "Given installed snaps"
     snap install "$SNAP_ONE" "$SNAP_TWO"
