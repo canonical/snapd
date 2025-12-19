@@ -111,6 +111,14 @@ func (s *taskChainSpan) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
 	s.b.ts.MarkEdge(t, e)
 }
 
+// UpdateEdgeIfUnset marks the task as an edge only if the edge is not already set.
+func (s *taskChainSpan) UpdateEdgeIfUnset(t *state.Task, e state.TaskSetEdge) {
+	if s.b.ts.MaybeEdge(e) != nil {
+		return
+	}
+	s.b.ts.MarkEdge(t, e)
+}
+
 // AppendTSWithoutData adds all tasks from another task set without applying
 // task data.
 //

@@ -195,6 +195,32 @@ func (s *taskChainBuilderTestSuite) TestSpanUpdateEdge(c *C) {
 	c.Check(edgeTask, Equals, second)
 }
 
+func (s *taskChainBuilderTestSuite) TestSpanUpdateEdgeIfUnset(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	b := newTaskChainBuilder()
+	span := b.NewSpan()
+
+	first := st.NewTask("task-1", "first")
+	second := st.NewTask("task-2", "second")
+
+	edge := state.TaskSetEdge("begin-edge")
+
+	// edge gets set when it's unset
+	span.UpdateEdgeIfUnset(first, edge)
+
+	edgeTask := b.TaskSet().MaybeEdge(edge)
+	c.Check(edgeTask, Equals, first)
+
+	// attempting to set the same edge again does nothing
+	span.UpdateEdgeIfUnset(second, edge)
+
+	edgeTask = b.TaskSet().MaybeEdge(edge)
+	c.Check(edgeTask, Equals, first)
+}
+
 func (s *taskChainBuilderTestSuite) TestSpanAppendTSWithoutData(c *C) {
 	st := state.New(nil)
 	st.Lock()
