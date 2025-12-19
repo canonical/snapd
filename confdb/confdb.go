@@ -1054,8 +1054,29 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
-func (v *View) Set(databag Databag, request string, value any) error {
+func pathContainsHigherLevelVisibility(accessors []Accessor, visibility Visibility, schema DatabagSchema) (bool, error) {
+	if visibility == SecretVisibility {
+		// There is nothing higher than secret visibility, so no schema has a higher level
+		return false, nil
+	}
+	for i := range accessors {
+		nested, err := schema.SchemaAt(accessors[:i+1])
+		if err != nil {
+			return false, err
+		}
+		for _, n := range nested {
+			if n.Visibility() > visibility {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// Set sets the named view to a specified non-nil value. It will only set the value if
+// the supplied visibility is not higher than any part of the request path. If the path
+// contains a higher visibility, then it will return an UnAuthorizedAccessError
+func (v *View) Set(databag Databag, request string, value any, visibility Visibility) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
 	}
@@ -1090,6 +1111,13 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	var expandedMatches []expandedMatch
 	suffixes := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
+		contains, err := pathContainsHigherLevelVisibility(match.storagePath, visibility, v.schema.DatabagSchema)
+		if err != nil {
+			return fmt.Errorf("internal error: %s", err)
+		}
+		if contains {
+			return &UnAuthorizedAccessError{operation: "set", request: request, viewID: v.ID()}
+		}
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
 			return badRequestErrorFrom(v, "set", request, err.Error())
