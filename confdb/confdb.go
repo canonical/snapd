@@ -160,6 +160,22 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
+type UnAuthorizedAccessError struct {
+	viewID    string
+	operation string
+	request   string
+}
+
+func (e *UnAuthorizedAccessError) Error() string {
+	var reqStr string
+	if e.request != "" {
+		reqStr = "\"" + e.request + "\""
+	} else {
+		reqStr = "empty path"
+	}
+	return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+}
+
 // Databag controls access to the confdb data storage.
 type Databag interface {
 	Get(path []Accessor, constraints map[string]string) (any, error)
@@ -1655,10 +1671,13 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 }
 
 // Get returns the view value identified by the request after the constraints
-// have been applied to any matching filter in the storage path. If the request
-// cannot be matched against any rule, it returns a NoMatchError, and if no data
-// is stored for the request, a NoDataError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
+// have been applied to any matching filter in the storage path. All data above
+// the specified level of visibility will be removed. If the request cannot
+// be matched against any rule, it returns a NoMatchError, and if no data
+// is stored for the request, a NoDataError is returned. If data would have
+// been returned but was removed due to the visibility level, then a
+// NoDataPermissionError is returned.
+func (v *View) Get(databag Databag, request string, constraints map[string]string, visibility Visibility) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1678,6 +1697,7 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		return nil, err
 	}
 
+	var finalError error
 	var merged any
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath, constraints)
@@ -1693,6 +1713,17 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		if err != nil {
 			return nil, err
 		}
+		// Only prune data if the visibility level of the caller is less than secret
+		// (i.e. if the caller should not have access to secret data)
+		if visibility < SecretVisibility {
+			err = v.schema.DatabagSchema.PruneData(&val, visibility+1, match.storagePath)
+			if err != nil {
+				return nil, err
+			}
+			if val == nil {
+				finalError = &UnAuthorizedAccessError{operation: "get", request: match.request, viewID: v.ID()}
+			}
+		}
 
 		// merge result with results from other matching rules
 		merged, err = mergeNamespaces(merged, val)
@@ -1701,6 +1732,9 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		}
 	}
 
+	if merged == nil && finalError != nil {
+		return nil, finalError
+	}
 	if merged == nil {
 		var requests []string
 		if request != "" {

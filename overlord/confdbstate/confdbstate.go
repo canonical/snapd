@@ -128,7 +128,9 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 // the transaction.
 func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]string) (any, error) {
 	if len(requests) == 0 {
-		val, err := view.Get(bag, "", constraints)
+		//TODO pass the caller's level of visibility here
+		//For now, allow seeing everything, including secrets
+		val, err := view.Get(bag, "", constraints, confdb.SecretVisibility)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +140,9 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		value, err := view.Get(bag, request, constraints)
+		//TODO pass the caller's level of visibility here
+		//For now, allow seeing everything, including secrets
+		value, err := view.Get(bag, request, constraints, confdb.SecretVisibility)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
