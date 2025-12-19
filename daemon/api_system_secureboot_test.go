@@ -47,13 +47,13 @@ func (s *systemSecurebootSuite) SetUpTest(c *C) {
 		Interfaces: []string{"fwupd"},
 	})
 
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
 		panic("unexpected call")
 	}))
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdateCleanup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
 		panic("unexpected call")
 	}))
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBManagerStartup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBManagerStartup(func(st *state.State) error {
 		panic("unexpected call")
 	}))
 }
@@ -87,7 +87,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateStartup(c *C) {
 	s.daemon(c)
 
 	startupCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBManagerStartup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBManagerStartup(func(st *state.State) error {
 		startupCalls++
 		return nil
 	}))
@@ -108,7 +108,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBCleanup(c *C) {
 	s.daemon(c)
 
 	cleanupCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdateCleanup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
 		cleanupCalls++
 		return nil
 	}))
@@ -181,7 +181,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappy(c *C) {
 	s.daemon(c)
 
 	updatePrepareCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
 		c.Check(db, Equals, fdestate.EFISecurebootDBX)
 		c.Check(payload, DeepEquals, []byte("payload"))
 		updatePrepareCalls++
