@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
+	"github.com/snapcore/snapd/release"
 
 	// import to register linkNotify callback
 	_ "github.com/snapcore/snapd/overlord/snapstate/agentnotify"
@@ -77,7 +78,22 @@ var (
 
 	pruneMaxChanges = 500
 
-	defaultCachedDownloads = 5
+	defaultCachePolicyCore = store.CachePolicy{
+		// at most this many unreferenced items
+		MaxItems: 5,
+		// unreferenced items older than 30 days are removed
+		MaxAge: 30 * 24 * time.Hour,
+		// try to keep cache < 1GB
+		MaxSizeBytes: 1 * 1024 * 1024 * 1024,
+	}
+
+	defaultCachePolicyClassic = store.CachePolicy{
+		// at most this many unreferenced items
+		MaxItems: 5,
+		// unreferenced items older than 30 days are removed
+		MaxAge: 30 * 24 * time.Hour,
+		// policy for classic systems has no size limit
+	}
 
 	configstateInit = configstate.Init
 	systemdSdNotify = systemd.SdNotify
@@ -362,7 +378,12 @@ func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snap
 	cfg := store.DefaultConfig()
 	cfg.Proxy = o.proxyConf
 	sto := storeNew(cfg, storeCtx)
-	sto.SetCacheDownloads(defaultCachedDownloads)
+	// TODO add a way for overriding cache policy
+	if release.OnClassic {
+		sto.SetCachePolicy(defaultCachePolicyClassic)
+	} else {
+		sto.SetCachePolicy(defaultCachePolicyCore)
+	}
 	return sto
 }
 
