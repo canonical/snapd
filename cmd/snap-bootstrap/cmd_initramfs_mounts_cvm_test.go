@@ -204,16 +204,17 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeHappy(c *C, onCor
 	defer restore()
 
 	cloudimgActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(provisionTPMCVMCalled, Equals, true)
 		c.Assert(name, Equals, "cloudimg-rootfs")
-		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
+		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
+		c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
 		c.Assert(opts.WhichModel, IsNil)
 
 		cloudimgActivated = true
 		// return true because we are using an encrypted device
-		return happyUnlocked("cloudimg-rootfs", secboot.UnlockedWithSealedKey), nil
+		return happyUnlocked("cloudimg-rootfs", secboot.UnlockedWithSealedKey, "external:legacy"), nil
 	})
 	defer restore()
 
@@ -357,10 +358,11 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 	defer restore()
 
 	cloudimgActivated := false
-	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		c.Assert(provisionTPMCVMCalled, Equals, true)
 		c.Assert(name, Equals, "cloudimg-rootfs")
-		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
+		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
+		c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
 		c.Assert(opts.WhichModel, IsNil)
 

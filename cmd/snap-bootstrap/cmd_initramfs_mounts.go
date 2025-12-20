@@ -109,7 +109,7 @@ var (
 
 	secbootMeasureSnapSystemEpochWhenPossible     func() error
 	secbootMeasureSnapModelWhenPossible           func(findModel func() (*asserts.Model, error)) error
-	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(activation secboot.ActivateContext, disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted  func(activation secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
 	secbootUnlockEncryptedVolumeUsingProtectorKey func(activation secboot.ActivateContext, disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
@@ -1275,7 +1275,7 @@ func (m *recoverModeStateMachine) trustData() bool {
 
 // mountBoot is the first state to execute in the state machine, it can
 // transition to the following states:
-//   - if ubuntu-boot is mounted successfully, execute unlockDataRunKey
+//   - if ubuntu-boot is mounted successfully, execute unlockData
 //   - if ubuntu-boot can't be mounted, execute unlockDataFallbackKey
 //   - if we mounted the wrong ubuntu-boot (or otherwise can't verify which one we
 //     mounted), return fatal error
@@ -1289,10 +1289,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 		return nil, err
 	}
 	if part.findState != partitionFound {
-		// if we didn't find ubuntu-boot, we can't try to unlock data with the
-		// run key, and should instead just jump straight to attempting to
-		// unlock with the fallback key
-		return m.unlockDataFallbackKey, nil
+		return m.unlockData, nil
 	}
 
 	// should we fsck ubuntu-boot? probably yes because on some platforms
@@ -1307,14 +1304,9 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	if err := m.setMountState("ubuntu-boot", boot.InitramfsUbuntuBootDir, mountErr); err != nil {
 		return nil, err
 	}
-	if part.MountState == boot.PartitionErrMounting {
-		// if we didn't mount data, then try to unlock data with the
-		// fallback key
-		return m.unlockDataFallbackKey, nil
-	}
 
 	// next step try to unlock data with run object
-	return m.unlockDataRunKey, nil
+	return m.unlockData, nil
 }
 
 // stateUnlockDataRunKey will try to unlock ubuntu-data with the normal run-mode
@@ -1322,67 +1314,48 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 // - failed to unlock data, but we know it's an encrypted device -> try to unlock with fallback key
 // - failed to find data at all -> try to unlock save
 // - unlocked data with run key -> mount data
-func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
-	runModeKey := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
+func (m *recoverModeStateMachine) unlockData() (stateFunc, error) {
+	keys := []*secboot.LegacyKeyFile{
+		{
+			Name: "legacy",
+			Path: device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+		},
+	}
+	if !m.noFallback {
+		keys = append(keys, &secboot.LegacyKeyFile{
+			Name: "legacy-fallback",
+			Path: device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		})
+	}
+
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		// don't allow using the recovery key to unlock, we only try using the
-		// recovery key after we first try the fallback object
-		AllowRecoveryKey: false,
-		WhichModel:       m.whichModel,
-		BootMode:         m.mode,
-	}
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-data", runModeKey, unlockOpts)
-	m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
-	if unlockErr != nil {
-		// we couldn't unlock ubuntu-data with the primary key, or we didn't
-		// find it in the unencrypted case
-		if unlockRes.IsEncrypted {
-			// we know the device is encrypted, so the next state is to try
-			// unlocking with the fallback key
-			return m.unlockDataFallbackKey, nil
-		}
-
-		// if we didn't even find the device to the point where it would have
-		// been identified as decrypted or unencrypted device, we could have
-		// just entirely lost ubuntu-data-enc, and we could still have an
-		// encrypted device, so instead try to unlock ubuntu-save with the
-		// fallback key, the logic there can also handle an unencrypted ubuntu-save
-		return m.unlockMaybeEncryptedAloneSaveFallbackKey, nil
-	}
-
-	// otherwise successfully unlocked it (or just found it if it was unencrypted)
-	// so just mount it
-	return m.mountData, nil
-}
-
-func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
-	if m.noFallback {
-		return nil, fmt.Errorf("cannot unlock ubuntu-data (fallback disabled)")
-	}
-
-	// try to unlock data with the fallback key on ubuntu-seed, which must have
-	// been mounted at this point
-	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-		// we want to allow using the recovery key if the fallback key fails as
-		// using the fallback object is the last chance before we give up trying
-		// to unlock data
 		AllowRecoveryKey: true,
 		WhichModel:       m.whichModel,
 		BootMode:         m.mode,
 	}
-	// TODO: this prompts for a recovery key
-	// TODO: we should somehow customize the prompt to mention what key we need
-	// the user to enter, and what we are unlocking (as currently the prompt
-	// says "recovery key" and the partition UUID for what is being unlocked)
-	dataFallbackKey := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
-	if err := m.setUnlockStateWithFallbackKey("ubuntu-data", unlockRes, unlockErr); err != nil {
-		return nil, err
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-data", keys, unlockOpts)
+	if unlockRes.Keyslot != "external:legacy-fallback" && unlockRes.Keyslot != "default-fallback" {
+		m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
+	} else {
+		if err := m.setUnlockStateWithFallbackKey("ubuntu-data", unlockRes, unlockErr); err != nil {
+			return nil, err
+		}
 	}
 	if unlockErr != nil {
-		// skip trying to mount data, since we did not unlock data we cannot
-		// open save with with the run key, so try the fallback one
-		return m.unlockEncryptedSaveFallbackKey, nil
+		if unlockRes.IsEncrypted {
+			// we know the device is encrypted, so the
+			// next state is to try unlocking encrypted
+			// save disk (and not look at unencrypte save
+			// disk).
+			// Future refactoring will merge
+			// unlockEncryptedSaveFallbackKey and
+			// unlockEncryptedSaveRunKey. But for
+			// now we can jump directly to the fallback
+			// since we cannot have a protector key.
+			return m.unlockEncryptedSaveFallbackKey, nil
+		} else {
+			return m.unlockMaybeEncryptedAloneSaveFallbackKey, nil
+		}
 	}
 
 	// unlocked it, now go mount it
@@ -1503,13 +1476,20 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		WhichModel:       m.whichModel,
 		BootMode:         m.mode,
 	}
-	saveFallbackKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+
+	keys := []*secboot.LegacyKeyFile{
+		{
+			Name: "legacy-fallback",
+			Path: device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
+		},
+	}
+
 	// TODO: this prompts again for a recover key, but really this is the
 	// reinstall key we will prompt for
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-save", saveFallbackKey, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-save", keys, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -2472,13 +2452,18 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// and we continue booting only for expected models
 
 	// 3.1. mount Data
-	runModeKey := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
+	keys := []*secboot.LegacyKeyFile{
+		{
+			Name: "legacy",
+			Path: device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
+		},
+	}
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
 		WhichModel:       mst.UnverifiedBootModel,
 		BootMode:         mst.mode,
 	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, disk, "ubuntu-data", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, disk, "ubuntu-data", keys, opts)
 	if err != nil {
 		return err
 	}
