@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# We need to run a prepare-device hook first to point snapd to the fake device service
+# as the prepare serial request hook does not modify request URL or headers
+snapctl set device-service.url=http://localhost:11029

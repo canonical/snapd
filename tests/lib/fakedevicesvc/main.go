@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -124,6 +125,15 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		serialStr := "7777"
+
+		serialReqBody := string(serialReq.Body())
+
+		
+		// Modify serial id for prepare serial request
+		if strings.Contains(serialReqBody, "request-id-signature") {
+			serialStr = "3333"
+		}
+
 		if r.Header.Get("X-Use-Proposed") == "yes" {
 			// use proposed serial
 			serialStr = serialReq.Serial()
