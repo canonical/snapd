@@ -37,6 +37,7 @@ const (
 	BLKID_PARTS_ENTRY_DETAILS int = C.BLKID_PARTS_ENTRY_DETAILS
 
 	BLKID_SUBLKS_LABEL int = C.BLKID_SUBLKS_LABEL
+	BLKID_SUBLKS_UUID  int = C.BLKID_SUBLKS_UUID
 )
 
 // AbstractBlkidProbe is wrapper for blkid_probe
@@ -79,6 +80,8 @@ type AbstractBlkidPartition interface {
 	GetStart() int64
 	// GetSize is a wrapper for blkid_partition_get_size
 	GetSize() int64
+	// GetNumber is a wrapper for blkid_partition_get_partno
+	GetNumber() int
 }
 
 type blkidProbe struct {
@@ -247,4 +250,8 @@ func (p *blkidPartition) GetStart() int64 {
 
 func (p *blkidPartition) GetSize() int64 {
 	return int64((C.blkid_loff_t)(C.blkid_partition_get_size(p.partitionHandle)))
+}
+
+func (p *blkidPartition) GetNumber() int {
+	return int(C.blkid_partition_get_partno(p.partitionHandle))
 }
