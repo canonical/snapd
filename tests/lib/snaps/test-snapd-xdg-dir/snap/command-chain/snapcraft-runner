@@ -1,4 +1,0 @@
-#!/bin/sh
-export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin${PATH:+:$PATH}"
-export LD_LIBRARY_PATH="$SNAP_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$@"

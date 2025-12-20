@@ -158,10 +158,6 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 			c.Error("this should never be reached")
 		}
 	})
-
-	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
-	c.Assert(err, check.IsNil)
 }
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {
@@ -1548,73 +1544,6 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
 
-func (s *RunSuite) TestSnapRunXdgRuntimeDirCreation(c *check.C) {
-	defer mockSnapConfine(dirs.DistroLibExecDir)()
-
-	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R(42),
-	})
-
-	// redirect exec
-	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
-		return nil
-	})
-	defer restorer()
-
-	u, err := user.Current()
-	c.Assert(err, check.IsNil)
-	toplevelXdgRuntimeDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
-	snapXdgRuntimeDir := filepath.Join(toplevelXdgRuntimeDir, "snap.snapname")
-
-	// Initially, toplevel XDG_RUNTIME_DIR should exist, but snap runtime dir should not
-	c.Assert(toplevelXdgRuntimeDir, testutil.FilePresent)
-	c.Assert(snapXdgRuntimeDir, testutil.FileAbsent)
-
-	// First run should create the snap runtime dir
-	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.HasLen, 0)
-
-	// Check that toplevel and snap XDG_RUNTIME_DIR both now exist
-	c.Assert(toplevelXdgRuntimeDir, testutil.FilePresent)
-	c.Assert(snapXdgRuntimeDir, testutil.FilePresent)
-	info, err := os.Stat(snapXdgRuntimeDir)
-	c.Assert(err, check.IsNil)
-	c.Assert(info.IsDir(), check.Equals, true)
-	c.Assert(info.Mode().Perm(), check.Equals, os.FileMode(0o700))
-
-	// Second run should have no effect on XDG_RUNTIME_DIR, as both already exist
-	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.HasLen, 0)
-
-	// Check that toplevel and snap XDG_RUNTIME_DIR both still exist
-	c.Assert(toplevelXdgRuntimeDir, testutil.FilePresent)
-	c.Assert(snapXdgRuntimeDir, testutil.FilePresent)
-	info, err = os.Stat(snapXdgRuntimeDir)
-	c.Assert(err, check.IsNil)
-	c.Assert(info.IsDir(), check.Equals, true)
-	c.Assert(info.Mode().Perm(), check.Equals, os.FileMode(0o700))
-
-	// Remove toplevel XDG_RUNTIME_DIR so creation of snap runtime dir will fail
-	c.Assert(os.RemoveAll(toplevelXdgRuntimeDir), check.IsNil)
-
-	// Third run should "succeed" as the special case where the parent doesn't exist
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
-	c.Assert(err, check.IsNil)
-	c.Assert(toplevelXdgRuntimeDir, testutil.FileAbsent)
-	c.Assert(snapXdgRuntimeDir, testutil.FileAbsent)
-
-	// Create a file in place of XDG_RUNTIME_DIR so creation of snap runtime dir will fail with an error
-	c.Assert(os.WriteFile(toplevelXdgRuntimeDir, []byte{}, 0o644), check.IsNil)
-
-	// Fourth run should fail
-	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
-	c.Assert(err, check.ErrorMatches, "cannot create XDG_RUNTIME_DIR folder .*")
-	c.Assert(snapXdgRuntimeDir, testutil.FileAbsent)
-}
-
 func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()
@@ -1857,6 +1786,10 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	u, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
+	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
 	c.Assert(err, check.IsNil)
 
 	// mock installed snap; happily this also gives us a directory
