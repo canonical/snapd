@@ -384,7 +384,7 @@ func (s *viewSuite) TestConfdbNotFoundErrors(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, `cannot set "missing" through acc/foo/bar: no matching rule`)
 
-	err = view.Unset(databag, "missing")
+	err = view.Unset(databag, "missing", confdb.DefaultVisibility)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, `cannot unset "missing" through acc/foo/bar: no matching rule`)
 
@@ -399,7 +399,7 @@ func (s *viewSuite) TestConfdbNotFoundErrors(c *C) {
 	err = view.Set(databag, "nested", "thing", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "nested")
+	err = view.Unset(databag, "nested", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "other-nested", nil, confdb.DefaultVisibility)
@@ -731,7 +731,7 @@ func (s *viewSuite) TestViewUnsetTopLevelEntry(c *C) {
 	err = view.Set(databag, "bar", "bval", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "foo", nil, confdb.DefaultVisibility)
@@ -761,7 +761,7 @@ func (s *viewSuite) TestViewUnsetLeafWithSiblings(c *C) {
 	err = view.Set(databag, "baz", "bazVal", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "bar")
+	err = view.Unset(databag, "bar", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "bar", nil, confdb.DefaultVisibility)
@@ -789,7 +789,7 @@ func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
 	err = view.Set(databag, "bar", "barVal", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(databag, "foo", nil, confdb.DefaultVisibility)
@@ -823,7 +823,7 @@ func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentMap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(value, Not(HasLen), 0)
 
-	err = view.Unset(databag, "foo.bar")
+	err = view.Unset(databag, "foo.bar", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "foo", nil, confdb.DefaultVisibility)
@@ -833,7 +833,7 @@ func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentMap(c *C) {
 	err = view.Set(databag, "a", map[string]any{"c": "d"}, confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "a.c")
+	err = view.Unset(databag, "a.c", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "a.c", nil, confdb.DefaultVisibility)
@@ -859,7 +859,7 @@ func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentList(c *C) {
 	c.Assert(err, IsNil)
 
 	// removing the map entry "c" removes the parent map and list as well
-	err = view.Unset(bag, "b[1].c")
+	err = view.Unset(bag, "b[1].c", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(bag, "b[1]", nil, confdb.DefaultVisibility)
@@ -867,7 +867,7 @@ func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentList(c *C) {
 	c.Assert(val, IsNil)
 
 	// this will match b[{n}] and remove that map, removing the list as well
-	err = view.Unset(bag, "c")
+	err = view.Unset(bag, "c", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err = view.Get(bag, "b", nil, confdb.DefaultVisibility)
@@ -888,10 +888,10 @@ func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("my-view")
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "bar")
+	err = view.Unset(databag, "bar", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 }
 
@@ -1021,7 +1021,7 @@ func (s *viewSuite) TestViewUnsetValidates(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("test")
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot unset data: boom`)
 }
 
@@ -1037,7 +1037,7 @@ func (s *viewSuite) TestViewUnsetSkipsReadOnly(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("test")
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot unset "foo" through acc/confdb/test: no matching rule`)
 }
 
@@ -1474,7 +1474,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 
-		err = view.Unset(databag, tc.request)
+		err = view.Unset(databag, tc.request, confdb.DefaultVisibility)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot unset %q through confdb view acc/confdb/foo: %s`, tc.request, tc.errMsg), cmt)
 	}
@@ -2161,7 +2161,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 	}, confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "foo")
+	err = view.Unset(databag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "foo", nil, confdb.DefaultVisibility)
@@ -2201,7 +2201,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 	}, confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(databag, "one")
+	err = view.Unset(databag, "one", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(databag, "all", nil, confdb.DefaultVisibility)
@@ -3420,7 +3420,7 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	err = view.Set(bag, "a[0]", "foo", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
-	err = view.Unset(bag, "a[0]")
+	err = view.Unset(bag, "a[0]", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
 	err = bag.Unset(parsePath(c, "a"))
@@ -3437,7 +3437,7 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	err = view.Set(bag, "a.b", "foo", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot use "b" to index list at path "a"`)
 
-	err = view.Unset(bag, "a.b")
+	err = view.Unset(bag, "a.b", confdb.DefaultVisibility)
 	c.Assert(err, ErrorMatches, `cannot use "b" to index list at path "a"`)
 }
 
@@ -3607,7 +3607,7 @@ func (*viewSuite) TestUnsetList(c *C) {
 	c.Assert(err, IsNil)
 
 	// unset middle element
-	err = view.Unset(bag, "a[1]")
+	err = view.Unset(bag, "a[1]", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(bag, "a", nil, confdb.DefaultVisibility)
@@ -3615,7 +3615,7 @@ func (*viewSuite) TestUnsetList(c *C) {
 	c.Assert(val, DeepEquals, []any{"foo", "baz"})
 
 	// unset the rest
-	err = view.Unset(bag, "a")
+	err = view.Unset(bag, "a", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err = view.Get(bag, "a", nil, confdb.DefaultVisibility)
@@ -3626,7 +3626,7 @@ func (*viewSuite) TestUnsetList(c *C) {
 	err = view.Set(bag, "b", []any{map[string]any{"c": "foo"}, map[string]any{"c": "bar"}}, confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(bag, "b")
+	err = view.Unset(bag, "b", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(bag, "b", nil, confdb.DefaultVisibility)
@@ -3651,7 +3651,7 @@ func (*viewSuite) TestUnsetBeyondCurrentList(c *C) {
 		err = view.Set(bag, pref, []any{map[string]any{"b": "foo"}, map[string]any{"b": "bar"}}, confdb.DefaultVisibility)
 		c.Assert(err, IsNil)
 
-		err = view.Unset(bag, pref+"[2]")
+		err = view.Unset(bag, pref+"[2]", confdb.DefaultVisibility)
 		c.Assert(err, IsNil)
 
 		val, err := view.Get(bag, pref, nil, confdb.DefaultVisibility)
@@ -3680,7 +3680,7 @@ func (*viewSuite) TestPartialUnsetNestedInList(c *C) {
 	err = view.Set(bag, "b", []any{map[string]any{"b": "bar"}, map[string]any{"b": "bar"}}, confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
-	err = view.Unset(bag, "a")
+	err = view.Unset(bag, "a", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(bag, "", nil, confdb.DefaultVisibility)
@@ -3707,7 +3707,7 @@ func (*viewSuite) TestUnsetNestedList(c *C) {
 	c.Assert(err, IsNil)
 
 	// unset from 1st list
-	err = view.Unset(bag, "a[0][1]")
+	err = view.Unset(bag, "a[0][1]", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err := view.Get(bag, "a", nil, confdb.DefaultVisibility)
@@ -3715,7 +3715,7 @@ func (*viewSuite) TestUnsetNestedList(c *C) {
 	c.Assert(val, DeepEquals, []any{[]any{"foo", "baz"}, []any{"a", "b"}})
 
 	// unset from 2nd list
-	err = view.Unset(bag, "a[1][0]")
+	err = view.Unset(bag, "a[1][0]", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err = view.Get(bag, "a", nil, confdb.DefaultVisibility)
@@ -3723,7 +3723,7 @@ func (*viewSuite) TestUnsetNestedList(c *C) {
 	c.Assert(val, DeepEquals, []any{[]any{"foo", "baz"}, []any{"b"}})
 
 	// unset entire nested list
-	err = view.Unset(bag, "a[1]")
+	err = view.Unset(bag, "a[1]", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	val, err = view.Get(bag, "a", nil, confdb.DefaultVisibility)
@@ -4403,7 +4403,7 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 	_, err = view.Get(bag, "foo", map[string]string{"baz": "e"}, confdb.DefaultVisibility)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
-	err = view.Unset(bag, "foo")
+	err = view.Unset(bag, "foo", confdb.DefaultVisibility)
 	c.Assert(err, IsNil)
 
 	err = bag.Set(parsePath(c, "foo"), map[string]any{
@@ -4695,6 +4695,146 @@ func (s *viewSuite) TestSetSecretPathData(c *C) {
 	val, err := bag.Get(parsePath(c, "foo.bar.baz"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "b")
+}
+
+func (s *viewSuite) TestUnsetSecretData(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{"rules": []any{
+			map[string]any{"request": "foo.bar", "storage": "foo.bar"},
+		}},
+	}
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	storageSchema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	schema, err := confdb.NewSchema("acc", "foo", views, storageSchema)
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = bag.Set(parsePath(c, "foo.bar"), "baz")
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "foo.bar", confdb.DefaultVisibility)
+	_, ok := err.(*confdb.UnAuthorizedAccessError)
+	c.Assert(ok, Equals, true)
+	c.Assert(err.Error(), Equals, `cannot unset "foo.bar" through acc/foo/foo: unauthorized access`)
+
+	val, err := bag.Get(parsePath(c, "foo.bar"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "baz")
+
+	err = view.Unset(bag, "foo.bar", confdb.SecretVisibility)
+	c.Assert(err, IsNil)
+
+	val, err = bag.Get(parsePath(c, "foo.bar"), nil)
+	c.Assert(err, NotNil)
+	c.Assert(val, IsNil)
+}
+
+func (s *viewSuite) TestUnsetSecretDataDiffStoragePath(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{"rules": []any{
+			map[string]any{"request": "baz.eph", "storage": "foo.bar"},
+		}},
+	}
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	storageSchema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	schema, err := confdb.NewSchema("acc", "foo", views, storageSchema)
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = bag.Set(parsePath(c, "foo.bar"), "secret")
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "baz.eph", confdb.DefaultVisibility)
+	_, ok := err.(*confdb.UnAuthorizedAccessError)
+	c.Assert(ok, Equals, true)
+	c.Assert(err.Error(), Equals, `cannot unset "baz.eph" through acc/foo/foo: unauthorized access`)
+
+	val, err := bag.Get(parsePath(c, "foo.bar"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "secret")
+
+	err = view.Unset(bag, "baz.eph", confdb.SecretVisibility)
+	c.Assert(err, IsNil)
+
+	val, err = bag.Get(parsePath(c, "foo.bar"), nil)
+	c.Assert(err, NotNil)
+	c.Assert(val, IsNil)
+}
+
+func (s *viewSuite) TestUnsetSecretPathData(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{"rules": []any{
+			map[string]any{"request": "foo.{a}", "storage": "foo.{a}"},
+			map[string]any{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
+		}},
+	}
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string"
+					},
+					"visibility": "secret"
+				},
+				"eph": "string"
+			}
+		}
+	}
+}`)
+	storageSchema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	schema, err := confdb.NewSchema("acc", "foo", views, storageSchema)
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = bag.Set(parsePath(c, "foo.bar.baz"), "b")
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "foo.bar.baz", confdb.DefaultVisibility)
+	_, ok := err.(*confdb.UnAuthorizedAccessError)
+	c.Assert(ok, Equals, true)
+	c.Assert(err.Error(), Equals, `cannot unset "foo.bar.baz" through acc/foo/foo: unauthorized access`)
+
+	val, err := bag.Get(parsePath(c, "foo.bar.baz"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "b")
+
+	err = view.Unset(bag, "foo.bar.baz", confdb.SecretVisibility)
+	c.Assert(err, IsNil)
+	_, err = bag.Get(parsePath(c, "foo.bar.baz"), nil)
+	c.Assert(err, NotNil)
 }
 
 // matches field filters

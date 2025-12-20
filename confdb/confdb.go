@@ -1190,7 +1190,10 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 	}
 }
 
-func (v *View) Unset(databag Databag, request string) error {
+// Unset unsets the value at request in the named view. It will only set the value if
+// the supplied visibility is not higher than any part of the request path. If the path
+// contains a higher visibility, then it will return an UnAuthorizedAccessError
+func (v *View) Unset(databag Databag, request string, visibility Visibility) error {
 	opts := ParseOptions{AllowPlaceholders: false}
 	accessors, err := ParsePathIntoAccessors(request, opts)
 	if err != nil {
@@ -1207,6 +1210,14 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	for _, match := range matches {
+		contains, err := pathContainsHigherLevelVisibility(match.storagePath, visibility, v.schema.DatabagSchema)
+		if err != nil {
+			return fmt.Errorf("internal error: %s", err)
+		}
+		if contains {
+			return &UnAuthorizedAccessError{operation: "unset", request: request, viewID: v.ID()}
+		}
+
 		if err := databag.Unset(match.storagePath); err != nil {
 			return err
 		}
