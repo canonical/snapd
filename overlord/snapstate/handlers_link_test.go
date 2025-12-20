@@ -492,12 +492,163 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(42))
 	c.Check(task.Status(), Equals, state.DoneStatus)
+	// no mount namespace discard, no inhibition
 	expected := fakeOps{{
 		op:   "unlink-snap",
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(called, Equals, true)
+}
+
+type testDoUnlinkCurrentSnapWithServicesOpts struct {
+	apps        []*snap.AppInfo
+	expectedOps fakeOps
+}
+
+func (s *linkSnapSuite) testDoUnlinkCurrentSnapWithAppsOrServices(c *C, opts testDoUnlinkCurrentSnapWithServicesOpts) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With refresh-app-awareness enabled
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	// With a snap "pkg" at revision 42
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
+	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	// With an app belonging to the snap that is apparently running.
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "pkg")
+		info := &snap.Info{
+			SuggestedName: name, SideInfo: *si,
+			SnapType: snap.TypeApp,
+			Apps:     map[string]*snap.AppInfo{},
+		}
+		for _, app := range opts.apps {
+			info.Apps[app.Name] = app
+			app.Snap = info
+		}
+		return info, nil
+	})
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "pkg")
+		return nil, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		return false
+	})
+	defer restore()
+
+	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Flags:    snapstate.Flags{},
+		Type:     "app",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "pkg", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(42))
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(s.fakeBackend.ops, DeepEquals, opts.expectedOps)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesModeEndure(c *C) {
+	s.testDoUnlinkCurrentSnapWithAppsOrServices(c, testDoUnlinkCurrentSnapWithServicesOpts{
+		apps: []*snap.AppInfo{
+			{Name: "app"},
+			{Name: "service", Daemon: "simple", RefreshMode: "endure"},
+		},
+		expectedOps: fakeOps{{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "pkg",
+			inhibitHint: "refresh",
+		}, {
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		}},
+	})
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyServicesAllStopped(c *C) {
+	s.testDoUnlinkCurrentSnapWithAppsOrServices(c, testDoUnlinkCurrentSnapWithServicesOpts{
+		apps: []*snap.AppInfo{
+			{Name: "app"},
+			{Name: "service", Daemon: "simple"},
+		},
+		expectedOps: fakeOps{{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "pkg",
+			inhibitHint: "refresh",
+		}, {
+			op:   "discard-namespace-locked",
+			name: "pkg",
+		}, {
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		}},
+	})
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesNothingRunning(c *C) {
+	s.testDoUnlinkCurrentSnapWithAppsOrServices(c, testDoUnlinkCurrentSnapWithServicesOpts{
+		apps: []*snap.AppInfo{
+			{Name: "app"},
+			{Name: "service", Daemon: "simple"},
+		},
+		expectedOps: fakeOps{{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "pkg",
+			inhibitHint: "refresh",
+		}, {
+			op:   "discard-namespace-locked",
+			name: "pkg",
+		}, {
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		}},
+	})
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyAppsNothingRunning(c *C) {
+	s.testDoUnlinkCurrentSnapWithAppsOrServices(c, testDoUnlinkCurrentSnapWithServicesOpts{
+		apps: []*snap.AppInfo{
+			{Name: "app"},
+		},
+		expectedOps: fakeOps{{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "pkg",
+			inhibitHint: "refresh",
+		}, {
+			op:   "discard-namespace-locked",
+			name: "pkg",
+		}, {
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		}},
+	})
 }
 
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C) {
@@ -774,6 +925,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
+		Type:     "snapd",
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(task)
@@ -793,17 +945,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(20))
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	// backend unlink was not called
-	c.Check(s.fakeBackend.ops, HasLen, 2)
-	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
-		{
-			op:          "run-inhibit-snap-for-unlink",
-			name:        "snapd",
-			inhibitHint: "refresh",
-		},
-		{
-			op:   "discard-namespace-locked",
-			name: "snapd",
-		}})
+	c.Check(s.fakeBackend.ops, HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
@@ -830,6 +972,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
 	raTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
+		Type:     "snapd",
 	})
 	chg.AddTask(raTask)
 
@@ -837,6 +980,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
 	unlinkTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
+		Type:     "snapd",
 	})
 	unlinkTask.WaitFor(raTask)
 	chg.AddTask(unlinkTask)
@@ -867,15 +1011,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapNoRestartSnapd(c *C) {
 	expected := fakeOps{
 		{
 			op:   "remove-snap-aliases",
-			name: "snapd",
-		},
-		{
-			op:          "run-inhibit-snap-for-unlink",
-			name:        "snapd",
-			inhibitHint: "refresh",
-		},
-		{
-			op:   "discard-namespace-locked",
 			name: "snapd",
 		},
 		{
