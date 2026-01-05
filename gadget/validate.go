@@ -56,11 +56,12 @@ type roleInstance struct {
 
 func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *ValidationConstraints) error {
 	roles := map[string]*roleInstance{
-		SystemSeed:     nil,
-		SystemSeedNull: nil,
-		SystemBoot:     nil,
-		SystemData:     nil,
-		SystemSave:     nil,
+		SystemSeed:      nil,
+		SystemSeedNull:  nil,
+		SystemBoot:      nil,
+		SystemData:      nil,
+		SystemSave:      nil,
+		SystemBootState: nil,
 	}
 
 	xvols := ""
