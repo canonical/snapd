@@ -176,3 +176,15 @@ execute: |
   tests.nested wait-for reboot "$boot_id"
 
   remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineOpt"
+
+  # Same again without foo=bar
+  cmdlineOpt="extra.val=1 extra.flag foo=othervalue"
+  remote.exec "sudo snap set system system.kernel.cmdline-append=\"$cmdlineOpt\""
+
+  boot_id="$(tests.nested boot-id)"
+  echo "Rebooting"
+  remote.exec "sudo reboot" || true
+  tests.nested wait-for reboot "$boot_id"
+
+  remote.exec "sudo cat /proc/cmdline" | MATCH "$cmdlineOpt"
+  remote.exec "sudo cat /proc/cmdline" | NOMATCH "foo=bar"
