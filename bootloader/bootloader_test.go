@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -58,6 +59,7 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(efi.MockVars(nil, nil))
 }
 
 type bootenvTestSuite struct {
