@@ -29,9 +29,9 @@ const sshAgentBaseDeclarationSlots = `
 `
 
 const sshAgentConnectedPlugAppArmor = `
-# allow access to socket owned by user in default locatin for openssh ssh-agent
+# allow access to socket owned by user in default location for openssh ssh-agent
 owner /tmp/ssh-*/agent.* rw,
-# allow access to default location for gnome keyring ssh-agent for standard users (uid 1000+)
+# allow access to default location for gnome keyring ssh-agent
 owner /run/user/*/keyring/ssh rw,
 `
 
