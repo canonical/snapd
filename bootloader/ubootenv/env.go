@@ -17,6 +17,17 @@
  *
  */
 
+// Package ubootenv implements reading and writing of U-Boot environment files.
+//
+// The U-Boot environment format consists of:
+//   - 4-byte CRC32 (IEEE polynomial, little-endian)
+//   - Optional 1-byte flag (present when SYS_REDUNDAND_ENVIRONMENT is enabled)
+//   - Data section containing null-terminated "key=value" strings
+//   - Double null byte (0x00 0x00) marking end of data
+//   - Remaining space filled with 0xff bytes
+//
+// For more details, see the U-Boot documentation:
+// https://docs.u-boot.org/en/latest/usage/environment.html
 package ubootenv
 
 import (
