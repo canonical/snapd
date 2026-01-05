@@ -214,7 +214,8 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	err := s.cm.Cleanup()
 	c.Check(err, ErrorMatches, "simulated error 1\nsimulated error 2")
 
-	// and also verify that the cache still got cleaned up
+	// and also verify that the cache still got cleaned up except for the entry
+	// which failed
 	c.Check(s.cm.Count(), Equals, s.maxItems)
 
 	// even though the "unremovable" file is still in the cache

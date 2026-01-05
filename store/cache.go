@@ -36,6 +36,26 @@ import (
 	"github.com/snapcore/snapd/strutil/quantity"
 )
 
+// DefaultCachePolicyCore is a recommended default policy for Core systems.
+var DefaultCachePolicyCore = CachePolicy{
+	// at most this many unreferenced items
+	MaxItems: 5,
+	// unreferenced items older than 30 days are removed
+	MaxAge: 30 * 24 * time.Hour,
+	// try to keep cache < 1GB
+	MaxSizeBytes: 1 * 1024 * 1024 * 1024,
+}
+
+// DefaultCachePolicyClassic is a recommended default policy for classic
+// systems.
+var DefaultCachePolicyClassic = CachePolicy{
+	// at most this many unreferenced items
+	MaxItems: 5,
+	// unreferenced items older than 30 days are removed
+	MaxAge: 30 * 24 * time.Hour,
+	// policy for classic systems has no size limit
+}
+
 // overridden in the unit tests
 var osRemove = os.Remove
 
@@ -290,7 +310,7 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 		})
 	}
 
-	// TODO: use slices.SortFunc
+	// TODO:GOVERSION: use slices.SortFunc
 	sort.Slice(stats.Entries, func(i, j int) bool {
 		return stats.Entries[i].Info.ModTime().Before(stats.Entries[j].Info.ModTime())
 	})
@@ -329,7 +349,7 @@ func (cp *CachePolicy) isCandidate(fi os.FileInfo) bool {
 // processing unique cache items starting from oldest ones. Errors to drop items
 // are collected and returned, but processing continues until targets are met or
 // candidates list is exhausted.
-func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, drop func(info os.FileInfo) error) error {
+func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(info os.FileInfo) error) error {
 	// most of the entries will have more than one hardlink, but a minority may
 	// be referenced only from the cache and thus be a candidate for pruning
 	candidates := make([]os.FileInfo, 0, len(entries)/5)
@@ -376,7 +396,7 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, drop func(inf
 
 		logger.Debugf("entry %v remove %v", c.Name(), doRemove)
 		if doRemove {
-			if err := drop(c); err != nil {
+			if err := remove(c); err != nil {
 				lastErr = strutil.JoinErrors(lastErr, err)
 			} else {
 				// managed to drop the items, update the counts
