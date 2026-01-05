@@ -231,9 +231,38 @@ func writeContainerMountUnit(destRoot string, cpi snap.ContainerPlaceInfo) error
 		}
 		linkPath := filepath.Join(linkDir, unitFileName)
 		if err := os.Symlink(unitFilePath, linkPath); err != nil {
-			return err
+			if !os.IsExist(err) {
+				return err
+			}
+
+			// if we already have a file at linkPath, make sure that it is a
+			// symlink that points to unitFilePath
+			if err := checkLinkPointsTo(linkPath, unitFilePath); err != nil {
+				return err
+			}
 		}
 	}
 
+	return nil
+}
+
+func checkLinkPointsTo(linkPath string, expectedTarget string) error {
+	info, err := os.Lstat(linkPath)
+	if err != nil {
+		return err
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		return fmt.Errorf("existing path at %q is not a symlink", linkPath)
+	}
+
+	target, err := os.Readlink(linkPath)
+	if err != nil {
+		return err
+	}
+
+	if target != expectedTarget {
+		return fmt.Errorf("existing symlink at %q points to %q, expected %q", linkPath, target, expectedTarget)
+	}
 	return nil
 }
