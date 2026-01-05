@@ -113,7 +113,7 @@ ptrace (read),
 
 # Allow listing of existing file descriptors, which is needed for tools like nvtop
 # and resources that monitor per-process GPU usage.
-@{PROC}/[0-9]*/fdinfo/ r,
+@{PROC}/*/fdinfo/ r,
 
 # Allow reading processes security label
 @{PROC}/*/{,task/*/}attr/{,apparmor/}current r,
