@@ -1439,3 +1439,49 @@ volumes:
 	_, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
 	c.Assert(err, ErrorMatches, `.*type is not specified`)
 }
+
+func (s *validateGadgetTestSuite) TestValidateContentUbootpartRequiresBootStateRole(c *C) {
+	// Gadget with ubootpart.conf but no system-boot-state role should fail
+	var gadgetYamlNoRole = `
+volumes:
+  vol0:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-boot
+        role: system-boot
+        type: 21686148-6449-6E6F-744E-656564454649
+        filesystem: vfat
+        size: 128M
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlNoRole))
+	makeSizedFile(c, filepath.Join(s.dir, "ubootpart.conf"), 0, nil)
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
+	c.Assert(err, ErrorMatches, `gadget has ubootpart.conf bootloader marker but no system-boot-state partition role`)
+
+	// Gadget with ubootpart.conf and system-boot-state role should pass
+	var gadgetYamlWithRole = `
+volumes:
+  vol0:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-boot-state
+        role: system-boot-state
+        type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+        size: 1M
+        offset: 1M
+      - name: ubuntu-boot
+        role: system-boot
+        type: 21686148-6449-6E6F-744E-656564454649
+        filesystem: vfat
+        size: 128M
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlWithRole))
+
+	ginfo, err = gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
+	c.Assert(err, IsNil)
+}
