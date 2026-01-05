@@ -237,7 +237,10 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if output, err := exec.Command("unsquashfs", "-no-xattrs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+	// Limit unsquashfs memory usage to uncompress a single file.
+	// On low-memory devices unsquashfs can otherwise fail with "Requested memory size too large".
+	// TODO: leverage mem-percent parameter in latest version of unsquashfs
+	if output, err := exec.Command("unsquashfs", "-no-xattrs", "-n", "-i", "-da", "16", "-fr", "16", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
