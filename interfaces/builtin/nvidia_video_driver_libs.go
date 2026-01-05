@@ -69,8 +69,10 @@ func (iface *nvidiaVideoDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotIn
 		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
 			// Note that nvidia is equivalent to nvidia-0
 			{Tag: "nvidia", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+			// Nvidia codec SDK major and minor
 			{Tag: "video", Values: []compatibility.CompatRange{
 				{Min: 0, Max: math.MaxUint}, {Min: 0, Max: math.MaxUint}}},
+			// Ubuntu release, determines ABI compatibility
 			{Tag: "ubuntu", Values: []compatibility.CompatRange{
 				{Min: 2404, Max: math.MaxUint}}},
 		}}); err != nil {
