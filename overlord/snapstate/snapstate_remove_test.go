@@ -2516,5 +2516,38 @@ func (s *snapmgrTestSuite) TestRemoveManyWithTerminate(c *C) {
 			"discard-snap",
 		})
 	}
+}
 
+func (s *snapmgrTestSuite) TestRemoveWithRemoteHomeMustPurge(c *C) {
+	restore := osutil.MockIsHomeUsingRemoteFS(func() (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, sn := range []string{"some-snap", "foo"} {
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: sn, SnapID: sn + "-id", Revision: snap.R(1)},
+			}),
+			Current:  snap.R(1),
+			SnapType: "app",
+			Active:   true,
+		})
+	}
+
+	_, _, err := snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, nil)
+	c.Assert(err, ErrorMatches, "cannot snapshot or remove user data directories in remote mounted homes: use --purge to skip taking a snapshot")
+
+	_, err = snapstate.Remove(s.state, "some-snap", snap.Revision{}, nil)
+	c.Assert(err, ErrorMatches, "cannot snapshot or remove user data directories in remote mounted homes: use --purge to skip taking a snapshot")
+
+	flags := &snapstate.RemoveFlags{Purge: true}
+	_, err = snapstate.Remove(s.state, "some-snap", snap.Revision{}, flags)
+	c.Assert(err, IsNil)
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-snap", "foo"}, flags)
+	c.Assert(err, IsNil)
 }
