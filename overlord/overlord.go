@@ -78,22 +78,9 @@ var (
 
 	pruneMaxChanges = 500
 
-	defaultCachePolicyCore = store.CachePolicy{
-		// at most this many unreferenced items
-		MaxItems: 5,
-		// unreferenced items older than 30 days are removed
-		MaxAge: 30 * 24 * time.Hour,
-		// try to keep cache < 1GB
-		MaxSizeBytes: 1 * 1024 * 1024 * 1024,
-	}
+	defaultCachePolicyCore = store.DefaultCachePolicyCore
 
-	defaultCachePolicyClassic = store.CachePolicy{
-		// at most this many unreferenced items
-		MaxItems: 5,
-		// unreferenced items older than 30 days are removed
-		MaxAge: 30 * 24 * time.Hour,
-		// policy for classic systems has no size limit
-	}
+	defaultCachePolicyClassic = store.DefaultCachePolicyClassic
 
 	configstateInit = configstate.Init
 	systemdSdNotify = systemd.SdNotify
