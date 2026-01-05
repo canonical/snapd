@@ -26,6 +26,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil/quantity"
 )
@@ -67,14 +68,10 @@ func boolYesNo(b bool) string {
 func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 	cacheDir := dirs.SnapDownloadCacheDir
 
-	// same as overlord defaultCachePolicy
-	policy := store.CachePolicy{
-		// at most this many unreferenced items
-		MaxItems: 5,
-		// unreferenced items older than 30 days are removed
-		MaxAge: 30 * 24 * time.Hour,
-		// try to keep cache < 1GB
-		MaxSizeBytes: 1 * 1024 * 1024 * 1024,
+	// same as in overlord
+	policy := store.DefaultCachePolicyClassic
+	if !release.OnClassic {
+		policy = store.DefaultCachePolicyCore
 	}
 
 	if x.Dir != "" {
