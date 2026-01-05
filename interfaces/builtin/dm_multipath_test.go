@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -116,7 +119,7 @@ func (s *dmMultipathInterfaceSuite) TestUDevConnectedPlug(c *C) {
 KERNEL=="device-mapper", TAG+="snap_other_app"`,
 		`# dm-multipath
 KERNEL=="dm-[0-9]*", TAG+="snap_other_app"`,
-		`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 }
 

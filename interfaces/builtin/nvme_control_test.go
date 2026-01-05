@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -114,7 +117,7 @@ func (s *nvmeControlInterfaceSuite) TestUDevConnectedPlug(c *C) {
 KERNEL=="nvme-fabrics", TAG+="snap_other_app"`,
 		`# nvme-control
 SUBSYSTEM=="nvme", TAG+="snap_other_app"`,
-		`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 }
 
