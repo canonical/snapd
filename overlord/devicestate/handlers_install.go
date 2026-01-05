@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -1281,7 +1282,15 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 		st.Unlock()
 		defer st.Lock()
 
-		cmd := exec.Command("snap", "debug", "preseed-chroot", targetChroot, systemLabel)
+		var toolPath string
+		toolPath, err = snapdtool.InternalToolPath("snap-preseed")
+		if err != nil {
+			return
+		}
+
+		cmd := exec.Command(toolPath, "--hybrid", "--system-label", systemLabel, targetChroot)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		err = cmd.Run()
 	})
 	if err != nil {
