@@ -222,11 +222,8 @@ func (cm *CacheManager) Cleanup() error {
 		return err
 	}
 
-	var removedSize uint64
-	var removedCount uint
-	err = cm.cachePolicy.Apply(entries, time.Now(), func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cm.cachePolicy.Apply(entries, time.Now(), func(fi os.FileInfo) error {
 		path := cm.path(fi.Name())
-		sz := fi.Size()
 		logger.Debugf("removing %v", path)
 		err := osRemove(path)
 		if err != nil {
@@ -236,9 +233,6 @@ func (cm *CacheManager) Cleanup() error {
 				logger.Noticef("cannot remove cache entry: %s", err)
 				return err
 			}
-		} else {
-			removedCount++
-			removedSize += uint64(sz)
 		}
 		return nil
 	})
@@ -285,7 +279,7 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 	}
 
 	removeByName := map[string]bool{}
-	err = cm.cachePolicy.Apply(entries, time.Now(), func(info os.FileInfo) error {
+	_, _, err = cm.cachePolicy.Apply(entries, time.Now(), func(info os.FileInfo) error {
 		removeByName[info.Name()] = true
 		return nil
 	})
@@ -349,7 +343,7 @@ func (cp *CachePolicy) isCandidate(fi os.FileInfo) bool {
 // processing unique cache items starting from oldest ones. Errors to drop items
 // are collected and returned, but processing continues until targets are met or
 // candidates list is exhausted.
-func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(info os.FileInfo) error) error {
+func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(info os.FileInfo) error) (removedCount int, removedSize uint64, err error) {
 	// most of the entries will have more than one hardlink, but a minority may
 	// be referenced only from the cache and thus be a candidate for pruning
 	candidates := make([]os.FileInfo, 0, len(entries)/5)
@@ -358,7 +352,7 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(i
 	for _, entry := range entries {
 		fi, err := entry.Info()
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
 
 		if cp.isCandidate(fi) {
@@ -378,19 +372,17 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(i
 	}
 
 	var lastErr error
-	removeCount := 0
-	removeSize := uint64(0)
 	for _, c := range candidates {
 		doRemove := false
 		if cp.MaxAge != 0 && c.ModTime().Add(cp.MaxAge).Before(now) {
 			doRemove = true
 		}
 
-		if !doRemove && cp.MaxItems != 0 && len(candidates)-removeCount > cp.MaxItems {
+		if !doRemove && cp.MaxItems != 0 && len(candidates)-removedCount > cp.MaxItems {
 			doRemove = true
 		}
 
-		if !doRemove && cp.MaxSizeBytes != 0 && candidatesSize-removeSize > cp.MaxSizeBytes {
+		if !doRemove && cp.MaxSizeBytes != 0 && candidatesSize-removedSize > cp.MaxSizeBytes {
 			doRemove = true
 		}
 
@@ -400,13 +392,13 @@ func (cp *CachePolicy) Apply(entries []os.DirEntry, now time.Time, remove func(i
 				lastErr = strutil.JoinErrors(lastErr, err)
 			} else {
 				// managed to drop the items, update the counts
-				removeCount++
-				removeSize += uint64(c.Size())
+				removedCount++
+				removedSize += uint64(c.Size())
 			}
 		}
 	}
 
-	logger.Debugf("cache candidates to remove %v/%s", removeCount, quantity.FormatAmount(removeSize, -1))
+	logger.Debugf("cache candidates to remove %v/%s", removedCount, quantity.FormatAmount(removedSize, -1))
 
-	return lastErr
+	return removedCount, removedSize, lastErr
 }

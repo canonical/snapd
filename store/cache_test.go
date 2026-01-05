@@ -513,10 +513,12 @@ func (s *cachePolicySuite) TestNoRemoval(c *C) {
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestMaxItems(c *C) {
@@ -536,12 +538,14 @@ func (s *cachePolicySuite) TestMaxItems(c *C) {
 
 	now := time.Now()
 	var removed []string
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		removed = append(removed, fi.Name())
 		return nil
 	})
 	c.Assert(err, IsNil)
 	c.Check(removed, DeepEquals, []string{"file1"})
+	c.Check(removedCount, Equals, 1)
+	c.Check(removedSize, Equals, uint64(100))
 }
 
 func (s *cachePolicySuite) TestMaxAgeTooOld(c *C) {
@@ -560,7 +564,7 @@ func (s *cachePolicySuite) TestMaxAgeTooOld(c *C) {
 	c.Assert(err, IsNil)
 
 	var removed []string
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		removed = append(removed, fi.Name())
 		return nil
 	})
@@ -568,6 +572,8 @@ func (s *cachePolicySuite) TestMaxAgeTooOld(c *C) {
 
 	// should remove file older than MaxAge
 	c.Check(removed, DeepEquals, []string{"old_file"})
+	c.Check(removedCount, Equals, 1)
+	c.Check(removedSize, Equals, uint64(100))
 }
 
 func (s *cachePolicySuite) TestMaxSize(c *C) {
@@ -590,7 +596,7 @@ func (s *cachePolicySuite) TestMaxSize(c *C) {
 	c.Assert(err, IsNil)
 
 	var removed []string
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		removed = append(removed, fi.Name())
 		return nil
 	})
@@ -599,6 +605,8 @@ func (s *cachePolicySuite) TestMaxSize(c *C) {
 	c.Check(removed, DeepEquals, []string{
 		"file1", "file2", "file3",
 	})
+	c.Check(removedCount, Equals, 3)
+	c.Check(removedSize, Equals, uint64(300))
 }
 
 func (s *cachePolicySuite) TestApplyMultipleLimits(c *C) {
@@ -620,7 +628,7 @@ func (s *cachePolicySuite) TestApplyMultipleLimits(c *C) {
 	c.Assert(err, IsNil)
 
 	var removed []string
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		removed = append(removed, fi.Name())
 		return nil
 	})
@@ -629,6 +637,8 @@ func (s *cachePolicySuite) TestApplyMultipleLimits(c *C) {
 	c.Check(removed, DeepEquals, []string{
 		"very_old", "old", "recent",
 	})
+	c.Check(removedCount, Equals, 3)
+	c.Check(removedSize, Equals, uint64(300))
 }
 
 func (s *cachePolicySuite) TestEmptyCache(c *C) {
@@ -642,10 +652,12 @@ func (s *cachePolicySuite) TestEmptyCache(c *C) {
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestSingleFile(c *C) {
@@ -661,10 +673,12 @@ func (s *cachePolicySuite) TestSingleFile(c *C) {
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestZeroMaxItems(c *C) {
@@ -682,10 +696,12 @@ func (s *cachePolicySuite) TestZeroMaxItems(c *C) {
 	entries, err := os.ReadDir(s.tmp)
 	c.Assert(err, IsNil)
 
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestZeroMaxSize(c *C) {
@@ -703,10 +719,12 @@ func (s *cachePolicySuite) TestZeroMaxSize(c *C) {
 	entries, err := os.ReadDir(s.tmp)
 	c.Assert(err, IsNil)
 
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestZeroMaxAge(c *C) {
@@ -724,10 +742,12 @@ func (s *cachePolicySuite) TestZeroMaxAge(c *C) {
 	entries, err := os.ReadDir(s.tmp)
 	c.Assert(err, IsNil)
 
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, IsNil)
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestMaxAgeAtBoundary(c *C) {
@@ -749,12 +769,14 @@ func (s *cachePolicySuite) TestMaxAgeAtBoundary(c *C) {
 	c.Assert(err, IsNil)
 
 	var removed []string
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		removed = append(removed, fi.Name())
 		return nil
 	})
 	c.Assert(err, IsNil)
 	c.Check(removed, DeepEquals, []string{"past_boundary"})
+	c.Check(removedCount, Equals, 1)
+	c.Check(removedSize, Equals, uint64(100))
 }
 
 func (s *cachePolicySuite) TestApplyErr(c *C) {
@@ -774,10 +796,12 @@ func (s *cachePolicySuite) TestApplyErr(c *C) {
 	c.Assert(entries, HasLen, 1)
 	c.Assert(os.Remove(filepath.Join(s.tmp, entries[0].Name())), IsNil)
 
-	err = cp.Apply(entries, now, func(fi os.FileInfo) error {
+	removedCount, removedSize, err := cp.Apply(entries, now, func(fi os.FileInfo) error {
 		panic("unexpected call")
 	})
 	c.Assert(err, ErrorMatches, ".*/entry: no such file or directory")
+	c.Check(removedCount, Equals, 0)
+	c.Check(removedSize, Equals, uint64(0))
 }
 
 func (s *cachePolicySuite) TestApplyContinuesOnError(c *C) {
@@ -816,7 +840,7 @@ func (s *cachePolicySuite) TestApplyContinuesOnError(c *C) {
 		return os.Remove(filepath.Join(s.tmp, fi.Name()))
 	}
 
-	err = cp.Apply(entries, now, rm)
+	removedCount, removedSize, err := cp.Apply(entries, now, rm)
 	c.Check(err, ErrorMatches, "simulated error 1\nsimulated error 2")
 	c.Check(removed, DeepEquals, []string{
 		"file1", // remove fails
@@ -824,6 +848,8 @@ func (s *cachePolicySuite) TestApplyContinuesOnError(c *C) {
 		"file3", // removing brings us to 4 items
 		"file4", // removing brings us to 3 items, meeting the limit
 	})
+	c.Check(removedCount, Equals, 2)
+	c.Check(removedSize, Equals, uint64(200))
 
 	entries, err = os.ReadDir(s.tmp)
 	c.Assert(err, IsNil)
@@ -835,9 +861,11 @@ func (s *cachePolicySuite) TestApplyContinuesOnError(c *C) {
 	fail = false
 	removed = []string{}
 	// try again, no removal errors this time
-	err = cp.Apply(entries, now, rm)
+	removedCount, removedSize, err = cp.Apply(entries, now, rm)
 	c.Check(err, IsNil)
 	c.Check(removed, DeepEquals, []string{
 		"file1", // removing meets the items count target
 	})
+	c.Check(removedCount, Equals, 1)
+	c.Check(removedSize, Equals, uint64(100))
 }
