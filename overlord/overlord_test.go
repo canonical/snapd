@@ -152,7 +152,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	// store is setup
 	sto := snapstate.Store(s, nil)
 	c.Check(sto, FitsTypeOf, &store.Store{})
-	c.Check(sto.(*store.Store).CachePolicy(), Equals, overlord.DefaultCachePolicyClassic)
+	c.Check(sto.(*store.Store).CachePolicy(), Equals, store.DefaultCachePolicyClassic)
 }
 
 func (ovs *overlordSuite) TestNewStoreClassic(c *C) {
@@ -169,7 +169,7 @@ func (ovs *overlordSuite) TestNewStoreClassic(c *C) {
 	c.Check(sto, FitsTypeOf, &store.Store{})
 	// we're using a classic system specific policy
 	pol := sto.(*store.Store).CachePolicy()
-	c.Check(pol, Equals, overlord.DefaultCachePolicyClassic)
+	c.Check(pol, Equals, store.DefaultCachePolicyClassic)
 	c.Check(pol.MaxSizeBytes, Equals, uint64(0))
 }
 
@@ -185,7 +185,7 @@ func (ovs *overlordSuite) TestNewStoreCore(c *C) {
 	c.Check(sto, FitsTypeOf, &store.Store{})
 	// we're using a core system specific policy
 	pol := sto.(*store.Store).CachePolicy()
-	c.Check(pol, Equals, overlord.DefaultCachePolicyCore)
+	c.Check(pol, Equals, store.DefaultCachePolicyCore)
 	// the size limit is set to 1GB
 	c.Check(pol.MaxSizeBytes, Equals, uint64(1*1024*1024*1024))
 }

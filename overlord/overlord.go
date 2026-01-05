@@ -78,10 +78,6 @@ var (
 
 	pruneMaxChanges = 500
 
-	defaultCachePolicyCore = store.DefaultCachePolicyCore
-
-	defaultCachePolicyClassic = store.DefaultCachePolicyClassic
-
 	configstateInit = configstate.Init
 	systemdSdNotify = systemd.SdNotify
 )
@@ -367,9 +363,9 @@ func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snap
 	sto := storeNew(cfg, storeCtx)
 	// TODO add a way for overriding cache policy
 	if release.OnClassic {
-		sto.SetCachePolicy(defaultCachePolicyClassic)
+		sto.SetCachePolicy(store.DefaultCachePolicyClassic)
 	} else {
-		sto.SetCachePolicy(defaultCachePolicyCore)
+		sto.SetCachePolicy(store.DefaultCachePolicyCore)
 	}
 	return sto
 }

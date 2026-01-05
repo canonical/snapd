@@ -32,9 +32,7 @@ import (
 )
 
 var (
-	LockWithTimeout           = lockWithTimeout
-	DefaultCachePolicyCore    = defaultCachePolicyCore
-	DefaultCachePolicyClassic = defaultCachePolicyClassic
+	LockWithTimeout = lockWithTimeout
 )
 
 // MockEnsureInterval sets the overlord ensure interval for tests.
