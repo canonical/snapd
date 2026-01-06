@@ -125,8 +125,7 @@ func (p *FakeBlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 }
 
 func (p *FakeBlkidProbe) GetSectorSize() (uint, error) {
-	// Simplify for testing
-	return 1, nil
+	return 512, nil
 }
 
 func (p *FakeBlkidPartlist) GetPartitions() []AbstractBlkidPartition {

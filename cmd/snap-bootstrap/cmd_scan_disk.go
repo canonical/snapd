@@ -188,7 +188,7 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 
 // probeFilesystemInfo probes a filesystem to obtain the filesystem label.
 // <start> and <size> must be byte offsets, not sector counts.
-func probeFilesystemInfo(node string, start, size int64) (*Filesystem, error) {
+func probeFilesystemInfo(node string, part int, start, size int64) (*Filesystem, error) {
 	probe, err := blkid.NewProbeFromRange(node, start, size)
 	if err != nil {
 		return nil, err
@@ -204,12 +204,16 @@ func probeFilesystemInfo(node string, start, size int64) (*Filesystem, error) {
 
 	label, err := probe.LookupValue("LABEL")
 	if err != nil {
-		return nil, err
+		// This can happen for instance on the pi (mbr), where during the installation of a preseeded
+		// image, it can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
+		// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
+		logger.Noticef("WARNING: no filesystem label on partition %d of %s: %s", part, node, err)
 	}
 	fsUUID, err := probe.LookupValue("UUID")
 	if err != nil {
-		return nil, err
+		logger.Noticef("WARNING: no filesystem UUID on partition %d of %s: %s", part, node, err)
 	}
+	// It is ok if we did not find useful information here
 	return &Filesystem{FilesystemLabel: label, FilesystemUUID: fsUUID}, nil
 }
 
@@ -238,13 +242,7 @@ func probeDisk(node string) (*Disk, error) {
 		return nil, nil
 	}
 
-	sectorSize, err := probe.GetSectorSize()
-	if sectorSize == 0 && err != nil {
-		return nil, err
-	}
-
 	parts := make([]*Partition, 0)
-	ss64 := int64(sectorSize)
 	// We might have a "p" in the partition node, see below.
 	maybeP := ""
 	if unicode.IsDigit(rune(node[len(node)-1])) {
@@ -254,19 +252,17 @@ func probeDisk(node string) (*Disk, error) {
 		var p Partition
 		p.Number = partition.GetNumber()
 
-		fsInfo, err := probeFilesystemInfo(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
+		fsInfo, err := probeFilesystemInfo(node, p.Number, partition.GetStart(), partition.GetSize())
 		if err != nil {
-			// On the pi, it has been observed during the installation of a preseeded image, that it
-			// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
-			// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
-			// So log a warning, but continue processing other partitions.
-			logger.Noticef("WARNING: cannot probe filesystem on partition %d: %s", p.Number, err)
+			logger.Noticef("WARNING: cannot probe filesystem on partition %d of %s: %s",
+				p.Number, node, err)
 			continue
 		}
+		p.Filesystem = *fsInfo
+
 		// Build the partition node name now, as in Linux add_partition():
 		// https://github.com/torvalds/linux/blob/v6.18/block/partitions/core.c#L335
 		p.Node = fmt.Sprint(node, maybeP, p.Number)
-		p.Filesystem = *fsInfo
 		if gpt {
 			p.Name = partition.GetName()
 			p.UUID = partition.GetUUID()
