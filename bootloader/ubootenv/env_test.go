@@ -464,34 +464,35 @@ func (u *uenvTestSuite) TestRedundantAlternatesCopies(c *C) {
 		return data[4], data[size+4]
 	}
 
-	// After CreateRedundant + initial Save(), copy2 should have flag 1
+	// After CreateRedundant (which calls Save twice), both copies are valid
+	// First save writes to copy2 with flag=1, second save writes to copy1 with flag=2
 	flag1, flag2 := readFlags()
-	c.Assert(flag1, Equals, byte(0), Commentf("copy1 flag after create"))
+	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after create"))
 	c.Assert(flag2, Equals, byte(1), Commentf("copy2 flag after create"))
 
-	// Second save should write to copy1 with flag 2
+	// Next save should write to copy2 with flag 3
 	env.Set("key", "value1")
 	err = env.Save()
 	c.Assert(err, IsNil)
 	flag1, flag2 = readFlags()
-	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after 2nd save"))
-	c.Assert(flag2, Equals, byte(1), Commentf("copy2 flag after 2nd save"))
+	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after 1st user save"))
+	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 1st user save"))
 
-	// Third save should write to copy2 with flag 3
+	// Next save should write to copy1 with flag 4
 	env.Set("key", "value2")
 	err = env.Save()
 	c.Assert(err, IsNil)
 	flag1, flag2 = readFlags()
-	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after 3rd save"))
-	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 3rd save"))
+	c.Assert(flag1, Equals, byte(4), Commentf("copy1 flag after 2nd user save"))
+	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 2nd user save"))
 
-	// Fourth save should write to copy1 with flag 4
+	// Next save should write to copy2 with flag 5
 	env.Set("key", "value3")
 	err = env.Save()
 	c.Assert(err, IsNil)
 	flag1, flag2 = readFlags()
-	c.Assert(flag1, Equals, byte(4), Commentf("copy1 flag after 4th save"))
-	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 4th save"))
+	c.Assert(flag1, Equals, byte(4), Commentf("copy1 flag after 3rd user save"))
+	c.Assert(flag2, Equals, byte(5), Commentf("copy2 flag after 3rd user save"))
 }
 
 // makeRedundantEnvWithFlags creates a redundant environment file where
