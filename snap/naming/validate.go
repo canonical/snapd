@@ -313,7 +313,7 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 
 // validateAssumedISAArch checks that, when a snap requires an ISA to be supported:
 //  1. compares the specified <arch> with the device's one. If they differ, it exits
-//     without error signaling that they flag is valid
+//     without error signaling that the flag is valid
 //  2. if the specified <arch> matches the device's one, the support for specifying ISAs
 //     for that architecture is verified. If it's absent, an error is returned
 //  3. if ISA specification is supported for that architecture, the arch-specific function,
@@ -343,7 +343,6 @@ func validateAssumedISAArch(flag string, currentArchitecture string) error {
 	switch tokens[1] {
 	case "riscv64":
 		err = validateAssumesRiscvISA(tokens[2])
-
 	default:
 		return fmt.Errorf("%s: ISA specification is not supported for arch: %s", flag, tokens[1])
 	}

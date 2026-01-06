@@ -3,7 +3,7 @@
 //notsetupgo:build linux && riscv64
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -144,7 +144,6 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 			supportedExtensions: []unix.RISCVHWProbePairs{
 				minimumRVA23Extensions[0],
 				{
-
 					Key:   unix.RISCV_HWPROBE_KEY_IMA_EXT_0,
 					Value: minimumRVA23Extensions[1].Value & ^naming.RISCV_HWPROBE_EXT_ZICBOZ,
 				},

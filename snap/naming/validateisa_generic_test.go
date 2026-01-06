@@ -3,7 +3,7 @@
 //go:build !linux || !riscv64
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,7 +43,6 @@ func (s *ValidateISASuite) TearDownTest(c *C) {
 }
 
 func (s *ValidateISASuite) TestValidateAssumesISARISCVWrongArch(c *C) {
-
 	// Non-riscv64 built executable is running on riscv64
 	assumes := []string{"isa-riscv64-rva23"}
 

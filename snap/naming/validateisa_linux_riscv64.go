@@ -11,86 +11,94 @@ import (
 )
 
 // Extensions to be retrieved via unix.RISCV_HWPROBE_KEY_IMA_EXT_0
-// These keys are mandatory for RVA23 according to the docs https://github.com/riscv/riscv-profiles/blob/main/src/rva23-profile.adoc#rva23u64-profile
-// but are not found as a RISCV_HWPROBE_EXT_<NAME> in the kernel sources for 6.17,
-// These don't even have a "feature flag" RISCV_ISA_EXT_<NAME> inside the current resolute kernel that shows
-// that they are supported. (The only one is Zicsr, not listed here, that is implied by "f" so it
-// doesn't require a separate probe key).
-// These keys also do not appear in the latest (2025-12-01) Risc-V ISA manual (https://github.com/riscv/riscv-isa-manual/releases/tag/riscv-isa-release-fcd76ed-2025-12-01)
-// nor in the (archived) riscv-v-spec repository (https://github.com/riscvarchive/riscv-v-spec)
-//   - Ziccif
-//   - Ziccrse (has _ISA_ flag but not _HWPROBE_ flag)
-//   - Ziccamoa
-//   - Zicclsm
-//   - Za64rs
-//   - Zic64b
-//   - Zicbop (has _ISA_ flag but not _HWPROBE_ flag)
-//
-// Zicbop is also the only one mentioned in the documentation in a meaningful way
 // Note: This list is declared here since the one in golang.org/x/sys/unix/ztypes_linux_riscv64.go is not complete, and only
 // contains the values up to RISCV_HWPROBE_EXT_ZIHINTPAUSE. Some of the constants missing in that file are
 // required for RVA23, e.g. Zcmop
 const (
-	RISCV_HWPROBE_IMA_FD          uint64 = 1 << 0
-	RISCV_HWPROBE_IMA_C           uint64 = 1 << 1
-	RISCV_HWPROBE_IMA_V           uint64 = 1 << 2
-	RISCV_HWPROBE_EXT_ZBA         uint64 = 1 << 3
-	RISCV_HWPROBE_EXT_ZBB         uint64 = 1 << 4
-	RISCV_HWPROBE_EXT_ZBS         uint64 = 1 << 5
-	RISCV_HWPROBE_EXT_ZICBOZ      uint64 = 1 << 6
-	RISCV_HWPROBE_EXT_ZBC         uint64 = 1 << 7
-	RISCV_HWPROBE_EXT_ZBKB        uint64 = 1 << 8
-	RISCV_HWPROBE_EXT_ZBKC        uint64 = 1 << 9
-	RISCV_HWPROBE_EXT_ZBKX        uint64 = 1 << 10
-	RISCV_HWPROBE_EXT_ZKND        uint64 = 1 << 11
-	RISCV_HWPROBE_EXT_ZKNE        uint64 = 1 << 12
-	RISCV_HWPROBE_EXT_ZKNH        uint64 = 1 << 13
-	RISCV_HWPROBE_EXT_ZKSED       uint64 = 1 << 14
-	RISCV_HWPROBE_EXT_ZKSH        uint64 = 1 << 15
-	RISCV_HWPROBE_EXT_ZKT         uint64 = 1 << 16
-	RISCV_HWPROBE_EXT_ZVBB        uint64 = 1 << 17
-	RISCV_HWPROBE_EXT_ZVBC        uint64 = 1 << 18
-	RISCV_HWPROBE_EXT_ZVKB        uint64 = 1 << 19
-	RISCV_HWPROBE_EXT_ZVKG        uint64 = 1 << 20
-	RISCV_HWPROBE_EXT_ZVKNED      uint64 = 1 << 21
-	RISCV_HWPROBE_EXT_ZVKNHA      uint64 = 1 << 22
-	RISCV_HWPROBE_EXT_ZVKNHB      uint64 = 1 << 23
-	RISCV_HWPROBE_EXT_ZVKSED      uint64 = 1 << 24
-	RISCV_HWPROBE_EXT_ZVKSH       uint64 = 1 << 25
-	RISCV_HWPROBE_EXT_ZVKT        uint64 = 1 << 26
-	RISCV_HWPROBE_EXT_ZFH         uint64 = 1 << 27
-	RISCV_HWPROBE_EXT_ZFHMIN      uint64 = 1 << 28
-	RISCV_HWPROBE_EXT_ZIHINTNTL   uint64 = 1 << 29
-	RISCV_HWPROBE_EXT_ZVFH        uint64 = 1 << 30
-	RISCV_HWPROBE_EXT_ZVFHMIN     uint64 = 1 << 31
-	RISCV_HWPROBE_EXT_ZFA         uint64 = 1 << 32
-	RISCV_HWPROBE_EXT_ZTSO        uint64 = 1 << 33
-	RISCV_HWPROBE_EXT_ZACAS       uint64 = 1 << 34
-	RISCV_HWPROBE_EXT_ZICOND      uint64 = 1 << 35
-	RISCV_HWPROBE_EXT_ZIHINTPAUSE uint64 = 1 << 36
-	RISCV_HWPROBE_EXT_ZVE32X      uint64 = 1 << 37
-	RISCV_HWPROBE_EXT_ZVE32F      uint64 = 1 << 38
-	RISCV_HWPROBE_EXT_ZVE64X      uint64 = 1 << 39
-	RISCV_HWPROBE_EXT_ZVE64F      uint64 = 1 << 40
-	RISCV_HWPROBE_EXT_ZVE64D      uint64 = 1 << 41
-	RISCV_HWPROBE_EXT_ZIMOP       uint64 = 1 << 42
-	RISCV_HWPROBE_EXT_ZCA         uint64 = 1 << 43
-	RISCV_HWPROBE_EXT_ZCB         uint64 = 1 << 44
-	RISCV_HWPROBE_EXT_ZCD         uint64 = 1 << 45
-	RISCV_HWPROBE_EXT_ZCF         uint64 = 1 << 46
-	RISCV_HWPROBE_EXT_ZCMOP       uint64 = 1 << 47
-	RISCV_HWPROBE_EXT_ZAWRS       uint64 = 1 << 48
-	RISCV_HWPROBE_EXT_SUPM        uint64 = 1 << 49
-	RISCV_HWPROBE_EXT_ZICNTR      uint64 = 1 << 50
-	RISCV_HWPROBE_EXT_ZIHPM       uint64 = 1 << 51
-	RISCV_HWPROBE_EXT_ZFBFMIN     uint64 = 1 << 52
-	RISCV_HWPROBE_EXT_ZVFBFMIN    uint64 = 1 << 53
-	RISCV_HWPROBE_EXT_ZVFBFWMA    uint64 = 1 << 54
-	RISCV_HWPROBE_EXT_ZICBOM      uint64 = 1 << 55
-	RISCV_HWPROBE_EXT_ZAAMO       uint64 = 1 << 56
-	RISCV_HWPROBE_EXT_ZALRSC      uint64 = 1 << 57
-	RISCV_HWPROBE_EXT_ZABHA       uint64 = 1 << 58
+	RISCV_HWPROBE_IMA_FD uint64 = 1 << iota
+	RISCV_HWPROBE_IMA_C
+	RISCV_HWPROBE_IMA_V
+	RISCV_HWPROBE_EXT_ZBA
+	RISCV_HWPROBE_EXT_ZBB
+	RISCV_HWPROBE_EXT_ZBS
+	RISCV_HWPROBE_EXT_ZICBOZ
+	RISCV_HWPROBE_EXT_ZBC
+	RISCV_HWPROBE_EXT_ZBKB
+	RISCV_HWPROBE_EXT_ZBKC
+	RISCV_HWPROBE_EXT_ZBKX
+	RISCV_HWPROBE_EXT_ZKND
+	RISCV_HWPROBE_EXT_ZKNE
+	RISCV_HWPROBE_EXT_ZKNH
+	RISCV_HWPROBE_EXT_ZKSED
+	RISCV_HWPROBE_EXT_ZKSH
+	RISCV_HWPROBE_EXT_ZKT
+	RISCV_HWPROBE_EXT_ZVBB
+	RISCV_HWPROBE_EXT_ZVBC
+	RISCV_HWPROBE_EXT_ZVKB
+	RISCV_HWPROBE_EXT_ZVKG
+	RISCV_HWPROBE_EXT_ZVKNED
+	RISCV_HWPROBE_EXT_ZVKNHA
+	RISCV_HWPROBE_EXT_ZVKNHB
+	RISCV_HWPROBE_EXT_ZVKSED
+	RISCV_HWPROBE_EXT_ZVKSH
+	RISCV_HWPROBE_EXT_ZVKT
+	RISCV_HWPROBE_EXT_ZFH
+	RISCV_HWPROBE_EXT_ZFHMIN
+	RISCV_HWPROBE_EXT_ZIHINTNTL
+	RISCV_HWPROBE_EXT_ZVFH
+	RISCV_HWPROBE_EXT_ZVFHMIN
+	RISCV_HWPROBE_EXT_ZFA
+	RISCV_HWPROBE_EXT_ZTSO
+	RISCV_HWPROBE_EXT_ZACAS
+	RISCV_HWPROBE_EXT_ZICOND
+	RISCV_HWPROBE_EXT_ZIHINTPAUSE
+	RISCV_HWPROBE_EXT_ZVE32X
+	RISCV_HWPROBE_EXT_ZVE32F
+	RISCV_HWPROBE_EXT_ZVE64X
+	RISCV_HWPROBE_EXT_ZVE64F
+	RISCV_HWPROBE_EXT_ZVE64D
+	RISCV_HWPROBE_EXT_ZIMOP
+	RISCV_HWPROBE_EXT_ZCA
+	RISCV_HWPROBE_EXT_ZCB
+	RISCV_HWPROBE_EXT_ZCD
+	RISCV_HWPROBE_EXT_ZCF
+	RISCV_HWPROBE_EXT_ZCMOP
+	RISCV_HWPROBE_EXT_ZAWRS
+	RISCV_HWPROBE_EXT_SUPM
+	RISCV_HWPROBE_EXT_ZICNTR
+	RISCV_HWPROBE_EXT_ZIHPM
+	RISCV_HWPROBE_EXT_ZFBFMIN
+	RISCV_HWPROBE_EXT_ZVFBFMIN
+	RISCV_HWPROBE_EXT_ZVFBFWMA
+	RISCV_HWPROBE_EXT_ZICBOM
+	RISCV_HWPROBE_EXT_ZAAMO
+	RISCV_HWPROBE_EXT_ZALRSC
+	RISCV_HWPROBE_EXT_ZABHA
 )
+
+// The above list contains all extension keys that are in the kernel sources for version 6.17.
+//
+// The following keys are not present in the above list, but mandatory for RVA23 according to
+// the specification
+// https://github.com/riscv/riscv-profiles/blob/main/src/rva23-profile.adoc#rva23u64-profile,
+// but are not queriable to the kernel as RISCV_HWPROBE_EXT_<NAME>:
+//   - Ziccif
+//   - Ziccrse
+//   - Ziccamoa
+//   - Zicclsm
+//   - Za64rs
+//   - Zic64b
+//   - Zicbop
+// All these keys do not have a "feature flag" RISCV_ISA_EXT_<NAME> (except for Ziccrse, Zicbop
+// and Zicsr).
+// These keys also do not appear in the latest (2025-12-01) Risc-V ISA manual
+// (https://github.com/riscv/riscv-isa-manual/releases/tag/riscv-isa-release-fcd76ed-2025-12-01)
+// nor in the (archived) riscv-v-spec repository (https://github.com/riscvarchive/riscv-v-spec)
+//
+// Zicbop is the only one mentioned in the documentation in a meaningful way, but no hints are
+// given as to why RISCV_HWPROBE_EXT_ZICBOP does not exist.
+//
+// Zicsr is missing from the list as it is implied by "f" so it doesn't require a separate probe key.
 
 // Define extension descriptions
 type extDesc struct {
