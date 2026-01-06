@@ -454,3 +454,11 @@ func ValidateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiErr
 func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []any, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
 	return testutil.Mock(&devicestateSignConfdbControl, f)
 }
+
+func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
+	old := devicestateInstallPreseed
+	devicestateInstallPreseed = f
+	return func() {
+		devicestateInstallPreseed = old
+	}
+}
