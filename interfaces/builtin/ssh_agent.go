@@ -24,7 +24,7 @@ const sshAgentBaseDeclarationSlots = `
   ssh-agent:
     allow-installation:
       slot-snap-type:
-        - app
+        - core
     deny-auto-connection: true
 `
 
