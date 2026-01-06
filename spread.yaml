@@ -425,9 +425,6 @@ backends:
                 image: snapd-spread/arch-linux-64
                 workers: 6
 
-            - fedora-41-64:
-                image: snapd-spread/fedora-41-64
-                workers: 6
             - fedora-42-64:
                   image: snapd-spread/fedora-42-64
                   workers: 12
@@ -766,9 +763,6 @@ backends:
                   username: root
                   password: root
             - opensuse-tumbleweed-selinux-64:
-                  username: root
-                  password: root
-            - fedora-41-64:
                   username: root
                   password: root
             - fedora-42-64:

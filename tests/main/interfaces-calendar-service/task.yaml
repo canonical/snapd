@@ -25,7 +25,6 @@ systems:
     - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -centos-*
     - -debian-*
-    - -fedora-41-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -fedora-42-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-15.6-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
