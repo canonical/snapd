@@ -1555,12 +1555,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			}
 
 			c.Assert(loadSequences, DeepEquals, sequences)
-
-			if tc.hasCheckResult {
-				c.Assert(options, DeepEquals, expectedOptions)
-			} else {
-				c.Assert(options, DeepEquals, expectedOptions)
-			}
+			c.Assert(options, DeepEquals, expectedOptions)
 
 			return tc.addPCRProfileErr
 		})
