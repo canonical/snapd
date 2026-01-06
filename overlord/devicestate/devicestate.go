@@ -2365,16 +2365,16 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 
 func InstallPreseed(st *state.State, label string, chroot string) (*state.Change, error) {
 	if chroot == "" {
-		return nil, fmt.Errorf("cannot preseed installed system without a chroot")
+		return nil, fmt.Errorf("cannot preseed installed system without a target root")
 	}
 
 	if !osutil.IsDirectory(chroot) {
-		return nil, fmt.Errorf("target chroot must be a directory")
+		return nil, fmt.Errorf("target root must be a directory")
 	}
 
 	chg := st.NewChange(installStepTargetPreseedChangeKind, fmt.Sprintf("Preseed installed system in %q", chroot))
 	preseedRunTask := st.NewTask("install-preseed", fmt.Sprintf("Preseed installed system in %q", chroot))
-	preseedRunTask.Set("target-chroot", chroot)
+	preseedRunTask.Set("target-root", chroot)
 	preseedRunTask.Set("system-label", label)
 	chg.AddTask(preseedRunTask)
 

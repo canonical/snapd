@@ -419,11 +419,11 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepPreseed:
-		if req.Chroot == nil {
-			return BadRequest("cannot preseed installed system without its chroot")
+		if req.TargetRoot == nil {
+			return BadRequest("cannot preseed installed system without its target root")
 		}
 
-		chg, err := devicestateInstallPreseed(st, systemLabel, *req.Chroot)
+		chg, err := devicestateInstallPreseed(st, systemLabel, *req.TargetRoot)
 		if err != nil {
 			return InternalError("cannot preseed installed system: %v", err)
 		}

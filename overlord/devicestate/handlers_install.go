@@ -1267,9 +1267,9 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	var targetChroot string
+	var targetRoot string
 	var systemLabel string
-	if err := t.Get("target-chroot", &targetChroot); err != nil {
+	if err := t.Get("target-root", &targetRoot); err != nil {
 		return err
 	}
 
@@ -1288,7 +1288,7 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 			return
 		}
 
-		cmd := exec.Command(toolPath, "--hybrid", "--system-label", systemLabel, targetChroot)
+		cmd := exec.Command(toolPath, "--hybrid", "--system-label", systemLabel, targetRoot)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err = cmd.Run()

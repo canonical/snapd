@@ -271,9 +271,9 @@ type InstallSystemOptions struct {
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
 
-	// Chroot is a path to the rootfs of a mounted target system for the
+	// TargetRoot is a path to the rootfs of a mounted target system for the
 	// "preseed" step.
-	Chroot *string `json:"target-chroot,omitempty"`
+	TargetRoot *string `json:"target-root,omitempty"`
 }
 
 type OptionalInstallRequest struct {

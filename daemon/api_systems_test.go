@@ -1403,9 +1403,9 @@ func (s *systemsSuite) TestSystemInstallActionPreseedCallsDevicestate(c *check.C
 	defer r()
 
 	body := map[string]any{
-		"action":        "install",
-		"step":          "preseed",
-		"target-chroot": "/chroot",
+		"action":      "install",
+		"step":        "preseed",
+		"target-root": "/chroot",
 	}
 	b, err := json.Marshal(body)
 	c.Assert(err, check.IsNil)
@@ -1441,7 +1441,7 @@ func (s *systemsSuite) TestSystemInstallActionPreseedErrorMissingChroot(c *check
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Message, check.Equals, `cannot preseed installed system without its chroot`)
+	c.Check(rsp.Message, check.Equals, `cannot preseed installed system without its target root`)
 }
 
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKDFTimeError(c *check.C) {
@@ -1553,6 +1553,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 					"bootloader": "grub",
 				},
 			},
+			"target-root": "/root",
 		}
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
