@@ -204,7 +204,7 @@ var helpCategories = []helpCategory{
 	{
 		Label:       i18n.G("Basics"),
 		Description: i18n.G("basic snap management"),
-		Commands:    []string{"find", "info", "install", "remove", "list", "components"},
+		Commands:    []string{"find", "info", "install", "remove", "list", "components", "component"},
 	}, {
 		Label:       i18n.G("...more"),
 		Description: i18n.G("slightly more advanced snap management"),

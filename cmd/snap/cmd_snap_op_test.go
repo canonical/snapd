@@ -1689,6 +1689,102 @@ func formFiles(form *multipart.Form, c *check.C) (names, filenames []string, con
 	return names, filenames, contents
 }
 
+func (s *SnapOpSuite) TestComponentShowInvalid(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"})
+	c.Assert(err, check.ErrorMatches, `exactly one snap and its components must be specified`)
+}
+
+func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
+	n := 0
+
+	// These embed the real client structs but override fields that need 'snap' types.
+	type mockComponent struct {
+		client.Component        // Embeds all standard fields (Name, Version, etc.)
+		Type             string `json:"type"`     // Shadows snap.ComponentType
+		Revision         string `json:"revision"` // Shadows snap.Revision
+	}
+
+	type mockSnap struct {
+		client.Snap                 // Embeds all standard fields
+		Revision    string          `json:"revision"`   // Shadows snap.Revision
+		Components  []mockComponent `json:"components"` // Shadows []client.Component
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		// 2. Create the components using the shadow struct
+		comp1 := mockComponent{
+			Component: client.Component{
+				Name:          "compiler",
+				Version:       "1.0",
+				Summary:       "The compiler component",
+				Description:   "Handles compilation tasks",
+				InstalledSize: 200 * 1024 * 1024,
+			},
+			Type:     "framework", // Simple string, no snap.ComponentType needed!
+			Revision: "42",        // Simple string, no snap.Revision needed!
+		}
+
+		comp2 := mockComponent{
+			Component: client.Component{
+				Name:          "runtime",
+				Type:          "app",
+				Version:       "1.2",
+				Summary:       "The runtime component",
+				Description:   "Handles runtime execution",
+				InstalledSize: 10 * 1024 * 1024, // 10MB
+			},
+			Type:     "app",
+			Revision: "10",
+		}
+
+		// 3. Create the snap using the shadow struct
+		ms := mockSnap{
+			Snap: client.Snap{
+				Name:          "qwen-vl",
+				Version:       "2.0",
+				Status:        "active",
+				Type:          "app", // client.Snap.Type is already a string, so this is fine
+				InstalledSize: 10 * 1024 * 1024,
+				Description:   "A mock AI snap",
+			},
+			Revision:   "100",
+			Components: []mockComponent{comp1, comp2},
+		}
+
+		// 4. Return the response
+		resp := map[string]any{
+			"type":        "sync",
+			"status-code": 200,
+			"result":      []mockSnap{ms},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+compiler+runtime"})
+
+	expectedOutput := `component: qwen-vl+compiler
+type: framework
+summary: The compiler component
+description: |
+  Handles compilation tasks
+installed: 1.0 (42) 200MB
+
+component: qwen-vl+runtime
+type: app
+summary: The runtime component
+description: |
+  Handles runtime execution
+installed: 1.2 (10) 10MB
+`
+
+	c.Assert(err, check.IsNil)
+	c.Assert(s.Stdout(), check.DeepEquals, expectedOutput)
+}
+
 func (s *SnapOpSuite) TestInstallPathManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--beta", "one.snap", "two.snap"})
