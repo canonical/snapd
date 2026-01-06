@@ -148,7 +148,8 @@ func buildLibPath() string {
 	// permissions).
 	sourceFiles := []string{}
 	for _, iface := range []string{"egl-driver-libs", "gbm-driver-libs", "cuda-driver-libs",
-		"opengl-driver-libs", "opengles-driver-libs", "vulkan-driver-libs"} {
+		"nvidia-video-driver-libs", "opengl-driver-libs", "opengles-driver-libs",
+		"vulkan-driver-libs"} {
 		sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir),
 			"system_*_"+iface+".library-source")
 		// Only possible error is a malformed pattern
