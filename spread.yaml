@@ -489,6 +489,10 @@ backends:
                   image: snapd-spread/ubuntu-24.04-64
                   storage: 25G
                   workers: 12
+            - ubuntu-26.04-64:
+                  image: snapd-spread/ubuntu-26.04-64
+                  storage: 25G
+                  workers: 12
 
     openstack-validation:
         type: openstack
