@@ -203,7 +203,7 @@ type DatabagSchema interface {
 	NestedVisibility(Visibility) bool
 
 	// PruneVisibility prunes all elements of the indicated visibility or higher from the schema along the given path
-	PruneData(*any, Visibility, []Accessor) error
+	PruneData(any, Visibility, []Accessor) (any, error)
 }
 
 type SchemaType uint
@@ -2953,9 +2953,9 @@ func (v JSONSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	return []DatabagSchema{v}, nil
 }
 
-func (v JSONSchema) Type() SchemaType                             { return Any }
-func (v JSONSchema) Ephemeral() bool                              { return false }
-func (v JSONSchema) NestedEphemeral() bool                        { return false }
-func (v JSONSchema) Visibility() Visibility                       { return DefaultVisibility }
-func (v JSONSchema) NestedVisibility(Visibility) bool             { return false }
-func (v JSONSchema) PruneData(*any, Visibility, []Accessor) error { return nil }
+func (v JSONSchema) Type() SchemaType                                            { return Any }
+func (v JSONSchema) Ephemeral() bool                                             { return false }
+func (v JSONSchema) NestedEphemeral() bool                                       { return false }
+func (v JSONSchema) Visibility() Visibility                                      { return DefaultVisibility }
+func (v JSONSchema) NestedVisibility(Visibility) bool                            { return false }
+func (v JSONSchema) PruneData(data any, _ Visibility, _ []Accessor) (any, error) { return data, nil }
