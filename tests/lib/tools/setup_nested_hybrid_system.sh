@@ -156,6 +156,14 @@ run_muinstaller() {
     if [ -n "${HYBRID_SYSTEM_MK_ROOT_FS-}" ]; then
         remote.push "${HYBRID_SYSTEM_MK_ROOT_FS}" /home/user1/custom-rootfs.sh
         remote.exec "chmod +x /home/user1/custom-rootfs.sh"
+
+        # The secboot preinstall check currently only supports livecd install, therefore, expects the booted
+        # shim, grub and kernel in specific /cdrom locations
+        remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+        remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+        remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+        remote.exec "sudo mkdir -p /cdrom/casper"
+        remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
     fi
     remote.exec "tee /home/user1/mk-classic-rootfs-wrapper.sh" <<\EOF
 #!/bin/bash
