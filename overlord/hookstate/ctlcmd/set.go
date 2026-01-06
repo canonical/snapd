@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -130,7 +131,7 @@ func (s *setCommand) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
 
-		return setConfdbValues(context, name, requests)
+		return setConfdbValues(context, name, requests, getVisibilityFromCommand(&s.baseCommand))
 	}
 
 	return s.setInterfaceSetting(context, name)
@@ -244,7 +245,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any) error {
+func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any, visibility confdb.Visibility) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
@@ -272,7 +273,7 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return err
 	}
 
-	err = confdbstate.SetViaView(tx, view, requests)
+	err = confdbstate.SetViaView(tx, view, requests, visibility)
 	if err != nil {
 		return err
 	}

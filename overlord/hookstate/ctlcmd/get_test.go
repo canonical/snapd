@@ -534,7 +534,15 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	body := []byte(`{
   "storage": {
     "schema": {
-      "wifi": "any"
+      "wifi": {
+        "schema": {
+          "psk": {
+            "type": "string",
+            "visibility": "secret"
+          },
+          "ssid": "string"
+        }
+      }
     }
   }
 }`)
@@ -1165,4 +1173,26 @@ func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
 		c.Check(string(stdout), DeepEquals, tc.output, cmt)
 		c.Check(stderr, IsNil, cmt)
 	}
+}
+
+func (s *confdbSuite) TestConfdbGetSecretVisibility(c *C) {
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "wifi.psk"), "secret")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
+		c.Assert(requests, DeepEquals, []string{"password"})
+		c.Assert(view.Schema().Account, Equals, s.devAccID)
+		c.Assert(view.Schema().Name, Equals, "network")
+		return tx, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "password"}, 1000)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "password" through %s/network/read-wifi: unauthorized access`, s.devAccID))
+	c.Check(stderr, IsNil)
+	c.Assert(stdout, IsNil)
 }

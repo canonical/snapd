@@ -111,5 +111,5 @@ func (s *unsetCommand) Execute(args []string) error {
 		confs[key] = nil
 	}
 
-	return setConfdbValues(context, plugName, confs)
+	return setConfdbValues(context, plugName, confs, getVisibilityFromCommand(&s.baseCommand))
 }
