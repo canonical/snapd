@@ -29,197 +29,197 @@ type taskBuilderTestSuite struct{}
 
 var _ = Suite(&taskBuilderTestSuite{})
 
-func (s *taskBuilderTestSuite) TestAddWithMetadata(c *C) {
+func (s *taskBuilderTestSuite) TestAppendWithTaskData(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
-	span := b.NewSpan()
+	b := newTaskSetBuilder()
+	seq := b.NewTaskSequence()
 
-	// this metadata will be applied to all tasks added via this builder or any
-	// child spans
-	span.SetMetadata(map[string]any{"snap-setup": "snapsup-task"})
+	// this task data will be applied to all tasks added via this taskSetBuilder or any
+	// child taskSequences
+	seq.SetTaskData(map[string]any{"snap-setup": "snapsup-task"})
 
-	// Add applies the builder's metadata and chains the task to the tail
+	// Append applies the taskSetBuilder's task data and chains the task to the tail
 	t1 := st.NewTask("task-1", "test")
-	span.Add(t1)
+	seq.Append(t1)
 
 	var snapsup string
 	c.Assert(t1.Get("snap-setup", &snapsup), IsNil)
 	c.Check(snapsup, Equals, "snapsup-task")
 
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{t1})
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{t1})
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{t1})
 
-	// Add applies the builder's metadata and chains the task to the tail. note,
-	// this is added directly on the builder, so this task should not be a part
-	// of the span.
+	// Append applies the taskSetBuilder's task data and chains the task to the tail. note,
+	// this is added directly on the taskSetBuilder, so this task should not be a part
+	// of the taskSequence.
 	t2 := st.NewTask("task-2", "test")
-	b.Add(t2)
+	b.Append(t2)
 
 	snapsup = ""
 	c.Assert(t2.Get("snap-setup", &snapsup), IsNil)
 	c.Check(snapsup, Equals, "snapsup-task")
 
 	c.Check(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{t1})
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{t1})
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{t1, t2})
 }
 
-func (s *taskBuilderTestSuite) TestSpanAddWithoutMetadata(c *C) {
+func (s *taskBuilderTestSuite) TestSequenceAppendWithoutData(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
+	b := newTaskSetBuilder()
 
-	span := b.NewSpan()
-	span.SetMetadata(map[string]any{"snap-setup": "snapsup-task"})
+	seq := b.NewTaskSequence()
+	seq.SetTaskData(map[string]any{"snap-setup": "snapsup-task"})
 
 	task := st.NewTask("task-1", "test")
 
-	// skips adding metadata but still chains the task
-	span.AddWithoutMetadata(task)
+	// skips adding task data but still chains the task
+	seq.AppendWithoutData(task)
 
 	var snapsup string
 	c.Check(task.Get("snap-setup", &snapsup), Not(IsNil))
 	c.Check(snapsup, Equals, "")
 
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{task})
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{task})
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{task})
 }
 
-func (s *taskBuilderTestSuite) TestSpanAddChaining(c *C) {
+func (s *taskBuilderTestSuite) TestSequenceAppendChaining(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
-	span := b.NewSpan()
+	b := newTaskSetBuilder()
+	seq := b.NewTaskSequence()
 
 	first := st.NewTask("task-1", "first")
-	span.Add(first)
+	seq.Append(first)
 
 	second := st.NewTask("task-2", "second")
 
 	// each task waits for the previous task in the chain
-	span.Add(second)
+	seq.Append(second)
 
 	c.Check(first.WaitTasks(), HasLen, 0)
 	c.Check(second.WaitTasks(), DeepEquals, []*state.Task{first})
 
-	// span.tasks tracks all tasks added to this span, in order
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{first, second})
+	// taskSequence.tasks tracks all tasks added to this taskSequence, in order
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{first, second})
 }
 
-func (s *taskBuilderTestSuite) TestSpanSplice(c *C) {
+func (s *taskBuilderTestSuite) TestSequenceChainWithoutAppending(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
-	span := b.NewSpan()
+	b := newTaskSetBuilder()
+	seq := b.NewTaskSequence()
 
 	first := st.NewTask("task-1", "first")
-	span.Add(first)
+	seq.Append(first)
 	second := st.NewTask("task-2", "second")
 
-	// splice chains the task but does not add it to the builder or the span
-	span.Splice(second)
+	// chainWithoutAppending chains the task but does not add it to the taskSetBuilder or the taskSequence
+	b.ChainWithoutAppending(second)
 
-	// second waits for first but is not kept around in the builder or the span
+	// second waits for first but is not kept around in the taskSetBuilder or the taskSequence
 	c.Check(second.WaitTasks(), DeepEquals, []*state.Task{first})
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{first})
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{first})
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{first})
 }
 
-func (s *taskBuilderTestSuite) TestSpliceSharedTask(c *C) {
+func (s *taskBuilderTestSuite) TestChainWithoutAppendingSharedTask(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b1 := newBuilder()
-	span1 := b1.NewSpan()
+	b1 := newTaskSetBuilder()
+	seq1 := b1.NewTaskSequence()
 
-	t1 := st.NewTask("task-1", "in-builder-1")
-	span1.Add(t1)
+	t1 := st.NewTask("task-1", "in-taskSetBuilder-1")
+	seq1.Append(t1)
 
-	b2 := newBuilder()
-	span2 := b2.NewSpan()
+	b2 := newTaskSetBuilder()
+	seq2 := b2.NewTaskSequence()
 
-	t2 := st.NewTask("task-2", "in-builder-2")
-	span2.Add(t2)
+	t2 := st.NewTask("task-2", "in-taskSetBuilder-2")
+	seq2.Append(t2)
 
-	// splice adds the same task to both chains
-	spliced := st.NewTask("spliced", "in-both")
-	span1.Splice(spliced)
-	span2.Splice(spliced)
+	// ChainWithoutAppending adds the same task to both chains
+	chained := st.NewTask("chained", "in-both")
+	b1.ChainWithoutAppending(chained)
+	b2.ChainWithoutAppending(chained)
 
-	// spliced now waits for both task1 and task3, belonging to multiple chains
-	c.Check(spliced.WaitTasks(), HasLen, 2)
-	c.Check(spliced.WaitTasks()[0], Equals, t1)
-	c.Check(spliced.WaitTasks()[1], Equals, t2)
+	// chained now waits for both task1 and task3, belonging to multiple chains
+	c.Check(chained.WaitTasks(), HasLen, 2)
+	c.Check(chained.WaitTasks()[0], Equals, t1)
+	c.Check(chained.WaitTasks()[1], Equals, t2)
 
-	// but it doesn't belong to either builder task sets. this lets callers
+	// but it doesn't belong to either taskSetBuilder task sets. this lets callers
 	// safely add the generated task sets to the same change, since a change
 	// cannot contain a task more than once.
 	c.Check(b1.TaskSet().Tasks(), DeepEquals, []*state.Task{t1})
 	c.Check(b2.TaskSet().Tasks(), DeepEquals, []*state.Task{t2})
 }
 
-func (s *taskBuilderTestSuite) TestSpanUpdateEdge(c *C) {
+func (s *taskBuilderTestSuite) TestSequenceUpdateEdge(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
-	span := b.NewSpan()
+	b := newTaskSetBuilder()
+	seq := b.NewTaskSequence()
 
 	first := st.NewTask("task-1", "first")
-	span.Add(first)
+	seq.Append(first)
 
 	edge := state.TaskSetEdge("begin-edge")
-	span.UpdateEdge(first, edge)
+	seq.UpdateEdge(first, edge)
 
 	edgeTask := b.TaskSet().MaybeEdge(edge)
 	c.Check(edgeTask, Equals, first)
 
 	second := st.NewTask("task-2", "second")
-	span.Add(second)
+	seq.Append(second)
 
 	// edges can be overwritten with a different task
-	span.UpdateEdge(second, edge)
+	seq.UpdateEdge(second, edge)
 
 	edgeTask = b.TaskSet().MaybeEdge(edge)
 	c.Check(edgeTask, Equals, second)
 }
 
-func (s *taskBuilderTestSuite) TestSpanAddTSWithoutMeta(c *C) {
+func (s *taskBuilderTestSuite) TestSequenceAppendTSWithoutData(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
-	span := b.NewSpan()
+	b := newTaskSetBuilder()
+	seq := b.NewTaskSequence()
 
 	// add an empty task set, just to make sure we don't panic
-	span.AddTSWithoutMeta(state.NewTaskSet())
+	seq.AppendTSWithoutData(state.NewTaskSet())
 
 	first := st.NewTask("task-1", "first")
-	span.Add(first)
+	seq.Append(first)
 
 	second := st.NewTask("task-2", "second")
 	third := st.NewTask("task-3", "third")
 	third.WaitFor(second)
 
-	// AddTSWithoutMeta adds an entire TaskSet, preserving its internal
+	// AppendTSWithoutData adds an entire TaskSet, preserving its internal
 	// dependencies
 	otherTS := state.NewTaskSet(second, third)
-	span.AddTSWithoutMeta(otherTS)
+	seq.AppendTSWithoutData(otherTS)
 
 	fourth := st.NewTask("task-4", "fourth")
-	span.Add(fourth)
+	seq.Append(fourth)
 
 	// third and second both wait for first, and third waits for second (the
 	// original chain within the task set)
@@ -229,40 +229,40 @@ func (s *taskBuilderTestSuite) TestSpanAddTSWithoutMeta(c *C) {
 	// fourth waits on the tail of the added task set, third
 	c.Check(fourth.WaitTasks(), DeepEquals, []*state.Task{third})
 
-	// all tasks are contained within the builder and span
+	// all tasks are contained within the taskSetBuilder and taskSequence
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{first, second, third, fourth})
-	c.Check(span.Tasks(), DeepEquals, []*state.Task{first, second, third, fourth})
+	c.Check(seq.Tasks(), DeepEquals, []*state.Task{first, second, third, fourth})
 }
 
-func (s *taskBuilderTestSuite) TestMultipleSpansShareBuilder(c *C) {
+func (s *taskBuilderTestSuite) TestMultipleSequencesShareTaskSetBuilder(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	b := newBuilder()
+	b := newTaskSetBuilder()
 
-	span1 := b.NewSpan()
+	seq1 := b.NewTaskSequence()
 
 	first := st.NewTask("task-1", "first")
-	span1.Add(first)
+	seq1.Append(first)
 
-	span2 := b.NewSpan()
+	seq2 := b.NewTaskSequence()
 
 	second := st.NewTask("task-2", "second")
-	span2.Add(second)
+	seq2.Append(second)
 
 	third := st.NewTask("task-3", "third")
-	span2.Add(third)
+	seq2.Append(third)
 
 	c.Check(first.WaitTasks(), HasLen, 0)
 
-	// both spans share the same task set and tail, forming a single chain
+	// both taskSequences share the same task set and tail, forming a single chain
 	c.Check(second.WaitTasks(), DeepEquals, []*state.Task{first})
 	c.Check(third.WaitTasks(), DeepEquals, []*state.Task{second})
 	c.Check(b.TaskSet().Tasks(), DeepEquals, []*state.Task{first, second, third})
 
-	// each span tracks only the tasks it added, enabling callers to keep track
+	// each taskSequence tracks only the tasks it added, enabling callers to keep track
 	// of ranges
-	c.Check(span1.Tasks(), DeepEquals, []*state.Task{first})
-	c.Check(span2.Tasks(), DeepEquals, []*state.Task{second, third})
+	c.Check(seq1.Tasks(), DeepEquals, []*state.Task{first})
+	c.Check(seq2.Tasks(), DeepEquals, []*state.Task{second, third})
 }

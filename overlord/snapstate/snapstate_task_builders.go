@@ -21,71 +21,81 @@ package snapstate
 
 import "github.com/snapcore/snapd/overlord/state"
 
-// builder constructs a graph of tasks with automatic dependency chaining and
-// metadata management.
-type builder struct {
-	// ts contains all tasks managed by this builder and any child span.
+// taskSetBuilder constructs a graph of tasks with automatic dependency chaining and
+// task data management.
+type taskSetBuilder struct {
+	// ts contains all tasks managed by this taskSetBuilder and any child taskSequence.
 	// Primarily, this is used to keep track of edges.
 	ts *state.TaskSet
-	// tail points to the tip of the current graph. It is updated by the builder
-	// or any child spans.
+	// tail points to the tip of the current graph. It is updated by the taskSetBuilder
+	// or any child taskSequences.
 	tail *state.Task
-	// meta contains data that tasks added to the graph get adorned with.
-	meta map[string]any
+	// taskData contains data that tasks added to the graph get adorned with.
+	taskData map[string]any
 }
 
-// newBuilder returns a builder initialized with an empty task set.
-func newBuilder() builder {
-	return builder{
+// newTaskSetBuilder returns a taskSetBuilder initialized with an empty task set.
+func newTaskSetBuilder() taskSetBuilder {
+	return taskSetBuilder{
 		ts: state.NewTaskSet(),
 	}
 }
 
-// TaskSet returns the task set that contains all tasks added to this builder,
-// either directly or via child spans.
-func (b *builder) TaskSet() *state.TaskSet {
+// TaskSet returns the task set that contains all tasks added to this taskSetBuilder,
+// either directly or via child taskSequences.
+func (b *taskSetBuilder) TaskSet() *state.TaskSet {
 	return b.ts
 }
 
-// Add appends a task to the end of the existing chain of tasks. Any existing
-// metadata is attached to the given task.
-func (b *builder) Add(t *state.Task) {
-	tmp := span{b: b}
-	tmp.Add(t)
+// Append appends a task to the end of the existing chain of tasks. Any existing
+// task data is attached to the given task.
+func (b *taskSetBuilder) Append(t *state.Task) {
+	tmp := taskSequence{b: b}
+	tmp.Append(t)
 }
 
-// NewSpan creates a new span that shares this builder's task set and tail.
-func (b *builder) NewSpan() span {
-	return span{b: b}
+// NewTaskSequence creates a new taskSequence that shares this taskSetBuilder's task set and tail.
+func (b *taskSetBuilder) NewTaskSequence() taskSequence {
+	return taskSequence{b: b}
 }
 
-// span represents a logical grouping of tasks within a task builder. This type
+// ChainWithoutAppending chains a task into the dependency sequence without adding it
+// to the taskSetBuilder's task set or taskSequence. This is useful when inserting
+// a task that might be shared by multiple taskSetBuilders.
+func (b *taskSetBuilder) ChainWithoutAppending(t *state.Task) {
+	if b.tail != nil {
+		t.WaitFor(b.tail)
+	}
+	b.tail = t
+}
+
+// taskSequence represents a logical grouping of tasks within a task builder. This type
 // is used to contruct ranges of tasks for easier grouping, while still enabling
-// the marking of edges in the parent builder's task set.
-type span struct {
-	b     *builder
+// the marking of edges in the parent taskSetBuilder's task set.
+type taskSequence struct {
+	b     *taskSetBuilder
 	tasks []*state.Task
 }
 
-// SetMetadata sets the metadata applied to all future tasks added to the parent
-// builder's task set.
-func (s *span) SetMetadata(meta map[string]any) {
-	s.b.meta = meta
+// SetTaskData sets the task data applied to all future tasks added to the parent
+// taskSetBuilder's task set.
+func (s *taskSequence) SetTaskData(taskData map[string]any) {
+	s.b.taskData = taskData
 }
 
-// Add appends a task to graph of tasks managed by the parent builder.
-// Additionally, the task is added to this span's range of tasks. The task has
-// the builder's metadata applied.
-func (s *span) Add(t *state.Task) {
-	for k, v := range s.b.meta {
+// Append appends a task to graph of tasks managed by the parent taskSetBuilder.
+// Additionally, the task is added to this taskSequence's range of tasks. The task has
+// the taskSetBuilder's task data applied.
+func (s *taskSequence) Append(t *state.Task) {
+	for k, v := range s.b.taskData {
 		t.Set(k, v)
 	}
-	s.AddWithoutMetadata(t)
+	s.AppendWithoutData(t)
 }
 
-// AddWithoutMetadata behaves the same as Add, but metadata is not applied to
+// AppendWithoutData behaves the same as Append, but task data is not applied to
 // the added task.
-func (s *span) AddWithoutMetadata(t *state.Task) {
+func (s *taskSequence) AppendWithoutData(t *state.Task) {
 	if s.b.tail != nil {
 		t.WaitFor(s.b.tail)
 	}
@@ -94,26 +104,16 @@ func (s *span) AddWithoutMetadata(t *state.Task) {
 	s.tasks = append(s.tasks, t)
 }
 
-// Splice chains a task into the dependency sequence without adding it to the
-// builder's task set or span. This is useful when inserting a task into the
-// builder's graph that might be shared by multiple builders.
-func (s *span) Splice(t *state.Task) {
-	if s.b.tail != nil {
-		t.WaitFor(s.b.tail)
-	}
-	s.b.tail = t
-}
-
 // UpdateEdge marks the task as an edge. If the task set owned by the parent
-// builder already has that edge, it is overwritten.
-func (s *span) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
+// taskSetBuilder already has that edge, it is overwritten.
+func (s *taskSequence) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
 	s.b.ts.MarkEdge(t, e)
 }
 
-// AddTSWithoutMeta adds all tasks from another task set without applying
-// metadata. It is assumed that the last task in the task set is the final task
+// AppendTSWithoutData adds all tasks from another task set without applying
+// task data. It is assumed that the last task in the task set is the final task
 // in it's dependency graph.
-func (s *span) AddTSWithoutMeta(ts *state.TaskSet) {
+func (s *taskSequence) AppendTSWithoutData(ts *state.TaskSet) {
 	tasks := ts.Tasks()
 	if len(tasks) == 0 {
 		return
@@ -127,7 +127,7 @@ func (s *span) AddTSWithoutMeta(ts *state.TaskSet) {
 	s.tasks = append(s.tasks, ts.Tasks()...)
 }
 
-// Tasks returns the tasks owned by this span
-func (s *span) Tasks() []*state.Task {
+// Tasks returns the tasks owned by this taskSequence
+func (s *taskSequence) Tasks() []*state.Task {
 	return s.tasks
 }
