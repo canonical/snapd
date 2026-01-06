@@ -39,7 +39,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -48,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -1895,7 +1895,7 @@ func setupPipes(pipeNames ...string) (string, []string, error) {
 	var pipePaths []string
 	for _, name := range pipeNames {
 		pipePath := filepath.Join(tempDir, name)
-		if err := syscall.Mkfifo(pipePath, 0600); err != nil {
+		if err := unix.Mkfifo(pipePath, 0600); err != nil {
 			os.RemoveAll(tempDir) // cleanup
 			return "", nil, fmt.Errorf("failed to create fifo %s: %w", pipePath, err)
 		}
@@ -2009,7 +2009,8 @@ type ReusableMemFD struct {
 }
 
 func NewReusableMemFD(name string) (*ReusableMemFD, error) {
-	fd, err := memfdCreate(name, 0)
+	// create mem backed file
+	fd, err := unix.MemfdCreate(name, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -2023,7 +2024,7 @@ func NewReusableMemFD(name string) (*ReusableMemFD, error) {
 
 func (m *ReusableMemFD) Reset() error {
 	// Truncate file to 0 size
-	if err := syscall.Ftruncate(m.Fd, 0); err != nil {
+	if err := unix.Ftruncate(m.Fd, 0); err != nil {
 		return err
 	}
 	// Seek to start
@@ -2033,19 +2034,6 @@ func (m *ReusableMemFD) Reset() error {
 
 func (m *ReusableMemFD) Close() {
 	m.File.Close() // This closes the FD as well
-}
-
-// create mem backed file
-func memfdCreate(name string, flags int) (int, error) {
-	s, err := syscall.BytePtrFromString(name)
-	if err != nil {
-		return 0, err
-	}
-	r1, _, e1 := syscall.Syscall(syscall.SYS_MEMFD_CREATE, uintptr(unsafe.Pointer(s)), uintptr(flags), 0)
-	if e1 != 0 {
-		return 0, e1
-	}
-	return int(r1), nil
 }
 
 // Loads timestamp, compression, and flags from a squashfs superblock.
