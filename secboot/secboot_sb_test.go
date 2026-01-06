@@ -1424,7 +1424,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true, hasCheckResult: true},
-		// happy case with check result available on disk and AllowInsufficientDmaProtection false
+		// happy case with check result available on disk and DBX update
 		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdate: []byte("dbx-update")},
 		// happy case with key files
 		{tpmEnabled: true, keyDataInFile: true, usePrimaryKeyFile: true, resealCalls: 1},
