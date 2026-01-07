@@ -2363,6 +2363,8 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	return chg, nil
 }
 
+// InstallPreseed creates a change that will preseed the installed system for
+// the given label and chroot directory.
 func InstallPreseed(st *state.State, label string, chroot string) (*state.Change, error) {
 	if chroot == "" {
 		return nil, fmt.Errorf("cannot preseed installed system without a target root")
