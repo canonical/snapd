@@ -1690,7 +1690,7 @@ func formFiles(form *multipart.Form, c *check.C) (names, filenames []string, con
 }
 
 func (s *SnapOpSuite) TestComponentShowInvalid(c *check.C) {
-	// Check mulitple arguments are handled correctly
+	// Check multiple arguments are handled correctly
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"})
 	c.Assert(err, check.ErrorMatches, `exactly one snap and its components must be specified`)
