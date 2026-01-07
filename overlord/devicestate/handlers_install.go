@@ -1277,7 +1277,6 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
@@ -1294,7 +1293,7 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 		err = cmd.Run()
 	})
 	if err != nil {
-		return fmt.Errorf("cannot write content: %v", err)
+		return fmt.Errorf("cannot preseed target at %v with system %q: %v", targetRoot, systemLabel, err)
 	}
 
 	return nil
