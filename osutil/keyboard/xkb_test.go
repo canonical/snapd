@@ -256,7 +256,7 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	c.Assert(called, Equals, 6)
 
 	cancel()
-	// Wait to make sure we don't accidently check number of calls
+	// Wait to make sure we don't accidentally check number of calls
 	// before inotify gets a chance to detect the event.
 	time.Sleep(20 * time.Millisecond)
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("4"), 0644), IsNil)
