@@ -635,7 +635,6 @@ func (s *preseedSuite) TestHybridResetRexec(c *C) {
 }
 
 func (s *preseedSuite) TestResetRexecTooOld(c *C) {
-
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0755), IsNil)
 

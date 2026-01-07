@@ -730,7 +730,7 @@ func reexecReset(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 func runUC20PreseedMode(opts *preseedCoreOptions) error {
 	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1", "SNAPD_DEBUG=1")
+	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
