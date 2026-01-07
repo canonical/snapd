@@ -4464,7 +4464,7 @@ func (s *viewSuite) TestGetSecretData(c *C) {
 
 	val, err = view.Get(bag, "foo", nil, confdb.DefaultVisibility)
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot get "foo.bar" through acc/foo/foo: unauthorized access`)
+	c.Assert(err.Error(), Equals, `cannot get "foo" through acc/foo/foo: unauthorized access`)
 	c.Assert(val, IsNil)
 }
 
@@ -4512,7 +4512,7 @@ func (s *viewSuite) TestGetSecretDataDiffStoragePath(c *C) {
 
 	val, err = view.Get(bag, "baz", nil, confdb.DefaultVisibility)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `cannot get "baz.eph" through acc/foo/foo: unauthorized access`)
+	c.Assert(err, ErrorMatches, `cannot get "baz" through acc/foo/foo: unauthorized access`)
 	c.Assert(val, IsNil)
 }
 
