@@ -1,0 +1,17 @@
+name: mock-snap
+version: 2.0
+type: app
+description: >
+  A mock snap used for testing component logic.
+components:
+  compiler:
+    type: framework
+    description: "The compiler component"
+    summary: "Compiles things"
+  runtime:
+    type: app
+    description: "The runtime component"
+    command: bin/test-runtime.sh
+apps:
+  default-app:
+    command: bin/test.sh
