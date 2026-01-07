@@ -717,7 +717,7 @@ type cmdComponent struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdComponent) showComponent(compName string) error {
+func (x *cmdComponent) showComponent() error {
 	// Was the passed argument valid in snap+component form?
 	snapName, comps := snap.SplitSnapInstanceAndComponents(string(x.Positional.SnapsAndComponents[0]))
 	if snapName == "" {
@@ -733,13 +733,7 @@ func (x *cmdComponent) showComponent(compName string) error {
 	snaps, err := x.client.List(names, nil)
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
-			if len(names) == 0 {
-				return err
-			} else if len(names) > 1 {
-				return errors.New(i18n.G("more than one snap instance matches the specified name"))
-			} else {
-				return errors.New(i18n.G("no matching snaps installed"))
-			}
+			return errors.New(i18n.G("no matching snaps installed"))
 		}
 		return err
 	}
@@ -771,7 +765,7 @@ func (c *cmdComponent) Execute([]string) error {
 	if len(c.Positional.SnapsAndComponents) != 1 {
 		return errors.New(i18n.G("exactly one snap and its components must be specified"))
 	}
-	return c.showComponent(string(c.Positional.SnapsAndComponents[0]))
+	return c.showComponent()
 }
 
 type cmdInstall struct {
