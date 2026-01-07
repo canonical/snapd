@@ -965,17 +965,18 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	return nil
 }
 
-// CacheDownloads returns the configured setting of cached downloads.
-func (s *Store) CacheDownloads() int {
-	return s.cfg.CacheDownloads
+// CacheDownloads returns the configured cache policy.
+func (s *Store) CachePolicy() CachePolicy {
+	return s.cfg.CachePolicy
 }
 
-// SetCacheDownloads configures the snap downloads cache mechanism. With file
-// count set to 0, no downloads are cached.
-func (s *Store) SetCacheDownloads(fileCount int) {
-	s.cfg.CacheDownloads = fileCount
-	if fileCount > 0 {
-		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
+// SetCachePolicy configures the snap downloads cache mechanism. With a zero
+// value policy, no downloads are cached.
+func (s *Store) SetCachePolicy(policy CachePolicy) {
+	s.cfg.CachePolicy = policy
+	zero := CachePolicy{}
+	if policy != zero {
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, policy)
 	} else {
 		s.cacher = &nullCache{}
 	}

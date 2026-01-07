@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
+	"github.com/snapcore/snapd/release"
 
 	// import to register linkNotify callback
 	_ "github.com/snapcore/snapd/overlord/snapstate/agentnotify"
@@ -76,8 +77,6 @@ var (
 	stateLockRetryInterval = 1 * time.Second
 
 	pruneMaxChanges = 500
-
-	defaultCachedDownloads = 5
 
 	configstateInit = configstate.Init
 	systemdSdNotify = systemd.SdNotify
@@ -362,7 +361,12 @@ func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snap
 	cfg := store.DefaultConfig()
 	cfg.Proxy = o.proxyConf
 	sto := storeNew(cfg, storeCtx)
-	sto.SetCacheDownloads(defaultCachedDownloads)
+	// TODO add a way for overriding cache policy
+	if release.OnClassic {
+		sto.SetCachePolicy(store.DefaultCachePolicyClassic)
+	} else {
+		sto.SetCachePolicy(store.DefaultCachePolicyCore)
+	}
 	return sto
 }
 
