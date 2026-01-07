@@ -20,13 +20,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -129,8 +129,13 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		serialReqBody := string(serialReq.Body())
 
 		// Modify serial id for prepare serial request
-		// The JSON was not successfully marshalled
-		if strings.Contains(serialReqBody, "request-id-signature") {
+		var bodyMap map[string]any
+		err = json.Unmarshal([]byte(serialReqBody), &bodyMap)
+		if err != nil {
+			badRequestError(w, "bad serial-request body: %v", err)
+			return
+		}
+		if _, ok := bodyMap["hardware-id-key"]; ok {
 			serialStr = "3333"
 		}
 
