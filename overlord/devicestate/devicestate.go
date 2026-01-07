@@ -2374,6 +2374,14 @@ func InstallPreseed(st *state.State, label string, chroot string) (*state.Change
 		return nil, fmt.Errorf("target root must be a directory")
 	}
 
+	if chg := preseedingChange(st); chg != nil {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot start preseeding, clashing with concurrent one",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
+	}
+
 	chg := st.NewChange(installStepTargetPreseedChangeKind, fmt.Sprintf("Preseed installed system in %q", chroot))
 	preseedRunTask := st.NewTask("install-preseed", fmt.Sprintf("Preseed installed system in %q", chroot))
 	preseedRunTask.Set("target-root", chroot)
@@ -2381,4 +2389,13 @@ func InstallPreseed(st *state.State, label string, chroot string) (*state.Change
 	chg.AddTask(preseedRunTask)
 
 	return chg, nil
+}
+
+func preseedingChange(st *state.State) *state.Change {
+	for _, chg := range st.Changes() {
+		if !chg.IsReady() && chg.Kind() == "install-step-preseed" {
+			return chg
+		}
+	}
+	return nil
 }

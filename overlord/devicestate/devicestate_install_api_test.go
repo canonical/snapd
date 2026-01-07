@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -1233,4 +1235,22 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAu
 		snap.TypeKernel: "2.67",
 	}
 	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallPreseedConflictWithOngoingChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install-step-preseed", "Preseeding...")
+	chg.AddTask(s.state.NewTask("install-preseed", "Preseed task"))
+
+	_, err := devicestate.InstallPreseed(s.state, "20191119", c.MkDir())
+	c.Assert(err, NotNil, Commentf("expected an error when preseeding with concurrent change"))
+
+	var conflictErr *snapstate.ChangeConflictError
+	c.Assert(errors.As(err, &conflictErr), Equals, true)
+
+	c.Check(conflictErr.Message, Matches, "cannot start preseeding, clashing with concurrent one")
+	c.Check(conflictErr.ChangeKind, Equals, "install-step-preseed")
+	c.Check(conflictErr.ChangeID, Equals, chg.ID())
 }
