@@ -774,41 +774,7 @@ func Core20(opts *CoreOptions) error {
 	return runUC20PreseedMode(popts)
 }
 
-// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
-func Classic(chrootDir string) error {
-	var err error
-	chrootDir, err = filepath.Abs(chrootDir)
-	if err != nil {
-		return err
-	}
-
-	if err := checkChroot(chrootDir); err != nil {
-		return err
-	}
-
-	var targetSnapd *targetSnapdInfo
-
-	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
-	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
-	// beginning of prepareClassicChroot), then we could have a single
-	// runPreseedMode/runUC20PreseedMode function that handles both classic
-	// and core20.
-	const reset = false
-	const label = ""
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	// executing inside the chroot
-	const hybrid = false
-	return runPreseedMode(chrootDir, targetSnapd, hybrid)
-}
-
-// Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
-// components pointed by chrootDir and identified by a given system label.
-func Hybrid(chrootDir, label string) error {
+func classicLikePreseed(chrootDir, label string) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
@@ -818,8 +784,6 @@ func Hybrid(chrootDir, label string) error {
 	if err := checkChroot(chrootDir); err != nil {
 		return fmt.Errorf("chroot verification failed: %w", err)
 	}
-
-	var targetSnapd *targetSnapdInfo
 
 	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
 	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
@@ -834,8 +798,20 @@ func Hybrid(chrootDir, label string) error {
 	defer cleanup()
 
 	// executing inside the chroot
-	const hybrid = true
+	hybrid := label != ""
 	return runPreseedMode(chrootDir, targetSnapd, hybrid)
+}
+
+// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
+func Classic(chrootDir string) error {
+	const label = ""
+	return classicLikePreseed(chrootDir, label)
+}
+
+// Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
+// components pointed by chrootDir and identified by a given system label.
+func Hybrid(chrootDir, label string) error {
+	return classicLikePreseed(chrootDir, label)
 }
 
 func classicLikeReset(chrootDir, label string) error {

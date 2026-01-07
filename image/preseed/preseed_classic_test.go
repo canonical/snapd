@@ -45,14 +45,14 @@ func mockVersionFiles(c *C, rootDir1, version1, rootDir2, version2 string) {
 }
 
 func (s *preseedSuite) TestChrootDoesntExist(c *C) {
-	c.Assert(preseed.Classic("/non-existing-dir"), ErrorMatches, `cannot verify "/non-existing-dir": is not a directory`)
+	c.Assert(preseed.Classic("/non-existing-dir"), ErrorMatches, `chroot verification failed: cannot verify "/non-existing-dir": is not a directory`)
 }
 
 func (s *preseedSuite) TestChrootValidationUnhappy(c *C) {
 	tmpDir := c.MkDir()
 	defer osutil.MockMountInfo("")()
 
-	c.Check(preseed.Classic(tmpDir), ErrorMatches, "cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
+	c.Check(preseed.Classic(tmpDir), ErrorMatches, "chroot verification failed: cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
 }
 
 func (s *preseedSuite) TestRunPreseedMountUnhappy(c *C) {
@@ -78,14 +78,14 @@ fi
 	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
-	c.Check(preseed.Classic(tmpDir), ErrorMatches, `cannot mount .+ at .+ in preseed mode: exit status 32\n'mount -t squashfs -o ro,x-gdu.hide,x-gvfs-hide /a/core.snap .*/target-core-mounted-here' failed with: something went wrong\n`)
+	c.Check(preseed.Classic(tmpDir), ErrorMatches, `cannot prepare chroot: cannot mount .+ at .+ in preseed mode: exit status 32\n'mount -t squashfs -o ro,x-gdu.hide,x-gvfs-hide /a/core.snap .*/target-core-mounted-here' failed with: something went wrong\n`)
 }
 
 func (s *preseedSuite) TestChrootValidationUnhappyNoApparmor(c *C) {
 	tmpDir := c.MkDir()
 	defer mockChrootDirs(c, tmpDir, false)()
 
-	c.Check(preseed.Classic(tmpDir), ErrorMatches, `cannot preseed without access to ".*sys/kernel/security/apparmor"`)
+	c.Check(preseed.Classic(tmpDir), ErrorMatches, `chroot verification failed: cannot preseed without access to ".*sys/kernel/security/apparmor"`)
 }
 
 func (s *preseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
@@ -94,7 +94,7 @@ func (s *preseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
 
-	c.Check(preseed.Classic(tmpDir), ErrorMatches, fmt.Sprintf("the system at %q appears to be preseeded, pass --reset flag to clean it up", tmpDir))
+	c.Check(preseed.Classic(tmpDir), ErrorMatches, fmt.Sprintf("chroot verification failed: the system at %q appears to be preseeded, pass --reset flag to clean it up", tmpDir))
 }
 
 func (s *preseedSuite) TestChrootFailure(c *C) {
@@ -106,7 +106,7 @@ func (s *preseedSuite) TestChrootFailure(c *C) {
 	tmpDir := c.MkDir()
 	defer mockChrootDirs(c, tmpDir, true)()
 
-	c.Check(preseed.Classic(tmpDir), ErrorMatches, fmt.Sprintf("cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
+	c.Check(preseed.Classic(tmpDir), ErrorMatches, fmt.Sprintf("cannot prepare chroot: cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
 }
 
 func (s *preseedSuite) TestRunPreseedHappy(c *C) {
@@ -379,7 +379,7 @@ func (s *preseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.41.0"), 0644), IsNil)
 
 	c.Check(preseed.Classic(tmpDir), ErrorMatches,
-		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
+		`cannot prepare chroot: snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
 }
 
 func (s *preseedSuite) TestReset(c *C) {
