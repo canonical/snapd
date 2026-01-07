@@ -1,8 +1,8 @@
 summary: Ensure that the graphical user daemons work as expected
 
 details: |
-    This test ensures that an user daemon with the desktop, x11 or wayland plugs
-    will be launched with the destkop session only.
+    This test ensures that an user daemon with the desktop plug
+    will be launched with the desktop session only.
 
 # Same systems than `interfaces-desktop`, since we require that plug.
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
