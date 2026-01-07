@@ -44,6 +44,24 @@
         "systems": "ubuntu-24.04-arm-64",
         "tasks": "tests/nested/core/core20-basic tests/nested/manual/optee-fde",
         "rules": "nested"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "nested-ubuntu-26.04",
+        "backend": "openstack-ext",
+        "alternative-backend": "google-nested",
+        "systems": "ubuntu-26.04-64",
+        "tasks": "tests/nested/...",
+        "rules": "nested"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "nested-ubuntu-26.04-arm64",
+        "backend": "openstack-arm-ext",
+        "alternative-backend": "google-nested-arm",
+        "systems": "ubuntu-26.04-arm-64",
+        "tasks": "tests/nested/core/core20-basic tests/nested/manual/optee-fde",
+        "rules": "nested"
       }
    ]
 }
