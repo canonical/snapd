@@ -1736,8 +1736,8 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		return nil, err
 	}
 
-	var finalError error
 	var merged any
+	pruned := false
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath, constraints)
 		if err != nil {
@@ -1755,12 +1755,13 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		// Only prune data if the visibility level of the caller is less than secret
 		// (i.e. if the caller should not have access to secret data)
 		if visibility < SecretVisibility {
-			err = v.schema.DatabagSchema.PruneData(&val, visibility+1, match.storagePath)
+			val, err = v.schema.DatabagSchema.PruneData(val, visibility+1, match.storagePath)
 			if err != nil {
 				return nil, err
 			}
 			if val == nil {
-				finalError = &UnAuthorizedAccessError{operation: "get", request: match.request, viewID: v.ID()}
+				pruned = true
+				continue
 			}
 		}
 
@@ -1771,8 +1772,8 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		}
 	}
 
-	if merged == nil && finalError != nil {
-		return nil, finalError
+	if merged == nil && pruned {
+		return nil, &UnAuthorizedAccessError{operation: "get", request: request, viewID: v.ID()}
 	}
 	if merged == nil {
 		var requests []string
