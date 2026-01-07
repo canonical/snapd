@@ -48,7 +48,7 @@ func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 		"download", "--beta", "--channel=foo", "a-snap",
 	})
 
-	c.Check(err, check.ErrorMatches, "Please specify a single channel")
+	c.Check(err, check.ErrorMatches, "please specify a single channel")
 }
 
 func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
