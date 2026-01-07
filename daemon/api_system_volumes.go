@@ -43,7 +43,7 @@ var systemVolumesCmd = &Command{
 	POST: postSystemVolumesAction,
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "add-recovery-key", "replace-recovery-key",
-		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase"},
+		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase", "change-pin"},
 	// anyone can enumerate key slots.
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 	WriteAccess: byActionAccess{
@@ -51,9 +51,10 @@ var systemVolumesCmd = &Command{
 			// anyone check passphrase/pin quality
 			"check-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
-			// anyone can change passphrase given they know the old passphrase
+			// anyone can change passphrase or PIN given they know the old passphrase
 			// TODO:FDEM: rate limiting is needed to avoid DA lockout.
 			"change-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"change-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			// only root and admins (authenticated via Polkit) can do recovery key
 			// related actions.
 			"check-recovery-key": interfaceRootAccess{
@@ -89,6 +90,7 @@ var fdeAddRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-add-recovery-k
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
 var fdeReplacePlatformKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-platform-key")
 var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
+var fdeChangePINChangeKind = swfeats.RegisterChangeKind("fde-change-pin")
 
 var (
 	fdestateAddRecoveryKey     = fdestate.AddRecoveryKey
@@ -220,6 +222,7 @@ type systemVolumesActionRequest struct {
 
 	client.PlatformKeyOptions
 	client.ChangePassphraseOptions
+	client.ChangePINOptions
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -299,6 +302,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesCheckPIN(&req)
 	case "change-passphrase":
 		return postSystemVolumesActionChangePassphrase(c, &req)
+	case "change-pin":
+		return postSystemVolumesActionChangePIN(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -390,7 +395,6 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 }
 
 func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesActionRequest) Response {
-	// XXX: Only support passphrase auth mode for now?
 	if req.AuthMode == "" {
 		return BadRequest("system volume action requires auth-mode to be provided")
 	}
@@ -430,7 +434,7 @@ func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response 
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
+	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
 func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
@@ -438,11 +442,10 @@ func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}
 
-	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+	return postCheckAuthQuality(device.AuthModePIN, req.PIN)
 }
 
 func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActionRequest) Response {
-	// TODO:FDEM: allow root to reset passphrase without providing old passphrase.
 	if req.OldPassphrase == "" {
 		return BadRequest("system volume action requires old-passphrase to be provided")
 	}
@@ -460,6 +463,37 @@ func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActio
 	}
 
 	chg := newChange(st, fdeChangePassphraseChangeKind, "Change passphrase", []*state.TaskSet{ts}, nil)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemVolumesActionChangePIN(c *Command, req *systemVolumesActionRequest) Response {
+	if req.OldPIN == "" {
+		return BadRequest("system volume action requires old-pin to be provided")
+	}
+	if req.NewPIN == "" {
+		return BadRequest("system volume action requires new-pin to be provided")
+	}
+
+	if err := device.ValidatePIN(req.OldPIN); err != nil {
+		return BadRequest("cannot change pin: invalid old-pin: %v", err)
+	}
+	if err := device.ValidatePIN(req.NewPIN); err != nil {
+		return BadRequest("cannot change pin: invalid new-pin: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateChangeAuth(st, device.AuthModePIN, req.OldPIN, req.NewPIN, req.Keyslots)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "cannot change pin: %v")
+	}
+
+	chg := newChange(st, fdeChangePINChangeKind, "Change pin", []*state.TaskSet{ts}, nil)
 
 	st.EnsureBefore(0)
 

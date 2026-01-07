@@ -106,7 +106,7 @@ static bool _sc_assert_host_local_group_policy(int root_fd, gid_t real_gid, gid_
     if (errorp != NULL) {
         *errorp = sc_error_init(
             SC_GROUP_DOMAIN, SC_NO_GROUP_PRIVS,
-            "user is not a member of group owning snap-confine, check you distribution's policy for running snaps");
+            "user is not a member of group owning snap-confine; check your distribution's policy for running snaps");
     }
     return false;
 }

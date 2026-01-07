@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -58,6 +59,7 @@ func (s *systemVolumesSuite) SetUpTest(c *C) {
 			"check-passphrase":  daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin":         daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"change-passphrase": daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"change-pin":        daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-recovery-key": daemon.InterfaceRootAccess{
 				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
 				Polkit:     "io.snapcraft.snapd.manage-fde",
@@ -634,8 +636,8 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 			})
 		case device.AuthModePIN:
 			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
-				// TODO:FDEM: check PIN is passed
 				Mode: device.AuthModePIN,
+				PIN:  "1234",
 			})
 		default:
 			c.Errorf("unexpected auth-mode %q", authMode)
@@ -675,7 +677,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	case device.AuthModePIN:
 		bodyRaw = fmt.Sprintf(bodyTemplate, `
 	"auth-mode": "pin",
-	"pin": "p1n"
+	"pin": "1234"
 `)
 	}
 
@@ -683,14 +685,6 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
-
-	if authMode == device.AuthModePIN {
-		// PIN support is not implemented
-		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, Equals, 400)
-		c.Check(rsp.Message, Equals, `invalid platform key options: "pin" authentication mode is not implemented`)
-		return
-	}
 
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)
@@ -718,6 +712,10 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePa
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	const authMode = device.AuthModePIN
 	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
 }
@@ -884,23 +882,6 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPa
 	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
 }
 
-// This test should intentionally fail when resetting passphrase as root is implemented.
-func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPassphraseAsRoot(c *C) {
-	s.daemon(c)
-	s.mockHybridSystem()
-
-	body := strings.NewReader(`{"action": "change-passphrase", "new-passphrase": "new"}`)
-	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
-	c.Assert(err, IsNil)
-	req.Header.Add("Content-Type", "application/json")
-
-	s.asRootAuth(req)
-
-	rsp := s.errorReq(c, req, nil, actionIsExpected)
-	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
-}
-
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingNewPassphrase(c *C) {
 	s.daemon(c)
 	s.mockHybridSystem()
@@ -965,12 +946,191 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
 }
 
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
+	d := s.daemon(c)
+	s.mockHybridSystem()
+	st := d.Overlord().State()
+
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
+	called := 0
+	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		called++
+		c.Check(authMode, Equals, device.AuthModePIN)
+		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
+			{ContainerRole: "some-container-role", Name: "some-name"},
+			// keyslot expanded
+			{ContainerRole: "system-data", Name: "some-other-name"},
+			{ContainerRole: "system-save", Name: "some-other-name"},
+		})
+
+		return state.NewTaskSet(), nil
+	}))
+
+	body := strings.NewReader(`
+{
+	"action": "change-pin",
+	"old-pin": "1234",
+	"new-pin": "4321",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"},
+		{"name": "some-other-name"}
+	]
+}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 202)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, NotNil)
+	c.Check(chg.ID(), Equals, "1")
+	c.Check(chg.Kind(), Equals, "fde-change-pin")
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePINMissingOldPIN(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "change-pin", "new-pin": "1234"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	s.asUserAuth(c, req)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires old-pin to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidOldPIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "change-pin", "old-pin": "old", "new-pin": "1234"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	s.asUserAuth(c, req)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot change pin: invalid old-pin: invalid PIN: unexpected character")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePINMissingNewPIN(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "change-pin", "old-pin": "1234"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires new-pin to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePINInvalidNewPIN(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "change-pin", "old-pin": "1234", "new-pin": "new"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot change pin: invalid new-pin: invalid PIN: unexpected character")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePINChangeAuthError(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	var mockErr error
+	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		return nil, mockErr
+	}))
+
+	// catch all, bad request error
+	body := strings.NewReader(`{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	mockErr = errors.New("boom!")
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot change pin: boom!")
+
+	// typed conflict detection error kind
+	mockErr = &snapstate.ChangeConflictError{
+		Message: fmt.Sprintf("conflict error: boom!"),
+	}
+	body = strings.NewReader(`{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 409)
+	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rsp.Message, Equals, "conflict error: boom!")
+
+	// typed keyslots not found error kind
+	mockErr = &fdestate.KeyslotRefsNotFoundError{
+		KeyslotRefs: []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}},
+	}
+	body = strings.NewReader(`{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Kind, Equals, client.ErrorKindKeyslotsNotFound)
+	c.Check(rsp.Message, Equals, `key slot reference (container-role: "some-container-role", name: "some-name") not found`)
+	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
+}
+
 type mockKeyData struct {
 	authMode     device.AuthMode
 	platformName string
 	roles        []string
 
 	changePassphrase func(oldPassphrase, newPassphrase string) error
+	changePIN        func(oldPIN, newPIN string) error
 	writeTokenAtomic func(devicePath, slotName string) error
 }
 
@@ -989,6 +1149,13 @@ func (k *mockKeyData) Roles() []string {
 func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	if k.changePassphrase != nil {
 		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) ChangePIN(oldPIN, newPIN string) error {
+	if k.changePIN != nil {
+		return k.changePIN(oldPIN, newPIN)
 	}
 	return nil
 }
@@ -1169,7 +1336,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePassphrase)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1237,7 +1404,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 			"passphrase": tc.passphrase,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePassphrase)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
@@ -1274,7 +1441,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+	restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePIN)
 		return device.AuthQuality{
 			Entropy:        expectedEntropy,
@@ -1342,7 +1509,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 			"pin":    tc.pin,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		restore := daemon.MockDeviceCheckAuthQuality(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePIN)
 			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},

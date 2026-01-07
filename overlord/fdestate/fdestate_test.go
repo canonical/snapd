@@ -472,7 +472,7 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 		case "/dev/disk/by-uuid/data:default",
 			"/dev/disk/by-uuid/data:default-fallback",
 			"/dev/disk/by-uuid/save:default-fallback":
-			return &mockKeyData{authMode: device.AuthModePassphrase}, nil
+			return &mockKeyData{authMode: authMode}, nil
 		default:
 			panic("unexpected container")
 		}
@@ -493,12 +493,19 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 		s.st.Lock()
 	}
 
+	old := "old"
+	new := "new"
+	if authMode == device.AuthModePIN {
+		old = "1234"
+		new = "4321"
+	}
+
 	var ts *state.TaskSet
 	var err error
 	if defaultKeyslots {
-		ts, err = fdestate.ChangeAuth(s.st, authMode, "old", "new", nil)
+		ts, err = fdestate.ChangeAuth(s.st, authMode, old, new, nil)
 	} else {
-		ts, err = fdestate.ChangeAuth(s.st, authMode, "old", "new", keyslots)
+		ts, err = fdestate.ChangeAuth(s.st, authMode, old, new, keyslots)
 	}
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
@@ -523,8 +530,8 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 	c.Check(tskAuthMode, Equals, authMode)
 
 	authOptions := fdestate.GetChangeAuthOptionsFromCache(s.st)
-	c.Check(authOptions.Old(), Equals, "old")
-	c.Check(authOptions.New(), Equals, "new")
+	c.Check(authOptions.Old(), Equals, old)
+	c.Check(authOptions.New(), Equals, new)
 
 	if withWarning {
 		c.Check(logBuf.String(), Matches, ".*WARNING: authentication change options already exists in memory\n")
@@ -555,9 +562,10 @@ func (s *fdeMgrSuite) TestChangeAuthModePassphraseDefaultKeyslots(c *C) {
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePIN(c *C) {
-	// this should break when changing PIN support lands
-	_, err := fdestate.ChangeAuth(s.st, device.AuthModePIN, "old", "new", []fdestate.KeyslotRef{})
-	c.Assert(err, ErrorMatches, `internal error: unexpected authentication mode "pin"`)
+	const authMode = device.AuthModePIN
+	const withWarning = false
+	const defaultKeyslots = false
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
@@ -587,6 +595,14 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	// unsupported auth mode
 	_, err := fdestate.ChangeAuth(s.st, device.AuthModeNone, "old", "new", []fdestate.KeyslotRef{})
 	c.Assert(err, ErrorMatches, `internal error: unexpected authentication mode "none"`)
+
+	// invalid old pin
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePIN, "old", "1234", []fdestate.KeyslotRef{})
+	c.Assert(err, ErrorMatches, "invalid PIN: unexpected character")
+
+	// invalid new pin
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePIN, "1234", "new", []fdestate.KeyslotRef{})
+	c.Assert(err, ErrorMatches, "invalid PIN: unexpected character")
 
 	// invalid keyslot reference
 	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
@@ -693,10 +709,10 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 
 	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
 		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
-		case "/dev/disk/by-uuid/data:default",
-			"/dev/disk/by-uuid/data:default-fallback",
-			"/dev/disk/by-uuid/save:default-fallback":
+		case "/dev/disk/by-uuid/data:default", "/dev/disk/by-uuid/data:default-fallback":
 			return &mockKeyData{authMode: device.AuthModePassphrase, roles: []string{"run"}, platformName: "tpm2"}, nil
+		case "/dev/disk/by-uuid/save:default-fallback":
+			return &mockKeyData{authMode: device.AuthModePIN, roles: []string{"run"}, platformName: "tpm2"}, nil
 		default:
 			panic("unexpected container")
 		}
@@ -715,12 +731,6 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		ts, err = fdestate.ReplacePlatformKey(s.st, volumesAuth, nil)
 	} else {
 		ts, err = fdestate.ReplacePlatformKey(s.st, volumesAuth, keyslots)
-	}
-	if authMode == device.AuthModePIN {
-		// this is expected to break when PIN support lands
-		c.Assert(err, ErrorMatches, `"pin" authentication mode is not implemented`)
-		c.Assert(ts, IsNil)
-		return
 	}
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
@@ -836,7 +846,7 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 
 	// unsupported auth mode
 	_, err := fdestate.ReplacePlatformKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
-	c.Assert(err, ErrorMatches, `invalid authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
+	c.Assert(err, ErrorMatches, `cannot use authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
 
 	// invalid key slot reference
 	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}

@@ -71,6 +71,11 @@ type StoreService interface {
 
 	LoginUser(username, password, otp string) (string, string, error)
 	UserInfo(email string) (userinfo *store.User, err error)
+
+	// CleanDownloadsCache executes a best effort, non-blocking attempt to clean
+	// the downloads cache. Can return store.ErrCleanupBusy when the cache was
+	// busy and the cleanup could not run.
+	CleanDownloadsCache() error
 }
 
 type managerBackend interface {
@@ -109,6 +114,7 @@ type managerBackend interface {
 	RemoveComponentDir(cpi snap.ContainerPlaceInfo) error
 	RemoveContainerMountUnits(cpi snap.ContainerPlaceInfo, meter progress.Meter) error
 	DiscardSnapNamespace(snapName string) error
+	DiscardLockedSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error
 	RemoveAllSnapAppArmorProfiles() error
 	RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error

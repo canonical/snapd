@@ -145,6 +145,8 @@ type SealKeysParams struct {
 	TPMPolicyAuthKeyFile string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
+	// Optional preinstall check result for optimum PCR configuration
+	CheckResult *PreinstallCheckResult
 	// The key role (run, run+recover, recover)
 	KeyRole string
 	// Whether to allow disabled DMA protection
@@ -193,6 +195,9 @@ type KeyData interface {
 	// ChangePassphrase changes passphrase given old passphrase.
 	// AuthMode must be device.AuthModePassphrase.
 	ChangePassphrase(oldPassphrase, newPassphrase string) error
+	// ChangePIN changes pin given old pin.
+	// AuthMode must be device.AuthModePIN.
+	ChangePIN(oldPIN, newPIN string) error
 	// WriteTokenAtomic saves this key data to the specified LUKS2 token.
 	WriteTokenAtomic(devicePath, slotName string) error
 }

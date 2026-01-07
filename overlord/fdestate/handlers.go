@@ -44,6 +44,10 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
+
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
 		return err
@@ -162,6 +166,10 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
+
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
 		return err
@@ -221,6 +229,10 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
 
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
@@ -366,6 +378,10 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
+
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
 		return err
@@ -406,7 +422,9 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 				return fmt.Errorf("cannot change passphrase for %s: %v", keyslot.Ref().String(), err)
 			}
 		case device.AuthModePIN:
-			return fmt.Errorf("internal error: changing PINs is not implemented")
+			if err := kd.ChangePIN(old, new); err != nil {
+				return fmt.Errorf("cannot change PIN for %s: %v", keyslot.Ref().String(), err)
+			}
 		default:
 			return fmt.Errorf("internal error: unexpected auth-mode %q", authMode)
 		}

@@ -40,20 +40,22 @@ import (
 
 type (
 	ResealKeysWithTPMParams = resealKeysWithTPMParams
-	PreinstallCheckResult   = preinstallCheckResult
 )
 
 var (
 	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
 	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
-	Save                               = (*preinstallCheckResult).save
+	Save                               = (*PreinstallCheckResult).save
 
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
 
 	ResealKeysWithTPM          = resealKeysWithTPM
 	ResealKeysWithFDESetupHook = resealKeysWithFDESetupHook
+
+	EntropyBits = entropyBitsImpl
+	ValidatePIN = validatePINImpl
 )
 
 func ExtractSbRunChecksContext(checkContext *PreinstallCheckContext) *sb_preinstall.RunChecksContext {
@@ -70,6 +72,10 @@ func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.Check
 	return func() {
 		sbPreinstallNewRunChecksContext = old
 	}
+}
+
+func NewPreinstallCheckResult(sbcheckResult *sb_preinstall.CheckResult, sbPCRProfileOptions sb_preinstall.PCRProfileOptionsFlags) *PreinstallCheckResult {
+	return &PreinstallCheckResult{sbcheckResult, sbPCRProfileOptions}
 }
 
 func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args map[string]json.RawMessage) (*sb_preinstall.CheckResult, error)) (restore func()) {
@@ -154,29 +160,12 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 	}
 }
 
-func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	authRequester sb.AuthRequestor, options *sb.ActivateVolumeOptions) error) (restore func()) {
-	old := sbActivateVolumeWithRecoveryKey
-	sbActivateVolumeWithRecoveryKey = f
-	return func() {
-		sbActivateVolumeWithRecoveryKey = old
-	}
-}
-
 func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
 	options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithKey
 	sbActivateVolumeWithKey = f
 	return func() {
 		sbActivateVolumeWithKey = old
-	}
-}
-
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
-	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
-	sbActivateVolumeWithKeyData = f
-	return func() {
-		sbActivateVolumeWithKeyData = oldSbActivateVolumeWithKeyData
 	}
 }
 
@@ -278,6 +267,14 @@ func MockSbNewTPMPassphraseProtectedKey(f func(tpm *sb_tpm2.Connection, params *
 	sbNewTPMPassphraseProtectedKey = f
 	return func() {
 		sbNewTPMPassphraseProtectedKey = old
+	}
+}
+
+func MockSbNewTPMPINProtectedKey(f func(tpm *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error)) (restore func()) {
+	old := sbNewTPMPINProtectedKey
+	sbNewTPMPINProtectedKey = f
+	return func() {
+		sbNewTPMPINProtectedKey = old
 	}
 }
 
@@ -554,6 +551,10 @@ func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, n
 	return testutil.Mock(&sbKeyDataChangePassphrase, f)
 }
 
+func MockSbKeyDataChangePIN(f func(d *sb.KeyData, oldPIN sb.PIN, newPIN sb.PIN) error) (restore func()) {
+	return testutil.Mock(&sbKeyDataChangePIN, f)
+}
+
 func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
 }
@@ -572,4 +573,48 @@ func MockSbKeyDataPlatformName(f func(d *sb.KeyData) string) (restore func()) {
 
 func MockSbPCRPolicyCounterHandle(f func(skd *sb_tpm2.SealedKeyData) tpm2.Handle) (restore func()) {
 	return testutil.Mock(&sbPCRPolicyCounterHandle, f)
+}
+
+func MockSbFindStorageContainer(f func(ctx context.Context, path string) (sb.StorageContainer, error)) (restore func()) {
+	return testutil.Mock(&sbFindStorageContainer, f)
+}
+
+func MockSbWithVolumeName(f func(name string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithVolumeName, f)
+}
+
+func MockSbWithExternalKeyData(f func(name string, keyData *sb.KeyData) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalKeyData, f)
+}
+
+func MockSbWithLegacyKeyringKeyDescriptionPaths(f func(paths ...string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithLegacyKeyringKeyDescriptionPaths, f)
+}
+
+func MockSbWithRecoveryKeyTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithRecoveryKeyTries, f)
+}
+
+func MockSbNewActivateContext(f func(ctx context.Context, state *sb.ActivateState, opts ...sb.ActivateContextOption) (*sb.ActivateContext, error)) (restore func()) {
+	return testutil.Mock(&sbNewActivateContext, f)
+}
+
+func MockSbWithAuthRequestor(f func(req sb.AuthRequestor) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithAuthRequestor, f)
+}
+
+func MockSbWithPassphraseTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithPassphraseTries, f)
+}
+
+func MockSbWithPINTries(f func(n uint) sb.ActivateContextOption) (restore func()) {
+	return testutil.Mock(&sbWithPINTries, f)
+}
+
+func MockSbWithExternalUnlockKey(f func(name string, key sb.DiskUnlockKey, src sb.ExternalUnlockKeySource) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithExternalUnlockKey, f)
+}
+
+func MockSbWithAuthRequestorUserVisibleName(f func(name string) sb.ActivateOption) (restore func()) {
+	return testutil.Mock(&sbWithAuthRequestorUserVisibleName, f)
 }

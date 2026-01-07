@@ -21,31 +21,25 @@ environment:
     AA_PROFILES: /var/lib/snapd/apparmor/profiles/
     FAKE_LOG: /tmp/apparmor_parser.fake.log
 
-prepare: |
-    if not tests.info is-reexec-in-use; then
-        tests.exec skip-test "The test uses apparmor from the snapd snap; not valid with no-reexec" && exit 0
-    fi
+skip:
+    - if: not tests.info is-reexec-in-use
+      reason: The test uses apparmor from the snapd snap; not valid with no-reexec
 
+prepare: |
     snap install test-snapd-content-plug test-snapd-tools
     snap install --edge test-snapd-curl
     cp /sbin/apparmor_parser /sbin/apparmor_parser.real
     echo > "$FAKE_LOG"
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     mv /sbin/apparmor_parser.real /sbin/apparmor_parser
     rm -f "$FAKE_LOG"
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     "$TESTSTOOLS"/journal-state get-log -a | grep apparmor_parser.fake
     cat "$FAKE_LOG" || true
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     systemctl stop snapd.{service,socket}
 
     echo "Update system key"

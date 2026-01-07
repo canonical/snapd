@@ -660,8 +660,19 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
 		}
-		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(observerImpl.dataBootstrappedContainer, observerImpl.saveBootstrappedContainer, observerImpl.primaryKey, observerImpl.volumesAuth, model, modeenv, flags); err != nil {
+		// seal the encryption key to the parameters specified in
+		// modeenv as well as optimum PCR configuration specified in the
+		// check result (when available)
+		if err := sealKeyToModeenv(
+			observerImpl.dataBootstrappedContainer,
+			observerImpl.saveBootstrappedContainer,
+			observerImpl.primaryKey,
+			observerImpl.volumesAuth,
+			observerImpl.checkResult,
+			model,
+			modeenv,
+			flags,
+		); err != nil {
 			return err
 		}
 	}

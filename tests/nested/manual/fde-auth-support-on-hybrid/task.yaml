@@ -1,8 +1,10 @@
-summary: End-to-end test for FDE passphrase support on hybrid systems
+summary: End-to-end test for FDE PIN and passphrase support on hybrid systems
 
 details: |
   This test installs an encrypted hybrid Ubuntu system using muinstaller
-  which is protected by passphrase authentication.
+  which is then protected by PIN and passphrase authentication after
+  first boot. Multiple transitions between the available authentication
+  modes are exercised (PIN <-> Passphrase <-> None).
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
@@ -24,6 +26,9 @@ environment:
   MODEL_VERSION/2504: "25.04"
   GADGET_VERSION/2504: "classic-25.04"
   KERNEL_VERSION/2504: "25.04"
+
+  # XXX: Add UC test variant? It is not officially supported
+  # but might help spot edge cases.
 
   KDF_TYPE/pbkdf2: pbkdf2
   KDF_TYPE/argon2i: argon2i
@@ -103,28 +108,14 @@ prepare: |
   fi
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
-  if [[ "$KDF_TYPE" == "default" ]]; then
-    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-      --model classic.model \
-      --store-dir "${STORE_DIR}" \
-      --gadget pc.snap \
-      --gadget-assertion pc.assert \
-      --kernel pc-kernel.snap \
-      --kernel-assertion pc-kernel.assert \
-      --disk disk.img \
-      --passphrase "ubuntu test"
-  else
-    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-      --model classic.model \
-      --store-dir "${STORE_DIR}" \
-      --gadget pc.snap \
-      --gadget-assertion pc.assert \
-      --kernel pc-kernel.snap \
-      --kernel-assertion pc-kernel.assert \
-      --disk disk.img \
-      --passphrase "ubuntu test" \
-      --extra-muinstaller-arg "-kdf-type $KDF_TYPE"
-  fi
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+    --model classic.model \
+    --store-dir "${STORE_DIR}" \
+    --gadget pc.snap \
+    --gadget-assertion pc.assert \
+    --kernel pc-kernel.snap \
+    --kernel-assertion pc-kernel.assert \
+    --disk disk.img
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -159,6 +150,49 @@ execute: |
   gojq '.encrypted' < container.out | MATCH "^false$"
   gojq '.keyslots | length' < container.out | MATCH "^0$"
 
+  # system-data is encrypted but not protected by a passphrase or PIN yet
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+
+  # system-save is also encrypted not protected by a passphrase or PIN yet
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  remote_action_request()
+  {
+    local json_req="$1"
+    echo "echo '$json_req' | sudo snap debug api -H \"Content-Type: application/json\" -X POST /v2/system-volumes" > action_request
+    remote.exec "$(cat action_request)" > resp
+  }
+
+  reboot_with_passphrase()
+  {
+    tests.nested vm set-passphrase "$1"
+    tests.nested vm stop
+    tests.nested vm start
+  }
+
+  # Test setting a passphrase after first boot
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-1"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-1"
+
+  # Check keyslots
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+
   # system-data is encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
@@ -173,10 +207,47 @@ execute: |
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
 
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB"/nested.sh
+  # Test changing passphrases
+  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-1", "new-passphrase": "ubuntu-2"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-2"
+
+  # Let's reset the passphrase as root (without providing old passphrase)
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-3"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-3"
+
+  # Let's switch to PINs as root
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "pin", "pin": "1234"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "1234"
+
+  # Test changing PINs
+  remote_action_request '{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "4321"
+
+  # Let's remove auth protection completely
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase ""
+
+  # And bring it back (similar to first boot experience but now for PINs)
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "pin", "pin": "6789"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "6789"
 
   # refresh rebooting snap
   # $1: path to snap file
@@ -207,7 +278,7 @@ execute: |
   # Save PCR profile
   remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile
 
-  # 1. Test gadget refresh causing reseal.
+  # Test gadget refresh causing reseal.
 
   # Changing cmdline should force a reseal.
   unsquashfs -d pc-gadget pc.snap
@@ -219,85 +290,42 @@ execute: |
   snap pack --filename=pc-new.snap pc-gadget/
   refresh_rebooting_snap pc-new.snap pc
 
-  # We expect a reseals, PCR profile should have been updated.
+  # We expect a reseal, PCR profile should have been updated.
   remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
   not diff pcr_profile pcr_profile_current
   mv pcr_profile_current pcr_profile
 
-  # 2. Test kernel refresh causing reseal.
+  # Test kernel refresh causing reseal.
 
   # Resigning kernel should be enough to trigger a reseal.
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$PWD/pc-kernel-new.snap"
   refresh_rebooting_snap pc-kernel-new.snap pc
 
-  # We expect a reseals, PCR profile should have been updated.
+  # We expect a reseal, PCR profile should have been updated.
   remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
   not diff pcr_profile pcr_profile_current
   mv pcr_profile_current pcr_profile
 
-  remote_action_request()
-  {
-    local json_req="$1"
-    echo "echo '$json_req' | sudo snap debug api -H \"Content-Type: application/json\" -X POST /v2/system-volumes" > action_request
-    remote.exec "$(cat action_request)" > resp
-  }
-
-  reboot_with_passphrase()
-  {
-    tests.nested vm set-passphrase "$1"
-    tests.nested vm stop
-    tests.nested vm start
-  }
-
-  # 3. Test changing passphrases.
-  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu test", "new-passphrase": "ubuntu-1"}'
-  change_id="$(gojq --raw-output .change < resp)"
-  remote.exec sudo snap watch "$change_id"
-
-  reboot_with_passphrase "ubuntu-1"
-
-  # Let's reset the passphrase as root (without providing old passphrase)
-  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-2"}'
-  change_id="$(gojq --raw-output .change < resp)"
-  remote.exec sudo snap watch "$change_id"
-
-  reboot_with_passphrase "ubuntu-2"
-
-  # Let's remove passphrase protection completely
-  remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
-  change_id="$(gojq --raw-output .change < resp)"
-  remote.exec sudo snap watch "$change_id"
-
-  reboot_with_passphrase ""
-
-  # And bring it back i.e. adding a passphrase even for
-  # systems not installed with a passphrase.
-  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-3"}'
-  change_id="$(gojq --raw-output .change < resp)"
-  remote.exec sudo snap watch "$change_id"
-
-  reboot_with_passphrase "ubuntu-3"
-
-  # Let's change the passphrase one more time for good measure
-  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-3", "new-passphrase": "ubuntu-4"}'
-  change_id="$(gojq --raw-output .change < resp)"
-  remote.exec sudo snap watch "$change_id"
-
-  reboot_with_passphrase "ubuntu-4"
-
   # Check encryption again for good measure
   remote.exec sudo snap debug api /v2/system-volumes > containers.out
 
-  # system-data is encrypted and protected by a passphrase
+  # system-data is encrypted and protected by a PIN
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
   gojq '.keyslots | length' < container.out | MATCH "^2$"
-  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^passphrase$"
-  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^pin$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^pin$"
 
-  # system-save is also encrypted and protected by a passphrase
+  # system-save is also encrypted and protected by a PIN
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
   gojq '.keyslots | length' < container.out | MATCH "^2$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
-  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^pin$"
+
+  # Let's switch to a passphrase one more time for good measure
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-4"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-4"

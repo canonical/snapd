@@ -41,6 +41,11 @@ slots:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
+  nvidia-video-dl:
+    interface: nvidia-video-driver-libs
+    compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2510
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
   opengl-dl:
     interface: opengl-driver-libs
     compatibility: opengl-1-(0..5)-ubuntu-2510 OR

@@ -168,6 +168,13 @@ type Databag interface {
 	Data() ([]byte, error)
 }
 
+type Visibility uint
+
+const (
+	DefaultVisibility Visibility = iota
+	SecretVisibility
+)
+
 // DatabagSchema takes in data from the Databag and validates that it's valid
 // and could be committed.
 type DatabagSchema interface {
@@ -188,6 +195,12 @@ type DatabagSchema interface {
 	// NestedEphemeral returns true if the type or any of its nested types are
 	// ephemeral.
 	NestedEphemeral() bool
+
+	// Visibility returns the visibility defined explicitly with this data corresponding to this type
+	Visibility() Visibility
+
+	// NestedVisibility returns true if it or any of its nested types have the visibility in input
+	NestedVisibility(Visibility) bool
 }
 
 type SchemaType uint
@@ -925,8 +938,9 @@ func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error)
 		len(parts[1]) <= 2 {
 		return "", "", fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
 	}
+	s := strings.TrimPrefix(parts[1], "{")
 
-	field, filter = parts[0], strings.Trim(parts[1], "{}")
+	field, filter = parts[0], strings.TrimSuffix(s, "}")
 	return field, filter, nil
 }
 
@@ -1767,24 +1781,21 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
-// TODO: when constraints are applied to path placeholders, this should take
-// constraints to be passed into matchGetRequest (it's not unsafe not to do it
-// but it would include more paths in the check than necessary)
-func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
+func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]string) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
 		requests = []string{""}
 	}
 
 	opts := ParseOptions{AllowPlaceholders: false}
-	var matches []requestMatch
+	var paths [][]Accessor
 	for _, request := range requests {
 		accessors, err := ParsePathIntoAccessors(request, opts)
 		if err != nil {
 			return false, err
 		}
 
-		reqMatches, err := v.matchGetRequest(accessors)
+		matches, err := v.matchGetRequest(accessors)
 		if err != nil {
 			if errors.Is(err, &NoMatchError{}) {
 				// we serve partial reads so check other paths
@@ -1794,18 +1805,35 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 			return false, err
 		}
 
-		if len(reqMatches) != 0 {
-			matches = append(matches, reqMatches...)
+		for _, match := range matches {
+			// use constraints to fill in placeholders so ephemeral check cuts out
+			// unnecessary branches
+			if len(constraints) != 0 {
+				for i, acc := range match.storagePath {
+					if acc.Type() != KeyPlaceholderType {
+						continue
+					}
+
+					val, ok := constraints[acc.Name()]
+					if !ok {
+						continue
+					}
+
+					match.storagePath[i] = newKey(val, acc.FieldFilters())
+				}
+			}
+
+			paths = append(paths, match.storagePath)
 		}
 	}
 
-	if len(matches) == 0 {
+	if len(paths) == 0 {
 		return false, NewNoMatchError(v, "get", requests)
 	}
 
 	schema := []DatabagSchema{v.schema.DatabagSchema}
-	for _, match := range matches {
-		ephemeral, err := anyEphemeralSchema(schema, match.storagePath)
+	for _, path := range paths {
+		ephemeral, err := anyEphemeralSchema(schema, path)
 		if err != nil {
 			// shouldn't be possible unless there's a view/schema mismatch
 			return false, fmt.Errorf("cannot check if read affects ephemeral data: %v", err)
@@ -1944,24 +1972,24 @@ type viewRule struct {
 	access  accessType
 }
 
-// match returns true if the subkeys match the pattern exactly or as a prefix.
+// match returns true if the accessors match the pattern exactly or as a prefix.
 // If placeholders are "filled in" when matching, those are returned in "matched"
-// according to which kind of placeholder they are. If the subkeys match as a
+// according to which kind of placeholder they are. If the accessors match as a
 // prefix, the remaining suffix is returned.
-func (p viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
-	if len(p.request) < len(reqSubkeys) {
+func (p viewRule) match(reqAccessors []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
+	if len(p.request) < len(reqAccessors) {
 		return nil, nil, false
 	}
 
 	matched = &matchedPlaceholders{}
-	for i, subkey := range reqSubkeys {
-		if !p.request[i].match(subkey, matched) {
+	for i, acc := range reqAccessors {
+		if !p.request[i].match(acc, matched) {
 			return nil, nil, false
 		}
 	}
 
 	// we match requests on a prefix of rule paths, save the unmatched suffix
-	for _, key := range p.request[len(reqSubkeys):] {
+	for _, key := range p.request[len(reqAccessors):] {
 		unmatched = append(unmatched, key)
 	}
 
@@ -2004,7 +2032,7 @@ func (p viewRule) isWriteable() bool {
 type requestMatcher interface {
 	Accessor
 
-	match(subkey Accessor, matched *matchedPlaceholders) bool
+	match(acc Accessor, matched *matchedPlaceholders) bool
 }
 
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
@@ -2022,13 +2050,14 @@ func newKeyPlaceholder(value string, fieldFilters map[string]string) keyPlacehol
 }
 
 // match adds an entry to matchedPlaceholders mapping this placeholder key to the
-// supplied name subkey and returns true (a placeholder matches with any value).
-func (p keyPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) bool {
-	if subkey.Type() != MapKeyType {
+// supplied accessor's string value and returns true (a placeholder matches
+// with any value).
+func (p keyPlaceholder) match(acc Accessor, matched *matchedPlaceholders) bool {
+	if acc.Type() != MapKeyType {
 		return false
 	}
 
-	matched.setKey(p.Name(), subkey.Name())
+	matched.setKey(p.Name(), acc.Name())
 	return true
 }
 
@@ -2073,15 +2102,15 @@ func newIndexPlaceholder(value string, fieldFilters map[string]string) indexPlac
 	}
 }
 
-// match checks if the subkey can be used to index a list. If so, it adds an
+// match checks if the accessor can be used to index a list. If so, it adds an
 // entry to matchedPlaceholders mapping this placeholder key to the supplied
-// name subkey and returns true.
-func (p indexPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) bool {
-	if subkey.Type() != ListIndexType {
+// accessor's string value and returns true.
+func (p indexPlaceholder) match(acc Accessor, matched *matchedPlaceholders) bool {
+	if acc.Type() != ListIndexType {
 		return false
 	}
 
-	matched.setIndex(p.Name(), subkey.Name())
+	matched.setIndex(p.Name(), acc.Name())
 	return true
 }
 
@@ -2104,8 +2133,8 @@ func newKey(value string, fieldFilters map[string]string) key {
 }
 
 // match returns true if the subkey is equal to the literal key.
-func (k key) match(subkey Accessor, _ *matchedPlaceholders) bool {
-	return subkey.Type() == MapKeyType && k.Name() == subkey.Name()
+func (k key) match(acc Accessor, _ *matchedPlaceholders) bool {
+	return acc.Type() == MapKeyType && k.Name() == acc.Name()
 }
 
 func (k key) Access() string                  { return k.Name() }
@@ -2141,10 +2170,10 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(subKeys []Accessor, constraints map[string]string) (any, error) {
+func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]string) (any, error) {
 	// TODO: create this in the return below as well?
 	var value any
-	if err := get(subKeys, 0, s, constraints, &value); err != nil {
+	if err := get(accessors, 0, s, constraints, &value); err != nil {
 		return nil, err
 	}
 
@@ -2156,7 +2185,7 @@ func (s JSONDatabag) Get(subKeys []Accessor, constraints map[string]string) (any
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []Accessor, index int, node any, constraints map[string]string, result *any) error {
+func get(accessors []Accessor, index int, node any, constraints map[string]string, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2164,12 +2193,12 @@ func get(subKeys []Accessor, index int, node any, constraints map[string]string,
 
 	switch node := node.(type) {
 	case map[string]json.RawMessage:
-		return getMap(subKeys, index, node, constraints, result)
+		return getMap(accessors, index, node, constraints, result)
 	case []json.RawMessage:
-		return getList(subKeys, index, node, constraints, result)
+		return getList(accessors, index, node, constraints, result)
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
-		path := JoinAccessors(subKeys[:index+1])
+		path := JoinAccessors(accessors[:index+1])
 		return fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 	}
 }
@@ -2181,37 +2210,39 @@ func get(subKeys []Accessor, index int, node any, constraints map[string]string,
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
-	key := subKeys[index]
+func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
+	acc := accessors[index]
 
 	var matchAll bool
 	var rawLevel json.RawMessage
-	if key.Type() == MapKeyType {
+	if acc.Type() == MapKeyType {
 		var ok bool
-		rawLevel, ok = node[key.Name()]
+		rawLevel, ok = node[acc.Name()]
 		if !ok {
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, rawLevel, constraints); err != nil {
+		entry := entry{key: acc.Name(), value: rawLevel}
+		if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
 		}
-	} else if key.Type() == KeyPlaceholderType {
+	} else if acc.Type() == KeyPlaceholderType {
 		matchAll = true
 	} else {
-		pathPrefix := JoinAccessors(subKeys[:index])
-		return fmt.Errorf("cannot use %q to access map at path %q", key.Access(), pathPrefix)
+		pathPrefix := JoinAccessors(accessors[:index])
+		return fmt.Errorf("cannot use %q to access map at path %q", acc.Access(), pathPrefix)
 	}
 
 	// read the final value
-	if index == len(subKeys)-1 {
+	if index == len(accessors)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
-				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+				entry := entry{key: k, value: v}
+				if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
 					return err
 				} else if !ok {
 					continue
@@ -2243,13 +2274,14 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 		results := make(map[string]any)
 
 		for k, v := range node {
-			if ok, err := matchesConstraints(key, v, constraints); err != nil {
+			entry := entry{key: k, value: v}
+			if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
 				return err
 			} else if !ok {
 				continue
 			}
 
-			level, err := unmarshalLevel(subKeys, index, v)
+			level, err := unmarshalLevel(accessors, index, v)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
 					// ignore entries that don't map to containers since the path expects
@@ -2262,7 +2294,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, index+1, level, constraints, &res); err != nil {
+			if err := get(accessors, index+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2281,12 +2313,12 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 		return nil
 	}
 
-	level, err := unmarshalLevel(subKeys, index, rawLevel)
+	level, err := unmarshalLevel(accessors, index, rawLevel)
 	if err != nil {
 		return err
 	}
 
-	return get(subKeys, index+1, level, constraints, result)
+	return get(accessors, index+1, level, constraints, result)
 }
 
 // getList traverses node (a decoded JSON list) and, depending on the path being
@@ -2296,36 +2328,36 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cons
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
-	key := subKeys[keyIndex]
+func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
+	acc := accessors[keyIndex]
 
 	var matchAll bool
 	listIndex := -1
-	if key.Type() == ListIndexType {
-		listIndex, _ = strconv.Atoi(key.Name())
+	if acc.Type() == ListIndexType {
+		listIndex, _ = strconv.Atoi(acc.Name())
 		if listIndex >= len(list) {
 			return &NoDataError{}
 		}
 
-		if ok, err := matchesConstraints(key, list[listIndex], constraints); err != nil {
+		if ok, err := fieldFiltersMatchConstraints(acc, list[listIndex], constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
 		}
-	} else if key.Type() == IndexPlaceholderType {
+	} else if acc.Type() == IndexPlaceholderType {
 		matchAll = true
 	} else {
-		pathPrefix := JoinAccessors(subKeys[:keyIndex])
-		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
+		pathPrefix := JoinAccessors(accessors[:keyIndex])
+		return fmt.Errorf("cannot use %q to index list at path %q", acc.Access(), pathPrefix)
 	}
 
 	// read the final value
-	if keyIndex == len(subKeys)-1 {
+	if keyIndex == len(accessors)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			var level []any
 			for _, v := range list {
-				if ok, err := matchesConstraints(key, v, constraints); err != nil {
+				if ok, err := fieldFiltersMatchConstraints(acc, v, constraints); err != nil {
 					return err
 				} else if !ok {
 					// filter out this value
@@ -2358,14 +2390,14 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
-			if ok, err := matchesConstraints(key, el, constraints); err != nil {
+			if ok, err := fieldFiltersMatchConstraints(acc, el, constraints); err != nil {
 				return err
 			} else if !ok {
 				// filter out this value
 				continue
 			}
 
-			level, err := unmarshalLevel(subKeys, keyIndex+1, el)
+			level, err := unmarshalLevel(accessors, keyIndex+1, el)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
 					// ignore entries that don't map to containers since the path expects
@@ -2378,7 +2410,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, keyIndex+1, level, constraints, &res); err != nil {
+			if err := get(accessors, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2398,17 +2430,45 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, constrain
 	}
 
 	// decode the next level
-	level, err := unmarshalLevel(subKeys, keyIndex, list[listIndex])
+	level, err := unmarshalLevel(accessors, keyIndex, list[listIndex])
 	if err != nil {
 		return err
 	}
 
-	return get(subKeys, keyIndex+1, level, constraints, result)
+	return get(accessors, keyIndex+1, level, constraints, result)
 }
 
-// matchesConstraints returns true only if the object should not be filtered out,
-// either because it matches the constraints or they're not applicable.
-func matchesConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
+type entry struct {
+	key   string
+	value json.RawMessage
+}
+
+func matchesConstraints(acc Accessor, e entry, constraints map[string]string) (bool, error) {
+	if !constrainSubkeyPlaceholders(acc, e.key, constraints) {
+		return false, nil
+	}
+
+	return fieldFiltersMatchConstraints(acc, e.value, constraints)
+}
+
+func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]string) bool {
+	if acc.Type() != KeyPlaceholderType {
+		// filter doesn't apply
+		return true
+	}
+
+	constrained, ok := constraints[acc.Name()]
+	if !ok {
+		// no constraint for this placeholder
+		return true
+	}
+
+	return key == constrained
+}
+
+// fieldFiltersMatchConstraints returns true only if the object should not be
+// filtered out, either because it matches the constraints or they're not applicable.
+func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
@@ -2477,7 +2537,7 @@ func newNoContainerError(path, actualType string) *noContainerError {
 // unmarshalLevel decodes rawLevel into whatever container type it represents
 // (list or map). It returns a noContainerError if the raw JSON can't be
 // unmarshalled to either container type.
-func unmarshalLevel(subKeys []Accessor, index int, rawLevel json.RawMessage) (any, error) {
+func unmarshalLevel(accessors []Accessor, index int, rawLevel json.RawMessage) (any, error) {
 	var mapLevel map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &mapLevel); err != nil {
 		_, ok := err.(*json.UnmarshalTypeError)
@@ -2491,7 +2551,7 @@ func unmarshalLevel(subKeys []Accessor, index int, rawLevel json.RawMessage) (an
 			// also isn't list so we can't traverse it as expected -> error
 			uErr, ok := err.(*json.UnmarshalTypeError)
 			if ok {
-				pathPrefix := JoinAccessors(subKeys[:index+1])
+				pathPrefix := JoinAccessors(accessors[:index+1])
 				return nil, newNoContainerError(pathPrefix, uErr.Value)
 			}
 			return nil, err
@@ -2505,12 +2565,12 @@ func unmarshalLevel(subKeys []Accessor, index int, rawLevel json.RawMessage) (an
 
 // Set takes a list of accessors, parsed from a path, and a value to set at that
 // location. If the value is nil, the entry is removed.
-func (s JSONDatabag) Set(subKeys []Accessor, value any) error {
+func (s JSONDatabag) Set(accessors []Accessor, value any) error {
 	var err error
 	if value != nil {
-		_, err = set(subKeys, 0, s, value)
+		_, err = set(accessors, 0, s, value)
 	} else {
-		_, err = unset(subKeys, 0, s)
+		_, err = unset(accessors, 0, s)
 	}
 	return err
 }
@@ -2533,31 +2593,31 @@ func removeNilValues(value any) any {
 	return level
 }
 
-func set(subKeys []Accessor, index int, node any, value any) (json.RawMessage, error) {
+func set(accessors []Accessor, index int, node any, value any) (json.RawMessage, error) {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
 	}
 
 	if obj, ok := node.(map[string]json.RawMessage); ok {
-		return setMap(subKeys, index, obj, value)
+		return setMap(accessors, index, obj, value)
 	} else if list, ok := node.([]json.RawMessage); ok {
-		return setList(subKeys, index, list, value)
+		return setList(accessors, index, list, value)
 	}
 
 	// should be impossible since we handle terminal cases in the type specific functions
-	path := JoinAccessors(subKeys[:index+1])
+	path := JoinAccessors(accessors[:index+1])
 	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
-func setMap(subKeys []Accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
-	key := subKeys[index]
-	if key.Type() != MapKeyType {
-		pathPrefix := JoinAccessors(subKeys[:index])
-		return nil, fmt.Errorf("cannot use %q to access map at path %q", key.Access(), pathPrefix)
+func setMap(accessors []Accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
+	acc := accessors[index]
+	if acc.Type() != MapKeyType {
+		pathPrefix := JoinAccessors(accessors[:index])
+		return nil, fmt.Errorf("cannot use %q to access map at path %q", acc.Access(), pathPrefix)
 	}
 
-	if index == len(subKeys)-1 {
+	if index == len(accessors)-1 {
 		// remove nil values that may be nested in the value
 		value = removeNilValues(value)
 
@@ -2566,15 +2626,15 @@ func setMap(subKeys []Accessor, index int, node map[string]json.RawMessage, valu
 			return nil, err
 		}
 
-		node[key.Name()] = data
+		node[acc.Name()] = data
 		return json.Marshal(node)
 	}
 
 	var level any
-	rawLevel, ok := node[key.Name()]
+	rawLevel, ok := node[acc.Name()]
 	if ok {
 		var err error
-		level, err = unmarshalLevel(subKeys, index+1, rawLevel)
+		level, err = unmarshalLevel(accessors, index+1, rawLevel)
 		if err != nil {
 			if !errors.As(err, new(*noContainerError)) {
 				return nil, err
@@ -2587,35 +2647,35 @@ func setMap(subKeys []Accessor, index int, node map[string]json.RawMessage, valu
 
 	// next level doesn't exist yet or isn't right type so overwrite
 	if level == nil {
-		nextKey := subKeys[index+1]
+		nextKey := accessors[index+1]
 		level = emptyContainerForType(nextKey)
 	}
 
-	rawLevel, err := set(subKeys, index+1, level, value)
+	rawLevel, err := set(accessors, index+1, level, value)
 	if err != nil {
 		return nil, err
 	}
 
-	node[key.Name()] = rawLevel
+	node[acc.Name()] = rawLevel
 	return json.Marshal(node)
 }
 
-func setList(subKeys []Accessor, keyIndex int, list []json.RawMessage, value any) (json.RawMessage, error) {
-	key := subKeys[keyIndex]
-	if key.Type() != ListIndexType {
-		pathPrefix := JoinAccessors(subKeys[:keyIndex])
-		return nil, fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
+func setList(accessors []Accessor, accIndex int, list []json.RawMessage, value any) (json.RawMessage, error) {
+	acc := accessors[accIndex]
+	if acc.Type() != ListIndexType {
+		pathPrefix := JoinAccessors(accessors[:accIndex])
+		return nil, fmt.Errorf("cannot use %q to index list at path %q", acc.Access(), pathPrefix)
 	}
 
-	listIndex, _ := strconv.Atoi(key.Name())
+	listIndex, _ := strconv.Atoi(acc.Name())
 	// note that the index can exceed the list length by 1 (in which case we
 	// append the entry, extending the list)
 	if listIndex > len(list) {
-		curPath := JoinAccessors(subKeys[:keyIndex+1])
+		curPath := JoinAccessors(accessors[:accIndex+1])
 		return nil, fmt.Errorf("cannot access %q: list has length %d", curPath, len(list))
 	}
 
-	if keyIndex == len(subKeys)-1 {
+	if accIndex == len(accessors)-1 {
 		// remove nil values that may be nested in the value
 		value = removeNilValues(value)
 		data, err := json.Marshal(value)
@@ -2635,7 +2695,7 @@ func setList(subKeys []Accessor, keyIndex int, list []json.RawMessage, value any
 	// if we're setting new element to list there's no value to unmarshal
 	if listIndex < len(list) {
 		var err error
-		level, err = unmarshalLevel(subKeys, keyIndex+1, list[listIndex])
+		level, err = unmarshalLevel(accessors, accIndex+1, list[listIndex])
 		if err != nil {
 			if !errors.As(err, new(*noContainerError)) {
 				return nil, err
@@ -2649,11 +2709,11 @@ func setList(subKeys []Accessor, keyIndex int, list []json.RawMessage, value any
 	// if we're adding a new nested level or overriding a previous one, create it
 	// according to whether the path expects a map or list
 	if level == nil {
-		nextKey := subKeys[keyIndex+1]
-		level = emptyContainerForType(nextKey)
+		nextAcc := accessors[accIndex+1]
+		level = emptyContainerForType(nextAcc)
 	}
 
-	rawLevel, err := set(subKeys, keyIndex+1, level, value)
+	rawLevel, err := set(accessors, accIndex+1, level, value)
 	if err != nil {
 		return nil, err
 	}
@@ -2675,38 +2735,38 @@ func emptyContainerForType(acc Accessor) any {
 
 // Unset takes a list of accessors, parsed from a path, and removes the value
 // they lead to.
-func (s JSONDatabag) Unset(subKeys []Accessor) error {
-	_, err := unset(subKeys, 0, s)
+func (s JSONDatabag) Unset(accessors []Accessor) error {
+	_, err := unset(accessors, 0, s)
 	return err
 }
 
-func unset(subKeys []Accessor, index int, node any) (json.RawMessage, error) {
+func unset(accessors []Accessor, index int, node any) (json.RawMessage, error) {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
 	}
 
 	if obj, ok := node.(map[string]json.RawMessage); ok {
-		return unsetMap(subKeys, index, obj)
+		return unsetMap(accessors, index, obj)
 	} else if list, ok := node.([]json.RawMessage); ok {
-		return unsetList(subKeys, index, list)
+		return unsetList(accessors, index, list)
 	}
 
 	// should be impossible since we handle terminal cases in the type specific functions
-	path := JoinAccessors(subKeys[:index+1])
+	path := JoinAccessors(accessors[:index+1])
 	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
-func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
-	key := subKeys[index]
+func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
+	acc := accessors[index]
 
-	pathPrefix := JoinAccessors(subKeys[:index])
-	if key.Type() != MapKeyType && key.Type() != KeyPlaceholderType {
-		return nil, fmt.Errorf("cannot use %q to access map at path %q", key.Access(), pathPrefix)
+	pathPrefix := JoinAccessors(accessors[:index])
+	if acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
+		return nil, fmt.Errorf("cannot use %q to access map at path %q", acc.Access(), pathPrefix)
 	}
 
-	if index == len(subKeys)-1 {
-		if key.Type() == KeyPlaceholderType || (len(node) == 1 && node[key.Name()] != nil) {
+	if index == len(accessors)-1 {
+		if acc.Type() == KeyPlaceholderType || (len(node) == 1 && node[acc.Name()] != nil) {
 			// remove entire level. We still need to iterate and delete() because the
 			// top level is always non-nil so returning nil isn't enough
 			for k := range node {
@@ -2715,7 +2775,7 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 			return nil, nil
 		}
 
-		delete(node, key.Name())
+		delete(node, acc.Name())
 		return json.Marshal(node)
 	}
 
@@ -2725,12 +2785,12 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 			return nil
 		}
 
-		nextLevel, err := unmarshalLevel(subKeys, index+1, nextLevelRaw)
+		nextLevel, err := unmarshalLevel(accessors, index+1, nextLevelRaw)
 		if err != nil {
 			return err
 		}
 
-		updated, err := unset(subKeys, index+1, nextLevel)
+		updated, err := unset(accessors, index+1, nextLevel)
 		if err != nil {
 			return err
 		}
@@ -2745,14 +2805,14 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 		return nil
 	}
 
-	if key.Type() == KeyPlaceholderType {
+	if acc.Type() == KeyPlaceholderType {
 		for k := range node {
 			if err := unsetKey(node, k); err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		if err := unsetKey(node, key.Name()); err != nil {
+		if err := unsetKey(node, acc.Name()); err != nil {
 			return nil, err
 		}
 	}
@@ -2763,21 +2823,21 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 	return json.Marshal(node)
 }
 
-func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.RawMessage, error) {
-	key := subKeys[keyIndex]
+func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json.RawMessage, error) {
+	acc := accessors[accIndex]
 
-	pathPrefix := JoinAccessors(subKeys[:keyIndex])
-	if key.Type() != ListIndexType && key.Type() != IndexPlaceholderType {
-		return nil, fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
+	pathPrefix := JoinAccessors(accessors[:accIndex])
+	if acc.Type() != ListIndexType && acc.Type() != IndexPlaceholderType {
+		return nil, fmt.Errorf("cannot use %q to index list at path %q", acc.Access(), pathPrefix)
 	}
 
-	if keyIndex == len(subKeys)-1 {
-		if key.Type() == IndexPlaceholderType {
+	if accIndex == len(accessors)-1 {
+		if acc.Type() == IndexPlaceholderType {
 			// remove entire level
 			return nil, nil
 		}
 
-		i, _ := strconv.Atoi(key.Name())
+		i, _ := strconv.Atoi(acc.Name())
 		if i < len(node) {
 			node = append(node[:i], node[i+1:]...)
 		}
@@ -2790,15 +2850,15 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 	}
 
 	unsetIndex := func(list []json.RawMessage, index int) (json.RawMessage, error) {
-		nextLevel, err := unmarshalLevel(subKeys, keyIndex+1, list[index])
+		nextLevel, err := unmarshalLevel(accessors, accIndex+1, list[index])
 		if err != nil {
 			return nil, err
 		}
 
-		return unset(subKeys, keyIndex+1, nextLevel)
+		return unset(accessors, accIndex+1, nextLevel)
 	}
 
-	if key.Type() == IndexPlaceholderType {
+	if acc.Type() == IndexPlaceholderType {
 		var wi int
 		for i := range node {
 			updated, err := unsetIndex(node, i)
@@ -2816,7 +2876,7 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 
 		node = node[:wi]
 	} else {
-		i, _ := strconv.Atoi(key.Name())
+		i, _ := strconv.Atoi(acc.Name())
 		if i >= len(node) {
 			// nothing to remove
 			return json.Marshal(node)
@@ -2890,6 +2950,8 @@ func (v JSONSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	return []DatabagSchema{v}, nil
 }
 
-func (v JSONSchema) Type() SchemaType      { return Any }
-func (v JSONSchema) Ephemeral() bool       { return false }
-func (v JSONSchema) NestedEphemeral() bool { return false }
+func (v JSONSchema) Type() SchemaType                 { return Any }
+func (v JSONSchema) Ephemeral() bool                  { return false }
+func (v JSONSchema) NestedEphemeral() bool            { return false }
+func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
+func (v JSONSchema) NestedVisibility(Visibility) bool { return false }

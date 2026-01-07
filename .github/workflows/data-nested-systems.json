@@ -3,7 +3,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-18.04",
-        "backend": "openstack-ext-ps7",
+        "backend": "openstack-ext",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-18.04-64",
         "tasks": "tests/nested/...",
@@ -12,7 +12,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-20.04",
-        "backend": "openstack-ext-ps7",
+        "backend": "openstack-ext",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-20.04-64",
         "tasks": "tests/nested/...",
@@ -21,7 +21,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-22.04",
-        "backend": "openstack-ext-ps7",
+        "backend": "openstack-ext",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-22.04-64",
         "tasks": "tests/nested/...",
@@ -30,7 +30,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-24.04",
-        "backend": "openstack-ext-ps7",
+        "backend": "openstack-ext",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-24.04-64",
         "tasks": "tests/nested/...",
@@ -39,7 +39,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "nested-ubuntu-24.04-arm64",
-        "backend": "openstack-arm-ext-ps7",
+        "backend": "openstack-arm-ext",
         "alternative-backend": "google-nested-arm",
         "systems": "ubuntu-24.04-arm-64",
         "tasks": "tests/nested/core/core20-basic tests/nested/manual/optee-fde",

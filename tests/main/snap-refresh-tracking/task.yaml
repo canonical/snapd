@@ -1,0 +1,38 @@
+summary: Check that 'snap refresh' works with the tracking flag
+
+details: |
+    Verifies the snap refresh command works as expected when using the --tracking flag.
+    Tests how snap refresh behaves with different channels set.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local basic-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+restore: |
+    snap remove --purge basic-desktop
+    snap remove --purge test-snapd-sh-core24
+
+execute: |
+    snap_release=$(snap refresh --tracking test-snapd-sh-core24)
+    echo "$snap_release" | gojq --yaml-input -r .channel | MATCH null
+
+    snap switch test-snapd-sh-core24 --channel latest/stable
+
+    snap_release=$(snap refresh --tracking test-snapd-sh-core24)
+
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH '^1$'
+
+    snap_release=$(snap refresh --tracking test-snapd-sh-core24 basic-desktop)
+
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["basic-desktop"].channel' | MATCH null
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH '^2$'
+    
+    snap_release=$(snap refresh --tracking)
+    count=$(snap list | sed 1d | wc -l)
+
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["test-snapd-sh-core24"].channel' | MATCH "latest/stable"
+    echo "$snap_release" | gojq --yaml-input -r '.snaps["basic-desktop"].channel' | MATCH null
+
+    echo "$snap_release" | gojq --yaml-input -r '.snaps | length' | MATCH "^${count}\$"

@@ -1534,6 +1534,19 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 				return err
 			}
 		}
+
+		// We're still holding the snap lock, new instances of the snap cannot
+		// be started and we have confirmed that no applications of that snap
+		// are running. Now is a good time to attempt to discard the preserved
+		// mount namespace of the snap. The motivation for this is that on the
+		// next start of application we will not attempt to modify the mount
+		// namespace to match what the new revision of the snap desires (which
+		// sometimes is almost impossible), but instead the app starts with a
+		// clean slate.
+		logger.Debugf("discarding snap %q mount namespace", snapsup.InstanceName())
+		if err := m.backend.DiscardLockedSnapNamespace(snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 
 	snapst.Active = false
@@ -2200,7 +2213,7 @@ func isSingleRebootBoundary(linkSnap *state.Task) bool {
 	return false
 }
 
-func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
+func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -2349,7 +2362,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer func() {
 		// if link snap fails and this is a first install, then we need to clean up
 		// the sequence file
-		if IsErrAndNotWait(err) && firstInstall {
+		if IsErrAndNotWait(retErr) && firstInstall {
 			snapst.MigratedHidden = false
 			snapst.MigratedToExposedHome = false
 			if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
@@ -2372,10 +2385,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
-		if !IsErrAndNotWait(err) {
+		if !IsErrAndNotWait(retErr) {
 			return
 		}
-		// err is not nil, we need to try and unlink the snap to cleanup after
+		// retErr is not nil, we need to try and unlink the snap to cleanup after
 		// ourselves
 		var backendErr error
 		if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -2494,7 +2507,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 	defer func() {
-		if IsErrAndNotWait(err) {
+		if IsErrAndNotWait(retErr) {
 			undo()
 		}
 	}()
@@ -3522,7 +3535,7 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
+func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -3572,7 +3585,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer func() {
 		// Unlock snap inhibition if anything goes wrong afterwards to
 		// avoid keeping the snap stuck at this inhibited state.
-		if err != nil {
+		if retErr != nil {
 			// state is unlocked, it is okay to pass nil here
 			runinhibit.Unlock(snapName, nil)
 		}

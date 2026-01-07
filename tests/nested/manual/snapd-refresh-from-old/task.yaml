@@ -38,6 +38,7 @@ execute: |
   if [ "$SPREAD_VARIANT" = "edge_first" ]; then
     # refresh to latest snapd from store, this will drop from ssh.
     echo "Refreshing snapd and core18 from the store"
+    remote.exec "sudo snap refresh snapd" || true
     remote.exec "sudo snap refresh" || true
 
     remote.wait-for reboot "$INITIAL_BOOT_ID"
@@ -46,7 +47,8 @@ execute: |
     # this change is not immediately done and needs a retry
     #shellcheck disable=SC2140
     #shellcheck disable=SC2140
-    remote.exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH \".* Done .* Refresh snaps.*"core18"\"'"
+    remote.exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH -i \".* Done .*refresh.*snapd\"'"
+    remote.exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH -i \".* Done .*refresh.*core18\"'"
   fi
 
   echo "Now refresh snapd with current tree"

@@ -150,6 +150,7 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 			"ID_PART_TABLE_UUID": "foo",
 			"ID_PART_TABLE_TYPE": "gpt",
 			"DEVPATH":            sdaSysfsPath,
+			"ID_MODEL":           "No Name SSD",
 		}, nil
 	})
 	defer restore()
@@ -158,6 +159,7 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.DiskID(), Equals, "foo")
+	c.Assert(d.Model(), Equals, "No Name SSD")
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, sdaSysfsPath))

@@ -510,6 +510,7 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
         SC_SNAPD_EXPORT "/system_*_egl-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_gbm-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_cuda-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_nvidia-video-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_opengl-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_opengles-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_vulkan-driver-libs.library-source",

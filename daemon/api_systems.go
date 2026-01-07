@@ -170,6 +170,9 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	if encInfo.PassphraseAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}
+	if encInfo.PINAuthAvailable {
+		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePINAuth)
+	}
 
 	return storageEnc
 }
@@ -652,10 +655,10 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 	return AsyncResponse(nil, chg.ID())
 }
 
-var deviceValidatePassphrase = device.ValidatePassphrase
+var deviceCheckAuthQuality = device.CheckAuthQuality
 
-func postValidatePassphrase(mode device.AuthMode, passphrase string) Response {
-	result, err := deviceValidatePassphrase(mode, passphrase)
+func postCheckAuthQuality(mode device.AuthMode, authVal string) Response {
+	result, err := deviceCheckAuthQuality(mode, authVal)
 	if err != nil {
 		var qualityErr *device.AuthQualityError
 		if errors.As(err, &qualityErr) {
@@ -712,7 +715,7 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 		}
 	}
 
-	return postValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
+	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
 func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionRequest) Response {
@@ -740,7 +743,7 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		}
 	}
 
-	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+	return postCheckAuthQuality(device.AuthModePIN, req.PIN)
 }
 
 func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *systemActionRequest) Response {

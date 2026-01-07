@@ -67,7 +67,7 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
-TimeoutStopSec=10
+TimeoutStopSec=10s
 Type=%s
 %s`
 
@@ -90,7 +90,7 @@ WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
 ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
-TimeoutStopSec=10
+TimeoutStopSec=10s
 Type=%s
 
 [Install]
@@ -126,7 +126,7 @@ WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver
 ExecReload=/usr/bin/snap run --command=reload xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=%s
 %s`
 	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", expectedInstallSection)
@@ -181,7 +181,7 @@ ExecStart=/usr/bin/snap run foo.app
 SyslogIdentifier=foo.app
 Restart=on-failure
 WorkingDirectory=/var/snap/foo/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
@@ -240,7 +240,7 @@ ExecStart=/usr/bin/snap run foo.app
 SyslogIdentifier=foo.app
 Restart=on-failure
 WorkingDirectory=/var/snap/foo/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
@@ -267,7 +267,38 @@ apps:
 
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
 	c.Assert(err, IsNil)
-	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=600\n")
+	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=10m0s\n")
+}
+
+func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileWithInvalidTimeout(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        %s: 10ns
+        daemon: simple
+`
+	for _, tc := range []struct {
+		yamlField string
+		unitField string
+	}{
+		{"stop-timeout", "TimeoutStopSec"},
+		{"start-timeout", "TimeoutStartSec"},
+		{"restart-delay", "RestartSec"},
+		{"watchdog-timeout", "WatchdogSec"},
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(yamlText, tc.yamlField)))
+		c.Assert(err, IsNil)
+		info.Revision = snap.R(44)
+		app := info.Apps["app"]
+
+		generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
+		c.Assert(err, IsNil)
+		c.Check(string(generatedWrapper), testutil.Contains,
+			fmt.Sprintf("\n%s=1µs\n", tc.unitField))
+	}
 }
 
 func (s *serviceUnitGenSuite) TestWriteSnapServiceUnitFileRestart(c *C) {
@@ -503,7 +534,7 @@ ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=%s
 
 [Install]
@@ -610,7 +641,7 @@ ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 KillMode=process
 KillSignal=%s
@@ -651,9 +682,9 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
-RestartSec=20
+RestartSec=20s
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 
 [Install]
@@ -692,9 +723,9 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
-RestartSec=20
+RestartSec=20s
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 OOMScoreAdjust=-899
 
@@ -737,7 +768,7 @@ ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Slice=snap.foo.slice
 
@@ -781,7 +812,7 @@ ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 Slice=snap.foo.slice
 
@@ -908,7 +939,7 @@ ExecStart=/usr/bin/snap run foo.app
 SyslogIdentifier=foo.app
 Restart=on-failure
 WorkingDirectory=/var/snap/foo/44
-TimeoutStopSec=30
+TimeoutStopSec=30s
 Type=simple
 X-Service-Snippet-1=true
 X-Service-Snippet-2=true
@@ -949,4 +980,63 @@ apps:
 
 	_, err = internal.GenerateSnapServiceUnitFile(app, nil)
 	c.Assert(err, ErrorMatches, `internal error: unknown plug service snippet section "bad"`)
+}
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatus(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.SystemDaemon,
+		SuccessExitStatus: []string{"42", "250"},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=42 250\n.*`)
+}
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatusEmptyList(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.SystemDaemon,
+		SuccessExitStatus: []string{},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
+}
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatusNotPresent(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
 }

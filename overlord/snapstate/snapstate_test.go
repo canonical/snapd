@@ -225,6 +225,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	AddForeignTaskHandlers(s.o.TaskRunner(), s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
+	// set next cleanup to future, so cleanup doesn't run in tests
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Now().Add(time.Hour))
 
 	s.o.AddManager(s.snapmgr)
 	s.o.AddManager(s.o.TaskRunner())
@@ -1673,6 +1675,10 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
+		},
+		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
@@ -1946,6 +1952,10 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				inhibitHint: "refresh",
 			},
 			{
+				op:   "discard-namespace-locked",
+				name: "snap-core18-to-core22",
+			},
+			{
 				op:   "unlink-snap",
 				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
 			},
@@ -2036,6 +2046,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap_instance",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap_instance",
 		},
 		{
 			op:             "unlink-snap",
@@ -2131,7 +2145,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2181,6 +2195,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -2272,6 +2290,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -2387,6 +2409,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
+		},
+		{
+			op:   "discard-namespace-locked",
+			name: "some-snap",
 		},
 		{
 			op:   "unlink-snap",
@@ -3946,6 +3972,124 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	s.snapmgr.Ensure()
 	// all sideloads gone
 	c.Assert(filenames(), DeepEquals, []string{s0})
+}
+
+type cleaningFakeStore struct {
+	fakeStore
+
+	cleanDownloadsCacheCalls int
+	cleanDownloadsCacheErr   error
+}
+
+func (f *cleaningFakeStore) CleanDownloadsCache() error {
+	f.cleanDownloadsCacheCalls++
+	return f.cleanDownloadsCacheErr
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStoreCacheCleanHappy(c *C) {
+	cf := cleaningFakeStore{}
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	now := time.Now()
+	// start with 0 time
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Time{})
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	err := s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+	whenNext := snapstate.GetStoreCacheCleanNext(s.snapmgr)
+	c.Check(whenNext, Equals, now.Add(24*time.Hour))
+
+	// ensure cleanup runs
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, now.Add(-30*24*time.Hour))
+
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 2)
+
+	// advance time by tiny amount
+	now = now.Add(200 * time.Millisecond)
+	// cleanup does not run again
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 2)
+	// next cleanup time is unchanged
+	c.Check(snapstate.GetStoreCacheCleanNext(s.snapmgr), Equals, whenNext)
+
+	// advance time so that another cleanup happens
+	now = whenNext.Add(time.Second)
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 3)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStoreCacheCleanWithError(c *C) {
+	cf := cleaningFakeStore{
+		cleanDownloadsCacheErr: errors.New("mock error"),
+	}
+
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	now := time.Now()
+	// ensure cleanup runs
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, now.Add(-30*24*time.Hour))
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	err := s.snapmgr.Ensure()
+	// generic errors are dropped
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+	// next cleanup runs after the default period
+	c.Check(snapstate.GetStoreCacheCleanNext(s.snapmgr), Equals, now.Add(24*time.Hour))
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStoreCacheCleanBusy(c *C) {
+	cf := cleaningFakeStore{
+		cleanDownloadsCacheErr: store.ErrCleanupBusy,
+	}
+
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	now := time.Now()
+	// ensure cleanup runs
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, now.Add(-30*24*time.Hour))
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	err := s.snapmgr.Ensure()
+	// busy error does not fail ensure
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+	// cache busy are retried sooner
+	c.Check(snapstate.GetStoreCacheCleanNext(s.snapmgr), Equals, now.Add(time.Hour))
+
+	// advance time
+	now = now.Add(time.Hour + time.Second)
+
+	// back to the default period after another call
+	cf.cleanDownloadsCacheErr = nil
+	err = s.snapmgr.Ensure()
+	c.Check(err, IsNil)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 2)
+	c.Check(snapstate.GetStoreCacheCleanNext(s.snapmgr), Equals, now.Add(24*time.Hour))
 }
 
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {

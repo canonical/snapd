@@ -127,15 +127,8 @@ run_muinstaller() {
     tests.nested vm stop
     sync
 
-    # HACK: convert "classic" qcow2 to raw "core" image because we need
-    # to boot with OVMF we really should fix this so that classic and
-    # core VMs are more similar
-    qemu-img convert -f qcow2 -O raw \
-        "${NESTED_IMAGES_DIR}/$(nested_get_image_name classic)" \
-        "${NESTED_IMAGES_DIR}/$(nested_get_image_name core)"
-    # and we don't need the classic image anymore
-    # TODO: uncomment
-    # rm -f  "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)"
+    mv "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" \
+        "$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
     # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
     #       from running, we already have a user so this is not needed
     local image_name

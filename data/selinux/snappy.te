@@ -301,6 +301,8 @@ corenet_tcp_sendrecv_http_port(snappy_t)
 corenet_tcp_connect_http_port(snappy_t)
 corenet_tcp_sendrecv_http_cache_port(snappy_t)
 corenet_tcp_connect_http_cache_port(snappy_t)
+corenet_tcp_sendrecv_squid_port(snappy_t)
+corenet_tcp_connect_squid_port(snappy_t)
 
 # snapd has its own internal DNS resolver
 corenet_tcp_sendrecv_dns_port(snappy_t)

@@ -491,3 +491,7 @@ func MockGetSystemKeyRetryCount(f func() int) (restore func()) {
 func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
 	return testutil.Mock(&timeAfter, f)
 }
+
+func MockSnapdtoolIsReexecd(f func() (bool, error)) (restore func()) {
+	return testutil.Mock(&snapdtoolIsReexecd, f)
+}

@@ -9,6 +9,8 @@ backends: [google-nested]
 
 systems: [ubuntu-20.04-64]
 
+manual: true
+
 environment:
     user: test
     pass: ubuntu

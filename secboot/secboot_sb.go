@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -30,9 +31,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
+	sb_luks2 "github.com/snapcore/secboot/luks2"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
@@ -47,27 +49,38 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
-	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
-	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
-	sbDeactivateVolume              = sb.DeactivateVolume
-	sbAddLUKS2ContainerUnlockKey    = sb.AddLUKS2ContainerUnlockKey
-	sbRenameLUKS2ContainerKey       = sb.RenameLUKS2ContainerKey
-	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
-	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
-	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
-	sbTestLUKS2ContainerKey         = sb.TestLUKS2ContainerKey
-	sbCheckPassphraseEntropy        = sb.CheckPassphraseEntropy
-	disksDevlinks                   = disks.Devlinks
+	sbActivateVolumeWithKey      = sb.ActivateVolumeWithKey
+	sbFindStorageContainer       = sb.FindStorageContainer
+	sbDeactivateVolume           = sb.DeactivateVolume
+	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
+	sbRenameLUKS2ContainerKey    = sb.RenameLUKS2ContainerKey
+	sbNewLUKS2KeyDataReader      = sbNewLUKS2KeyDataReaderImpl
+	sbSetProtectorKeys           = sb_plainkey.SetProtectorKeys
+	sbGetPrimaryKeyFromKernel    = sb.GetPrimaryKeyFromKernel
+	sbTestLUKS2ContainerKey      = sb.TestLUKS2ContainerKey
+	sbCheckPassphraseEntropy     = sb.CheckPassphraseEntropy
+	disksDevlinks                = disks.Devlinks
+	sbNewActivateContext         = sb.NewActivateContext
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
+	sbKeyDataChangePIN        = (*sb.KeyData).ChangePIN
 	sbKeyDataPlatformName     = (*sb.KeyData).PlatformName
+
+	sbWithVolumeName                       = sb_luks2.WithVolumeName
+	sbWithExternalKeyData                  = sb.WithExternalKeyData
+	sbWithLegacyKeyringKeyDescriptionPaths = sb.WithLegacyKeyringKeyDescriptionPaths
+	sbWithRecoveryKeyTries                 = sb.WithRecoveryKeyTries
+	sbWithAuthRequestor                    = sb.WithAuthRequestor
+	sbWithPassphraseTries                  = sb.WithPassphraseTries
+	sbWithPINTries                         = sb.WithPINTries
+	sbWithAuthRequestorUserVisibleName     = sb.WithAuthRequestorUserVisibleName
 )
 
 func init() {
 	WithSecbootSupport = true
 
-	device.EntropyBits = EntropyBits
+	device.EntropyBits = entropyBitsImpl
+	device.ValidatePIN = validatePINImpl
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
@@ -96,6 +109,27 @@ func LockSealedKeys() error {
 	return lockTPMSealedKeys()
 }
 
+type ActivateContext interface {
+	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	State() *sb.ActivateState
+}
+
+type activateContextImpl struct {
+	*sb.ActivateContext
+}
+
+func (a *activateContextImpl) ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
+	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
+}
+
+func NewActivateContext(ctx context.Context) (ActivateContext, error) {
+	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
+	if err != nil {
+		return nil, err
+	}
+	return &activateContextImpl{ActivateContext: context}, nil
+}
+
 // UnlockVolumeUsingSealedKeyIfEncrypted verifies whether an encrypted volume
 // with the specified name exists and unlocks it using a sealed key in a file
 // with a corresponding name. The options control activation with the
@@ -106,7 +140,7 @@ func LockSealedKeys() error {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// TODO:FDEM: this function is big. We need to split it.
 
 	res := UnlockResult{}
@@ -121,7 +155,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		res.IsEncrypted = true
 	} else {
 		var errNotFound disks.PartitionNotFoundError
-		if !xerrors.As(err, &errNotFound) {
+		if !errors.As(err, &errNotFound) {
 			// some other kind of catastrophic error searching
 			return res, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
 		}
@@ -167,9 +201,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 		}
 	}
 
-	var keys []*sb.KeyData
+	var options []sb.ActivateOption
 	if loadedKey.KeyData != nil {
-		keys = append(keys, loadedKey.KeyData)
+		options = append(options, sbWithExternalKeyData(loadedKey.KeyData.ReadableName(), loadedKey.KeyData))
 	}
 
 	if opts.WhichModel != nil {
@@ -188,39 +222,46 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
-	const allowPassphrase = true
-	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase, partDevice)
-	authRequestor := newAuthRequestor()
-
 	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
 	if loadedKey.FDEHookKeyV1 != nil {
-		// Special case for hook keys v1. They do not have
-		// primary keys. So we cannot wrap them in KeyData
-		err := unlockDiskWithHookV1Key(mapperName, sourceDevice, loadedKey.FDEHookKeyV1)
-		if err == nil {
-			res.FsDevice = targetDevice
-			res.UnlockMethod = UnlockedWithSealedKey
-			return res, nil
+		option, err := diskWithHookV1KeyOption(loadedKey.FDEHookKeyV1)
+		if err != nil {
+			logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
+		} else {
+			options = append(options, option)
 		}
-		// If we did not manage we should still try unlocking
-		// with key data if there are some on the tokens.
-		// Also the request for recovery key will happen in
-		// ActivateVolumeWithKeyData
-		logger.Noticef("WARNING: attempting opening device %s  with key file %s failed: %v", sourceDevice, sealedEncryptionKeyFile, err)
 	}
 
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, options, keys...)
-	if err == sb.ErrRecoveryKeyUsed {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
-		res.UnlockMethod = UnlockedWithRecoveryKey
-	} else if err != nil {
+	// Use the partition device node, we do not want to rely on udevd
+	// having created the symlinks at this point in the boot process.
+	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
+	if err != nil {
+		return res, err
+	}
+
+	options = append(options,
+		sbWithVolumeName(mapperName),
+		sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice),
+		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.Model(), part.PartitionLabel)),
+	)
+	if opts.AllowRecoveryKey {
+		options = append(options, sbWithRecoveryKeyTries(3))
+	}
+	err = activation.ActivateContainer(context.Background(), container, options...)
+	if err != nil {
 		res.UnlockMethod = NotUnlocked
 		return res, fmt.Errorf("cannot activate encrypted device %q: %v", sourceDevice, err)
 	} else {
-		logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
-		res.UnlockMethod = UnlockedWithSealedKey
+		state := activation.State()
+		activationState := state.Activations[container.CredentialName()]
+		if activationState.Status == sb.ActivationSucceededWithRecoveryKey {
+			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
+			res.UnlockMethod = UnlockedWithRecoveryKey
+		} else {
+			logger.Noticef("successfully activated encrypted device %q with TPM", sourceDevice)
+			res.UnlockMethod = UnlockedWithSealedKey
+		}
 	}
-
 	res.FsDevice = targetDevice
 	return res, nil
 }
@@ -258,7 +299,7 @@ func deviceHasPlainKey(device string) (bool, error) {
 // given plain key. Depending on how then encrypted device was set up, the key
 // is either used to unlock the device directly, or it is used to decrypt the
 // encrypted unlock key stored in LUKS2 tokens in the device.
-func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk disks.Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -287,7 +328,9 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
 
-	foundPlainKey, err := deviceHasPlainKey(encdev)
+	// Use the partition device node, we do not want to rely on udevd
+	// having created the symlinks at this point in the boot process.
+	foundPlainKey, err := deviceHasPlainKey(part.KernelDeviceNode)
 	if err != nil {
 		return unlockRes, err
 	}
@@ -296,44 +339,31 @@ func UnlockEncryptedVolumeUsingProtectorKey(disk disks.Disk, name string, key []
 	// device, in the modern setup (indicated by presence of tokens carrying
 	// named key data), the plain key is used to decrypt the actual unlock key
 
-	if foundPlainKey {
-		const allowRecovery = false
-		// we should not allow passphrases as this action
-		// should not expect interaction with the user
-		const allowPassphrase = false
-		options := activateVolOpts(allowRecovery, allowPassphrase)
+	options := []sb.ActivateOption{
+		sbWithVolumeName(mapperName), sbWithLegacyKeyringKeyDescriptionPaths(encdev),
+	}
 
+	if foundPlainKey {
 		// XXX secboot maintains a global object holding protector keys, there
 		// is no way to pass it through context or obtain the current set of
 		// protector keys, so instead simply set it to empty set once we're done
 		sbSetProtectorKeys(key)
 		defer sbSetProtectorKeys()
-
-		var authRequestor sb.AuthRequestor = nil
-		if err := sbActivateVolumeWithKeyData(mapperName, encdev, authRequestor, options); err != nil {
-			return unlockRes, err
-		}
 	} else {
-		if err := unlockEncryptedPartitionWithKey(mapperName, encdev, key); err != nil {
-			return unlockRes, err
-		}
+		options = append(options, sbWithExternalUnlockKey("protector", key, sb.ExternalUnlockKeyFromStorageContainer))
+	}
+
+	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
+	if err != nil {
+		return unlockRes, err
+	}
+	if err := activation.ActivateContainer(context.Background(), container, options...); err != nil {
+		return unlockRes, err
 	}
 
 	unlockRes.FsDevice = filepath.Join("/dev/mapper/", mapperName)
 	unlockRes.UnlockMethod = UnlockedWithKey
 	return unlockRes, nil
-}
-
-// unlockEncryptedPartitionWithKey unlocks encrypted partition with the provided
-// key.
-func unlockEncryptedPartitionWithKey(name, device string, key []byte) error {
-	// no special options set
-	options := sb.ActivateVolumeOptions{}
-	err := sbActivateVolumeWithKey(name, device, key, &options)
-	if err == nil {
-		logger.Noticef("successfully activated encrypted device %v using a key", device)
-	}
-	return err
 }
 
 // ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
@@ -625,7 +655,8 @@ func (k *keyData) AuthMode() device.AuthMode {
 		return device.AuthModeNone
 	case sb.AuthModePassphrase:
 		return device.AuthModePassphrase
-	// TODO:FDEM: add AuthModePIN when it lands in secboot
+	case sb.AuthModePIN:
+		return device.AuthModePIN
 	default:
 		return ""
 	}
@@ -644,10 +675,29 @@ func (k *keyData) Roles() []string {
 	return []string{k.kd.Role()}
 }
 
+// ChangePassphrase changes passphrase given old passphrase.
+//
+// AuthMode must be device.AuthModePassphrase.
 func (k *keyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	return sbKeyDataChangePassphrase(k.kd, oldPassphrase, newPassphrase)
 }
 
+// ChangePIN changes pin given old pin.
+//
+// AuthMode must be device.AuthModePIN.
+func (k *keyData) ChangePIN(oldPIN, newPIN string) error {
+	old, err := sb.ParsePIN(oldPIN)
+	if err != nil {
+		return err
+	}
+	new, err := sb.ParsePIN(newPIN)
+	if err != nil {
+		return err
+	}
+	return sbKeyDataChangePIN(k.kd, old, new)
+}
+
+// WriteTokenAtomic saves this key data to the specified LUKS2 token.
 func (k *keyData) WriteTokenAtomic(devicePath, slotName string) error {
 	writer, err := newLUKS2KeyDataWriter(devicePath, slotName)
 	if err != nil {
@@ -668,11 +718,11 @@ func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return &keyData{kd: kd}, nil
 }
 
-// EntropyBits calculates entropy for PINs and passphrases.
+// entropyBitsImpl calculates entropy for PINs and passphrases.
 //
 // PINs will be supplied as a numeric passphrase.
-func EntropyBits(passphrase string) (uint32, error) {
-	stats, err := sbCheckPassphraseEntropy(passphrase)
+func entropyBitsImpl(authVal string) (uint32, error) {
+	stats, err := sbCheckPassphraseEntropy(authVal)
 	if err != nil {
 		return 0, err
 	}
@@ -765,4 +815,12 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 	default:
 		return nil, fmt.Errorf("internal error: unknown reseal kind")
 	}
+}
+
+// validatePINImpl checks that the passed PIN is formatted properly.
+// If the supplied PIN larger than 255 characters or contains
+// anything other than base-10 digits, an error will be returned.
+func validatePINImpl(pin string) error {
+	_, err := secboot.ParsePIN(pin)
+	return err
 }

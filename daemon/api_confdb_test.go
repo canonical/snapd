@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -122,7 +123,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string) (string, error) {
+		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
 			return "123", nil
@@ -152,7 +153,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Name, Equals, "wifi-setup")
 		return "123", nil
@@ -268,7 +269,7 @@ func (s *confdbSuite) TestGetTxError(c *C) {
 		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
-		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string) (string, error) {
+		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]string) (string, error) {
 			return "", t.err
 		})
 
@@ -295,7 +296,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
 		c.Check(requests, DeepEquals, []string{"foo.bar", "[1].foo", "foo"})
 		return "123", nil
 	})
@@ -567,7 +568,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
 		c.Assert(requests, IsNil)
 		return "123", nil
 	})
@@ -579,6 +580,74 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
+}
+
+func (s *confdbSuite) TestGetConstraints(c *C) {
+	s.setFeatureFlag(c)
+
+	restore := daemon.MockConfdbstateGetView(func(_ *state.State, _ string, _ string, view string) (*confdb.View, error) {
+		return s.schema.View(view), nil
+	})
+	defer restore()
+
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, constraints map[string]string) (string, error) {
+		c.Assert(requests, DeepEquals, []string{"ssid"})
+		c.Assert(constraints, DeepEquals, map[string]string{
+			"foo": "bar",
+			"baz": "abc",
+		})
+		return "123", nil
+	})
+	defer restore()
+
+	query := url.Values{}
+	query.Add("keys", "ssid")
+	query.Add("constraints", strings.Join([]string{"foo=bar", "baz=abc"}, ","))
+	endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 202)
+	c.Check(rspe.Change, Equals, "123")
+}
+
+func (s *confdbSuite) TestGetBadConstraints(c *C) {
+	s.setFeatureFlag(c)
+
+	restore := daemon.MockConfdbstateGetView(func(_ *state.State, _ string, _ string, view string) (*confdb.View, error) {
+		return s.schema.View(view), nil
+	})
+	defer restore()
+
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, constraints map[string]string) (string, error) {
+		c.Error("unexpected call to LoadConfdbAsync")
+		return "", errors.New("unexpected call to LoadConfdbAsync")
+	})
+	defer restore()
+
+	constraints := [][]string{
+		{"foo=bar=baz"},
+		{"foo"},
+		{"", ""},
+		{"foo="},
+		{"=foo"},
+	}
+
+	for i, cstr := range constraints {
+		cmt := Commentf("failed test %d/%d", i+1, len(constraints))
+		query := url.Values{}
+		query.Add("keys", "ssid")
+		query.Add("constraints", strings.Join(cstr, ","))
+		endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
+
+		req, err := http.NewRequest("GET", endpoint, nil)
+		c.Assert(err, IsNil, cmt)
+
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, 400, cmt)
+	}
 }
 
 type confdbControlSuite struct {

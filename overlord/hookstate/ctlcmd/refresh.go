@@ -45,19 +45,25 @@ type refreshCommand struct {
 	baseCommand
 
 	Pending bool `long:"pending" description:"Show pending refreshes of the calling snap"`
-	// these two options are mutually exclusive
-	Proceed bool `long:"proceed" description:"Proceed with potentially disruptive refreshes"`
-	Hold    bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
+	// these three options are mutually exclusive
+	Proceed  bool `long:"proceed" description:"Proceed with potentially disruptive refreshes"`
+	Hold     bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
+	Tracking bool `long:"tracking" description:"Show the channel the snap is tracking"`
 
 	PrintInhibitLock bool `long:"show-lock" description:"Show the value of the run inhibit lock held during refreshes (empty means not held)"`
 }
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
 var longRefreshHelp = i18n.G(`
-The refresh command prints pending refreshes of the calling snap and can hold
-back disruptive refreshes of other snaps, such as refreshes of the kernel or
-base snaps that can trigger a restart. This command can be used from the
-gate-auto-refresh hook which is only run during auto-refresh.
+The refresh command prints pending refreshes or the tracking channel of the
+calling snap and can hold back disruptive refreshes of other snaps, such as
+refreshes of the kernel or base snaps that can trigger a restart.
+This command can be used from the gate-auto-refresh hook which is only run
+during auto-refresh.
+
+To show the channel the current snap is tracking:
+    $ snapctl refresh --tracking
+    channel: latest/stable
 
 Snap can query pending refreshes with:
     $ snapctl refresh --pending
@@ -96,6 +102,15 @@ func init() {
 	cmd.hidden = true
 }
 
+func (c *refreshCommand) nonRootExecute(context *hookstate.Context) error {
+	switch {
+	case c.Tracking:
+		return c.printTrackingInfo(context)
+	default:
+		return &ForbiddenCommandError{Message: "non-root users can only use --tracking with the refresh command"}
+	}
+}
+
 func (c *refreshCommand) Execute(args []string) error {
 	context, err := c.ensureContext()
 	if err != nil {
@@ -114,6 +129,7 @@ func (c *refreshCommand) Execute(args []string) error {
 		{c.PrintInhibitLock, "--show-lock"},
 		{c.Hold, "--hold"},
 		{c.Proceed, "--proceed"},
+		{c.Tracking, "--tracking"},
 	} {
 		if opt.val && which != "" {
 			return fmt.Errorf("cannot use %s and %s together", opt.name, which)
@@ -121,6 +137,14 @@ func (c *refreshCommand) Execute(args []string) error {
 		if opt.val {
 			which = opt.name
 		}
+	}
+
+	if c.Tracking && c.Pending {
+		return fmt.Errorf("--tracking cannot be used with --pending")
+	}
+
+	if c.uid != "0" {
+		return c.nonRootExecute(context)
 	}
 
 	// --pending --proceed is a verbose way of saying --proceed, so only
@@ -138,6 +162,8 @@ func (c *refreshCommand) Execute(args []string) error {
 		return c.hold()
 	case c.PrintInhibitLock:
 		return c.printInhibitLockHint()
+	case c.Tracking:
+		return c.printTrackingInfo(context)
 	}
 
 	return nil
@@ -232,6 +258,34 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	// refresh-hint not present, look up channel info in snapstate
 	up.Channel = snapst.TrackingChannel
 	return &up, nil
+}
+
+func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
+	context.Lock()
+	defer context.Unlock()
+
+	st := context.State()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, context.InstanceName(), &snapst)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+
+	var res []byte
+
+	if snapst.TrackingChannel != "" {
+		res, err = yaml.Marshal(map[string]string{"channel": snapst.TrackingChannel})
+	} else {
+		res, err = yaml.Marshal(map[string]*string{"channel": nil})
+	}
+
+	if err != nil {
+		return fmt.Errorf("internal error: could not marshal tracking info: %v", err)
+	}
+
+	c.print(string(res))
+
+	return nil
 }
 
 func (c *refreshCommand) printPendingInfo() error {

@@ -24,6 +24,7 @@ SUPPORTED_KEYS = [
     "kill-timeout",
     "environment",
     "artifacts",
+    "skip",
     "prepare",
     "restore",
     "debug",

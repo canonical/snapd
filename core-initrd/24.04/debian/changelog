@@ -1,3 +1,15 @@
+ubuntu-core-initramfs (69+2.73+g76.6a5ca6a+24.04) noble; urgency=medium
+
+  * Update to snapd version 2.73+g76.6a5ca6a
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Tue, 09 Dec 2025 11:54:48 -0500
+
+ubuntu-core-initramfs (69+2.73+g61.07ddf16+24.04) noble; urgency=medium
+
+  * Update to snapd version 2.73+g61.07ddf16
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Thu, 04 Dec 2025 13:27:20 +0000
+
 ubuntu-core-initramfs (69+2.72+g197.6ffaa0a+24.04) noble; urgency=medium
 
   * Remove duplicated dependencies in control file

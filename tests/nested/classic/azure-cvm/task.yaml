@@ -1,0 +1,150 @@
+summary: Check installation of Azure CVM kernel
+
+details: |
+  This test checks that we are able to perform an installation with a single reboot of
+  the Azure CVM kernel
+
+# Run this test for jammy+
+systems:
+  - -ubuntu-16.04-*
+  - -ubuntu-18.04-*
+  - -ubuntu-20.04-*
+
+environment:
+    SNAPD_DEB_FROM_REPO: false
+
+prepare: |
+  remote.push "${GOHOME}"/snapd_*.deb
+  if os.query is-ubuntu-lt 24.04; then
+    # carries ubuntu-core-initramfs
+    remote.exec "sudo add-apt-repository ppa:snappy-dev/image -y"
+  fi
+  remote.exec "sudo apt update -y"
+  remote.exec "sudo apt install -y ./snapd_*.deb"
+
+  # Build the initramfs package from the project if possible
+  # to detect any issues in the initramfs package that would affect
+  # the azure cvm kernel
+  if os.query is-ubuntu-ge 24.04; then
+    #shellcheck source=tests/lib/core-initrd.sh
+    . "$TESTSLIB"/core-initrd.sh
+    build_initramfs_deb
+    remote.push "$PROJECT_PATH"/core-initrd/ubuntu-core-initramfs_*.deb
+    remote.exec "sudo apt install -y ./ubuntu-core-initramfs_*.deb"
+  else
+    remote.exec "sudo apt install -y ubuntu-core-initramfs"
+  fi
+
+  # install linux-firmware as the current version of
+  # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+  # to build the initrd, also install the linux-azure-fde kernel
+  remote.exec "sudo apt install -y linux-firmware linux-azure-fde binutils"
+
+  # copy the fde kernel into /boot/vmlinuz to allow rebooting into it
+  remote.exec "sudo objcopy -O binary --only-section=.linux /usr/lib/linux/efi/kernel.efi*-azure-fde /boot/vmlinuz-fde"
+  CURR_VMLINUZ="$(remote.exec "ls -l /boot/vmlinuz" | rev | cut -d' ' -f1 | rev)"
+  remote.exec "sudo cp /boot/vmlinuz-fde '/boot/$CURR_VMLINUZ'"
+
+  # reboot into the azure kernel
+  BOOT_ID="$(tests.nested boot-id)"
+  remote.exec "sudo reboot" || true
+
+  echo "Waiting for reboot into azure-kernel..."
+  remote.wait-for reboot "$BOOT_ID"
+
+debug: |
+  UNAME_R="$(remote.exec "uname -r")"
+  CMDLINE="$(remote.exec "cat /proc/cmdline")"
+
+  echo "Current kernel: $UNAME_R"
+  echo "Kernel cmdline: $CMDLINE"
+  echo "Installed kernels:"
+  remote.exec "dpkg -l" | grep linux-azure-fde || true
+  echo "Boot entries:"
+  remote.exec "efibootmgr" || true
+  echo "Disk layout:"
+  remote.exec "lsblk"
+  echo "/boot contents:"
+  remote.exec "ls /boot"
+  echo "Mounted filesystems:"
+  remote.exec "mount" | grep efi || true
+
+execute: |
+  # verify after the reboot that we are running an azure kernel
+  UNAME_R="$(remote.exec "uname -r")"
+
+  remote.exec "sudo mv /boot/vmlinuz-fde /boot/vmlinuz-$UNAME_R"
+
+  KERNEL_TYPE=$(echo "$UNAME_R" | rev | cut -d'-' -f1-2 | rev)
+  if [ "$KERNEL_TYPE" != "azure-fde" ]; then
+    echo "not running expected -azure-fde kernel, found: $KERNEL_TYPE"
+    exit 1
+  fi
+
+  # build initramfs
+  remote.exec "sudo ubuntu-core-initramfs create-initrd --kernelver \"$UNAME_R\""
+
+  # build UKI
+  remote.exec "sudo ubuntu-core-initramfs create-efi --unsigned --kernelver \"$UNAME_R\" \
+    --cmdline \"snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1\""
+
+  UKI_FILE="$(remote.exec "find /boot -maxdepth 1 -type f -name 'kernel.efi*-azure-fde'" | head -n1)"
+  if [ -z "$UKI_FILE" ]; then
+    echo "expected kernel.efi*-azure-fde was not found in /boot"
+    exit 1
+  fi
+
+  # move UKI to ESP
+  remote.exec "sudo mv \"$UKI_FILE\" /boot/efi/EFI/ubuntu"
+
+  # ensure efivarfs is mounted
+  remote.exec "sudo modprobe efivarfs" || true
+  remote.exec "sudo mount -t efivarfs efivarfs /sys/firmware/efi/efivars" || true
+
+  # Detect the EFI System Partition number dynamically
+  KERNEL_EFI="$(basename "$UKI_FILE")"
+  EFI_PART_DEV="$(remote.exec "lsblk -r -n -p -o NAME,MOUNTPOINT" | awk '$2 == "/boot/efi" {print $1}')"
+  EFI_PART_NUM="$(echo "$EFI_PART_DEV" | sed -E 's/[^0-9]*([0-9]+)$/\1/')"
+  if [ -z "$EFI_PART_NUM" ]; then
+    echo "cannot detect EFI system partition number"
+    exit 1
+  fi
+  
+  # get the parent device
+  DISK_DEV="/dev/$(remote.exec "lsblk -no PKNAME \"$EFI_PART_DEV\"")"
+
+  # create a new UEFI boot entry for the UKI and set it as the next boot target
+  EFIMGR_OUT="$(remote.exec "sudo efibootmgr --create --disk ${DISK_DEV} --part $EFI_PART_NUM --label \"CVM UKI\" --loader /EFI/ubuntu/$KERNEL_EFI")"
+
+  # Example output is
+  # BootCurrent: 0002
+  # Timeout: 0 seconds
+  # BootOrder: 0003,0002,0001,0000
+  # Boot0000* UiApp FvVol(7cb8bdc9-f8eb-4f34-aaea-3ee4af6516a1)/FvFile(462caa21-7614-4503-836e-8ab6f4662331)
+  # Boot0001* UEFI Misc Device      PciRoot(0x0)/Pci(0x5,0x0){auto_created_boot_option}
+  # Boot0002* Ubuntu        HD(15,GPT,6b139893-8a85-4f3f-8cb9-3ff0ea2937e5,0x2800,0x35000)/File(\EFI\ubuntu\shimx64.efi)
+  # Boot0003* CVM UKI       HD(15,GPT,6b139893-8a85-4f3f-8cb9-3ff0ea2937e5,0x2800,0x35000)/File(\EFI\ubuntu\kernel.efi-6.14.0-1014-azure)
+
+  # Parse the CVM UKI boot number from efibootmgr output
+  BOOTNUM="$(echo "$EFIMGR_OUT" | grep -oP 'Boot\K[0-9A-Fa-f]{4}(?=\* CVM UKI)')"
+  if [ -n "$BOOTNUM" ]; then
+    remote.exec "sudo efibootmgr --bootnext \"$BOOTNUM\""
+  else
+    echo "Failed to determine new boot entry number for CVM UKI"
+    exit 1
+  fi
+
+  # reboot into the new initramfs
+  BOOT_ID="$(tests.nested boot-id)"
+  remote.exec "sudo reboot" || true
+
+  echo "Waiting for reboot into the updated initramfs..."
+  remote.wait-for reboot "$BOOT_ID"
+
+  # on second reboot, verify the kernel command line contains recovery mode
+  # verify the command line contains the snapd_recovery_mode=cloudimg-rootfs
+  CMDLINE="$(remote.exec "cat /proc/cmdline")"
+  if ! echo "$CMDLINE" | grep -q "snapd_recovery_mode=cloudimg-rootfs"; then
+    echo "expected snapd_recovery_mode=cloudimg-rootfs in kernel cmdline"
+    exit 1
+  fi

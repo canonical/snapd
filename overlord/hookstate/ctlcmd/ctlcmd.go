@@ -148,7 +148,7 @@ func (f ForbiddenCommandError) Error() string {
 
 // nonRootAllowed lists the commands that can be performed even when snapctl
 // is invoked not by root.
-var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "model", "version"}
+var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "refresh", "model", "version"}
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {

@@ -716,8 +716,18 @@ type changeAuthOptionsKey struct{}
 //   - container-role: system-data, name: default-fallback
 //   - container-role: system-save, name: default-fallback
 func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
-	// TODO:FDEM: relax for PINs
-	if authMode != device.AuthModePassphrase {
+	switch authMode {
+	case device.AuthModePassphrase:
+		// Do nothing, accept all passphrases.
+	case device.AuthModePIN:
+		// Validate PIN format.
+		if err := device.ValidatePIN(old); err != nil {
+			return nil, err
+		}
+		if err := device.ValidatePIN(new); err != nil {
+			return nil, err
+		}
+	default:
 		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
 	}
 
@@ -780,6 +790,8 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	switch authMode {
 	case device.AuthModePassphrase:
 		summary = "Change passphrase protected key slots"
+	case device.AuthModePIN:
+		summary = "Change PIN protected key slots"
 	}
 	changeAuth := st.NewTask("fde-change-auth", summary)
 	changeAuth.Set("keyslots", keyslotRefs)

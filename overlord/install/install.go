@@ -137,6 +137,7 @@ var (
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
+	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -235,30 +236,14 @@ func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, file
 	}
 }
 
-func checkPassphraseSupportedByTargetSystem(sysVer SystemSnapdVersions) (bool, error) {
-	const minSnapdVersion = "2.68"
-	if sysVer.SnapdVersion == "" || sysVer.SnapdInitramfsVersion == "" {
-		return false, nil
+// MockSecbootCheckResult mocks secbootCheckResult usage by the package for testing.
+func MockSecbootCheckResult(f func(pcc *secboot.PreinstallCheckContext) (*secboot.PreinstallCheckResult, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootCheckResult can only be mocked in tests")
+	old := secbootCheckResult
+	secbootCheckResult = f
+	return func() {
+		secbootCheckResult = old
 	}
-
-	// snapd snap must support passphrases.
-	cmp, err := strutil.VersionCompare(sysVer.SnapdVersion, minSnapdVersion)
-	if err != nil {
-		return false, fmt.Errorf("invalid snapd version in info file from snapd snap: %v", err)
-	}
-	if cmp < 0 {
-		return false, nil
-	}
-	// snap-bootstrap inside the kernel must support passphrases.
-	cmp, err = strutil.VersionCompare(sysVer.SnapdInitramfsVersion, minSnapdVersion)
-	if err != nil {
-		return false, fmt.Errorf("invalid snapd version in info file from kernel snap: %v", err)
-	}
-	if cmp < 0 {
-		return false, nil
-	}
-
-	return true, nil
 }
 
 // EncryptionConstraints is the set of constraints that
@@ -360,11 +345,11 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
 		if checkSecbootEncryption {
-			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(constraints.SnapdVersions)
-			if err != nil {
-				return res, fmt.Errorf("cannot check passphrase support: %v", err)
-			}
-			res.PassphraseAuthAvailable = passphraseAuthAvailable
+			// TODO:FDEM: re-enable PIN and passphrase support during install
+			// after we figure out how to properly obtain the keyboard layout
+			// during install-time for plymouth.
+			res.PassphraseAuthAvailable = false
+			res.PINAuthAvailable = false
 		}
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
@@ -656,10 +641,18 @@ func PrepareEncryptedSystemData(
 		}
 	}
 
+	// the check result contains information required for sealing and resealing
+	// using the optimum PCR configuration determined during preinstall check
+	var checkResult *secboot.PreinstallCheckResult
+	// non nil checkContext means that a preinstall check was performed
 	if checkContext != nil {
-		// write check result containing information required
-		// for optimum PCR configuration and resealing
-		if err := saveCheckResult(checkContext); err != nil {
+		var err error
+		if checkResult, err = secbootCheckResult(checkContext); err != nil {
+			return err
+		}
+		// write the check result to file to make it available post-install for
+		// resealing operations
+		if err = saveCheckResult(checkContext); err != nil {
 			return err
 		}
 	}
@@ -669,8 +662,8 @@ func PrepareEncryptedSystemData(
 		return err
 	}
 
-	// make note of the encryption keys and auth options
-	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth)
+	// make note of the encryption keys and auth options, and the check result
+	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth, checkResult)
 
 	return nil
 }

@@ -21,6 +21,7 @@ package desktopentry_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,16 +38,17 @@ type desktopentrySuite struct{}
 
 var _ = Suite(&desktopentrySuite{})
 
-const browserDesktopEntry = `
+const browserDesktopEntryBase = `
 [Desktop Entry]
 X-SnapInstanceName=browser
 Version=1.0
 Type=Application
 Name=Web Browser
 X-SnapAppName=browser-app
-Exec=browser %u
+Exec=browser %%u
 Icon = ${SNAP}/default256.png
 Actions=NewWindow;NewPrivateWindow;
+%[1]s
 
 [Something else]
 Name=Not the app name
@@ -65,6 +67,8 @@ Exec=browser -private-window
 Icon=${SNAP}/private.png
 `
 
+var browserDesktopEntry = fmt.Sprintf(browserDesktopEntryBase, "")
+
 func (s *desktopentrySuite) TestParse(c *C) {
 	r := bytes.NewBufferString(browserDesktopEntry)
 	de, err := desktopentry.Parse("/path/browser.desktop", r)
@@ -75,6 +79,34 @@ func (s *desktopentrySuite) TestParse(c *C) {
 	c.Check(de.Exec, Equals, "browser %u")
 	c.Check(de.SnapInstanceName, Equals, "browser")
 	c.Check(de.SnapAppName, Equals, "browser-app")
+	c.Check(de.SnapCommonID, Equals, "")
+	c.Check(de.Actions, HasLen, 2)
+
+	c.Assert(de.Actions["NewWindow"], NotNil)
+	c.Check(de.Actions["NewWindow"].Name, Equals, "Open a New Window")
+	c.Check(de.Actions["NewWindow"].Icon, Equals, "")
+	c.Check(de.Actions["NewWindow"].Exec, Equals, "browser -new-window")
+	c.Check(de.Actions["NewWindow"].SnapAppName, Equals, "browser-app")
+
+	c.Assert(de.Actions["NewPrivateWindow"], NotNil)
+	c.Check(de.Actions["NewPrivateWindow"].Name, Equals, "Open a New Private Window")
+	c.Check(de.Actions["NewPrivateWindow"].Icon, Equals, "${SNAP}/private.png")
+	c.Check(de.Actions["NewPrivateWindow"].Exec, Equals, "browser -private-window")
+	c.Check(de.Actions["NewPrivateWindow"].SnapAppName, Equals, "browser-app")
+}
+
+func (s *desktopentrySuite) TestParseWithCommonID(c *C) {
+	browserDesktopEntryWithCommonID := fmt.Sprintf(browserDesktopEntryBase, "X-SnapCommonID=browser.app")
+	r := bytes.NewBufferString(browserDesktopEntryWithCommonID)
+	de, err := desktopentry.Parse("/path/browser.desktop", r)
+	c.Assert(err, IsNil)
+
+	c.Check(de.Name, Equals, "Web Browser")
+	c.Check(de.Icon, Equals, "${SNAP}/default256.png")
+	c.Check(de.Exec, Equals, "browser %u")
+	c.Check(de.SnapInstanceName, Equals, "browser")
+	c.Check(de.SnapAppName, Equals, "browser-app")
+	c.Check(de.SnapCommonID, Equals, "browser.app")
 	c.Check(de.Actions, HasLen, 2)
 
 	c.Assert(de.Actions["NewWindow"], NotNil)

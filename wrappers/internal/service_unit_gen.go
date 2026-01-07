@@ -57,7 +57,7 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	if tout == 0 {
 		tout = timeout.DefaultTimeout
 	}
-	return time.Duration(tout)
+	return ensureMinSystemdDuration(app, tout, "stop-timeout")
 }
 
 func generateServiceNames(snap *snap.Info, appNames []string) []string {
@@ -69,6 +69,17 @@ func generateServiceNames(snap *snap.Info, appNames []string) []string {
 		}
 	}
 	return names
+}
+
+func ensureMinSystemdDuration(app *snap.AppInfo, in timeout.Timeout, field string) time.Duration {
+	// If 0, the field is not included in the unit, and the default systemd value is used
+	inDur := time.Duration(in)
+	if inDur > 0 && inDur < time.Microsecond {
+		// TODO maybe this should be a snapd warning to it is more noticeable
+		logger.Noticef("Warning: %s in service %s from snap %s set to 1us as it cannot be smaller than that", field, app.Name, app.Snap.SnapName())
+		return time.Microsecond
+	}
+	return inDur
 }
 
 func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOptions) ([]byte, error) {
@@ -154,7 +165,10 @@ ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
 {{- if .App.RestartDelay}}
-RestartSec={{.App.RestartDelay.Seconds}}
+RestartSec={{.RestartDelay}}
+{{- end}}
+{{- if .SuccessExitStatus}}
+SuccessExitStatus={{ stringsJoin .SuccessExitStatus " " }}
 {{- end}}
 WorkingDirectory={{.WorkingDir}}
 {{- if .App.StopCommand}}
@@ -167,10 +181,10 @@ ExecReload={{.App.LauncherReloadCommand}}
 ExecStopPost={{.App.LauncherPostStopCommand}}
 {{- end}}
 {{- if .StopTimeout}}
-TimeoutStopSec={{.StopTimeout.Seconds}}
+TimeoutStopSec={{.StopTimeout}}
 {{- end}}
 {{- if .StartTimeout}}
-TimeoutStartSec={{.StartTimeout.Seconds}}
+TimeoutStartSec={{.StartTimeout}}
 {{- end}}
 Type={{.App.Daemon}}
 {{- if .Remain}}
@@ -180,7 +194,7 @@ RemainAfterExit={{.Remain}}
 BusName={{.BusName}}
 {{- end}}
 {{- if .App.WatchdogTimeout}}
-WatchdogSec={{.App.WatchdogTimeout.Seconds}}
+WatchdogSec={{.WatchdogTimeout}}
 {{- end}}
 {{- if .KillMode}}
 KillMode={{.KillMode}}
@@ -257,6 +271,8 @@ WantedBy={{.ServicesTarget}}
 		WorkingDir               string
 		StopTimeout              time.Duration
 		StartTimeout             time.Duration
+		RestartDelay             time.Duration
+		WatchdogTimeout          time.Duration
 		ServicesTarget           string
 		PrerequisiteTarget       string
 		MountUnit                string
@@ -265,6 +281,7 @@ WantedBy={{.ServicesTarget}}
 		KillSignal               string
 		OOMAdjustScore           int
 		BusName                  string
+		SuccessExitStatus        []string
 		Before                   []string
 		After                    []string
 		Requires                 []string
@@ -282,15 +299,25 @@ WantedBy={{.ServicesTarget}}
 
 		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
 		InterfaceUnitSnippets:    ifaceSpecifiedUnitSnippet,
+		Restart:                  restartCond,
 
-		Restart:        restartCond,
-		StopTimeout:    serviceStopTimeout(appInfo),
-		StartTimeout:   time.Duration(appInfo.StartTimeout),
-		Remain:         remain,
-		KillMode:       killMode,
-		KillSignal:     appInfo.StopMode.KillSignal(),
-		OOMAdjustScore: oomAdjustScore,
-		BusName:        busName,
+		// When converting a Duration to a string, Golang produces units "ns",
+		// "µs", "ms", "s", "m", and "h". These are understood by systemd (see
+		// systemd.time(7)). However, nanoseconds are not permitted for these 4
+		// properties, as they must be at least 1µs, so we ensure that minimum
+		// duration. We do not error out as snapd allowed to write units with such
+		// times in the past (systemd ignores such values).
+		StopTimeout:     serviceStopTimeout(appInfo),
+		StartTimeout:    ensureMinSystemdDuration(appInfo, appInfo.StartTimeout, "start-timeout"),
+		RestartDelay:    ensureMinSystemdDuration(appInfo, appInfo.RestartDelay, "restart-delay"),
+		WatchdogTimeout: ensureMinSystemdDuration(appInfo, appInfo.WatchdogTimeout, "watchdog-timeout"),
+
+		Remain:            remain,
+		KillMode:          killMode,
+		KillSignal:        appInfo.StopMode.KillSignal(),
+		OOMAdjustScore:    oomAdjustScore,
+		BusName:           busName,
+		SuccessExitStatus: appInfo.SuccessExitStatus,
 
 		Before: generateServiceNames(appInfo.Snap, appInfo.Before),
 		After:  generateServiceNames(appInfo.Snap, appInfo.After),

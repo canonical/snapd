@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -448,6 +449,21 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 			},
 		}
+	case "channel-with-integrity-data":
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -818,6 +834,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				sar.Resources = f.snapResources(info)
 			}
 
+			// TODO by default fakestore returns a snap info for a snap with integrity data
+			// if the "channel-with-integrity-data" is used in tests. This should actually
+			// be made configurable to respect a new option in the opts field which the actual
+			// store will use and that will indicate whether it should return integrity data
+			// information.
+
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
@@ -986,6 +1008,10 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 	})
 
 	return nil, nil
+}
+
+func (f *fakeStore) CleanDownloadsCache() error {
+	return nil
 }
 
 type fakeSnappyBackend struct {
@@ -1637,6 +1663,14 @@ func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool)
 func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	f.appendOp(&fakeOp{
 		op:   "discard-namespace",
+		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) DiscardLockedSnapNamespace(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "discard-namespace-locked",
 		name: snapName,
 	})
 	return f.maybeErrForLastOp()

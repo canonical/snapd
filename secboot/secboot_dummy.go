@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"context"
 	"crypto"
 	"errors"
 	"io"
@@ -94,14 +95,17 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
 
+type ActivationContext struct {
+}
+
 type ActivateVolumeOptions struct {
 }
 
-func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
+func (a *ActivationContext) ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
 	return errBuildWithoutSecboot
 }
 
-func DeactivateVolume(volumeName string) error {
+func (a *ActivationContext) DeactivateVolume(volumeName string) error {
 	return errBuildWithoutSecboot
 }
 
@@ -179,10 +183,6 @@ func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return nil, errBuildWithoutSecboot
 }
 
-func EntropyBits(passphrase string) (uint32, error) {
-	return 0, errBuildWithoutSecboot
-}
-
 func RenameContainerKey(devicePath, oldName, newName string) error {
 	return errBuildWithoutSecboot
 }
@@ -201,4 +201,11 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 
 func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error) {
 	return nil, errBuildWithoutSecboot
+}
+
+type ActivateContext interface {
+}
+
+func NewActivateContext(ctx context.Context) (ActivateContext, error) {
+	return nil, nil
 }

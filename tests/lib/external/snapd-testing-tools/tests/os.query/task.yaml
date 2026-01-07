@@ -167,6 +167,13 @@ execute: |
             os.query is-kernel-ge "$(uname -r)"
             os.query is-kernel-le "$(uname -r)"
             ;;
+        ubuntu-26.04-64)
+            os.query is-resolute
+            os.query is-classic
+            os.query is-ubuntu 26.04
+            ! os.query is-ubuntu 20.04
+            ! os.query is-core
+            ;;
         debian-11-64)
             os.query is-debian
             os.query is-debian 11
@@ -185,23 +192,9 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-39-64)
+        fedora-42-64)
             os.query is-fedora
-            os.query is-fedora 39
-            ! os.query is-fedora rawhide
-            os.query is-classic
-            ! os.query is-core
-            ;;
-        fedora-40-64)
-            os.query is-fedora
-            os.query is-fedora 40
-            ! os.query is-fedora rawhide
-            os.query is-classic
-            ! os.query is-core
-            ;;
-        fedora-41-64)
-            os.query is-fedora
-            os.query is-fedora 41
+            os.query is-fedora 42
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core

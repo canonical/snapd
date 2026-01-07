@@ -14,11 +14,6 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
-  # encrypted + passphrase auth smoke test
-  # TODO: extract a more comprehensive core24 test similar
-  # to tests/nested/manual/passphrase-support-on-hybrid.
-  NESTED_FDE_PASSWORD/passphrase_auth: "ubuntu"
-
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
@@ -60,11 +55,6 @@ execute: |
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
-
-  if ! os.query is-noble && [ -n "${NESTED_FDE_PASSWORD-}" ]; then
-    echo "SKIPPING: only run passphrase support variant for core24"
-    exit 0
-  fi
 
   version="$(nested_get_version)"
 
@@ -209,14 +199,8 @@ execute: |
   tests.nested vm stop
   sync
 
-  # HACK: convert "classic" qcow2 to raw "core" image because we need
-  # to boot with OVMF we really should fix this so that classic and
-  # core VMs are more similar
-  qemu-img convert -f qcow2 -O raw \
-      "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" \
+  mv "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" \
       "$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
-  # and we don't need the classic image anymore
-  rm -f  "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)"
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   IMAGE_NAME="$(nested_get_image_name core)"
@@ -258,9 +242,6 @@ execute: |
     remote.push optional-install.json
     muinstaller_args="$muinstaller_args -optional ./optional-install.json"
   fi
-  if [ -n "${NESTED_FDE_PASSWORD-}" ]; then
-    muinstaller_args="$muinstaller_args -passphrase ${NESTED_FDE_PASSWORD}"
-  fi
 
   remote.exec "sudo muinstaller $muinstaller_args"
 
@@ -276,11 +257,7 @@ execute: |
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # Start installed image
-  if [ -n "${NESTED_FDE_PASSWORD-}" ]; then
-    tests.nested create-vm core --keep-firmware-state --passphrase "${NESTED_FDE_PASSWORD}"
-  else
-    tests.nested create-vm core --keep-firmware-state
-  fi
+  tests.nested create-vm core --keep-firmware-state
 
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu Core"'

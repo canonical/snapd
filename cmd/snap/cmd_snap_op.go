@@ -29,6 +29,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -981,6 +983,7 @@ type cmdRefresh struct {
 	Time             bool                   `long:"time"`
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Tracking         bool                   `long:"tracking"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
 	Unhold           bool                   `long:"unhold"`
@@ -1166,13 +1169,21 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
 		x.Transaction != client.TransactionPerSnap
 
-	if x.Hold != "" && (x.Unhold || otherFlags) {
-		return errors.New(i18n.G("cannot use --hold with other flags"))
-	} else if x.Unhold && (x.Hold != "" || otherFlags) {
-		return errors.New(i18n.G("cannot use --unhold with other flags"))
-	} else if x.Hold != "" {
+	switch {
+	case x.Tracking:
+		if x.Hold != "" || x.Unhold || otherFlags {
+			return errors.New(i18n.G("cannot use --tracking with other flags"))
+		}
+		return x.trackRefreshes()
+	case x.Hold != "":
+		if x.Unhold || otherFlags || x.Tracking {
+			return errors.New(i18n.G("cannot use --hold with other flags"))
+		}
 		return x.holdRefreshes()
-	} else if x.Unhold {
+	case x.Unhold:
+		if x.Hold != "" || otherFlags || x.Tracking {
+			return errors.New(i18n.G("cannot use --unhold with other flags"))
+		}
 		return x.unholdRefreshes()
 	}
 
@@ -1207,6 +1218,50 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) trackRefreshes() (err error) {
+	type snapChannel struct {
+		Channel *string `yaml:"channel"` // A pointer is used here so nil can be encoded for snaps lacking a tracked channel
+	}
+
+	names := installedSnapNames(x.Positional.Snaps)
+	snaps, err := x.client.List(names, nil)
+	if err != nil {
+		if err == client.ErrNoSnapsInstalled {
+			if len(names) == 0 {
+				return err
+			} else {
+				return errors.New(i18n.G("no matching snaps installed"))
+			}
+		}
+		return err
+	}
+
+	config := make(map[string]snapChannel, len(snaps))
+
+	// Populate the map
+	for _, snap := range snaps {
+		var channelPtr *string
+		if snap.TrackingChannel != "" {
+			val := snap.TrackingChannel // Prior to Go 1.21, taking the address of loop variable directly would lead to every iteration pointing to the same memory location
+			channelPtr = &val
+		}
+
+		config[snap.Name] = snapChannel{
+			Channel: channelPtr,
+		}
+	}
+
+	// Use the YAML encoder directly to Stdout
+	enc := yaml.NewEncoder(Stdout)
+	defer enc.Close()
+
+	return enc.Encode(struct {
+		Snaps map[string]snapChannel `yaml:"snaps"`
+	}{
+		Snaps: config,
+	})
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
@@ -1600,6 +1655,8 @@ func init() {
 			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"tracking": i18n.G("Show channel tracking information for provided snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

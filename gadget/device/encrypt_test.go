@@ -21,8 +21,10 @@ package device_test
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -30,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -175,33 +178,44 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateHappy(c *C) {
 }
 
 func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	// Bad auth mode
 	opts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `cannot use authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	// Empty passphrase
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
-	// PIN mode not implemented yet
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
-	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
 	// PIN mode + custom kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i", PIN: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
 	// Empty PIN
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
 	c.Assert(opts.Validate(), ErrorMatches, `pin cannot be empty`)
+	// Long PIN
+	var longPIN strings.Builder
+	for i := 0; i <= math.MaxUint8+1; i++ {
+		longPIN.WriteString("0")
+	}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: longPIN.String()}
+	c.Assert(opts.Validate(), ErrorMatches, "invalid PIN: too long")
+	// Non-digit PIN
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "abc123"}
+	c.Assert(opts.Validate(), ErrorMatches, "invalid PIN: unexpected character")
 	// Passphrase and PIN cannot be set at the same time
 	opts = &device.VolumesAuthOptions{PIN: "1234", Passphrase: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `passphrase and pin cannot be set at the same time`)
 	// Bad kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
-	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
+	c.Assert(opts.Validate(), ErrorMatches, `cannot use kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)
 	// Setting kdf time is not supported
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFTime: -1}
 	c.Assert(opts.Validate(), ErrorMatches, "kdf time cannot be set")
 }
 
-func (s *deviceSuite) TestValidatePassphrase(c *C) {
+func (s *deviceSuite) TestCheckAuthQuality(c *C) {
 	entropy := map[string]uint32{
 		"test":                    18,
 		"this is a good password": 113,
@@ -214,7 +228,7 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 
 	var qualityErr *device.AuthQualityError
 
-	result, err := device.ValidatePassphrase(device.AuthModePassphrase, "test")
+	result, err := device.CheckAuthQuality(device.AuthModePassphrase, "test")
 	c.Assert(errors.As(err, &qualityErr), Equals, true)
 	c.Check(result, Equals, device.AuthQuality{})
 	c.Check(qualityErr.Quality.Entropy, Equals, uint32(18))
@@ -222,7 +236,7 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 	c.Check(qualityErr.Quality.OptimalEntropy, Equals, uint32(100))
 	c.Check(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(42 bits\) for the "passphrase" authentication mode`)
 
-	result, err = device.ValidatePassphrase(device.AuthModePassphrase, "this is a good password")
+	result, err = device.CheckAuthQuality(device.AuthModePassphrase, "this is a good password")
 	c.Assert(err, IsNil)
 	c.Check(result, DeepEquals, device.AuthQuality{
 		Entropy:        113,
@@ -230,7 +244,7 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 		OptimalEntropy: 100,
 	})
 
-	result, err = device.ValidatePassphrase(device.AuthModePIN, "1234")
+	result, err = device.CheckAuthQuality(device.AuthModePIN, "1234")
 	c.Assert(errors.As(err, &qualityErr), Equals, true)
 	c.Check(result, Equals, device.AuthQuality{})
 	c.Check(qualityErr.Quality.Entropy, Equals, uint32(6))
@@ -238,7 +252,7 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 	c.Check(qualityErr.Quality.OptimalEntropy, Equals, uint32(64))
 	c.Check(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(13 bits\) for the "pin" authentication mode`)
 
-	result, err = device.ValidatePassphrase(device.AuthModePIN, "20250123")
+	result, err = device.CheckAuthQuality(device.AuthModePIN, "20250123")
 	c.Assert(err, IsNil)
 	c.Check(result, DeepEquals, device.AuthQuality{
 		Entropy:        23,
@@ -247,12 +261,12 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 	})
 }
 
-func (s *deviceSuite) TestValidatePassphraseCalculationError(c *C) {
+func (s *deviceSuite) TestCheckAuthQualityCalculationError(c *C) {
 	defer device.MockEntropyBits(func(passphrase string) (uint32, error) {
 		return 0, errors.New("boom!")
 	})()
 
-	result, err := device.ValidatePassphrase(device.AuthModePassphrase, "test")
+	result, err := device.CheckAuthQuality(device.AuthModePassphrase, "test")
 	c.Assert(err, ErrorMatches, "boom!")
 	c.Check(result, Equals, device.AuthQuality{})
 }

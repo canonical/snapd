@@ -66,6 +66,7 @@ var (
 	sbReadSealedKeyObjectFromFile                   = sb_tpm2.ReadSealedKeyObjectFromFile
 	sbNewTPMProtectedKey                            = sb_tpm2.NewTPMProtectedKey
 	sbNewTPMPassphraseProtectedKey                  = sb_tpm2.NewTPMPassphraseProtectedKey
+	sbNewTPMPINProtectedKey                         = sb_tpm2.NewTPMPINProtectedKey
 	sbNewKeyDataFromSealedKeyObjectFile             = sb_tpm2.NewKeyDataFromSealedKeyObjectFile
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
@@ -220,29 +221,6 @@ func lockTPMSealedKeys() error {
 	// EFI image. Touching others will break the ability to perform any kind of
 	// attestation using the TPM because it will make the log inconsistent.
 	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
-}
-
-func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ...string) *sb.ActivateVolumeOptions {
-	passphraseTry := 0
-	if allowPassphrase {
-		passphraseTry = 1
-	}
-	options := sb.ActivateVolumeOptions{
-		PassphraseTries: passphraseTry,
-		// disable recovery key by default
-		RecoveryKeyTries:  0,
-		KeyringPrefix:     keyringPrefix,
-		LegacyDevicePaths: legacyPaths,
-	}
-	if allowRecoveryKey {
-		// enable recovery key only when explicitly allowed
-		options.RecoveryKeyTries = 3
-	}
-	return &options
-}
-
-func newAuthRequestor() sb.AuthRequestor {
-	return NewSystemdAuthRequestor()
 }
 
 func readKeyTokenImpl(devicePath, slotName string) (*sb.KeyData, error) {
@@ -520,8 +498,21 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 			}
 			protectedKey, primaryKey, unlockKey, err = sbNewTPMPassphraseProtectedKey(tpm, passphraseParams, volumesAuth.Passphrase)
 		case device.AuthModePIN:
-			// TODO: Implement PIN authentication mode.
-			return nil, nil, nil, fmt.Errorf("%q authentication mode is not implemented", device.AuthModePIN)
+			pin, parseErr := sb.ParsePIN(volumesAuth.PIN)
+			if parseErr != nil {
+				// This is unexpected because PIN should have been validated
+				// long before reaching this phase.
+				return nil, nil, nil, parseErr
+			}
+			var kdfOptions *sb.PBKDF2Options
+			if volumesAuth.KDFTime != 0 {
+				kdfOptions = &sb.PBKDF2Options{TargetDuration: volumesAuth.KDFTime}
+			}
+			pinParams := &sb_tpm2.PINProtectKeyParams{
+				ProtectKeyParams: *creationParams,
+				KDFOptions:       kdfOptions,
+			}
+			protectedKey, primaryKey, unlockKey, err = sbNewTPMPINProtectedKey(tpm, pinParams, pin)
 		default:
 			return nil, nil, nil, fmt.Errorf("internal error: invalid authentication mode %q", volumesAuth.Mode)
 		}

@@ -189,7 +189,8 @@ func (s *fdeMgrSuite) startedManagerNoEncryptedDisks(c *C, onClassic bool) *fdes
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 	s.o.AddManager(manager)
-	c.Assert(manager.StartUp(), IsNil)
+	manager.DeviceInitialized()
+	c.Assert(manager.IsFunctional(), IsNil)
 	c.Assert(s.logbuf.String(), testutil.Contains, "WARNING: no primary key was found")
 	return manager
 }
@@ -265,7 +266,8 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 	s.o.AddManager(manager)
-	c.Assert(manager.StartUp(), IsNil)
+	manager.DeviceInitialized()
+	c.Assert(manager.IsFunctional(), IsNil)
 	return manager
 }
 
@@ -483,8 +485,7 @@ func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
-	err = manager.StartUp()
-	c.Check(err, IsNil)
+	manager.DeviceInitialized()
 
 	functionalErr := manager.IsFunctional()
 	if tc.expectedError != "" {
@@ -566,8 +567,8 @@ func (s *fdeMgrSuite) TestManagerUC_16_18(c *C) {
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 
-	// neither startup nor ensure fails
-	c.Assert(manager.StartUp(), IsNil)
+	manager.DeviceInitialized()
+	c.Assert(manager.IsFunctional(), IsNil)
 	c.Assert(manager.Ensure(), IsNil)
 }
 
@@ -577,8 +578,7 @@ func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 
-	// neither startup nor ensure fails
-	c.Assert(manager.StartUp(), IsNil)
+	manager.DeviceInitialized()
 	c.Assert(manager.Ensure(), IsNil)
 	// but the manager is deemed non functional, so API calls will fail
 	c.Assert(manager.IsFunctional(), ErrorMatches, "internal error: FDE manager cannot be used in preseeding mode")
@@ -1069,6 +1069,7 @@ type mockKeyData struct {
 	roles        []string
 
 	changePassphrase func(oldPassphrase, newPassphrase string) error
+	changePIN        func(oldPIN, newPIN string) error
 	writeTokenAtomic func(devicePath, slotName string) error
 }
 
@@ -1087,6 +1088,13 @@ func (k *mockKeyData) Roles() []string {
 func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
 	if k.changePassphrase != nil {
 		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) ChangePIN(oldPIN, newPIN string) error {
+	if k.changePIN != nil {
+		return k.changePIN(oldPIN, newPIN)
 	}
 	return nil
 }

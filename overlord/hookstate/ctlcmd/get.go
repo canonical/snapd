@@ -430,7 +430,8 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	tx, err := confdbstateTransactionForGet(ctx, view, requests)
+	// TODO: support constraints in snapctl
+	tx, err := confdbstateTransactionForGet(ctx, view, requests, nil)
 	if err != nil {
 		return err
 	}
@@ -440,7 +441,8 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		bag = tx.Previous()
 	}
 
-	res, err := confdbstate.GetViaView(bag, view, requests)
+	// TODO: support constraints in snapctl
+	res, err := confdbstate.GetViaView(bag, view, requests, nil)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

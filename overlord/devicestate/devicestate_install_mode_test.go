@@ -3533,7 +3533,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeA
 
 	volumeOpts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
-	c.Check(err, ErrorMatches, `invalid authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
+	c.Check(err, ErrorMatches, `cannot use authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
 	c.Check(chg, IsNil)
 }
 

@@ -29,10 +29,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -1845,6 +1847,186 @@ foo +4.2update1 +17 +436MB +bar +-.*
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
+}
+
+func mockTrackingResponse(w io.Writer, snaps map[string]string) {
+	type snapResult struct {
+		Name    string `json:"name"`
+		Channel string `json:"tracking-channel"`
+	}
+
+	results := make([]snapResult, 0, len(snaps))
+	for name, channel := range snaps {
+		results = append(results, snapResult{Name: name, Channel: channel})
+	}
+
+	// Wrap in the standard response envelope
+	resp := map[string]any{
+		"type":        "sync",
+		"status-code": 200,
+		"result":      results,
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *SnapSuite) TestRefreshTrackingNull(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		// Simulate a response where tracking-channel is empty string
+		mockTrackingResponse(w, map[string]string{
+			"multipass": "",
+		})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
+	c.Check(err, check.IsNil)
+
+	var actualData map[string]map[string]map[string]*string
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"multipass": {
+				"channel": nil,
+			},
+		},
+	}
+
+	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
+	c.Assert(err, check.IsNil)
+	c.Check(actualData, check.DeepEquals, expectedData)
+}
+
+func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
+
+	c.Check(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "cannot use --tracking with other flags")
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
+	const expectedChannel = "latest/stable"
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0) // Expect only one request
+		n++
+
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		c.Check(r.URL.Query().Get("snaps"), check.Equals, "multipass")
+
+		mockTrackingResponse(w, map[string]string{"multipass": expectedChannel})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
+	c.Check(err, check.IsNil)
+
+	var actualData map[string]map[string]map[string]*string
+
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"multipass": {
+				"channel": strPtr(expectedChannel),
+			},
+		},
+	}
+
+	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
+	c.Assert(err, check.IsNil)
+	c.Check(actualData, check.DeepEquals, expectedData)
+}
+
+func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
+	const lxdChannel = "5.21/stable"
+	const multipassChannel = "latest/stable"
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		q := r.URL.Query()["snaps"]
+		c.Assert(len(q), check.Equals, 1)
+		snaps := strings.Split(q[0], ",")
+		sort.Strings(snaps)
+		c.Check(snaps, check.DeepEquals, []string{"lxd", "multipass"})
+
+		mockTrackingResponse(w, map[string]string{
+			"lxd":       lxdChannel,
+			"multipass": multipassChannel,
+		})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass", "lxd"})
+	c.Check(err, check.IsNil)
+
+	var actualData map[string]map[string]map[string]*string
+	expectedData := map[string]map[string]map[string]*string{
+		"snaps": {
+			"lxd":       {"channel": strPtr(lxdChannel)},
+			"multipass": {"channel": strPtr(multipassChannel)},
+		},
+	}
+
+	err = yaml.Unmarshal([]byte(s.Stdout()), &actualData)
+	c.Assert(err, check.IsNil)
+	c.Check(actualData, check.DeepEquals, expectedData)
+}
+
+func (s *SnapSuite) TestRefreshTrackingNoneInstalled(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		// Return an empty list in "result" to simulate that the snap is not installed
+		mockTrackingResponse(w, map[string]string{})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking"})
+
+	// Verify that stdout is empty and the error matches expectations
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "no snaps installed")
+}
+
+func (s *SnapSuite) TestRefreshTrackingNoMatching(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, check.Equals, 0)
+		n++
+
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		q := r.URL.Query()["snaps"]
+		c.Assert(len(q), check.Equals, 1)
+		snaps := strings.Split(q[0], ",")
+		sort.Strings(snaps)
+		c.Check(snaps, check.DeepEquals, []string{"invalidapp"})
+
+		mockTrackingResponse(w, map[string]string{})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
+
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "no matching snaps installed")
 }
 
 func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {

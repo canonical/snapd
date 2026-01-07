@@ -137,14 +137,9 @@ unix (connect, receive, send)
     type=stream
     peer=(addr="@/tmp/ibus/dbus-*"),
 
-# abstract path in ibus >= 1.5.22 uses $XDG_CACHE_HOME (ie, @{HOME}/.cache)
-# This should use this, but due to LP: #1856738 we cannot
-#unix (connect, receive, send)
-#    type=stream
-#    peer=(addr="@@{HOME}/.cache/ibus/dbus-*"),
 unix (connect, receive, send)
-     type=stream
-     peer=(addr="@/home/*/.cache/ibus/dbus-*"),
+    type=stream
+    peer=(addr="@@{HOME}/.cache/ibus/dbus-*"),
 
 # when running with glib >= 2.75.0, ibus uses a regular socket
 owner @{HOME}/.cache/ibus/dbus-* rw,

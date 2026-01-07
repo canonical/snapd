@@ -2968,6 +2968,10 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 // preinstall check context returned by preinstall check
 var preinstallCheckContext = &secboot.PreinstallCheckContext{}
 
+// preinstall check result returned by preinstall check, in reality subcomponent
+// of preinstall check context, but declared separately for testing
+var preinstallCheckResult = &secboot.PreinstallCheckResult{}
+
 // representative preinstall action
 var preinstallAction = &secboot.PreinstallAction{
 	Action: "SecbootAction",
@@ -3338,7 +3342,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphrase
 		snap.TypeSnapd:  "2.68",
 		snap.TypeKernel: "2.68",
 	}
-	const hasPassphraseSupport = true
+	// TODO:FDEM: PIN and passphrase support is temporarily disabled
+	// during install even with supported snapd versions.
+	// const hasPassphraseSupport = true
+	const hasPassphraseSupport = false
 	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
