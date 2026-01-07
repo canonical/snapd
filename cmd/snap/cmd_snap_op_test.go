@@ -1690,9 +1690,95 @@ func formFiles(form *multipart.Form, c *check.C) (names, filenames []string, con
 }
 
 func (s *SnapOpSuite) TestComponentShowInvalid(c *check.C) {
+	// Check mulitple arguments are handled correctly
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"})
 	c.Assert(err, check.ErrorMatches, `exactly one snap and its components must be specified`)
+}
+
+func (s *SnapOpSuite) TestComponentShowSnapNotFound(c *check.C) {
+	// Mock a server response returning 0 snaps
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		// Return an empty list of snaps
+		resp := map[string]any{
+			"type":        "sync",
+			"status-code": 200,
+			"result":      []map[string]any{},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "missing-snap+compiler"})
+
+	c.Assert(err, check.ErrorMatches, "no matching snaps installed")
+}
+
+func (s *SnapOpSuite) TestComponentShowNoSnapName(c *check.C) {
+    s.RedirectClientToTestServer(nil)
+
+    // Pass an argument starting with '+'. 
+    // SplitSnapInstanceAndComponents parses this as empty snap name.
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+mycomp"})
+    
+    c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
+}
+
+func (s *SnapOpSuite) TestComponentShowComponentNotFound(c *check.C) {
+	type mockComponent struct {
+		client.Component
+		Type     string `json:"type"`
+		Revision string `json:"revision"`
+	}
+	type mockSnap struct {
+		client.Snap
+		Revision   string          `json:"revision"`
+		Components []mockComponent `json:"components"`
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		comp1 := mockComponent{
+			Component: client.Component{
+				Name:          "compiler",
+				Version:       "1.0",
+				InstalledSize: 1024,
+			},
+			Type:     "framework",
+			Revision: "42",
+		}
+
+		ms := mockSnap{
+			Snap: client.Snap{
+				Name:    "qwen-vl",
+				Version: "2.0",
+				Status:  "active",
+				Type:    "app",
+			},
+			Revision:   "100",
+			Components: []mockComponent{comp1},
+		}
+
+		resp := map[string]any{
+			"type":        "sync",
+			"status-code": 200,
+			"result":      []mockSnap{ms},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+phantom"})
+
+	c.Assert(err, check.ErrorMatches, `component "phantom" for snap "qwen-vl" is not installed`)
+}
+
+func (s *SnapOpSuite) TestComponentShowNoComponents(c *check.C) {
+    s.RedirectClientToTestServer(nil)
+
+    // Pass a snap name without any '+component' suffix.
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "mysnap"})
+    
+    c.Assert(err, check.ErrorMatches, "no components specified")
 }
 
 func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
@@ -1700,22 +1786,21 @@ func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 
 	// These embed the real client structs but override fields that need 'snap' types.
 	type mockComponent struct {
-		client.Component        // Embeds all standard fields (Name, Version, etc.)
-		Type             string `json:"type"`     // Shadows snap.ComponentType
-		Revision         string `json:"revision"` // Shadows snap.Revision
+		client.Component
+		Type             string `json:"type"`
+		Revision         string `json:"revision"`
 	}
 
 	type mockSnap struct {
-		client.Snap                 // Embeds all standard fields
-		Revision    string          `json:"revision"`   // Shadows snap.Revision
-		Components  []mockComponent `json:"components"` // Shadows []client.Component
+		client.Snap
+		Revision    string          `json:"revision"`
+		Components  []mockComponent `json:"components"`
 	}
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(n, check.Equals, 0)
 		n++
 
-		// 2. Create the components using the shadow struct
 		comp1 := mockComponent{
 			Component: client.Component{
 				Name:          "compiler",
@@ -1724,8 +1809,8 @@ func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 				Description:   "Handles compilation tasks",
 				InstalledSize: 200 * 1024 * 1024,
 			},
-			Type:     "framework", // Simple string, no snap.ComponentType needed!
-			Revision: "42",        // Simple string, no snap.Revision needed!
+			Type:     "framework",
+			Revision: "42",
 		}
 
 		comp2 := mockComponent{
@@ -1741,13 +1826,12 @@ func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 			Revision: "10",
 		}
 
-		// 3. Create the snap using the shadow struct
 		ms := mockSnap{
 			Snap: client.Snap{
 				Name:          "qwen-vl",
 				Version:       "2.0",
 				Status:        "active",
-				Type:          "app", // client.Snap.Type is already a string, so this is fine
+				Type:          "app",
 				InstalledSize: 10 * 1024 * 1024,
 				Description:   "A mock AI snap",
 			},
@@ -1755,7 +1839,6 @@ func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 			Components: []mockComponent{comp1, comp2},
 		}
 
-		// 4. Return the response
 		resp := map[string]any{
 			"type":        "sync",
 			"status-code": 200,
