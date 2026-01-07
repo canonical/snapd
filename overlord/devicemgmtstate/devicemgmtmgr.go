@@ -26,7 +26,6 @@ package devicemgmtstate
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -87,14 +86,6 @@ type PendingMessage struct {
 	ValidUntil time.Time `json:"valid-until"`
 
 	Body string `json:"body"`
-}
-
-func (msg *PendingMessage) ID() string {
-	if msg.SeqNum != 0 {
-		return fmt.Sprintf("%s-%d", msg.BaseID, msg.SeqNum)
-	}
-
-	return msg.BaseID
 }
 
 // exchangeConfig holds parameters for the message exchange task.
