@@ -1277,7 +1277,7 @@ func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
+	timings.Run(perfTimings, "preseed-target", "Preseed target system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
 
