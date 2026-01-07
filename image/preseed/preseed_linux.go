@@ -697,7 +697,7 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid b
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1", "SNAPD_DEBUG=1")
+	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	if hybrid {
 		cmd.Env = append(cmd.Env, "SNAPD_PRESEED_HYBRID=1")
 	}
