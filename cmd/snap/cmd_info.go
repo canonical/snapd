@@ -185,6 +185,25 @@ func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *cli
 	}
 }
 
+func (iw *infoWriter) maybePrintComponents() {
+    // Initialize counts to 0
+    installedCount := 0
+    localCount := 0
+
+    // Only access .Components if the struct exists
+    if iw.theSnap != nil {
+        installedCount = len(iw.theSnap.Components)
+    }
+
+    // Only access .Components if the struct exists
+    if iw.localSnap != nil {
+        localCount = len(iw.localSnap.Components)
+    }
+    
+    // Now it is safe to print using the local variables
+    fmt.Fprintf(iw, "components: %d/%d\n", installedCount, localCount)
+}
+
 func (iw *infoWriter) maybePrintPrice() {
 	if iw.resInfo == nil {
 		return
@@ -697,6 +716,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintTrackingChannel()
 		iw.maybePrintRefreshInfo()
 		iw.maybePrintChinfo()
+		iw.maybePrintComponents()
 	}
 	w.Flush()
 
