@@ -366,6 +366,10 @@ nested_is_core_lt() {
     os.query is-ubuntu-lt "${VERSION}.04"
 }
 
+nested_is_core_26_system() {
+    os.query is-resolute
+}
+
 nested_is_core_24_system() {
     os.query is-noble
 }
@@ -580,6 +584,11 @@ nested_get_version() {
         echo "22"
     elif nested_is_core_24_system; then
         echo "24"
+    elif nested_is_core_26_system; then
+	echo "26"
+    else
+	echo "Nested version unknown"
+	exit 1
     fi
 }
 
