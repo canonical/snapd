@@ -130,9 +130,9 @@ func (s *xkbTestSuite) TestCurrentXKBConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(config, DeepEquals, &keyboard.XKBConfig{
 		Model:    "",
-		Variants: []string{""},
-		Layouts:  []string{""},
-		Options:  []string{""},
+		Variants: nil,
+		Layouts:  nil,
+		Options:  nil,
 	})
 	c.Assert(config.KernelCommandLineValue(), Equals, ",,,")
 }
@@ -164,12 +164,23 @@ func (s *xkbTestSuite) TestCurrentXKBConfigErrors(c *C) {
 		},
 		{
 			properties: map[string]any{
-				"X11Model":   "pc105",
-				"X11Layout":  "us",
+				"X11Model":  "pc105",
+				"X11Layout": "us",
+				// If X11Variant is set, The length check should fail.
 				"X11Variant": ",bksl",
 				"X11Options": "",
 			},
 			expectedErr: `cannot parse XKB configuration: layouts and variants do not have the same length`,
+		},
+		{
+			properties: map[string]any{
+				"X11Model":  "pc105",
+				"X11Layout": "us,cz,de",
+				// If X11Variant is unset, the length check is ignored and
+				// the variant defaults to "basic".
+				"X11Variant": "",
+				"X11Options": "",
+			},
 		},
 		{
 			properties: map[string]any{
@@ -186,8 +197,12 @@ func (s *xkbTestSuite) TestCurrentXKBConfigErrors(c *C) {
 		cmt := Commentf("tc[%d] failed", i)
 		s.mockDBusProperties = tc.properties
 		config, err := keyboard.CurrentXKBConfig()
-		c.Check(err, ErrorMatches, tc.expectedErr, cmt)
-		c.Check(config, IsNil, cmt)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr, cmt)
+			c.Check(config, IsNil, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
 	}
 }
 
@@ -209,6 +224,7 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	called := 0
+	cbChan := make(chan bool)
 	cb := func(config *keyboard.XKBConfig) {
 		called++
 		c.Assert(config, DeepEquals, &keyboard.XKBConfig{
@@ -217,31 +233,32 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 			Layouts:  []string{"us", "cz", "de"},
 			Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
 		})
+		cbChan <- true
 	}
 	listener, err := keyboard.NewXKBConfigListener(ctx, cb)
 	c.Assert(err, IsNil)
 	defer listener.Close()
 
 	c.Assert(os.WriteFile(kbConfPath, []byte("1"), 0644), IsNil)
+	<-cbChan
 	c.Assert(os.WriteFile(kbConfPath, []byte("2"), 0644), IsNil)
+	<-cbChan
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("3"), 0644), IsNil)
+	<-cbChan
 	// Simulate replacement i.e. rename
 	c.Assert(osutil.AtomicWriteFile(vconsoleConfPath, []byte("4"), 0644, 0), IsNil)
+	<-cbChan
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("5"), 0644), IsNil)
+	<-cbChan
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("6"), 0644), IsNil)
-
-	for retry := 0; retry < 20; retry++ {
-		if called != 6 {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
+	<-cbChan
 
 	c.Assert(called, Equals, 6)
 
 	cancel()
 	// Wait to make sure we don't accidently check number of calls
 	// before inotify gets a chance to detect the event.
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("4"), 0644), IsNil)
 	// Context cancellation closes the inotify watcher.
 	c.Assert(called, Equals, 6)

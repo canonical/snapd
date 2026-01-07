@@ -45,9 +45,10 @@ func (c *XKBConfig) validate() error {
 	if strings.Contains(c.Model, ",") {
 		return fmt.Errorf("model cannot contain ',': found %q", c.Model)
 	}
-	if len(c.Layouts) != len(c.Variants) {
+	if len(c.Variants) != 0 && len(c.Variants) != len(c.Layouts) {
 		return fmt.Errorf("layouts and variants do not have the same length")
 	}
+	// XXX: Should we check that the model and layouts are always set?
 	return nil
 }
 
@@ -116,10 +117,16 @@ func CurrentXKBConfig() (*XKBConfig, error) {
 	// if we fail to obtain values over dbus?
 
 	config := &XKBConfig{
-		Model:    vals["X11Model"], // Only one model can be specified.
-		Layouts:  strings.Split(vals["X11Layout"], ","),
-		Variants: strings.Split(vals["X11Variant"], ","),
-		Options:  strings.Split(vals["X11Options"], ","),
+		Model: vals["X11Model"], // Only one model can be specified.
+	}
+	if vals["X11Layout"] != "" {
+		config.Layouts = strings.Split(vals["X11Layout"], ",")
+	}
+	if vals["X11Variant"] != "" {
+		config.Variants = strings.Split(vals["X11Variant"], ",")
+	}
+	if vals["X11Options"] != "" {
+		config.Options = strings.Split(vals["X11Options"], ",")
 	}
 	if err := config.validate(); err != nil {
 		return nil, fmt.Errorf("cannot parse XKB configuration: %v", err)
