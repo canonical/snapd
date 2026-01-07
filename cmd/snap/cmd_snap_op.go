@@ -751,7 +751,7 @@ func (x *cmdComponent) showComponent() error {
 		fmt.Fprintf(Stdout, "type: %s\n", comp.Type)
 		fmt.Fprintf(Stdout, "summary: %s\n", comp.Summary)
 		fmt.Fprintf(Stdout, "description: |\n  %s\n", comp.Description)
-		fmt.Fprintf(Stdout, "installed: %s (%s) %dMB\n", comp.Version, comp.Revision.String(), comp.InstalledSize/(1024*1024))
+		fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), strutil.SizeToStr(comp.InstalledSize))
 
 		if i < len(comps)-1 {
 			fmt.Fprintln(Stdout)
