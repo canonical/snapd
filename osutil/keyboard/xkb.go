@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/inotify"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type XKBConfig struct {
@@ -150,15 +151,14 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 		return nil, err
 	}
 
-	// XXX: Should we instead only error out if both files are not
-	// present? If both files don't exist, Should we fallback to a
-	// timer based trigger instead of erroring out for robustness?
-	defaultKeyboardConf := filepath.Join(dirs.GlobalRootDir, "/etc/default/keyboard")
-	if err := iw.AddWatch(defaultKeyboardConf, inotify.InCloseWrite); err != nil {
+	// We care about IN_MOVED_TO as well to detect configuration updates that
+	// happen atomically through replacement i.e. rename, renameat, renameat2.
+	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc")
+	if err := iw.AddWatch(etcDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
-	vconsoleConf := filepath.Join(dirs.GlobalRootDir, "/etc/vconsole.conf")
-	if err := iw.AddWatch(vconsoleConf, inotify.InCloseWrite); err != nil {
+	etcDefaultDir := filepath.Join(dirs.GlobalRootDir, "/etc/default")
+	if err := iw.AddWatch(etcDefaultDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
 
@@ -174,9 +174,16 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 }
 
 func (w *XKBConfigListener) loop() {
+	var kbConfigFiles = []string{
+		filepath.Join(dirs.GlobalRootDir, "/etc/default/keyboard"),
+		filepath.Join(dirs.GlobalRootDir, "/etc/vconsole.conf"),
+	}
 	for {
 		select {
-		case <-w.iw.Event:
+		case e := <-w.iw.Event:
+			if !strutil.ListContains(kbConfigFiles, e.Name) {
+				continue
+			}
 			config, err := CurrentXKBConfig()
 			if err != nil {
 				logger.Noticef("cannot obtain current XKB configuration: %v", err)

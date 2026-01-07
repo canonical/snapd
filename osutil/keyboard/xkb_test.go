@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -224,18 +225,24 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	c.Assert(os.WriteFile(kbConfPath, []byte("1"), 0644), IsNil)
 	c.Assert(os.WriteFile(kbConfPath, []byte("2"), 0644), IsNil)
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("3"), 0644), IsNil)
+	// Simulate replacement i.e. rename
+	c.Assert(osutil.AtomicWriteFile(vconsoleConfPath, []byte("4"), 0644, 0), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("5"), 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("6"), 0644), IsNil)
 
-	for retry := 0; retry < 10; retry++ {
-		if called != 3 {
-			time.Sleep(50 * time.Millisecond)
+	for retry := 0; retry < 20; retry++ {
+		if called != 6 {
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
-	c.Assert(called, Equals, 3)
+	c.Assert(called, Equals, 6)
 
 	cancel()
-	time.Sleep(100 * time.Millisecond)
+	// Wait to make sure we don't accidently check number of calls
+	// before inotify gets a chance to detect the event.
+	time.Sleep(50 * time.Millisecond)
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("4"), 0644), IsNil)
 	// Context cancellation closes the inotify watcher.
-	c.Assert(called, Equals, 3)
+	c.Assert(called, Equals, 6)
 }
