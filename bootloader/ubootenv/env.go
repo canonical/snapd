@@ -481,7 +481,7 @@ func CreateRedundant(fname string, size int) (*Env, error) {
 		headerFlagByte: true, // redundant environments always have the flag byte
 		data:           make(map[string]string),
 		redundant:      true,
-		activeFlag:     0, // first Save() will write flag 1
+		activeFlag:     0,     // first Save() will write flag 1
 		activeCopy:     Copy1, // first Save() will write to Copy2
 	}
 
