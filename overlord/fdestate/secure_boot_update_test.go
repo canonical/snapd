@@ -47,16 +47,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-// ideally, we would want to iterate over all kinds in a single test
-// for extensibility, but due to the way state is managed in tests, we need
-// to have separate functions for each kind in some cases
-var securebootUpdateKinds = []fdestate.EFISecurebootKeyDatabase{
-	fdestate.EFISecurebootPK,
-	fdestate.EFISecurebootKEK,
-	fdestate.EFISecurebootDB,
-	fdestate.EFISecurebootDBX,
-}
-
 func (s *fdeMgrSuite) testEFISecurebootNoSealedKeysForKind(
 	c *C,
 	kind fdestate.EFISecurebootKeyDatabase,
@@ -92,10 +82,20 @@ func (s *fdeMgrSuite) testEFISecurebootNoSealedKeysForKind(
 
 }
 
-func (s *fdeMgrSuite) TestEFISecurebootNoSealedKeysAllKinds(c *C) {
-	for _, kind := range securebootUpdateKinds {
-		s.testEFISecurebootNoSealedKeysForKind(c, kind)
-	}
+func (s *fdeMgrSuite) TestEFISecurebootNoSealedKeysPK(c *C) {
+	s.testEFISecurebootNoSealedKeysForKind(c, fdestate.EFISecurebootPK)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootNoSealedKeysKEK(c *C) {
+	s.testEFISecurebootNoSealedKeysForKind(c, fdestate.EFISecurebootKEK)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootNoSealedKeysDB(c *C) {
+	s.testEFISecurebootNoSealedKeysForKind(c, fdestate.EFISecurebootDB)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootNoSealedKeysDBX(c *C) {
+	s.testEFISecurebootNoSealedKeysForKind(c, fdestate.EFISecurebootDBX)
 }
 
 func (s *fdeMgrSuite) TestEFISecurebootStartupClean(c *C) {
@@ -224,7 +224,6 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareHappyForKind(
 	c.Check(tsks[1].WaitTasks(), DeepEquals, []*state.Task{tsks[0]})
 }
 
-// each PrepareHappy test requires a separate function to reinitialize state correctly
 func (s *fdeMgrSuite) TestEFISecurebootPrepareHappyPK(c *C) {
 	s.testEFISecurebootPrepareHappyForKind(c, fdestate.EFISecurebootPK)
 }
@@ -330,10 +329,20 @@ func (s *fdeMgrSuite) testEFISecurebootConflictFDEChangeForKind(
 	c.Assert(err, ErrorMatches, "FDE change in progress, no other FDE changes allowed until this is done")
 }
 
-func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictFDEChangeAllKinds(c *C) {
-	for _, kind := range securebootUpdateKinds {
-		s.testEFISecurebootConflictFDEChangeForKind(c, kind)
-	}
+func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictFDEChangePK(c *C) {
+	s.testEFISecurebootConflictFDEChangeForKind(c, fdestate.EFISecurebootPK)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictFDEChangeKEK(c *C) {
+	s.testEFISecurebootConflictFDEChangeForKind(c, fdestate.EFISecurebootKEK)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictFDEChangeDB(c *C) {
+	s.testEFISecurebootConflictFDEChangeForKind(c, fdestate.EFISecurebootDB)
+}
+
+func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictFDEChangeDBX(c *C) {
+	s.testEFISecurebootConflictFDEChangeForKind(c, fdestate.EFISecurebootDBX)
 }
 
 func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictOperationNotInDoingYet(c *C) {
