@@ -1,0 +1,44 @@
+summary: Check that graphical user daemons with .desktop files have binaries added
+
+details: |
+    Verifies that graphical user daemons with .desktop files have symlinks
+    created for their binary paths when the snap is installed. If the .desktop
+    file has NoDisplay=true, then the symlink should point to /usr/bin/false.
+    Otherwise, the symlink should point to /usr/bin/snap.
+
+prepare: |
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-graphical-user-daemons
+
+restore: |
+    snap remove --purge test-snapd-graphical-user-daemons || true
+    snap set system experimental.user-daemons=false
+
+execute: |
+    echo "Test that the correct apps have binaries"
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay
+    test -L /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical
+    test -L /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical-nodisplay
+    test -L /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical
+    test -L /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical-nodisplay
+
+    echo "Test that non-graphical daemons do not have binaries"
+    for binary in "/snap/bin/test-snapd-graphical-user-daemons.daemon" "/snap/bin/test-snapd-graphical-user-daemons.user-daemon" "/snap/bin/test-snapd-graphical-user-daemons.decoy" ; do
+        if test -e "$binary" ; then
+            echo "file unexpectedly exists: $binary"
+            exit 1
+        fi
+    done
+
+    echo "Test that the links point to the expected sources"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.normal | MATCH "/usr/bin/snap"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop | MATCH "/usr/bin/snap"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay | MATCH "/usr/bin/snap"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical | MATCH "/usr/bin/snap"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical | MATCH "/usr/bin/snap"
+
+    echo "Apps with NoDisplay=true should link to /usr/bin/false"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical-nodisplay | MATCH "/usr/bin/false"
+    readlink /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical-nodisplay | MATCH "/usr/bin/false"
