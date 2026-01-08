@@ -38,6 +38,8 @@ func TestWrappers(t *testing.T) { TestingT(t) }
 type binariesTestSuite struct {
 	tempdir string
 	base    string
+
+	restoreDesktopFiles func()
 }
 
 // silly wrappers to get better failure messages
@@ -57,9 +59,30 @@ func (s *binariesTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	f.Write([]byte("#\nBASH_COMPLETION_VERSINFO=(2 6)\n"))
 	f.Close()
+
+	desktopFiles := map[string]string{
+		filepath.Join(s.tempdir, "system-display.desktop"):   "[Desktop Entry]\nExec=hello-snap.svc-system-display\n",
+		filepath.Join(s.tempdir, "system-nodisplay.desktop"): "[Desktop Entry]\nExec=hello-snap.svc-system-nodisplay\nNoDisplay=true\n",
+		filepath.Join(s.tempdir, "user-display.desktop"):     "[Desktop Entry]\nExec=hello-snap.svc-user-display\n",
+		filepath.Join(s.tempdir, "user-nodisplay.desktop"):   "[Desktop Entry]\nExec=hello-snap.svc-user-nodisplay\nNoDisplay=true\n",
+		filepath.Join(s.tempdir, "user-nodisplay.desktop"):   "[Desktop Entry]\nExec=hello-snap.svc-user-nodisplay\nNoDisplay=true\n",
+		filepath.Join(s.tempdir, "hello.desktop"):            "[Desktop Entry]\nExec=hello-snap.hello\n",
+		filepath.Join(s.tempdir, "decoy.desktop"):            "[Desktop Entry]\nExec=hello-snap.decoy\n",
+		filepath.Join(s.tempdir, "decoy-nodisplay.desktop"):  "[Desktop Entry]\nExec=hello-snap.decoy-nodisplay\nNoDisplay=true\n",
+	}
+	desktopFileFilenames := make([]string, 0, len(desktopFiles))
+	for filename, contents := range desktopFiles {
+		os.WriteFile(filename, []byte(contents), 0o644)
+		desktopFileFilenames = append(desktopFileFilenames, filename)
+	}
+	restore := wrappers.MockDesktopFilesFromInstalledSnap(func(s *snap.Info, opts snap.DesktopFilesFromInstalledSnapOptions) ([]string, error) {
+		return desktopFileFilenames, nil
+	})
+	s.restoreDesktopFiles = restore
 }
 
 func (s *binariesTestSuite) TearDownTest(c *C) {
+	s.restoreDesktopFiles()
 	dirs.SetRootDir("")
 }
 
@@ -81,6 +104,20 @@ const packageHello = packageHelloNoSrv + `
   stop-command: bin/goodbye
   post-stop-command: bin/missya
   daemon: forking
+ svc-system-display:
+  command: bin/display
+  daemon: simple
+ svc-system-nodisplay:
+  command: bin/nodisplay
+  daemon: simple
+ svc-user-display:
+  command: bin/userdisplay
+  daemon: simple
+  daemon-scope: user
+ svc-user-nodisplay:
+  command: bin/usernodisplay
+  daemon: simple
+  daemon-scope: user
 `
 
 const packageHelloNoSrvV2 = `name: hello-snap
@@ -339,13 +376,26 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 	err := wrappers.EnsureSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	bins := []string{"hello-snap.hello", "hello-snap.world"}
-
-	for _, bin := range bins {
+	binsSnap := []string{"hello-snap.hello", "hello-snap.world", "hello-snap.svc-system-display", "hello-snap.svc-user-display"}
+	for _, bin := range binsSnap {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		target, err := os.Readlink(link)
 		c.Assert(err, IsNil, Commentf(bin))
 		c.Check(target, Equals, "/usr/bin/snap", Commentf(bin))
+	}
+
+	binsFalse := []string{"hello-snap.svc-system-nodisplay", "hello-snap.svc-user-nodisplay"}
+	for _, bin := range binsFalse {
+		link := filepath.Join(dirs.SnapBinariesDir, bin)
+		target, err := os.Readlink(link)
+		c.Assert(err, IsNil, Commentf(bin))
+		c.Check(target, Equals, "/usr/bin/false", Commentf(bin))
+	}
+
+	absent := []string{"hello-snap.svc1", "hello-snap.universe", "hello-snap.decoy"}
+	for _, bin := range absent {
+		link := filepath.Join(dirs.SnapBinariesDir, bin)
+		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}
 
 	compDir := dirs.CompletersDir
@@ -378,7 +428,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 	err = wrappers.RemoveSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	for _, bin := range bins {
+	for _, bin := range append(binsSnap, append(binsFalse, absent...)...) {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}
@@ -407,7 +457,8 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 	c.Assert(err, IsNil)
 
 	binsAdded := []string{"hello-snap.hello", "hello-snap.universe"}
-	binsRemoved := []string{"hello-snap.world"}
+	binsRemoved := []string{"hello-snap.world", "hello-snap.svc-system-display", "hello-snap.svc-system-nodisplay", "hello-snap.svc-user-display", "hello-snap.svc-user-nodisplay"}
+	binsNeverExisted := []string{"hello-snap.svc1", "hello-snap.decoy"}
 
 	for _, bin := range binsAdded {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
@@ -416,7 +467,7 @@ func (s *binariesTestSuite) testEnsureSnapBinariesAndRemove(c *C, useLegacy bool
 		c.Check(target, Equals, "/usr/bin/snap", Commentf(bin))
 	}
 
-	for _, bin := range binsRemoved {
+	for _, bin := range append(binsRemoved, binsNeverExisted...) {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
 	}

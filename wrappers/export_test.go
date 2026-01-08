@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // some internal helper exposed for testing
@@ -59,4 +61,8 @@ func MockEnsureDirState(f func(dir string, glob string, content map[string]osuti
 	return func() {
 		ensureDirState = oldEnsureDirState
 	}
+}
+
+func MockDesktopFilesFromInstalledSnap(f func(s *snap.Info, opts snap.DesktopFilesFromInstalledSnapOptions) ([]string, error)) (restore func()) {
+	return testutil.Mock(&desktopFilesFromInstalledSnap, f)
 }

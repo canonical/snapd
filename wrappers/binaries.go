@@ -202,6 +202,10 @@ func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersCont
 	return nil
 }
 
+var desktopFilesFromInstalledSnap = func(s *snap.Info, opts snap.DesktopFilesFromInstalledSnapOptions) ([]string, error) {
+	return s.DesktopFilesFromInstalledSnap(opts)
+}
+
 // EnsureSnapBinaries updates the wrapper binaries for the applications from the snap which aren't services.
 //
 // It also removes wrapper binaries from the applications of the old snap revision if it exists ensuring that
@@ -225,8 +229,8 @@ func EnsureSnapBinaries(s *snap.Info) (err error) {
 			// the symlink to ensure that the dock will find the icon
 			// if the daemon creates a window (like snapd-desktop-integration
 			// or the security prompting client do).
-			desktop_files, _ := s.DesktopFilesFromInstalledSnap(snap.DesktopFilesFromInstalledSnapOptions{MangleFileNames: false})
-			for _, desktopFile := range desktop_files {
+			desktopFiles, _ := desktopFilesFromInstalledSnap(s, snap.DesktopFilesFromInstalledSnapOptions{MangleFileNames: false})
+			for _, desktopFile := range desktopFiles {
 				de, err := desktopentry.Read(desktopFile)
 				if err != nil {
 					continue
