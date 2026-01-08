@@ -193,7 +193,7 @@ summary: The compiler component
 description: |
   Handles compilation tasks
 installed: 1.0 (42) 200MB
-
+---
 component: qwen-vl+runtime
 type: app
 summary: The runtime component
