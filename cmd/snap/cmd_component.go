@@ -84,7 +84,7 @@ func (x *cmdComponent) showComponent() error {
 		fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), strutil.SizeToStr(comp.InstalledSize))
 
 		if i < len(comps)-1 {
-			fmt.Fprintln(Stdout)
+			fmt.Fprintln(Stdout, "---")
 		}
 	}
 
