@@ -1746,12 +1746,6 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 			}
 			return nil, err
 		}
-
-		// build a namespace around the result based on the unmatched suffix parts
-		val, err = namespaceResult(val, match.unmatchedSuffix)
-		if err != nil {
-			return nil, err
-		}
 		// Only prune data if the visibility level of the caller is less than secret
 		// (i.e. if the caller should not have access to secret data)
 		if visibility < SecretVisibility {
@@ -1763,6 +1757,12 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 				pruned = true
 				continue
 			}
+		}
+
+		// build a namespace around the result based on the unmatched suffix parts
+		val, err = namespaceResult(val, match.unmatchedSuffix)
+		if err != nil {
+			return nil, err
 		}
 
 		// merge result with results from other matching rules
