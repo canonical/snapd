@@ -913,6 +913,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			snapdAbi30File := filepath.Join(prefix, "/apparmor.d/abi/3.0")
 			snapdAbi40File := filepath.Join(prefix, "/apparmor.d/abi/4.0")
+			snapdAbi50File := filepath.Join(prefix, "/apparmor.d/abi/5.0")
 
 			// When using the internal apparmor_parser also use its own
 			// configuration and includes etc plus also ensure we use the 4.0
@@ -923,9 +924,12 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// older apparmor, use that instead so that things
 			// don't generally fail.
 			abiFile := ""
+			fi50, err50 := os.Lstat(snapdAbi50File)
 			fi40, err40 := os.Lstat(snapdAbi40File)
 			fi30, err30 := os.Lstat(snapdAbi30File)
 			switch {
+			case err50 == nil && !fi50.IsDir():
+				abiFile = snapdAbi50File
 			case err40 == nil && !fi40.IsDir():
 				abiFile = snapdAbi40File
 			case err30 == nil && !fi30.IsDir():
