@@ -44,20 +44,13 @@ import (
 )
 
 var (
-	shortComponentHelp = i18n.G("Show information about installed snap components")
-	shortInstallHelp   = i18n.G("Install snaps on the system")
-	shortRemoveHelp    = i18n.G("Remove snaps from the system")
-	shortRefreshHelp   = i18n.G("Refresh snaps in the system")
-	shortTryHelp       = i18n.G("Test an unpacked snap in the system")
-	shortEnableHelp    = i18n.G("Enable a snap in the system")
-	shortDisableHelp   = i18n.G("Disable a snap in the system")
+	shortInstallHelp = i18n.G("Install snaps on the system")
+	shortRemoveHelp  = i18n.G("Remove snaps from the system")
+	shortRefreshHelp = i18n.G("Refresh snaps in the system")
+	shortTryHelp     = i18n.G("Test an unpacked snap in the system")
+	shortEnableHelp  = i18n.G("Enable a snap in the system")
+	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
-
-var longComponentHelp = i18n.G(`
-The component command shows information about installed snap components.
-You must specify exactly one snap and its component(s) in the form
-<snap>+<component1>...+<componentN>.
-`)
 
 var longInstallHelp = i18n.G(`
 The install command installs the named snaps on the system.
@@ -706,66 +699,6 @@ func (mx modeMixin) setModes(opts *client.SnapOptions) {
 	opts.DevMode = mx.DevMode
 	opts.JailMode = mx.JailMode
 	opts.Classic = mx.Classic
-}
-
-type cmdComponent struct {
-	colorMixin
-	waitMixin
-
-	Positional struct {
-		SnapsAndComponents []remoteSnapName `positional-arg-name:"<snap+component>" required:"1"`
-	} `positional-args:"yes" required:"yes"`
-}
-
-func (x *cmdComponent) showComponent() error {
-	// Was the passed argument valid in snap+component form?
-	snapName, comps := snap.SplitSnapInstanceAndComponents(string(x.Positional.SnapsAndComponents[0]))
-	if snapName == "" {
-		return errors.New(i18n.G("no snap for the component(s) was specified"))
-	}
-
-	if len(comps) == 0 {
-		return errors.New(i18n.G("no components specified"))
-	}
-
-	// Is the requested snap installed?
-	names := []string{snapName}
-	snaps, err := x.client.List(names, nil)
-	if err != nil {
-		if err == client.ErrNoSnapsInstalled {
-			return errors.New(i18n.G("no matching snaps installed"))
-		}
-		return err
-	}
-
-	for i := 0; i < len(comps); i++ {
-		// Is the component installed for the snap?
-		comp := compByName(comps[i], snaps[0])
-
-		if comp == nil {
-			return fmt.Errorf(i18n.G("component %q for snap %q is not installed"), comps[i], snaps[0].Name)
-		}
-
-		// Show component information
-		fmt.Fprintf(Stdout, "component: %s+%s\n", snaps[0].Name, comp.Name)
-		fmt.Fprintf(Stdout, "type: %s\n", comp.Type)
-		fmt.Fprintf(Stdout, "summary: %s\n", comp.Summary)
-		fmt.Fprintf(Stdout, "description: |\n  %s\n", comp.Description)
-		fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), strutil.SizeToStr(comp.InstalledSize))
-
-		if i < len(comps)-1 {
-			fmt.Fprintln(Stdout)
-		}
-	}
-
-	return nil
-}
-
-func (c *cmdComponent) Execute([]string) error {
-	if len(c.Positional.SnapsAndComponents) != 1 {
-		return errors.New(i18n.G("exactly one snap and its components must be specified"))
-	}
-	return c.showComponent()
 }
 
 type cmdInstall struct {
@@ -1732,7 +1665,6 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)
-	addCommand("component", shortComponentHelp, longComponentHelp, func() flags.Commander { return &cmdComponent{} }, nil, nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)
 	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} }, waitDescs, nil)
