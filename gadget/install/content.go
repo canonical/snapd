@@ -20,7 +20,9 @@
 package install
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -247,17 +249,11 @@ func writeContainerMountUnit(destRoot string, cpi snap.ContainerPlaceInfo) error
 }
 
 func checkLinkPointsTo(linkPath string, expectedTarget string) error {
-	info, err := os.Lstat(linkPath)
-	if err != nil {
-		return err
-	}
-
-	if info.Mode()&os.ModeSymlink == 0 {
-		return fmt.Errorf("existing path at %q is not a symlink", linkPath)
-	}
-
 	target, err := os.Readlink(linkPath)
 	if err != nil {
+		if errors.Is(err, fs.ErrInvalid) {
+			return fmt.Errorf("existing path at %q is not a symlink", linkPath)
+		}
 		return err
 	}
 
