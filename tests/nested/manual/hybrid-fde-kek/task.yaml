@@ -128,7 +128,7 @@ execute: |
   # update KEK
   remote.exec sudo efi-readvar -v KEK 2>&1 | tee efi-kek-before.log
   # expecting no additional entries in the list
-  grep -c 'List ' efi-dbx-before.log | MATCH "$initial_kek_entries_count"
+  grep -c 'List ' efi-kek-before.log | MATCH "$initial_kek_entries_count"
   remote.exec sudo efi-updatevar -a -f kek-update.auth KEK
   remote.exec sudo efi-readvar -v KEK 2>&1 | tee efi-kek-after.log
   # expecting one additional entry in the list
