@@ -376,7 +376,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 	err := wrappers.EnsureSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	binsSnap := []string{"hello-snap.hello", "hello-snap.world", "hello-snap.svc-system-display", "hello-snap.svc-user-display"}
+	binsSnap := []string{"hello-snap.hello", "hello-snap.world", "hello-snap.svc-user-display"}
 	for _, bin := range binsSnap {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		target, err := os.Readlink(link)
@@ -384,7 +384,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 		c.Check(target, Equals, "/usr/bin/snap", Commentf(bin))
 	}
 
-	binsFalse := []string{"hello-snap.svc-system-nodisplay", "hello-snap.svc-user-nodisplay"}
+	binsFalse := []string{"hello-snap.svc-user-nodisplay"}
 	for _, bin := range binsFalse {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		target, err := os.Readlink(link)
@@ -392,7 +392,7 @@ func (s *binariesTestSuite) testAddSnapBinariesAndRemove(c *C, useLegacy bool, d
 		c.Check(target, Equals, "/usr/bin/false", Commentf(bin))
 	}
 
-	absent := []string{"hello-snap.svc1", "hello-snap.universe", "hello-snap.decoy"}
+	absent := []string{"hello-snap.svc1", "hello-snap.universe", "hello-snap.decoy", "hello-snap.svc-system-display", "hello-snap.svc-system-nodisplay"}
 	for _, bin := range absent {
 		link := filepath.Join(dirs.SnapBinariesDir, bin)
 		c.Check(osutil.IsSymlink(link), Equals, false, Commentf(bin))
