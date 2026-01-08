@@ -35,12 +35,37 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 		"type": "async"
 	}`
 
-	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"})
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"keys": []string{"foo,bar"}})
+}
+
+func (cs *clientSuite) TestConfdbGetWithConstraints(c *C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "123",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	constraints := map[string]string{"bar": "value1", "baz": "value2"}
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo"}, constraints)
+	c.Assert(err, IsNil)
+	c.Assert(chgID, Equals, "123")
+	c.Assert(cs.reqs[0].Method, Equals, "GET")
+	c.Assert(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
+
+	query := cs.reqs[0].URL.Query()
+	c.Check(query.Get("keys"), Equals, "foo")
+
+	cstrsRaw := query.Get("constraints")
+	var cstrs map[string]string
+	err = json.Unmarshal([]byte(cstrsRaw), &cstrs)
+	c.Assert(err, IsNil)
+	c.Assert(cstrs, DeepEquals, constraints)
 }
 
 func (cs *clientSuite) TestConfdbSet(c *C) {

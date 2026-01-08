@@ -27,11 +27,20 @@ import (
 	"strings"
 )
 
-func (c *Client) ConfdbGetViaView(viewID string, requests []string) (changeID string, err error) {
+func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints map[string]string) (changeID string, err error) {
 	query := url.Values{}
 	query.Add("keys", strings.Join(requests, ","))
-	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
 
+	if len(constraints) > 0 {
+		data, err := json.Marshal(constraints)
+		if err != nil {
+			return "", err
+		}
+
+		query.Add("constraints", string(data))
+	}
+
+	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
 	return c.doAsync("GET", endpoint, query, nil, nil)
 }
 

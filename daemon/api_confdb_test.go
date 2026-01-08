@@ -602,7 +602,9 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 
 	query := url.Values{}
 	query.Add("keys", "ssid")
-	query.Add("constraints", strings.Join([]string{"foo=bar", "baz=abc"}, ","))
+	cstrs, err := json.Marshal(map[string]string{"foo": "bar", "baz": "abc"})
+	c.Assert(err, IsNil)
+	query.Add("constraints", string(cstrs))
 	endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -627,19 +629,19 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 	})
 	defer restore()
 
-	constraints := [][]string{
-		{"foo=bar=baz"},
-		{"foo"},
-		{"", ""},
-		{"foo="},
-		{"=foo"},
+	badConstraints := []string{
+		"not-json",
+		"null",
+		"{invalid}",
+		"[]",
+		`{"key": 123}`, // values must be strings (for now)
 	}
 
-	for i, cstr := range constraints {
-		cmt := Commentf("failed test %d/%d", i+1, len(constraints))
+	for i, cstr := range badConstraints {
+		cmt := Commentf("failed test %d/%d", i+1, len(badConstraints))
 		query := url.Values{}
 		query.Add("keys", "ssid")
-		query.Add("constraints", strings.Join(cstr, ","))
+		query.Add("constraints", cstr)
 		endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
 
 		req, err := http.NewRequest("GET", endpoint, nil)
@@ -647,6 +649,7 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400, cmt)
+		c.Check(rspe.Message, Matches, `"constraints" must be a JSON object`, cmt)
 	}
 }
 

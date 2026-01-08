@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -812,6 +813,105 @@ func (s *confdbSuite) TestForbidDefaultWithNonConfdbGet(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", ":foo", "--default", "def", "bar"})
 	c.Assert(err, ErrorMatches, "cannot use --default in non-confdb read")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *confdbSuite) TestConfdbGetWithConstraints(c *check.C) {
+	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"abc"})
+
+			constraintsStr := q.Get("constraints")
+			var gotConstraints map[string]string
+			err := json.Unmarshal([]byte(constraintsStr), &gotConstraints)
+			c.Assert(err, IsNil)
+			c.Check(gotConstraints, DeepEquals, map[string]string{"field1": "value1", "field2": "value2"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": "cba"}}}}`)
+		default:
+			err := fmt.Errorf("expected to get 3 requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc", "--with", "field1=value1", "--with", "field2=value2"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Check(s.Stdout(), Equals, "cba\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *confdbSuite) TestConfdbGetWithInvalidConstraint(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	for _, tc := range []string{"invalid", "invalid=", "=invalid", "="} {
+		_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc", "--with", tc})
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, tc))
+		c.Check(s.Stdout(), Equals, "")
+		c.Check(s.Stderr(), Equals, "")
+	}
+}
+
+func (s *confdbSuite) TestForbidWithWithNonConfdbGet(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", ":foo", "--with", "field=value", "bar"})
+	c.Assert(err, ErrorMatches, "cannot use --with in non-confdb read")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
