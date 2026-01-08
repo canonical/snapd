@@ -1,0 +1,58 @@
+summary: Check that the snapd ca-certificates database is generated
+
+details: |
+    Check that snapd correctly generates the ca-certificates database
+    upon first run, the change should be scheduled after seeding.
+
+environment:
+    CA_CERTIFICATES_DB: /var/lib/snapd/pki/v1/merged/ca-certificates.crt
+
+execute: |
+    # We want to verify that the ca-certificates database is created
+    # after seeding, and that the contents match the ca-certificate file
+    # created by the system.
+    if ! [ -f "$CA_CERTIFICATES_DB" ]; then
+        echo "CA certificates database not found at $CA_CERTIFICATES_DB"
+        exit 1
+    fi
+    
+    # Verify the contents match, unfortunately the order of certificates
+    # in the database may differ so we do a manual comparison.
+    SYSTEM_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
+    TMP_SYSTEM_CA_CERTS="$(mktemp)"
+    TMP_SNAPD_CA_CERTS="$(mktemp)"
+    trap 'rm -f "$TMP_SYSTEM_CA_CERTS" "$TMP_SNAPD_CA_CERTS"' EXIT
+
+    if ! command -v openssl >/dev/null; then
+        echo "openssl is required for certificate comparison"
+        exit 1
+    fi
+
+    # Emit one SHA256 digest per certificate in the PEM bundle, sorted.
+    # We hash the DER form so differences in whitespace/wrapping don't matter.
+    bundle_digests() {
+        local bundle="$1"
+        local splitdir
+        splitdir="$(mktemp -d)"
+        trap 'rm -rf "$splitdir"' RETURN
+
+        # Split on BEGIN CERTIFICATE boundaries; the first chunk may be empty.
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$bundle" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q "-----BEGIN CERTIFICATE-----" "$f" || continue
+            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null \
+                | sha256sum | awk '{print $1}'
+        done | sort -u
+    }
+
+    bundle_digests "$SYSTEM_CA_CERTS" >"$TMP_SYSTEM_CA_CERTS"
+    bundle_digests "$CA_CERTIFICATES_DB" >"$TMP_SNAPD_CA_CERTS"
+
+    if ! diff -u "$TMP_SYSTEM_CA_CERTS" "$TMP_SNAPD_CA_CERTS"; then
+        echo "CA certificates database does not match system CA certificates"
+        exit 1
+    fi
+
+    echo "CA certificates database matches system CA certificates"

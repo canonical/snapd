@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/certsstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -97,6 +98,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
+	swfeats.RegisterEnsure("DeviceManager", "ensureCaCertificateDatabase")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration
@@ -170,6 +172,8 @@ type DeviceManager struct {
 	ensureTriedRecoverySystemRan bool
 
 	ensureEarlyBootLocaleConfigUpdatedRan bool
+
+	ensureEarlyCertificateGenerationRan bool
 
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
@@ -1971,6 +1975,48 @@ func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) err
 	return nil
 }
 
+func (m *DeviceManager) ensureCaCertificateDatabase() error {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	if m.ensureEarlyCertificateGenerationRan {
+		return nil
+	}
+
+	// Expect the system to be seeded, otherwise we ignore this.
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensureEarlyCertificateGenerationRan = true
+
+	// If the CA certificate database is already present, nothing to do.
+	certDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
+	if osutil.FileExists(certDbPath) {
+		logger.Debugf("ca-certificate database has already been generated, skipping generation")
+		return nil
+	}
+
+	// If the ssl certs directory is missing, nothing to do.
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	if exists, isDir, err := osutil.DirExists(baseCertsDir); !exists || !isDir || err != nil {
+		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
+		return nil
+	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureCaCertificateDatabase")
+
+	// Create the update CA certificate database, this is likely a first
+	// run on a pre-existing system after this was introduced.
+	logger.Noticef("No CA certificate database found, generating it now")
+	return certsstate.GenerateCertificateDatabase(st)
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -2051,6 +2097,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureEarlyBootXKBConfigUpdated(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureCaCertificateDatabase(); err != nil {
 			errs = append(errs, err)
 		}
 	}
