@@ -1166,3 +1166,37 @@ func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
 		c.Check(stderr, IsNil, cmt)
 	}
 }
+
+func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	var gotConstraints map[string]string
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(_ *hookstate.Context, _ *confdb.View, _ []string, constraints map[string]string) (*confdbstate.Transaction, error) {
+		gotConstraints = constraints
+		return tx, nil
+	})
+	defer restore()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "my-ssid\n")
+	c.Check(stderr, IsNil)
+	c.Check(gotConstraints, DeepEquals, map[string]string{"field1": "value1", "field2": "value2"})
+}
+
+func (s *confdbSuite) TestConfdbGetWithInvalidConstraint(c *C) {
+	for _, tc := range []string{"invalid", "invalid=", "=invalid", "="} {
+		_, _, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", tc}, 0)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, tc))
+	}
+}
+
+func (s *confdbSuite) TestWithNonConfdbRead(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"get", ":read-wifi", "ssid", "--with", "field=value"}, 0)
+	c.Assert(err, ErrorMatches, `cannot use --with with non-confdb read \(missing --view\)`)
+}
