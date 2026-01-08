@@ -707,7 +707,7 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                if nested_is_core_24_system; then
+                if nested_is_core_ge 24; then
                     # shellcheck source=tests/lib/prepare.sh
                     . "$TESTSLIB"/prepare.sh
                     uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
