@@ -127,11 +127,11 @@ func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessag
 		handlers: make(map[string]MessageHandler),
 	}
 
-	runner.AddHandler("mgmt-exchange-messages", m.doExchangeMessages, nil)
-	runner.AddHandler("mgmt-dispatch-messages", m.doDispatchMessages, nil)
-	runner.AddHandler("mgmt-validate-message", m.doValidateMessage, nil)
-	runner.AddHandler("mgmt-apply-message", m.doApplyMessage, nil)
-	runner.AddHandler("mgmt-queue-response", m.doQueueResponse, nil)
+	runner.AddHandler("exchange-mgmt-messages", m.doExchangeMessages, nil)
+	runner.AddHandler("dispatch-mgmt-messages", m.doDispatchMessages, nil)
+	runner.AddHandler("validate-mgmt-message", m.doValidateMessage, nil)
+	runner.AddHandler("apply-mgmt-message", m.doApplyMessage, nil)
+	runner.AddHandler("queue-mgmt-response", m.doQueueResponse, nil)
 
 	return m
 }
@@ -197,17 +197,17 @@ func (m *DeviceMgmtManager) Ensure() error {
 // shouldExchangeMessages checks whether a message exchange should happen now.
 // Caller must hold state lock.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) (bool, exchangeConfig) {
+	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
+	if timeNow().Before(nextExchange) {
+		return false, exchangeConfig{}
+	}
+
 	tr := config.NewTransaction(m.state)
 	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
 	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
+		// Assume flag is unset but still send responses if there are any
 		enabled = false
-		// assume flag is unset but still send responses if there are any
-	}
-
-	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
-	if timeNow().Before(nextExchange) {
-		return false, exchangeConfig{}
 	}
 
 	shouldExchange := enabled || len(ms.ReadyResponses) > 0

@@ -40,6 +40,14 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
+func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
+	tr := config.NewTransaction(st)
+	_, confOption := features.RemoteDeviceManagement.ConfigOption()
+	err := tr.Set("core", confOption, value)
+	c.Assert(err, IsNil)
+	tr.Commit()
+}
+
 type deviceMgmtMgrSuite struct {
 	testutil.BaseTest
 
@@ -80,19 +88,10 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(restoreLogger)
 }
 
-func (s *deviceMgmtMgrSuite) setFeatureFlag(c *C, value bool) {
-	_, confOption := features.RemoteDeviceManagement.ConfigOption()
-
-	tr := config.NewTransaction(s.st)
-	err := tr.Set("core", confOption, value)
-	c.Assert(err, IsNil)
-	tr.Commit()
-}
-
 func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 	type test struct {
 		name           string
-		featureFlagOn  bool
+		flag           any
 		lastExchange   time.Time
 		readyResponses map[string]store.Message
 		expectedShould bool
@@ -109,35 +108,47 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 	tests := []test{
 		{
 			name:         "feature flag off, no responses, too soon",
+			flag:         false,
 			lastExchange: tooSoon,
 		},
 		{
 			name:         "feature flag off, no responses, enough time passed",
+			flag:         false,
 			lastExchange: enoughTimePassed,
 		},
 		{
 			name:           "feature flag off, has responses, too soon",
+			flag:           false,
 			lastExchange:   tooSoon,
 			readyResponses: map[string]store.Message{"mesg-1": {}},
 		},
 		{
 			name:           "feature flag off, has responses, enough time passed",
+			flag:           false,
 			lastExchange:   enoughTimePassed,
 			readyResponses: map[string]store.Message{"mesg-1": {}},
 			expectedShould: true,
 		},
 		{
 			name:           "feature flag on, too soon",
-			featureFlagOn:  true,
+			flag:           true,
 			lastExchange:   tooSoon,
 			expectedShould: false,
 		},
 		{
 			name:           "feature flag on, enough time passed",
-			featureFlagOn:  true,
+			flag:           true,
 			lastExchange:   enoughTimePassed,
 			expectedShould: true,
 			expectedLimit:  devicemgmtstate.DefaultExchangeLimit,
+		},
+		{
+			name:           "feature flag check error, has responses, enough time passed",
+			flag:           "banana",
+			lastExchange:   enoughTimePassed,
+			readyResponses: map[string]store.Message{"mesg-1": {}},
+			expectedShould: true,
+			expectedLimit:  0,
 		},
 	}
 
@@ -152,7 +163,7 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 			ReadyResponses: tt.readyResponses,
 		}
 
-		s.setFeatureFlag(c, tt.featureFlagOn)
+		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
 
 		should, cfg := s.mgr.ShouldExchangeMessages(ms)
 		c.Check(should, Equals, tt.expectedShould, cmt)
@@ -164,7 +175,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.setFeatureFlag(c, true)
+	setRemoteMgmtFeatureFlag(c, s.st, true)
 
 	s.st.Unlock()
 	err := s.mgr.Ensure()
@@ -181,7 +192,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	c.Check(tasks, HasLen, 2)
 
 	exchange := tasks[0]
-	c.Check(exchange.Kind(), Equals, "mgmt-exchange-messages")
+	c.Check(exchange.Kind(), Equals, "exchange-mgmt-messages")
 	c.Check(exchange.Summary(), Equals, "Exchange messages with the Store")
 
 	var cfg devicemgmtstate.ExchangeConfig
@@ -190,7 +201,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	c.Check(cfg.Limit, Equals, devicemgmtstate.DefaultExchangeLimit)
 
 	dispatch := tasks[1]
-	c.Check(dispatch.Kind(), Equals, "mgmt-dispatch-messages")
+	c.Check(dispatch.Kind(), Equals, "dispatch-mgmt-messages")
 	c.Check(dispatch.Summary(), Equals, "Dispatch message(s) to subsystems")
 	c.Check(dispatch.WaitTasks(), DeepEquals, []*state.Task{exchange})
 }
@@ -199,7 +210,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.setFeatureFlag(c, true)
+	setRemoteMgmtFeatureFlag(c, s.st, true)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		LastExchange: time.Now().Add(-10 * time.Minute),
