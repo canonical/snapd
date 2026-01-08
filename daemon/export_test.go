@@ -456,9 +456,5 @@ func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, group
 }
 
 func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
-	old := devicestateInstallPreseed
-	devicestateInstallPreseed = f
-	return func() {
-		devicestateInstallPreseed = old
-	}
+	return testutil.Mock(&devicestateInstallPreseed, f)
 }
