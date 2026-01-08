@@ -126,11 +126,9 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 		serialStr := "7777"
 
-		serialReqBody := string(serialReq.Body())
-
 		// Modify serial id for prepare serial request
 		var bodyMap map[string]any
-		err = json.Unmarshal([]byte(serialReqBody), &bodyMap)
+		err = json.Unmarshal(serialReq.Body(), &bodyMap)
 		if err != nil {
 			badRequestError(w, "bad serial-request body: %v", err)
 			return

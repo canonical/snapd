@@ -663,7 +663,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 			return nil, err
 		}
 
-		var bodyStr string
+		var bodyStr json.RawMessage
 		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
 		if err != nil {
 			return nil, err

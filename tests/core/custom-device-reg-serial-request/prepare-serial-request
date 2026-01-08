@@ -7,4 +7,4 @@ HASH="some-random-hash-value"
 REQUEST_ID=$(snapctl get registration.request-id)
 
 # Set the registration body as a single JSON string (use single quotes to avoid shell interpretation)
-snapctl set registration.body="\"{\"hardware-id-key\": \"$KEY\", \"hardware-id-key-sha384\": \"$HASH\", \"request-id-signature\": \"$REQUEST_ID\"}\""
+snapctl set registration.body="{\"hardware-id-key\": \"$KEY\", \"hardware-id-key-sha384\": \"$HASH\", \"request-id-signature\": \"$REQUEST_ID\"}"

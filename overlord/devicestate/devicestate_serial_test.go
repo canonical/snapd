@@ -1480,6 +1480,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	serial := a.(*asserts.Serial)
 
 	var details map[string]any
+
 	err = yaml.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
