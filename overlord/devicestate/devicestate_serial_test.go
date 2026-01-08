@@ -1190,6 +1190,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	serial := a.(*asserts.Serial)
 
 	var details map[string]any
+	fmt.Println(string(serial.Body()))
 	err = yaml.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 

@@ -27,6 +27,8 @@ import (
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
+	// "gopkg.in/yaml.v2"
+
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -124,11 +126,8 @@ version: gadget
 			// snapctl set the registration params
 			if len(pSRBhv.RegBody) != 0 {
 				d, err := json.Marshal(pSRBhv.RegBody)
-
 				c.Assert(err, IsNil)
-				body := fmt.Sprintf("registration.body=%s", d)
-				fmt.Println("Setting registration body to:", body)
-				_, _, err = ctlcmd.Run(ctx, []string{"set", body}, 0)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%s", d)}, 0)
 				c.Assert(err, IsNil)
 			}
 
