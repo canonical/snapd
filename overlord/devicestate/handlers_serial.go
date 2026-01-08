@@ -986,31 +986,30 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 		return nil, err
 	}
 
-	// update registration body again after hook has been run
+	// read updated registration body without decoding
+	var encodedBody json.RawMessage
 	tr = config.NewTransaction(st)
-	var bodyMap map[string]any
-	err = tr.GetMaybe(gadgetName, "registration.body", &bodyMap)
+	err = tr.Get(gadgetName, "registration.body", &encodedBody)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get updated registration body: %v", err)
 	}
 
-	// check that fields are present
-	if _, ok := bodyMap["hardware-id-key"]; !ok {
-		return nil, fmt.Errorf("missing 'hardware-id-key' in updated registration body")
-	}
-	if _, ok := bodyMap["hardware-id-key-sha384"]; !ok {
-		return nil, fmt.Errorf("missing 'hardware-id-key-sha384' in updated registration body")
-	}
-	if _, ok := bodyMap["request-id-signature"]; !ok {
-		return nil, fmt.Errorf("missing 'request-id-signature' in updated registration body")
-	}
-
-	jsonBody, err := json.Marshal(bodyMap)
+	var body map[string]any
+	err = json.Unmarshal([]byte(encodedBody), &body)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal updated registration body: %v", err)
+		return nil, fmt.Errorf("cannot unmarshal registration body as JSON (hook did not overwrite or wrote incorrectly?): %v", err)
 	}
 
-	return jsonBody, nil
+	// check for the minimal mandatory fields. We're not rejecting unknown fields
+	// for forwards compatibility
+	mandatory := []string{"hardware-id-key", "hardware-id-key-sha384", "request-id-signature"}
+	for _, field := range mandatory {
+		if _, ok := body[field]; !ok {
+			return nil, fmt.Errorf("'prepare-serial-request' hook did not set mandatory field %q in registration body", field)
+		}
+	}
+
+	return []byte(encodedBody), nil
 }
 
 func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *hookstate.HookSetup) error {

@@ -27,8 +27,6 @@ import (
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
-	// "gopkg.in/yaml.v2"
-
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,7 +44,7 @@ type PrepareDeviceBehavior struct {
 }
 
 type PrepareSerialRequestBehavior struct {
-	RegBody map[string]string
+	RegBody string
 }
 
 func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restore func()) {
@@ -124,17 +122,15 @@ version: gadget
 			c.Assert(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
 
 			// snapctl set the registration params
-			if len(pSRBhv.RegBody) != 0 {
-				d, err := json.Marshal(pSRBhv.RegBody)
-				c.Assert(err, IsNil)
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%s", d)}, 0)
+			if pSRBhv.RegBody != "" {
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%s", pSRBhv.RegBody)}, 0)
 				c.Assert(err, IsNil)
 			}
 
 			return nil, nil
-		} else {
-			return nil, fmt.Errorf("unexpected hook type %q", ctx.HookName())
 		}
+
+		return nil, fmt.Errorf("unexpected hook type %q", ctx.HookName())
 	})
 
 	return restore

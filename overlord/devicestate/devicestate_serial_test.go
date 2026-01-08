@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -1217,12 +1219,17 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	body := map[string]string{
+		"hardware-id-key":        "key",
+		"hardware-id-key-sha384": "hash",
+		"request-id-signature":   "signature",
+	}
+
+	encodedBody, err := json.Marshal(body)
+	c.Assert(err, IsNil)
+
 	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
-		RegBody: map[string]string{
-			"hardware-id-key":        "key",
-			"hardware-id-key-sha384": "hash",
-			"request-id-signature":   "signature",
-		},
+		RegBody: string(encodedBody),
 	}
 
 	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, pSRBhv)
@@ -1319,12 +1326,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationFailingPrepareSerialHoo
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	body := map[string]string{
+		"hardware-id-key":        "key",
+		"hardware-id-key-sha384": "hash",
+		"request-id-signature":   "signature",
+	}
+
+	encodedBody, err := json.Marshal(body)
+	c.Assert(err, IsNil)
 	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
-		RegBody: map[string]string{
-			"hardware-id-key":        "key",
-			"hardware-id-key-sha384": "hash",
-			"request-id-signature":   "signature",
-		},
+		RegBody: string(encodedBody),
 	}
 
 	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, pSRBhv)
@@ -1414,12 +1425,16 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 		ProposedSerial: "Y9999",
 	}
 
+	body := map[string]string{
+		"hardware-id-key":        "key",
+		"hardware-id-key-sha384": "hash",
+		"request-id-signature":   "signature",
+	}
+
+	encodedBody, err := json.Marshal(body)
+	c.Assert(err, IsNil)
 	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
-		RegBody: map[string]string{
-			"hardware-id-key":        "key",
-			"hardware-id-key-sha384": "hash",
-			"request-id-signature":   "signature",
-		},
+		RegBody: string(encodedBody),
 	}
 
 	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
@@ -1481,7 +1496,6 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	serial := a.(*asserts.Serial)
 
 	var details map[string]any
-
 	err = yaml.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
@@ -1496,6 +1510,108 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookNoOverwite(c *C) {
+	expectedErr := `cannot unmarshal registration body as JSON (hook did not overwrite or wrote incorrectly?):`
+	s.testBadPrepareDeviceSerialHook(c, "", expectedErr)
+}
+
+func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKey(c *C) {
+	body := `{"hardware-id-key-sha384":"b", "request-id-signature":"c"}`
+	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key" in registration body`
+	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
+}
+
+func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKeyHash(c *C) {
+	body := `{"hardware-id-key":"a",  "request-id-signature":"c"}`
+	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key-sha384" in registration body`
+	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
+}
+
+func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingReqIDSignature(c *C) {
+	body := `{"hardware-id-key":"a", "hardware-id-key-sha384":"b"}`
+	expectedErr := `'prepare-serial-request' hook did not set mandatory field "request-id-signature" in registration body`
+	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
+}
+
+func (s *deviceMgrSerialSuite) testBadPrepareDeviceSerialHook(c *C, regBody, expectedErr string) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	bhv := &devicestatetest.DeviceServiceBehavior{
+		RequestIDURLPath: "/svc/request-id",
+		SerialURLPath:    "/svc/serial",
+	}
+	bhv.PostPreflight = func(c *C, bhv *devicestatetest.DeviceServiceBehavior, w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
+	}
+
+	mockServer := s.mockServer(c, devicestatetest.ReqIDPrepareSerialHook, bhv)
+	defer mockServer.Close()
+
+	// setup state as will be done by first-boot
+	// & have a gadget with a prepare-device hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	pDBhv := &devicestatetest.PrepareDeviceBehavior{
+		DeviceSvcURL: mockServer.URL + "/svc/",
+		Headers: map[string]string{
+			"x-extra-header": "extra",
+		},
+		RegBody: map[string]string{
+			"mac": "00:00:00:00:ff:00",
+		},
+		ProposedSerial: "Y9999",
+	}
+
+	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
+		RegBody: regBody,
+	}
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
+	defer r2()
+
+	// as device-service.url is set, should not need to do this but just in case
+	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
+	defer r3()
+
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc2",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// runs the whole device registration process, note that the
+	// device is not seeded yet
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// without a seeded device, there is no become-operational change
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+
+	// now mark it as seeded
+	s.state.Set("seeded", true)
+	// and run the device registration again
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange()
+
+	c.Assert(becomeOperational, NotNil)
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(strings.Contains(becomeOperational.Err().Error(), expectedErr), Equals, true)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithHookAndNewProxy(c *C) {
