@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -1163,4 +1164,117 @@ func (s *linkSuite) TestRemoveSnapInhibitLock(c *C) {
 func (s *linkSuite) TestRemoveSnapInhibitLockNilStateUnlockerError(c *C) {
 	err := s.be.RemoveSnapInhibitLock("some-snap", nil)
 	c.Assert(err, ErrorMatches, "internal error: stateUnlocker cannot be nil")
+}
+
+func (s *setupSuite) TestSetupDoUndoWithIntegrityData(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityData: backend.IntegrityData{
+			Type:              "dm-verity",
+			IntegrityRootHash: "aaa",
+		},
+	}
+
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(installRecord, NotNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	// after setup the snap file is in the right dir
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
+
+	// ensure the right unit is created
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14.snap.dmverity_aaa")
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	// mount dir was created
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+
+	// undo undoes the mount unit and the instdir creation
+	err = s.be.UndoSetupSnap(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesDirIncludingIntegrity(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := &backend.SetupSnapOptions{
+		IntegrityData: backend.IntegrityData{
+			Type:              "dm-verity",
+			IntegrityRootHash: "aaa",
+		},
+	}
+
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(installRecord, NotNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	minInfo := snap.MinimalPlaceInfo("hello_instance", snap.R(14))
+	// mount dir was created
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+
+	s.be.RemoveSnapFiles(minInfo, snapType, nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Assert(osutil.FileExists(integrity.DmVerityHashFileName(minInfo.MountFile(), "aaa")), Equals, false)
+
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, true)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
+
+	// /snap/hello is kept as other instances exist
+	err = s.be.RemoveSnapDir(minInfo, true)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.InstanceName())), Equals, false)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, true)
+
+	// /snap/hello is removed when there are no more instances
+	err = s.be.RemoveSnapDir(minInfo, false)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.FileExists(snap.BaseDir(minInfo.SnapName())), Equals, false)
+}
+
+func (s *setupSuite) TestSetupSnapWithIntegrityDataButIntegrityFileMissing(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := &backend.SetupSnapOptions{
+		IntegrityData: backend.IntegrityData{
+			Type:              "dm-verity",
+			IntegrityRootHash: "aaa",
+		},
+	}
+
+	_, _, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
+	c.Check(errors.Is(err, backend.ErrDmVerityDataFileError), Equals, true)
+	c.Check(err, ErrorMatches, fmt.Sprintf("dm-verity data access error: stat %s: no such file or directory", snapPath+".dmverity_aaa"))
 }

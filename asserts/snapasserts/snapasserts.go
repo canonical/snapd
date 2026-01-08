@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 )
@@ -86,11 +87,13 @@ func findResourcePair(name, snapID string, resourceRev, snapRev int, provenance 
 // The optional model assertion must be passed to have full cross
 // checks in the case of delegated authority snap-revisions before
 // installing a snap.
+// If an optional integrity data list is passed, it is cross checked
+// with the snap-revision assertion.
 // It returns the corresponding cross-checked snap-revision.
 // Ultimately the provided provenance (if not default) must be checked
 // with the provenance in the snap metadata by the caller as well, if
 // the provided provenance was not read safely from there already.
-func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, si *snap.SideInfo, model *asserts.Model, db Finder) (snapRev *asserts.SnapRevision, err error) {
+func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, si *snap.SideInfo, integrityData *snap.IntegrityDataInfo, model *asserts.Model, db Finder) (snapRev *asserts.SnapRevision, err error) {
 	// get relevant assertions and do cross checks
 	headers := map[string]string{
 		"snap-sha3-384": snapSHA3_384,
@@ -125,6 +128,26 @@ func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, 
 
 	if snapDecl.SnapName() != snap.InstanceSnap(instanceName) {
 		return nil, fmt.Errorf("cannot install %q, snap %q is undergoing a rename to %q", instanceName, snap.InstanceSnap(instanceName), snapDecl.SnapName())
+	}
+
+	revIntegrityData, err := integrity.NewIntegrityDataParamsFromRevision(snapRev)
+
+	// Currently integrity data are not enforced for all snaps therefore we don't
+	// return an error if integrity data are not found in a snap revision.
+	if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
+		return nil, err
+	}
+
+	if revIntegrityData != nil {
+		// We do return an error if the snap-revision assertion contains integrity data but
+		// we are trying to setup a snap with no integrity data.
+		if integrityData == nil {
+			return nil, fmt.Errorf("snap %q does not have integrity data available according to assertions (metadata is broken or tampered)", instanceName)
+		}
+
+		if revIntegrityData.Digest != integrityData.Digest || revIntegrityData.HashAlg != integrityData.HashAlg {
+			return nil, fmt.Errorf("snap %q does not have expected integrity data according to assertions (metadata is broken or tampered): %s / %s != %s / %s", instanceName, integrityData.Digest, integrityData.HashAlg, revIntegrityData.Digest, revIntegrityData.HashAlg)
+		}
 	}
 
 	if _, err := CrossCheckProvenance(instanceName, snapRev, snapDecl, model, db); err != nil {

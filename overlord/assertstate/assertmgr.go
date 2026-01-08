@@ -143,7 +143,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
+	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, snapsup.IntegrityDataInfo, modelAs, db)
 	if err != nil {
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this

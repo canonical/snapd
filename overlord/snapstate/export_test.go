@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
@@ -608,4 +609,12 @@ type CustomInstallGoal struct {
 
 func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	return c.ToInstall(ctx, st, opts)
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev int) (*integrity.IntegrityDataParams, error)) func() {
+	old := ValidatedIntegrityData
+	ValidatedIntegrityData = f
+	return func() {
+		ValidatedIntegrityData = old
+	}
 }

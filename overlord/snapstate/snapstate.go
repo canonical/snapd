@@ -117,7 +117,13 @@ type installSnapInfo struct {
 }
 
 func (ins installSnapInfo) DownloadSize() int64 {
-	return ins.DownloadInfo.Size
+	size := ins.DownloadInfo.Size
+
+	if ins.IntegrityData != nil {
+		size += ins.IntegrityData.DownloadInfo.Size
+	}
+
+	return size
 }
 
 // SnapBase returns the base snap of the snap.
