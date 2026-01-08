@@ -1,6 +1,8 @@
 package interfaces_test
 
 import (
+	"path/filepath"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
@@ -76,6 +78,43 @@ func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 
 	label = slot.LabelExpression()
 	c.Check(label, Equals, `"snap.test-snap.*"`)
+}
+
+func (s *snapAppSetSuite) TestExpandSliceSnapVariables(c *C) {
+	info := snaptest.MockInfo(c, yaml, &snap.SideInfo{Revision: snap.R(42)})
+	compYamls := []string{
+		"component: test-snap+comp1\ntype: standard",
+		"component: test-snap+comp2\ntype: standard",
+	}
+	compInfos := make([]*snap.ComponentInfo, 0, len(compYamls))
+	for _, compYaml := range compYamls {
+		compInfos = append(compInfos, snaptest.MockComponent(
+			c, compYaml, info, snap.ComponentSideInfo{
+				Revision: snap.R(5),
+			}))
+	}
+	appSet, err := interfaces.NewSnapAppSet(info, compInfos)
+	c.Assert(err, IsNil)
+
+	dirs.SetRootDir("")
+
+	c.Assert(appSet.ExpandSliceSnapVariablesInRootfs(
+		[]string{
+			"$SNAP/stuff",
+			"$SNAP_DATA/stuff",
+			"$SNAP_COMMON/stuff",
+			"$SNAP_COMPONENT(comp1)/foo/bar",
+			"$SNAP_COMPONENT(comp2)/foo/bar",
+			"$SNAP_COMPONENT(comp-not-installed)/foo/bar",
+			"$SNAP_COMPONENT(bad-ignored",
+			"$GARBAGE/rocks"}),
+		DeepEquals, []string{
+			filepath.Join(dirs.SnapMountDir, "test-snap/42/stuff"),
+			"/var/snap/test-snap/42/stuff",
+			"/var/snap/test-snap/common/stuff",
+			filepath.Join(dirs.SnapMountDir, "test-snap/components/mnt/comp1/5/foo/bar"),
+			filepath.Join(dirs.SnapMountDir, "test-snap/components/mnt/comp2/5/foo/bar"),
+			"/rocks"})
 }
 
 type mockConnectedSlotOrPlug struct {
