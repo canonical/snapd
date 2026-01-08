@@ -1,0 +1,54 @@
+summary: Test that snap info command handles components as expected
+
+details: |
+  This test verifies that snap info prints components installed/available
+  counts correctly for various scenarios:
+  - Remote/Available only (0/2) using mock-snap
+  - Installed/Local (2/2) using mock-snap
+  - No components anywhere (Silence) using test-snapd-sh
+
+prepare: |
+
+  snap pack test-snap1
+
+  # --- Setup for "No Components" case ---
+  # Packs 'test-snapd-sh' -> outputs 'test-snapd-sh_1.0_amd64.snap'
+  snap pack test-snapd-sh
+
+restore: |
+  snap remove --purge mock-snap
+  rm -f mock-snap_*.snap test-snapd-sh_*.snap
+
+execute: |
+  OUTPUT_FILE=$(snap info ./mock-snap_*.snap)
+  
+  if echo "$OUTPUT_FILE" | grep -q "components: 0/2"; then
+    echo "PASS (Remote Only): Found expected 'components: 0/2'"
+  else
+    echo "FAIL (Remote Only): Expected 'components: 0/2', got:"
+    echo "$OUTPUT_FILE"
+    exit 1
+  fi
+
+  snap install --dangerous mock-snap_*.snap
+  
+  OUTPUT_INSTALLED=$(snap info mock-snap)
+  
+  if echo "$OUTPUT_INSTALLED" | grep -q "components: 2/2"; then
+    echo "PASS (Installed): Found expected 'components: 2/2'"
+  else
+    echo "FAIL (Installed): Expected 'components: 2/2', got:"
+    echo "$OUTPUT_INSTALLED"
+    exit 1
+  fi
+
+
+  OUTPUT_EMPTY=$(snap info ./test-snapd-sh_*.snap)
+  
+  if echo "$OUTPUT_EMPTY" | grep -q "components:"; then
+    echo "FAIL (No Components): Found 'components:' line but expected silence."
+    echo "$OUTPUT_EMPTY"
+    exit 1
+  else
+    echo "PASS (No Components): No 'components' line found."
+  fi
