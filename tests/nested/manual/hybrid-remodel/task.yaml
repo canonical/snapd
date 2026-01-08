@@ -73,9 +73,7 @@ prepare: |
   sed -i 's/^\(version: .*\)/\1-oem/' pc-kernel/meta/snap.yaml
 
   # Re-sign the kernel to force a reseal
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  KEY_NAME=$(nested_get_snakeoil_key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   sha256sum pc-kernel/kernel.efi
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"

@@ -1089,12 +1089,17 @@ uc20_build_initramfs_kernel_snap() {
         # copy out the kernel image for create-efi command
         objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
 
+        KEY_NAME=$(tests.nested download snakeoil-key)
+
         # assumes all files are named <name>-$kver
         ubuntu-core-initramfs create-efi \
                               --kernelver "$kver" \
                               --initrd repacked-initrd \
                               --kernel vmlinuz \
-                              --output repacked-kernel.efi
+                              --output repacked-kernel.efi \
+                              --key "${KEY_NAME}.key" \
+                              --cert "${KEY_NAME}.pem"
+
 
         mv "repacked-kernel.efi-$kver" kernel.efi
 
@@ -1192,10 +1197,13 @@ uc24_build_initramfs_kernel_snap() {
         (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >"$initrd_f"
     fi
 
+    KEY_NAME=$(tests.nested download snakeoil-key)
+
     # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
     # are used by default
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
-    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi \
+                                     --key "${KEY_NAME}.key" --cert "${KEY_NAME}.pem"
     cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
 
     # copy any extra files that tests may need for the kernel
@@ -1559,15 +1567,15 @@ EOF
             done
         fi
 
-        # TODO: this probably means it's time to move this helper out of 
-        # nested.sh to somewhere more general
-        
-        #shellcheck source=tests/lib/nested.sh
-        . "$TESTSLIB/nested.sh"
-        KEY_NAME=$(nested_get_snakeoil_key)
+        KEY_NAME=$(tests.nested download snakeoil-key)
 
         SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+        # TODO: this probably means it's time to move this helper out of 
+        # nested.sh to somewhere more general
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
 
         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
         snap pack --filename=pc-repacked.snap pc-gadget 

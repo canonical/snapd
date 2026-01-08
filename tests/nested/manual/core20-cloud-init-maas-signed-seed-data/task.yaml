@@ -53,9 +53,6 @@ prepare: |
       exit
   fi
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   # setup the fakestore, but don't use it for our snapd here on the host VM, so
   # tear down the staging_store immediately afterwards so that only the SAS is 
   # running and our snapd is not pointed at it, ubuntu-image is the only thing 
@@ -72,7 +69,7 @@ prepare: |
   # prepare-device hook to use the fakedevicesvc
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
-  KEY_NAME=$(nested_get_snakeoil_key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
