@@ -1221,7 +1221,7 @@ func (x *cmdRefresh) trackRefreshes() (err error) {
 			if len(names) == 0 {
 				return err
 			} else {
-				return errors.New(i18n.G("no matching snaps installed"))
+				return ErrNoMatchingSnaps
 			}
 		}
 		return err
