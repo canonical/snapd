@@ -55,7 +55,6 @@ var (
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
 	// Validate checks subsystem-specific constraints (authorization, payload schema, etc).
-	// Returns nil if valid, error describing the validation failure otherwise.
 	Validate(st *state.State, msg *PendingMessage) error
 
 	// Apply processes a request-message and returns a change ID.
