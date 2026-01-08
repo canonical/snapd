@@ -195,6 +195,18 @@ func (w *XKBConfigListener) loop() {
 			if !strutil.ListContains(kbConfigFiles, e.Name) {
 				continue
 			}
+			// Note: Reading the XKB configuration straight after
+			// the inotify event is fine because up until systemd
+			// v259 it always reads the properties from the relevant
+			// files, and since inotify is setup to only listen for
+			// IN_CLOSE_WRITE and IN_MOVED_TO events so the content
+			// should have been already written and the files closed.
+			//
+			// Keeping this in mind, There are no guarantees that
+			// systemd's behavior stays the same, so the listener
+			// callback notifications should always be considered
+			// as best-effort only with no guarantees of always up
+			// to date XKB configuration values.
 			config, err := CurrentXKBConfig()
 			if err != nil {
 				logger.Noticef("cannot obtain current XKB configuration: %v", err)
