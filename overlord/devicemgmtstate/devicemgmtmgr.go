@@ -183,11 +183,11 @@ func (m *DeviceMgmtManager) Ensure() error {
 
 	chg := m.state.NewChange(deviceMgmtCycleChangeKind, "Process device management messages")
 
-	exchg := m.state.NewTask("mgmt-exchange-messages", "Exchange messages with the Store")
+	exchg := m.state.NewTask("exchange-mgmt-messages", "Exchange messages with the Store")
 	exchg.Set("config", exchgCfg)
 	chg.AddTask(exchg)
 
-	dispatch := m.state.NewTask("mgmt-dispatch-messages", "Dispatch message(s) to subsystems")
+	dispatch := m.state.NewTask("dispatch-mgmt-messages", "Dispatch message(s) to subsystems")
 	dispatch.WaitFor(exchg)
 	chg.AddTask(dispatch)
 
