@@ -129,12 +129,11 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		// Modify serial id for prepare serial request
 		var bodyMap map[string]any
 		err = json.Unmarshal(serialReq.Body(), &bodyMap)
-		if err != nil {
-			badRequestError(w, "bad serial-request body: %v", err)
-			return
-		}
-		if _, ok := bodyMap["hardware-id-key"]; ok {
-			serialStr = "3333"
+		// We only change the serial if the body was JSON and hardware-id-key is present
+		if err == nil {
+			if _, ok := bodyMap["hardware-id-key"]; ok {
+				serialStr = "3333"
+			}
 		}
 
 		if r.Header.Get("X-Use-Proposed") == "yes" {

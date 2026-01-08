@@ -988,13 +988,29 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 
 	// update registration body again after hook has been run
 	tr = config.NewTransaction(st)
-	var bodyStr string
-	err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+	var bodyMap map[string]any
+	err = tr.GetMaybe(gadgetName, "registration.body", &bodyMap)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get updated registration body: %v", err)
 	}
 
-	return []byte(bodyStr), nil
+	// check that fields are present
+	if _, ok := bodyMap["hardware-id-key"]; !ok {
+		return nil, fmt.Errorf("missing 'hardware-id-key' in updated registration body")
+	}
+	if _, ok := bodyMap["hardware-id-key-sha384"]; !ok {
+		return nil, fmt.Errorf("missing 'hardware-id-key-sha384' in updated registration body")
+	}
+	if _, ok := bodyMap["request-id-signature"]; !ok {
+		return nil, fmt.Errorf("missing 'request-id-signature' in updated registration body")
+	}
+
+	jsonBody, err := json.Marshal(bodyMap)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal updated registration body: %v", err)
+	}
+
+	return jsonBody, nil
 }
 
 func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *hookstate.HookSetup) error {
