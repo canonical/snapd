@@ -585,10 +585,10 @@ nested_get_version() {
     elif nested_is_core_24_system; then
         echo "24"
     elif nested_is_core_26_system; then
-	echo "26"
+        echo "26"
     else
-	echo "Nested version unknown"
-	exit 1
+        echo "Nested version unknown"
+        exit 1
     fi
 }
 
@@ -847,7 +847,14 @@ nested_prepare_base() {
         elif nested_is_core_24_system; then
             snap_name="core24"
             snap_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+        elif nested_is_core_26_system; then
+            snap_name="core26"
+            snap_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf"
+        else
+            echo "Nested version unknown"
+            exit 1
         fi
+
         output_name="${snap_name}.snap"
 
         existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
