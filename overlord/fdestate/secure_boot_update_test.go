@@ -293,8 +293,6 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSelfForKind(
 	})
 }
 
-// each PrepareConflictSelf test requires a separate function to reinitialize
-// state correctly
 func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictSelfPK(c *C) {
 	s.testEFISecurebootPrepareConflictSelfForKind(c, fdestate.EFISecurebootPK)
 }
