@@ -92,3 +92,8 @@ func MockPreseeding(preseeding bool) (restore func()) {
 		mockPreseeding = old
 	}
 }
+
+// PreseedingHybrid returns true if snapd is preseeding a hybrid system.
+func PreseedingHybrid() bool {
+	return Preseeding() && osutil.GetenvBool("SNAPD_PRESEED_HYBRID")
+}

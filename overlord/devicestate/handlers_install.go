@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -1252,6 +1253,47 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
 	if err := bootMakeRunnableStandalone(systemAndSnaps.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
+	var err error
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var targetRoot string
+	var systemLabel string
+	if err := t.Get("target-root", &targetRoot); err != nil {
+		return err
+	}
+
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+
+	timings.Run(perfTimings, "preseed-target", "Preseed target system", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+
+		var toolPath string
+		toolPath, err = snapdtool.InternalToolPath("snap-preseed")
+		if err != nil {
+			return
+		}
+
+		cmd := exec.Command(toolPath, "--hybrid", "--system-label", systemLabel, targetRoot)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+	})
+	if err != nil {
+		return fmt.Errorf("cannot preseed target at %v with system %q: %v", targetRoot, systemLabel, err)
 	}
 
 	return nil

@@ -1383,6 +1383,67 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	c.Check(soon, check.Equals, 1)
 }
 
+func (s *systemsSuite) TestSystemInstallActionPreseedCallsDevicestate(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	calls := 0
+	r := daemon.MockDevicestateInstallPreseed(func(st *state.State, label string, chroot string) (*state.Change, error) {
+		calls++
+		c.Check(label, check.Equals, "20191119")
+		c.Check(chroot, check.Equals, "/chroot")
+		return st.NewChange("foo", "..."), nil
+	})
+	defer r()
+
+	body := map[string]any{
+		"action":      "install",
+		"step":        "preseed",
+		"target-root": "/chroot",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+
+	c.Check(chg, check.NotNil)
+	c.Check(chg.ID(), check.Equals, "1")
+	c.Check(calls, check.Equals, 1)
+
+	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionPreseedErrorMissingChroot(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "preseed",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `cannot preseed installed system without its target root`)
+}
+
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKDFTimeError(c *check.C) {
 	s.daemon(c)
 
@@ -1481,6 +1542,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 	}{
 		{"finish", 1},
 		{"setup-storage-encryption", 1},
+		{"preseed", 1},
 	} {
 		soon = 0
 		body := map[string]any{
@@ -1491,6 +1553,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 					"bootloader": "grub",
 				},
 			},
+			"target-root": "/root",
 		}
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
