@@ -137,7 +137,7 @@ execute: |
   echo "Completed with a 'cleanup request'"
   echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
     remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > cleanup.out
-  jq -r .status < prepare.out | MATCH "OK"
+  jq -r .status < cleanup.out | MATCH "OK"
   remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DB update'
 
   echo "The system reboots without problems"
