@@ -41,6 +41,8 @@ type XKBConfig struct {
 	Options  []string
 }
 
+// Validates that this is a valid XKB config that can be parsed
+// by Plymouth.
 func (c *XKBConfig) validate() error {
 	if strings.Contains(c.Model, ",") {
 		return fmt.Errorf("model cannot contain ',': found %q", c.Model)
@@ -57,7 +59,7 @@ func (c *XKBConfig) validate() error {
 //
 // XKB config can each have multiple comma separated values
 // but for early boot this is simplified and only the first
-// value is considered to able to compactly join the config
+// value is considered to be able to compactly join the config
 // fields using a comma-separator except for XKBOPTIONS=
 // which is appended to the end as is.
 //
@@ -144,9 +146,11 @@ type XKBConfigListener struct {
 	cb func(config *XKBConfig)
 }
 
-func (w *XKBConfigListener) Close() error {
+func (w *XKBConfigListener) Close() {
 	w.done()
-	return w.iw.Close()
+	if err := w.iw.Close(); err != nil {
+		logger.Noticef("cannot close inotify watcher: %v", err)
+	}
 }
 
 // NewXKBConfigListener returns a XKBConfigListener that listens
