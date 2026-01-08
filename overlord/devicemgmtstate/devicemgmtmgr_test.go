@@ -150,6 +150,12 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 			expectedShould: true,
 			expectedLimit:  0,
 		},
+		{
+			name:           "feature flag check error, no responses, enough time passed",
+			flag:           "banana",
+			lastExchange:   enoughTimePassed,
+			expectedShould: false,
+		},
 	}
 
 	s.st.Lock()
