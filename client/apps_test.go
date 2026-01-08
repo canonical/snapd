@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil/user"
+	"github.com/snapcore/snapd/snap"
 )
 
 func mksvc(snap, app string) *client.AppInfo {
@@ -704,4 +705,18 @@ func (s *scopeSelectorSuite) TestScopeUnmarshalUser(c *check.C) {
 	err := json.Unmarshal([]byte(userScopeJson), &us)
 	c.Assert(err, check.IsNil)
 	c.Check(us, check.DeepEquals, client.ScopeSelector{"user"})
+}
+
+func (s *scopeSelectorSuite) TestIsService(c *check.C) {
+	snap := client.AppInfo{
+		Daemon: "simple",
+	}
+	c.Assert(snap.IsService(), check.Equals, true)
+}
+
+func (s *scopeSelectorSuite) TestIsNotService(c *check.C) {
+	snap := client.AppInfo{
+		DaemonScope: snap.SystemDaemon,
+	}
+	c.Assert(snap.IsService(), check.Equals, false)
 }

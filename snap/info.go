@@ -1596,6 +1596,16 @@ func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
 }
 
+func (app *AppInfo) IsUserService() bool {
+	if app == nil {
+		return false
+	}
+	if app.Daemon == "" {
+		return false
+	}
+	return app.DaemonScope == UserDaemon
+}
+
 // EnvChain returns the chain of environment overrides, possibly with
 // expandable $ vars, specific for the app.
 func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {

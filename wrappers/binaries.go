@@ -223,6 +223,10 @@ func EnsureSnapBinaries(s *snap.Info) (err error) {
 		appBase := filepath.Base(app.WrapperPath())
 		target := "/usr/bin/snap"
 		if app.IsService() {
+			if !app.IsUserService() {
+				// Ignore system services
+				continue
+			}
 			found := false
 
 			// If the daemon has a desktop file at /meta/gui, create
@@ -235,9 +239,8 @@ func EnsureSnapBinaries(s *snap.Info) (err error) {
 				if err != nil {
 					continue
 				}
-				// The symlink must point to /usr/bin/false to avoid
-				// allowing to launch the daemon manually. Also, set it
-				// to /usr/bin/false if the .desktop file has the NoDisplay
+				// The symlink must point to /usr/bin/false if the
+				// .desktop file has the NoDisplay
 				// property set to True, since then it is presumed to not
 				// be executable.
 				if de.Exec == appBase {
