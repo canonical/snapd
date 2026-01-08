@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -37,12 +38,17 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	tt := []struct {
 		bootFlags        []string
@@ -101,6 +107,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 		// write modeenv with boot flags
 		modeEnv := boot.Modeenv{
 			Mode:           "run",
+			Model:          s.model.Model(),
+			BrandID:        "canonical",
+			Grade:          "signed",
 			Base:           s.core20.Filename(),
 			Gadget:         s.gadget.Filename(),
 			CurrentKernels: []string{s.kernel.Filename()},
@@ -119,6 +128,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -154,6 +167,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -168,6 +184,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
 	// M
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -202,6 +222,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 	// write modeenv, with no gadget field so the gadget is not mounted
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -214,6 +237,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	for _, isFirstBoot := range []bool{true, false} {
 		for _, tc := range s.timeTestCases() {
@@ -280,6 +307,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			// write modeenv
 			modeEnv := boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -312,6 +342,376 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			}
 		}
 
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionTimeMovesForwardHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	asid := []asserts.IntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, asid)
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return snapPath + ".verity", nil
+	})
+	defer restore()
+
+	for _, isFirstBoot := range []bool{true, false} {
+		for _, tc := range s.timeTestCases() {
+			comment := Commentf(tc.comment)
+			cleanups := []func(){}
+
+			// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+			// model file already exists and can't setup the seed
+			c.Assert(os.RemoveAll(s.seedDir), IsNil)
+			s.setupSeedWithIntegrityData(c, tc.modelTime, asid)
+
+			restore := main.MockTimeNow(func() time.Time {
+				return tc.now
+			})
+			cleanups = append(cleanups, restore)
+
+			restore = disks.MockMountPointDisksToPartitionMapping(
+				map[disks.Mountpoint]*disks.MockDiskMapping{
+					{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
+					{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
+				},
+			)
+			cleanups = append(cleanups, restore)
+
+			osutilSetTimeCalls := 0
+
+			// check what time we try to move forward to
+			restore = main.MockOsutilSetTime(func(t time.Time) error {
+				osutilSetTimeCalls++
+				// make sure the timestamps are within 1 second of each other, they
+				// won't be equal since the timestamp is serialized to an assertion and
+				// read back
+				tTrunc := t.Truncate(2 * time.Second)
+				expTTrunc := tc.expT.Truncate(2 * time.Second)
+				c.Assert(tTrunc.Equal(expTTrunc), Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+				return nil
+			})
+			cleanups = append(cleanups, restore)
+
+			baseMnt := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+			baseMnt.addIntegrityData(&asid[0])
+			gadgetMnt := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
+			gadgetMnt.addIntegrityData(&asid[0])
+			kernelMnt := s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel)
+			kernelMnt.addIntegrityData(&asid[0])
+
+			mnts := []systemdMount{
+				s.ubuntuLabelMount("ubuntu-boot", "run"),
+				s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+				s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+				baseMnt,
+				gadgetMnt,
+				kernelMnt,
+			}
+
+			if isFirstBoot {
+				// on first boot the snapd snap is read from the seed partition
+				sn := s.makeSeedSnapSystemdMount(snap.TypeSnapd)
+				sn.addIntegrityData(&asid[0])
+				// TODO: snapd snap is not mounted directly anymore so here we should test for the
+				// creation of the mount unit file instead.
+			}
+
+			restore = s.mockSystemdMountSequence(c, mnts, Commentf(tc.comment))
+			cleanups = append(cleanups, restore)
+
+			// mock a bootloader
+			bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+			bootloader.Force(bloader)
+			cleanups = append(cleanups, func() { bootloader.Force(nil) })
+
+			// set the current kernel
+			restore = bloader.SetEnabledKernel(s.kernel)
+			cleanups = append(cleanups, restore)
+
+			s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+			// write modeenv
+			modeEnv := boot.Modeenv{
+				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
+				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
+				CurrentKernels: []string{s.kernel.Filename()},
+			}
+
+			if isFirstBoot {
+				// set RecoverySystem so that the system operates in first boot
+				// of run mode, and still reads the system essential snaps to
+				// mount the snapd snap
+				modeEnv.RecoverySystem = "20191118"
+			}
+
+			err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+			c.Assert(err, IsNil, comment)
+
+			_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+			c.Assert(err, IsNil, comment)
+
+			if isFirstBoot {
+				c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls, comment)
+			} else {
+				// non-first boot should not have moved the time at all since it
+				// doesn't read assertions from the seed.
+				// NOTE: To support integrity data for snaps, assertions are read
+				// from the ubuntu-data disk. Reading these assertions doesn't move
+				// time as they are trusted.
+				c.Assert(osutilSetTimeCalls, Equals, 0, comment)
+			}
+
+			for _, r := range cleanups {
+				r()
+			}
+		}
+
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionMissingVerityFilesScenarios(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	asid := []asserts.IntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, asid)
+
+	tt := []struct {
+		isFirstBoot            bool
+		verityDataIssueForSnap string
+		additionalMountsFunc   func() []systemdMount
+		lookupErr              error
+		expErr                 error
+		comment                string
+	}{
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/core20_1.snap",
+			lookupErr:              integrity.ErrDmVerityDataNotFound,
+			expErr:                 integrity.ErrDmVerityDataNotFound,
+			isFirstBoot:            true,
+			comment:                "snap-bootstrap fail if no dm-verity data found for core20_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/core20_1.snap",
+			lookupErr:              integrity.ErrUnexpectedDmVerityData,
+			expErr:                 integrity.ErrUnexpectedDmVerityData,
+			isFirstBoot:            true,
+			comment:                "snap-bootstrap fail if unexpected dm-verity data found for core20_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc_1.snap",
+			lookupErr:              integrity.ErrDmVerityDataNotFound,
+			expErr:                 integrity.ErrDmVerityDataNotFound,
+			additionalMountsFunc: func() []systemdMount {
+				sn := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				sn = sn.addIntegrityData(&asid[0])
+				return []systemdMount{
+					sn,
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if no dm-verity data found for pc_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc_1.snap",
+			lookupErr:              integrity.ErrUnexpectedDmVerityData,
+			expErr:                 integrity.ErrUnexpectedDmVerityData,
+			additionalMountsFunc: func() []systemdMount {
+				sn := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				sn = sn.addIntegrityData(&asid[0])
+				return []systemdMount{
+					sn,
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if unexpected dm-verity data found for pc_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap",
+			lookupErr:              integrity.ErrDmVerityDataNotFound,
+			expErr:                 integrity.ErrDmVerityDataNotFound,
+			additionalMountsFunc: func() []systemdMount {
+				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
+				return []systemdMount{
+					base.addIntegrityData(&asid[0]),
+					gadget.addIntegrityData(&asid[0]),
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if no dm-verity data found for pc-kernel_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap",
+			lookupErr:              integrity.ErrUnexpectedDmVerityData,
+			expErr:                 integrity.ErrUnexpectedDmVerityData,
+			additionalMountsFunc: func() []systemdMount {
+				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
+				return []systemdMount{
+					base.addIntegrityData(&asid[0]),
+					gadget.addIntegrityData(&asid[0]),
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if unexpected dm-verity data found for pc-kernel_1.snap",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/ubuntu-seed/snaps/snapd_1.snap",
+			lookupErr:              integrity.ErrDmVerityDataNotFound,
+			expErr:                 nil,
+			additionalMountsFunc: func() []systemdMount {
+				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
+				kernel := s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel)
+				_ = s.makeSeedSnapSystemdMount(snap.TypeSnapd)
+				return []systemdMount{
+					base.addIntegrityData(&asid[0]),
+					gadget.addIntegrityData(&asid[0]),
+					kernel.addIntegrityData(&asid[0]),
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap doesn't fail if no dm-verity data found for snapd on first boot",
+		},
+		{
+			verityDataIssueForSnap: "/run/mnt/ubuntu-seed/snaps/snapd_1.snap",
+			lookupErr:              integrity.ErrUnexpectedDmVerityData,
+			expErr:                 nil,
+			additionalMountsFunc: func() []systemdMount {
+				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
+				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
+				kernel := s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel)
+				return []systemdMount{
+					base.addIntegrityData(&asid[0]),
+					gadget.addIntegrityData(&asid[0]),
+					kernel.addIntegrityData(&asid[0]),
+				}
+			},
+			isFirstBoot: true,
+			comment:     "snap-bootstrap doesn't fail if unexpected dm-verity data found for snapd on first boot",
+		},
+	}
+
+	for _, t := range tt {
+		cleanups := []func(){}
+
+		restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+			// fake an error when retrieving the dm-verity hash file for the snap that is
+			// expected to fail in this testcase.
+			if strings.Contains(snapPath, t.verityDataIssueForSnap) {
+				return "", t.lookupErr
+			}
+			return snapPath + ".verity", nil
+		})
+		defer restore()
+
+		// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+		// model file already exists and can't setup the seed
+		c.Assert(os.RemoveAll(s.seedDir), IsNil)
+		s.setupSeedWithIntegrityData(c, time.Time{}, asid)
+
+		restore = disks.MockMountPointDisksToPartitionMapping(
+			map[disks.Mountpoint]*disks.MockDiskMapping{
+				{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
+				{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
+			},
+		)
+		cleanups = append(cleanups, restore)
+
+		mnts := []systemdMount{
+			s.ubuntuLabelMount("ubuntu-boot", "run"),
+			s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+			s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		}
+
+		if t.additionalMountsFunc != nil {
+			mnts = append(mnts, t.additionalMountsFunc()...)
+		}
+
+		restore = s.mockSystemdMountSequence(c, mnts, Commentf(t.comment))
+		cleanups = append(cleanups, restore)
+
+		// mock a bootloader
+		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+		bootloader.Force(bloader)
+		cleanups = append(cleanups, func() { bootloader.Force(nil) })
+
+		// set the current kernel
+		restore = bloader.SetEnabledKernel(s.kernel)
+		cleanups = append(cleanups, restore)
+
+		s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+		// write modeenv
+		modeEnv := boot.Modeenv{
+			BrandID:        "canonical",
+			Model:          s.model.Model(),
+			Grade:          "signed",
+			Mode:           "run",
+			Base:           s.core20.Filename(),
+			Gadget:         s.gadget.Filename(),
+			CurrentKernels: []string{s.kernel.Filename()},
+		}
+
+		if t.isFirstBoot {
+			// set RecoverySystem so that the system operates in first boot
+			// of run mode, and still reads the system essential snaps to
+			// mount the snapd snap
+			modeEnv.RecoverySystem = "20191118"
+		}
+
+		err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+		c.Assert(err, IsNil)
+
+		snapPath := filepath.Join(dirs.GlobalRootDir, t.verityDataIssueForSnap)
+
+		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+
+		var expErr error
+		switch t.expErr {
+		case integrity.ErrDmVerityDataNotFound:
+		case integrity.ErrUnexpectedDmVerityData:
+			expErr = fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, t.expErr)
+			c.Check(err, ErrorMatches, expErr.Error())
+		default:
+			c.Check(err, IsNil)
+		}
+
+		for _, r := range cleanups {
+			r()
+		}
 	}
 }
 
@@ -350,6 +750,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -362,6 +765,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(c *C) {
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
 	defer main.MockSecbootLockSealedKeys(func() error {
@@ -376,6 +783,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedHappy(
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLockingUnhappy(c *C) {
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	// have blocking sealed keys fail
 	defer main.MockSecbootLockSealedKeys(func() error {
 		return fmt.Errorf("blocking keys failed")
@@ -387,6 +798,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeNoSaveUnencryptedKeyLoc
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -448,6 +863,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -545,6 +963,10 @@ Wants=%[1]s
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
@@ -584,6 +1006,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -618,6 +1043,7 @@ Wants=%[1]s
 		gadgetMnt,
 		kernelMnt,
 	})
+
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
@@ -695,6 +1121,10 @@ Wants=%[1]s
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
@@ -729,6 +1159,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		RecoverySystem: "20191118",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
@@ -749,6 +1182,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-boot-partuuid")
 	defer restore()
@@ -791,6 +1228,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -804,6 +1244,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -917,6 +1361,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -951,6 +1398,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecoveryKey(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -1065,6 +1516,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1099,6 +1553,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoSave(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	defaultEncNoSaveBootDisk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -1170,6 +1628,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -1182,6 +1643,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnlockSaveFail(c *C) {
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
+
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
 	defer main.MockSecbootLockSealedKeys(func() error {
@@ -1249,6 +1714,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
@@ -1287,6 +1755,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1307,6 +1778,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
@@ -1327,6 +1801,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
@@ -1344,6 +1821,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			snapFiles:    []snap.PlaceInfo{s.kernel, s.gadget, s.core20, s.core20r2},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1355,6 +1835,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
@@ -1374,6 +1857,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			kernelStatus:    boot.TryingStatus,
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1387,6 +1873,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				Gadget:         s.gadget.Filename(),
@@ -1407,6 +1896,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				BaseStatus:     boot.TryStatus,
 				TryBase:        "",
@@ -1427,6 +1919,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
@@ -1444,6 +1939,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.core20r2, s.gadget},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.DefaultStatus,
@@ -1455,6 +1953,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1474,6 +1975,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1496,6 +2000,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
+				Model:          s.model.Model(),
+				BrandID:        "canonical",
+				Grade:          "signed",
 				Base:           s.core20.Filename(),
 				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
@@ -1535,6 +2042,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		c.Assert(err, IsNil)
 		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
 		c.Assert(err, IsNil)
+
+		// setup a run mode system (separate per test)
+		s.mode = t.modeenv.Mode
+		run20 := s.setupRunDir(c, nil)
+
+		if t.enableTryKernel != nil {
+			run20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 2\ntype: kernel", nil, snap.R(2), "canonical", run20.StoreSigning.Database)
+		}
+
+		if t.modeenv.TryBase != "" {
+			run20.MakeAssertedSnap(c, "name: core20\nversion: 2\ntype: base", nil, snap.R(2), "canonical", run20.StoreSigning.Database)
+		}
 
 		restore := disks.MockMountPointDisksToPartitionMapping(
 			map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1663,6 +2182,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
@@ -1678,6 +2200,11 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	// setup a run mode system
+	s.mode = "run"
+	run20 := s.setupRunDir(c, nil)
+	run20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 2\ntype: kernel", nil, snap.R(2), "canonical", run20.StoreSigning.Database)
+
 	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
 		"snapd_recovery_mode=run kernel_status=trying",
 		&s.kernelr2, boot.TryingStatus)
@@ -1688,6 +2215,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c 
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1744,6 +2275,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1760,6 +2294,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1823,6 +2361,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
@@ -1849,6 +2390,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithDriversTreeFirstBoo
 
 func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c *C, firstBoot bool) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup a run mode system
+	s.mode = "run"
+	s.setupRunDirWithIntegrityData(c, nil)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1893,6 +2438,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
+		Model:          s.model.Model(),
+		BrandID:        "canonical",
+		Grade:          "signed",
 		Base:           s.core20.Filename(),
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},

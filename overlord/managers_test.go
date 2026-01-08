@@ -139,6 +139,8 @@ type baseMgrsSuite struct {
 	serveOldPaths map[string][]string
 	serveOldRevs  map[string][]string
 
+	serveSnapDigest map[string]string
+
 	hijackServeSnap func(http.ResponseWriter)
 
 	checkDeviceAndAuthContext func(store.DeviceAndAuthContext)
@@ -263,6 +265,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.serveOldPaths = make(map[string][]string)
 	s.serveOldRevs = make(map[string][]string)
 	s.hijackServeSnap = nil
+
+	s.serveSnapDigest = make(map[string]string)
 
 	s.checkDeviceAndAuthContext = nil
 	s.expectedSerial = ""
@@ -938,6 +942,7 @@ const (
         "epoch": @EPOCH@,
         "type": "@TYPE@",
 	"name": "@NAME@",
+	"integrity": @INTEGRITY@,
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
 	"snap-yaml": @SNAP_YAML@,
@@ -991,7 +996,7 @@ func (s *baseMgrsSuite) makeStoreTestSnapWithFiles(c *C, snapYaml string, revno 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
 
-	s.makeStoreSnapRevision(c, info.SnapName(), revno, snapDigest, size)
+	s.makeStoreSnapRevision(c, info.SnapName(), revno, snapDigest, size, "")
 
 	return snapPath, snapDigest
 }
@@ -1000,7 +1005,22 @@ func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (
 	return s.makeStoreTestSnapWithFiles(c, snapYaml, revno, nil)
 }
 
-func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, size uint64) asserts.Assertion {
+func (s *baseMgrsSuite) makeStoreTestSnapWithIntegrityData(c *C, snapYaml string, revno string, verityDigest string) (string, string) {
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	snapPath := makeTestSnapWithFiles(c, snapYaml, nil)
+
+	snapDigest, size, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	s.makeStoreSnapRevision(c, info.SnapName(), revno, snapDigest, size, verityDigest)
+
+	return snapPath, snapDigest
+}
+
+func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, size uint64, verityDigest string) asserts.Assertion {
+	salt := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
 	headers := map[string]any{
 		"snap-id":       fakeSnapID(name),
 		"snap-sha3-384": digest,
@@ -1009,6 +1029,21 @@ func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, 
 		"developer-id":  "devdevdev",
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
+
+	if len(verityDigest) > 0 {
+		headers["integrity"] = []any{
+			map[string]any{
+				"type":            "dm-verity",
+				"version":         "1",
+				"hash-algorithm":  "sha256",
+				"data-block-size": "4096",
+				"hash-block-size": "4096",
+				"digest":          verityDigest,
+				"salt":            salt,
+			},
+		}
+	}
+
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(snapRev)
@@ -1075,7 +1110,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	iconURL, _ := url.Parse(mockIconServer.URL)
 
 	var baseURL *url.URL
-	fillHit := func(hitTemplate, revno string, info *snap.Info, rawInfo string) string {
+	fillHit := func(hitTemplate, revno string, info *snap.Info, rawInfo string, digest string) string {
 		epochBuf, err := json.Marshal(info.Epoch)
 		if err != nil {
 			panic(err)
@@ -1101,6 +1136,27 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			baseStr = fmt.Sprintf("%q", info.Base)
 		}
 		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
+
+		integrityStr := `[]`
+		if len(digest) > 0 {
+			integrityStr = `[
+          {
+            "type": "dm-verity",
+            "digest": "` + digest + `",
+            "version": "1",
+            "salt": "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
+            "hash-algorithm": "sha256",
+            "hash-block-size": 4096,
+            "data-block-size": 4096,
+            "download": {
+              "sha3-384": "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07",
+              "size": 73728,
+              "url": "` + baseURL.String() + `/api/v1/snaps/dm-verity/download/snap_` + fakeSnapID(name) + `_` + revno + `.dmverity_` + digest + `"
+            }
+          }
+        ]`
+		}
+		hit = strings.Replace(hit, `@INTEGRITY@`, integrityStr, -1)
 		return hit
 	}
 
@@ -1230,6 +1286,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					SnapID string     `json:"snap-id"`
 					Epoch  snap.Epoch `json:"epoch"`
 				} `json:"context"`
+				Fields []string `json:"fields"`
 			}
 			if err := dec.Decode(&input); err != nil {
 				panic(err)
@@ -1249,6 +1306,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				Key           string   `json:"key"`
 				AssertionURLs []string `json:"assertion-stream-urls"`
 			}
+
 			var results []resultJSON
 			for _, a := range input.Actions {
 				if a.Action == "fetch-assertions" {
@@ -1289,12 +1347,19 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					revno = strconv.Itoa(a.Revision)
 				}
 
+				digest := ""
+				for _, f := range input.Fields {
+					if f == "integrity" {
+						digest = s.serveSnapDigest[name]
+					}
+				}
+
 				results = append(results, resultJSON{
 					Result:      a.Action,
 					SnapID:      a.SnapID,
 					InstanceKey: a.InstanceKey,
 					Name:        name,
-					Snap:        json.RawMessage(fillHit(snapV2, revno, info, rawInfo)),
+					Snap:        json.RawMessage(fillHit(snapV2, revno, info, rawInfo, digest)),
 				})
 			}
 			w.WriteHeader(200)
@@ -1305,7 +1370,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				panic(err)
 			}
 			w.Write(output)
-
+		case "dm-verity":
+			if s.sessionMacaroon != "" {
+				// FIXME: download is still using the old headers!
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
+			}
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
@@ -7386,7 +7455,7 @@ func (s *mgrsSuiteCore) makeInstalledSnapInStateForRemodel(c *C, name string, re
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapInfo.MountFile())
 	c.Assert(err, IsNil)
 
-	snapRev := s.makeStoreSnapRevision(c, name, rev.String(), sha3_384, size)
+	snapRev := s.makeStoreSnapRevision(c, name, rev.String(), sha3_384, size, "")
 	err = assertstate.Add(s.o.State(), snapRev)
 	c.Assert(err, IsNil)
 	return snapInfo
@@ -13756,6 +13825,69 @@ func (s *mgrsSuite) TestDownload(c *C) {
 
 	downloadDir := c.MkDir()
 	ts, info, err := snapstate.Download(context.TODO(), st, "foo", nil, downloadDir, snapstate.RevisionOptions{}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName:          "foo",
+		SnapID:            fakeSnapID("foo"),
+		Revision:          snap.R(snapRev),
+		EditedSummary:     "Foo",
+		EditedDescription: "this is a description",
+	})
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm that download-snap task ran
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	expectedDownloadDir := downloadDir
+	if expectedDownloadDir == "" {
+		expectedDownloadDir = dirs.SnapBlobDir
+	}
+
+	snapPath := filepath.Join(expectedDownloadDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
+
+	exists := osutil.FileExists(snapPath)
+	c.Check(exists, Equals, true)
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *mgrsSuite) TestDownloadWithIntegrityData(c *C) {
+	s.prereqSnapAssertions(c)
+
+	const snapRev = "1"
+
+	verityDigest := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
+	testSnapPath, _ := s.makeStoreTestSnapWithIntegrityData(c, "{name: foo, version: 0}", snapRev, verityDigest)
+	s.serveSnap(testSnapPath, snapRev)
+	s.serveSnapDigest["foo"] = verityDigest
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	downloadDir := c.MkDir()
+	options := snapstate.Options{
+		RequestIntegrityData: true,
+	}
+	ts, info, err := snapstate.Download(context.TODO(), st, "foo", nil, downloadDir, snapstate.RevisionOptions{}, options)
+
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)

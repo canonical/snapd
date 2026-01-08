@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -142,6 +143,11 @@ func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	err := os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 	return si
+}
+
+func MockSnapIntegrityData(c *check.C, si *snap.Info, digest string) {
+	err := os.WriteFile(integrity.DmVerityHashFileName(si.MountFile(), digest), []byte(""), 0644)
+	c.Assert(err, check.IsNil)
 }
 
 func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {

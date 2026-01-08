@@ -1113,6 +1113,21 @@ type DownloadInfo struct {
 	Deltas []DeltaInfo `json:"deltas,omitempty"`
 }
 
+// GetVerityDigest returns the digest part of a dm-verity data URL from the store.
+func (di *DownloadInfo) GetVerityDigest() string {
+	// example integrity data URLs from the store
+	// https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_<snap-id>_<revision>.dmverity_<root-hash>
+	// https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_<snap-id>.<resource-name>_<resource-revision>.dmverity_<root-hash>
+	dmVerityInfo := strings.Split(di.DownloadURL, ".")
+	lastExt := dmVerityInfo[len(dmVerityInfo)-1]
+
+	if strings.Contains(lastExt, "dmverity") {
+		return strings.Split(lastExt, "_")[1]
+	}
+
+	return ""
+}
+
 // DeltaInfo contains the information to download a delta
 // from one revision to another.
 type DeltaInfo struct {

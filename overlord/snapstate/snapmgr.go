@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -230,7 +231,22 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
+
 	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
+}
+
+// IntegrityBlobPath returns the path to the integrity data that backs the snap that
+// is being setup. Unless the snap was downloaded to a custom location, this
+// will be under dirs.SnapBlobDir.
+func (snapsup *SnapSetup) IntegrityBlobPath() string {
+	snapFn := snapsup.BlobPath()
+
+	digest := snapsup.IntegrityDataInfo.DownloadInfo.GetVerityDigest()
+	if len(digest) > 0 {
+		return fmt.Sprintf("%s.dmverity_%s", snapFn, digest)
+	}
+
+	return ""
 }
 
 // ComponentSetup holds the necessary component details to perform
@@ -909,6 +925,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
 	runner.AddHandler("prepare-kernel-modules-components", m.doPrepareKernelModulesComponents, m.undoPrepareKernelModulesComponents)
 
+	// integrity tasks
+	runner.AddHandler("download-integrity-data", m.doDownloadIntegrityData, nil)
+
 	// control serialisation
 	runner.AddBlocked(m.otherPrereqRunning)
 	runner.AddBlocked(affectsRunningHooks)
@@ -1526,14 +1545,47 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
-				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{
-					PreventRestartIfModified: true,
-					// We need early mounts only for UC20+/hybrid, also 16.04
-					// systemd seems to be buggy if we enable this.
-					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
+
+			// We need early mounts only for UC20+/hybrid, also 16.04
+			// systemd seems to be buggy if we enable this.
+			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+
+			mountOptions := &systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              info.MountDescription(),
+				What:                     squashfsPath,
+				Where:                    whereDir,
+				PreventRestartIfModified: true,
+			}
+
+			fsType, options, mountUnitType := sysd.MountUnitConfiguration(squashfsPath, "squashfs", startBeforeDriversLoad)
+
+			mountOptions.Fstype = fsType
+			mountOptions.MountUnitType = mountUnitType
+
+			if !snapSt.Current.Local() {
+				snapID := snapSt.Sequence.Revisions[0].Snap.SnapID
+
+				idp, err := ValidatedIntegrityData(m.state, snapID, snapSt.Current.N)
+
+				// Currently integrity data are not enforced therefore errors returned when integrity data
+				// are not found for a snap revision are ignored.
+				if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
+					return err
+				}
+
+				if idp != nil {
+					hashDevicePath := dirs.StripRootDir(integrity.DmVerityHashFileName(info.MountFile(), idp.Digest))
+
+					options = append(options, fmt.Sprintf("verity.roothash=%s", idp.Digest))
+					options = append(options, fmt.Sprintf("verity.hashdevice=%s", hashDevicePath))
+				}
+			}
+
+			mountOptions.Options = options
+
+			_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+			if err != nil {
 				return err
 			}
 		}

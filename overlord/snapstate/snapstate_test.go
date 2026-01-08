@@ -67,6 +67,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -216,6 +217,19 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restore)
+
+	// Updates to mounts now call to the assertion database to a) check whether a snap needs to
+	// be mounted with integrity data and b) get the verified integrity data parameters.
+	// Here we mock that lookup and always return a snap revision assertion for the snap so that
+	// the code proceeds.
+	// Functions that need to test behaviour using a snap revision assertion that contains integrity
+	// data, will remock this using a mock assertion with integrity data.
+	// rev := makeMockSnapRevisionAssertion(false)
+
+	restore = snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev int) (*integrity.IntegrityDataParams, error) {
+		return nil, nil
 	})
 	s.AddCleanup(restore)
 
@@ -10180,6 +10194,114 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
 
+func makeMockSnapRevisionAssertion(generateIntegrityData bool) *asserts.SnapRevision {
+	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	digest := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	salt := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	ts := time.Now().Truncate(time.Second).UTC()
+	tsLine := "timestamp: " + ts.Format(time.RFC3339) + "\n"
+
+	integrityData := ""
+	if generateIntegrityData {
+		integrityData = "integrity:\n" +
+			"  -\n" +
+			"    type: dm-verity\n" +
+			"    digest: " + digest + "\n" +
+			"    version: 1\n" +
+			"    hash-algorithm: sha256\n" +
+			"    data-block-size: 4096\n" +
+			"    hash-block-size: 4096\n" +
+			"    salt: " + salt + "\n"
+	}
+
+	assertsString := "type: snap-revision\n" +
+		"authority-id: store-id1\n" +
+
+		"snap-sha3-384: " + hash + "\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-size: 123\n" +
+		"snap-revision: 1\n" +
+		integrityData +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	a, _ := asserts.Decode([]byte(assertsString))
+
+	return a.(*asserts.SnapRevision)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreatedWithIntegrity(c *C) {
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	snaptest.MockSnapIntegrityData(c, info, "digest")
+	s.state.Unlock()
+
+	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
+	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
+	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
+	if osutil.FileExists(mountFile) {
+		c.Assert(os.Remove(mountFile), IsNil)
+	}
+
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	defer restore()
+
+	rev := makeMockSnapRevisionAssertion(true)
+	restore = snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, revN int) (*integrity.IntegrityDataParams, error) {
+		idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+		c.Assert(err, IsNil)
+		return idp, nil
+	})
+	defer restore()
+
+	s.restarts[unitName] = 0
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.restarts[unitName], Equals, 1)
+
+	expectedContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=%s
+Where=%s/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,verity.roothash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,verity.hashdevice=/var/lib/snapd/snaps/test-snap_42.snap.dmverity_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
+
+	c.Assert(mountFile, testutil.FileEquals, expectedContent)
+}
+
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
 	restore := snapstate.MockEnsuredDesktopFilesUpdated(s.snapmgr, false)
 	defer restore()
@@ -10765,6 +10887,82 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 
 	var snapsupTaskID string
 	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+
+	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithIntegrity(c *C) {
+	integrityDataSize := 5
+	restore := snapstate.MockOsutilCheckFreeSpace(func(rootDir string, totalSize uint64) error {
+		// from safetyMarginDiskSpace
+		size := 5 * 1024 * 1024
+		// size of the snap
+		size += 5
+		size += integrityDataSize
+		c.Check(totalSize, Equals, uint64(size))
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				Size: int64(integrityDataSize),
+			},
+		}
+		return nil
+	}
+
+	prqt := testPrereqTracker{}
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"foo",
+		nil,
+		c.MkDir(),
+		snapstate.RevisionOptions{},
+		snapstate.Options{
+			PrereqTracker:        &prqt,
+			RequestIntegrityData: true,
+		})
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+		SnapID:   "foo-id",
+		Channel:  "stable",
+	})
+
+	c.Check(ts.Tasks(), HasLen, 3)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+	c.Check(downloadSnap, DeepEquals, ts.MaybeEdge(snapstate.SnapSetupEdge))
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	downloadIntegrityData := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(downloadIntegrityData, NotNil)
+	c.Check(downloadIntegrityData.Kind(), Equals, "download-integrity-data")
+
+	var snapsupTaskID string
+	err = downloadIntegrityData.Get("snap-setup-task", &snapsupTaskID)
 	c.Assert(err, IsNil)
 	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
 
@@ -11993,4 +12191,33 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+}
+
+func (s *snapmgrTestSuite) TestDownloadNotEnoughSpaceIncludingIntegrityData(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(rootDir string, requiredSpace uint64) error {
+
+		// from safetyMarginDiskSpace
+		margin := 5 * 1024 * 1024
+
+		// from fakeStore.snap
+		snapSize := 5
+
+		// from fakeStore.snap channel-with-integrity-data
+		veritySize := 100
+
+		c.Check(requiredSpace, Equals, uint64(margin+snapSize+veritySize))
+
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	downloadDir := c.MkDir()
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
+		Channel:  "channel-with-integrity-data",
+		Revision: snap.R(2),
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
 }
