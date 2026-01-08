@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 )
@@ -36,8 +37,8 @@ var (
 	// the next version, etc.
 	versions = []ProtocolVersion{5, 3}
 
-	// apparmorMetadataTagsSupported allows tests to mock tags support.
-	apparmorMetadataTagsSupported = apparmor.MetadataTagsSupported
+	// apparmorMetadataTagsSupportedByKernel allows tests to mock tags support.
+	apparmorMetadataTagsSupportedByKernel = apparmor.MetadataTagsSupportedByKernel
 
 	// versionLikelySupportedChecks provides a function for each known protocol
 	// version which returns true if that version is supported by snapd and
@@ -60,7 +61,7 @@ var (
 			return true
 		},
 		5: func() bool {
-			if !apparmorMetadataTagsSupported() {
+			if !apparmorMetadataTagsSupportedByKernel() {
 				// Don't use v5 if tags are not supported
 				return false
 			}
@@ -69,15 +70,9 @@ var (
 			if !versionFileExists("v5") {
 				return false
 			}
-			return !v5ManuallyDisabled // TODO: return true once restarts work lands
+			return true
 		},
 	}
-
-	// v5ManuallyDisabled disables support for protocol v5, which is necessary
-	// until support for restarts has landed. The protocol changes for restarts
-	// were originally part of protocol v7, but are now being rolled into v5 in
-	// addition to tagging. Until it's all landed, mark v5 as disabled.
-	v5ManuallyDisabled = true
 
 	// versionKnown returns true if the given protocol version is known by
 	// snapd. Even if true, the version may still be unsupported by snapd or
@@ -124,10 +119,12 @@ func (v ProtocolVersion) likelySupported() (bool, error) {
 // require duplicate checks of support check functions.
 func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
 	for _, v := range versions {
+		logger.Debugf("checking whether notify protocol version %d is supported", v)
 		if _, exists := unsupported[v]; exists {
 			continue
 		}
 		if supported, _ := v.likelySupported(); !supported {
+			logger.Debugf("notify protocol version %d likely unsupported", v)
 			unsupported[v] = true
 			continue
 		}

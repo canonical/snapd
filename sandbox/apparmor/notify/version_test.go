@@ -52,10 +52,6 @@ func (s *versionSuite) TestVersionsAndSupportedChecksAlign(c *C) {
 }
 
 func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
-	// TODO: remove this once v5 is no longer manually disabled
-	restore := notify.OverrideV5ManuallyDisabled()
-	defer restore()
-
 	for _, testCase := range []struct {
 		versionsDirExists     bool
 		versionFiles          []string
@@ -144,7 +140,7 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 			c.Assert(f.Close(), IsNil)
 		}
 
-		restore = notify.MockApparmorMetadataTagsSupported(func() bool {
+		restore = notify.MockApparmorMetadataTagsSupportedByKernel(func() bool {
 			return testCase.metadataTagsSupported
 		})
 		defer restore()
