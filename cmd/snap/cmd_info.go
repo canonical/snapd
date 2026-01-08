@@ -199,12 +199,15 @@ func (iw *infoWriter) maybePrintComponents() {
 		}
     }
 
-    // Get the total count of the snap structures
+    // Get the total count of the component structures
     if iw.theSnap != nil {
         totalCount = len(iw.theSnap.Components)
     }
     
-    // Now it is safe to print using the local variables
+	if totalCount == 0 && localCount == 0 {
+		return
+	}
+
     fmt.Fprintf(iw, "components: %d/%d\n", localCount, totalCount)
 }
 
