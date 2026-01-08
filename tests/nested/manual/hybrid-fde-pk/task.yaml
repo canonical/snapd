@@ -89,7 +89,7 @@ prepare: |
   remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
 
   keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
-  # generate 3 PK updates
+  # generate a PK update
   MYGUID="11111111-0000-1111-0000-000000000000"
   # generate a key
   openssl req -new -x509 -newkey rsa:2048 -subj "/CN=new PK/" \
