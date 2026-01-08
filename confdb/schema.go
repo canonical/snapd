@@ -927,12 +927,15 @@ func (v *mapSchema) PruneData(data any, vis Visibility, path []Accessor) (any, e
 	// Keys can only be strings, so no need to prune further down.
 	// If the keys are private, then the map must be emptied.
 	if v.keySchema != nil && v.keySchema.Visibility() >= vis {
-		return map[string]any{}, nil
+		return nil, nil
 	}
 
 	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
 		// We've arrived to where the data begins
-		values, _ := (data).(map[string]any)
+		values, ok := (data).(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("data provided was not a map")
+		}
 		pruned := make(map[string]any, len(values))
 		for key, value := range values {
 			if v.entrySchemas != nil {
@@ -960,7 +963,10 @@ func (v *mapSchema) PruneData(data any, vis Visibility, path []Accessor) (any, e
 				pruned[key] = d
 			}
 		}
-		return pruned, nil
+		if len(pruned) > 0 {
+			return pruned, nil
+		}
+		return nil, nil
 	}
 
 	if v.valueSchema != nil {
@@ -1727,20 +1733,25 @@ func (v *arraySchema) PruneData(data any, vis Visibility, path []Accessor) (any,
 	if v.visibility >= vis {
 		return nil, nil
 	}
-	if v.elementType.Visibility() >= vis {
-		return []any{}, nil
-	}
 	if len(path) == 0 {
-		values, _ := (data).([]any)
+		values, ok := (data).([]any)
+		if !ok {
+			return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
+		}
 		newList := make([]any, 0, len(values))
 		for _, value := range values {
 			d, err := v.elementType.PruneData(value, vis, path)
 			if err != nil {
 				return nil, err
 			}
-			newList = append(newList, d)
+			if d != nil {
+				newList = append(newList, d)
+			}
 		}
-		return newList, nil
+		if len(newList) > 0 {
+			return newList, nil
+		}
+		return nil, nil
 	}
 
 	return v.elementType.PruneData(data, vis, path[1:])
