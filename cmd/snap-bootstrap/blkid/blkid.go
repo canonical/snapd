@@ -37,6 +37,7 @@ const (
 	BLKID_PARTS_ENTRY_DETAILS int = C.BLKID_PARTS_ENTRY_DETAILS
 
 	BLKID_SUBLKS_LABEL int = C.BLKID_SUBLKS_LABEL
+	BLKID_SUBLKS_UUID  int = C.BLKID_SUBLKS_UUID
 )
 
 // AbstractBlkidProbe is wrapper for blkid_probe
@@ -75,10 +76,12 @@ type AbstractBlkidPartition interface {
 	GetName() string
 	// GetUUID is a wrapper for blkid_partition_get_uuid
 	GetUUID() string
-	// GetStart is a wrapper for blkid_partition_get_start
+	// GetStart returns the start offset of the partition in bytes
 	GetStart() int64
-	// GetSize is a wrapper for blkid_partition_get_size
+	// GetSize returns the size of the partition in bytes
 	GetSize() int64
+	// GetNumber is a wrapper for blkid_partition_get_partno
+	GetNumber() int
 }
 
 type blkidProbe struct {
@@ -242,9 +245,21 @@ func (p *blkidPartition) GetUUID() string {
 }
 
 func (p *blkidPartition) GetStart() int64 {
-	return int64((C.blkid_loff_t)(C.blkid_partition_get_start(p.partitionHandle)))
+	// blkid_partition_get_start returns the start of the partition in 512
+	// bytes sized sectors - even for disks with different sector sizes.
+	// See
+	// https://www.kernel.org/pub/linux/utils/util-linux/v2.41/libblkid-docs/libblkid-Partitions-probing.html
+	return int64((C.blkid_loff_t)(C.blkid_partition_get_start(p.partitionHandle))) * 512
 }
 
 func (p *blkidPartition) GetSize() int64 {
-	return int64((C.blkid_loff_t)(C.blkid_partition_get_size(p.partitionHandle)))
+	// blkid_partition_get_size returns the size of the partition in 512
+	// bytes sized sectors - even for disks with different sector sizes.
+	// See
+	// https://www.kernel.org/pub/linux/utils/util-linux/v2.41/libblkid-docs/libblkid-Partitions-probing.html
+	return int64((C.blkid_loff_t)(C.blkid_partition_get_size(p.partitionHandle))) * 512
+}
+
+func (p *blkidPartition) GetNumber() int {
+	return int(C.blkid_partition_get_partno(p.partitionHandle))
 }
