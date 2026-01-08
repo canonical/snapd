@@ -237,7 +237,7 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	}
 	listener, err := keyboard.NewXKBConfigListener(ctx, cb)
 	c.Assert(err, IsNil)
-	defer listener.Close()
+	c.Check(listener, NotNil)
 
 	c.Assert(os.WriteFile(kbConfPath, []byte("1"), 0644), IsNil)
 	<-cbChan
