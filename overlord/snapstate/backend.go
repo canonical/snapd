@@ -76,6 +76,8 @@ type StoreService interface {
 	// the downloads cache. Can return store.ErrCleanupBusy when the cache was
 	// busy and the cleanup could not run.
 	CleanDownloadsCache() error
+
+	ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
 type managerBackend interface {

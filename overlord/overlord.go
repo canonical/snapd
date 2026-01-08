@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/healthstate"
@@ -103,21 +104,23 @@ type Overlord struct {
 	startOfOperationTime time.Time
 
 	// managers
-	inited     bool
-	startedUp  bool
-	runner     *state.TaskRunner
-	restartMgr *restart.RestartManager
-	snapMgr    *snapstate.SnapManager
-	serviceMgr *servicestate.ServiceManager
-	assertMgr  *assertstate.AssertManager
-	ifaceMgr   *ifacestate.InterfaceManager
-	hookMgr    *hookstate.HookManager
-	deviceMgr  *devicestate.DeviceManager
-	clusterMgr *clusterstate.ClusterManager
-	cmdMgr     *cmdstate.CommandManager
-	shotMgr    *snapshotstate.SnapshotManager
-	fdeMgr     *fdestate.FDEManager
-	noticeMgr  *notices.NoticeManager
+	inited        bool
+	startedUp     bool
+	runner        *state.TaskRunner
+	restartMgr    *restart.RestartManager
+	snapMgr       *snapstate.SnapManager
+	serviceMgr    *servicestate.ServiceManager
+	assertMgr     *assertstate.AssertManager
+	ifaceMgr      *ifacestate.InterfaceManager
+	hookMgr       *hookstate.HookManager
+	deviceMgr     *devicestate.DeviceManager
+	clusterMgr    *clusterstate.ClusterManager
+	cmdMgr        *cmdstate.CommandManager
+	shotMgr       *snapshotstate.SnapshotManager
+	fdeMgr        *fdestate.FDEManager
+	noticeMgr     *notices.NoticeManager
+	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
+
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -198,6 +201,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
@@ -243,6 +247,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.restartMgr = x
 	case *fdestate.FDEManager:
 		o.fdeMgr = x
+	case *devicemgmtstate.DeviceMgmtManager:
+		o.deviceMgmtMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
