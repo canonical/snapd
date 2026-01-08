@@ -1250,7 +1250,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallPreseedConflictWithOngoingChange(c
 	var conflictErr *snapstate.ChangeConflictError
 	c.Assert(errors.As(err, &conflictErr), Equals, true)
 
-	c.Check(conflictErr.Message, Matches, "cannot start preseeding, clashing with concurrent one")
+	c.Check(conflictErr.Message, Matches, "installation preseeding in progress, no other installation steps allowed until it is done")
 	c.Check(conflictErr.ChangeKind, Equals, "install-step-preseed")
 	c.Check(conflictErr.ChangeID, Equals, chg.ID())
 }
