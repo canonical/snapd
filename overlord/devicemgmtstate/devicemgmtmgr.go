@@ -201,7 +201,8 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) (bool, e
 	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
 	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
-		return false, exchangeConfig{}
+		enabled = false
+		// assume flag is unset but still send responses if there are any
 	}
 
 	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
