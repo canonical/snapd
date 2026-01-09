@@ -498,10 +498,14 @@ type SnapDeviceCgroupOptions struct {
 	SelfManaged bool // SelfManaged ensures that no device management eBPF program is loaded for this snap.
 }
 
+// SnapDeviceFile returns the path of the per-snap configuration file that governs device access.
+func SnapDeviceFile(securityTag string) string {
+	return filepath.Join(dirs.SnapCgroupPolicyDir, fmt.Sprintf("%s.device", securityTag))
+}
+
 // LoadSnapDeviceCgroupOptions loads the device cgroup options for a given security tag.
 func LoadSnapDeviceCgroupOptions(securityTag string) (opts SnapDeviceCgroupOptions, err error) {
-	path := filepath.Join(dirs.SnapCgroupPolicyDir, fmt.Sprintf("%s.device", securityTag))
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(SnapDeviceFile(securityTag))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return opts, nil
