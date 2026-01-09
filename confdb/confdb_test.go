@@ -537,6 +537,173 @@ func (s *witnessDatabag) getLastPaths() (get, set string) {
 	return get, set
 }
 
+func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
+	for _, t := range []struct {
+		testName    string
+		params      map[string]any
+		rules       []any
+		requests    []string
+		constraints map[string]string
+		expectedErr error
+	}{
+		{
+			testName: "empty request: constraint for key placeholder",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}"},
+			},
+			requests:    nil,
+			constraints: map[string]string{"bar": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: no constraints",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint but no placeholders",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.bar"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{"bar": "value"},
+			expectedErr: errors.New(`.*"bar" is not a valid placeholder.*`),
+		},
+		{
+			testName: "single request: constraint for key placeholder in unmatched suffix",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}.{baz}"},
+			},
+			requests:    []string{"foo.abc"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for key placeholder in matched path",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}.{baz}"},
+			},
+			requests:    []string{"foo.abc"},
+			constraints: map[string]string{"bar": "value"},
+			expectedErr: errors.New(`.*"bar" is not a valid placeholder.*`),
+		},
+		{
+			testName: "single request: constraint for index placeholder",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.bar[{baz}]"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{"baz": "1"},
+			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+		},
+		{
+			testName: "single request: constraint for field filter of key placeholder in unmatched suffix",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for field filter of key placeholder in matched path",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+			},
+			requests:    []string{"foo.abc"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+		},
+		{
+			testName: "single request: constraint for field filter of index placeholder in unmatched suffix",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for field filter of index placeholder in matched path",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
+			},
+			requests:    []string{"foo.abc[1]"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+		},
+		{
+			testName: "multiple requests: constraints for multiple matching rules' placeholders",
+			params: map[string]any{
+				"baz": map[string]any{},
+				"uvw": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+				map[string]any{"request": "foo.foo.{ggg}", "storage": "foo.foo.{ggg}"},
+				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
+			},
+			requests:    []string{"foo", "xyz.xyz"},
+			constraints: map[string]string{"bar": "value", "uvw": "value", "ggg": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "multiple requests: constraint for no matching placeholder",
+			params: map[string]any{
+				"baz": map[string]any{},
+				"uvw": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
+			},
+			requests:    []string{"foo", "xyz"},
+			constraints: map[string]string{"ggg": "value"},
+			expectedErr: errors.New(`.*"ggg" is not a valid placeholder.*`),
+		},
+	} {
+		cmt := Commentf("sub-test %q failed", t.testName)
+
+		schema, err := confdb.NewSchema("acc", "foo", map[string]any{
+			"my-view": map[string]any{
+				"parameters": t.params,
+				"rules":      t.rules,
+			},
+		}, confdb.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		view := schema.View("my-view")
+		err = view.CheckAllConstraintsAreUsed(t.requests, t.constraints)
+		if t.expectedErr == nil {
+			c.Assert(err, IsNil, cmt)
+		} else {
+			c.Assert(err, ErrorMatches, t.expectedErr.Error(), cmt)
+		}
+	}
+}
+
 func (s *viewSuite) TestViewAssertionWithPlaceholder(c *C) {
 	for _, t := range []struct {
 		rule     map[string]any
