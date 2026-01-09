@@ -63,9 +63,9 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 
 	s.tmp = c.MkDir()
 	dirs.SetRootDir(s.tmp)
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.DistroLibExecDir, 0755)
+	err = os.MkdirAll(dirs.DistroLibExecDir, 0o755)
 	c.Assert(err, IsNil)
 	err = os.Symlink("/proc/self/exe", filepath.Join(dirs.DistroLibExecDir, "snapd"))
 	c.Assert(err, IsNil)

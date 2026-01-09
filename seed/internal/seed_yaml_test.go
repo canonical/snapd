@@ -49,7 +49,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, mockSeedYaml, 0644)
+	err := os.WriteFile(fn, mockSeedYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	seedYaml, err := internal.ReadSeedYaml(fn)
@@ -78,7 +78,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := os.WriteFile(fn, badMockSeedYaml, 0644)
+	err := os.WriteFile(fn, badMockSeedYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = internal.ReadSeedYaml(fn)

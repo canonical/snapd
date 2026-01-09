@@ -806,7 +806,7 @@ func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDevice
 
 	filename := filepath.Join(dir, "disk-mapping.json")
 
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, b, 0644, 0)

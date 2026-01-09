@@ -179,7 +179,7 @@ func (s *mountinfoSuite) TestReadMountInfo2(c *C) {
 // Test that loading mountinfo from a file works as expected.
 func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	err := os.WriteFile(fname, []byte(mountInfoSample), 0644)
+	err := os.WriteFile(fname, []byte(mountInfoSample), 0o644)
 	c.Assert(err, IsNil)
 	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
@@ -200,9 +200,9 @@ func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 // Test that trying to load mountinfo without permissions reports an error.
 func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	err := os.WriteFile(fname, []byte(mountInfoSample), 0644)
+	err := os.WriteFile(fname, []byte(mountInfoSample), 0o644)
 	c.Assert(err, IsNil)
-	err = os.Chmod(fname, 0000)
+	err = os.Chmod(fname, 0o000)
 	c.Assert(err, IsNil)
 	restore := osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()

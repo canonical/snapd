@@ -457,7 +457,7 @@ func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/dev/shm"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/dev/shm"), 0o777), IsNil)
 
 	// No mount entries for non-private shared-memory plugs
 	spec := &mount.Specification{}

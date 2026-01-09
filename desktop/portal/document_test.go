@@ -88,7 +88,7 @@ func (s *documentPortalSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 
 	os.RemoveAll(s.userRuntimePath)
-	err := os.MkdirAll(s.userRuntimePath, 0777)
+	err := os.MkdirAll(s.userRuntimePath, 0o777)
 	c.Assert(err, IsNil)
 	s.withLocked(func() {
 		s.getMountPointError = nil

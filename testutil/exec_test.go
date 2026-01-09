@@ -130,7 +130,7 @@ func (s *mockCommandSuite) TestMockCreateAbsPathDir(c *check.C) {
 	})
 
 	binDirRo := filepath.Join(dir, "ro")
-	err := os.MkdirAll(binDirRo, 0000)
+	err := os.MkdirAll(binDirRo, 0o000)
 	c.Assert(err, check.IsNil)
 	absPathBad := filepath.Join(binDirRo, "this/fails/command")
 	exp := fmt.Sprintf(`cannot create the directory for mocked command "%[1]s/ro/this/fails/command": mkdir %[1]s/ro/this: permission denied`, dir)

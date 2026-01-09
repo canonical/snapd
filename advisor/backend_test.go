@@ -34,7 +34,7 @@ var _ = Suite(&backendSuite{})
 
 func (s *backendSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
 
 	// create an empty DB
 	db, err := advisor.Create()

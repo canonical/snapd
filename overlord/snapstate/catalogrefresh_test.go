@@ -179,8 +179,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 	// write a fake sections file just to have it
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0o644), IsNil)
 	// set the timestamp to something known
 	t0 := time.Now().Truncate(time.Hour)
 	c.Assert(os.Chtimes(dirs.SnapNamesFile, t0, t0), IsNil)
@@ -200,8 +200,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 	// write a fake sections file just to have it
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapNamesFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0o644), IsNil)
 	// but set the timestamp in the future
 	t := time.Now().Add(time.Hour)
 	c.Assert(os.Chtimes(dirs.SnapNamesFile, t, t), IsNil)

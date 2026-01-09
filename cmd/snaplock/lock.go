@@ -42,7 +42,7 @@ func lockFileName(snapName string) string {
 // in some cases). Any process holding the snap lock must not do any
 // interactions with snapd to avoid deadlocks due to locked snap state.
 func OpenLock(snapName string) (*osutil.FileLock, error) {
-	if err := os.MkdirAll(dirs.SnapRunLockDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapRunLockDir, 0o700); err != nil {
 		return nil, fmt.Errorf("cannot create lock directory: %s", err)
 	}
 	flock, err := osutil.NewFileLock(lockFileName(snapName))

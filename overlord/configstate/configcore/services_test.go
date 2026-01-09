@@ -81,7 +81,7 @@ UnitFileState=
 		return output, err
 	}
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0o755), IsNil)
 	s.serviceInstalled = true
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -132,7 +132,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegrationSshSocket(c *C) {
 }
 
 func (s *servicesSuite) testConfigureServiceDisabledIntegration(c *C, sshSvc string) {
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0o755)
 	c.Assert(err, IsNil)
 
 	for _, service := range []struct {
@@ -213,14 +213,14 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	err := os.MkdirAll(filepath.Dir(canary), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// now enable it
@@ -237,8 +237,8 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	// console-conf is not disabled, i.e. there is no
 	// "/var/lib/console-conf/complete" file
@@ -257,8 +257,8 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C)
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	// Note that we have no
 	//        /var/lib/console-conf/complete
@@ -275,16 +275,16 @@ recovery_system=20200202
 func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *C) {
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	err := os.MkdirAll(filepath.Dir(canary), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -299,8 +299,8 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
 	modeenvContent := `mode=install
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -323,7 +323,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegrationSshSocket(c *C) {
 }
 
 func (s *servicesSuite) testConfigureServiceEnableIntegration(c *C, sshSvc string) {
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0o755)
 	c.Assert(err, IsNil)
 
 	for _, service := range []struct {
@@ -394,7 +394,7 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 
 func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "etc", "ssh"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "etc", "ssh"), 0o755), IsNil)
 
 	conf := configcore.PlainCoreConfig(map[string]any{
 		"service.ssh.disable":     "true",

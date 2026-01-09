@@ -50,7 +50,7 @@ func (s *manifestSuite) SetUpTest(c *C) {
 
 func (s *manifestSuite) writeManifest(c *C, contents string) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	err := os.WriteFile(manifestFile, []byte(contents), 0644)
+	err := os.WriteFile(manifestFile, []byte(contents), 0o644)
 	c.Assert(err, IsNil)
 	return manifestFile
 }

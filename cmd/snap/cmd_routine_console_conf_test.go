@@ -254,9 +254,9 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSnapdRefreshMaintenanceJSON(c *C)
 	}
 	b, err := json.Marshal(&maintErr)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0o644)
 	c.Assert(err, IsNil)
 
 	n := 0
@@ -320,9 +320,9 @@ func (s *SnapSuite) TestRoutineConsoleConfStartSystemRebootMaintenanceJSON(c *C)
 	}
 	b, err := json.Marshal(&maintErr)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644)
+	err = os.WriteFile(dirs.SnapdMaintenanceFile, b, 0o644)
 	c.Assert(err, IsNil)
 
 	n := 0

@@ -51,7 +51,7 @@ func injectFault(tagKind string) (injected bool) {
 		return false
 	}
 
-	if err := os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0o755); err != nil {
 		fmt.Fprintf(stderr, "cannot create fault stamps directory: %v\n", err)
 		return false
 	}

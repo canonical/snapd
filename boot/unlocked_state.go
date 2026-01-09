@@ -66,12 +66,12 @@ func (r *DiskUnlockState) WriteTo(name string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0o755); err != nil {
 		return err
 	}
 
 	// leave the information about degraded state at an ephemeral location
-	return os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
+	return os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0o644)
 }
 
 // LoadDiskUnlockState reads the DiskUnlockState from a json file for

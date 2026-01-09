@@ -132,7 +132,7 @@ func (s *createSystemSuite) makeSnap(c *C, name string, rev snap.Revision) *snap
 		Revision: rev,
 	}
 	where, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
-	c.Assert(os.MkdirAll(filepath.Dir(info.MountFile()), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(info.MountFile()), 0o755), IsNil)
 	c.Assert(os.Rename(where, info.MountFile()), IsNil)
 	if !rev.Unset() && !rev.Local() {
 		// snap is non local, generate relevant assertions
@@ -792,7 +792,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	}
 
 	assertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps")
-	c.Assert(os.MkdirAll(assertedSnapsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(assertedSnapsDir, 0o755), IsNil)
 	// procure the file in place
 	err := osutil.CopyFile(infos["core20"].MountFile(), filepath.Join(assertedSnapsDir, "core20_3.snap"), 0)
 	c.Assert(err, IsNil)
@@ -856,7 +856,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	})
 
 	unassertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted/snaps")
-	c.Assert(os.MkdirAll(unassertedSnapsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(unassertedSnapsDir, 0o755), IsNil)
 	err = osutil.CopyFile(infos["other-unasserted"].MountFile(),
 		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
 	c.Assert(err, IsNil)

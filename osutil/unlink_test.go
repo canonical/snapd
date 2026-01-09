@@ -60,7 +60,7 @@ func (s *unlinkSuite) mkFixture(c *check.C) {
 			c.Fatal(err)
 		}
 	}
-	if err := os.Mkdir(filepath.Join(s.d, "dir"), 0700); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(s.d, "dir"), 0o700); err != nil && !os.IsExist(err) {
 		c.Fatal(err)
 	}
 }

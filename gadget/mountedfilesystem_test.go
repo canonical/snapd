@@ -56,7 +56,7 @@ func makeGadgetData(c *C, where string, data []gadgetData) {
 			continue
 		}
 		if strings.HasSuffix(en.name, "/") {
-			err := os.MkdirAll(filepath.Join(where, en.name), 0755)
+			err := os.MkdirAll(filepath.Join(where, en.name), 0o755)
 			c.Check(en.content, HasLen, 0)
 			c.Assert(err, IsNil)
 			continue
@@ -92,7 +92,7 @@ func makeExistingData(c *C, where string, data []gadgetData) {
 			continue
 		}
 		if strings.HasSuffix(en.target, "/") {
-			err := os.MkdirAll(filepath.Join(where, en.target), 0755)
+			err := os.MkdirAll(filepath.Join(where, en.target), 0o755)
 			c.Check(en.content, HasLen, 0)
 			c.Assert(err, IsNil)
 			continue
@@ -312,7 +312,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 		{name: "baz", target: "/baz", content: "baz"},
 	}
 	makeGadgetData(c, s.dir, gd)
-	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
+	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0o755)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
@@ -486,7 +486,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 
 	outDir := c.MkDir()
 
-	err := os.Chmod(outDir, 0000)
+	err := os.Chmod(outDir, 0o000)
 	c.Assert(err, IsNil)
 
 	rw, err := gadget.NewMountedFilesystemWriter(ps, ps, nil)
@@ -753,7 +753,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 	}
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 	// will conflict with preserve entry
-	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0755)
+	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0o755)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
@@ -1286,9 +1286,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
-	err = os.Chmod(s.backup, 0555)
+	err = os.Chmod(s.backup, 0o555)
 	c.Assert(err, IsNil)
-	defer os.Chmod(s.backup, 0755)
+	defer os.Chmod(s.backup, 0o755)
 
 	err = rw.Backup()
 	c.Assert(err, ErrorMatches, "cannot create backup directory: .*/struct-0: permission denied")
@@ -1310,7 +1310,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 		{target: "foo", content: "same"},
 	})
 
-	err := os.Chmod(filepath.Join(outDir, "foo"), 0000)
+	err := os.Chmod(filepath.Join(outDir, "foo"), 0o000)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
@@ -1351,7 +1351,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 		{name: "bar", content: "data"},
 	}
 	makeGadgetData(c, s.dir, gd)
-	err := os.Chmod(filepath.Join(s.dir, "bar"), 0000)
+	err := os.Chmod(filepath.Join(s.dir, "bar"), 0o000)
 	c.Assert(err, IsNil)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
@@ -1441,7 +1441,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictB
 		{backupBar, outDirConflictsBar, prefix + `mkdir .*/bar.backup: not a directory`},
 		{backupFoo, outDirConflictsFoo, prefix + `mkdir .*/foo.same: not a directory`},
 	} {
-		err := os.MkdirAll(tc.backupDir, 0755)
+		err := os.MkdirAll(tc.backupDir, 0o755)
 		c.Assert(err, IsNil)
 		rw, err := gadget.NewMountedFilesystemUpdater(ps, ps, tc.backupDir, func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, ps)
@@ -1903,9 +1903,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 	// some data for the gadget
-	err := os.MkdirAll(filepath.Join(s.dir, "empty-dir"), 0755)
+	err := os.MkdirAll(filepath.Join(s.dir, "empty-dir"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(s.dir, "non-empty/empty-dir"), 0755)
+	err = os.MkdirAll(filepath.Join(s.dir, "non-empty/empty-dir"), 0o755)
 	c.Assert(err, IsNil)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
@@ -2403,7 +2403,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	})
 	// the file exists, and cannot be modified directly, rollback will still
 	// restore the backup as we atomically swap copies with rename()
-	err := os.Chmod(filepath.Join(outDir, "foo"), 0000)
+	err := os.Chmod(filepath.Join(outDir, "foo"), 0o000)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
@@ -2450,10 +2450,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	})
 
 	// make the directory non-writable
-	err = os.Chmod(filepath.Join(outDir, "some-dir"), 0555)
+	err = os.Chmod(filepath.Join(outDir, "some-dir"), 0o555)
 	c.Assert(err, IsNil)
 	// restore permissions later, otherwise test suite cleanup complains
-	defer os.Chmod(filepath.Join(outDir, "some-dir"), 0755)
+	defer os.Chmod(filepath.Join(outDir, "some-dir"), 0o755)
 
 	err = rw.Rollback()
 	c.Assert(err, ErrorMatches, "cannot rollback content: cannot remove written update: remove .*/out-dir/some-dir/foo: permission denied")
@@ -2656,7 +2656,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		{name: "foo", target: "/foo-same", content: "data"},
 	}
 	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
-	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
+	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0o755)
 	c.Assert(err, IsNil)
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
@@ -3051,7 +3051,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 	// will conflict with preserve entry
-	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0755)
+	err := os.MkdirAll(filepath.Join(outDir, "foo"), 0o755)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{

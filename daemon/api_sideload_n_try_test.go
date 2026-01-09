@@ -2288,9 +2288,9 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 	// mock a try dir
 	tryDir := c.MkDir()
 	snapYaml := filepath.Join(tryDir, "meta", "snap.yaml")
-	err = os.MkdirAll(filepath.Dir(snapYaml), 0755)
+	err = os.MkdirAll(filepath.Dir(snapYaml), 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
+	err = os.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0o644)
 	c.Assert(err, check.IsNil)
 
 	reqForFlags := func(f snapstate.Flags) *http.Request {

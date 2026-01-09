@@ -278,7 +278,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
 	}
 
-	if err := os.MkdirAll(destSystemDir, 0755); err != nil {
+	if err := os.MkdirAll(destSystemDir, 0o755); err != nil {
 		return err
 	}
 
@@ -298,7 +298,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 
 	dirs := []string{"snaps", "assertions"}
 	for _, d := range dirs {
-		if err := os.Mkdir(filepath.Join(destSystemDir, d), 0755); err != nil {
+		if err := os.Mkdir(filepath.Join(destSystemDir, d), 0o755); err != nil {
 			return err
 		}
 	}
@@ -318,7 +318,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	}
 
 	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
-	if err := os.Mkdir(destAssertedSnapDir, 0755); err != nil {
+	if err := os.Mkdir(destAssertedSnapDir, 0o755); err != nil {
 		return err
 	}
 
@@ -511,7 +511,7 @@ func writeAuxInfo(path string, auxInfo map[string]*internal.AuxInfo20) error {
 		return nil
 	}
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
 		return err
 	}
@@ -549,7 +549,7 @@ func resolveAndSaveAssertions(assertions []asserts.Assertion, db asserts.RODatab
 		}
 	}
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
 		return err
 	}

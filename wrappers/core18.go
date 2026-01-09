@@ -488,7 +488,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 
 func writeSnapdUserServicesOnCore(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter Interacter) error {
 	// Ensure /etc/systemd/user exists
-	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0o755); err != nil {
 		return err
 	}
 
@@ -697,7 +697,7 @@ var dbusSessionServices = []string{
 }
 
 func writeSnapdDbusActivationOnCore(s *snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0o755); err != nil {
 		return err
 	}
 
@@ -740,7 +740,7 @@ func isSnapdDesktopFile(desktopFile string) bool {
 
 func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 	// Ensure /var/lib/snapd/desktop/applications exists
-	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755); err != nil {
 		return err
 	}
 

@@ -173,7 +173,7 @@ func (ts *HTestSuite) TestSaveDataEnvironmentNotPresent(c *C) {
 func (ts *HTestSuite) TestSaveDataEnvironmentPresent(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	ts.AddCleanup(func() { dirs.SetRootDir("") })
-	c.Assert(os.MkdirAll(snap.CommonDataSaveDir(mockSnapInfo.InstanceName()), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir(mockSnapInfo.InstanceName()), 0o755), IsNil)
 
 	// The snap environment should now include SNAP_SAVE_DATA with the above path.
 	env := basicEnv(mockSnapInfo)
@@ -194,7 +194,7 @@ func (ts *HTestSuite) TestUser(c *C) {
 func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0o755), IsNil)
 
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
@@ -210,7 +210,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(f.ControlFile(), nil, 0o644), IsNil)
 	env = userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
@@ -324,7 +324,7 @@ func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0o755), IsNil)
 
 	info := *mockClassicSnapInfo
 	info.InstanceKey = "bar"
@@ -342,7 +342,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(f.ControlFile(), nil, 0o644), IsNil)
 	env = userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.

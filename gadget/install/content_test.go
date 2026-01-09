@@ -289,9 +289,9 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint
 	treesDir := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
 	modsSubDir := "pc-kernel/111/lib/modules/6.8.0-31-generic"
 	modsDir := filepath.Join(treesDir, modsSubDir)
-	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modsDir, 0o755), IsNil)
 	someFile := filepath.Join(modsDir, "modules.alias")
-	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
+	c.Assert(os.WriteFile(someFile, []byte("blah"), 0o644), IsNil)
 
 	kInfo := &install.KernelSnapInfo{
 		Name:             "pc-kernel",
@@ -479,9 +479,9 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeIdempotent(c *C)
 	treesDir := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
 	modsSubDir := "pc-kernel/111/lib/modules/6.8.0-31-generic"
 	modsDir := filepath.Join(treesDir, modsSubDir)
-	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modsDir, 0o755), IsNil)
 	someFile := filepath.Join(modsDir, "modules.alias")
-	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
+	c.Assert(os.WriteFile(someFile, []byte("blah"), 0o644), IsNil)
 
 	kMods := []install.KernelModulesComponentInfo{{
 		Name:       "kmod1",

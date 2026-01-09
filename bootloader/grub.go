@@ -118,7 +118,7 @@ func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]
 		return fmt.Errorf("internal error: recoverySystemDir unset")
 	}
 	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
-	if err := os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0o755); err != nil {
 		return err
 	}
 	genv := grubenv.NewEnv(recoverySystemGrubEnv)

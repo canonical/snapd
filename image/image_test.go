@@ -387,7 +387,7 @@ func (s *imageSuite) TestMissingModelAssertions(c *C) {
 
 func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	fn := filepath.Join(c.MkDir(), "broken-model.assertion")
-	err := os.WriteFile(fn, nil, 0644)
+	err := os.WriteFile(fn, nil, 0o644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -409,7 +409,7 @@ AXNpZw==
 `)
 
 	fn := filepath.Join(c.MkDir(), "different.assertion")
-	err := os.WriteFile(fn, differentAssertion, 0644)
+	err := os.WriteFile(fn, differentAssertion, 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = image.DecodeModelAssertion(&image.Options{
@@ -443,7 +443,7 @@ AXNpZw==
 	for _, rsvd := range reserved {
 		tweaked := strings.Replace(mod, "kernel: kernel\n", fmt.Sprintf("kernel: kernel\n%s: stuff\n", rsvd), 1)
 		fn := filepath.Join(c.MkDir(), "model.assertion")
-		err := os.WriteFile(fn, []byte(tweaked), 0644)
+		err := os.WriteFile(fn, []byte(tweaked), 0o644)
 		c.Assert(err, IsNil)
 		_, err = image.DecodeModelAssertion(&image.Options{
 			ModelFile: fn,
@@ -470,7 +470,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0o644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -494,7 +494,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0o644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -518,7 +518,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0o644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -543,7 +543,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0o644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -553,7 +553,7 @@ AXNpZw==
 
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	a, err := image.DecodeModelAssertion(&image.Options{
@@ -1324,7 +1324,7 @@ func (s *imageSuite) testSetupSeedWithBaseWithCustomizationsAndDefaults(c *C, wi
 	tmpdir := c.MkDir()
 	rootdir := filepath.Join(tmpdir, "image")
 	cloudInitUserData := filepath.Join(tmpdir, "cloudstuff")
-	err := os.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
+	err := os.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0o644)
 	c.Assert(err, IsNil)
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
@@ -1376,7 +1376,7 @@ func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
 
 	model := s.makeUC20Model(nil)
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1397,7 +1397,7 @@ func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
 		"classic": "true",
 	})
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1423,7 +1423,7 @@ func (s *imageSuite) TestPrepareUC18CustomizationsUnsupported(c *C) {
 		"base":         "core18",
 	})
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1698,7 +1698,7 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 
 	targetDir := c.MkDir()
 	gadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0644)
+	err := os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.InstallCloudConfig(targetDir, gadgetDir)
@@ -2079,7 +2079,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 
 func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2092,7 +2092,7 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2104,7 +2104,7 @@ func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 
 func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2116,7 +2116,7 @@ func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
 
 func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2128,7 +2128,7 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 
 func (s *imageSuite) TestPrepareClassicModeNoClassicModel(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2147,7 +2147,7 @@ func (s *imageSuite) TestPrepareClassicModelNoClassicMode(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2166,7 +2166,7 @@ func (s *imageSuite) TestPrepareClassicModelArchOverrideFails(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2187,7 +2187,7 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -3657,7 +3657,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 
 	model := s.makeUC20Model(nil)
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0o644), IsNil)
 
 	err := image.Prepare(&image.Options{
 		ModelFile:      fn,
@@ -4906,7 +4906,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 
 	// write a seed.manifest we will provide to image
 	manifestFile := filepath.Join(rootDir, "seed.manifest")
-	err := os.WriteFile(manifestFile, []byte("canonical/base-set 1"), 0644)
+	err := os.WriteFile(manifestFile, []byte("canonical/base-set 1"), 0o644)
 	c.Assert(err, IsNil)
 
 	manifest, err := seedwriter.ReadManifest(manifestFile)
@@ -5450,7 +5450,7 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	})
 
 	modelFn := filepath.Join(preparedir, "model.assertion")
-	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	// Create assertion for proxy store and write to file
@@ -5464,7 +5464,7 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	c.Assert(err, IsNil)
 	proxyFn := "proxy.assertion"
 	proxyFilePath := filepath.Join(preparedir, proxyFn)
-	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion), 0644)
+	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion), 0o644)
 	c.Assert(err, IsNil)
 
 	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]any{
@@ -5478,7 +5478,7 @@ func (s *imageSuite) TestPrepareExtraAssertions(c *C) {
 	c.Assert(err, IsNil)
 	accountFn := "account.assertion"
 	accountFilePath := filepath.Join(preparedir, accountFn)
-	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0644)
+	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0o644)
 	c.Assert(err, IsNil)
 
 	// Prepare image with the two additional filepaths
@@ -5520,7 +5520,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsFileNotFound(c *C) {
 	})
 
 	modelFn := filepath.Join(preparedir, "model.assertion")
-	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	proxyFn := "proxy.assertion"
@@ -5562,7 +5562,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsInvalidAssertion(c *C) {
 	})
 
 	modelFn := filepath.Join(preparedir, "model.assertion")
-	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	// Create assertions and write them to file
@@ -5578,7 +5578,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsInvalidAssertion(c *C) {
 	proxyFilePath := filepath.Join(preparedir, proxyFn)
 	// The store assertion is not valid, only the first 10 bytes are written
 	// Simulate when e.g. the yaml syntax is wrong or a field is missing
-	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion)[:10], 0644)
+	err = os.WriteFile(proxyFilePath, asserts.Encode(proxyStoreAssertion)[:10], 0o644)
 	c.Assert(err, IsNil)
 
 	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]any{
@@ -5592,7 +5592,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsInvalidAssertion(c *C) {
 	c.Assert(err, IsNil)
 	accountFn := "account.assertion"
 	accountFilePath := filepath.Join(preparedir, accountFn)
-	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0644)
+	err = os.WriteFile(accountFilePath, asserts.Encode(accountAssertion), 0o644)
 	c.Assert(err, IsNil)
 
 	// Prepare image with the two additional filepaths
@@ -5628,7 +5628,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
 	})
 
 	modelFn := filepath.Join(preparedir, "model.assertion")
-	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -5676,7 +5676,7 @@ func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, grade string, pa
 
 	preparedir := c.MkDir()
 	modelFn := filepath.Join(preparedir, "model.assertion")
-	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0o644)
 	c.Assert(err, IsNil)
 
 	user := map[string]any{

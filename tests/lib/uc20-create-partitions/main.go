@@ -128,7 +128,7 @@ func main() {
 			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
-			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
+			if err := os.WriteFile(keyFileName, keyData, 0o644); err != nil {
 				panic(err)
 			}
 		}

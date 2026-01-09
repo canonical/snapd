@@ -266,7 +266,7 @@ func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
 	c.Assert(err, Equals, devicestate.ErrNoSystems)
 	c.Assert(systems, HasLen, 0)
 
-	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems"), 0o755)
 	c.Assert(err, IsNil)
 
 	systems, err = s.mgr.Systems()
@@ -278,9 +278,9 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root")
 	}
-	err := os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0000)
+	err := os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0o000)
 	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
+	defer os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0o755)
 
 	// stdlib swallows up the errors when opening the target directory
 	systems, err := s.mgr.Systems()
@@ -1450,7 +1450,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksWhenDirExists(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), 0o755), IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1760,9 +1760,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
 	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
 	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0o755), IsNil)
 	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0o755), IsNil)
 	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
@@ -2771,7 +2771,7 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 	}
 
 	// add some empty spaces to log file, which should get ignored when purging
-	f, err := os.OpenFile(flog, os.O_APPEND, 0644)
+	f, err := os.OpenFile(flog, os.O_APPEND, 0o644)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	fmt.Fprintln(f, "    ")
@@ -3022,7 +3022,7 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 	} {
 		bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
 		bootImageDir := filepath.Dir(bootImagePath)
-		err := os.MkdirAll(bootImageDir, 0755)
+		err := os.MkdirAll(bootImageDir, 0o755)
 		c.Assert(err, IsNil)
 
 		if isSupportedUbuntuHybrid {
@@ -3389,7 +3389,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
 	// break the seed by changing things
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0o644)
 	c.Assert(err, IsNil)
 
 	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)

@@ -845,7 +845,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	defer restore()
 
 	// write the installed model like makebootable does it
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755)
 	c.Assert(err, IsNil)
 	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	c.Assert(err, IsNil)
@@ -992,7 +992,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	defer restore()
 
 	// write the installed model like makebootable does it
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755)
 	c.Assert(err, IsNil)
 	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	c.Assert(err, IsNil)
@@ -1529,11 +1529,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		// we need to recreate by-label files in the new root dir
 		s.byLabelDir = filepath.Join(rootDir, "dev/disk/by-label")
 		var err error
-		err = os.MkdirAll(s.byLabelDir, 0755)
+		err = os.MkdirAll(s.byLabelDir, 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0o644)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0o644)
 		c.Assert(err, IsNil)
 
 		restore := disks.MockMountPointDisksToPartitionMapping(
@@ -1545,7 +1545,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		cleanups = append(cleanups, restore)
 
 		// Make sure we have a model
-		err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+		err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755)
 		c.Assert(err, IsNil)
 		mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 		c.Assert(err, IsNil)
@@ -1724,9 +1724,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsHappy(c *
 		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
 	kversion := "6.8.0-46-generic"
 	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
-	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(modUpdates, 0o755), IsNil)
 	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
-	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwUpdates, 0o755), IsNil)
 	os.Symlink(filepath.Join(dirs.SnapMountDir,
 		"pc-kernel/components/mnt/comp1/11/modules", kversion),
 		filepath.Join(modUpdates, "comp1"))
@@ -1796,9 +1796,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithComponentsBadComps(
 		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
 	kversion := "6.8.0-46-generic"
 	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
-	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(modUpdates, 0o755), IsNil)
 	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
-	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwUpdates, 0o755), IsNil)
 	// No kernel version in target
 	os.Symlink(filepath.Join(dirs.SnapMountDir,
 		"pc-kernel/components/mnt/comp1/11/modules"),
@@ -1887,8 +1887,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeWithDriversTreeHappy(c 
 	driversDir := filepath.Join(dirs.GlobalRootDir,
 		"/run/mnt/data/system-data", defaultsDir, "var/lib/snapd/kernel/pc-kernel",
 		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
-	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0o755), IsNil)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{

@@ -52,9 +52,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 
 	// make mock try dir
 	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Chmod(d, 0o755), IsNil)
 	tryYaml := filepath.Join(d, "meta", "snap.yaml")
-	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
+	err := os.MkdirAll(filepath.Dir(tryYaml), 0o755)
 	c.Assert(err, IsNil)
 	buf := bytes.Buffer{}
 	buf.WriteString("name: foo\nversion: 1.0\n")
@@ -63,7 +63,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 			buf.WriteString(extra)
 		}
 	}
-	err = os.WriteFile(tryYaml, buf.Bytes(), 0644)
+	err = os.WriteFile(tryYaml, buf.Bytes(), 0o644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")

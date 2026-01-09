@@ -162,7 +162,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-catalogs"})
 
-	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapCacheDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 

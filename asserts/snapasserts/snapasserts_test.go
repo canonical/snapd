@@ -277,7 +277,7 @@ version: 1`, nil)
 func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err := os.WriteFile(snapPath, fakeSnap(42), 0644)
+	err := os.WriteFile(snapPath, fakeSnap(42), 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
@@ -303,7 +303,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err = os.WriteFile(snapPath, fakeSnap(42), 0644)
+	err = os.WriteFile(snapPath, fakeSnap(42), 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
@@ -342,7 +342,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "anon.snap")
-	err = os.WriteFile(snapPath, fakeSnap(42), 0644)
+	err = os.WriteFile(snapPath, fakeSnap(42), 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)

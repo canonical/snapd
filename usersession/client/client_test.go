@@ -65,7 +65,7 @@ func (s *clientSuite) SetUpTest(c *C) {
 	s.server = &http.Server{Handler: s}
 	for _, uid := range []int{1000, 42} {
 		sock := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, uid)
-		err := os.MkdirAll(filepath.Dir(sock), 0755)
+		err := os.MkdirAll(filepath.Dir(sock), 0o755)
 		c.Assert(err, IsNil)
 		l, err := net.Listen("unix", sock)
 		c.Assert(err, IsNil)

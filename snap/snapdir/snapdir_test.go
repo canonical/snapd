@@ -45,9 +45,9 @@ var _ = Suite(&SnapdirTestSuite{})
 
 func (s *SnapdirTestSuite) TestIsSnapDir(c *C) {
 	d := c.MkDir()
-	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(d, "meta"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	c.Check(snapdir.IsSnapDir(d), Equals, true)
@@ -62,7 +62,7 @@ func (s *SnapdirTestSuite) TestNotIsSnapDir(c *C) {
 func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
+	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0o644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)
@@ -84,8 +84,8 @@ func (s *SnapdirTestSuite) TestReadlink(c *C) {
 func (s *SnapdirTestSuite) TestLstat(c *C) {
 	d := c.MkDir()
 	c.Assert(os.Symlink("target", filepath.Join(d, "symlink")), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "meta"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0o644), IsNil)
 
 	sn := snapdir.New(d)
 	for _, file := range []string{
@@ -113,7 +113,7 @@ func (s *SnapdirTestSuite) TestLstatErrNotExist(c *C) {
 func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
+	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0o644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)
@@ -133,11 +133,11 @@ func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 func (s *SnapdirTestSuite) TestListDir(c *C) {
 	d := c.MkDir()
 
-	err := os.MkdirAll(filepath.Join(d, "test"), 0755)
+	err := os.MkdirAll(filepath.Join(d, "test"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "test", "test1"), nil, 0o644)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "test", "test2"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)
@@ -225,7 +225,7 @@ func (s *SnapdirTestSuite) TestWalk(c *C) {
 	f = func(d string, n int) {
 		for _, b := range ns {
 			d1 := filepath.Join(d, fmt.Sprintf("%s%d", b, n))
-			c.Assert(os.Mkdir(d1, 0755), IsNil)
+			c.Assert(os.Mkdir(d1, 0o755), IsNil)
 			if n < 20 && rand.Float32() < p {
 				f(d1, n+1)
 			}

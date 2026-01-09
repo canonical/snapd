@@ -171,7 +171,7 @@ var _ = Suite(&secbootSuite{})
 
 func (s *secbootSuite) SetUpTest(c *C) {
 	rootDir := c.MkDir()
-	err := os.MkdirAll(filepath.Join(rootDir, "/run"), 0755)
+	err := os.MkdirAll(filepath.Join(rootDir, "/run"), 0o755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
@@ -477,7 +477,7 @@ func (s *secbootSuite) TestProvisionForCVM(c *C) {
 
 	dir := c.MkDir()
 
-	f, err := os.OpenFile(filepath.Join(dir, "tpm2-srk.tmpl"), os.O_RDWR|os.O_CREATE, 0600)
+	f, err := os.OpenFile(filepath.Join(dir, "tpm2-srk.tmpl"), os.O_RDWR|os.O_CREATE, 0o600)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	mu.MustMarshalToWriter(f, mu.Sized(expectedTemplate))
@@ -934,7 +934,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 
 	// set up some test files
 	existingFile := filepath.Join(tmpDir, "foo")
-	err := os.WriteFile(existingFile, nil, 0644)
+	err := os.WriteFile(existingFile, nil, 0o644)
 	c.Assert(err, IsNil)
 	missingFile := filepath.Join(tmpDir, "bar")
 	snapFile := filepath.Join(tmpDir, "test.snap")
@@ -1026,7 +1026,7 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 
 		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
 		if tc.writeLockoutAuth {
-			c.Assert(os.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0o644), IsNil)
 		}
 
 		// mock provisioning
@@ -1112,7 +1112,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
 			mockFileName := filepath.Join(tmpDir, name)
-			err := os.WriteFile(mockFileName, nil, 0644)
+			err := os.WriteFile(mockFileName, nil, 0o644)
 			c.Assert(err, IsNil)
 			mockBF = append(mockBF, bootloader.NewBootFile("", mockFileName, bootloader.RoleRecovery))
 		}
@@ -1124,7 +1124,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		var kernelSnap snap.Container
 		snapPath := filepath.Join(tmpDir, "kernel.snap")
 		if tc.badSnapFile {
-			err := os.WriteFile(snapPath, nil, 0644)
+			err := os.WriteFile(snapPath, nil, 0o644)
 			c.Assert(err, IsNil)
 		} else {
 			var err error
@@ -1466,7 +1466,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
 		if tc.usePrimaryKeyFile {
-			err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
+			err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0o600)
 			c.Assert(err, IsNil)
 		}
 		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
@@ -1482,7 +1482,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 
 		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
 		if !tc.missingFile {
-			err := os.WriteFile(mockEFI.Path, nil, 0644)
+			err := os.WriteFile(mockEFI.Path, nil, 0o644)
 			c.Assert(err, IsNil)
 		}
 
@@ -1820,10 +1820,10 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 
 func createMockSnapFile(snapDir, snapPath, snapType string) (snap.Container, error) {
 	snapYamlPath := filepath.Join(snapDir, "meta/snap.yaml")
-	if err := os.MkdirAll(filepath.Dir(snapYamlPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(snapYamlPath), 0o755); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(snapYamlPath, []byte("name: foo"), 0644); err != nil {
+	if err := os.WriteFile(snapYamlPath, []byte("name: foo"), 0o644); err != nil {
 		return nil, err
 	}
 	sqfs := squashfs.New(snapPath)
@@ -2410,7 +2410,7 @@ func makeMockSealedKeyFile(c *C, handle json.RawMessage) string {
 		handleJSON = fmt.Sprintf(`"platform_handle":%s,`, handle)
 	}
 	sealedKeyContent := fmt.Sprintf(`{"platform_name":"fde-hook-v2",%s"encrypted_payload":"%s"}`, handleJSON, makeMockEncryptedPayloadString())
-	err := os.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
+	err := os.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0o600)
 	c.Assert(err, IsNil)
 	return mockSealedKeyFile
 }
@@ -2966,10 +2966,10 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 	defer restore()
 
 	// device is encrypted
-	err := os.MkdirAll(dirs.SnapFDEDir, 0700)
+	err := os.MkdirAll(dirs.SnapFDEDir, 0o700)
 	c.Assert(err, IsNil)
 	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)
-	err = os.MkdirAll(saveFDEDir, 0700)
+	err = os.MkdirAll(saveFDEDir, 0o700)
 	c.Assert(err, IsNil)
 
 	err = device.StampSealedKeys(dirs.GlobalRootDir, sealingMethod)
@@ -2977,7 +2977,7 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 
 	// write fake lockout auth
 	lockoutAuthValue := []byte("tpm-lockout-auth-key")
-	err = os.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
+	err = os.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0o600)
 	c.Assert(err, IsNil)
 
 	daLockResetCalls := 0
@@ -3661,7 +3661,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 
 	tmpdir := c.MkDir()
 	key1Fn := filepath.Join(tmpdir, "key1.key")
-	err := os.WriteFile(key1Fn, key1, 0644)
+	err := os.WriteFile(key1Fn, key1, 0o644)
 	c.Assert(err, IsNil)
 
 	m := &testModel{
@@ -3695,7 +3695,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 
 	tmpdir := c.MkDir()
 	key1Fn := filepath.Join(tmpdir, "key1.key")
-	err := os.WriteFile(key1Fn, key1, 0644)
+	err := os.WriteFile(key1Fn, key1, 0o644)
 	c.Assert(err, IsNil)
 
 	m := &testModel{
@@ -3903,7 +3903,7 @@ func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {
 	tmpDir := c.MkDir()
 	keyPath := filepath.Join(tmpDir, "key")
 	// KeyData is a json
-	err := os.WriteFile(keyPath, []byte(`{}`), 0644)
+	err := os.WriteFile(keyPath, []byte(`{}`), 0o644)
 	c.Assert(err, IsNil)
 
 	newFileKeyDataReaderCalls := 0
@@ -3966,7 +3966,7 @@ func (s *secbootSuite) TestReadKeyFileFDEHookV1(c *C) {
 	tmpDir := c.MkDir()
 	keyPath := filepath.Join(tmpDir, "key")
 	// KeyData starts with USK$
-	err := os.WriteFile(keyPath, []byte(`USK$blahblah`), 0644)
+	err := os.WriteFile(keyPath, []byte(`USK$blahblah`), 0o644)
 	c.Assert(err, IsNil)
 
 	err = secboot.ReadKeyFile(keyPath, keyLoader, fdeHookHint)
@@ -4520,7 +4520,7 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 
 	tmpDir := c.MkDir()
 	keyFile := filepath.Join(tmpDir, "key-file")
-	err := os.WriteFile(keyFile, []byte{1, 2, 3, 4}, 0644)
+	err := os.WriteFile(keyFile, []byte{1, 2, 3, 4}, 0o644)
 	c.Assert(err, IsNil)
 
 	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, []string{keyFile})
@@ -4567,7 +4567,7 @@ func (s *secbootSuite) TestGetPrimaryKeyError(c *C) {
 	tmpDir := c.MkDir()
 	keyFile1 := filepath.Join(tmpDir, "key-file-nonexistant")
 	keyFile2 := filepath.Join(tmpDir, "key-file-notreadable")
-	err := os.WriteFile(keyFile2, []byte{}, 0200)
+	err := os.WriteFile(keyFile2, []byte{}, 0o200)
 	c.Assert(err, IsNil)
 
 	_, err = secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, []string{keyFile1, keyFile2})

@@ -72,10 +72,10 @@ func (s *initramfsSuite) TestEnsureNextBootToRunMode(c *C) {
 
 func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 	// create a real grub.cfg on ubuntu-seed
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu"), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu", "grub.cfg"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = boot.EnsureNextBootToRunMode("somelabel")
@@ -101,13 +101,13 @@ func (s *initramfsSuite) TestEnsureNextBootToRunModeRealBootloader(c *C) {
 func makeSnapFilesOnInitramfsUbuntuData(c *C, rootfsDir string, comment CommentInterface, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
 	snapDir := dirs.SnapBlobDirUnder(rootfsDir)
-	err := os.MkdirAll(snapDir, 0755)
+	err := os.MkdirAll(snapDir, 0o755)
 	c.Assert(err, IsNil, comment)
 	paths := make([]string, 0, len(snaps))
 	for _, sn := range snaps {
 		snPath := filepath.Join(snapDir, sn.Filename())
 		paths = append(paths, snPath)
-		err = os.WriteFile(snPath, nil, 0644)
+		err = os.WriteFile(snPath, nil, 0o644)
 		c.Assert(err, IsNil, comment)
 	}
 	return func() {
@@ -779,7 +779,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVars(c *C) {
 		bloader.SetBootVars(map[string]string{"kernel_status": t.initialStatus})
 
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
+		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0o644)
 		c.Assert(err, IsNil)
 		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
@@ -803,7 +803,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNotNotScriptabl
 	bloader.SetBootVars(map[string]string{"kernel_status": "try"})
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
+	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0o644)
 	c.Assert(err, IsNil)
 	r := kcmdline.MockProcCmdline(cmdlineFile)
 	defer r()
@@ -824,7 +824,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrOnGetBootVar
 	bloader.GetErr = errors.New(errMsg)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
+	err := os.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0o644)
 	c.Assert(err, IsNil)
 	r := kcmdline.MockProcCmdline(cmdlineFile)
 	defer r()

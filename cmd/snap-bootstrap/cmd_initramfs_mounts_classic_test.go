@@ -347,7 +347,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 	defer restore()
 
 	// write the installed model like makebootable does it
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755)
 	c.Assert(err, IsNil)
 	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	c.Assert(err, IsNil)
@@ -684,9 +684,9 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHa
 		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
 	kversion := "6.8.0-46-generic"
 	modUpdates := filepath.Join(driversDir, "modules", kversion, "updates")
-	c.Assert(os.MkdirAll(modUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(modUpdates, 0o755), IsNil)
 	fwUpdates := filepath.Join(driversDir, "firmware", "updates")
-	c.Assert(os.MkdirAll(fwUpdates, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwUpdates, 0o755), IsNil)
 	os.Symlink(filepath.Join(dirs.SnapMountDir,
 		"pc-kernel/components/mnt/comp1/11/modules", kversion),
 		filepath.Join(modUpdates, "comp1"))
@@ -868,8 +868,8 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeH
 	driversDir := filepath.Join(dirs.GlobalRootDir,
 		"/run/mnt/data/var/lib/snapd/kernel/pc-kernel",
 		fmt.Sprint(s.kernel.SnapRevision().N), "lib")
-	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "modules"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(driversDir, "firmware"), 0o755), IsNil)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -958,19 +958,19 @@ imported:*::
 )
 
 func writeLoginFiles(c *C, root string, passwd, shadow, group, gshadow string) {
-	err := os.MkdirAll(filepath.Join(root, "etc"), 0750)
+	err := os.MkdirAll(filepath.Join(root, "etc"), 0o750)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(root, "etc/passwd"), []byte(passwd), 0640)
+	err = os.WriteFile(filepath.Join(root, "etc/passwd"), []byte(passwd), 0o640)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(root, "etc/shadow"), []byte(shadow), 0640)
+	err = os.WriteFile(filepath.Join(root, "etc/shadow"), []byte(shadow), 0o640)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(root, "etc/group"), []byte(group), 0640)
+	err = os.WriteFile(filepath.Join(root, "etc/group"), []byte(group), 0o640)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(root, "etc/gshadow"), []byte(gshadow), 0640)
+	err = os.WriteFile(filepath.Join(root, "etc/gshadow"), []byte(gshadow), 0o640)
 	c.Assert(err, IsNil)
 }
 
@@ -1006,12 +1006,12 @@ func (s *initramfsClassicMountsSuite) testRecoverModeHappy(c *C) {
 	// mock various files that are copied around during recover mode (and files
 	// that shouldn't be copied around)
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 	// mock a auth data in the host's ubuntu-data
 
 	hostUbuntuData := boot.InitramfsHostWritableDir(s.model)
-	err = os.MkdirAll(hostUbuntuData, 0755)
+	err = os.MkdirAll(hostUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	writeLoginFiles(c, hostUbuntuData, passwdHybrid, shadowHybrid, groupHybrid, gshadowHybrid)
@@ -1047,17 +1047,17 @@ func (s *initramfsClassicMountsSuite) testRecoverModeHappy(c *C) {
 	}
 	for _, mockFile := range append(mockCopiedFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockFile)
-		err = os.MkdirAll(filepath.Dir(p), 0750)
+		err = os.MkdirAll(filepath.Dir(p), 0o750)
 		c.Assert(err, IsNil)
 		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockFile))
-		err = os.WriteFile(p, []byte(mockContent), 0640)
+		err = os.WriteFile(p, []byte(mockContent), 0o640)
 		c.Assert(err, IsNil)
 	}
 	// create a mock state
 	mockedState := filepath.Join(hostUbuntuData, "var/lib/snapd/state.json")
-	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
+	err = os.MkdirAll(filepath.Dir(mockedState), 0o750)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockedState, []byte(mockStateContent), 0640)
+	err = os.WriteFile(mockedState, []byte(mockStateContent), 0o640)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})

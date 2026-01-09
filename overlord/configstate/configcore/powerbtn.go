@@ -57,7 +57,7 @@ func switchHandlePowerKey(action string, opts *fsOnlyContext) error {
 
 	cfgDir := filepath.Dir(powerBtnCfg(opts))
 	if !osutil.IsDirectory(cfgDir) {
-		if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 			return err
 		}
 	}

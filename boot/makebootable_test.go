@@ -112,11 +112,11 @@ func (s *makeBootableSuite) TestMakeBootableImage(c *C) {
 
 	grubCfg := []byte("#grub cfg")
 	unpackedGadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0o644)
 	c.Assert(err, IsNil)
 
 	seedSnapsDirs := filepath.Join(s.rootdir, "/var/lib/snapd/seed", "snaps")
-	err = os.MkdirAll(seedSnapsDirs, 0755)
+	err = os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core18", `name: core18
@@ -251,7 +251,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20(c *C) {
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -328,7 +328,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20BootFlags(c *C) {
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -392,7 +392,7 @@ func (s *makeBootable20Suite) testMakeBootableImage20CustomKernelArgs(c *C, whic
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -482,10 +482,10 @@ func (s *makeBootable20Suite) TestMakeBootableImage20UnsetRecoverySystemLabelErr
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
+	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0o644)
 	c.Assert(err, IsNil)
 	grubCfg := []byte("#grub cfg")
-	err = os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	err = os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0o644)
 	c.Assert(err, IsNil)
 
 	label := "20191209"
@@ -504,9 +504,9 @@ func (s *makeBootable20Suite) TestMakeBootableImage20MultipleRecoverySystemsErro
 	model := boottest.MakeMockUC20Model()
 
 	bootWith := &boot.BootableSet{Recovery: true}
-	err := os.MkdirAll(filepath.Join(s.rootdir, "systems/20191204"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootdir, "systems/20191204"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(s.rootdir, "systems/20191205"), 0755)
+	err = os.MkdirAll(filepath.Join(s.rootdir, "systems/20191205"), 0o755)
 	c.Assert(err, IsNil)
 
 	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
@@ -592,10 +592,10 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 	fakeCmdline := filepath.Join(fakeProc, "cmdline")
 	defer kcmdline.MockProcCmdline(fakeCmdline)()
 	if opts.forceTokens == "" {
-		err := os.WriteFile(fakeCmdline, []byte("some args"), 0644)
+		err := os.WriteFile(fakeCmdline, []byte("some args"), 0o644)
 		c.Assert(err, IsNil)
 	} else {
-		err := os.WriteFile(fakeCmdline, []byte(fmt.Sprintf("some ubuntu-core.force-experimental-tokens=%s args", opts.forceTokens)), 0644)
+		err := os.WriteFile(fakeCmdline, []byte(fmt.Sprintf("some ubuntu-core.force-experimental-tokens=%s args", opts.forceTokens)), 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -622,21 +622,21 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 		model = boottest.MakeMockUC20Model()
 	}
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
 	c.Assert(genv.Save(), IsNil)
 
 	// setup recovery boot assets
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0o755)
 	c.Assert(err, IsNil)
 	// SHA3-384: 39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37
 	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
@@ -650,9 +650,9 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 	// grub on ubuntu-boot
 	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	unpackedGadgetDir := c.MkDir()
@@ -1068,21 +1068,21 @@ func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c
 
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
-	err = os.MkdirAll(mockSeedGrubDir, 0755)
+	err = os.MkdirAll(mockSeedGrubDir, 0o755)
 	c.Assert(err, IsNil)
 	// no recovery grub.cfg so that test fails if it ever reaches that point
 
 	// grub on ubuntu-boot
 	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	unpackedGadgetDir := c.MkDir()
@@ -1133,7 +1133,7 @@ version: 5.0
 
 	// set up grub.cfg in gadget
 	grubCfg := []byte("#grub cfg")
-	err = os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	err = os.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0o644)
 	c.Assert(err, IsNil)
 
 	// no write access to destination directory
@@ -1148,19 +1148,19 @@ func (s *makeBootable20Suite) TestMakeRunnableSystem20RunModeSealKeyErr(c *C) {
 
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 
 	// setup recovery boot assets
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0o755)
 	c.Assert(err, IsNil)
 	// SHA3-384: 39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37
 	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
@@ -1174,9 +1174,9 @@ func (s *makeBootable20Suite) TestMakeRunnableSystem20RunModeSealKeyErr(c *C) {
 	// grub on ubuntu-boot
 	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	unpackedGadgetDir := c.MkDir()
@@ -1341,21 +1341,21 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
 	c.Assert(genv.Save(), IsNil)
 
 	// setup recovery boot assets
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0o755)
 	c.Assert(err, IsNil)
 	// SHA3-384: 39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37
 	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
@@ -1369,9 +1369,9 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 	// grub on ubuntu-boot
 	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	unpackedGadgetDir := c.MkDir()
@@ -1613,20 +1613,20 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable
 
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 	// there is no grubenv in ubuntu-seed so loading from it will fail
 
 	// setup recovery boot assets
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0o755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
 		[]byte("recovery shim content"), 0644)
@@ -1638,9 +1638,9 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable
 	// grub on ubuntu-boot
 	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	unpackedGadgetDir := c.MkDir()
@@ -1720,12 +1720,12 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20TraditionalUboote
 
 	unpackedGadgetDir := c.MkDir()
 	ubootEnv := []byte("#uboot env")
-	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), ubootEnv, 0644)
+	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), ubootEnv, 0o644)
 	c.Assert(err, IsNil)
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err = os.MkdirAll(seedSnapsDirs, 0755)
+	err = os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -1771,12 +1771,12 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootScr(c *C) {
 
 	unpackedGadgetDir := c.MkDir()
 	// the uboot.conf must be empty for this to work/do the right thing
-	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err = os.MkdirAll(seedSnapsDirs, 0755)
+	err = os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -1842,7 +1842,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootSelNoHeaderFl
 
 	unpackedGadgetDir := c.MkDir()
 	// the uboot.conf must be empty for this to work/do the right thing
-	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	sampleEnv, err := ubootenv.Create(filepath.Join(unpackedGadgetDir, "boot.sel"), 4096, ubootenv.CreateOptions{HeaderFlagByte: false})
@@ -1852,7 +1852,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootSelNoHeaderFl
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err = os.MkdirAll(seedSnapsDirs, 0755)
+	err = os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -1909,12 +1909,12 @@ func (s *makeBootable20UbootSuite) TestUbootMakeRunnableSystem20RunModeBootSel(c
 
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// uboot on ubuntu-seed
 	mockSeedUbootBootSel := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
-	err = os.MkdirAll(filepath.Dir(mockSeedUbootBootSel), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedUbootBootSel), 0o755)
 	c.Assert(err, IsNil)
 	env, err := ubootenv.Create(mockSeedUbootBootSel, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
@@ -1922,14 +1922,14 @@ func (s *makeBootable20UbootSuite) TestUbootMakeRunnableSystem20RunModeBootSel(c
 
 	// uboot on ubuntu-boot (as if it was installed when creating the partition)
 	mockBootUbootBootSel := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
-	err = os.MkdirAll(filepath.Dir(mockBootUbootBootSel), 0755)
+	err = os.MkdirAll(filepath.Dir(mockBootUbootBootSel), 0o755)
 	c.Assert(err, IsNil)
 	env, err = ubootenv.Create(mockBootUbootBootSel, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
 	unpackedGadgetDir := c.MkDir()
-	c.Assert(os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0o644), IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
@@ -2026,7 +2026,7 @@ func (s *makeBootable20Suite) TestMakeRecoverySystemBootableAtRuntime20(c *C) {
 
 	// on uc20 the seed layout if different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
@@ -2115,7 +2115,7 @@ func (s *makeBootable20Suite) TestMakeBootablePartition(c *C) {
 	defer restore()
 
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
@@ -2162,7 +2162,7 @@ version: 5.0
 		Role: bootloader.RoleRecovery,
 	}
 	partMntDir := filepath.Join(s.rootdir, "/partition")
-	err = os.MkdirAll(partMntDir, 0755)
+	err = os.MkdirAll(partMntDir, 0o755)
 	c.Assert(err, IsNil)
 	err = boot.MakeBootablePartition(partMntDir, opts, bootWith, boot.ModeRun, []string{})
 	c.Assert(err, IsNil)
@@ -2194,15 +2194,15 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemNoGoodRecoverySystems(c *C) 
 	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
 	c.Assert(genv.Save(), IsNil)
@@ -2280,15 +2280,15 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
 	snapsDirs := filepath.Join(s.rootdir, "/somewhere")
-	err := os.MkdirAll(snapsDirs, 0755)
+	err := os.MkdirAll(snapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 	c.Assert(err, IsNil)
 	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
 	c.Assert(genv.Save(), IsNil)
@@ -2422,7 +2422,7 @@ func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, mode
 
 	// on uc20 the seed layout is different
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
-	err := os.MkdirAll(seedSnapsDirs, 0755)
+	err := os.MkdirAll(seedSnapsDirs, 0o755)
 	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := makeSnap(c, "core22", `name: core22

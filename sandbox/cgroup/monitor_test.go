@@ -60,7 +60,7 @@ func (s *monitorSuite) SetUpTest(c *C) {
 
 func makeTestFolder(c *C, root string, name string) (fullPath string) {
 	fullPath = path.Join(root, name)
-	err := os.Mkdir(fullPath, 0755)
+	err := os.Mkdir(fullPath, 0o755)
 	c.Assert(err, IsNil)
 	return fullPath
 }
@@ -350,9 +350,9 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 
 	// make mock cgroups.procs file
 	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
-	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
+	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
+	err = os.WriteFile(mockProcsFile, []byte("57003\n57004"), 0o644)
 	c.Assert(err, IsNil)
 
 	// wait for firefox to end

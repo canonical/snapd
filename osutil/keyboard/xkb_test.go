@@ -209,9 +209,9 @@ func (s *xkbTestSuite) TestCurrentXKBConfigErrors(c *C) {
 func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	vconsoleConfPath := filepath.Join(s.rootDir, "/etc/vconsole.conf")
 	kbConfPath := filepath.Join(s.rootDir, "/etc/default/keyboard")
-	c.Assert(os.MkdirAll(filepath.Dir(kbConfPath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(kbConfPath), 0o755), IsNil)
 	// mock /etc/default/keyboard as a symlink to /etc/vconsole.conf
-	c.Assert(os.WriteFile(vconsoleConfPath, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, nil, 0o644), IsNil)
 	c.Assert(os.Symlink(vconsoleConfPath, kbConfPath), IsNil)
 
 	s.mockDBusProperties = map[string]any{
@@ -239,18 +239,18 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(listener, NotNil)
 
-	c.Assert(os.WriteFile(kbConfPath, []byte("1"), 0644), IsNil)
+	c.Assert(os.WriteFile(kbConfPath, []byte("1"), 0o644), IsNil)
 	<-cbChan
-	c.Assert(os.WriteFile(kbConfPath, []byte("2"), 0644), IsNil)
+	c.Assert(os.WriteFile(kbConfPath, []byte("2"), 0o644), IsNil)
 	<-cbChan
-	c.Assert(os.WriteFile(vconsoleConfPath, []byte("3"), 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("3"), 0o644), IsNil)
 	<-cbChan
 	// Simulate replacement i.e. rename
 	c.Assert(osutil.AtomicWriteFile(vconsoleConfPath, []byte("4"), 0644, 0), IsNil)
 	<-cbChan
-	c.Assert(os.WriteFile(vconsoleConfPath, []byte("5"), 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("5"), 0o644), IsNil)
 	<-cbChan
-	c.Assert(os.WriteFile(vconsoleConfPath, []byte("6"), 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("6"), 0o644), IsNil)
 	<-cbChan
 
 	c.Assert(called, Equals, 6)
@@ -259,7 +259,7 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	// Wait to make sure we don't accidentally check number of calls
 	// before inotify gets a chance to detect the event.
 	time.Sleep(20 * time.Millisecond)
-	c.Assert(os.WriteFile(vconsoleConfPath, []byte("4"), 0644), IsNil)
+	c.Assert(os.WriteFile(vconsoleConfPath, []byte("4"), 0o644), IsNil)
 	// Context cancellation closes the inotify watcher.
 	c.Assert(called, Equals, 6)
 }

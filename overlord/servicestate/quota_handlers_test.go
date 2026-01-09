@@ -2348,7 +2348,7 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	// that specific group. This is not done in the test as we only setup the
 	// group as a mock, so manually do this here.
 	fooConfPath := filepath.Join(dirs.SnapSystemdDir, "journald@snap-foo.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(fooConfPath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fooConfPath), 0o755), IsNil)
 	err = os.WriteFile(fooConfPath, []byte(`[Journal]
 SystemMaxUse=16M
 `), 0644)

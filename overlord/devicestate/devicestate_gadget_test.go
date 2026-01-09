@@ -366,8 +366,8 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 		if encryption {
 			// sealed keys stamp
 			stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
-			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-			err = os.WriteFile(stamp, nil, 0644)
+			c.Assert(os.MkdirAll(filepath.Dir(stamp), 0o755), IsNil)
+			err = os.WriteFile(stamp, nil, 0o644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -491,7 +491,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 	chg, t := s.setupGadgetUpdate(c, "", gadgetYaml, "", isClassic)
 
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
-	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
+	err := os.MkdirAll(dirs.SnapRollbackDir, 0o000)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -854,7 +854,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml for current snap
-	os.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
+	os.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0o644)
 
 	current, err = devicestate.CurrentGadgetData(s.state, deviceCtx)
 	c.Assert(err, IsNil)
@@ -890,7 +890,7 @@ volumes:
 `
 
 	// drop gadget.yaml for update snap
-	os.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
+	os.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0o644)
 
 	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
 	c.Assert(err, IsNil)

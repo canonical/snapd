@@ -44,13 +44,13 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 }
 
 func makeMockSnapdSnapWithOverrides(c *C, metaSnapYaml string, extra [][]string) *snap.Info {
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	err := os.MkdirAll(dirs.SnapServicesDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
+	err = os.MkdirAll(dirs.SnapUserServicesDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755)
+	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
+	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0o755)
 	c.Assert(err, IsNil)
 
 	defaultContent := [][]string{
@@ -571,7 +571,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCoreDeletesRemovedServi
 	existingServiceFile := filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")
 
 	// Create old service files
-	os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0750)
+	os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0o750)
 	for _, fn := range []string{existingServiceFile, vestigialServiceFile} {
 		f, err := os.Create(fn)
 		c.Assert(err, IsNil)

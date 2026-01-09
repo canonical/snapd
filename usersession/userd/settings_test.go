@@ -249,9 +249,9 @@ func (s *settingsSuite) TestSetSubInvalidValue(c *C) {
 
 func (s *settingsSuite) testSetUserDeclined(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
@@ -291,9 +291,9 @@ func (s *settingsSuite) TestSetUserDeclinedZenity(c *C) {
 
 func (s *settingsSuite) testSetUserAccepts(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
@@ -311,9 +311,9 @@ func (s *settingsSuite) testSetUserAccepts(c *C) {
 
 func (s *settingsSuite) testSetUserAcceptsURLScheme(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
@@ -381,9 +381,9 @@ func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) 
 	}()
 
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")

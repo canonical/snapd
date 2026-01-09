@@ -72,7 +72,7 @@ func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 			// to false is attempted.
 			return nil
 		}
-		if err := os.MkdirAll(tempLogPath, 0755); err != nil {
+		if err := os.MkdirAll(tempLogPath, 0o755); err != nil {
 			return err
 		}
 		if err := osutil.AtomicWriteFile(filepath.Join(tempLogPath, marker), nil, 0700, 0); err != nil {

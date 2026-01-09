@@ -338,7 +338,7 @@ func hasDesktopPrefix(s *snap.Info, desktopFile string) bool {
 // It also removes desktop files from the applications of the old snap revision to ensure
 // that only new snap desktop files exist.
 func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755); err != nil {
 		return err
 	}
 

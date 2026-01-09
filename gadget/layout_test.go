@@ -455,7 +455,7 @@ volumes:
 }
 
 func makeSizedFile(c *C, path string, size quantity.Size, content []byte) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
 
 	f, err := os.Create(path)
@@ -1068,16 +1068,16 @@ func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) str
 	c.Assert(err, IsNil)
 
 	kernelRootDir := c.MkDir()
-	err = os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
+	err = os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
+	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0o644)
 	c.Assert(err, IsNil)
 
 	for fname, content := range filesWithContent {
 		p := filepath.Join(kernelRootDir, fname)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
+		err = os.MkdirAll(filepath.Dir(p), 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(p, []byte(content), 0644)
+		err = os.WriteFile(p, []byte(content), 0o644)
 		c.Assert(err, IsNil)
 	}
 

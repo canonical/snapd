@@ -79,7 +79,7 @@ assets:
 	mockKernelRoot := makeMockKernel(c, kernelYaml, map[string]string{
 		"foo": "",
 	})
-	err := os.MkdirAll(filepath.Join(mockKernelRoot, "dir"), 0755)
+	err := os.MkdirAll(filepath.Join(mockKernelRoot, "dir"), 0o755)
 	c.Assert(err, IsNil)
 
 	err = kernel.Validate(mockKernelRoot)

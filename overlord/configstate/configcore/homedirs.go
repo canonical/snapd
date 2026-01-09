@@ -104,7 +104,7 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 		rootDir = opts.RootDir
 	}
 	sspPath := dirs.SnapSystemParamsUnder(rootDir)
-	if err := os.MkdirAll(path.Dir(sspPath), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(sspPath), 0o755); err != nil {
 		return err
 	}
 

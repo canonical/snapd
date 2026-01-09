@@ -55,7 +55,7 @@ func (s *kernelDriversTestSuite) SetUpTest(c *C) {
 
 func (s *kernelDriversTestSuite) TestKernelVersionFromModulesDir(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
-	c.Assert(os.MkdirAll(mountDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(mountDir, 0o755), IsNil)
 
 	// No map file
 	ver, err := kernel.KernelVersionFromModulesDir(mountDir)
@@ -79,9 +79,9 @@ func (s *kernelDriversTestSuite) TestKernelVersionFromModulesDir(c *C) {
 
 func (s *kernelDriversTestSuite) TestKernelVersionFromModulesDirNoModDir(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
-	c.Assert(os.MkdirAll(mountDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(mountDir, 0o755), IsNil)
 
-	c.Assert(os.MkdirAll(filepath.Join(mountDir, "modules"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(mountDir, "modules"), 0o755), IsNil)
 	// Create file instead of directory
 	c.Assert(os.WriteFile(filepath.Join(
 		mountDir, "modules", "5.15.0-78-generic"), []byte{}, 0644), IsNil)
@@ -105,32 +105,32 @@ type createKernelSnapFilesOpts struct {
 }
 
 func createKernelSnapFiles(c *C, kversion, kdir string, opts createKernelSnapFilesOpts) {
-	c.Assert(os.MkdirAll(kdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(kdir, 0o755), IsNil)
 
 	// Create modinfo files
 	modDir := filepath.Join(kdir, "modules", kversion)
-	c.Assert(os.MkdirAll(modDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modDir, 0o755), IsNil)
 	modFile := []string{"modules.builtin.alias.bin", "modules.dep.bin", "modules.symbols"}
 	allFiles := append(modFile, "other.mod", "foo.bin")
 	for _, f := range allFiles {
-		c.Assert(os.WriteFile(filepath.Join(modDir, f), []byte{}, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(modDir, f), []byte{}, 0o644), IsNil)
 	}
 
 	// Create firmware
 	fwDir := filepath.Join(kdir, "firmware")
-	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwDir, 0o755), IsNil)
 	// Regular files
 	for _, f := range []string{"blob1", "blob2"} {
-		c.Assert(os.WriteFile(filepath.Join(fwDir, f), []byte{}, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(fwDir, f), []byte{}, 0o644), IsNil)
 	}
 	if opts.withFwUpdatesDir {
-		c.Assert(os.MkdirAll(filepath.Join(fwDir, "updates"), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(fwDir, "updates"), 0o755), IsNil)
 	}
 	// Directory, write file inside
 	fwSubDir := filepath.Join(fwDir, "subdir")
-	c.Assert(os.MkdirAll(fwSubDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwSubDir, 0o755), IsNil)
 	blob3 := filepath.Join(fwSubDir, "blob3")
-	c.Assert(os.WriteFile(blob3, []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(blob3, []byte{}, 0o644), IsNil)
 	// Symlink
 	os.Symlink("subdir/blob3", filepath.Join(fwDir, "ln_to_blob3"))
 }
@@ -255,12 +255,12 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 }
 
 func createKernelSnapFilesOnlyModules(c *C, kversion, kdir string) {
-	c.Assert(os.MkdirAll(kdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(kdir, 0o755), IsNil)
 
 	// Create modinfo files
 	modDir := filepath.Join(kdir, "modules", kversion)
-	c.Assert(os.MkdirAll(modDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(modDir, "modules.dep.bin"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(modDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(modDir, "modules.dep.bin"), []byte{}, 0o644), IsNil)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
@@ -315,12 +315,12 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *
 }
 
 func createKernelSnapFilesOnlyFw(c *C, kdir string) {
-	c.Assert(os.MkdirAll(kdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(kdir, 0o755), IsNil)
 
 	// Create firmware files
 	fwDir := filepath.Join(kdir, "firmware")
-	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(fwDir, "wifi_fw.bin"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(fwDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "wifi_fw.bin"), []byte{}, 0o644), IsNil)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
@@ -367,7 +367,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {
 
 	// Create firmware files
 	fwDir := filepath.Join(mountDir, "firmware")
-	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwDir, 0o755), IsNil)
 	// Symlink
 	os.Symlink("/absdir/blob3", filepath.Join(fwDir, "ln_to_abs"))
 
@@ -433,17 +433,17 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
 }
 
 func createKernelModulesCompFiles(c *C, kversion, compdir, filePrefix string) {
-	c.Assert(os.MkdirAll(compdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(compdir, 0o755), IsNil)
 
 	// Create some kernel module file
 	modDir := filepath.Join(compdir, "modules", kversion, "kernel/foo")
-	c.Assert(os.MkdirAll(modDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(modDir, filePrefix+".ko.zst"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(modDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(modDir, filePrefix+".ko.zst"), []byte{}, 0o644), IsNil)
 
 	// and some fw
 	fwDir := filepath.Join(compdir, "firmware")
-	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(fwDir, filePrefix+".bin"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(fwDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, filePrefix+".bin"), []byte{}, 0o644), IsNil)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeWithKernelAndComps(c *C) {

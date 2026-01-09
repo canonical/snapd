@@ -20,13 +20,13 @@ apps:
 
 func makeSnapDirForPack(c *check.C, snapYaml string) string {
 	tempdir := c.MkDir()
-	c.Assert(os.Chmod(tempdir, 0755), check.IsNil)
+	c.Assert(os.Chmod(tempdir, 0o755), check.IsNil)
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
+	err := os.Mkdir(metaDir, 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0o644)
 	c.Assert(err, check.IsNil)
 
 	return tempdir
@@ -34,12 +34,12 @@ func makeSnapDirForPack(c *check.C, snapYaml string) string {
 
 func makeComponentDirForPack(c *check.C, compYaml string) string {
 	tempdir := c.MkDir()
-	c.Assert(os.Chmod(tempdir, 0755), check.IsNil)
+	c.Assert(os.Chmod(tempdir, 0o755), check.IsNil)
 
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
+	err := os.Mkdir(metaDir, 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(compYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(compYaml), 0o644)
 	c.Assert(err, check.IsNil)
 
 	return tempdir
@@ -117,9 +117,9 @@ printf "hello world"
 `
 	// an example binary
 	binDir := filepath.Join(snapDir, "bin")
-	err := os.Mkdir(binDir, 0755)
+	err := os.Mkdir(binDir, 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
+	err = os.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0o755)
 	c.Assert(err, check.IsNil)
 
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})

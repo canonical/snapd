@@ -39,7 +39,7 @@ var _ = Suite(&timezoneSuite{})
 func (s *timezoneSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/writable"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/writable"), 0o755)
 	c.Assert(err, IsNil)
 	localtimePath := filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime")
 	err = os.Symlink("/usr/share/zoneinfo/WET", localtimePath)

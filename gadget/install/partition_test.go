@@ -638,10 +638,10 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 
 	// make empty device rescan file
 
-	err := os.MkdirAll(filepath.Join(devPath, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(devPath, "device"), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
+	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0o755)
 	c.Assert(err, IsNil)
 
 	restore := disks.MockDeviceNameToDiskMapping(m)
@@ -660,7 +660,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	c.Assert(err, IsNil)
 
 	// add the file to indicate we should do the device/rescan trick
-	err = os.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
+	err = os.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0o755)
 	c.Assert(err, IsNil)
 
 	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
@@ -853,7 +853,7 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		c.Logf("utErr:%q err:%q", tc.utErr, tc.err)
 
 		node := filepath.Join(c.MkDir(), "node")
-		err := os.WriteFile(node, nil, 0644)
+		err := os.WriteFile(node, nil, 0o644)
 		c.Assert(err, IsNil)
 
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))

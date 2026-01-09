@@ -45,10 +45,10 @@ func (s *swapCfgSuite) SetUpTest(c *C) {
 	s.systemctlArgs = nil
 	s.configSwapFile = filepath.Join(dirs.GlobalRootDir, "/etc/default/swapfile")
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -174,7 +174,7 @@ func (s *swapCfgSuite) TestSwapSizeNumberFormats(c *C) {
 		},
 	}
 
-	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
+	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0o755)
 	c.Assert(err, IsNil)
 
 	for _, t := range tt {
@@ -200,7 +200,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApply(c *C) {
 	})
 
 	// with no swapfile config in place we use sensible defaults
-	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
+	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0o755)
 	c.Assert(err, IsNil)
 
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf), IsNil)
@@ -217,7 +217,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApplyExistingConfig(c *C) {
 
 	// we use the value from the config file if FILE is specified in the
 	// existing config file
-	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
+	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0o755)
 	c.Assert(err, IsNil)
 
 	err = os.WriteFile(s.configSwapFile, []byte(`FILE=/var/tmp/other-swapfile.swp

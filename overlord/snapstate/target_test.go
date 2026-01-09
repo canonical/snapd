@@ -537,7 +537,7 @@ func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C
 	}
 
 	compPath := filepath.Join(c.MkDir(), "invalid-component")
-	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0o644)
 	c.Assert(err, IsNil)
 
 	components := []snapstate.PathComponent{{
@@ -997,7 +997,7 @@ version: 1.0
 	}
 
 	compPath := filepath.Join(c.MkDir(), "invalid-component")
-	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0o644)
 	c.Assert(err, IsNil)
 
 	components := []snapstate.PathComponent{{
@@ -1075,7 +1075,7 @@ version: 1.0
 	}
 
 	compPath := filepath.Join(c.MkDir(), "invalid-component")
-	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0o644)
 	c.Assert(err, IsNil)
 
 	components := []snapstate.PathComponent{{

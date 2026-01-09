@@ -224,9 +224,9 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	})
 	defer restoreMakeWritableTempDir()
 
-	c.Assert(os.MkdirAll(filepath.Join(writableTmpDir, "system-data/etc/bar"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(writableTmpDir, "system-data/etc/bar"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0o644), IsNil)
 
 	mockTar := testutil.MockCommand(c, "tar", "")
 	defer mockTar.Restore()
@@ -236,8 +236,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 "include": ["/etc/bar/a", "/etc/bar/b"]
 }`
 
-	c.Assert(os.MkdirAll(filepath.Join(preseedTmpDir, "usr/lib/snapd"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(preseedTmpDir, "usr/lib/snapd"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0o644), IsNil)
 
 	mockWritablePaths := testutil.MockCommand(c, "handle-writable-paths-outer", "")
 
@@ -248,8 +248,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		defer mockWritablePathsInner.Restore()
 	} else {
 		coreWritableConf := filepath.Join(preseedTmpDir, "/usr/lib/tmpfiles.d/core-writable.conf")
-		c.Assert(os.MkdirAll(filepath.Dir(coreWritableConf), 0755), IsNil)
-		c.Assert(os.WriteFile(coreWritableConf, nil, 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(coreWritableConf), 0o755), IsNil)
+		c.Assert(os.WriteFile(coreWritableConf, nil, 0o644), IsNil)
 	}
 
 	mockTmpFiles := testutil.MockCommand(c, "systemd-tmpfiles", "")
@@ -266,8 +266,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/snapd.snap", "/a/base.snap", nil })
 	defer restoreSystemSnapFromSeed()
 
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0o644), IsNil)
 
 	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
@@ -504,7 +504,7 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	// not the image target architecture.
 	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
 	defer mockChrootCmd.Restore()
-	err := os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	err := os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0o755)
 	c.Check(err, IsNil)
 
 	popts := &preseed.PreseedCoreOptions{

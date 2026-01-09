@@ -279,7 +279,7 @@ type UefiBootloader interface {
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
-	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0o755); err != nil {
 		return err
 	}
 	return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
@@ -290,7 +290,7 @@ func genericSetBootConfigFromAsset(systemFile, assetName string) error {
 	if bootConfig == nil {
 		return fmt.Errorf("internal error: no boot asset for %q", assetName)
 	}
-	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
@@ -408,7 +408,7 @@ func ForceError(err error) {
 
 func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return err
 	}
 	dir, err := os.Open(dstDir)

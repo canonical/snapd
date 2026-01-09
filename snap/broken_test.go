@@ -43,9 +43,9 @@ func (s *brokenSuite) TearDownTest(c *C) {
 }
 
 func touch(c *C, path string) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(path, nil, 0644)
+	err = os.WriteFile(path, nil, 0o644)
 	c.Assert(err, IsNil)
 }
 

@@ -303,7 +303,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
-	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0o700); err != nil {
 		return nil, err
 	}
 
@@ -685,7 +685,7 @@ func (t *importTransaction) Commit() error {
 }
 
 func (t *importTransaction) lock() error {
-	return os.WriteFile(t.lockPath, nil, 0644)
+	return os.WriteFile(t.lockPath, nil, 0o644)
 }
 
 func (t *importTransaction) unlock() error {
@@ -735,7 +735,7 @@ type ImportFlags struct {
 
 // Import a snapshot from the export file format
 func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
-	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0o700); err != nil {
 		return nil, err
 	}
 
@@ -771,7 +771,7 @@ func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (sn
 }
 
 func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
-	t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0600)
+	t, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return fmt.Errorf("cannot create snapshot file %q: %v", targetPath, err)
 	}

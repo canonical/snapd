@@ -235,9 +235,9 @@ plugs:
 
 	// mock snap desktop files under snap mount
 	guiDir := filepath.Join(plug.AppSet().Info().MountDir(), "meta", "gui")
-	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(guiDir, 0o755), IsNil)
 	for _, desktopFile := range opts.desktopFiles {
-		c.Assert(os.WriteFile(filepath.Join(guiDir, desktopFile), nil, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(guiDir, desktopFile), nil, 0o644), IsNil)
 	}
 
 	// connected plugs have a non-nil security snippet for apparmor

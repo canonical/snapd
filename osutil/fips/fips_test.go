@@ -46,9 +46,9 @@ func (s *fipsSuite) SetUpTest(c *C) {
 
 func mockFipsEnabledWithContent(c *C, root, content string) {
 	f := filepath.Join(root, "/proc/sys/crypto/fips_enabled")
-	err := os.MkdirAll(filepath.Dir(f), 0755)
+	err := os.MkdirAll(filepath.Dir(f), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(f, []byte(content), 0444)
+	err = os.WriteFile(f, []byte(content), 0o444)
 	c.Assert(err, IsNil)
 }
 

@@ -2503,7 +2503,7 @@ func (s *storeTestSuite) TestSnapCommandsOnCore(c *C) {
 }
 
 func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
 	defer release.MockOnClassic(onClassic)()
 
 	n := 0
@@ -2562,7 +2562,7 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 }
 
 func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

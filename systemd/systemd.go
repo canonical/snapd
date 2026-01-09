@@ -1463,7 +1463,7 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 		modified = MountCreated
 	}
 
-	if err := os.MkdirAll(filepath.Dir(mu), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(mu), 0o755); err != nil {
 		return "", MountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
 	}
 

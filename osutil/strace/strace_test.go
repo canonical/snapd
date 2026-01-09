@@ -83,7 +83,7 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 
 func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
 	straceStaticPath := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-	err := os.MkdirAll(filepath.Dir(straceStaticPath), 0755)
+	err := os.MkdirAll(filepath.Dir(straceStaticPath), 0o755)
 	c.Assert(err, IsNil)
 	mockStraceStatic := testutil.MockCommand(c, straceStaticPath, "")
 	defer mockStraceStatic.Restore()
@@ -131,7 +131,7 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 	defer func() { os.Setenv("PATH", origPath) }()
 
 	os.Setenv("PATH", tmp)
-	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
+	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = strace.Command(nil)

@@ -87,9 +87,9 @@ func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
 }
 
 func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
-	err := os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0755)
+	err := os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(s.mockModeenvPath, []byte(content), 0644)
+	err = os.WriteFile(s.mockModeenvPath, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 }
 

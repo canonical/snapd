@@ -59,7 +59,7 @@ func (s *chardevTestSuite) TestSnapChardevPath(c *C) {
 func (s *chardevTestSuite) TestIoctlGetChipInfo(c *C) {
 	tmpdir := c.MkDir()
 	chipPath := filepath.Join(tmpdir, "gpiochip0")
-	c.Assert(os.WriteFile(chipPath, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(chipPath, nil, 0o644), IsNil)
 
 	called := 0
 	restore := gpio.MockUnixSyscall(func(trap, a1, a2, a3 uintptr) (uintptr, uintptr, syscall.Errno) {
@@ -86,7 +86,7 @@ func (s *chardevTestSuite) TestIoctlGetChipInfo(c *C) {
 func (s *chardevTestSuite) TestGetChardevChipInfo(c *C) {
 	tmpdir := c.MkDir()
 	chipPath := filepath.Join(tmpdir, "gpiochip0")
-	c.Assert(os.WriteFile(chipPath, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(chipPath, nil, 0o644), IsNil)
 
 	called := 0
 	restore := gpio.MockIoctlGetChipInfo(func(path string) (name [32]byte, label [32]byte, lines uint32, err error) {
@@ -139,7 +139,7 @@ func (s *chardevTestSuite) TestEnsureAggregatorDriver(c *C) {
 	defer restore()
 
 	// 1. gpio-aggregator module is already loaded
-	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0o755), IsNil)
 	// and configfs kernel interface is not supported
 	c.Check(gpio.EnsureAggregatorDriver(), ErrorMatches, "gpio-aggregator configfs support is missing: stat .*sys/kernel/config/gpio-aggregator: no such file or directory")
 	// Loading the module is not attempted
@@ -148,7 +148,7 @@ func (s *chardevTestSuite) TestEnsureAggregatorDriver(c *C) {
 	// 2. gpio-aggregator module is not loaded
 	c.Assert(os.RemoveAll(filepath.Join(rootdir, "/sys/bus/platform/drivers/gpio-aggregator")), IsNil)
 	// and configfs kernel interface is supported
-	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/kernel/config/gpio-aggregator"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/sys/kernel/config/gpio-aggregator"), 0o755), IsNil)
 	c.Check(gpio.EnsureAggregatorDriver(), IsNil)
 	// Loading the module is attempted
 	c.Check(called, Equals, 1)
@@ -207,12 +207,12 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 			return err
 		}
 		// populate dev_name file that points to the corresponding sysfs directory
-		if err := os.WriteFile(filepath.Join(path, "dev_name"), []byte("gpio-aggregator.0\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(path, "dev_name"), []byte("gpio-aggregator.0\n"), 0o644); err != nil {
 			return err
 		}
 
 		// populate corresponding sysfs directory
-		if err := os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0/gpiochip3"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0/gpiochip3"), 0o755); err != nil {
 			return err
 		}
 		chipPath := filepath.Join(s.rootdir, "/dev/gpiochip3")
@@ -263,9 +263,9 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	// Mock default gpio chardev device (254:10) driver symlinks
 	// The driver is used for detecting if the matched device is an
 	// already aggregated device
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-device/gpiochip0"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/mock-driver"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-device/gpiochip0"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/mock-driver"), 0o755), IsNil)
 	c.Assert(os.Symlink("../../devices/platform/mock-device/gpiochip0", filepath.Join(s.rootdir, "/sys/dev/char/254:10")), IsNil)
 	c.Assert(os.Symlink("../../../bus/platform/drivers/mock-driver", filepath.Join(s.rootdir, "/sys/devices/platform/mock-device/driver")), IsNil)
 
@@ -315,8 +315,8 @@ func (s *exportUnexportTestSuite) mockChip(c *C, name, path, label string, lines
 		testutil.FakeFileInfo(path, fmode),
 		stat,
 	}
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, nil, 0o644), IsNil)
 	return chip
 }
 
@@ -443,7 +443,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceErro
 
 	restore := gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) {
 		c.Assert(path, Equals, filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"))
-		c.Assert(os.WriteFile(path, nil, 0644), IsNil)
+		c.Assert(os.WriteFile(path, nil, 0o644), IsNil)
 		return nil
 	})
 	defer restore()
@@ -477,9 +477,9 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAggregatedChipsSkip
 	s.mockChip(c, "gpiochip1", filepath.Join(s.rootdir, "/dev/gpiochip1"), "label-1", 3, mockStat)
 
 	// Mock gpio chardev device (254:1) with gpio-aggregator driver symlinks
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-aggregator-device/gpiochip1"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/dev/char"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/mock-aggregator-device/gpiochip1"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/bus/platform/drivers/gpio-aggregator"), 0o755), IsNil)
 	c.Assert(os.Symlink("../../devices/platform/mock-aggregator-device/gpiochip1", filepath.Join(s.rootdir, "/sys/dev/char/254:1")), IsNil)
 	c.Assert(os.Symlink("../../../bus/platform/drivers/gpio-aggregator", filepath.Join(s.rootdir, "/sys/devices/platform/mock-aggregator-device/driver")), IsNil)
 
@@ -493,18 +493,18 @@ func (s *exportUnexportTestSuite) TestUnexportGpioChardev(c *C) {
 	sysfsDir := filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0/gpiochip3")
 
 	// Mock gadget slot virtual device
-	c.Assert(os.MkdirAll(exportedChipPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(exportedChipPath, 0o755), IsNil)
 	// Mock udev rule
 	udevRulePath := filepath.Join(s.rootdir, "/run/udev/rules.d/69-snap.gadget-name.interface.gpio-chardev-slot-name.rules")
-	c.Assert(os.MkdirAll(filepath.Dir(udevRulePath), 0755), IsNil)
-	c.Assert(os.WriteFile(udevRulePath, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(udevRulePath), 0o755), IsNil)
+	c.Assert(os.WriteFile(udevRulePath, nil, 0o644), IsNil)
 	// Mock configfs directory
-	c.Assert(os.MkdirAll(configfsDir, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line0"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line1"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line2"), 0755), IsNil)
+	c.Assert(os.MkdirAll(configfsDir, 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line0"), 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line1"), 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(configfsDir, "line2"), 0o755), IsNil)
 	// Mock sysfs directory
-	c.Assert(os.MkdirAll(sysfsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(sysfsDir, 0o755), IsNil)
 
 	err := gpio.UnexportGadgetChardevChip("gadget-name", "slot-name")
 	c.Assert(err, IsNil)

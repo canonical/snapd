@@ -57,15 +57,15 @@ func mockSystemRecoveryKeys(c *C) {
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
 	rkeyPath := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	err = os.MkdirAll(filepath.Dir(rkeyPath), 0755)
+	err = os.MkdirAll(filepath.Dir(rkeyPath), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(rkeyPath, []byte(rkeystr), 0644)
+	err = os.WriteFile(rkeyPath, []byte(rkeystr), 0o644)
 	c.Assert(err, IsNil)
 
 	skeystr := "1234567890123456"
 	c.Assert(err, IsNil)
 	skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	err = os.WriteFile(skeyPath, []byte(skeystr), 0644)
+	err = os.WriteFile(skeyPath, []byte(skeystr), 0o644)
 	c.Assert(err, IsNil)
 }
 

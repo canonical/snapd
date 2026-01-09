@@ -141,7 +141,7 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 	for relPath := range subdirs {
 		dirContent := content[relPath]
 		path := filepath.Join(baseDir, relPath)
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0o755); err != nil {
 			firstErr = err
 			break
 		}

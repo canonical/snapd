@@ -98,7 +98,7 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 	cfgFilePath := filepath.Join(overrDir, tmpMntServOverrideFile)
 	modify := true
 	if tmpfsSz != "" {
-		if err := os.MkdirAll(overrDir, 0755); err != nil {
+		if err := os.MkdirAll(overrDir, 0o755); err != nil {
 			return err
 		}
 		options = fmt.Sprintf("%s,size=%s", options, tmpfsSz)

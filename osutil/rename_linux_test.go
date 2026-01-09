@@ -36,8 +36,8 @@ func (renameSuite) TestSwapDirs(c *check.C) {
 	dir2 := c.MkDir()
 	file1 := "file1"
 	file2 := "file2"
-	c.Assert(os.WriteFile(filepath.Join(dir1, file1), nil, 0644), check.IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dir2, file2), nil, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir1, file1), nil, 0o644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir2, file2), nil, 0o644), check.IsNil)
 
 	osutil.SwapDirs(dir1, dir2)
 

@@ -44,7 +44,7 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc/")
-	err := os.MkdirAll(etcDir, 0755)
+	err := os.MkdirAll(etcDir, 0o755)
 	c.Assert(err, IsNil)
 	s.AddCleanup(func() {
 		err := os.RemoveAll(etcDir)

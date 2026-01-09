@@ -118,8 +118,8 @@ func (s *commonSuite) TestLoadDesiredProfile(c *C) {
 
 	// Write a desired user mount profile for snap "foo".
 	path := upCtx.DesiredProfilePath()
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0o644), IsNil)
 
 	// Ask the common profile update helper to read the desired profile.
 	profile, err = upCtx.LoadDesiredProfile()
@@ -144,8 +144,8 @@ func (s *commonSuite) TestLoadCurrentProfile(c *C) {
 
 	// Write a current user mount profile for snap "foo".
 	path := upCtx.CurrentProfilePath()
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0o644), IsNil)
 
 	// Ask the common profile update helper to read the current profile.
 	profile, err = upCtx.LoadCurrentProfile()

@@ -294,7 +294,7 @@ var loadHomedirs = func() ([]string, error) {
 // Returns whether any modifications was made to the snap-confine snippets.
 func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(SnapConfineAppArmorDir, 0o755); err != nil {
 		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 

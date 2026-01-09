@@ -226,17 +226,17 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 		return true, nil
 	})()
 
-	err := os.MkdirAll(filepath.Dir(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)), 0755)
+	err := os.MkdirAll(filepath.Dir(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir), []byte{}, 0644)
+	err = os.WriteFile(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir), []byte{}, 0o644)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0755)
+	err = os.MkdirAll(filepath.Dir(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0644)
+	err = os.WriteFile(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0o644)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0755)
+	err = os.MkdirAll(filepath.Dir(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0644)
+	err = os.WriteFile(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0o644)
 	c.Assert(err, IsNil)
 
 	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
@@ -668,7 +668,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
 
-	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	err := os.MkdirAll(filepath.Dir(dataPath), 0o755)
 	c.Assert(err, IsNil)
 
 	onClassic := false
@@ -933,7 +933,7 @@ func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 func (s *fdeMgrSuite) testCheckRecoveryKey(c *C, defaultContainerRoles bool) {
 	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
 
-	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	err := os.MkdirAll(filepath.Dir(dataPath), 0o755)
 	c.Assert(err, IsNil)
 
 	onClassic := false
@@ -993,7 +993,7 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyDefaultContainerRole(c *C) {
 func (s *fdeMgrSuite) TestCheckRecoveryKeyMissingContainerRole(c *C) {
 	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
 
-	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	err := os.MkdirAll(filepath.Dir(dataPath), 0o755)
 	c.Assert(err, IsNil)
 
 	onClassic := false
@@ -1025,7 +1025,7 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyMissingContainerRole(c *C) {
 func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
 	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
 
-	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	err := os.MkdirAll(filepath.Dir(dataPath), 0o755)
 	c.Assert(err, IsNil)
 
 	onClassic := false

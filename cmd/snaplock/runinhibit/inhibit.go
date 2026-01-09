@@ -155,7 +155,7 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 	if err := info.validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
+	if err := os.MkdirAll(InhibitDir, 0o755); err != nil {
 		return err
 	}
 	flock, err := openHintFileLock(snapName)
@@ -174,7 +174,7 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
+	if err := os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0o644); err != nil {
 		return err
 	}
 	// Write hint

@@ -166,7 +166,7 @@ func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, pr
 
 		write := m.observedWriteFileOrSymlink
 		if fi.IsDir() {
-			if err := os.MkdirAll(pDst, 0755); err != nil {
+			if err := os.MkdirAll(pDst, 0o755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
 			}
 
@@ -221,7 +221,7 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("cannot create prefix directory: %v", err)
 	}
 
@@ -267,7 +267,7 @@ func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content 
 }
 
 func newStampFile(stamp string) (*osutil.AtomicFile, error) {
-	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(stamp), 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create stamp file prefix: %v", err)
 	}
 	return osutil.NewAtomicFile(stamp, 0644, 0, osutil.NoChown, osutil.NoChown)
@@ -473,7 +473,7 @@ func (f *mountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 	target = targetForSourceDir(source, target)
 
 	// create current target directory if needed
-	if err := os.MkdirAll(filepath.Join(dstRoot, target), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dstRoot, target), 0o755); err != nil {
 		return fmt.Errorf("cannot write directory: %v", err)
 	}
 	// and write the content of source to target
@@ -590,7 +590,7 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 func (f *mountedFilesystemUpdater) Backup() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	if err := os.MkdirAll(backupRoot, 0755); err != nil {
+	if err := os.MkdirAll(backupRoot, 0o755); err != nil {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
@@ -688,7 +688,7 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 			// removed during rollback
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(prefixBackupName), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(prefixBackupName), 0o755); err != nil {
 			return fmt.Errorf("cannot create backup prefix: %v", err)
 		}
 		if err := makeStamp(prefixBackupName); err != nil {

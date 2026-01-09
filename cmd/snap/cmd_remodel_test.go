@@ -67,7 +67,7 @@ func (s *SnapSuite) TestRemodelOffline(c *C) {
 	})
 
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err := os.WriteFile(modelPath, []byte("snap1"), 0644)
+	err := os.WriteFile(modelPath, []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--offline", modelPath})
@@ -95,10 +95,10 @@ func (s *SnapSuite) TestRemodelLocalSnapsOk(c *C) {
 
 	var err error
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err = os.WriteFile(modelPath, []byte("snap1"), 0644)
+	err = os.WriteFile(modelPath, []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 	snapPath := filepath.Join(dirs.GlobalRootDir, "snap1.snap")
-	err = os.WriteFile(snapPath, []byte("snap1"), 0644)
+	err = os.WriteFile(snapPath, []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath})
@@ -126,10 +126,10 @@ func (s *SnapSuite) TestRemodelLocalSnapsError(c *C) {
 
 	var err error
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err = os.WriteFile(modelPath, []byte("snap1"), 0644)
+	err = os.WriteFile(modelPath, []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 	snapPath := filepath.Join(dirs.GlobalRootDir, "snap1.snap")
-	err = os.WriteFile(snapPath, []byte("snap1"), 0644)
+	err = os.WriteFile(snapPath, []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--snap", snapPath, modelPath})

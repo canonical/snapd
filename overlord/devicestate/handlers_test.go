@@ -936,7 +936,7 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 
 	called := false
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0o755), IsNil)
 
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -958,7 +958,7 @@ func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0o755), IsNil)
 
 	runner := state.NewTaskRunner(s.state)
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, nil)
@@ -970,12 +970,12 @@ func (s *preseedingUC20Suite) TestSystemForPreseeding(c *C) {
 	_, err := devicestate.SystemForPreseeding()
 	c.Assert(err, ErrorMatches, `no system to preseed`)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0o755), IsNil)
 	systemLabel, err := devicestate.SystemForPreseeding()
 	c.Assert(err, IsNil)
 	c.Check(systemLabel, Equals, "20220105")
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0o755), IsNil)
 	_, err = devicestate.SystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }

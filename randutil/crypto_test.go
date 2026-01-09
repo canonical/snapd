@@ -91,7 +91,7 @@ func (s *cryptoRandutilSuite) TestRandomKernelUUID(c *C) {
 		uuidPath := filepath.Join(c.MkDir(), "uuid")
 		defer randutil.MockKernelUUIDPath(uuidPath)()
 
-		err := os.WriteFile(uuidPath, []byte(uuid), 0444)
+		err := os.WriteFile(uuidPath, []byte(uuid), 0o444)
 		c.Assert(err, IsNil)
 
 		value, err := randutil.RandomKernelUUID()

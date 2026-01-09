@@ -958,7 +958,7 @@ var _ = Suite(&uc20RemodelLogicSuite{})
 func writeDeviceModelToUbuntuBoot(c *C, model *asserts.Model) {
 	var buf bytes.Buffer
 	c.Assert(asserts.NewEncoder(&buf).Encode(model), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 		buf.Bytes(), 0755),
 		IsNil)

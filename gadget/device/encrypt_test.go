@@ -48,8 +48,8 @@ func (s *deviceSuite) TestEncryptionMarkersRunThrough(c *C) {
 	d := c.MkDir()
 	c.Check(device.HasEncryptedMarkerUnder(d), Equals, false)
 
-	c.Assert(os.MkdirAll(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, boot.InstallHostFDESaveDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, boot.InstallHostFDESaveDir), 0o755), IsNil)
 
 	// nothing was written yet
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"))), Equals, false)
@@ -75,15 +75,15 @@ func (s *deviceSuite) TestReadEncryptionMarkers(c *C) {
 
 	// simulate two different markers in "ubuntu-data" and "ubuntu-save"
 	p1 := filepath.Join(tmpdir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
-	err := os.MkdirAll(filepath.Dir(p1), 0755)
+	err := os.MkdirAll(filepath.Dir(p1), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(p1, []byte("marker-p1"), 0600)
+	err = os.WriteFile(p1, []byte("marker-p1"), 0o600)
 	c.Assert(err, IsNil)
 
 	p2 := filepath.Join(tmpdir, boot.InstallHostFDESaveDir, "marker")
-	err = os.MkdirAll(filepath.Dir(p2), 0755)
+	err = os.MkdirAll(filepath.Dir(p2), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(p2, []byte("marker-p2"), 0600)
+	err = os.WriteFile(p2, []byte("marker-p2"), 0o600)
 	c.Assert(err, IsNil)
 
 	// reading them returns the two different values
@@ -147,9 +147,9 @@ func (s *deviceSuite) TestSealedKeysMethodWithWrongContentHappy(c *C) {
 	root := c.MkDir()
 
 	mockSealedKeyPath := filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")
-	err := os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0755)
+	err := os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600)
+	err = os.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0o600)
 	c.Assert(err, IsNil)
 
 	// invalid/unknown sealing methods do not error

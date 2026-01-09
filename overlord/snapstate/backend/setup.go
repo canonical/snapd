@@ -81,7 +81,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}()
 
-	if err := os.MkdirAll(instdir, 0755); err != nil {
+	if err := os.MkdirAll(instdir, 0o755); err != nil {
 		return snapType, nil, err
 	}
 
@@ -172,7 +172,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 
 	// Create mount dir for the component
 	mntDir := compPi.MountDir()
-	if err := os.MkdirAll(mntDir, 0755); err != nil {
+	if err := os.MkdirAll(mntDir, 0o755); err != nil {
 		return nil, err
 	}
 

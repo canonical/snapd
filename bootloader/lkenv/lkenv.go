@@ -345,7 +345,7 @@ func (l *Env) Save() error {
 }
 
 func (l *Env) saveEnv(path string, buf *bytes.Buffer) error {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
+	f, err := os.OpenFile(path, os.O_WRONLY, 0o660)
 	if err != nil {
 		return fmt.Errorf("cannot open LK env file for env storing: %v", err)
 	}

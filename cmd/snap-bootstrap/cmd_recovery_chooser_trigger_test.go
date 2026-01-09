@@ -115,7 +115,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) 
 	})
 	defer restore()
 
-	err := os.WriteFile(marker, nil, 0644)
+	err := os.WriteFile(marker, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	rest, err := main.Parser().ParseArgs([]string{

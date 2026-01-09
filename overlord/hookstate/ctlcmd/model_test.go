@@ -91,9 +91,9 @@ func (s *modelSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	err := os.MkdirAll(dirs.SnapRunDir, 0755)
+	err := os.MkdirAll(dirs.SnapRunDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
+	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755)
 	c.Assert(err, IsNil)
 
 	s.AddCleanup(osutil.MockMountInfo(``))

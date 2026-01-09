@@ -72,7 +72,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 
 	testDir := c.MkDir()
 	fakeAssertsFn := filepath.Join(testDir, "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := fmt.Sprintf(`24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered
@@ -107,7 +107,7 @@ func (s *SnapSuite) TestAutoImportAssertsNotImportedFromLoop(c *C) {
 
 	testDir := c.MkDir()
 	fakeAssertsFn := filepath.Join(testDir, "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmtWithLoop := `24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/loop1 rw,errors=remount-ro,data=ordered`
@@ -132,7 +132,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
 	})
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := `
@@ -160,7 +160,7 @@ func (s *SnapSuite) TestAutoImportIntoSpool(c *C) {
 	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := fmt.Sprintf(`24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/sc1 rw,errors=remount-ro,data=ordered`, filepath.Dir(fakeAssertsFn))
@@ -219,9 +219,9 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	})
 
 	fakeAssertsFn := filepath.Join(dirs.SnapAssertsSpoolDir, "1234343")
-	err := os.MkdirAll(filepath.Dir(fakeAssertsFn), 0755)
+	err := os.MkdirAll(filepath.Dir(fakeAssertsFn), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err = os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -254,7 +254,7 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	snap.ClientConfig.BaseURL = "can-not-connect-to-this-url"
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := fmt.Sprintf(`24 0 8:18 / %s rw,relatime shared:1 - squashfs /dev/sc1 rw,errors=remount-ro,data=ordered`, filepath.Dir(fakeAssertsFn))
@@ -278,8 +278,8 @@ func (s *SnapSuite) testAutoImportUnhappyInInstallMode(c *C, mode string) {
 	modeenvContent := fmt.Sprintf(`mode=%s
 recovery_system=20200202
 `, mode)
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
@@ -308,8 +308,8 @@ func (s *SnapSuite) TestAutoImportUnhappyInInstallInInitrdMode(c *C) {
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0o644), IsNil)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
@@ -489,8 +489,8 @@ func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
 	for _, dir := range mountDirs {
 		args = append(args, dir)
 		file := filepath.Join(rootDir, dir, "auto-import.assert")
-		c.Assert(os.MkdirAll(filepath.Dir(file), 0755), IsNil)
-		c.Assert(os.WriteFile(file, nil, 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(file), 0o755), IsNil)
+		c.Assert(os.WriteFile(file, nil, 0o644), IsNil)
 	}
 
 	mockMountInfoFmtWithLoop := `24 0 8:18 / %[1]s%[2]s rw,relatime foo - ext3 /dev/meep2 rw,errors=remount-ro,data=ordered
@@ -547,7 +547,7 @@ func (s *SnapSuite) TestAutoImportAssertsManagedEmptyReply(c *C) {
 	})
 
 	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
-	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	err := os.WriteFile(fakeAssertsFn, fakeAssertData, 0o644)
 	c.Assert(err, IsNil)
 
 	mockMountInfoFmt := `24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`

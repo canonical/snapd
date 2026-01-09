@@ -79,7 +79,7 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	var err error
 
 	// File mocking
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 
 	// Bootloader mocking

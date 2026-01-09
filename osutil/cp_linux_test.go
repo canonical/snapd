@@ -37,7 +37,7 @@ func (s *cpSuite) TestCpMulti(c *C) {
 }
 
 func (s *cpSuite) TestDoCpErr(c *C) {
-	c.Assert(os.WriteFile(s.f2, nil, 0444), IsNil)
+	c.Assert(os.WriteFile(s.f2, nil, 0o444), IsNil)
 
 	src, err := os.Open(s.f1)
 	c.Assert(err, IsNil)

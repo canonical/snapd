@@ -138,20 +138,20 @@ func addAggregatedChip(sourceChipLabel string, lines strutil.Range, instanceName
 	for _, span := range lines {
 		for line := span.Start; line <= span.End; line++ {
 			lineDir := filepath.Join(configfsBaseDir, fmt.Sprintf("line%d", lineNum))
-			if err = os.Mkdir(lineDir, 0755); err != nil {
+			if err = os.Mkdir(lineDir, 0o755); err != nil {
 				return "", err
 			}
-			if err = os.WriteFile(filepath.Join(lineDir, "key"), []byte(sourceChipLabel), 0644); err != nil {
+			if err = os.WriteFile(filepath.Join(lineDir, "key"), []byte(sourceChipLabel), 0o644); err != nil {
 				return "", err
 			}
-			if err = os.WriteFile(filepath.Join(lineDir, "offset"), []byte(strconv.FormatUint(uint64(line), 10)), 0644); err != nil {
+			if err = os.WriteFile(filepath.Join(lineDir, "offset"), []byte(strconv.FormatUint(uint64(line), 10)), 0o644); err != nil {
 				return "", err
 			}
 			lineNum++
 		}
 	}
 
-	if err = os.WriteFile(filepath.Join(configfsBaseDir, "live"), []byte("1"), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(configfsBaseDir, "live"), []byte("1"), 0o644); err != nil {
 		return "", err
 	}
 
@@ -177,7 +177,7 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 // This helper does not perform any cleanup, caller may want to call
 // removeEphemeralUdevTaggingRule in case of an error.
 func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceName, slotName string) error {
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), 0o755); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceN
 	rule := fmt.Sprintf(`SUBSYSTEM=="gpio", KERNEL=="%s", TAG+="%s"`+"\n", chipName, tag)
 
 	path := aggregatedChipUdevRulePath(instanceName, slotName)
-	if err := os.WriteFile(path, []byte(rule), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(rule), 0o644); err != nil {
 		return err
 	}
 
@@ -218,7 +218,7 @@ func addGadgetSlotDevice(chipName, instanceName, slotName string) (err error) {
 	}
 
 	devPath := SnapChardevPath(instanceName, slotName)
-	if err := os.MkdirAll(filepath.Dir(devPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(devPath), 0o755); err != nil {
 		return err
 	}
 

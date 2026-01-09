@@ -47,14 +47,14 @@ var _ = Suite(&withSnapdAliasesSuite{aliasesSuite{base: "core-with-snapd"}})
 func (s *aliasesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	if s.base == "core-with-snapd" {
-		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
+		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0o755), IsNil)
 	}
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(dirs.LegacyCompletersDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.CompletersDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(dirs.LegacyCompletersDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0o644), IsNil)
 }
 
 func (s *aliasesSuite) TearDownTest(c *C) {

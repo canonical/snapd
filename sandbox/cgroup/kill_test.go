@@ -57,8 +57,8 @@ func (s *killSuite) SetUpTest(c *C) {
 func mockCgroupsWithProcs(c *C, cgroupsToProcs map[string][]string) {
 	for cg, pids := range cgroupsToProcs {
 		procs := filepath.Join(dirs.GlobalRootDir, cg, "cgroup.procs")
-		c.Assert(os.MkdirAll(filepath.Dir(procs), 0755), IsNil)
-		c.Assert(os.WriteFile(procs, []byte(strings.Join(pids, "\n")), 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(procs), 0o755), IsNil)
+		c.Assert(os.WriteFile(procs, []byte(strings.Join(pids, "\n")), 0o644), IsNil)
 	}
 }
 
@@ -152,10 +152,10 @@ func (s *killSuite) testKillSnapProcessesV2(c *C, cgroupKillSupported, pidsContr
 
 	for cg := range cgroupsToProcs {
 		if cgroupKillSupported {
-			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "cgroup.kill"), []byte(""), 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "cgroup.kill"), []byte(""), 0o644), IsNil)
 		}
 		if pidsControllerMounted {
-			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "pids.max"), []byte(""), 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(s.rootDir, cg, "pids.max"), []byte(""), 0o644), IsNil)
 		}
 	}
 
@@ -416,11 +416,11 @@ func (s *killSuite) TestKillSnapProcessesSkippedErrorsV2(c *C) {
 
 func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 	cg := filepath.Join(s.rootDir, "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope")
-	c.Assert(os.MkdirAll(cg, 0755), IsNil)
+	c.Assert(os.MkdirAll(cg, 0o755), IsNil)
 
 	pid := 2
 	procs := filepath.Join(cg, "cgroup.procs")
-	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0o644), IsNil)
 
 	var ops []string
 	restore := cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
@@ -429,9 +429,9 @@ func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 		// Mock a new fork for next check
 		if pid < 4 {
 			pid++
-			c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+			c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0o644), IsNil)
 		} else {
-			c.Assert(os.WriteFile(procs, nil, 0644), IsNil)
+			c.Assert(os.WriteFile(procs, nil, 0o644), IsNil)
 		}
 		return nil
 	})
@@ -460,14 +460,14 @@ func (s *killSuite) TestKillProcessesInCgroupForkingProcess(c *C) {
 
 func (s *killSuite) TestKillProcessesInCgroupPidNotFound(c *C) {
 	cg := filepath.Join(s.rootDir, "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope")
-	c.Assert(os.MkdirAll(cg, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(cg, "cgroup.procs"), []byte("1"), 0644), IsNil)
+	c.Assert(os.MkdirAll(cg, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(cg, "cgroup.procs"), []byte("1"), 0o644), IsNil)
 
 	var n int
 	restore := cgroup.MockSyscallKill(func(pid int, sig syscall.Signal) error {
 		n++
 		c.Assert(pid, Equals, 1)
-		c.Assert(os.WriteFile(filepath.Join(cg, "cgroup.procs"), nil, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(cg, "cgroup.procs"), nil, 0o644), IsNil)
 		return syscall.ESRCH
 	})
 	defer restore()
@@ -487,17 +487,17 @@ func (s *killSuite) testKillProcessInCgroupTimeout(c *C, cgVersion int) {
 	defer restore()
 
 	cg := filepath.Join(s.rootDir, "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.foo.app-1.1234-1234-1234.scope")
-	c.Assert(os.MkdirAll(cg, 0755), IsNil)
+	c.Assert(os.MkdirAll(cg, 0o755), IsNil)
 
 	pid := 2
 	procs := filepath.Join(cg, "cgroup.procs")
-	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+	c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0o644), IsNil)
 
 	restore = cgroup.MockSyscallKill(func(targetPid int, sig syscall.Signal) error {
 		c.Assert(targetPid, Equals, pid)
 		// Mock a new fork for next check
 		pid++
-		c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0644), IsNil)
+		c.Assert(os.WriteFile(procs, []byte(strconv.Itoa(pid)), 0o644), IsNil)
 		// We should timeout after first check
 		time.Sleep(50 * time.Millisecond)
 		return nil

@@ -57,7 +57,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOpt
 
 	// Make sure the base data directory exists for instance snaps
 	if newSnap.InstanceKey != "" {
-		err := os.MkdirAll(snap.BaseDataDir(newSnap.SnapName()), 0755)
+		err := os.MkdirAll(snap.BaseDataDir(newSnap.SnapName()), 0o755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
@@ -65,12 +65,12 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOpt
 
 	// Make sure the common data directory exists, even if this isn't a new
 	// install.
-	if err := os.MkdirAll(newSnap.CommonDataDir(), 0755); err != nil {
+	if err := os.MkdirAll(newSnap.CommonDataDir(), 0o755); err != nil {
 		return err
 	}
 
 	if oldSnap == nil {
-		return os.MkdirAll(newSnap.DataDir(), 0755)
+		return os.MkdirAll(newSnap.DataDir(), 0o755)
 	} else if oldSnap.Revision == newSnap.Revision {
 		// nothing to do
 		return nil
@@ -123,7 +123,7 @@ func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progr
 	}
 
 	saveDir := snap.CommonDataSaveDir(info.InstanceName())
-	return os.MkdirAll(saveDir, 0755)
+	return os.MkdirAll(saveDir, 0o755)
 }
 
 func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Device, meter progress.Meter) error {

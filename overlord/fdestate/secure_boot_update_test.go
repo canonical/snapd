@@ -1295,10 +1295,10 @@ func (s *fdeMgrSuite) TestEFISecurebootCleanupNoChange(c *C) {
 
 func createMockGrubCfg(baseDir string) error {
 	cfg := filepath.Join(baseDir, "EFI/ubuntu/grub.cfg")
-	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 }
 
 func (s *fdeMgrSuite) mockBootAssetsStateForModeenv(c *C) *asserts.Model {

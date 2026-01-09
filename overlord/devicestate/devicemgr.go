@@ -291,7 +291,7 @@ func ensureFileDirPermissions() error {
 	st, err := os.Stat(dirs.SnapVoidDir)
 	if err == nil && st.Mode().Perm() != 0111 {
 		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
-		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+		if err := os.Chmod(dirs.SnapVoidDir, 0o111); err != nil {
 			return err
 		}
 	}
@@ -466,7 +466,7 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 
 	for _, s := range snaps {
 		saveDir := snap.CommonDataSaveDir(s.InstanceName())
-		if err := os.MkdirAll(saveDir, 0755); err != nil {
+		if err := os.MkdirAll(saveDir, 0o755); err != nil {
 			return err
 		}
 	}
@@ -2123,10 +2123,10 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 		opts = &UnregisterOptions{}
 	}
 	if opts.NoRegistrationUntilReboot {
-		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+		if err := os.MkdirAll(dirs.SnapRunDir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0o644); err != nil {
 			return err
 		}
 	}

@@ -127,7 +127,7 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 	// We don't use `dirs.SnapDBusSessionPolicyDir because we want
 	// to match the path the package on the host system uses.
 	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
-	if err = os.MkdirAll(dest, 0755); err != nil {
+	if err = os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
 	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", sessionContent)
@@ -136,7 +136,7 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 	}
 
 	dest = filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/system.d")
-	if err = os.MkdirAll(dest, 0755); err != nil {
+	if err = os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
 	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", systemContent)
@@ -181,7 +181,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	globs := profileGlobs(snapName)
 
 	dir := dirs.SnapDBusSystemPolicyDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
 

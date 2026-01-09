@@ -74,7 +74,7 @@ func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) 
 		configFilePath = dirs.SnapRepairConfigFileUnder(opts.RootDir)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
 		return err
 	}
 

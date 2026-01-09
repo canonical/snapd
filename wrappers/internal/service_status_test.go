@@ -64,7 +64,7 @@ func (s *serviceStatusSuite) SetUpTest(c *C) {
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
+	err := os.MkdirAll(xdgRuntimeDir, 0o700)
 	c.Assert(err, IsNil)
 	s.agent, err = agent.New()
 	c.Assert(err, IsNil)

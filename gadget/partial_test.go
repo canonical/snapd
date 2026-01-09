@@ -60,7 +60,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0o644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -136,7 +136,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0o644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -209,7 +209,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0o644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{
@@ -287,7 +287,7 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         role: system-data
 `)
-	err := os.WriteFile(s.gadgetYamlPath, yaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, yaml, 0o644)
 	c.Assert(err, IsNil)
 
 	installerVols := map[string]*gadget.Volume{

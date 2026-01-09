@@ -676,10 +676,10 @@ func saveCheckResult(checkContext *secboot.PreinstallCheckContext) error {
 // writeMarkers writes markers containing the same secret to pair data and save.
 func writeMarkers(model *asserts.Model) error {
 	// ensure directory for markers exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
+	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0o755); err != nil {
 		return err
 	}
 
@@ -695,7 +695,7 @@ func writeMarkers(model *asserts.Model) error {
 func saveKeys(model *asserts.Model, saveKey keys.ProtectorKey) error {
 	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
 
-	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0o755); err != nil {
 		return err
 	}
 
@@ -705,7 +705,7 @@ func saveKeys(model *asserts.Model, saveKey keys.ProtectorKey) error {
 func saveLegacyKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
 	saveKeyPath := device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))
 
-	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(saveKeyPath), 0o755); err != nil {
 		return err
 	}
 
@@ -718,7 +718,7 @@ func saveLegacyKeys(model *asserts.Model, saveKey keys.EncryptionKey) error {
 // * plus other details
 func PrepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings timings.Measurer) error {
 	// keep track of the model we installed
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755)
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -763,7 +763,7 @@ func PrepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings ti
 }
 
 func writeModel(model *asserts.Model, where string) error {
-	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
@@ -819,7 +819,7 @@ func fixupWritableDefaultDirs(systemDataDir string) error {
 	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/", "/etc/systemd/network"} {
 		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
 
-		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
+		if err := os.MkdirAll(dirToCreate, 0o755); err != nil {
 			return err
 		}
 	}
@@ -832,7 +832,7 @@ func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
 	const timesyncClockInRoot = "/var/lib/systemd/timesync/clock"
 	clockSrc := filepath.Join(srcRootDir, timesyncClockInRoot)
 	clockDst := filepath.Join(dstRootDir, timesyncClockInRoot)
-	if err := os.MkdirAll(filepath.Dir(clockDst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(clockDst), 0o755); err != nil {
 		return fmt.Errorf("cannot store the clock: %v", err)
 	}
 	if !osutil.FileExists(clockSrc) {
@@ -925,7 +925,7 @@ func ApplyPreseededData(preseedSeed seed.PreseedCapable, writableDir string) err
 
 	logger.Noticef("copying snaps")
 
-	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0o755); err != nil {
 		return err
 	}
 

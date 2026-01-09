@@ -71,7 +71,7 @@ type FakeSeed struct {
 
 func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
 	if apparmorDir {
-		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0o755), IsNil)
 	}
 	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
 914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
@@ -228,10 +228,10 @@ func (s *preseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 func (s *preseedSuite) TestChooseTargetSnapdVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0o755), IsNil)
 
 	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
-	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0o755), IsNil)
 	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
@@ -284,12 +284,12 @@ func (s *preseedSuite) TestChooseTargetSnapdVersion(c *C) {
 		infoFile := filepath.Join(tmpDir, "usr/lib/snapd/info")
 		os.Remove(infoFile)
 		if test.fromDeb != "" {
-			c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromDeb)), 0644), IsNil)
+			c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromDeb)), 0o644), IsNil)
 		}
 		infoFile = filepath.Join(targetSnapdRoot, "usr/lib/snapd/info")
 		os.Remove(infoFile)
 		if test.fromSnap != "" {
-			c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0644), IsNil)
+			c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0o644), IsNil)
 		}
 
 		targetSnapd, err := preseed.ChooseTargetSnapdVersion()
@@ -310,27 +310,27 @@ func (s *preseedSuite) TestCreatePreseedArtifact(c *C) {
 	dirs.SetRootDir(tmpDir)
 
 	prepareDir := filepath.Join(tmpDir, "prepare-dir")
-	c.Assert(os.MkdirAll(filepath.Join(prepareDir, "system-seed/systems/20220203"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(prepareDir, "system-seed/systems/20220203"), 0o755), IsNil)
 
 	writableDir := filepath.Join(tmpDir, "writable")
-	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(writableDir, 0o755), IsNil)
 
 	mockTar := testutil.MockCommand(c, "tar", "")
 	defer mockTar.Restore()
 
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/etc/bar"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/baz"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/x"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/baz/b"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/etc/bar"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/baz"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/a"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/x"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableDir, "system-data/baz/b"), nil, 0o644), IsNil)
 
 	const exportFileContents = `{
 "exclude": ["/etc/bar/x*"],
 "include": ["/etc/bar/a", "/baz/*"]
 }`
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/usr/lib/snapd"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(prepareDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/usr/lib/snapd"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(prepareDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0o644), IsNil)
 
 	opts := &preseed.CoreOptions{
 		PrepareImageDir: prepareDir,

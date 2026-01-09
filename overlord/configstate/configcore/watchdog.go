@@ -58,7 +58,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 		}
 	}
 	if len(configStr) > 0 {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 

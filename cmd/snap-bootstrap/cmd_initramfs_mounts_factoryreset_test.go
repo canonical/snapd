@@ -138,7 +138,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 
 	// ubuntu-data in ephemeral system
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -227,7 +227,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 
 	// ubuntu-data in ephemeral system
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -297,7 +297,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 
 	// ubuntu-data in ephemeral system
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -397,7 +397,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 
 	// ubuntu-data in ephemeral system
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -497,7 +497,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 
 	// ubuntu-data in ephemeral system
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
-	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	err := os.MkdirAll(ephemeralUbuntuData, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -530,9 +530,9 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFail(c *C) {
 	c.Assert(err.Error(), Equals, `no candidate found for label "ubuntu-seed"`)
 	c.Assert(path, Equals, "")
 
-	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0o644)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-FOO"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-FOO"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// Mock udevadm calls
@@ -557,7 +557,7 @@ exit 0
 	c.Assert(path, Equals, "")
 
 	// More than one candidate
-	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-seed"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-seed"), nil, 0o644)
 	path, err = main.GetNonUEFISystemDisk("ubuntu-seed")
 	c.Assert(err.Error(), Equals, `more than one candidate for label "ubuntu-seed"`)
 	c.Assert(path, Equals, "")

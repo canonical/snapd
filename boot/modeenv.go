@@ -283,7 +283,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 
 	modeenvPath := modeenvFile(rootdir)
 
-	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0o755); err != nil {
 		return err
 	}
 	buf := bytes.NewBuffer(nil)

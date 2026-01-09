@@ -389,5 +389,5 @@ func (sm *Manifest) Write(filePath string) error {
 	for _, key := range revisionKeys {
 		fmt.Fprintf(buf, "%s\n", sm.revsSeeded[key])
 	}
-	return os.WriteFile(filePath, buf.Bytes(), 0755)
+	return os.WriteFile(filePath, buf.Bytes(), 0o755)
 }

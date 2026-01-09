@@ -60,7 +60,7 @@ func (r *repairSuite) TestOffline(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0o755)
 	c.Assert(err, IsNil)
 
 	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
@@ -108,7 +108,7 @@ exit 0
 }
 
 func (r *repairSuite) TestRunAlreadyLocked(c *C) {
-	err := os.MkdirAll(dirs.SnapRunRepairDir, 0700)
+	err := os.MkdirAll(dirs.SnapRunRepairDir, 0o700)
 	c.Assert(err, IsNil)
 	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
 	c.Assert(err, IsNil)

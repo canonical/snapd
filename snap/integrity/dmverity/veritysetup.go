@@ -170,7 +170,7 @@ func Format(dataDevice string, hashDevice string, opts *DmVerityParams) (rootHas
 		return "", err
 	} else if deploy {
 		space := make([]byte, 4096)
-		os.WriteFile(hashDevice, space, 0644)
+		os.WriteFile(hashDevice, space, 0o644)
 	}
 
 	args := []string{

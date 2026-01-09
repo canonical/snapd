@@ -180,7 +180,7 @@ func MockEtcFstab(text string) (restore func()) {
 	if err != nil {
 		panic(fmt.Errorf("cannot open temporary file: %s", err))
 	}
-	if err := os.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+	if err := os.WriteFile(f.Name(), []byte(text), 0o644); err != nil {
 		panic(fmt.Errorf("cannot write mock fstab file: %s", err))
 	}
 	etcFstab = f.Name()

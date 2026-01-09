@@ -70,7 +70,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
 	// Prepare a directory for udev rules
 	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapUdevRulesDir, 0700)
+	err := os.MkdirAll(dirs.SnapUdevRulesDir, 0o700)
 	c.Assert(err, IsNil)
 
 	perf := timings.New(nil)
@@ -388,8 +388,8 @@ func (s *backendSuite) TestControlsDeviceCgroupCleansUpRules(c *C) {
 		return nil
 	}
 	fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
-	c.Assert(os.MkdirAll(dirs.SnapUdevRulesDir, 0755), IsNil)
-	c.Assert(os.WriteFile(fname, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapUdevRulesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(fname, nil, 0o644), IsNil)
 	c.Check(fname, testutil.FilePresent)
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
 	// rules file got removed
@@ -422,8 +422,8 @@ func (s *backendSuite) TestDeviceCgroupAlwaysPresent(c *C) {
 		return nil
 	}
 	cgroupFname := filepath.Join(dirs.SnapCgroupPolicyDir, "snap.samba.device")
-	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), IsNil)
-	c.Assert(os.WriteFile(cgroupFname, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(cgroupFname, nil, 0o644), IsNil)
 	c.Check(cgroupFname, testutil.FilePresent)
 	fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
@@ -647,8 +647,8 @@ func (s *backendSuite) TestPreseed(c *C) {
 		return nil
 	}
 	cgroupFname := filepath.Join(dirs.SnapCgroupPolicyDir, "snap.samba.device")
-	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), IsNil)
-	c.Assert(os.WriteFile(cgroupFname, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(cgroupFname, nil, 0o644), IsNil)
 	c.Check(cgroupFname, testutil.FilePresent)
 	fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)

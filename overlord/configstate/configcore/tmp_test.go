@@ -118,7 +118,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 	defer mountCmd.Restore()
 
 	// make tmp.mount.d directory already
-	err := os.MkdirAll(s.servOverrideDir, 0755)
+	err := os.MkdirAll(s.servOverrideDir, 0o755)
 	c.Assert(err, IsNil)
 
 	size := "100M"
@@ -139,11 +139,11 @@ func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 
 // Test cfg file is not updated if we set the same size that is already set
 func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
-	err := os.MkdirAll(s.servOverrideDir, 0755)
+	err := os.MkdirAll(s.servOverrideDir, 0o755)
 	c.Assert(err, IsNil)
 	size := "100M"
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=" + size + "\n"
-	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
+	err = os.WriteFile(s.servOverridePath, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
 	info, err := os.Stat(s.servOverridePath)
@@ -175,16 +175,16 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	mountCmd := testutil.MockCommand(c, "mount", "")
 	defer mountCmd.Restore()
 
-	err := os.MkdirAll(s.servOverrideDir, 0755)
+	err := os.MkdirAll(s.servOverrideDir, 0o755)
 	c.Assert(err, IsNil)
 
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(s.servOverrideDir, "05-canary.conf")
-	err = os.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=1G\n"
-	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
+	err = os.WriteFile(s.servOverridePath, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

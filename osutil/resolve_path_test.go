@@ -36,7 +36,7 @@ type resolverType func(sysroot, path string) (string, error)
 
 func (s *resolvePathSuite) simple(c *C, resolver resolverType) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	resolved, err := resolver(sysroot, "/foo/bar")
@@ -54,7 +54,7 @@ func (s *resolvePathSuite) TestSimpleNoEscpe(c *C) {
 
 func (s *resolvePathSuite) simpleRelative(c *C, resolver resolverType) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	resolved, err := resolver(sysroot, "foo/bar")
@@ -72,7 +72,7 @@ func (s *resolvePathSuite) TestSimpleRelativeNoEscape(c *C) {
 
 func (s *resolvePathSuite) dot(c *C, resolver resolverType) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	resolved, err := resolver(sysroot, "/./foo/./bar/.")
@@ -90,7 +90,7 @@ func (s *resolvePathSuite) TestDotNoEscape(c *C) {
 
 func (s *resolvePathSuite) empty(c *C, resolver resolverType) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	resolved, err := resolver(sysroot, "//foo/////bar//")
@@ -108,7 +108,7 @@ func (s *resolvePathSuite) TestEmptyNoEscape(c *C) {
 
 func (s *resolvePathSuite) TestDotDot(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	resolved, err := osutil.ResolvePathInSysroot(sysroot, "../../../../foo/bar")
@@ -118,11 +118,11 @@ func (s *resolvePathSuite) TestDotDot(c *C) {
 
 func (s *resolvePathSuite) TestDotDotInSymlink(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0o700)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../../../../../..", filepath.Join(sysroot, "foo", "bar"))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0700)
+	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0o700)
 	c.Assert(err, IsNil)
 	file, err := os.Create(filepath.Join(sysroot, "etc", "passwd"))
 	c.Assert(err, IsNil)
@@ -135,11 +135,11 @@ func (s *resolvePathSuite) TestDotDotInSymlink(c *C) {
 
 func (s *resolvePathSuite) TestAbsoluteSymlink(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0o700)
 	c.Assert(err, IsNil)
 	err = os.Symlink("/", filepath.Join(sysroot, "foo", "bar"))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0700)
+	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0o700)
 	c.Assert(err, IsNil)
 	file, err := os.Create(filepath.Join(sysroot, "etc", "passwd"))
 	c.Assert(err, IsNil)
@@ -152,9 +152,9 @@ func (s *resolvePathSuite) TestAbsoluteSymlink(c *C) {
 
 func (s *resolvePathSuite) TestSymlinkRecursion(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(sysroot, "bar"), 0700)
+	err = os.MkdirAll(filepath.Join(sysroot, "bar"), 0o700)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../bar/baz", filepath.Join(sysroot, "foo", "baz"))
 	c.Assert(err, IsNil)
@@ -167,7 +167,7 @@ func (s *resolvePathSuite) TestSymlinkRecursion(c *C) {
 
 func (s *resolvePathSuite) TestDotDotInvalid(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo/bar"), 0o700)
 	c.Assert(err, IsNil)
 
 	_, err = osutil.ResolvePathNoEscape(sysroot, "../../../../foo/bar")
@@ -176,11 +176,11 @@ func (s *resolvePathSuite) TestDotDotInvalid(c *C) {
 
 func (s *resolvePathSuite) TestDotDotInSymlinkInvalid(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0o700)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../../../../../..", filepath.Join(sysroot, "foo", "bar"))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0700)
+	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0o700)
 	c.Assert(err, IsNil)
 	file, err := os.Create(filepath.Join(sysroot, "etc", "passwd"))
 	c.Assert(err, IsNil)
@@ -192,11 +192,11 @@ func (s *resolvePathSuite) TestDotDotInSymlinkInvalid(c *C) {
 
 func (s *resolvePathSuite) TestAbsoluteSymlinkInvalid(c *C) {
 	sysroot := c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0700)
+	err := os.MkdirAll(filepath.Join(sysroot, "foo"), 0o700)
 	c.Assert(err, IsNil)
 	err = os.Symlink("/", filepath.Join(sysroot, "foo", "bar"))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0700)
+	err = os.MkdirAll(filepath.Join(sysroot, "etc"), 0o700)
 	c.Assert(err, IsNil)
 	file, err := os.Create(filepath.Join(sysroot, "etc", "passwd"))
 	c.Assert(err, IsNil)

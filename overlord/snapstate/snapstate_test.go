@@ -346,9 +346,9 @@ SNAPD_APPARMOR_REEXEC=1
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11"} {
 			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
-			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			err = os.MkdirAll(filepath.Dir(infoFile), 0o755)
 			c.Assert(err, IsNil)
-			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0o644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -679,7 +679,7 @@ func maybeMockClassicSupport(c *C) (restore func()) {
 	}
 
 	d := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/snap")
-	err := os.MkdirAll(d, 0755)
+	err := os.MkdirAll(d, 0o755)
 	c.Assert(err, IsNil)
 	snapSymlink := filepath.Join(dirs.GlobalRootDir, "snap")
 	err = os.Symlink(d, snapSymlink)
@@ -3667,23 +3667,23 @@ SNAPD_APPARMOR_REEXEC=1
 
 	// revision 1 vulnerable
 	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
-	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
+	err := os.MkdirAll(filepath.Dir(infoFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
+	err = os.WriteFile(infoFile, []byte(vulnInfoFile), 0o644)
 	c.Assert(err, IsNil)
 
 	// revision 2 fixed
 	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
-	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
+	err = os.MkdirAll(filepath.Dir(infoFile2), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile2, []byte(fixedInfoFile), 0o644)
 	c.Assert(err, IsNil)
 
 	// revision 11 fixed
 	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
-	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
+	err = os.MkdirAll(filepath.Dir(infoFile11), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile11, []byte(fixedInfoFile), 0o644)
 	c.Assert(err, IsNil)
 
 	// use generic classic model
@@ -3927,7 +3927,7 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	defer snapstate.MockEnsuredDownloadsCleaned(s.snapmgr, true)()
 
 	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o700), IsNil)
 	// validity check; note * in go glob matches .foo
 	c.Assert(filenames(), HasLen, 0)
 
@@ -3935,9 +3935,9 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345.snap")
 	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890.snap")
 
-	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
-	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
-	c.Assert(os.WriteFile(s2, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s0, nil, 0o600), IsNil)
+	c.Assert(os.WriteFile(s1, nil, 0o600), IsNil)
+	c.Assert(os.WriteFile(s2, nil, 0o600), IsNil)
 
 	t1 := time.Now()
 	t0 := t1.Add(-time.Hour)
@@ -5740,7 +5740,7 @@ version: 1.0
 `, gadgetSideInfo)
 
 	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
-	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0o600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -8130,9 +8130,9 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C)
 
 func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHookMixedServices(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	st := s.state
@@ -10032,8 +10032,8 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.SnapMountDir)
-	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
+	os.MkdirAll(dirs.SnapServicesDir, 0o755)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0o644)
 	c.Assert(err, IsNil)
 
 	s.restarts[unitName] = 0
@@ -10108,8 +10108,8 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
-	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
+	os.MkdirAll(dirs.SnapServicesDir, 0o755)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0o644)
 	c.Assert(err, IsNil)
 
 	s.restarts[unitName] = 0
@@ -11336,10 +11336,10 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
 }
 
 func initSnapDownloads(c *C, revisions []snap.Revision) {
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
 	for _, rev := range revisions {
 		fileName := fmt.Sprintf("some-snap_%s.snap", rev)
-		c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, fileName), nil, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, fileName), nil, 0o644), IsNil)
 	}
 }
 
@@ -11509,10 +11509,10 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsParallelInstalls(c *C) {
 	defer restore()
 
 	// parallel install downloads
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2_2.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3_x3.snap"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1_1.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2_2.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3_x3.snap"), nil, 0o644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -11584,12 +11584,12 @@ func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
 	defer restore()
 
 	// check that we delete leftovers of non-existing snaps
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-other-snap_1.snap"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-other-snap_1.snap"), nil, 0o644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -11620,12 +11620,12 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 	defer s.state.Unlock()
 
 	// check that we delete leftovers of non-existing snaps
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-other-snap_1.snap"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1.snap"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-other-snap_1.snap"), nil, 0o644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,

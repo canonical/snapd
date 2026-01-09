@@ -254,9 +254,9 @@ name: core
 version: 1
 `)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0o644)
 	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()

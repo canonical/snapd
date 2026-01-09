@@ -74,9 +74,9 @@ func (s *validateSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(seed.MockTrusted(s.StoreSigning.Trusted))
 
-	err := os.MkdirAll(s.SnapsDir(), 0755)
+	err := os.MkdirAll(s.SnapsDir(), 0o755)
 	c.Assert(err, IsNil)
-	err = os.Mkdir(s.AssertsDir(), 0755)
+	err = os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]any{
@@ -98,7 +98,7 @@ func (s *validateSuite) makeSnapInSeed(c *C, snapYaml string) {
 
 func (s *validateSuite) makeSeedYaml(c *C, seedYaml string) string {
 	tmpf := filepath.Join(s.SeedDir, "seed.yaml")
-	err := os.WriteFile(tmpf, []byte(seedYaml), 0644)
+	err := os.WriteFile(tmpf, []byte(seedYaml), 0o644)
 	c.Assert(err, IsNil)
 	return tmpf
 }
@@ -245,9 +245,9 @@ snaps:
 func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) {
 	snapBuildDir := c.MkDir()
 	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
-	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
+	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
+	err = os.WriteFile(metaSnapYaml, []byte(snapYaml), 0o644)
 	c.Assert(err, IsNil)
 
 	// need to build the snap "manually" pack.Snap() will do validation

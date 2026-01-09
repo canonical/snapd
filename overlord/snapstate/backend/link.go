@@ -75,7 +75,7 @@ func createSharedSnapDirForParallelInstance(s snap.PlaceInfo) error {
 	_, key := snap.SplitInstanceName(s.InstanceName())
 
 	if key != "" {
-		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
+		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0o755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
@@ -131,7 +131,7 @@ func updateCurrentSymlinks(info *snap.Info) (revert func(), e error) {
 		}
 	}
 
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
 	defer func() {
@@ -240,7 +240,7 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 
 	// Create components directory
 	compsDir := filepath.Dir(linkPath)
-	if err := os.MkdirAll(compsDir, 0755); err != nil {
+	if err := os.MkdirAll(compsDir, 0o755); err != nil {
 		return fmt.Errorf("while linking component: %v", err)
 	}
 

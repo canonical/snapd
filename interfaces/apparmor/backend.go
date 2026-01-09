@@ -284,7 +284,7 @@ func snapConfineProfileName(snapName string, rev snap.Revision) string {
 func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 	logger.Noticef("reloading profiles of snap-confine provided by the system snap")
 
-	if err := os.MkdirAll(apparmor_sandbox.SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(apparmor_sandbox.SnapConfineAppArmorDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 	dir, glob, content, err := snapConfineFromSnapProfile(info)
@@ -292,7 +292,7 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 	if err != nil {
 		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create snap-confine directory %q: %s", dir, err)
 	}
 
@@ -433,7 +433,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 	content := b.deriveContent(spec.(*Specification), appSet, opts)
 
 	dir := dirs.SnapAppArmorDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
 

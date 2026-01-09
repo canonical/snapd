@@ -70,7 +70,7 @@ func (s *toolSuite) SetUpTest(c *C) {
 
 	s.snapdPath = filepath.Join(dirs.SnapMountDir, "/snapd/42")
 	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
-	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0o755), IsNil)
 }
 
 func (s *toolSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
@@ -83,14 +83,14 @@ func (s *toolSuite) syscallExec(argv0 string, argv []string, envv []string) (err
 
 func (s *toolSuite) fakeCoreVersion(c *C, coreDir, version string) {
 	p := filepath.Join(coreDir, "/usr/lib/snapd")
-	c.Assert(os.MkdirAll(p, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(p, "info"), []byte("VERSION="+version), 0644), IsNil)
+	c.Assert(os.MkdirAll(p, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(p, "info"), []byte("VERSION="+version), 0o644), IsNil)
 }
 
 func makeFakeExe(c *C, path string) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(path, nil, 0755)
+	err = os.WriteFile(path, nil, 0o755)
 	c.Assert(err, IsNil)
 }
 
@@ -174,7 +174,7 @@ func (s *toolSuite) TestSystemSnapSupportsReExecNoInfo(c *C) {
 func (s *toolSuite) TestSystemSnapSupportsReExecBadInfo(c *C) {
 	// can't read snapd/info if it's a directory
 	p := s.snapdPath + "/usr/lib/snapd/info"
-	c.Assert(os.MkdirAll(p, 0755), IsNil)
+	c.Assert(os.MkdirAll(p, 0o755), IsNil)
 
 	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
@@ -182,8 +182,8 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadInfo(c *C) {
 func (s *toolSuite) TestSystemSnapSupportsReExecBadInfoContent(c *C) {
 	// can't understand snapd/info if all it holds are potatoes
 	p := s.snapdPath + "/usr/lib/snapd"
-	c.Assert(os.MkdirAll(p, 0755), IsNil)
-	c.Assert(os.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
+	c.Assert(os.MkdirAll(p, 0o755), IsNil)
+	c.Assert(os.WriteFile(p+"/info", []byte("potatoes"), 0o644), IsNil)
 
 	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
@@ -294,9 +294,9 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutableFallba
 	defer restore()
 
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
-	err := os.MkdirAll(filepath.Dir(devTool), 0755)
+	err := os.MkdirAll(filepath.Dir(devTool), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(devTool, []byte(""), 0755)
+	err = os.WriteFile(devTool, []byte(""), 0o755)
 	c.Assert(err, IsNil)
 
 	path, err := snapdtool.InternalToolPath("potato")
@@ -352,7 +352,7 @@ func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
 	defer restore()
 
 	// make snapd *not* executable
-	c.Assert(os.Chmod(snapdSnapInternalToolPath, 0644), IsNil)
+	c.Assert(os.Chmod(snapdSnapInternalToolPath, 0o644), IsNil)
 
 	// Now the internal tool path falls back to the global snapd because
 	// the internal one is not executable

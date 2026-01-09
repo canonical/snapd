@@ -162,7 +162,7 @@ func (b *Backend) ensureSymlinks(spec *Specification, symlinkDirs map[string]boo
 		// Ensure state of the links we want in this directory
 		if len(lnsToTarget) > 0 {
 			if !dirExists {
-				if err := os.MkdirAll(dir, 0755); err != nil {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
 					return err
 				}
 			}

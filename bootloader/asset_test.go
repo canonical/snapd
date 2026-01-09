@@ -104,7 +104,7 @@ func (s *configAssetTestSuite) TestUnreadableFile(c *C) {
 	}
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	err := os.WriteFile(p, []byte("foo"), 0000)
+	err := os.WriteFile(p, []byte("foo"), 0o000)
 	c.Assert(err, IsNil)
 	_, err = bootloader.EditionFromDiskConfigAsset(p)
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/foo: permission denied")

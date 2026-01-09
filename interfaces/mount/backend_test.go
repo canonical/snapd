@@ -56,8 +56,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
-	c.Assert(os.MkdirAll(dirs.SnapMountPolicyDir, 0700), IsNil)
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountPolicyDir, 0o700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0o700), IsNil)
 
 	// add second iface so that we actually test combining snippets
 	s.iface2 = &ifacetest.TestInterface{InterfaceName: "iface2"}
@@ -74,30 +74,30 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestRemove(c *C) {
 	appCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hello-world.fstab")
-	err := os.WriteFile(appCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	err := os.WriteFile(appCanaryToGo, []byte("ni! ni! ni!"), 0o644)
 	c.Assert(err, IsNil)
 
 	hookCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hook.configure.fstab")
-	err = os.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	err = os.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0o644)
 	c.Assert(err, IsNil)
 
 	snapCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.fstab")
-	err = os.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
+	err = os.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0o644)
 	c.Assert(err, IsNil)
 
 	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
-	err = os.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
+	err = os.WriteFile(appCanaryToStay, []byte("stay!"), 0o644)
 	c.Assert(err, IsNil)
 
 	snapCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.fstab")
-	err = os.WriteFile(snapCanaryToStay, []byte("stay!"), 0644)
+	err = os.WriteFile(snapCanaryToStay, []byte("stay!"), 0o644)
 	c.Assert(err, IsNil)
 
 	// Write the .mnt file, the logic for discarding mount namespaces uses it
 	// as a canary file to look for to even attempt to run the mount discard
 	// tool.
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "hello-world.mnt")
-	err = os.WriteFile(mntFile, []byte(""), 0644)
+	err = os.WriteFile(mntFile, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	// Mock snap-discard-ns and allow tweak distro libexec dir so that it is used.
@@ -283,7 +283,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err = os.WriteFile(mntFile, []byte(""), 0644)
+	err = os.WriteFile(mntFile, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	// confinement options are irrelevant to this security backend
@@ -333,7 +333,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err := os.WriteFile(mntFile, []byte(""), 0644)
+	err := os.WriteFile(mntFile, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	// confinement options are irrelevant to this security backend
@@ -404,7 +404,7 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	update = true
 	// ensure .mnt file
 	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
-	err := os.WriteFile(mntFile, []byte(""), 0644)
+	err := os.WriteFile(mntFile, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	// confinement options are irrelevant to this security backend

@@ -339,10 +339,10 @@ func (s *initramfsCVMMountsSuite) testInitramfsMountsRunCVMModeEphemeralOverlayH
 	manifestPath := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/ubuntu")
 	manifestJson := fmt.Sprintf(`{"partitions":[{"label":"cloudimg-rootfs","root_hash":%q,"read_only":true}]}`, expectedRootHash)
 
-	err := os.MkdirAll(manifestPath, 0755)
+	err := os.MkdirAll(manifestPath, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(manifestPath, "manifest.json"), []byte(manifestJson), 0644)
+	err = os.WriteFile(filepath.Join(manifestPath, "manifest.json"), []byte(manifestJson), 0o644)
 	c.Assert(err, IsNil)
 
 	// Mock the call to TPMCVM, to ensure that TPM provisioning is

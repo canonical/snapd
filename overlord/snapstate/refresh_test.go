@@ -135,8 +135,8 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 	// If we create a matching desktop entry then relevant meta-data is added.
 	err = snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil)
 	desktopFile := s.info.Apps["app"].DesktopFile()
-	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
-	c.Assert(os.WriteFile(desktopFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(desktopFile, nil, 0o644), IsNil)
 	refreshInfo = err.PendingSnapRefreshInfo()
 	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
 	c.Check(refreshInfo.BusyAppName, Equals, "app")

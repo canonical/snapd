@@ -185,9 +185,9 @@ apps:
 func (s *patch61Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch6_1JSON, 0644)
+	err = os.WriteFile(dirs.SnapStateFile, statePatch6_1JSON, 0o644)
 	c.Assert(err, IsNil)
 
 	snap.MockSanitizePlugsSlots(func(*snap.Info) {})

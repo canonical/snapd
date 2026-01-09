@@ -52,7 +52,7 @@ type backendSuite struct {
 func (s *backendSuite) SetUpTest(c *C) {
 	// Isolate this test to a temporary directory
 	s.RootDir = c.MkDir()
-	os.Mkdir(filepath.Join(s.RootDir, "/snap"), 0755)
+	os.Mkdir(filepath.Join(s.RootDir, "/snap"), 0o755)
 	dirs.SetRootDir(s.RootDir)
 
 	// Create a fresh repository for each test
@@ -175,11 +175,11 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	c.Assert(s.Repo.AddInterface(iface), IsNil)
 
 	// Create some un-controlled files
-	c.Assert(os.MkdirAll(controlledDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(controlledDir, 0o755), IsNil)
 	noSnapdLinkPath := filepath.Join(controlledDir, "nosnapd-link")
 	noSnapdFilePath := filepath.Join(controlledDir, "nosnapd-file")
 	c.Assert(os.Symlink("/var/lib/target", noSnapdLinkPath), IsNil)
-	c.Assert(os.WriteFile(noSnapdFilePath, []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(noSnapdFilePath, []byte{}, 0o644), IsNil)
 
 	// Mock plug/slots
 	appSet, plugInfos := s.mockPlugs(c, someConsumer, []string{"some-driver-libs"})

@@ -200,7 +200,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 
 	// build seccomp-load helper
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
-	err := os.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
+	err := os.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0o644)
 	c.Assert(err, IsNil)
 	cmd := exec.Command("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
 	cmd.Stdout = os.Stdout
@@ -210,7 +210,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 
 	// build syscall-runner helper
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
-	err = os.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
+	err = os.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0o644)
 	c.Assert(err, IsNil)
 
 	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")

@@ -113,7 +113,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 
 	dir := c.MkDir()
 	seedDir := filepath.Join(dir, "seed")
-	err := os.Mkdir(seedDir, 0755)
+	err := os.Mkdir(seedDir, 0o755)
 	c.Assert(err, IsNil)
 
 	s.opts = &seedwriter.Options{
@@ -4128,7 +4128,7 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 			}},
 	})
 
-	err := os.MkdirAll(filepath.Join(s.opts.SeedDir, "systems", "1234"), 0755)
+	err := os.MkdirAll(filepath.Join(s.opts.SeedDir, "systems", "1234"), 0o755)
 	c.Assert(err, IsNil)
 	s.opts.Label = "1234"
 	w, err := seedwriter.New(model, s.opts)
@@ -5508,14 +5508,14 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, addProxyStore, r
 	assertsDir := filepath.Join(systemDir, "assertions")
 	// Trigger some errors by writing files prior to seeding
 	if addProxyStore && fileExistError {
-		err := os.MkdirAll(assertsDir, 0755)
+		err := os.MkdirAll(assertsDir, 0o755)
 		c.Assert(err, IsNil)
-		f, err := os.OpenFile(filepath.Join(assertsDir, "extra-assertions"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		f, err := os.OpenFile(filepath.Join(assertsDir, "extra-assertions"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		c.Assert(err, IsNil)
 		defer f.Close()
 	}
 	if numberSystemUsers > 0 && fileExistError {
-		f, err := os.OpenFile(filepath.Join(systemDir, "auto-import.assert"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		f, err := os.OpenFile(filepath.Join(systemDir, "auto-import.assert"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		c.Assert(err, IsNil)
 		defer f.Close()
 	}

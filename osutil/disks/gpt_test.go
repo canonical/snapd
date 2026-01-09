@@ -116,7 +116,7 @@ func (s *gptSuite) TestReadLastLBA(c *C) {
 }
 
 func (s *gptSuite) messSignature(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
+	f, err := os.OpenFile(s.image, os.O_RDWR, 0o777)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	_, err = f.Seek(int64(s.blockSize), 0)
@@ -138,7 +138,7 @@ func (s *gptSuite) TestBadSignature(c *C) {
 }
 
 func (s *gptSuite) messRevision(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
+	f, err := os.OpenFile(s.image, os.O_RDWR, 0o777)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	_, err = f.Seek(int64(s.blockSize)+8, 0)
@@ -160,7 +160,7 @@ func (s *gptSuite) TestBadRevision(c *C) {
 }
 
 func (s *gptSuite) messSize(c *C, newsize uint32) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
+	f, err := os.OpenFile(s.image, os.O_RDWR, 0o777)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	_, err = f.Seek(int64(s.blockSize)+8+4, 0)
@@ -194,7 +194,7 @@ func (s *gptSuite) TestBigSize(c *C) {
 }
 
 func (s *gptSuite) messCRC(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
+	f, err := os.OpenFile(s.image, os.O_RDWR, 0o777)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	_, err = f.Seek(int64(s.blockSize)+8+4+4, 0)
@@ -241,7 +241,7 @@ func (s *gptSuite) TestReadFileFallback(c *C) {
 }
 
 func (s *gptSuite) messAlternateRevision(c *C) {
-	f, err := os.OpenFile(s.image, os.O_RDWR, 0777)
+	f, err := os.OpenFile(s.image, os.O_RDWR, 0o777)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	_, err = f.Seek(-int64(s.blockSize)+8, 2)

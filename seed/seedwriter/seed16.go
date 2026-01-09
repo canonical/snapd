@@ -200,7 +200,7 @@ type tree16 struct {
 
 func (tr *tree16) mkFixedDirs() error {
 	tr.snapsDirPath = filepath.Join(tr.opts.SeedDir, "snaps")
-	return os.MkdirAll(tr.snapsDirPath, 0755)
+	return os.MkdirAll(tr.snapsDirPath, 0o755)
 }
 
 func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
@@ -221,7 +221,7 @@ func (tr *tree16) localComponentPath(*SeedComponent, string) (string, error) {
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
-	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
+	if err := os.MkdirAll(seedAssertsDir, 0o755); err != nil {
 		return err
 	}
 
@@ -238,7 +238,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			if err != nil {
 				return fmt.Errorf("internal error: lost saved assertion")
 			}
-			if err = os.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644); err != nil {
+			if err = os.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0o644); err != nil {
 				return err
 			}
 		}

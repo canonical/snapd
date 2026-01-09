@@ -81,7 +81,7 @@ func switchDisableSSHService(sysd systemd.Systemd, disabled bool, opts *fsOnlyCo
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
-		if err := os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0o755); err != nil {
 			return err
 		}
 	}
@@ -89,7 +89,7 @@ func switchDisableSSHService(sysd systemd.Systemd, disabled bool, opts *fsOnlyCo
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	if disabled {
-		if err := os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
+		if err := os.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0o644); err != nil {
 			return err
 		}
 		if opts == nil {
@@ -151,10 +151,10 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 
 	// disable console-conf at the gadget-defaults time
 	consoleConfDisabled = filepath.Join(opts.RootDir, consoleConfDisabled)
-	if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644); err != nil {
+	if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0o644); err != nil {
 		return err
 	}
 
@@ -377,7 +377,7 @@ func handleServiceConfigSSHListen(dev sysconfig.Device, tr ConfGetter, opts *fsO
 		}
 	}
 	dir := filepath.Join(root, "/etc/ssh/sshd_config.d/")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	_, _, err := osutil.EnsureDirState(dir, name, dirContent)

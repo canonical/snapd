@@ -72,7 +72,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	// Prepare a directory for seccomp profiles.
 	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapSeccompDir, 0700)
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0o700)
 	c.Assert(err, IsNil)
 
 	s.restoreReadlink = snapdtool.MockOsReadlink(func(string) (string, error) {
@@ -820,7 +820,7 @@ func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
 
 	// ensure we have a mocked snap-seccomp on core
 	snapSeccompInMountedPath := filepath.Join(tmpDir, "usr/lib/snapd/snap-seccomp")
-	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0755)
+	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0o755)
 	c.Assert(err, IsNil)
 	snapSeccompInMounted := testutil.MockLockedCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
 echo "2345cdef 2.3.4 2345cdef -"
@@ -1048,7 +1048,7 @@ func (m *mockedSyncedFailingCompiler) Compile(in, out string) error {
 }
 
 func (s *backendSuite) TestParallelCompileError(c *C) {
-	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0o755)
 	c.Assert(err, IsNil)
 	// 15 profiles
 	profiles := make([]string, 15)
@@ -1071,17 +1071,17 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 }
 
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
-	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin2"), nil, 0755)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin2"), nil, 0o755)
 	c.Assert(err, IsNil)
 	// make profiles directory non-accessible
-	err = os.Chmod(dirs.SnapSeccompDir, 0000)
+	err = os.Chmod(dirs.SnapSeccompDir, 0o000)
 	c.Assert(err, IsNil)
 
-	err = os.Chmod(dirs.SnapSeccompDir, 0500)
+	err = os.Chmod(dirs.SnapSeccompDir, 0o500)
 	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapSeccompDir, 0755)
+	defer os.Chmod(dirs.SnapSeccompDir, 0o755)
 
 	m := mockedSyncedCompiler{}
 	err = seccomp.ParallelCompile(&m, []string{"profile-001"})

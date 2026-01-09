@@ -46,18 +46,18 @@ type authRequestorSuite struct {
 var _ = Suite(&authRequestorSuite{})
 
 func (s *authRequestorSuite) setInput(c *C, input string) {
-	err := os.WriteFile(s.inputFile, []byte(input), 0644)
+	err := os.WriteFile(s.inputFile, []byte(input), 0o644)
 	c.Assert(err, IsNil)
 }
 
 func (s *authRequestorSuite) setError(c *C, message string) {
-	err := os.WriteFile(s.errorFile, []byte(message), 0644)
+	err := os.WriteFile(s.errorFile, []byte(message), 0o644)
 	c.Assert(err, IsNil)
 }
 
 func (s *authRequestorSuite) setSystemdVersion(c *C, version string) {
 	fullVersion := fmt.Sprintf("systemd %[1]s (%[1]s.4-1ubuntu3)\n+PAM +AUDIT...\n", version)
-	err := os.WriteFile(s.systemctlVersionFile, []byte(fullVersion), 0644)
+	err := os.WriteFile(s.systemctlVersionFile, []byte(fullVersion), 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -65,7 +65,7 @@ func (s *authRequestorSuite) SetUpTest(c *C) {
 	commandInputs := c.MkDir()
 	s.inputFile = filepath.Join(commandInputs, "input")
 	s.errorFile = filepath.Join(commandInputs, "error")
-	err := os.WriteFile(s.errorFile, []byte("unset"), 0644)
+	err := os.WriteFile(s.errorFile, []byte("unset"), 0o644)
 	c.Assert(err, IsNil)
 	script := fmt.Sprintf(`if [ -r '%[1]s' ]; then cat '%[1]s'; else cat '%[2]s'; exit 1; fi`, s.inputFile, s.errorFile)
 	fmt.Printf("%s\n", script)

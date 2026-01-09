@@ -102,7 +102,7 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 
 func (s *SnapSuite) TestAdviseCommandDumpDb(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
 	defer dirs.SetRootDir("")
 
 	db, err := advisor.Create()

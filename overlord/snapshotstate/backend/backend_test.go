@@ -107,8 +107,8 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	si := snap.MinimalPlaceInfo("hello-snap", snap.R(42))
 
 	for _, t := range table(si, filepath.Join(dirs.GlobalRootDir, "home/snapuser")) {
-		c.Check(os.MkdirAll(t.dir, 0755), check.IsNil)
-		c.Check(os.WriteFile(filepath.Join(t.dir, t.name), []byte(t.content), 0644), check.IsNil)
+		c.Check(os.MkdirAll(t.dir, 0o755), check.IsNil)
+		c.Check(os.WriteFile(filepath.Join(t.dir, t.name), []byte(t.content), 0o644), check.IsNil)
 	}
 
 	cur, err := user.Current()
@@ -157,7 +157,7 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	for _, name := range []string{
 		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
 	} {
-		c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0644), check.IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, name), []byte{}, 0o644), check.IsNil)
 	}
 	setID, err = backend.LastSnapshotSetID()
 	c.Assert(err, check.IsNil)
@@ -576,8 +576,8 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	rev := snap.R(5)
 	d := filepath.Join(s.root, rev.String())
-	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0o755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0o755), check.IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -591,9 +591,9 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	rev := snap.R(5)
 	d := filepath.Join(s.root, rev.String())
-	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0644), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0o755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0o755), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0o644), check.IsNil)
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
@@ -617,7 +617,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 
 func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	d := filepath.Join(s.root, "x1")
-	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(d, 0o755), check.IsNil)
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
@@ -774,7 +774,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
 
 	newroot := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(newroot, "home/snapuser"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(newroot, "home/snapuser"), 0o755), check.IsNil)
 	dirs.SetRootDir(newroot)
 
 	var diff = func() *exec.Cmd {
@@ -796,7 +796,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was
-		c.Check(os.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0644), check.IsNil, comm)
+		c.Check(os.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0o644), check.IsNil, comm)
 	}
 }
 
@@ -854,7 +854,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 	}
 
 	newroot := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(newroot, "home", "snapuser"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(newroot, "home", "snapuser"), 0o755), check.IsNil)
 	dirs.SetRootDir(newroot)
 
 	var diff = func() *exec.Cmd {
@@ -1004,7 +1004,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 
 	// create invalid exported file
 	tarFile3 := path.Join(tempdir, "exported3.snapshot")
-	err = os.WriteFile(tarFile3, []byte("invalid"), 0755)
+	err = os.WriteFile(tarFile3, []byte("invalid"), 0o755)
 	c.Check(err, check.IsNil)
 
 	// create an exported snapshot with a directory
@@ -1049,9 +1049,9 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
-			err := os.MkdirAll(dirs.SnapshotsDir, 0700)
+			err := os.MkdirAll(dirs.SnapshotsDir, 0o700)
 			c.Assert(err, check.IsNil, comm)
-			err = os.WriteFile(importingFile, nil, 0644)
+			err = os.WriteFile(importingFile, nil, 0o644)
 			c.Assert(err, check.IsNil)
 		} else {
 			err = os.RemoveAll(importingFile)
@@ -1081,7 +1081,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportCheckError(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	err := os.MkdirAll(dirs.SnapshotsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	// create snapshot export file
@@ -1100,7 +1100,7 @@ func (s *snapshotSuite) TestImportCheckError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	err := os.MkdirAll(dirs.SnapshotsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	ctx := context.TODO()
@@ -1129,7 +1129,7 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	err := os.MkdirAll(dirs.SnapshotsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	ctx := context.TODO()
@@ -1215,8 +1215,8 @@ func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string,
 	for _, d := range snapData {
 		data = append(data, 0)
 		expected += len(data)
-		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
-		c.Assert(os.WriteFile(filepath.Join(s.root, d, "somefile"), data, 0644), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0o755), check.IsNil)
+		c.Assert(os.WriteFile(filepath.Join(s.root, d, "somefile"), data, 0o644), check.IsNil)
 	}
 
 	sz, err := backend.EstimateSnapshotSize(info, nil, opts)
@@ -1244,7 +1244,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 		"/home/user1/snap/foo/common",
 	}
 	for _, d := range snapData {
-		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0o755), check.IsNil)
 	}
 
 	sz, err := backend.EstimateSnapshotSize(info, nil, nil)
@@ -1490,11 +1490,11 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 }
 
 func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	err := os.MkdirAll(dirs.SnapshotsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	fn := "1_hello_1.0_x1.zip"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), makeMockSnapshotZipContent(c), 0o644)
 	c.Assert(err, check.IsNil)
 
 	callbackCalled := 0
@@ -1510,7 +1510,7 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 	// now pretend we are importing snapshot id 1
 	callbackCalled = 0
 	fn = "1_importing"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0o644)
 	c.Assert(err, check.IsNil)
 
 	// and while importing Iter() does not call the callback
@@ -1520,7 +1520,7 @@ func (s *snapshotSuite) TestIterWithMockedSnapshotFiles(c *check.C) {
 }
 
 func (s *snapshotSuite) TestCleanupAbandonedImports(c *check.C) {
-	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+	err := os.MkdirAll(dirs.SnapshotsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	// create 2 snapshot IDs 1,2
@@ -1529,20 +1529,20 @@ func (s *snapshotSuite) TestCleanupAbandonedImports(c *check.C) {
 		fn := fmt.Sprintf("%d_hello_%d.0_x1.zip", i, i)
 		p := filepath.Join(dirs.SnapshotsDir, fn)
 		snapshotFiles[i] = append(snapshotFiles[i], p)
-		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0o644)
 		c.Assert(err, check.IsNil)
 
 		fn = fmt.Sprintf("%d_olleh_%d.0_x1.zip", i, i)
 		p = filepath.Join(dirs.SnapshotsDir, fn)
 		snapshotFiles[i] = append(snapshotFiles[i], p)
-		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0644)
+		err = os.WriteFile(p, makeMockSnapshotZipContent(c), 0o644)
 		c.Assert(err, check.IsNil)
 	}
 
 	// pretend setID 2 has a import file which means which means that
 	// an import was started in the past but did not complete
 	fn := "2_importing"
-	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapshotsDir, fn), nil, 0o644)
 	c.Assert(err, check.IsNil)
 
 	// run cleanup

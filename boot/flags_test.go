@@ -80,10 +80,10 @@ func setupRealGrub(c *C, rootDir, baseDir string, opts *bootloader.Options) boot
 		rootDir = dirs.GlobalRootDir
 	}
 	grubCfg := filepath.Join(rootDir, baseDir, "grub.cfg")
-	err := os.MkdirAll(filepath.Dir(grubCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(grubCfg), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(grubCfg, nil, 0644)
+	err = os.WriteFile(grubCfg, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	genv := grubenv.NewEnv(filepath.Join(rootDir, baseDir, "grubenv"))
@@ -185,7 +185,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 		BootFlags: []string{},
 	}
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0o755)
 	c.Assert(err, IsNil)
 
 	err = m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
@@ -220,7 +220,7 @@ func (s *bootFlagsSuite) testInitramfsActiveBootFlagsUC20RRunModeHappy(c *C, fla
 		BootFlags: []string{},
 	}
 
-	err := os.MkdirAll(flagsDir, 0755)
+	err := os.MkdirAll(flagsDir, 0o755)
 	c.Assert(err, IsNil)
 
 	err = m.WriteTo(flagsDir)
@@ -531,16 +531,16 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			defer func() { dirs.SetRootDir("") }()
 
 			degradedJSON := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
-			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
+			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0o755)
 			c.Assert(err, IsNil, comment)
 
-			err = os.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
+			err = os.WriteFile(degradedJSON, []byte(t.degradedJSON), 0o644)
 			c.Assert(err, IsNil, comment)
 		}
 
 		if t.createExpDirs {
 			for _, dir := range t.expDirs {
-				err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0755)
+				err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0o755)
 				c.Assert(err, IsNil, comment)
 			}
 		}

@@ -46,7 +46,7 @@ func (*filePresenceCheckerSuite) TestFilePresent(c *check.C) {
 
 	// Now use regular file
 	c.Assert(os.Remove(filename), check.IsNil)
-	c.Assert(os.WriteFile(filename, nil, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filename, nil, 0o644), check.IsNil)
 	testCheck(c, FilePresent, true, "", filename)
 }
 
@@ -73,7 +73,7 @@ func (*filePresenceCheckerSuite) TestFileAbsent(c *check.C) {
 
 	// Now use regular file
 	c.Assert(os.Remove(filename), check.IsNil)
-	c.Assert(os.WriteFile(filename, nil, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filename, nil, 0o644), check.IsNil)
 	testCheck(c, FileAbsent, false, fmt.Sprintf(`file %q is present but should not exist`, filename), filename)
 }
 

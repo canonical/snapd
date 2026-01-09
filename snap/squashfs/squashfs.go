@@ -94,7 +94,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return false, err
 		}
 	}

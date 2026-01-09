@@ -99,14 +99,14 @@ func (s *seed16Suite) TestLoadAssertionsNoAssertions(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsNoModelAssertion(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "seed must have a model assertion")
 }
 
 func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	headers := map[string]any{
@@ -123,7 +123,7 @@ func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsConsistencyError(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	// write out only the model assertion
@@ -139,7 +139,7 @@ func (s *seed16Suite) TestLoadAssertionsConsistencyError(c *C) {
 }
 
 func (s *seed16Suite) TestLoadAssertionsModelHappy(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	headers := map[string]any{
@@ -168,7 +168,7 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	r := seed.MockTrusted(s.StoreSigning.Trusted)
 	defer r()
 
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	headers := map[string]any{
@@ -192,7 +192,7 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 }
 
 func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	headers := map[string]any{
@@ -211,7 +211,7 @@ func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
 }
 
 func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	headers := map[string]any{
@@ -233,7 +233,7 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 		}},
 	})
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
@@ -361,13 +361,13 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]any, seedSnaps ...*
 		coreHeaders["gadget"] = "pc"
 	}
 
-	err := os.Mkdir(s.AssertsDir(), 0755)
+	err := os.Mkdir(s.AssertsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", coreHeaders, modelHeaders)
 	s.WriteAssertions("model.asserts", modelChain...)
 
-	err = os.Mkdir(s.SnapsDir(), 0755)
+	err = os.Mkdir(s.SnapsDir(), 0o755)
 	c.Assert(err, IsNil)
 
 	var completeSeedSnaps []*seed.InternalSnap16
@@ -409,7 +409,7 @@ func (s *seed16Suite) writeSeed(c *C, seedSnaps []*seed.InternalSnap16) {
 		"snaps": seedSnaps,
 	})
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0o644)
 	c.Assert(err, IsNil)
 }
 

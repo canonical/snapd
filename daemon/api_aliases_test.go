@@ -54,7 +54,7 @@ apps:
 `
 
 func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -106,7 +106,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	s.daemon(c)
 
@@ -188,7 +188,7 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -242,7 +242,7 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -297,7 +297,7 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -379,7 +379,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 
@@ -462,7 +462,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 }
 
 func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
 

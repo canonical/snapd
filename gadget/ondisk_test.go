@@ -55,19 +55,19 @@ func (s *ondiskTestSuite) SetUpTest(c *C) {
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0o644); err != nil {
 		return err
 	}
 

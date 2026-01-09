@@ -17,10 +17,10 @@ import (
 // an empty file for each.
 func MockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets []string) {
 	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
-	err := os.MkdirAll(p, 0755)
+	err := os.MkdirAll(p, 0o755)
 	c.Assert(err, IsNil)
 	for _, cachedAsset := range cachedAssets {
-		err = os.WriteFile(filepath.Join(p, cachedAsset), nil, 0644)
+		err = os.WriteFile(filepath.Join(p, cachedAsset), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 }

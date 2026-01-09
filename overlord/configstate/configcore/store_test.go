@@ -40,10 +40,10 @@ var _ = Suite(&storeSuite{})
 func (s *storeSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0o644)
 	c.Assert(err, IsNil)
 }
 

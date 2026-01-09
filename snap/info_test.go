@@ -441,7 +441,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 
 	mountdir := info.MountDir()
 	dir, rev := filepath.Split(mountdir)
-	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
 	cur := filepath.Join(dir, "current")
 	c.Assert(os.Symlink(rev, cur), IsNil)
 	st, err := os.Lstat(cur)
@@ -466,7 +466,7 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml"), 0o755), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
@@ -477,8 +477,8 @@ func (s *infoSuite) TestReadInfoUnreadable(c *C) {
 func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(os.WriteFile(p, []byte(`- :`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0o755), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`- :`), 0o644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
@@ -492,8 +492,8 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(os.WriteFile(p, []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0o755), IsNil)
+	c.Assert(os.WriteFile(p, []byte(``), 0o644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
@@ -504,9 +504,9 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
 	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(os.WriteFile(p, []byte(`name: test`), 0644), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(p), 0o755), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`name: test`), 0o644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0o755), IsNil)
 	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
@@ -527,11 +527,11 @@ func makeTestSnap(c *C, snapYaml string) string {
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
-	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0o755)
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0o644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
@@ -1382,7 +1382,7 @@ plugs:
 		snapInfo.InstanceKey = "instance"
 	}
 
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
 	mockDesktopFile := func(app *snap.AppInfo, path string) {
 		const mockDesktopFileTemplate = `[Desktop Entry]
 X-SnapInstanceName=%s
@@ -1391,7 +1391,7 @@ X-SnapAppName=%s
 Exec=%s
 `
 		content := fmt.Sprintf(mockDesktopFileTemplate, snapInfo.InstanceName(), app.Name, app.WrapperPath())
-		c.Assert(os.WriteFile(path, []byte(content), 0644), IsNil)
+		c.Assert(os.WriteFile(path, []byte(content), 0o644), IsNil)
 	}
 
 	// Given the configuration below:
@@ -1424,7 +1424,7 @@ Exec=%s
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_sample.desktop")
 
 	// When X-SnapAppName is not found, also fallback to the "$PREFIX_$APP.desktop" heuristic
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"), nil, 0o644), IsNil)
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_app.desktop")
 }
 
@@ -1931,7 +1931,7 @@ func (s *infoSuite) TestIsActive(c *C) {
 
 	mountdir := info1.MountDir()
 	dir, rev := filepath.Split(mountdir)
-	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
 	cur := filepath.Join(dir, "current")
 	c.Assert(os.Symlink(rev, cur), IsNil)
 
@@ -2762,12 +2762,12 @@ plugs:
 	c.Assert(err, IsNil)
 
 	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
-	err = os.MkdirAll(guiDir, 0755)
+	err = os.MkdirAll(guiDir, 0o755)
 	c.Assert(err, IsNil)
 
 	testDesktopFiles := []string{"org.example.desktop", "org.example.Foo.desktop", "test.desktop"}
 	for _, df := range testDesktopFiles {
-		err = os.WriteFile(filepath.Join(guiDir, df), nil, 0644)
+		err = os.WriteFile(filepath.Join(guiDir, df), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 

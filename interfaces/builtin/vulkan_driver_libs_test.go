@@ -89,7 +89,7 @@ func (s *VulkanDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.testRoot = c.MkDir()
-	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0755)
+	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0o755)
 	dirs.SetRootDir(s.testRoot)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
@@ -105,8 +105,8 @@ func (s *VulkanDriverLibsInterfaceSuite) TestName(c *C) {
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
 	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1")
-	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libDir1, "libGLX_nvidia.so.0"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(libDir1, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libDir1, "libGLX_nvidia.so.0"), []byte(``), 0o644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
@@ -238,7 +238,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 		subDir string
 	}{{"mesa", "vulkan/icd.d"}, {"nvidia", "vulkan/icd.d"}, {"radeon", "vulkan_alt.d"}} {
 		icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5", icdData.subDir)
-		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
 		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
     "file_format_version" : "1.0.0",
@@ -249,13 +249,13 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 }
 `, icdData.gpu)), 0655)
 		libDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2")
-		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(libDir, 0o755), IsNil)
 		libPath := filepath.Join(libDir, "libvulkan_"+icdData.gpu+".so.0")
-		os.WriteFile(libPath, []byte{}, 0655)
+		os.WriteFile(libPath, []byte{}, 0o655)
 
 		// Ignored file
 		otherPath := filepath.Join(icdDir, "foo.bar")
-		os.WriteFile(otherPath, []byte{}, 0655)
+		os.WriteFile(otherPath, []byte{}, 0o655)
 
 		// Ignored symlink
 		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
@@ -265,7 +265,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 
 	// Write layers
 	implicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/implicit_layer.d")
-	c.Assert(os.MkdirAll(implicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(implicitDir, 0o755), IsNil)
 	implicitPath := filepath.Join(implicitDir, "gpu_layer.json")
 	os.WriteFile(implicitPath, []byte(`{
     "file_format_version" : "1.0.1",
@@ -288,7 +288,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	}
 
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1",
@@ -322,7 +322,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`{
     "file_format_version" : "1.0.0",
@@ -341,9 +341,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
-	os.WriteFile(icdPath, []byte(`libGLX_nvidia.so.0`), 0655)
+	os.WriteFile(icdPath, []byte(`libGLX_nvidia.so.0`), 0o655)
 
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
@@ -353,7 +353,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibraryInIcd(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`{
     "file_format_version" : "1.0.0",
@@ -371,7 +371,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibraryInIcd(c *C) {
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoApiVersionInIcd(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`{
     "file_format_version" : "1.0.0",
@@ -388,7 +388,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoApiVersionInIcd(c *C)
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadApiVersion(c *C) {
 	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 
 	for i, tc := range []struct {
@@ -422,7 +422,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadApiVersion(c *C) {
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoApiVersionInLayer(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1",
@@ -441,7 +441,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoApiVersionInLayer(c *
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLayerInLayerFile(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1"
@@ -456,7 +456,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLayerInLayerFile(c *C
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecLayerAndLayersInLayerFile(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1",
@@ -487,9 +487,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecLayerAndLayersInLayerFi
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadJsonInLayerFile(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
-	os.WriteFile(explicitPath, []byte(`foo`), 0644)
+	os.WriteFile(explicitPath, []byte(`foo`), 0o644)
 
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
@@ -499,7 +499,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadJsonInLayerFile(c *C
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibraryInLayer(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1",
@@ -518,7 +518,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibraryInLayer(c *C) 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBothLibraryAndCompsInLayer(c *C) {
 	// Write layer file
 	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
-	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(explicitDir, 0o755), IsNil)
 	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
 	os.WriteFile(explicitPath, []byte(`{
     "file_format_version" : "1.0.1",

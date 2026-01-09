@@ -126,7 +126,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 	}
 
 	// ensure the directory exists
-	if err := os.MkdirAll(filepath.Dir(swapConfigPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(swapConfigPath), 0o755); err != nil {
 		return err
 	}
 
@@ -135,7 +135,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 	fileContent := fmt.Sprintf("FILE=%s\nSIZE=%d\n", location, szBytes/quantity.SizeMiB)
 
 	// write the swap config file
-	if err := os.WriteFile(swapConfigPath, []byte(fileContent), 0644); err != nil {
+	if err := os.WriteFile(swapConfigPath, []byte(fileContent), 0o644); err != nil {
 		return err
 	}
 

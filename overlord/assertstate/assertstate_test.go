@@ -5489,7 +5489,7 @@ func (s *assertMgrSuite) testValidateComponent(c *C, opts testValidateComponentO
 		)
 
 		mountFile := cpi.MountFile()
-		err := os.MkdirAll(filepath.Dir(mountFile), 0755)
+		err := os.MkdirAll(filepath.Dir(mountFile), 0o755)
 		c.Assert(err, IsNil)
 
 		err = os.Rename(compPath, mountFile)

@@ -198,11 +198,11 @@ func readBootFlagsFromRecoveryBootloader() ([]string, error) {
 func InitramfsExposeBootFlagsForSystem(flags []string) error {
 	s := serializeBootFlags(flags)
 
-	if err := os.MkdirAll(filepath.Dir(snapBootFlagsFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(snapBootFlagsFile), 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(snapBootFlagsFile, []byte(s), 0644)
+	return os.WriteFile(snapBootFlagsFile, []byte(s), 0o644)
 }
 
 // BootFlags returns the current set of boot flags active for this boot. It uses

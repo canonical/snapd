@@ -141,7 +141,7 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 	if len(legacyFDEKeymgrCmdline) == 0 {
 		var recoveryKey keys.RecoveryKey
 
-		f, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		f, err := os.OpenFile(keyFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			if os.IsExist(err) {
 				readKey, err := keys.RecoveryKeyFromFile(keyFile)

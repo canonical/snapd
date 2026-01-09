@@ -224,7 +224,7 @@ func Pack(sourceDir string, opts *Options) (string, error) {
 	}
 
 	if opts.TargetDir != "" {
-		if err := os.MkdirAll(opts.TargetDir, 0755); err != nil {
+		if err := os.MkdirAll(opts.TargetDir, 0o755); err != nil {
 			return "", err
 		}
 	}

@@ -127,9 +127,9 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	})
 
 	// mock systemd service units, this is required when testing "stop"
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0o775)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	return info
@@ -1374,9 +1374,9 @@ func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {
@@ -1532,9 +1532,9 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {
@@ -1562,9 +1562,9 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c 
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {

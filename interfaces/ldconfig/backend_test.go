@@ -117,9 +117,9 @@ apps:
 func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 	// Default content for /etc/ld.so.conf.d/
 	confDir := filepath.Join(dirs.GlobalRootDir, "etc", "ld.so.conf.d")
-	c.Assert(os.MkdirAll(confDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(confDir, 0o755), IsNil)
 	libcConfPath := filepath.Join(confDir, "libc.conf")
-	c.Assert(os.WriteFile(libcConfPath, []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(libcConfPath, []byte{}, 0o644), IsNil)
 
 	// Add callbacks and register the interface
 	s.Iface.LdconfigConnectedPlugCallback = func(spec *ldconfig.Specification,
@@ -194,9 +194,9 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 func (s *backendSuite) TestInstallingLdconfigFileCreatedRemoved(c *C) {
 	// Default content for /etc/ld.so.conf.d/
 	confDir := filepath.Join(dirs.GlobalRootDir, "etc", "ld.so.conf.d")
-	c.Assert(os.MkdirAll(confDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(confDir, 0o755), IsNil)
 	libcConfPath := filepath.Join(confDir, "libc.conf")
-	c.Assert(os.WriteFile(libcConfPath, []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(libcConfPath, []byte{}, 0o644), IsNil)
 
 	// register the interface, no libs added from the callback
 	s.Iface.InterfaceName = "cuda-driver-libs"

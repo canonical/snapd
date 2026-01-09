@@ -46,8 +46,8 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.launcher = &userd.PrivilegedDesktopLauncher{}
 
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications"), 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications"), 0o755), IsNil)
 
 	var rawMircadeDesktop = `[Desktop Entry]
   X-SnapInstanceName=mircade
@@ -62,11 +62,11 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	desktopContent := strings.Replace(tmpMircadeDesktop, "/snap/bin/", dirs.SnapBinariesDir, -1)
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	c.Assert(os.WriteFile(deskTopFile, []byte(desktopContent), 0644), IsNil)
+	c.Assert(os.WriteFile(deskTopFile, []byte(desktopContent), 0o644), IsNil)
 
 	// Create a shadowed desktop file ID
-	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications/shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications/shadow-test.desktop"), []byte("[Desktop Entry]"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "shadow-test.desktop"), []byte("[Desktop Entry]"), 0o644), IsNil)
 
 	s.mockEnv("HOME", filepath.Join(dirs.GlobalRootDir, "/home/user"))
 	s.mockEnv("XDG_DATA_HOME", "")

@@ -74,7 +74,7 @@ func (s *userdSuite) TestOpenFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0o644), IsNil)
 
 	err := launcher.OpenFile(s.SessionBus, path)
 	c.Check(err, IsNil)
@@ -89,7 +89,7 @@ func (s *userdSuite) TestOpenFileError(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0o644), IsNil)
 
 	err := launcher.OpenFile(s.SessionBus, path)
 	c.Check(err, FitsTypeOf, dbus.Error{})
@@ -123,7 +123,7 @@ func (s *userdSuite) TestOpenUnreadableFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0o644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
 	err := launcher.OpenFile(s.SessionBus, path)

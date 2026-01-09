@@ -4800,7 +4800,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
 	path := filepath.Join(c.MkDir(), "some-snap_8.snap")
-	err := os.WriteFile(path, []byte(""), 0644)
+	err := os.WriteFile(path, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}

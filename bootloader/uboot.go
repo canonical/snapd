@@ -120,7 +120,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		// own boot.sel file
 		u.processBlOpts(blOpts)
 
-		err := os.MkdirAll(filepath.Dir(u.envFile()), 0755)
+		err := os.MkdirAll(filepath.Dir(u.envFile()), 0o755)
 		if err != nil {
 			return err
 		}

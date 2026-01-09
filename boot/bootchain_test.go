@@ -49,7 +49,7 @@ func (s *bootchainSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	dirs.SetRootDir(s.rootDir)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir), 0o755), IsNil)
 }
 
 func (s *bootchainSuite) TestBootAssetLess(c *C) {
@@ -999,16 +999,16 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// make it work now
-	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0755), IsNil)
-	c.Assert(os.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/shim-hash0")), 0o755), IsNil)
+	c.Assert(os.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0o644), IsNil)
 
 	// nested error bubbled up
 	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// again, make it work
-	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0755), IsNil)
-	c.Assert(os.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(cPath("recovery-bl/loader-recovery-hash0")), 0o755), IsNil)
+	c.Assert(os.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0o644), IsNil)
 
 	// fails on missing bootloader name for role "run-mode"
 	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
@@ -1032,8 +1032,8 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 		"run-bl/loader-run-hash0",
 	} {
 		p := filepath.Join(dirs.SnapBootAssetsDir, name)
-		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-		c.Assert(os.WriteFile(p, nil, 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0o755), IsNil)
+		c.Assert(os.WriteFile(p, nil, 0o644), IsNil)
 	}
 
 	blNames := map[bootloader.Role]string{
@@ -1177,16 +1177,16 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 
 	// make device/fde directory read only so that writing fails
 	otherRootdir := c.MkDir()
-	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(otherRootdir), 0755), IsNil)
-	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0000), IsNil)
-	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0755)
+	c.Assert(os.MkdirAll(dirs.SnapFDEDirUnder(otherRootdir), 0o755), IsNil)
+	c.Assert(os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0o000), IsNil)
+	defer os.Chmod(dirs.SnapFDEDirUnder(otherRootdir), 0o755)
 
 	err = boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), 0)
 	c.Assert(err, ErrorMatches, `cannot create a temporary boot chains file: open .*/boot-chains\.[a-zA-Z0-9]+~: permission denied`)
 
 	// make the original file non readable
-	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
-	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0o000), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0o755)
 	loaded, _, err = boot.ReadBootChains(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"))
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(loaded, IsNil)

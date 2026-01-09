@@ -85,7 +85,7 @@ func (s *EglDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.testRoot = c.MkDir()
-	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0755)
+	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0o755)
 	dirs.SetRootDir(s.testRoot)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
@@ -101,8 +101,8 @@ func (s *EglDriverLibsInterfaceSuite) TestName(c *C) {
 
 func (s *EglDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
 	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
-	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libDir1, "libEGL_nvidia.so.0"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(libDir1, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libDir1, "libEGL_nvidia.so.0"), []byte(``), 0o644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
@@ -258,7 +258,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 		subDir string
 	}{{"mesa", "egl.d"}, {"nvidia", "egl.d"}, {"radeon", "egl_alt.d"}} {
 		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
-		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
 		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
     "file_format_version" : "1.0.0",
@@ -268,13 +268,13 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 }
 `, icdData.gpu)), 0655)
 		libDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
-		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(libDir, 0o755), IsNil)
 		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
-		os.WriteFile(libPath, []byte{}, 0655)
+		os.WriteFile(libPath, []byte{}, 0o655)
 
 		// Ignored file
 		otherPath := filepath.Join(icdDir, "foo.bar")
-		os.WriteFile(otherPath, []byte{}, 0655)
+		os.WriteFile(otherPath, []byte{}, 0o655)
 
 		// Ignored symlink
 		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
@@ -312,7 +312,7 @@ func (s *EglDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`{
     "file_format_version" : "1.0.0",
@@ -331,9 +331,9 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
-	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(icdDir, 0o755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
-	os.WriteFile(icdPath, []byte(`libEGL_nvidia.so.0`), 0655)
+	os.WriteFile(icdPath, []byte(`libEGL_nvidia.so.0`), 0o655)
 
 	// Now check symlinks to be created
 	spec := &symlinks.Specification{}

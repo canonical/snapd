@@ -152,14 +152,14 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
 }`, "openstack", "", "nova"},
 	}
 
-	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0o755)
 	c.Assert(err, IsNil)
 
 	for i, t := range tests {
 		c.Logf("tc: %v", i)
 		os.Remove(dirs.CloudInstanceDataFile)
 		if t.instData != "" {
-			err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600)
+			err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0o600)
 			c.Assert(err, IsNil)
 		}
 
@@ -189,9 +189,9 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
  }
 }`
 
-	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
+	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0o600)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

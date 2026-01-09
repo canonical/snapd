@@ -481,7 +481,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	}
 
 	snapDir := snap.SnapDir(usr.HomeDir, opts)
-	if err := os.MkdirAll(snapDir, 0700); err != nil {
+	if err := os.MkdirAll(snapDir, 0o700); err != nil {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
 	// see snapenv.User
@@ -498,7 +498,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {
-		if err := os.MkdirAll(d, 0755); err != nil {
+		if err := os.MkdirAll(d, 0o755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
 		}
@@ -917,7 +917,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 		return "", err
 	}
 
-	fout, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	fout, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -1004,7 +1004,7 @@ func activateXdgDocumentPortal(runner runnable) error {
 			// We ignore errors here: if writing the file
 			// fails, we'll just try connecting to D-Bus
 			// again next time.
-			if err = os.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
+			if err = os.WriteFile(portalsUnavailableFile, []byte(""), 0o644); err != nil {
 				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
 			}
 			return nil
@@ -1113,7 +1113,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	}
 	// ensure we have one writer on the fifo so that if strace fails
 	// nothing blocks
-	fw, err := os.OpenFile(straceLog, os.O_RDWR, 0640)
+	fw, err := os.OpenFile(straceLog, os.O_RDWR, 0o640)
 	if err != nil {
 		return err
 	}

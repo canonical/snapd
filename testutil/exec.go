@@ -115,7 +115,7 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	var newpath string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
-		err := os.MkdirAll(binDir, 0755)
+		err := os.MkdirAll(binDir, 0o755)
 		if err != nil {
 			panic(fmt.Sprintf("cannot create the directory for mocked command %q: %v", basename, err))
 		}
@@ -128,7 +128,7 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 		newpath = binDir + ":" + os.Getenv("PATH")
 	}
 	fmt.Fprintf(&wholeScript, template, logFile, script)
-	err := os.WriteFile(exeFile, wholeScript.Bytes(), 0700)
+	err := os.WriteFile(exeFile, wholeScript.Bytes(), 0o700)
 	if err != nil {
 		panic(err)
 	}
@@ -165,7 +165,7 @@ func MockLockedCommand(c *check.C, basename, script string) *MockCmd {
 // Useful when you want to check the ordering of things.
 func (cmd *MockCmd) Also(basename, script string) *MockCmd {
 	exeFile := path.Join(cmd.binDir, basename)
-	err := os.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, cmd.logFile, script)), 0700)
+	err := os.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, cmd.logFile, script)), 0o700)
 	if err != nil {
 		panic(err)
 	}

@@ -82,7 +82,7 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.diskProbeMap["/dev/foo"] = disk_probe
 
 	s.cmdlineFile = filepath.Join(c.MkDir(), "proc-cmdline")
-	err := os.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=run"), 0644)
+	err := os.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=run"), 0o644)
 	c.Assert(err, IsNil)
 	cmdlineCleanup := kcmdline.MockProcCmdline(s.cmdlineFile)
 	s.AddCleanup(cmdlineCleanup)
@@ -95,7 +95,7 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 }
 
 func (s *scanDiskSuite) setCmdLine(c *C, value string) {
-	err := os.WriteFile(s.cmdlineFile, []byte(value), 0644)
+	err := os.WriteFile(s.cmdlineFile, []byte(value), 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -161,7 +161,7 @@ func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
 	s.diskProbeMap["/dev/foo"] = disk_probe
 
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	c.Assert(os.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=cloudimg-rootfs"), 0644), IsNil)
+	c.Assert(os.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=cloudimg-rootfs"), 0o644), IsNil)
 	defer kcmdline.MockProcCmdline(mockProcCmdline)()
 
 	output := newBuffer()
@@ -356,8 +356,8 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingSeedRecover(c *C) {
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParam(c *C) {
 	devFoo := filepath.Join(dirs.GlobalRootDir, "/dev/foo")
-	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0755), IsNil)
-	c.Assert(os.WriteFile(devFoo, []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0o755), IsNil)
+	c.Assert(os.WriteFile(devFoo, []byte{}, 0o644), IsNil)
 
 	s.setCmdLine(c, "snapd_system_disk=/dev/foo snapd_recovery_mode=run")
 
@@ -377,8 +377,8 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParam(c *C) {
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
 	devFoo := filepath.Join(dirs.GlobalRootDir, "/sys/devices/foo")
-	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0755), IsNil)
-	c.Assert(os.WriteFile(devFoo, []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0o755), IsNil)
+	c.Assert(os.WriteFile(devFoo, []byte{}, 0o644), IsNil)
 
 	s.setCmdLine(c, "snapd_system_disk=/sys/devices/foo snapd_recovery_mode=run")
 
@@ -398,11 +398,11 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamDevPath(c *C) {
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackKernelParamNotMatching(c *C) {
 	devFoo := filepath.Join(dirs.GlobalRootDir, "/dev/foo")
-	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0755), IsNil)
-	c.Assert(os.WriteFile(devFoo, []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(devFoo), 0o755), IsNil)
+	c.Assert(os.WriteFile(devFoo, []byte{}, 0o644), IsNil)
 	devBar := filepath.Join(dirs.GlobalRootDir, "/dev/bar")
-	c.Assert(os.MkdirAll(filepath.Dir(devBar), 0755), IsNil)
-	c.Assert(os.WriteFile(devBar, []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(devBar), 0o755), IsNil)
+	c.Assert(os.WriteFile(devBar, []byte{}, 0o644), IsNil)
 
 	// Ask for /dev/bar instead of /dev/foo
 	s.setCmdLine(c, "snapd_system_disk=/dev/bar snapd_recovery_mode=run")

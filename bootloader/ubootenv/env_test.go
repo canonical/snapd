@@ -83,7 +83,7 @@ func (u *uenvTestSuite) TestOpenEnvNoHeaderFlagByte(c *C) {
 func (u *uenvTestSuite) TestOpenEnvBadEmpty(c *C) {
 	empty := filepath.Join(c.MkDir(), "empty.env")
 
-	err := os.WriteFile(empty, nil, 0644)
+	err := os.WriteFile(empty, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = ubootenv.Open(empty)
@@ -94,7 +94,7 @@ func (u *uenvTestSuite) TestOpenEnvBadCRC(c *C) {
 	corrupted := filepath.Join(c.MkDir(), "corrupted.env")
 
 	buf := make([]byte, 4096)
-	err := os.WriteFile(corrupted, buf, 0644)
+	err := os.WriteFile(corrupted, buf, 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = ubootenv.Open(corrupted)

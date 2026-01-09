@@ -59,7 +59,7 @@ func (s *userdSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(xdgRuntimeDir, 0o700), IsNil)
 	s.agentSocketPath = fmt.Sprintf("%s/snapd-session-agent.socket", xdgRuntimeDir)
 }
 
@@ -209,7 +209,7 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
 	defer r()
 
 	// first make the "snap" dir permissive with 0755 perms
-	err := os.MkdirAll(filepath.Join(userDir, "snap"), 0755)
+	err := os.MkdirAll(filepath.Join(userDir, "snap"), 0o755)
 	c.Assert(err, IsNil)
 
 	// make sure the perms are as we expect them if somehow the dir already
@@ -231,7 +231,7 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
 
 func (s *userdSuite) TestAutostartSessionAppsLogsWhenItCannotRestrictPermissions(c *C) {
 	userDir := path.Join(c.MkDir(), "home")
-	c.Assert(os.MkdirAll(filepath.Join(userDir, "snap"), 0770), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(userDir, "snap"), 0o770), IsNil)
 
 	mockUserCurrent := func() (*user.User, error) {
 		return &user.User{HomeDir: userDir}, nil
@@ -298,9 +298,9 @@ func (s *userdSuite) TestAutostartWithBothSnapDirs(c *C) {
 	defer autostartRestore()
 
 	exposedDir := filepath.Join(userDir, "snap")
-	c.Assert(os.MkdirAll(exposedDir, 0770), IsNil)
+	c.Assert(os.MkdirAll(exposedDir, 0o770), IsNil)
 	hiddenDir := filepath.Join(userDir, ".snap", "data")
-	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
+	c.Assert(os.MkdirAll(hiddenDir, 0o770), IsNil)
 
 	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
 	c.Assert(err, IsNil)
@@ -324,9 +324,9 @@ func (s *userdSuite) TestAutostartErrorsInBoth(c *C) {
 	defer autostartRestore()
 
 	exposedDir := filepath.Join(userDir, "snap")
-	c.Assert(os.MkdirAll(exposedDir, 0770), IsNil)
+	c.Assert(os.MkdirAll(exposedDir, 0o770), IsNil)
 	hiddenDir := filepath.Join(userDir, ".snap", "data")
-	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
+	c.Assert(os.MkdirAll(hiddenDir, 0o770), IsNil)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
 	c.Assert(err, ErrorMatches, `autostart failed:

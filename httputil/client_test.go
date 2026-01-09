@@ -163,7 +163,7 @@ func (s *tlsSuite) SetUpTest(c *check.C) {
 
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755)
+	err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0o755)
 	c.Assert(err, check.IsNil)
 
 	s.certpath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "good.pem")
@@ -210,7 +210,7 @@ func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
-	err := os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapdStoreSSLCertsDir, "garbage.pem"), []byte("garbage"), 0o644)
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{

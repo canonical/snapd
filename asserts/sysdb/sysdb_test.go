@@ -195,7 +195,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
 func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 	// make it not world-writeable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0o777)
 	syscall.Umask(oldUmask)
 
 	db, err := sysdb.Open()
@@ -206,7 +206,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
 	// make it not world-writeable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v1"), 0777)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v1"), 0o777)
 	syscall.Umask(oldUmask)
 
 	db, err := sysdb.Open()

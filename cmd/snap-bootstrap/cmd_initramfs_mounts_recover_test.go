@@ -3342,8 +3342,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *
 
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
-	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
-	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0o750), IsNil)
+	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0o640), IsNil)
 
 	const triedSystem = false
 	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
@@ -3605,8 +3605,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	// the health check can be executed
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
-	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
-	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0o750), IsNil)
+	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0o640), IsNil)
 
 	restore = main.MockTryRecoverySystemHealthCheck(func(gadget.Model) error {
 		return fmt.Errorf("mock failure")

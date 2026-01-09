@@ -60,7 +60,7 @@ func (s *restSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(xdgRuntimeDir, 0o700), IsNil)
 
 	s.sysdLog = nil
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -963,7 +963,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppDesktopFile(c *C) {
 		BusyAppName:         "app",
 		BusyAppDesktopEntry: "pkg_app",
 	}
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755)
 	c.Assert(err, IsNil)
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
 	err = os.WriteFile(desktopFilePath, []byte(`
@@ -990,10 +990,10 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 		BusyAppName:         "app",
 		BusyAppDesktopEntry: "pkg_app",
 	}
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755)
 	c.Assert(err, IsNil)
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
-	err = os.WriteFile(desktopFilePath, []byte(`garbage!`), 0644)
+	err = os.WriteFile(desktopFilePath, []byte(`garbage!`), 0o644)
 	c.Assert(err, IsNil)
 
 	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
@@ -1072,8 +1072,8 @@ func createDesktopFile(c *C, desktopFilePath string, icon string, name string, l
 	for key, value := range localizedNames {
 		data = append(data, []byte("Name["+key+"]="+value+"\n")...)
 	}
-	c.Assert(os.MkdirAll(path.Dir(desktopFilePath), 0755), IsNil)
-	c.Assert(os.WriteFile(desktopFilePath, data, 0644), IsNil)
+	c.Assert(os.MkdirAll(path.Dir(desktopFilePath), 0o755), IsNil)
+	c.Assert(os.WriteFile(desktopFilePath, data, 0o644), IsNil)
 }
 
 func createLocalizedDesktopFile(c *C, name string, localizedNames map[string]string) *goconfigparser.ConfigParser {
@@ -1225,8 +1225,8 @@ apps:
 [Desktop Entry]
 Icon=foo.png
 `
-	os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "snap-name_snap-name.desktop"), []byte(desktopEntry[1:]), 0644), IsNil)
+	os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "snap-name_snap-name.desktop"), []byte(desktopEntry[1:]), 0o644), IsNil)
 	refreshInfo := &client.FinishedSnapRefreshInfo{InstanceName: "snap-name"}
 	s.testPostFinishRefreshNotificationBody(c, refreshInfo)
 

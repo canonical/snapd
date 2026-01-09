@@ -235,7 +235,7 @@ func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 
 	s.SeedDir = dirs.SnapSeedDir
 
-	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0o755)
 	c.Assert(err, IsNil)
 
 	extraData := interfaces.SystemKeyExtraData{}
@@ -290,7 +290,7 @@ snaps:
  - name: core
    file: %s
 `, fooFname, barFname, coreFname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0o644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -376,7 +376,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, fooFname, core18Fname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0o644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -508,7 +508,7 @@ snaps:
  - name: bar
    file: %s
 `, snapdFname, core18Fname, fooFname, barFname))
-	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0o644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff

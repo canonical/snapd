@@ -51,7 +51,7 @@ var _ = Suite(&snapdSuite{})
 func (s *snapdSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	for _, d := range []string{"/var/lib/snapd", "/run"} {
-		err := os.MkdirAll(filepath.Join(s.tmpdir, d), 0755)
+		err := os.MkdirAll(filepath.Join(s.tmpdir, d), 0o755)
 		c.Assert(err, IsNil)
 	}
 	dirs.SetRootDir(s.tmpdir)

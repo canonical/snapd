@@ -44,7 +44,7 @@ func (s *sysctlSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.mockSysctlConfPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/99-snapd.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(s.mockSysctlConfPath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(s.mockSysctlConfPath), 0o755), IsNil)
 }
 
 func (s *sysctlSuite) TearDownTest(c *C) {

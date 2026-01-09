@@ -195,7 +195,7 @@ func (s *FwupdInterfaceSuite) TestMountPermanentSlot(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/boot"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/boot"), 0o777), IsNil)
 
 	// If the permanent slot is provided by an app snap, the boot partition
 	// should be bind mounted from the host system if they exist.

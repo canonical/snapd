@@ -550,7 +550,7 @@ func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextBadFile(c *C) {
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
 	path := filepath.Join(c.MkDir(), "some-snap_7.snap")
-	err := os.WriteFile(path, []byte(""), 0644)
+	err := os.WriteFile(path, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -4689,7 +4689,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
-	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	gi, err := gadget.ReadInfo(info.MountDir(), nil)
@@ -6141,10 +6141,10 @@ version: 1
 `)
 
 	dstDir := c.MkDir()
-	c.Assert(os.Chmod(dstDir, 0700), IsNil)
+	c.Assert(os.Chmod(dstDir, 0o700), IsNil)
 
-	c.Assert(os.Mkdir(filepath.Join(dstDir, "meta"), 0700), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(dstDir, "meta"), 0o700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0o700), IsNil)
 
 	// snapdir has /meta/snap.yaml, but / is 0700
 	brokenSnap := filepath.Join(c.MkDir(), "broken.snap")
@@ -7696,7 +7696,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *
 	}
 
 	compPath := filepath.Join(c.MkDir(), "invalid-component")
-	err := os.WriteFile(compPath, []byte("invalid-component"), 0644)
+	err := os.WriteFile(compPath, []byte("invalid-component"), 0o644)
 	c.Assert(err, IsNil)
 
 	components := []snapstate.PathComponent{{

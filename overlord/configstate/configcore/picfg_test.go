@@ -54,16 +54,16 @@ unrelated_options=are-kept
 
 func (s *piCfgSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0o755), IsNil)
 
 	s.mockConfigPath = filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
-	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
+	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0o755)
 	c.Assert(err, IsNil)
 	s.mockConfig(c, mockConfigTxt)
 }
 
 func (s *piCfgSuite) mockConfig(c *C, txt string) {
-	err := os.WriteFile(s.mockConfigPath, []byte(txt), 0644)
+	err := os.WriteFile(s.mockConfigPath, []byte(txt), 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -106,9 +106,9 @@ func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
 	// ensure we cannot write to the dir to test that we really
 	// do not update the file
-	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0o500)
 	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0o755)
 
 	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""})
 	c.Assert(err, IsNil)
@@ -117,9 +117,9 @@ func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
 func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
 	// ensure we cannot write to the dir to test that we really
 	// do not update the file
-	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0500)
+	err := os.Chmod(filepath.Dir(s.mockConfigPath), 0o500)
 	c.Assert(err, IsNil)
-	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
+	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0o755)
 
 	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"})
 	c.Assert(err, ErrorMatches, `cannot set unsupported configuration value "unrelated_options"`)
@@ -171,14 +171,14 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
 	uc18PiCfg := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 
-	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(piCfg), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(uc18PiCfg), 0755)
+	err = os.MkdirAll(filepath.Dir(uc18PiCfg), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0o644)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0o644)
 	c.Assert(err, IsNil)
 
 	// apply the config
@@ -207,10 +207,10 @@ func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
 
-	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(piCfg), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0o644)
 	c.Assert(err, IsNil)
 
 	// apply the config
@@ -240,11 +240,11 @@ func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/boot/uboot"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/boot/uboot"), 0o755), IsNil)
 
 	// write default config
 	piCfg := filepath.Join(tmpDir, "/boot/uboot/config.txt")
-	c.Assert(os.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
+	c.Assert(os.WriteFile(piCfg, []byte(mockConfigTxt), 0o644), IsNil)
 
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 

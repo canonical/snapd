@@ -59,7 +59,7 @@ func NewEncryptionKey() (EncryptionKey, error) {
 
 // Save writes the key in the location specified by filename.
 func (key EncryptionKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
@@ -79,7 +79,7 @@ func NewRecoveryKey() (RecoveryKey, error) {
 
 // Save writes the recovery key in the location specified by filename.
 func (key RecoveryKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)

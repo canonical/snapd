@@ -134,13 +134,13 @@ func stampedAction(stamp string, action func() error) error {
 	if osutil.FileExists(stampFile) {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(stampFile), 0o755); err != nil {
 		return err
 	}
 	if err := action(); err != nil {
 		return err
 	}
-	return os.WriteFile(stampFile, nil, 0644)
+	return os.WriteFile(stampFile, nil, 0o644)
 }
 
 func generateInitramfsMounts() (err error) {
@@ -805,10 +805,10 @@ func copyHybridUbuntuDataAuth(srcUbuntuData, destUbuntuData string) error {
 // drop a marker file that disables console-conf
 func disableConsoleConf(dst string) error {
 	consoleConfCompleteFile := filepath.Join(dst, "system-data/var/lib/console-conf/complete")
-	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(consoleConfCompleteFile, nil, 0644)
+	return os.WriteFile(consoleConfCompleteFile, nil, 0o644)
 }
 
 // copySafeDefaultData will copy to the destination a "safe" set of data for
@@ -2727,7 +2727,7 @@ func setupSeedSnapdSnap(rootfsDir string, snapdSeedSnap *seed.Snap) error {
 	// /snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 is
 	// available to run snapd on first boot.
 	mountDir := filepath.Join(rootfsDir, dirs.StripRootDir(dirs.SnapMountDir), si.RealName)
-	if err := os.MkdirAll(mountDir, 0755); err != nil {
+	if err := os.MkdirAll(mountDir, 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicSymlink(si.Revision.String(), filepath.Join(mountDir, "current"))

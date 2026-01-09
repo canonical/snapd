@@ -76,7 +76,7 @@ func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.dir = c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(s.dir, "meta"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "meta"), 0o755), IsNil)
 	s.gadgetYamlPath = filepath.Join(s.dir, "meta", "gadget.yaml")
 }
 
@@ -241,7 +241,7 @@ volumes:
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
-	err := os.WriteFile(s.gadgetYamlPath, mockEMMCGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockEMMCGadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
@@ -314,7 +314,7 @@ func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
 }
 
 func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
-	err := os.WriteFile(s.gadgetYamlPath, mockEMMCGadgetYaml, 0644)
+	err := os.WriteFile(s.gadgetYamlPath, mockEMMCGadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	oldInfo, err := gadget.ReadInfo(s.dir, coreMod)

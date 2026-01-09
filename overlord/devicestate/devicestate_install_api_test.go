@@ -389,7 +389,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
-	err := os.MkdirAll(gadgetDir, 0755)
+	err := os.MkdirAll(gadgetDir, 0o755)
 	c.Assert(err, IsNil)
 	err = unpackSnap(filepath.Join(s.SeedDir, "snaps/pc_1.snap"), gadgetDir)
 	c.Assert(err, IsNil)
@@ -552,7 +552,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 					return fmt.Errorf("test error: MockSecbootSaveCheckResult received unexpected filename %s", filename)
 				}
 				dir := filepath.Dir(filename)
-				if err = os.MkdirAll(dir, 0755); err != nil {
+				if err = os.MkdirAll(dir, 0o755); err != nil {
 					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create dir %s", dir)
 				}
 				if err = osutil.AtomicWriteFile(filename, []byte{}, 0600, 0); err != nil {
@@ -577,18 +577,18 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 		// Write expected boot assets needed when creating bootchain
 		seedBootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-seed/EFI/boot/")
-		c.Assert(os.MkdirAll(seedBootDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(seedBootDir, 0o755), IsNil)
 
 		for _, p := range []string{
 			filepath.Join(seedBootDir, "bootx64.efi"),
 			filepath.Join(seedBootDir, "grubx64.efi"),
 		} {
-			c.Assert(os.WriteFile(p, []byte{}, 0755), IsNil)
+			c.Assert(os.WriteFile(p, []byte{}, 0o755), IsNil)
 		}
 
 		bootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/")
-		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
-		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
+		c.Assert(os.MkdirAll(bootDir, 0o755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0o755), IsNil)
 
 		s.AddCleanup(secboot.MockCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
 			return secboot.CreateMockBootstrappedContainer()

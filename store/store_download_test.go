@@ -67,7 +67,7 @@ var _ = Suite(&storeDownloadSuite{})
 func (s *storeDownloadSuite) SetUpTest(c *C) {
 	s.baseStoreSuite.SetUpTest(c)
 
-	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0o755), IsNil)
 
 	s.store = store.New(nil, nil)
 
@@ -143,7 +143,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -162,7 +162,7 @@ func (s *storeDownloadSuite) TestResumeOfCompleted(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -286,7 +286,7 @@ func (s *storeDownloadSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(os.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", badbuf, 0o644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -321,7 +321,7 @@ func (s *storeDownloadSuite) TestResumeOfTooMuchDataWorks(c *C) {
 	snap.Size = int64(len(snapContent))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(os.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0o644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
@@ -382,7 +382,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -409,7 +409,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	snap.Size = int64(len(partialContentStr) + 1)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0o644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -664,18 +664,18 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
 		targetSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.deltaInfo.ToRevision)
 		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
-		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
+		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(currentSnapPath, nil, 0644)
+		err = os.WriteFile(currentSnapPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
-		err = os.WriteFile(deltaPath, nil, 0644)
+		err = os.WriteFile(deltaPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		// When testing a case where the call to the external
 		// xdelta3 is successful,
 		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err = os.WriteFile(targetSnapPath+".partial", nil, 0644)
+			err = os.WriteFile(targetSnapPath+".partial", nil, 0o644)
 			c.Assert(err, IsNil)
 		}
 
@@ -843,8 +843,8 @@ esac
 
 	// mock a previous revision of the snap
 	oldRevBlob := filepath.Join(dirs.SnapBlobDir, "foo_0.snap")
-	c.Assert(os.MkdirAll(filepath.Dir(oldRevBlob), 0755), IsNil)
-	c.Assert(os.WriteFile(oldRevBlob, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(oldRevBlob), 0o755), IsNil)
+	c.Assert(os.WriteFile(oldRevBlob, nil, 0o644), IsNil)
 
 	// sha3-384256 of: foo\n
 	foo_sha3 := "a4d62fdfee48479a8951de809d9f3604309e8783d754d94c0842c89ddb544ee963bf64063644251e0521ca44aca97350"
@@ -925,14 +925,14 @@ func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
 	applyDeltaCalls := 0
 	restore = store.MockApplyDelta(func(s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 		applyDeltaCalls++
-		return os.WriteFile(targetPath, []byte("foo\n"), 0644)
+		return os.WriteFile(targetPath, []byte("foo\n"), 0o644)
 	})
 	defer restore()
 
 	// mock a previous revision of the snap
 	oldRevBlob := filepath.Join(dirs.SnapBlobDir, "foo_0.snap")
-	c.Assert(os.MkdirAll(filepath.Dir(oldRevBlob), 0755), IsNil)
-	c.Assert(os.WriteFile(oldRevBlob, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(oldRevBlob), 0o755), IsNil)
+	c.Assert(os.WriteFile(oldRevBlob, nil, 0o644), IsNil)
 
 	// sha3-384256 of: foo\n
 	foo_sha3 := "a4d62fdfee48479a8951de809d9f3604309e8783d754d94c0842c89ddb544ee963bf64063644251e0521ca44aca97350"
@@ -1030,8 +1030,8 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 		return nil, nil
 	})()
 
-	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0o700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0o600), IsNil)
 
 	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, store.CachePolicy{MaxItems: 1})
 	defer s.store.MockCacher(cache)()
@@ -1074,8 +1074,8 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 	defer s.store.MockCacher(cache)()
 
 	// mock something that OpenFile will fail on
-	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), nil, 0000), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0o700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), nil, 0o000), IsNil)
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"

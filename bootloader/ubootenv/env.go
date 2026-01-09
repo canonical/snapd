@@ -301,7 +301,7 @@ func (env *Env) Save() error {
 	//
 	// We also do not O_TRUNC to avoid reallocations on the FS
 	// to minimize risk of fs corruption.
-	f, err := os.OpenFile(env.fname, os.O_WRONLY, 0666)
+	f, err := os.OpenFile(env.fname, os.O_WRONLY, 0o666)
 	if err != nil {
 		return err
 	}

@@ -85,10 +85,10 @@ func (s *lkTestSuite) TestNewLkPresentChecksBackupStorageToo(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(f, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel", "snapbootsel"))
 
-	err = os.MkdirAll(filepath.Dir(f), 0755)
+	err = os.MkdirAll(filepath.Dir(f), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(f+"bak", nil, 0644)
+	err = os.WriteFile(f+"bak", nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// now the bootloader is present because the backup exists
@@ -525,7 +525,7 @@ func (s *lkTestSuite) TestExtractRecoveryKernelAssetsAtRuntime(c *C) {
 	c.Assert(err, IsNil)
 
 	relativeRecoverySystemDir := "systems/1234"
-	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, relativeRecoverySystemDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, relativeRecoverySystemDir), 0o755), IsNil)
 	err = l.ExtractRecoveryKernelAssets(relativeRecoverySystemDir, info, snapf)
 	c.Assert(err, ErrorMatches, "internal error: extracting recovery kernel assets is not supported for a runtime lk bootloader")
 }

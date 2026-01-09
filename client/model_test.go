@@ -217,10 +217,10 @@ func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
 
 	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0o644)
 	c.Assert(err, IsNil)
 
 	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)
@@ -264,10 +264,10 @@ func (cs *clientSuite) TestClientOfflineRemodelServerError(c *C) {
 
 	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0o644)
 	c.Assert(err, IsNil)
 	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0o644)
 	c.Assert(err, IsNil)
 
 	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)

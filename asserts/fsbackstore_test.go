@@ -55,7 +55,7 @@ func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
 	parent := filepath.Join(c.MkDir(), "var")
 	topDir := filepath.Join(parent, "asserts-db")
 	// make it not writable
-	err := os.Mkdir(parent, 0555)
+	err := os.Mkdir(parent, 0o555)
 	c.Assert(err, IsNil)
 
 	bs, err := asserts.OpenFSBackstore(topDir)
@@ -67,7 +67,7 @@ func (fsbss *fsBackstoreSuite) TestOpenWorldWritableFail(c *C) {
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
 	// make it world-writable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(filepath.Join(topDir, "asserts-v0"), 0777)
+	os.MkdirAll(filepath.Join(topDir, "asserts-v0"), 0o777)
 	syscall.Umask(oldUmask)
 
 	bs, err := asserts.OpenFSBackstore(topDir)

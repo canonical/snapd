@@ -95,8 +95,8 @@ func (s *GbmDriverLibsInterfaceSuite) TestName(c *C) {
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
 	libDir1 := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1")
-	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libDir1, "libnvidia-allocator.so.1"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(libDir1, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libDir1, "libnvidia-allocator.so.1"), []byte(``), 0o644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
@@ -260,8 +260,8 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	spec := &symlinks.Specification{}
 	snapSourceDir := filepath.Join(s.testRoot, "snap/gbm-provider/5/lib2")
 	targetPath := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
-	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
-	c.Assert(os.WriteFile(targetPath, []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(snapSourceDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(targetPath, []byte{}, 0o644), IsNil)
 
 	dir := fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)

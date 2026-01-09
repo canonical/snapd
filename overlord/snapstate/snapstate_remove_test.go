@@ -1593,10 +1593,10 @@ func makeTestSnaps(c *C, st *state.State) {
 		SnapType: "app",
 	})
 
-	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.CommonDataSaveDir("some-snap"), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0o755), IsNil)
+	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0o755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir("some-snap"), 0o755), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {

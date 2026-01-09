@@ -180,14 +180,14 @@ func (tr *tree20) mkFixedDirs() error {
 	tr.snapsDirPath = filepath.Join(tr.opts.SeedDir, "snaps")
 	tr.systemDir = filepath.Join(tr.opts.SeedDir, "systems", tr.opts.Label)
 
-	if err := os.MkdirAll(tr.snapsDirPath, 0755); err != nil {
+	if err := os.MkdirAll(tr.snapsDirPath, 0o755); err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0o755); err != nil {
 		return err
 	}
-	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
+	if err := os.Mkdir(tr.systemDir, 0o755); err != nil {
 		if os.IsExist(err) {
 			return &SystemAlreadyExistsError{
 				label: tr.opts.Label,
@@ -203,7 +203,7 @@ func (tr *tree20) ensureSystemSnapsDir() (string, error) {
 	if tr.systemSnapsDirEnsured {
 		return snapsDir, nil
 	}
-	if err := os.MkdirAll(snapsDir, 0755); err != nil {
+	if err := os.MkdirAll(snapsDir, 0o755); err != nil {
 		return "", err
 	}
 	tr.systemSnapsDirEnsured = true
@@ -272,12 +272,12 @@ func (tr *tree20) localComponentPath(sc *SeedComponent, snapVersion string) (str
 
 func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	assertsDir := filepath.Join(tr.systemDir, "assertions")
-	if err := os.MkdirAll(assertsDir, 0755); err != nil {
+	if err := os.MkdirAll(assertsDir, 0o755); err != nil {
 		return err
 	}
 
 	writeByRefs := func(fname string, refsGen func(stop <-chan struct{}) <-chan *asserts.Ref) error {
-		f, err := os.OpenFile(filepath.Join(assertsDir, fname), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		f, err := os.OpenFile(filepath.Join(assertsDir, fname), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			return err
 		}
@@ -516,7 +516,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		return err
 	}
 
-	f, err := os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	f, err := os.OpenFile(filepath.Join(tr.systemDir, "snaps", "aux-info.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
