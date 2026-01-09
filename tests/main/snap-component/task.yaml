@@ -5,11 +5,9 @@ details: |
     when given valid and invalid snap and component names.
 
 prepare: |
-    snap install test-snapd-sh
-    snap install test-snap1 --dangerous
+    ${TESTSTOOLS}/install-local test-snap1
 
 restore: |
-    snap remove --purge test-snapd-sh
     snap remove --purge test-snap1
 
 execute: |

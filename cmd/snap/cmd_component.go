@@ -35,7 +35,7 @@ var shortComponentHelp = i18n.G("Show information about installed snap component
 var longComponentHelp = i18n.G(`
 The component command shows information about installed snap components.
 You must specify exactly one snap and its component(s) in the form
-<snap>+<component1>...+<componentN>.
+<snap>+<component>[+<component>...].
 `)
 
 type cmdComponent struct {
@@ -43,7 +43,7 @@ type cmdComponent struct {
 	waitMixin
 
 	Positional struct {
-		SnapsAndComponents []remoteSnapName `positional-arg-name:"<snap+component>" required:"1"`
+		SnapsAndComponents []remoteSnapName `positional-arg-name:"<snap+component+component...>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -51,33 +51,38 @@ func init() {
 	addCommand("component", shortComponentHelp, longComponentHelp, func() flags.Commander { return &cmdComponent{} }, nil, nil)
 }
 
-func (x *cmdComponent) showComponent() error {
+func (x *cmdComponent) showComponents() error {
 	snapName, comps := snap.SplitSnapInstanceAndComponents(string(x.Positional.SnapsAndComponents[0]))
-	if snapName == "" {
-		return errors.New(i18n.G("no snap for the component(s) was specified"))
+	if (x.Positional.SnapsAndComponents[0] == "") {
+		return errors.New(i18n.G("argument cannot be empty"))
 	}
 
 	if len(comps) == 0 {
-		return errors.New(i18n.G("no components specified"))
+		return errors.New(i18n.G("no component specified"))
+	}
+
+	if snapName == "" {
+		return errors.New(i18n.G("no snap for the component(s) was specified"))
 	}
 
 	names := []string{snapName}
 	snaps, err := x.client.List(names, nil)
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
-			return errors.New(i18n.G("no matching snaps installed"))
+			return ErrNoMatchingSnaps
 		}
 		return err
 	}
 
-	for i := 0; i < len(comps); i++ {
-		comp := compByName(comps[i], snaps[0])
+	matchingSnap := snaps[0]
 
+	for i, compName := range comps {
+		comp := compByName(compName, matchingSnap)
 		if comp == nil {
-			return fmt.Errorf(i18n.G("component %q for snap %q is not installed"), comps[i], snaps[0].Name)
+			return fmt.Errorf(i18n.G("component %q for snap %q is not installed"), compName, matchingSnap.Name)
 		}
 
-		fmt.Fprintf(Stdout, "component: %s+%s\n", snaps[0].Name, comp.Name)
+		fmt.Fprintf(Stdout, "component: %s+%s\n", matchingSnap.Name, comp.Name)
 		fmt.Fprintf(Stdout, "type: %s\n", comp.Type)
 		fmt.Fprintf(Stdout, "summary: %s\n", comp.Summary)
 		fmt.Fprintf(Stdout, "description: |\n  %s\n", comp.Description)
@@ -97,5 +102,5 @@ func (c *cmdComponent) Execute([]string) error {
 	if len(c.Positional.SnapsAndComponents) != 1 {
 		return errors.New(i18n.G("exactly one snap and its components must be specified"))
 	}
-	return c.showComponent()
+	return c.showComponents()
 }
