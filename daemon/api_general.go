@@ -100,10 +100,10 @@ var (
 )
 
 var (
-	buildID                          = "unknown"
-	systemdVirt                      = ""
-	snapdtoolIsReexecd               = snapdtool.IsReexecd
-	fdestateSystemEncryptedFromState = fdestate.SystemEncryptedFromState
+	buildID             = "unknown"
+	systemdVirt         = ""
+	snapdtoolIsReexecd  = snapdtool.IsReexecd
+	fdestateSystemState = fdestate.SystemState
 )
 
 func init() {
@@ -572,20 +572,10 @@ func sysInfoStorageEnc(c *Command, r *http.Request, user *auth.UserState) Respon
 	st.Lock()
 	defer st.Unlock()
 
-	// TODO:FDEM: replace with complete status implementation
-	encrypted, err := fdestateSystemEncryptedFromState(st)
+	state, err := fdestateSystemState(st)
 	if err != nil {
 		return InternalError("cannot determine system encrypted state: %s", err)
 	}
 
-	status := "inactive"
-	if encrypted {
-		status = "active"
-	}
-
-	response := map[string]any{
-		"status": status,
-	}
-
-	return SyncResponse(response)
+	return SyncResponse(state)
 }

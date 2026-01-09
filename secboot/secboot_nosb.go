@@ -206,6 +206,18 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 type ActivateState struct {
 }
 
+func NewActivateState() *ActivateState {
+	return &ActivateState{}
+}
+
+func (a *ActivateState) HasActivations() bool {
+	return false
+}
+
+func (a *ActivateState) UsedRecoveryKey() bool {
+	return false
+}
+
 type ActivateContext interface {
 	State() *ActivateState
 }

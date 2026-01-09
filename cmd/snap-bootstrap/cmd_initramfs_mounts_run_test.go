@@ -694,7 +694,7 @@ Wants=%[1]s
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeActivationState(c *C) {
-	fakeState := &secboot.ActivateState{}
+	fakeState := secboot.NewActivateState()
 	defer main.MockSecbootNewActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
 		return &fakeActivateContext{state: fakeState}, nil
 	})()

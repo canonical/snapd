@@ -128,7 +128,7 @@ func (m *mockActivateContext) ActivateContainer(ctx context.Context, container s
 }
 
 func (m *mockActivateContext) State() *secboot.ActivateState {
-	return m.state
+	return &secboot.ActivateState{m.state}
 }
 
 type mockStorageContainer struct {

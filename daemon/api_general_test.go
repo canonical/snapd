@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -1243,16 +1244,16 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 		expectedResponse["status"] = status
 	}
 
-	defer daemon.MockFdestateSystemEncryptedFromState(func(*state.State) (bool, error) {
+	defer daemon.MockFdestateSystemState(func(*state.State) (*fdestate.FDESystemState, error) {
 		switch expectedStatus {
 		case "active":
-			return true, nil
+			return &fdestate.FDESystemState{Status: fdestate.FDEStatusActive}, nil
 
 		case "inactive":
-			return false, nil
+			return &fdestate.FDESystemState{Status: fdestate.FDEStatusInactive}, nil
 		}
 
-		return false, errors.New("cannot set unsupported expected status")
+		return nil, errors.New("cannot set unsupported expected status")
 	})()
 
 	req, err := http.NewRequest("GET", "/v2/system-info/storage-encrypted", nil)
@@ -1262,19 +1263,28 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
-	c.Check(rsp.Result, check.DeepEquals, expectedResponse)
+	resultBytes, err := json.Marshal(rsp.Result)
+	c.Assert(err, check.IsNil)
+	var resultAbstract any
+	err = json.Unmarshal(resultBytes, &resultAbstract)
+	c.Assert(err, check.IsNil)
+	c.Check(resultAbstract, check.DeepEquals, expectedResponse)
 
 	setExpectedStatus("inactive")
 	rsp = s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(err, check.IsNil)
-	c.Check(rsp.Result, check.DeepEquals, expectedResponse)
+	resultBytes, err = json.Marshal(rsp.Result)
+	c.Assert(err, check.IsNil)
+	err = json.Unmarshal(resultBytes, &resultAbstract)
+	c.Assert(err, check.IsNil)
+	c.Check(resultAbstract, check.DeepEquals, expectedResponse)
 }
 
 func (s *generalSuite) TestSysInfoStorageEncErrorImpl(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockFdestateSystemEncryptedFromState(func(*state.State) (bool, error) {
-		return false, errors.New("cannot calculate status")
+	defer daemon.MockFdestateSystemState(func(*state.State) (*fdestate.FDESystemState, error) {
+		return nil, errors.New("cannot calculate status")
 	})()
 
 	req, err := http.NewRequest("GET", "/v2/system-info/storage-encrypted", nil)

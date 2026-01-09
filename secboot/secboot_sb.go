@@ -25,6 +25,7 @@ import (
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -109,7 +110,39 @@ func LockSealedKeys() error {
 	return lockTPMSealedKeys()
 }
 
-type ActivateState = sb.ActivateState
+type ActivateState struct {
+	*sb.ActivateState
+}
+
+func NewActivateState() *ActivateState {
+	return &ActivateState{&sb.ActivateState{}}
+}
+
+func (a *ActivateState) HasActivations() bool {
+	return len(a.Activations) != 0
+}
+
+func (a *ActivateState) UsedRecoveryKey() bool {
+	for _, act := range a.Activations {
+		if act.Status == sb.ActivationSucceededWithRecoveryKey {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *ActivateState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.ActivateState)
+}
+
+func (a *ActivateState) UnmarshalJSON(data []byte) error {
+	s := &sb.ActivateState{}
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	a.ActivateState = s
+	return nil
+}
 
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
@@ -125,7 +158,7 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 }
 
 func (a *activateContextImpl) State() *ActivateState {
-	return a.ActivateContext.State()
+	return &ActivateState{a.ActivateContext.State()}
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {

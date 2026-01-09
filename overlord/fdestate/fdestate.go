@@ -946,3 +946,66 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 
 	return ts, nil
 }
+
+var errNoActivateState = errors.New("snap-bootstrap did not provide an activation state")
+
+func loadActivateState() (*secboot.ActivateState, error) {
+	unlockedState, err := boot.LoadDiskUnlockState("unlocked.json")
+	if err != nil {
+		return nil, err
+	}
+	if unlockedState.State == nil {
+		return nil, errNoActivateState
+	}
+	return unlockedState.State, nil
+}
+
+type cachedActivateStateKey struct{}
+
+func getActivateState(st *state.State) (*secboot.ActivateState, error) {
+	stateRaw := st.Cached(cachedActivateStateKey{})
+	if stateRaw != nil {
+		return stateRaw.(*secboot.ActivateState), nil
+	}
+
+	state, err := loadActivateState()
+	if err != nil {
+		return nil, err
+	}
+	st.Cache(cachedActivateStateKey{}, state)
+	return state, nil
+}
+
+type FDEStatus string
+
+const (
+	FDEStatusActive   FDEStatus = "active"
+	FDEStatusInactive FDEStatus = "inactive"
+	FDEStatusRecovery FDEStatus = "recovery"
+)
+
+type FDESystemState struct {
+	Status FDEStatus `json:"status"`
+}
+
+func SystemState(st *state.State) (*FDESystemState, error) {
+	s, err := getActivateState(st)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := &FDESystemState{}
+
+	if !s.HasActivations() {
+		ret.Status = FDEStatusInactive
+		return ret, nil
+	}
+
+	if s.UsedRecoveryKey() {
+		ret.Status = FDEStatusRecovery
+	} else {
+		ret.Status = FDEStatusActive
+	}
+
+	return ret, nil
+}

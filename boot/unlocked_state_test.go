@@ -61,23 +61,17 @@ func (s *diskUnlockStateSuite) TestUnlockedStateWriteTo(c *C) {
 	var data map[string]any
 	err = json.Unmarshal(jsonData, &data)
 	c.Assert(err, IsNil)
-
-	var expectedState map[string]any
-	if secboot.WithSecbootSupport {
-		expectedState = map[string]any{
-			"activations":    nil,
-			"primary-key-id": 0.,
-		}
-	} else {
-		expectedState = map[string]any{}
-	}
 	expected := map[string]any{
 		"ubuntu-boot": map[string]any{},
 		"ubuntu-data": map[string]any{
 			"mount-state": "mounted",
 		},
 		"ubuntu-save": map[string]any{},
-		"state":       expectedState,
+	}
+	if secboot.WithSecbootSupport {
+		expected["state"] = nil
+	} else {
+		expected["state"] = map[string]any{}
 	}
 	c.Check(data, DeepEquals, expected)
 }
