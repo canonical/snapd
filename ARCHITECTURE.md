@@ -2,7 +2,7 @@ The snap daemon, `snapd`, together with all the other binaries defined in this r
 
 A snap package is a self-contained read-only SquashFS file carrying application-specific content alongside metadata, chiefly in `meta/snap.yaml`. When installing a snap, snapd ensures that the SquashFS content will be available by mounting it.
 
-Alongside individual snaps, snapd can also orchestrate the lifecycle of an entire system when all the components are snaps. This is the principle behind Ubuntu Core systems. There the root filesystem is a *base* snap mounted in combination with writable space, alongside a kernel installed from its own snap.
+Alongside individual snaps, snapd can also orchestrate the lifecycle of an entire system when all the components are snaps. This is the principle behind [Ubuntu Core](https://ubuntu.com/core) systems. There the root filesystem is a *base* snap mounted in combination with writable space, alongside a kernel installed from its own snap and a *gadget* snap that defines the device.
 
 For security, snap applications and services are executed in a sandbox by default. Access to system resources, and interactions with other snaps, are mediated via so called *interfaces*. Each interface encapsulates an access policy that's implemented using mount namespaces, AppArmor profiles and other native Linux security features.
 
@@ -19,9 +19,34 @@ Entry points for launching software in a snap are mainly either:
 
 In both cases,execution starts within the `snap run` command provided with the application (via the symlink) or the service (provided explicitly) reference information.
 
-`snap run` reads the needed metadata and prepares the command line to run exec `snap-confine. snap-confine` is the binary responsible for setting up the execution sandbox, preparing mount namespace and activating sandbox profiles.
+On a high level, execution of a snap application is carried out in the following manner:
 
-When run, `snap-confine` uses *capabilities (in the kernel sense)* to perform the set-up operations. It then relinquishes them before proceeding, as per the command line, to run exec `snap-exec. snap-exec` is responsible for the final setup within the sandbox before running exec with the actual snap target binary.
+```
+          snap run <snap.app>
+                |
+              exec(2)
+                |
+                v
+          snap-confine (sandbox setup)
+                |
+                |
+             unshare(2)   HOST
+        ------------------
+                |         SANDBOX
+              exec(2)
+                |
+                v
+            snap-exec
+                |
+              exec(2)
+                |
+                v
+         <snap.app> entrypoint
+```
+
+`snap run` reads the needed metadata and prepares the command line to run exec `snap-confine`. `snap-confine` is the binary responsible for setting up the execution sandbox, preparing mount namespace and activating sandbox profiles.
+
+When run, `snap-confine` uses *capabilities (in the kernel sense, see `man 7 capabilities`)* to perform the set-up operations. It then relinquishes them before proceeding, as per the command line, to run exec `snap-exec`. `snap-exec` is responsible for the final setup within the sandbox before running exec with the actual snap target binary.
 
 ## Overlord and state managers
 
@@ -31,7 +56,7 @@ snapd execution is orchestrated by [`overlord.Overlord`](https://pkg.go.dev/gith
 
 Execution comprises of:
 
-* a start up phase when `StateManager.StartUp` is called on all managers
+* a start up phase when `StateStarterUp.StartUp` is called on all managers that defines it
 * the *ensure loop* is then called at least once every 5 minutes, or repeatedly when there are operations to complete
 * each iteration of the ensure loop calls the `StateManager.Ensure` methods for all the state managers
 * on shutdown, the `StateManager.Stop` method is called on all state managers
@@ -59,7 +84,7 @@ Paradigmatic tasks for [`snapstate`](https://github.com/canonical/snapd/tree/mas
 
 Snap metadata, as used throughout snapd and some basic operation helpers, are defined in the [`snap`](https://github.com/canonical/snapd/tree/master/snap) package. This metadata usually comes from parsing `snap.yaml` files.
 
-The [`overlord/ifacestate.InterfaceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#InterfaceManager) using the [`interfaces`](https://github.com/canonical/snapd/tree/master/interfaces) package is responsible for keeping the per-snap security profiles up-to-date used to sandbox them. It ensures that interface connections (persistently modeled by [`ifacestate.ConnectionState`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#ConnectionState)) are correctly reflected in the profiles. The [`interfaces.Repository`](https://pkg.go.dev/github.com/snapcore/snapd/interfaces#Repository) is the main abstraction to manage reflecting those connections, while [`interfaces/builtin`](https://github.com/canonical/snapd/tree/master/interfaces/builtin) carries each interface logic implementation.
+The [`overlord/ifacestate.InterfaceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#InterfaceManager) using the [`interfaces`](https://github.com/canonical/snapd/tree/master/interfaces) package is responsible for keeping the per-snap security profiles up-to-date used to sandbox them. It ensures that interface connections (persistently modeled by [`ifacestate.ConnectionState`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#ConnectionState)) are correctly reflected in the profiles. The [`interfaces.Repository`](https://pkg.go.dev/github.com/snapcore/snapd/interfaces#Repository) is the main abstraction to manage those connections, while [`interfaces/builtin`](https://github.com/canonical/snapd/tree/master/interfaces/builtin) carries each interface logic implementation.
 
 Paradigmatic handlers for [`ifacestate`](https://github.com/canonical/snapd/tree/master/overlord/ifacestate) include `setup-profiles`, `auto-connect` and `connect`.
 
@@ -69,7 +94,7 @@ Paradigmatic functionality in [`assertstate`](https://github.com/canonical/snapd
 
 More state managers exist to cover other aspects of snaps ([`overlord/hookstate.HookManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/hookstate#HookManager) for hooks, etc.)
 
-The import dependencies for the manager packages code are fairly dense. As it defines some fundamental shared types and mechanisms, [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) is imported by many other managers.
+The import dependencies for the manager packages are fairly dense. As it defines some fundamental shared types and mechanisms, [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) is imported by many other managers.
 
 At the other end of the import/export scale, [`devicestate`](https://github.com/canonical/snapd/tree/master/overlord/devicestate) *uses* most of the other managers. Reverse dependencies are addressed by having either:
 
@@ -80,11 +105,11 @@ Many managers cache their instance with [`overlord/state.State.Cache`](https://p
 
 ## Asking snapd to do something
 
-snapd provides a HTTP API over the `/run/snapd.socket` unix socket. This is how most of `snap's` own command operations are requested.
+snapd provides a HTTP API over the `/run/snapd.socket` unix socket. This is how most of `snap`'s own command operations are requested.
 
 The API is implemented by the [`daemon`](https://github.com/canonical/snapd/tree/master/daemon) package. In most cases, its code fulfills requests by using helpers provided by the [`overlord`](https://github.com/canonical/snapd/tree/master/overlord) state managers. These are used to build a [`state.TaskSet`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#TaskSet) for a given operation (for example `ifacetate.Connect` for interface connection, or [`snapstate.InstallWithGoal`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#InstallWithGoal) for installing) and populating a [`state.Change`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#Change) ready for execution with those tasks. The API then produces a so-called "async" response with status `202 Accepted` and including the `Change id` for tracking via `/v2/changes/{id}` endpoint of the API.
 
-Snap can make requests to snapd via the `snapctl` command, which internally uses the `/v2/snapctl` endpoint over the `/run/snap-snapd.socket` unix socket. The command itself does very little other than forward parameters to the endpoint and directing output and exit codes back from its response. The implementation logic for the various `snapctl` subcommands lives in [`hookstate/ctlcmd`](https://github.com/canonical/snapd/tree/master/overlord/hookstate/ctlcmd).
+Snap can make requests to snapd via the `snapctl` command, which internally uses the `/v2/snapctl` endpoint over the `/run/snapd-snap.socket` unix socket. The command itself does very little other than forward parameters to the endpoint and directing output and exit codes back from its response. The implementation logic for the various `snapctl` subcommands lives in [`hookstate/ctlcmd`](https://github.com/canonical/snapd/tree/master/overlord/hookstate/ctlcmd).
 
 ## Devices and boot support
 
