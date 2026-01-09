@@ -125,7 +125,7 @@ execute: |
   remote.exec sudo efi-updatevar -a -f pk-update.auth PK
   remote.exec sudo efi-readvar -v PK 2>&1 | tee efi-pk-after.log
   # verify that PK has changed
-  remote.exec "diff efi-pk-before.log efi-pk-after.log" | MATCH ".*differ$"
+  diff efi-pk-before.log efi-pk-after.log | MATCH ".*differ$"
 
   echo "Completed with a 'cleanup request'"
   echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
