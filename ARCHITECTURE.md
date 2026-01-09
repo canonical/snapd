@@ -17,7 +17,7 @@ Entry points for launching software in a snap are mainly either:
 * symlinks to the `snap` command from `/snap/bin`
 * systemd units for services that invoke explicitly the `snap run` command with the snap service reference information
 
-In both cases,execution starts within the `snap run` command provided with the application (via the symlink) or the service (provided explicitly) reference information.
+In both cases, execution starts within the `snap run` command provided with the application (via the symlink) or the service (provided explicitly) reference information.
 
 On a high level, execution of a snap application is carried out in the following manner:
 
@@ -80,7 +80,7 @@ The [`overlord/snapstate`](https://github.com/canonical/snapd/tree/master/overlo
 
 Important information provided though [`snapstate.DeviceContext`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#DeviceContext) includes the [`snapstate.StoreService`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#StoreService) (implemented by [`store.Store`](https://pkg.go.dev/github.com/snapcore/snapd/store#Store)), which is used to access the snap store, and the model (as [`asserts.Model`](https://pkg.go.dev/github.com/snapcore/snapd/asserts#Model)) of the device. [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) provides various ways to get hold of a `DeviceContext`: `DeviceCtx` for use in task handlers, or `DeviceCtxFromState` and `DevicePastSeeding` for outside. Task handlers need to use a mechanism that takes the `Task` itself. This is because the `DeviceContext` might be contextual to a `Change`, due to the way some operations deal with transitions to different device models (so called *remodel* operations), and the `DeviceContext` within them refers to the transitioned-to model and corresponding store.
 
-Paradigmatic tasks for [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) include `mount-snap` (handlers: `SnapManager.doMountSnap, SnapManager.undoMountSnap`) and `link-snap` (handlers: `SnapManader.doLinkSnap, SnapManager.undoLinkSnap`).
+Paradigmatic tasks for [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) include `mount-snap` (handlers: `SnapManager.doMountSnap, SnapManager.undoMountSnap`) and `link-snap` (handlers: `SnapManager.doLinkSnap, SnapManager.undoLinkSnap`).
 
 Snap metadata, as used throughout snapd and some basic operation helpers, are defined in the [`snap`](https://github.com/canonical/snapd/tree/master/snap) package. This metadata usually comes from parsing `snap.yaml` files.
 
