@@ -1820,6 +1820,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				return err
 			}
 			switch runner.info.Base {
+			case "core22-desktop", "core24-desktop":
+				// Those are special-cases of the core snap so
+				// they follow the same behavior as their
+				// non-desktop variants.
+				fallthrough
 			case "", "core", "core18", "core20", "core22", "core24":
 				// If we cannot track the process then log a debug message.
 				// TODO: if we could, create a warning. Currently this is not possible
