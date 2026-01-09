@@ -58,6 +58,7 @@ func validateSourceDirs(slot *snap.SlotInfo, sda sourceDirAttr) error {
 		return err
 	}
 	for _, dir := range libDirs {
+		var insidePath string
 		const componentPrefix = "$SNAP_COMPONENT("
 		if strings.HasPrefix(dir, componentPrefix) {
 			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")/", 2)
@@ -68,9 +69,25 @@ func validateSourceDirs(slot *snap.SlotInfo, sda sourceDirAttr) error {
 				return fmt.Errorf("component %s specified in path %q is not defined in the snap",
 					compAndPath[0], dir)
 			}
-		} else if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
+			insidePath = compAndPath[1]
+		} else {
+			const snapPrefix = "$SNAP/"
+			const snapPrefixK = "${SNAP}/"
+			switch {
+			case strings.HasPrefix(dir, snapPrefix):
+				insidePath = dir[len(snapPrefix):]
+			case strings.HasPrefix(dir, snapPrefixK):
+				insidePath = dir[len(snapPrefixK):]
+			default:
+				return fmt.Errorf(
+					"%s %s directory %q must start with $SNAP/ or ${SNAP}/",
+					slot.Interface, sda.attrName, dir)
+			}
+		}
+		cleanPath := filepath.Clean(insidePath)
+		if strings.HasPrefix(cleanPath, "..") {
 			return fmt.Errorf(
-				"%s %s directory %q must start with $SNAP/ or ${SNAP}/",
+				"%s %s directory %q cannot point outside of the snap/component",
 				slot.Interface, sda.attrName, dir)
 		}
 	}
