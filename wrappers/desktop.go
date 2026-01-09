@@ -121,9 +121,17 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appInf
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return app, "Exec=" + wrapper, nil
+			if app.IsService() {
+				return app, "Exec=/usr/bin/false", nil
+			} else {
+				return app, "Exec=" + wrapper, nil
+			}
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return app, fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
+			if app.IsService() {
+				return app, "Exec=/usr/bin/false", nil
+			} else {
+				return app, fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
+			}
 		}
 	}
 
@@ -136,6 +144,9 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appInf
 	app, ok := s.Apps[desktopFileApp]
 	if ok {
 		newExec := fmt.Sprintf("Exec=%s", app.WrapperPath())
+		if app.IsService() {
+			newExec = "Exec=/usr/bin/false"
+		}
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
 		return app, newExec, nil
 	}
