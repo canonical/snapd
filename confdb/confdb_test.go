@@ -597,6 +597,16 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			expectedErr: errors.New(`.*"bar" is not a valid placeholder.*`),
 		},
 		{
+			testName: "single request: constraint for key placeholder with different storage and request path lengths",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "{bar}"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]string{"bar": "value"},
+			expectedErr: nil,
+		},
+		{
 			testName: "single request: constraint for index placeholder",
 			params:   map[string]any{},
 			rules: []any{
@@ -628,7 +638,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:    []string{"foo.abc"},
 			constraints: map[string]string{"baz": "value"},
-			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+			expectedErr: nil,
 		},
 		{
 			testName: "single request: constraint for field filter of index placeholder in unmatched suffix",
@@ -652,7 +662,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:    []string{"foo.abc[1]"},
 			constraints: map[string]string{"baz": "value"},
-			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+			expectedErr: nil,
 		},
 		{
 			testName: "multiple requests: constraints for multiple matching rules' placeholders",
