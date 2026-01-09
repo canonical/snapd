@@ -516,9 +516,14 @@ func (s *confdbSuite) SetUpTest(c *C) {
 		"name":         "network",
 		"views": map[string]any{
 			"read-wifi": map[string]any{
+				"parameters": map[string]any{
+					"field1": map[string]any{},
+					"field2": map[string]any{},
+				},
 				"rules": []any{
 					map[string]any{"request": "ssid", "storage": "wifi.ssid", "access": "read"},
 					map[string]any{"request": "password", "storage": "wifi.psk", "access": "read"},
+					map[string]any{"request": "foo", "storage": "foo[.field1={field1}][.field2={field2}]", "access": "read"},
 				},
 			},
 			"write-wifi": map[string]any{
@@ -534,6 +539,7 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	body := []byte(`{
   "storage": {
     "schema": {
+      "foo": "any",
       "wifi": "any"
     }
   }
@@ -1171,7 +1177,7 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	err = tx.Set(parsePath(c, "foo"), map[string]string{"field1": "value1", "field2": "value2"})
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1182,9 +1188,14 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	expectedOutput := `{
+	"field1": "value1",
+	"field2": "value2"
+}
+`
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "my-ssid\n")
+	c.Check(string(stdout), Equals, expectedOutput)
 	c.Check(stderr, IsNil)
 	c.Check(gotConstraints, DeepEquals, map[string]any{"field1": "value1", "field2": "value2"})
 }
