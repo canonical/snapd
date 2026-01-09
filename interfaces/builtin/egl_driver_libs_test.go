@@ -271,7 +271,8 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	for _, icdData := range []struct {
 		gpu    string
 		subDir string
-	}{{"mesa", "egl.d"}, {"nvidia", "egl.d"}, {"radeon", "egl_alt.d"}} {
+		dirIdx int
+	}{{"mesa", "egl.d", 10}, {"nvidia", "egl.d", 10}, {"radeon", "egl_alt.d", 11}} {
 		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
 		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
 		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
@@ -294,7 +295,9 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 		// Ignored symlink
 		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
 
-		expected["10_snap_egl-provider_egl-slot_"+icdData.subDir+"-"+icdData.gpu+".json"] = icdPath
+		symlink := fmt.Sprintf("%d_snap_egl-provider_egl-slot_%s-%s.json",
+			icdData.dirIdx, icdData.subDir, icdData.gpu)
+		expected[symlink] = icdPath
 	}
 
 	// Now check symlinks to be created
@@ -312,7 +315,9 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComps(c *C) {
 		gpu      string
 		compSuff string
 		rev      snap.Revision
-	}{{"nvidia", "1", snap.R(11)}, {"nvidia", "2", snap.R(22)}} {
+		dirIdx   int
+	}{{"nvidia", "1", snap.R(11), 13}, {"mesa", "1", snap.R(11), 13},
+		{"nvidia", "2", snap.R(22), 14}, {"mesa", "2", snap.R(22), 14}} {
 		compMnt := snap.ComponentMountDir("comp"+icdData.compSuff, icdData.rev, "egl-provider")
 		icdDir := filepath.Join(compMnt, "egl.d")
 		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
@@ -336,7 +341,61 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComps(c *C) {
 		// Ignored symlink
 		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
 
-		expected["10_snap_egl-provider+comp"+icdData.compSuff+"_egl-slot_egl.d-"+icdData.gpu+".json"] = icdPath
+		symlink := fmt.Sprintf("%d_snap_egl-provider+comp%s_egl-slot_egl.d-%s.json",
+			icdData.dirIdx, icdData.compSuff, icdData.gpu)
+		expected[symlink] = icdPath
+	}
+
+	// Now check symlinks to be created
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
+		"/etc/glvnd/egl_vendor.d": expected,
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComp2(c *C) {
+	// Only installed component is comp2, we want to check that the
+	// priority for comp2 files is still 14.
+	comps := []compRawInfo{
+		{"component: egl-provider+comp2\ntype: standard", snap.R(22)}}
+	s.slot, s.slotInfo = mockConnectedSlotWithComps(c, eglDriverLibsProvider,
+		&snap.SideInfo{Revision: snap.R(5)}, comps, "egl-slot")
+
+	// Write ICD files
+	expected := symlinks.SymlinkToTarget{}
+	for _, icdData := range []struct {
+		gpu      string
+		compSuff string
+		rev      snap.Revision
+		dirIdx   int
+	}{{"nvidia", "2", snap.R(22), 14}, {"mesa", "2", snap.R(22), 14}} {
+		compMnt := snap.ComponentMountDir("comp"+icdData.compSuff, icdData.rev, "egl-provider")
+		icdDir := filepath.Join(compMnt, "egl.d")
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
+		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_%s.so.0"
+    }
+}
+`, icdData.gpu)), 0655)
+		libDir := filepath.Join(compMnt, "lib"+icdData.compSuff)
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
+		os.WriteFile(libPath, []byte{}, 0655)
+
+		// Ignored file
+		otherPath := filepath.Join(icdDir, "foo.bar")
+		os.WriteFile(otherPath, []byte{}, 0655)
+
+		// Ignored symlink
+		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
+
+		symlink := fmt.Sprintf("%d_snap_egl-provider+comp%s_egl-slot_egl.d-%s.json",
+			icdData.dirIdx, icdData.compSuff, icdData.gpu)
+		expected[symlink] = icdPath
 	}
 
 	// Now check symlinks to be created

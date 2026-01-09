@@ -60,7 +60,7 @@ func validateSourceDirs(slot *snap.SlotInfo, sda sourceDirAttr) error {
 	for _, dir := range libDirs {
 		const componentPrefix = "$SNAP_COMPONENT("
 		if strings.HasPrefix(dir, componentPrefix) {
-			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")", 2)
+			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")/", 2)
 			if len(compAndPath) != 2 {
 				return fmt.Errorf("invalid format in path %q", dir)
 			}
@@ -129,10 +129,16 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
 }
 
-// sourceDirsCheck returns a list of file paths found in the directories
-// specified by sda, after checking that the library_path in these files
-// matches a file found in the directories specified by library-source.
-func sourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []string, err error) {
+type pathWithDirIdx struct {
+	path   string
+	dirIdx int
+}
+
+// sourceDirsCheck returns a list of file paths found in the directories specified by
+// sda, after checking that the library_path in these files matches a file found in
+// the directories specified by library-source. Each path has an index attached so
+// the source dir can be identified.
+func sourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []pathWithDirIdx, err error) {
 	var sourceDir []string
 	if err := slot.Attr(sda.attrName, &sourceDir); err != nil {
 		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
@@ -141,14 +147,15 @@ func sourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker 
 		return nil, err
 	}
 
-	expanded := slot.AppSet().ExpandSliceSnapVariablesInRootfs(sourceDir)
-
+	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(sourceDir)
 	for _, dir := range expanded {
-		paths, err := sourceDirFilesCheck(slot, dir, checker)
+		paths, err := sourceDirFilesCheck(slot, dir.Path, checker)
 		if err != nil {
 			return nil, err
 		}
-		checked = append(checked, paths...)
+		for _, p := range paths {
+			checked = append(checked, pathWithDirIdx{path: p, dirIdx: dir.DirIdx})
+		}
 	}
 	return checked, nil
 }
@@ -212,9 +219,9 @@ func symlinksForSourceDir(
 	}
 
 	// Create symlinks to snap content (which is fine as this is for super-privileged slots)
-	for _, filePath := range sourcePaths {
+	for _, pathDirIdx := range sourcePaths {
 		// First strip out mount dir
-		relPath, err := filepath.Rel(dirs.SnapMountDir, filePath)
+		relPath, err := filepath.Rel(dirs.SnapMountDir, pathDirIdx.path)
 		if err != nil {
 			return err
 		}
@@ -225,27 +232,29 @@ func symlinksForSourceDir(
 		instance := slot.Snap().InstanceName()
 		splitNum := 3
 		compSuffix := ""
-		if strings.HasPrefix(filePath, snap.ComponentsBaseDir(instance)) {
+		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
 			splitNum = 6
 			compSuffix = "+"
 		}
 		dirs := strings.SplitN(relPath, "/", splitNum)
-		if compSuffix != "" {
-			compSuffix += dirs[3]
-		}
 		if len(dirs) < splitNum {
 			return fmt.Errorf("internal error: wrong file path: %s", relPath)
+		}
+		if compSuffix != "" {
+			compSuffix += dirs[3]
 		}
 
 		// Get last component from dirs and make path an easier to handle name
 		escapedRelPath := systemd.EscapeUnitNamePath(dirs[splitNum-1])
 		prefix := ""
 		if withPriority {
-			prefix = fmt.Sprintf("%d_", priority)
+			// The priority depends on the list order of the directories
+			// in the *-source attribute.
+			prefix = fmt.Sprintf("%d_", priority+int64(pathDirIdx.dirIdx))
 		}
 		linkPath := filepath.Join(targetDir, fmt.Sprintf("%ssnap_%s%s_%s_%s",
 			prefix, instance, compSuffix, slot.Name(), escapedRelPath))
-		if err := spec.AddSymlink(filePath, linkPath); err != nil {
+		if err := spec.AddSymlink(pathDirIdx.path, linkPath); err != nil {
 			return err
 		}
 	}
