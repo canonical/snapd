@@ -1076,11 +1076,11 @@ func dump(what, prefix string) error {
 		return fmt.Errorf("cannot copy deny rules: %w", err)
 	}
 
-	if err := os.WriteFile(prefix+".allow", allowRules.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(prefix+".allow", allowRules.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("cannot write allow rules to file: %w", err)
 	}
 
-	if err := os.WriteFile(prefix+".deny", denyRules.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(prefix+".deny", denyRules.Bytes(), 0o644); err != nil {
 		// TODO remove allow file?
 		return fmt.Errorf("cannot write deny rules to file: %w", err)
 	}

@@ -674,8 +674,8 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
 		})
 	})
 
-	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
-	os.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
+	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0o755)
+	os.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0o644)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Logf("stdout: %s", s.Stdout())

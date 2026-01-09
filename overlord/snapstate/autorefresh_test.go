@@ -758,7 +758,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 	s.state.Set("last-refresh", nil)
 	// use core last refresh time
 	coreCurrent := filepath.Join(dirs.SnapMountDir, "core", "current")
-	err = os.MkdirAll(coreCurrent, 0755)
+	err = os.MkdirAll(coreCurrent, 0o755)
 	c.Assert(err, IsNil)
 	st, err = os.Stat(coreCurrent)
 	c.Assert(err, IsNil)

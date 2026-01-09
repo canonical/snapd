@@ -360,7 +360,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 	})()
 
 	keyFilePath := filepath.Join(c.MkDir(), "key.file")
-	err := os.WriteFile(keyFilePath, []byte{}, 0644)
+	err := os.WriteFile(keyFilePath, []byte{}, 0o644)
 	c.Assert(err, IsNil)
 	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
@@ -422,7 +422,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKeyFallback(c *C) {
 	})()
 
 	keyFilePath := filepath.Join(c.MkDir(), "key.file")
-	err := os.WriteFile(keyFilePath, []byte{9, 8, 7, 1, 2, 3}, 0644)
+	err := os.WriteFile(keyFilePath, []byte{9, 8, 7, 1, 2, 3}, 0o644)
 	c.Assert(err, IsNil)
 	_, err = secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/bar", AuthorizingKeyFile: keyFilePath},

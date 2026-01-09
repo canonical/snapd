@@ -65,7 +65,7 @@ func (s *luks2Suite) TestKillSlot(c *C) {
 }
 
 func (s *luks2Suite) TestAddKeyHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0o755)
 	c.Assert(err, IsNil)
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
@@ -85,7 +85,7 @@ cat - > %[1]s/stdout 2>%[1]s/stderr
 }
 
 func (s *luks2Suite) TestAddKeyBadCryptsetup(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0o755)
 	c.Assert(err, IsNil)
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "echo some-error; exit  1")

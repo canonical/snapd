@@ -82,15 +82,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0o640), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
-	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0o755), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0o555), IsNil)
 	fdeRevealKeyHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-reveal-key")
-	c.Assert(os.MkdirAll(filepath.Dir(fdeRevealKeyHook), 0755), IsNil)
-	c.Assert(os.WriteFile(fdeRevealKeyHook, []byte{}, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fdeRevealKeyHook), 0o755), IsNil)
+	c.Assert(os.WriteFile(fdeRevealKeyHook, []byte{}, 0o555), IsNil)
 
 	fdeSetupMock := testutil.MockCommand(c, "fde-setup", fmt.Sprintf(`
 tmpdir='%s'
@@ -103,30 +103,30 @@ echo '{"features":[]}'
 	defer fdeRevealKeyMock.Restore()
 
 	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0o755), IsNil)
 	kernelSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0o555), IsNil)
 
 	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0o755), IsNil)
 	baseSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0o555), IsNil)
 
 	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0o755), IsNil)
 	gadgetSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0o555), IsNil)
 
 	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
-	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0o755), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0o555), IsNil)
 
 	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
-	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0o755), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0o555), IsNil)
 	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
-	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grub), 0o755), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0o555), IsNil)
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
@@ -275,34 +275,34 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0o640), IsNil)
 
 	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0o755), IsNil)
 	kernelSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0o555), IsNil)
 
 	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0o755), IsNil)
 	baseSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0o555), IsNil)
 
 	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0o755), IsNil)
 	gadgetSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0o555), IsNil)
 
 	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
-	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0o755), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0o555), IsNil)
 
 	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
-	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0o755), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0o555), IsNil)
 	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
-	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grub), 0o755), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0o555), IsNil)
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
@@ -421,12 +421,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0o640), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
-	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0o755), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0o555), IsNil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -461,16 +461,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0o640), IsNil)
 
 	installDeviceHook := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "hooks", "install-device")
-	c.Assert(os.MkdirAll(filepath.Dir(installDeviceHook), 0755), IsNil)
-	c.Assert(os.WriteFile(installDeviceHook, []byte{}, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(installDeviceHook), 0o755), IsNil)
+	c.Assert(os.WriteFile(installDeviceHook, []byte{}, 0o555), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
-	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0o755), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0o555), IsNil)
 
 	cmd := testutil.MockCommand(c, "fde-setup", ``)
 	defer cmd.Restore()

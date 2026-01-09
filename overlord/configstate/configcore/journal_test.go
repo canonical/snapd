@@ -51,7 +51,7 @@ func (s *journalSuite) SetUpTest(c *C) {
 	}))
 	s.systemctlArgs = nil
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 
 	findGidRestore := configcore.MockFindGid(func(group string) (uint64, error) {
@@ -115,7 +115,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 	// existing journal directory, not created by snapd (no marker file)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0o755), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -136,7 +136,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 
 func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) {
 	// journal directory exists, but no marker file
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0o755), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -148,8 +148,8 @@ func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) 
 }
 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0o755), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,

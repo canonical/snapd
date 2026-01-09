@@ -161,11 +161,11 @@ func (s *appArmorSuite) TestRemoveCachedProfiles(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
-	err := os.MkdirAll(apparmor.CacheDir, 0755)
+	err := os.MkdirAll(apparmor.CacheDir, 0o755)
 	c.Assert(err, IsNil)
 
 	fname := filepath.Join(apparmor.CacheDir, "profile")
-	os.WriteFile(fname, []byte("blob"), 0600)
+	os.WriteFile(fname, []byte("blob"), 0o600)
 	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
@@ -180,17 +180,17 @@ func (s *appArmorSuite) TestRemoveCachedProfilesInForest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
-	err := os.MkdirAll(apparmor.CacheDir, 0755)
+	err := os.MkdirAll(apparmor.CacheDir, 0o755)
 	c.Assert(err, IsNil)
 	// mock the forest subdir and features file
 	subdir := filepath.Join(apparmor.CacheDir, "deadbeef.0")
-	err = os.MkdirAll(subdir, 0700)
+	err = os.MkdirAll(subdir, 0o700)
 	c.Assert(err, IsNil)
 	features := filepath.Join(subdir, ".features")
-	os.WriteFile(features, []byte("blob"), 0644)
+	os.WriteFile(features, []byte("blob"), 0o644)
 
 	fname := filepath.Join(subdir, "profile")
-	os.WriteFile(fname, []byte("blob"), 0600)
+	os.WriteFile(fname, []byte("blob"), 0o600)
 	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
@@ -203,7 +203,7 @@ func (s *appArmorSuite) TestReloadAllSnapProfilesFailure(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create a couple of empty profiles
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0o755)
 	defer func() {
 		os.RemoveAll(dirs.SnapAppArmorDir)
 	}()
@@ -233,7 +233,7 @@ func (s *appArmorSuite) TestReloadAllSnapProfilesHappy(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create a couple of empty profiles
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0o755)
 	defer func() {
 		os.RemoveAll(dirs.SnapAppArmorDir)
 	}()
@@ -281,7 +281,7 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesReturnsErrorOnMissingFile(c *C
 }
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesCanParseEmptyFile(c *C) {
-	os.WriteFile(s.profilesFilename, []byte(""), 0600)
+	os.WriteFile(s.profilesFilename, []byte(""), 0o600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, IsNil)
 	c.Check(profiles, HasLen, 0)
@@ -317,11 +317,11 @@ webbrowser-app//oxide_helper (enforce)
 }
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
-	os.WriteFile(s.profilesFilename, []byte("broken stuff here\n"), 0600)
+	os.WriteFile(s.profilesFilename, []byte("broken stuff here\n"), 0o600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, "newline in format does not match input")
 	c.Check(profiles, IsNil)
-	os.WriteFile(s.profilesFilename, []byte("truncated"), 0600)
+	os.WriteFile(s.profilesFilename, []byte("truncated"), 0o600)
 	profiles, err = apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
 	c.Check(profiles, IsNil)
@@ -370,9 +370,9 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 		existingFiles := testData.existingFiles
 		for _, path := range existingFiles {
 			fullPath := filepath.Join(baseDir, path)
-			err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+			err := os.MkdirAll(filepath.Dir(fullPath), 0o755)
 			c.Assert(err, IsNil)
-			err = os.WriteFile(fullPath, []byte("I'm an ELF binary"), 0755)
+			err = os.WriteFile(fullPath, []byte("I'm an ELF binary"), 0o755)
 			c.Assert(err, IsNil)
 		}
 		var expectedPath string
@@ -411,8 +411,8 @@ func (s *appArmorSuite) writeSystemParams(c *C, homedirs []string) {
 	sspPath := dirs.SnapSystemParamsUnder(dirs.GlobalRootDir)
 	conents := fmt.Sprintf("homedirs=%s\n", strings.Join(homedirs, ","))
 
-	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(os.WriteFile(sspPath, []byte(conents), 0644), IsNil)
+	c.Assert(os.MkdirAll(path.Dir(sspPath), 0o755), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte(conents), 0o644), IsNil)
 }
 
 func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
@@ -650,9 +650,9 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	// Create a file where we would expect to find the local policy.
 	err := os.RemoveAll(filepath.Dir(apparmor.SnapConfineAppArmorDir))
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(apparmor.SnapConfineAppArmorDir), 0755)
+	err = os.MkdirAll(filepath.Dir(apparmor.SnapConfineAppArmorDir), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0644)
+	err = os.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
@@ -681,16 +681,16 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Create the snap-confine directory and put a file. Because the file name
 	// matches the glob generated-* snapd will attempt to remove it but because
 	// the directory is not writable, that operation will fail.
-	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0o755)
 	c.Assert(err, IsNil)
 	f := filepath.Join(apparmor.SnapConfineAppArmorDir, "generated-test")
-	err = os.WriteFile(f, []byte("spurious content"), 0644)
+	err = os.WriteFile(f, []byte("spurious content"), 0o644)
 	c.Assert(err, IsNil)
-	err = os.Chmod(apparmor.SnapConfineAppArmorDir, 0555)
+	err = os.Chmod(apparmor.SnapConfineAppArmorDir, 0o555)
 	c.Assert(err, IsNil)
 
 	// Make the directory writable for cleanup.
-	defer os.Chmod(apparmor.SnapConfineAppArmorDir, 0755)
+	defer os.Chmod(apparmor.SnapConfineAppArmorDir, 0o755)
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
 	c.Check(err.Error(), testutil.Contains, "cannot synchronize snap-confine policy")
@@ -707,10 +707,10 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippets(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create the snap-confine directory and put a few files.
-	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0o755)
 	c.Assert(err, IsNil)
-	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0o644), IsNil)
 
 	err = apparmor.RemoveSnapConfineSnippets()
 	c.Check(err, IsNil)
@@ -726,7 +726,7 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippetsNoSnippets(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Create the snap-confine directory and let it do nothing.
-	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
+	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0o755)
 	c.Assert(err, IsNil)
 
 	err = apparmor.RemoveSnapConfineSnippets()

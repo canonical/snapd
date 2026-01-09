@@ -40,9 +40,9 @@ import (
 )
 
 func enableFeatures(c *C, ff ...features.SnapdFeature) {
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0o755), IsNil)
 	for _, f := range ff {
-		c.Assert(os.WriteFile(f.ControlFile(), nil, 0755), IsNil)
+		c.Assert(os.WriteFile(f.ControlFile(), nil, 0o755), IsNil)
 	}
 }
 

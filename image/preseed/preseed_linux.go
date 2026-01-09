@@ -233,11 +233,11 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		return filepath.Join(opts.SysfsOverlay, path)
 	}
 
-	if err := os.MkdirAll(filepath.Join(opts.WritableDir, "system-data", "etc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(opts.WritableDir, "system-data", "etc"), 0o755); err != nil {
 		return nil, err
 	}
 	where := filepath.Join(snapdMountPath)
-	if err := os.MkdirAll(where, 0755); err != nil {
+	if err := os.MkdirAll(where, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -356,7 +356,7 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
 		"var/snap", "snap", "var/lib/extrausers",
 	} {
-		if err = os.MkdirAll(filepath.Join(opts.WritableDir, dir), 0755); err != nil {
+		if err = os.MkdirAll(filepath.Join(opts.WritableDir, dir), 0o755); err != nil {
 			return nil, err
 		}
 	}
@@ -368,10 +368,10 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 	// location, and create the symlink 'current' to point to that
 	// location This symlink can then be easily replaced by snapd
 	// as it preseeds the image
-	if err := os.MkdirAll(filepath.Dir(currentLink), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(currentLink), 0o755); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(currentSnapdMountPoint, 0755); err != nil {
+	if err := os.MkdirAll(currentSnapdMountPoint, 0o755); err != nil {
 		return nil, err
 	}
 	if err := os.Symlink("preseeding", currentLink); err != nil {
@@ -481,7 +481,7 @@ func prepareCore20Chroot(opts *CoreOptions) (popts *preseedCoreOptions, cleanup 
 func mountSnapdSnap(rootDir string, coreSnapPath string) (cleanup func(), err error) {
 	// create mountpoint for core/snapd
 	where := filepath.Join(rootDir, snapdMountPath)
-	if err := os.MkdirAll(where, 0755); err != nil {
+	if err := os.MkdirAll(where, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -614,7 +614,7 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 	// location This symlink can then be easily replaced by snapd
 	// as it preseeds the image
 	currentLink := filepath.Join(rootDir, "snap/snapd/current")
-	if err := os.MkdirAll(filepath.Dir(currentLink), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(currentLink), 0o755); err != nil {
 		return nil, nil, err
 	}
 	if reset {

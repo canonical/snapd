@@ -97,9 +97,9 @@ func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0o777), IsNil)
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -168,9 +168,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0o777), IsNil)
 
 	// mock an Ubuntu Core like system
 	restore := release.MockOnClassic(false)
@@ -227,10 +227,10 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 		} else {
 			c.Assert(dirs.SystemFontconfigCacheDirs, DeepEquals, []string{filepath.Join(tmpdir, "/var/cache/fontconfig")})
 		}
-		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"), 0777), IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0o777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0o777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"), 0o777), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0o777), IsNil)
 		spec = &mount.Specification{}
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 		entries = spec.MountEntries()
@@ -270,9 +270,9 @@ plugs:
 	// The fontconfig cache is not mounted.
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0o777), IsNil)
 	restore := release.MockOnClassic(true)
 	defer restore()
 	// mock a distribution where the fontconfig cache would always be
@@ -301,7 +301,7 @@ plugs:
 
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0o777), IsNil)
 	restore := release.MockOnClassic(true)
 	defer restore()
 	// mock a distribution where the fontconfig cache would always be

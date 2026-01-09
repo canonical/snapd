@@ -433,7 +433,7 @@ func (s *delUserSuite) TestDelUserRemovesSudoersIfPresent(c *check.C) {
 	f1 := osutil.SudoersFile("u1")
 
 	// only create u1's sudoers file
-	c.Assert(os.WriteFile(f1, nil, 0600), check.IsNil)
+	c.Assert(os.WriteFile(f1, nil, 0o600), check.IsNil)
 
 	// neither of the delusers fail
 	c.Assert(osutil.DelUser("u1", s.opts), check.IsNil)
@@ -453,7 +453,7 @@ func (s *delUserSuite) TestDelUserSudoersRemovalFailure(c *check.C) {
 	f1 := osutil.SudoersFile("u1")
 
 	// create a directory that'll mess with the removal
-	c.Assert(os.MkdirAll(filepath.Join(f1, "ook", "ook"), 0700), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(f1, "ook", "ook"), 0o700), check.IsNil)
 
 	// delusers fails
 	c.Assert(osutil.DelUser("u1", s.opts), check.ErrorMatches, `cannot remove sudoers file for user "u1": .*`)

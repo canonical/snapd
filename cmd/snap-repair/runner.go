@@ -88,7 +88,7 @@ func (r *Repair) SetStatus(status RepairStatus) {
 func makeRepairSymlink(dir string) (err error) {
 	// make "repair" binary available to the repair scripts via symlink
 	// to the real snap-repair
-	if err = os.MkdirAll(dir, 0755); err != nil {
+	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
@@ -105,7 +105,7 @@ func makeRepairSymlink(dir string) (err error) {
 func (r *Repair) Run() error {
 	// write the script to disk
 	rundir := r.RunDir()
-	err := os.MkdirAll(rundir, 0775)
+	err := os.MkdirAll(rundir, 0o775)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *Repair) Run() error {
 	}
 
 	logPath := filepath.Join(rundir, baseName+".running")
-	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	logf, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (r *Repair) Run() error {
 	}
 
 	workdir := filepath.Join(rundir, "work")
-	if err := os.MkdirAll(workdir, 0700); err != nil {
+	if err := os.MkdirAll(workdir, 0o700); err != nil {
 		return err
 	}
 
@@ -588,7 +588,7 @@ func (run *Runner) now() time.Time {
 }
 
 func (run *Runner) initState() error {
-	if err := os.MkdirAll(dirs.SnapRepairDir, 0775); err != nil {
+	if err := os.MkdirAll(dirs.SnapRepairDir, 0o775); err != nil {
 		return fmt.Errorf("cannot create repair state directory: %v", err)
 	}
 	// best-effort remove old
@@ -980,7 +980,7 @@ func (run *Runner) refetch(brandID string, repairID, revision int) (repair *asse
 
 func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repair, aux []asserts.Assertion) error {
 	d := filepath.Join(dirs.SnapRepairAssertsDir, brandID, strconv.Itoa(repairID))
-	err := os.MkdirAll(d, 0775)
+	err := os.MkdirAll(d, 0o775)
 	if err != nil {
 		return err
 	}

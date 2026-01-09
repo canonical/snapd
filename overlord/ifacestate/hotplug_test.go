@@ -140,7 +140,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0o755), IsNil)
 
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)

@@ -53,11 +53,11 @@ func (s *snapFileTestSuite) TestOpenSquashfs(c *C) {
 	// make a squashfs snap and try to open it with just the filename, then
 	// install it somewhere
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0o755)
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0o644)
 	c.Assert(err, IsNil)
 
 	// build it
@@ -93,11 +93,11 @@ func (s *snapFileTestSuite) TestOpenSnapdir(c *C) {
 	// make a snapdir snap and try to open it with just the filename, then
 	// install it somewhere
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0o755)
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte("name: foo"), 0o644)
 	c.Assert(err, IsNil)
 
 	sn, err := snapfile.Open(tmp)
@@ -126,7 +126,7 @@ func (s *snapFileTestSuite) TestOpenSnapdirUnsupportedFormat(c *C) {
 	// make a file with garbage data
 	tmp := c.MkDir()
 	fn := filepath.Join(tmp, "some-format")
-	err := os.WriteFile(fn, []byte("not-a-real-header"), 0644)
+	err := os.WriteFile(fn, []byte("not-a-real-header"), 0o644)
 	c.Assert(err, IsNil)
 
 	_, err = snapfile.Open(fn)
@@ -143,7 +143,7 @@ func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
 
 func (s *snapFileTestSuite) TestOpenSnapdirFileEmpty(c *C) {
 	emptyFile := filepath.Join(c.MkDir(), "foo")
-	err := os.WriteFile(emptyFile, nil, 0644)
+	err := os.WriteFile(emptyFile, nil, 0o644)
 	c.Assert(err, IsNil)
 	_, err = snapfile.Open(emptyFile)
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
@@ -159,7 +159,7 @@ func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
 
 func (s *snapFileTestSuite) TestNotSnapErrorInvalidDir(c *C) {
 	tmpdir := c.MkDir()
-	err := os.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0644)
+	err := os.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0o644)
 	c.Assert(err, IsNil)
 	_, err = snapfile.Open(tmpdir)
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})

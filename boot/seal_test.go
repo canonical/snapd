@@ -325,8 +325,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		}
 
 		if tc.sealedKeys {
-			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-			err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0644)
+			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0o755), IsNil)
+			err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0o644)
 			c.Assert(err, IsNil)
 		}
 
@@ -573,8 +573,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0644)
+	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0o755), IsNil)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0o644)
 	c.Assert(err, IsNil)
 
 	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
@@ -784,8 +784,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 	model := boottest.MakeMockUC20Model()
 
-	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0644)
+	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0o755), IsNil)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0o644)
 	c.Assert(err, IsNil)
 
 	modeenv := &boot.Modeenv{
@@ -1392,10 +1392,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 
 func createMockGrubCfg(baseDir string) error {
 	cfg := filepath.Join(baseDir, "EFI/ubuntu/grub.cfg")
-	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0o644)
 }
 
 func (s *sealSuite) TestSealKeyModelParams(c *C) {
@@ -1560,8 +1560,8 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	c.Check(cnt, Equals, 1)
 
 	// exists but cannot be read
-	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
-	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0o000), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0o755)
 	needed, _, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false)
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
@@ -1705,9 +1705,9 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	defer restore()
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	err := os.MkdirAll(filepath.Dir(marker), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0o644)
 	c.Assert(err, IsNil)
 
 	defer boot.MockModeenvLocked()()
@@ -1742,9 +1742,9 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	defer restore()
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	err := os.MkdirAll(filepath.Dir(marker), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0o644)
 	c.Assert(err, IsNil)
 
 	defer boot.MockModeenvLocked()()
@@ -1768,8 +1768,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0644)
+	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0o755), IsNil)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), []byte(device.SealingMethodTPM), 0o644)
 	c.Assert(err, IsNil)
 
 	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))

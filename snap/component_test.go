@@ -689,7 +689,7 @@ func (s *infoSuite) TestComponentInstallDate(c *C) {
 	//time.Sleep(time.Second)
 	link := snap.ComponentLinkPath(cpi, snap.R(33))
 	dir, _ := filepath.Split(link)
-	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
 	c.Assert(os.Symlink(dirs.GlobalRootDir, link), IsNil)
 	st, err := os.Lstat(link)
 	c.Assert(err, IsNil)
@@ -703,7 +703,7 @@ func (s *infoSuite) TestComponentSize(c *C) {
 	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
 	mntFile := cpi.MountFile()
 	dir, _ := filepath.Split(mntFile)
-	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
 
 	// No file
 	compSz, err := snap.ComponentSize(cpi)
@@ -711,7 +711,7 @@ func (s *infoSuite) TestComponentSize(c *C) {
 	c.Check(err, ErrorMatches, `error while looking for component file .*snap\+comp_1\.comp: no such file or directory`)
 
 	// File
-	c.Assert(os.WriteFile(mntFile, []byte{0, 0}, 0644), IsNil)
+	c.Assert(os.WriteFile(mntFile, []byte{0, 0}, 0o644), IsNil)
 	compSz, err = snap.ComponentSize(cpi)
 	c.Check(compSz, Equals, int64(2))
 	c.Check(err, IsNil)

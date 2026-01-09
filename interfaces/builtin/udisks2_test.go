@@ -150,8 +150,8 @@ func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
 
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	ruleFile := filepath.Join(producerDir, "lib/udev/rules.d/99-udisks.rules")
-	os.MkdirAll(filepath.Dir(ruleFile), 0777)
-	err := os.WriteFile(ruleFile, []byte("# Test UDev file\n"), 0777)
+	os.MkdirAll(filepath.Dir(ruleFile), 0o777)
+	err := os.WriteFile(ruleFile, []byte("# Test UDev file\n"), 0o777)
 	c.Assert(err, IsNil)
 }
 
@@ -275,7 +275,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFile(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilPathRel(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0o777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
 	c.Assert(err, IsNil)
@@ -289,7 +289,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilPathRel(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilAbsSymlink(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0o777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	c.Assert(os.Symlink(outsideFile, filepath.Join(producerDir, "link")), IsNil)
 
@@ -302,7 +302,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilAbsSymlink(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilRelSymlink(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0o777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
 	c.Assert(err, IsNil)
@@ -325,7 +325,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileDoesNotExist(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileCannotOpen(c *C) {
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
-	c.Assert(os.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0o222), IsNil)
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "non-readable")
 	slot, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 

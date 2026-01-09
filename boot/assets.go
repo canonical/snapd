@@ -77,7 +77,7 @@ func (c *trustedAssetsCache) fileHash(name string) (string, error) {
 // one entry for given tuple of (bootloader name, asset name, content-hash)
 // exists in the cache.
 func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedAsset, error) {
-	if err := os.MkdirAll(c.pathInCache(blName), 0755); err != nil {
+	if err := os.MkdirAll(c.pathInCache(blName), 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create cache directory: %v", err)
 	}
 
@@ -139,7 +139,7 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 	}
 
 	newCacheRoot := dirs.SnapBootAssetsDirUnder(dstRoot)
-	if err := os.MkdirAll(newCacheRoot, 0755); err != nil {
+	if err := os.MkdirAll(newCacheRoot, 0o755); err != nil {
 		return fmt.Errorf("cannot create cache directory under new root: %v", err)
 	}
 	err := filepath.Walk(dirs.SnapBootAssetsDir, func(path string, info os.FileInfo, err error) error {

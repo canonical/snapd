@@ -1710,14 +1710,14 @@ volumes:
 	c.Check(err, ErrorMatches, "cannot read new gadget metadata: .*/new-gadget/1/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml to the new gadget
-	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0o644)
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, ErrorMatches, "cannot read current gadget metadata: .*/gadget/123/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml to the current gadget
-	err = os.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	err = os.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0o644)
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
@@ -5198,27 +5198,27 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 
 	labelBase := tc.now.Format("20060102")
 	// create a conflict with base label
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase), 0o755)
 	c.Assert(err, IsNil)
 	for i := 0; i < 5; i++ {
 		// create conflicting labels with numerical suffices
 		l := fmt.Sprintf("%s-%d", labelBase, i)
-		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", l), 0755)
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", l), 0o755)
 		c.Assert(err, IsNil)
 	}
 	// and some confusing labels
 	for _, suffix := range []string{"--", "-abc", "-abc-1", "foo", "-"} {
-		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+suffix), 0755)
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+suffix), 0o755)
 		c.Assert(err, IsNil)
 	}
 	// and a label that will force a max number
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"-990"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"-990"), 0o755)
 	c.Assert(err, IsNil)
 
 	if tc.breakPermissions {
 		systemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
-		c.Assert(os.Chmod(systemsDir, 0000), IsNil)
-		defer os.Chmod(systemsDir, 0755)
+		c.Assert(os.Chmod(systemsDir, 0o000), IsNil)
+		defer os.Chmod(systemsDir, 0o755)
 	}
 
 	chg, err := devicestate.Remodel(s.state, new, devicestate.RemodelOptions{})
@@ -5280,7 +5280,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	devicestate.SetBootOkRan(s.mgr, true)
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 
 	s.mockTasksNopHandler("fake-download", "validate-snap", "fake-install",
 		// create recovery system requests are boot, which is not done here
@@ -5597,7 +5597,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	devicestate.SetBootOkRan(s.mgr, true)
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 
 	s.mockTasksNopHandler("fake-download", "validate-snap", "fake-install",
 		// create recovery system requests are boot, which is not done here

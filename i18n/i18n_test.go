@@ -56,12 +56,12 @@ msgstr "translated singular"
 
 func makeMockTranslations(c *C, localeDir string) {
 	fullLocaleDir := filepath.Join(localeDir, "en_DK", "LC_MESSAGES")
-	err := os.MkdirAll(fullLocaleDir, 0755)
+	err := os.MkdirAll(fullLocaleDir, 0o755)
 	c.Assert(err, IsNil)
 
 	po := filepath.Join(fullLocaleDir, "snappy-test.po")
 	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
-	err = os.WriteFile(po, mockLocalePo, 0644)
+	err = os.WriteFile(po, mockLocalePo, 0o644)
 	c.Assert(err, IsNil)
 
 	cmd := exec.Command("msgfmt", po, "--output-file", mo)
@@ -132,7 +132,7 @@ func (s *i18nTestSuite) TestInvalidTextDomainDir(c *C) {
 func (s *i18nTestSuite) TestLangpackResolverFromLangpack(c *C) {
 	root := c.MkDir()
 	localeDir := filepath.Join(root, "/usr/share/locale")
-	err := os.MkdirAll(localeDir, 0755)
+	err := os.MkdirAll(localeDir, 0o755)
 	c.Assert(err, IsNil)
 
 	d := filepath.Join(root, "/usr/share/locale-langpack")

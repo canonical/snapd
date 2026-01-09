@@ -62,14 +62,14 @@ func (s *getentSuite) mockGetentOutput(c *C, value string, exit int, params ...s
 	path := []string{s.getentDir}
 	path = append(path, params...)
 	resultPath := filepath.Join(path...)
-	err := os.MkdirAll(filepath.Dir(resultPath), 0755)
+	err := os.MkdirAll(filepath.Dir(resultPath), 0o755)
 	c.Assert(err, IsNil)
 	b := []byte(value)
-	err = os.WriteFile(resultPath, b, 0644)
+	err = os.WriteFile(resultPath, b, 0o644)
 	c.Assert(err, IsNil)
 	if exit != 0 {
 		exitBytes := []byte(strconv.Itoa(exit))
-		err = os.WriteFile(resultPath+".exit", exitBytes, 0644)
+		err = os.WriteFile(resultPath+".exit", exitBytes, 0o644)
 		c.Assert(err, IsNil)
 	}
 }

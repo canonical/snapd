@@ -48,7 +48,7 @@ func (s *handlersInstallSuite) TestDoInstallPreseed(c *C) {
 	defer st.Unlock()
 
 	chroot := filepath.Join(c.MkDir(), "chroot")
-	err := os.MkdirAll(chroot, 0755)
+	err := os.MkdirAll(chroot, 0o755)
 	c.Assert(err, IsNil)
 
 	chg, err := devicestate.InstallPreseed(st, "system-label", chroot)
@@ -79,16 +79,16 @@ func (s *handlersInstallSuite) TestDoInstallPreseedFromSnap(c *C) {
 
 	tmpDir := c.MkDir()
 	chroot := filepath.Join(tmpDir, "chroot")
-	err := os.MkdirAll(chroot, 0755)
+	err := os.MkdirAll(chroot, 0o755)
 	c.Assert(err, IsNil)
 
 	// mock that we are running from a "snap" located in tmpDir
 	snapPath := filepath.Join(tmpDir, "snap/snapd/1234")
 	fakeExe := filepath.Join(snapPath, "usr/lib/snapd/snapd")
 
-	err = os.MkdirAll(filepath.Dir(fakeExe), 0755)
+	err = os.MkdirAll(filepath.Dir(fakeExe), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakeExe, nil, 0755)
+	err = os.WriteFile(fakeExe, nil, 0o755)
 	c.Assert(err, IsNil)
 
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {

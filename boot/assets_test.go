@@ -58,8 +58,8 @@ func (s *assetsSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755), IsNil)
 
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
@@ -103,7 +103,7 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	hash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	// add a new file
@@ -139,7 +139,7 @@ func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	// same source, data (new hash), existing asset name
 	newData := []byte("new foobar")
 	newHash := "5aa87615f6613a37d63c9a29746ef57457286c37148a4ae78493b0face5976c1fea940a19486e6bef65d43aec6b8f5a2"
-	err = os.WriteFile(filepath.Join(d, "foobar"), newData, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), newData, 0o644)
 	c.Assert(err, IsNil)
 
 	taExistingAssetName, err := cache.Add(filepath.Join(d, "foobar"), "grub", "bootx64.efi")
@@ -179,12 +179,12 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	d := c.MkDir()
 	cache := boot.NewTrustedAssetsCache(cacheDir)
 
-	defer os.Chmod(cacheDir, 0755)
-	err := os.Chmod(cacheDir, 0000)
+	defer os.Chmod(cacheDir, 0o755)
+	err := os.Chmod(cacheDir, 0o000)
 	c.Assert(err, IsNil)
 
 	if os.Geteuid() != 0 {
-		err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0644)
+		err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foo"), 0o644)
 		c.Assert(err, IsNil)
 		// cannot create bootloader subdirectory
 		ta, err := cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
@@ -193,7 +193,7 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 	}
 
 	// fix it now
-	err = os.Chmod(cacheDir, 0755)
+	err = os.Chmod(cacheDir, 0o755)
 	c.Assert(err, IsNil)
 
 	_, err = cache.Add(filepath.Join(d, "no-file"), "grub", "grubx64.efi")
@@ -201,8 +201,8 @@ func (s *assetsSuite) TestAssetsCacheAddErr(c *C) {
 
 	if os.Geteuid() != 0 {
 		blDir := filepath.Join(cacheDir, "grub")
-		defer os.Chmod(blDir, 0755)
-		err = os.Chmod(blDir, 0000)
+		defer os.Chmod(blDir, 0o755)
+		err = os.Chmod(blDir, 0o000)
 		c.Assert(err, IsNil)
 
 		_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
@@ -217,7 +217,7 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 
 	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	// cannot create bootloader subdirectory
 	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
@@ -245,7 +245,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	}
 
 	// pretend grub is used
-	c.Assert(os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0o755), IsNil)
 
 	for _, encryption := range []bool{true, false} {
 		obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
@@ -281,7 +281,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	d := c.MkDir()
 
 	// mock a bootloader that uses trusted assets
-	err := os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(d, "grub.conf"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// we get an observer for UC20
@@ -294,11 +294,11 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	otherData := []byte("other foobar")
-	err = os.WriteFile(filepath.Join(d, "other-foobar"), otherData, 0644)
+	err = os.WriteFile(filepath.Join(d, "other-foobar"), otherData, 0o644)
 	c.Assert(err, IsNil)
 
 	writeChange := &gadget.ContentChange{
@@ -379,7 +379,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	writeChange := &gadget.ContentChange{
@@ -448,7 +448,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithM
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
 
-	c.Assert(os.WriteFile(filepath.Join(d, "foobar"), nil, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "foobar"), nil, 0o755), IsNil)
 	writeChange := &gadget.ContentChange{
 		// file that contains the data of the installed file
 		After: filepath.Join(d, "foobar"),
@@ -538,9 +538,9 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	// the list of trusted assets was asked for run and recovery bootloaders
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
-	err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0o644)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "other"), []byte("other"), 0644)
+	err = os.WriteFile(filepath.Join(d, "other"), []byte("other"), 0o644)
 	c.Assert(err, IsNil)
 	res, err := obs.Observe(gadget.ContentWrite, gadget.SystemBoot, boot.InitramfsUbuntuBootDir, "asset",
 		&gadget.ContentChange{After: filepath.Join(d, "foobar")})
@@ -574,15 +574,15 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "asset"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "asset"), data, 0o644)
 	c.Assert(err, IsNil)
-	err = os.Mkdir(filepath.Join(d, "nested"), 0755)
+	err = os.Mkdir(filepath.Join(d, "nested"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d, "nested/other-asset"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "nested/other-asset"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
@@ -623,12 +623,12 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	// got the list of trusted assets for run and recovery bootloaders
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
-	err = os.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0644)
+	err = os.WriteFile(filepath.Join(d, "asset"), []byte("foobar"), 0o644)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d, "nested"), 0755)
+	err = os.MkdirAll(filepath.Join(d, "nested"), 0o755)
 	c.Assert(err, IsNil)
 	// same asset name but different content
-	err = os.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0644)
+	err = os.WriteFile(filepath.Join(d, "nested/asset"), []byte("other"), 0o644)
 	c.Assert(err, IsNil)
 	err = obs.ObserveExistingTrustedRecoveryAssets(d)
 	// same asset name but different content
@@ -696,17 +696,17 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
+	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0o644)
 	c.Assert(err, IsNil)
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	m := boot.Modeenv{
@@ -821,11 +821,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	// add one file to the cache, as if the system got rebooted before
@@ -923,7 +923,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	m := boot.Modeenv{
@@ -1087,7 +1087,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	c.Assert(err, IsNil)
 
 	// and the source file
-	err = os.WriteFile(filepath.Join(d, "foobar"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
@@ -1112,13 +1112,13 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
+	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0o644)
 	c.Assert(err, IsNil)
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	// pretend we rebooted mid update and have successfully booted with the
@@ -1201,23 +1201,23 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 	// file exists in both run and seed bootloader rootdirs
-	c.Assert(os.WriteFile(filepath.Join(root, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(rootSeed, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(root, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(rootSeed, "asset"), data, 0o644), IsNil)
 	// and in the gadget
-	c.Assert(os.WriteFile(filepath.Join(d, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "asset"), data, 0o644), IsNil)
 	// would be listed as Before
-	c.Assert(os.WriteFile(filepath.Join(backups, "asset.backup"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(backups, "asset.backup"), data, 0o644), IsNil)
 
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 	// only exists in seed bootloader rootdir
-	c.Assert(os.WriteFile(filepath.Join(rootSeed, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(rootSeed, "shim"), shim, 0o644), IsNil)
 	// and in the gadget
-	c.Assert(os.WriteFile(filepath.Join(d, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "shim"), shim, 0o644), IsNil)
 	// would be listed as Before
-	c.Assert(os.WriteFile(filepath.Join(backups, "shim.backup"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(backups, "shim.backup"), data, 0o644), IsNil)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	// mock some files in cache
 	for _, name := range []string{
 		fmt.Sprintf("asset-%s", dataHash),
@@ -1226,7 +1226,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 		"asset-newhash",
 		"other-asset-newotherhash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1374,7 +1374,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	c.Check(res, Equals, gadget.ChangeAbort)
 
 	// create the file which will fail checksum check
-	err = os.WriteFile(filepath.Join(root, "asset"), nil, 0644)
+	err = os.WriteFile(filepath.Join(root, "asset"), nil, 0o644)
 	c.Assert(err, IsNil)
 	// once more, the file exists on disk, but has unexpected checksum
 	res, err = obs.Observe(gadget.ContentRollback, gadget.SystemBoot, root, "asset",
@@ -1395,7 +1395,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	seedDir := c.MkDir()
 
 	// prepare a marker for grub bootloader
-	c.Assert(os.WriteFile(filepath.Join(gadgetDir, "grub.conf"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(gadgetDir, "grub.conf"), nil, 0o644), IsNil)
 
 	// we get an observer for UC20
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
@@ -1452,9 +1452,9 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	} {
 		for _, f := range dir.fileWithContent {
 			p := filepath.Join(dir.root, f[0])
-			err := os.MkdirAll(filepath.Dir(p), 0755)
+			err := os.MkdirAll(filepath.Dir(p), 0o755)
 			c.Assert(err, IsNil)
-			err = os.WriteFile(p, []byte(f[1]), 0644)
+			err = os.WriteFile(p, []byte(f[1]), 0o644)
 			c.Assert(err, IsNil)
 			if dir.addContentToCache {
 				_, err = cache.Add(p, "grub", filepath.Base(p))
@@ -1591,13 +1591,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock some files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"shim-shimhash",
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1612,11 +1612,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "asset",
@@ -1695,21 +1695,21 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock some files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"shim-shimhash",
 		"asset-assethash",
 		fmt.Sprintf("shim-%s", shimHash),
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1799,13 +1799,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"shim-shimhash",
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1840,7 +1840,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 
 	c.Check(resealCalls, Equals, 0)
 
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0o644)
 	c.Assert(err, IsNil)
 	// observe only recovery bootloader update, no action for run bootloader
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
@@ -1879,7 +1879,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// trigger loading modeenv and bootloader information
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0o644)
 	c.Assert(err, IsNil)
 	// observe an update only for the recovery bootloader, the run bootloader trusted assets remain empty
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
@@ -1937,7 +1937,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// trigger loading modeenv and bootloader information
-	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), []byte("shim"), 0o644)
 	c.Assert(err, IsNil)
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
@@ -1993,12 +1993,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	c.Assert(err, IsNil)
 
 	// mock the files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -2011,7 +2011,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "shim",
 		&gadget.ContentChange{After: filepath.Join(d, "shim")})
@@ -2040,8 +2040,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	})
 
 	// make cache directory read only and thus cache.Remove() fail
-	c.Assert(os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0444), IsNil)
-	defer os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755)
+	c.Assert(os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o444), IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755)
 
 	// cancel should not fail, even though files cannot be removed from cache
 	err = obs.Canceled()
@@ -2111,10 +2111,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2167,10 +2167,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootRevocation(c *C) {
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2225,10 +2225,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoRevocation(c *C) {
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2282,9 +2282,9 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	unexpectedHash := "2c823b62c52e614e48faac7e8b1fbb8ff3aee4d06b6f7fe5bd7d64953162b6e9879ead4827fa19c8c9a514585ddac94c"
 
 	// asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0o644), IsNil)
 	// and for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2303,7 +2303,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 
 	// make the run bootloader asset an expected one, we should still fail
 	// on the recovery bootloader asset
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 
 	newM, drop, _, err = boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected recovery bootloader asset "asset" hash %v`, unexpectedHash))
@@ -2326,10 +2326,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2365,9 +2365,9 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
 	// ubuntu-boot booted with maybe-drop asset
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), maybeDrop, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), maybeDrop, 0o644), IsNil)
 
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2409,10 +2409,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2455,8 +2455,8 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0000), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0000), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o000), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o000), IsNil)
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2518,7 +2518,7 @@ func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
 
 	for _, entry := range entries {
 		p := filepath.Join(dirs.SnapBootAssetsDir, entry.name)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
+		err = os.MkdirAll(filepath.Dir(p), 0o755)
 		c.Assert(err, IsNil)
 		err = os.WriteFile(p, []byte(entry.content), os.FileMode(entry.mode))
 		c.Assert(err, IsNil)
@@ -2553,10 +2553,10 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	// non-writable root
 	newRoot = c.MkDir()
 	nonWritableRoot := filepath.Join(newRoot, "non-writable")
-	err = os.MkdirAll(nonWritableRoot, 0000)
+	err = os.MkdirAll(nonWritableRoot, 0o000)
 	c.Assert(err, IsNil)
 	dirs.SnapBootAssetsDir = c.MkDir()
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0o644)
 	c.Assert(err, IsNil)
 	err = boot.CopyBootAssetsCacheToRoot(nonWritableRoot)
 	c.Assert(err, ErrorMatches, `cannot create cache directory under new root: mkdir .*: permission denied`)
@@ -2564,7 +2564,7 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	// file cannot be read
 	newRoot = c.MkDir()
 	dirs.SnapBootAssetsDir = c.MkDir()
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0000)
+	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "file"), nil, 0o000)
 	c.Assert(err, IsNil)
 	err = boot.CopyBootAssetsCacheToRoot(newRoot)
 	c.Assert(err, ErrorMatches, `cannot copy boot asset cache file "file": failed to copy all: .*`)
@@ -2573,13 +2573,13 @@ func (s *assetsSuite) TestCopyBootAssetsCacheUnhappy(c *C) {
 	newRoot = c.MkDir()
 	dirs.SnapBootAssetsDir = c.MkDir()
 	// make a directory at destination non writable
-	err = os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0755)
+	err = os.MkdirAll(dirs.SnapBootAssetsDirUnder(newRoot), 0o755)
 	c.Assert(err, IsNil)
-	err = os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0000)
+	err = os.Chmod(dirs.SnapBootAssetsDirUnder(newRoot), 0o000)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "dir"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0000)
+	err = os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "dir", "file"), nil, 0o000)
 	c.Assert(err, IsNil)
 	err = boot.CopyBootAssetsCacheToRoot(newRoot)
 	c.Assert(err, ErrorMatches, `cannot recreate cache directory "dir": .*: permission denied`)
@@ -2596,17 +2596,17 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	// try to arrange the backups like the updater would do it
 	before := []byte("before")
 	beforeHash := "2df0976fd45ba2392dc7985cdfb7c2d096c1ea4917929dd7a0e9bffae90a443271e702663fc6a4189c1f4ab3ce7daee3"
-	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0644)
+	err := os.WriteFile(filepath.Join(backups, "asset.backup"), before, 0o644)
 	c.Assert(err, IsNil)
 
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	tab := s.bootloaderWithTrustedAssets(map[string]string{
@@ -2754,13 +2754,13 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	root := c.MkDir()
 
 	// mock some files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"shim-shimhash",
 		"asset-assethash",
 		"asset-recoveryhash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -2795,10 +2795,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	c.Assert(err, IsNil)
 
 	data := []byte("foobar")
-	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err = os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 	shim := []byte("shim")
-	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
+	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0o644)
 	c.Assert(err, IsNil)
 
 	// trigger a bunch of updates, so that we have things to cancel
@@ -2920,7 +2920,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 
 	// try to arrange the backups like the updater would do it
 	data := []byte("foobar")
-	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0o644)
 	c.Assert(err, IsNil)
 
 	m := boot.Modeenv{
@@ -3038,8 +3038,8 @@ func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
 
 	root := c.MkDir()
 
-	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0o644), IsNil)
 
 	change := &gadget.ContentChange{After: filepath.Join(d, "C")}
 	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "C", change)
@@ -3118,8 +3118,8 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(obs, NotNil)
 
-	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0o644), IsNil)
 
 	obs.ObserveExistingTrustedRecoveryAssets(d)
 

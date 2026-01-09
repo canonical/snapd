@@ -181,7 +181,7 @@ NeedDaemonReload=no
 	// in install mode or uc20 run mode, etc. and we don't want to use the
 	// host's proc/cmdline
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
-	err := os.WriteFile(mockCmdline, nil, 0644)
+	err := os.WriteFile(mockCmdline, nil, 0o644)
 	c.Assert(err, IsNil)
 	restore = kcmdline.MockProcCmdline(mockCmdline)
 	s.AddCleanup(restore)

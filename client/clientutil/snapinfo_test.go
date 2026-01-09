@@ -95,7 +95,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		},
 	}
 	// valid InstallDate
-	err := os.MkdirAll(si.MountDir(), 0755)
+	err := os.MkdirAll(si.MountDir(), 0o755)
 	c.Assert(err, IsNil)
 	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
 	c.Assert(err, IsNil)
@@ -201,9 +201,9 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 	c.Check(si.IsActive(), Equals, false)
 	// desktop file
 	df := si.Apps["app"].DesktopFile()
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	sd := &testStatusDecorator{}
@@ -244,7 +244,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
 	}
 	// make it active
-	err := os.MkdirAll(si.MountDir(), 0755)
+	err := os.MkdirAll(si.MountDir(), 0o755)
 	c.Assert(err, IsNil)
 	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
 	c.Assert(err, IsNil)

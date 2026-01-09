@@ -249,7 +249,7 @@ func (o *Overlord) addManager(mgr StateManager) {
 
 func initStateFileLock() (*osutil.FileLock, error) {
 	lockFilePath := dirs.SnapStateLockFile
-	if err := os.MkdirAll(filepath.Dir(lockFilePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lockFilePath), 0o755); err != nil {
 		return nil, err
 	}
 

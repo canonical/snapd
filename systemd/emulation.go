@@ -160,7 +160,7 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 	}
 
 	// Create directory as systemd would do when starting the unit
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0o755); err != nil {
 		return "", err
 	}
 

@@ -32,7 +32,7 @@ func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
 	restore := syscheck.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
+	err := os.Chmod(filepath.Dir(epermProfilePath), 0o444)
 	c.Assert(err, IsNil)
 
 	err = syscheck.CheckApparmorUsable()

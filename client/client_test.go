@@ -148,8 +148,8 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 }
 
 func makeMaintenanceFile(c *C, b []byte) {
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0o644), IsNil)
 }
 
 func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
@@ -331,7 +331,7 @@ func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
 }
 
 func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
-	c.Assert(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+	c.Assert(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0o644), IsNil)
 
 	email, err := cs.cli.WhoAmI()
 	c.Check(err, NotNil)
@@ -417,7 +417,7 @@ func (cs *clientSuite) TestServerVersion(c *C) {
 }
 
 func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0o755), IsNil)
 	l, err := net.Listen("unix", dirs.SnapdSocket)
 	if err != nil {
 		c.Fatalf("unable to listen on %q: %v", dirs.SnapdSocket, err)
@@ -444,7 +444,7 @@ func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
 }
 
 func (cs *clientSuite) TestSnapClientIntegration(c *C) {
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0o755), IsNil)
 	l, err := net.Listen("unix", dirs.SnapSocket)
 	if err != nil {
 		c.Fatalf("unable to listen on %q: %v", dirs.SnapSocket, err)

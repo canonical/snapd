@@ -80,7 +80,7 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 
 	fakeAuthPath := filepath.Join(c.MkDir(), "auth.json")
 	os.Setenv("SNAPD_AUTH_DATA_FILENAME", fakeAuthPath)
-	err := os.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0644)
+	err := os.WriteFile(fakeAuthPath, []byte(`{"macaroon":"user-macaroon"}`), 0o644)
 	c.Assert(err, IsNil)
 }
 

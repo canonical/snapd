@@ -129,7 +129,7 @@ func (b *Backend) ensureConfigfiles(spec *Specification, cfgPatterns []string) e
 		}
 		targetDir := filepath.Dir(pattern)
 		if len(matched) > 0 {
-			if err := os.MkdirAll(targetDir, 0755); err != nil {
+			if err := os.MkdirAll(targetDir, 0o755); err != nil {
 				return fmt.Errorf("cannot create directory %q: %v", targetDir, err)
 			}
 		}

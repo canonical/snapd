@@ -199,7 +199,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
 	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	c.Assert(err, IsNil)
 
 	// needed by hooks
@@ -231,7 +231,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") })
 
 	// create a fake systemd environment
-	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0o755)
 
 	r = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
@@ -491,9 +491,9 @@ SNAPD_APPARMOR_REEXEC=1
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11", "30"} {
 			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
-			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			err = os.MkdirAll(filepath.Dir(infoFile), 0o755)
 			c.Assert(err, IsNil)
-			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0o644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -513,9 +513,9 @@ SNAPD_APPARMOR_REEXEC=1
 	// setup cloud-init as restricted so that tests by default don't run the
 	// full EnsureCloudInitRestricted logic in the devicestate mgr
 	snapdCloudInitRestrictedFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
-	err = os.MkdirAll(filepath.Dir(snapdCloudInitRestrictedFile), 0755)
+	err = os.MkdirAll(filepath.Dir(snapdCloudInitRestrictedFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(snapdCloudInitRestrictedFile, nil, 0644)
+	err = os.WriteFile(snapdCloudInitRestrictedFile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -4082,7 +4082,7 @@ type storeCtxSetupSuite struct {
 func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	c.Assert(err, IsNil)
 
 	captureStoreCtx := func(_ *store.Config, dac store.DeviceAndAuthContext) *store.Store {
@@ -6985,9 +6985,9 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockServer.Close()
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
-	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	err = os.MkdirAll(filepath.Dir(fname), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0o644)
 	c.Assert(err, IsNil)
 
 	pDBhv := &devicestatetest.PrepareDeviceBehavior{
@@ -7137,9 +7137,9 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	mockDeviceService, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	defer mockDeviceService.Close()
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
-	err = os.MkdirAll(filepath.Dir(fname), 0755)
+	err = os.MkdirAll(filepath.Dir(fname), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0o644)
 	c.Assert(err, IsNil)
 
 	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil)
@@ -7397,12 +7397,12 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	defer restore()
 
 	// mock directories that need to be tweaked by the test
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Base(dirs.SnapSeedDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Base(dirs.SnapSeedDir), 0o755), IsNil)
 	// this is a bind mount in a real system
 	c.Assert(os.Symlink(boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir), IsNil)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0o755), IsNil)
 	restore = kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 
@@ -7418,43 +7418,43 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 		filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg"),
 		filepath.Join(dirs.GlobalRootDir, "/boot/grub/grubenv"),
 	} {
-		c.Assert(os.MkdirAll(filepath.Dir(env), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(env), 0o755), IsNil)
 		switch filepath.Base(env) {
 		case "grubenv":
 			e := grubenv.NewEnv(env)
 			c.Assert(e.Save(), IsNil)
 		case "grub.cfg":
-			c.Assert(os.WriteFile(env, []byte(grubBootConfig), 0644), IsNil)
+			c.Assert(os.WriteFile(env, []byte(grubBootConfig), 0o644), IsNil)
 		case "grubx64.efi", "bootx64.efi":
-			c.Assert(os.WriteFile(env, []byte("content"), 0644), IsNil)
+			c.Assert(os.WriteFile(env, []byte("content"), 0o644), IsNil)
 		default:
-			c.Assert(os.WriteFile(env, nil, 0644), IsNil)
+			c.Assert(os.WriteFile(env, nil, 0o644), IsNil)
 		}
 	}
 
 	if encrypted {
 		// boot assets are measured on an encrypted system
 		assetsCacheDir := filepath.Join(dirs.SnapBootAssetsDirUnder(dirs.GlobalRootDir), "grub")
-		c.Assert(os.MkdirAll(assetsCacheDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(assetsCacheDir, 0o755), IsNil)
 		for _, cachedAsset := range []string{
 			"grubx64.efi-21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848",
 			"bootx64.efi-21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848",
 		} {
-			err := os.WriteFile(filepath.Join(assetsCacheDir, cachedAsset), []byte("content"), 0644)
+			err := os.WriteFile(filepath.Join(assetsCacheDir, cachedAsset), []byte("content"), 0o644)
 			c.Assert(err, IsNil)
 		}
 	}
 
 	// state of booted kernel
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "boot/grub/pc-kernel_2.snap"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "boot/grub/pc-kernel_2.snap"), 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/boot/grub/pc-kernel_2.snap/kernel.efi"),
 		[]byte("kernel-efi"), 0755), IsNil)
 	c.Assert(os.Symlink("pc-kernel_2.snap/kernel.efi", filepath.Join(dirs.GlobalRootDir, "boot/grub/kernel.efi")), IsNil)
 
 	if encrypted {
 		stamp := filepath.Join(dirs.SnapFDEDir, "sealed-keys")
-		c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-		c.Assert(os.WriteFile(stamp, nil, 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(stamp), 0o755), IsNil)
+		c.Assert(os.WriteFile(stamp, nil, 0o644), IsNil)
 	}
 
 	// new snaps from the store
@@ -7523,7 +7523,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	bazInfo := s.makeInstalledSnapInStateForRemodel(c, "baz", snap.R(21), "4.14/stable")
 
 	// state of the current model
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 
 	model := s.brands.Model("can0nical", "my-model", uc20ModelDefaults)
 
@@ -7893,12 +7893,12 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 	s.AddCleanup(restore)
 
 	// mock directories that need to be tweaked by the test
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Base(dirs.SnapSeedDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Base(dirs.SnapSeedDir), 0o755), IsNil)
 	// this is a bind mount in a real system
 	c.Assert(os.Symlink(boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir), IsNil)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0o755), IsNil)
 	restore = kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
 
@@ -7909,20 +7909,20 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 		filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg"),
 		filepath.Join(dirs.GlobalRootDir, "/boot/grub/grubenv"),
 	} {
-		c.Assert(os.MkdirAll(filepath.Dir(env), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(env), 0o755), IsNil)
 		switch filepath.Base(env) {
 		case "grubenv":
 			e := grubenv.NewEnv(env)
 			c.Assert(e.Save(), IsNil)
 		case "grub.cfg":
-			c.Assert(os.WriteFile(env, []byte(grubBootConfig), 0644), IsNil)
+			c.Assert(os.WriteFile(env, []byte(grubBootConfig), 0o644), IsNil)
 		default:
 			c.Fatalf("unexpected file %v", env)
 		}
 	}
 
 	// state of booted kernel
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "boot/grub/pc-kernel_2.snap"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "boot/grub/pc-kernel_2.snap"), 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/boot/grub/pc-kernel_2.snap/kernel.efi"),
 		[]byte("kernel-efi"), 0755), IsNil)
 	c.Assert(os.Symlink("pc-kernel_2.snap/kernel.efi", filepath.Join(dirs.GlobalRootDir, "boot/grub/kernel.efi")), IsNil)
@@ -7943,7 +7943,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C, model
 	snapdInfo := s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4), "latest/stable")
 
 	// state of the current model
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 
 	modelArgs := []map[string]any{uc20ModelDefaults}
 	modelArgs = append(modelArgs, modelExtras...)
@@ -8438,7 +8438,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 
 func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0o755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
@@ -8623,7 +8623,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	// present (possibly due to being used by one of the previous models)
 	// but tracks a different channel than what the new model ordains
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0o755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
@@ -8820,7 +8820,7 @@ plugs:
 func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0o755), IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]any{
@@ -10349,14 +10349,14 @@ WantedBy=multi-user.target
 		"Requires",
 	)
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	err := os.MkdirAll(dirs.SnapServicesDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), []byte(initialUnitFile), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), []byte(initialUnitFile), 0o644)
 	c.Assert(err, IsNil)
 
 	// we also need to setup the usr-lib-snapd.mount file too
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// the modification time of the usr-lib-snapd.mount file is the first
@@ -10584,14 +10584,14 @@ WantedBy=multi-user.target
 		"Requires",
 	)
 
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	err := os.MkdirAll(dirs.SnapServicesDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), []byte(initialUnitFile), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), []byte(initialUnitFile), 0o644)
 	c.Assert(err, IsNil)
 
 	// we also need to setup the usr-lib-snapd.mount file too
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// the modification time of the usr-lib-snapd.mount file is the first
@@ -11181,7 +11181,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	defer restore()
 
 	cmdlineAfterRebootPath := filepath.Join(c.MkDir(), "mock-cmdline")
-	c.Assert(os.WriteFile(cmdlineAfterRebootPath, []byte(commandLineAfterReboot), 0644), IsNil)
+	c.Assert(os.WriteFile(cmdlineAfterRebootPath, []byte(commandLineAfterReboot), 0o644), IsNil)
 
 	// pretend we booted with the right kernel
 	bl.SetBootVars(map[string]string{"snap_kernel": "pc-kernel_1.snap"})
@@ -11899,12 +11899,12 @@ func (bs *baseMgrsSuite) makeMockedDisk(c *C, partNames []string) {
 
 	// mock /dev/disk/by-label/{structureName}
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
-	err := os.MkdirAll(byLabelDir, 0755)
+	err := os.MkdirAll(byLabelDir, 0o755)
 	c.Assert(err, IsNil)
 	fakeDiskDeviceNode := filepath.Join(dirs.GlobalRootDir, "/dev/vda")
 	fakePartDeviceNode := fakeDiskDeviceNode + "p1"
 	// create fakedevice node
-	err = os.WriteFile(fakePartDeviceNode, nil, 0644)
+	err = os.WriteFile(fakePartDeviceNode, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	for _, partName := range partNames {
@@ -11916,7 +11916,7 @@ func (bs *baseMgrsSuite) makeMockedDisk(c *C, partNames []string) {
 		bs.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/run/mnt/%[2]s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, partName)))
 
 		// and mock the mount point
-		err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", partName), 0755)
+		err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", partName), 0o755)
 		c.Assert(err, IsNil)
 	}
 
@@ -12556,12 +12556,12 @@ func (ms *gadgetUpdatesSuite) SetUpTest(c *C) {
 func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	// mock /dev/disk/by-label/{structureName}
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
-	err := os.MkdirAll(byLabelDir, 0755)
+	err := os.MkdirAll(byLabelDir, 0o755)
 	c.Assert(err, IsNil)
 	fakeDiskDeviceNode := filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0")
 	fakePartDeviceNode := fakeDiskDeviceNode + "p1"
 	// create fakedevice node
-	err = os.WriteFile(fakePartDeviceNode, nil, 0644)
+	err = os.WriteFile(fakePartDeviceNode, nil, 0o644)
 	c.Assert(err, IsNil)
 	// and point the mocked by-label entry to the fakedevice node
 	err = os.Symlink(fakePartDeviceNode, filepath.Join(byLabelDir, structureName))
@@ -12571,7 +12571,7 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	ms.AddCleanup(osutil.MockMountInfo(fmt.Sprintf("26 27 8:3 / %[1]s/run/mnt/%[2]s rw,relatime shared:7 - vfat %[1]s/dev/fakedevice0p1 rw", dirs.GlobalRootDir, structureName)))
 
 	// and mock the mount point
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0o755)
 	c.Assert(err, IsNil)
 
 	mockDisk := &disks.MockDiskMapping{
@@ -14154,8 +14154,8 @@ func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	}
 
 	// prevent catalog refresh
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0o644), IsNil)
 
 	st.Unlock()
 	s.o.Settle(settleTimeout)
@@ -14370,7 +14370,7 @@ type: snapd`
 
 	// we also need to setup the usr-lib-snapd.mount file too
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err := os.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err := os.WriteFile(usrLibSnapdMountFile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	systemctlCalls := 0
@@ -14537,8 +14537,8 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	}
 
 	// prevent catalog refresh
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
-	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0o644), IsNil)
 
 	st := s.o.State()
 	st.Lock()

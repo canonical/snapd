@@ -141,10 +141,10 @@ func (s *componentRefSuite) TestComponentRefFromSnapPack(c *C) {
 	root := c.MkDir()
 
 	packDir := filepath.Join(root, "component")
-	err := os.Mkdir(packDir, 0755)
+	err := os.Mkdir(packDir, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.Mkdir(filepath.Join(packDir, "meta"), 0755)
+	err = os.Mkdir(filepath.Join(packDir, "meta"), 0o755)
 	c.Assert(err, IsNil)
 
 	// check parsing a component with a version

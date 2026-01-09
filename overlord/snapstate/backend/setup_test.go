@@ -66,7 +66,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0o755)
 	c.Assert(err, IsNil)
 
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -311,7 +311,7 @@ type: kernel
 
 func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
 	// symlink the test snap under target blob dir where SetupSnap would normally
 	// install it, so that it realizes there is nothing to do.
 	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
@@ -339,7 +339,7 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 
 func (s *setupSuite) TestSetupUndoKeepsTargetSnapIgnoredIfNotSymlink(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), IsNil)
 	// copy test snap to target blob dir where SetupSnap would normally install it,
 	// so that it realizes there is nothing to do.
 	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
@@ -705,8 +705,8 @@ func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
 	// Files from the early-mounted snap
 	snapdir := filepath.Join(dirs.SnapMountDir, "kernel/33")
 	fwdir := filepath.Join(snapdir, "firmware")
-	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(fwdir, "bar.bin"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(fwdir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwdir, "bar.bin"), []byte{}, 0o644), IsNil)
 
 	// Run set-up
 	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
@@ -732,7 +732,7 @@ func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
 	// File from the early-mounted snap
 	snapdir := filepath.Join(dirs.SnapMountDir, "kernel/33")
 	fwdir := filepath.Join(snapdir, "firmware")
-	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwdir, 0o755), IsNil)
 	// Force failure via unexpected file type
 	c.Assert(syscall.Mkfifo(filepath.Join(fwdir, "fifo"), 0666), IsNil)
 
@@ -755,14 +755,14 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 		compDir := filepath.Join(dirs.SnapMountDir,
 			ksnap, "components", "mnt", compName, compRev.String())
 		modsDir := filepath.Join(compDir, "modules/6.5.4-3-generic")
-		c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(modsDir, 0o755), IsNil)
 		c.Assert(os.WriteFile(filepath.Join(modsDir, "foo.ko"),
 			[]byte{}, 0644), IsNil)
 
 		// Link that marks it as active
 		snapCompForRevDir := filepath.Join(dirs.SnapMountDir,
 			ksnap, "components", kernRev.String())
-		c.Assert(os.MkdirAll(snapCompForRevDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(snapCompForRevDir, 0o755), IsNil)
 		linkPath := filepath.Join(snapCompForRevDir, compName)
 		// Might have a link for a previous component revision
 		err := os.Remove(linkPath)
@@ -809,9 +809,9 @@ func (s *setupSuite) TestSetupKernelModulesComponentsNoComps(c *C) {
 	revStr := kernRev.String()
 	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
 	fwdir := filepath.Join(snapdir, "firmware")
-	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwdir, 0o755), IsNil)
 	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
-	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modsdir, 0o755), IsNil)
 
 	// Run kernel set-up
 	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
@@ -873,7 +873,7 @@ func (s *setupSuite) testSetupAndRemoveKernelModulesComponentsWithModulesInSnapD
 
 	if withKernelYaml {
 		metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
-		c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+		c.Assert(os.MkdirAll(metadir, 0o755), IsNil)
 		os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
 			[]byte("dynamic-modules: $SNAP_DATA"), 0655)
 	}
@@ -881,11 +881,11 @@ func (s *setupSuite) testSetupAndRemoveKernelModulesComponentsWithModulesInSnapD
 	// Create modules and fw in SNAP_DATA
 	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules")
 	kernModsDir := filepath.Join(modsDir, "6.5.4-3-generic")
-	c.Assert(os.MkdirAll(kernModsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(kernModsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(kernModsDir, "dynamic.ko"),
 		[]byte{}, 0644), IsNil)
 	fwDir := filepath.Join(snap.DataDir(ksnap, kernRev), "firmware")
-	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(fwDir, "somefw.bin"),
 		[]byte{}, 0644), IsNil)
 
@@ -938,9 +938,9 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 	revStr := kernRev.String()
 	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
 	fwdir := filepath.Join(snapdir, "firmware")
-	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwdir, 0o755), IsNil)
 	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
-	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modsdir, 0o755), IsNil)
 
 	// Run kernel set-up
 	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
@@ -972,9 +972,9 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 	revStr := kernRev.String()
 	snapdir := filepath.Join(dirs.SnapMountDir, ksnap, revStr)
 	fwdir := filepath.Join(snapdir, "firmware")
-	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(fwdir, 0o755), IsNil)
 	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
-	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+	c.Assert(os.MkdirAll(modsdir, 0o755), IsNil)
 
 	// Run kernel set-up
 	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)

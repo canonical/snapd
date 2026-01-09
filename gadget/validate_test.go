@@ -774,7 +774,7 @@ volumes:
 	// make it a directory
 	err = os.Remove(fooPath)
 	c.Assert(err, IsNil)
-	err = os.Mkdir(fooPath, 0755)
+	err = os.Mkdir(fooPath, 0o755)
 	c.Assert(err, IsNil)
 	// validate should no longer complain
 	err = gadget.ValidateContent(ginfo, s.dir, "")

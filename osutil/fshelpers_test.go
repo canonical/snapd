@@ -35,7 +35,7 @@ var _ = Suite(&groupFindGidOwningSuite{})
 
 func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	name := filepath.Join(c.MkDir(), "testownedfile")
-	err := os.WriteFile(name, nil, 0644)
+	err := os.WriteFile(name, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	gid, err := osutil.FindGidOwning(name)

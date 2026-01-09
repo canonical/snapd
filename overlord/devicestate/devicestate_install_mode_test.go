@@ -656,9 +656,9 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		bootloader.Force(tab)
 		s.AddCleanup(func() { bootloader.Force(nil) })
 
-		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
+		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -680,7 +680,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
 	if tc.bypass {
-		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0755)
+		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0o755)
 		c.Assert(err, IsNil)
 		f, err := os.Create(bypassEncryptionPath)
 		c.Assert(err, IsNil)
@@ -715,7 +715,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	// normally done by snap-bootstrap
-	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755)
 	c.Assert(err, IsNil)
 
 	s.settle(c)
@@ -1924,7 +1924,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	// normally done by snap-bootstrap
-	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755)
 	c.Assert(err, IsNil)
 
 	s.settle(c)
@@ -1992,7 +1992,7 @@ func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) 
 	c.Assert(err, IsNil)
 	// replace gadget yaml with one that has no ubuntu-save
 	c.Assert(uc20gadgetYaml, Not(testutil.Contains), "ubuntu-save")
-	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(uc20gadgetYaml), 0644)
+	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(uc20gadgetYaml), 0o644)
 	c.Assert(err, IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
@@ -2306,7 +2306,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		if tc.encrypt {
 			devForRole[gadget.SystemSave] = "/dev/foo-save"
 		}
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0o755), IsNil)
 		return &install.InstalledSystemSideData{
 			BootstrappedContainerForRole: installKeyForRole,
 			DeviceForRole:                devForRole,
@@ -2322,9 +2322,9 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		bootloader.Force(tab)
 		s.AddCleanup(func() { bootloader.Force(nil) })
 
-		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
+		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -2462,12 +2462,12 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 
 	// normally done by snap-bootstrap when booting info factory-reset
-	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755)
 	c.Assert(err, IsNil)
 	if !tc.noSave {
 		// since there is no save, there is no mount and no target
 		// directory created by systemd-mount
-		err = os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+		err = os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 		c.Assert(err, IsNil)
 	}
 
@@ -2614,7 +2614,7 @@ echo "mock output of: $(basename "$0") $*"
 	defer mockedSnapCmd.Restore()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 	// and it has some content
 	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
@@ -2714,7 +2714,7 @@ echo "mock output of: $(basename "$0") $*"
 	defer mockedSnapCmd.Restore()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 	snaptest.PopulateDir(boot.InitramfsSeedEncryptionKeyDir, [][]string{
 		{"ubuntu-data.recovery.sealed-key", "old-data"},
@@ -2725,9 +2725,9 @@ echo "mock output of: $(basename "$0") $*"
 	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
 		model, devKey, "serial-1234")
 
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -2807,7 +2807,7 @@ echo "mock output of: $(basename "$0") $*"
 	defer mockedSnapCmd.Restore()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 	snaptest.PopulateDir(boot.InitramfsSeedEncryptionKeyDir, [][]string{
 		{"ubuntu-data.recovery.sealed-key", "old-data"},
@@ -2819,9 +2819,9 @@ echo "mock output of: $(basename "$0") $*"
 	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
 		model, devKey, "serial-1234")
 
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -2895,7 +2895,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 
 	kp, err := asserts.OpenFSKeypairManager(boot.InstallHostDeviceSaveDir)
@@ -2942,7 +2942,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 
 	// no serials, no device keys
@@ -3007,9 +3007,9 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyEncrypted(c *C) {
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save and there is an encryption marker file
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// no serials, no device keys
@@ -3030,7 +3030,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyUnencrypted(c *C) 
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save but there is no encryption marker
-	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0o755)
 	c.Assert(err, IsNil)
 
 	// no serials, no device keys
@@ -3063,7 +3063,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 
 	kp, err := asserts.OpenFSKeypairManager(boot.InstallHostDeviceSaveDir)
@@ -3138,7 +3138,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0o755), IsNil)
 		return &install.InstalledSystemSideData{
 			DeviceForRole: map[string]string{
 				"ubuntu-save": "/dev/foo",
@@ -3220,7 +3220,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	defer restore()
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(mod)), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(mod)), 0o755), IsNil)
 		return &install.InstalledSystemSideData{
 			DeviceForRole: map[string]string{
 				"ubuntu-save": "/dev/foo",
@@ -3309,7 +3309,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetRunsPrepareRunSystemData(c *
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
-	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0o755)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -3353,7 +3353,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithUbuntuSaveSnapFoldersHappy(c 
 	// We do this as this is the easiest way for us to trigger the conditions
 	// where it creates the per-snap folders
 	snapSaveDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/save")
-	err := os.MkdirAll(snapSaveDir, 0755)
+	err := os.MkdirAll(snapSaveDir, 0o755)
 	c.Assert(err, IsNil)
 
 	restore = osutil.MockMountInfo(fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))

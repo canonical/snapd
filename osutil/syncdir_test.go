@@ -46,7 +46,7 @@ func (s *EnsureDirStateSuite) SetUpTest(c *C) {
 
 func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	name := filepath.Join(s.dir, "expected.snap")
-	err := os.WriteFile(name, []byte("expected"), 0600)
+	err := os.WriteFile(name, []byte("expected"), 0o600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"expected.snap": &osutil.MemoryFileState{Content: []byte("expected"), Mode: 0600},
@@ -65,11 +65,11 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 
 func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	name1 := filepath.Join(s.dir, "expected.snap")
-	err := os.WriteFile(name1, []byte("expected-1"), 0600)
+	err := os.WriteFile(name1, []byte("expected-1"), 0o600)
 	c.Assert(err, IsNil)
 
 	name2 := filepath.Join(s.dir, "expected.snap-update-ns")
-	err = os.WriteFile(name2, []byte("expected-2"), 0600)
+	err = os.WriteFile(name2, []byte("expected-2"), 0o600)
 	c.Assert(err, IsNil)
 
 	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]osutil.FileState{
@@ -94,7 +94,7 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 
 func (s *EnsureDirStateSuite) TestMultipleMatches(c *C) {
 	name := filepath.Join(s.dir, "foo")
-	err := os.WriteFile(name, []byte("content"), 0600)
+	err := os.WriteFile(name, []byte("content"), 0o600)
 	c.Assert(err, IsNil)
 	// When a file is matched by multiple globs it removed correctly.
 	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"foo", "f*"}, nil)
@@ -122,7 +122,7 @@ func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 
 func (s *EnsureDirStateSuite) TestRemovesUnexpectedFiless(c *C) {
 	name := filepath.Join(s.dir, "evil.snap")
-	err := os.WriteFile(name, []byte(`evil text`), 0600)
+	err := os.WriteFile(name, []byte(`evil text`), 0o600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{})
 	c.Assert(err, IsNil)
@@ -136,7 +136,7 @@ func (s *EnsureDirStateSuite) TestRemovesUnexpectedFiless(c *C) {
 
 func (s *EnsureDirStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	name := filepath.Join(s.dir, "unrelated")
-	err := os.WriteFile(name, []byte(`text`), 0600)
+	err := os.WriteFile(name, []byte(`text`), 0o600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{})
 	c.Assert(err, IsNil)
@@ -150,7 +150,7 @@ func (s *EnsureDirStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 
 func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	name := filepath.Join(s.dir, "differing.snap")
-	err := os.WriteFile(name, []byte(``), 0600)
+	err := os.WriteFile(name, []byte(``), 0o600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"differing.snap": &osutil.MemoryFileState{Content: []byte(`Hello World`), Mode: 0600},
@@ -169,7 +169,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 
 func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	name := filepath.Join(s.dir, "differing.snap")
-	err := os.WriteFile(name, []byte("evil"), 0600)
+	err := os.WriteFile(name, []byte("evil"), 0o600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		"differing.snap": &osutil.MemoryFileState{Content: []byte("good"), Mode: 0600},
@@ -189,7 +189,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	name := filepath.Join(s.dir, "sensitive.snap")
 	// NOTE: the existing file is currently wide-open for everyone"
-	err := os.WriteFile(name, []byte("password"), 0666)
+	err := os.WriteFile(name, []byte("password"), 0o666)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		// NOTE: we want the file to be private
@@ -225,11 +225,11 @@ func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
 func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	// Create a "prior.snap" file
 	prior := filepath.Join(s.dir, "prior.snap")
-	err := os.WriteFile(prior, []byte("data"), 0600)
+	err := os.WriteFile(prior, []byte("data"), 0o600)
 	c.Assert(err, IsNil)
 	// Create a "clash.snap" directory to simulate failure
 	clash := filepath.Join(s.dir, "clash.snap")
-	err = os.Mkdir(clash, 0000)
+	err = os.Mkdir(clash, 0o000)
 	c.Assert(err, IsNil)
 	// Try to ensure directory state
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
@@ -246,7 +246,7 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 
 func (s *EnsureDirStateSuite) TestRemovesSymlink(c *C) {
 	original := filepath.Join(s.dir, "original.snap")
-	err := os.WriteFile(original, []byte("data"), 0600)
+	err := os.WriteFile(original, []byte("data"), 0o600)
 	c.Assert(err, IsNil)
 
 	symlink := filepath.Join(s.dir, "symlink.snap")
@@ -268,7 +268,7 @@ func (s *EnsureDirStateSuite) TestRemovesSymlink(c *C) {
 
 func (s *EnsureDirStateSuite) TestCreatesMissingSymlink(c *C) {
 	original := filepath.Join(s.dir, "original.snap")
-	err := os.WriteFile(original, []byte("data"), 0600)
+	err := os.WriteFile(original, []byte("data"), 0o600)
 	c.Assert(err, IsNil)
 
 	// Created file is reported
@@ -292,11 +292,11 @@ func (s *EnsureDirStateSuite) TestCreatesMissingSymlink(c *C) {
 
 func (s *EnsureDirStateSuite) TestReplaceFileWithSymlink(c *C) {
 	original := filepath.Join(s.dir, "original.snap")
-	err := os.WriteFile(original, []byte("data"), 0600)
+	err := os.WriteFile(original, []byte("data"), 0o600)
 	c.Assert(err, IsNil)
 
 	symlink := filepath.Join(s.dir, "symlink.snap")
-	err = os.WriteFile(symlink, []byte("old-data"), 0600)
+	err = os.WriteFile(symlink, []byte("old-data"), 0o600)
 	c.Assert(err, IsNil)
 
 	// Changed file is reported
@@ -387,7 +387,7 @@ func (s *EnsureDirStateSuite) TestUnsupportedFileMode(c *C) {
 func (s *EnsureDirStateSuite) TestFileReferenceUnsupportedFileMode(c *C) {
 	// Directories are unsupported
 	testPath := filepath.Join(s.dir, "test.dir")
-	c.Assert(os.MkdirAll(testPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(testPath, 0o755), IsNil)
 	fref := osutil.FileReference{Path: testPath}
 	_, _, _, err := fref.State()
 	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
@@ -406,7 +406,7 @@ func (s *EnsureDirStateSuite) TestFileReferenceUnsupportedFileMode(c *C) {
 
 func (s *EnsureDirStateSuite) TestFileReferencePlusModeUnsupportedFileMode(c *C) {
 	testPath := filepath.Join(s.dir, "test.dir")
-	c.Assert(os.WriteFile(testPath, []byte("test"), 0600), IsNil)
+	c.Assert(os.WriteFile(testPath, []byte("test"), 0o600), IsNil)
 
 	unsupportedModeTypes := []os.FileMode{
 		os.ModeDir,
@@ -429,7 +429,7 @@ func (s *EnsureDirStateSuite) TestFileReferencePlusModeUnsupportedFileMode(c *C)
 
 func (s *EnsureDirStateSuite) TestMemoryFileStateUnsupportedFileMode(c *C) {
 	testPath := filepath.Join(s.dir, "test.dir")
-	c.Assert(os.WriteFile(testPath, []byte("test"), 0600), IsNil)
+	c.Assert(os.WriteFile(testPath, []byte("test"), 0o600), IsNil)
 
 	unsupportedModeTypes := []os.FileMode{
 		os.ModeDir,

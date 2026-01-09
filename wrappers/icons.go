@@ -99,7 +99,7 @@ func EnsureSnapIcons(s *snap.Info) error {
 	if s == nil {
 		return fmt.Errorf("internal error: snap info cannot be nil")
 	}
-	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0o755); err != nil {
 		return err
 	}
 

@@ -77,9 +77,9 @@ func (s *diskUnlockStateSuite) TestUnlockedStateLoad(c *C) {
 	jsonData, err := json.Marshal(data)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap"), 0755)
+	err = os.MkdirAll(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap/test.json"), jsonData, 0644)
+	err = os.WriteFile(filepath.Join(s.rootDir, "run/snapd/snap-bootstrap/test.json"), jsonData, 0o644)
 	c.Assert(err, IsNil)
 
 	us, err := boot.LoadDiskUnlockState("test.json")

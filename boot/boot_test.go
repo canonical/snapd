@@ -83,13 +83,13 @@ func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
 
 func (s *baseBootenvSuite) stampSealedKeys(c *C, rootdir string) {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
-	err := os.WriteFile(stamp, nil, 0644)
+	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0o755), IsNil)
+	err := os.WriteFile(stamp, nil, 0o644)
 	c.Assert(err, IsNil)
 }
 
 func (s *baseBootenvSuite) mockCmdline(c *C, cmdline string) {
-	c.Assert(os.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
+	c.Assert(os.WriteFile(s.cmdlineFile, []byte(cmdline), 0o644), IsNil)
 }
 
 type bootenvSuite struct {
@@ -1063,10 +1063,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -1184,10 +1184,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -1303,10 +1303,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -1400,10 +1400,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -2001,8 +2001,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -2210,13 +2210,13 @@ func (s *bootenv20Suite) testMarkBootSuccessful20BootAssetsUpdateHappy(c *C, rev
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755), IsNil)
 	// only asset for ubuntu
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// shim and asset for seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -2388,13 +2388,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "nested"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "nested"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested"), 0o755), IsNil)
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "nested/asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "nested/asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested/asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested/asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -2501,13 +2501,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	shim := []byte("shim")
 	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "nested"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "nested"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested"), 0o755), IsNil)
 	// only asset for ubuntu-boot
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "nested/asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "nested/asset"), data, 0o644), IsNil)
 	// shim and asset for ubuntu-seed
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested/asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "nested/asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -2609,10 +2609,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/asset"), data, 0o644), IsNil)
 	// mock some state in the cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-one",
@@ -3130,9 +3130,9 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 	bootloader.Force(nil)
 
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
-	err := os.MkdirAll(mockSeedGrubDir, 0755)
+	err := os.MkdirAll(mockSeedGrubDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0644)
+	err = os.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
@@ -3182,7 +3182,7 @@ volumes:
 }
 
 func (s *bootConfigSuite) mockCmdline(c *C, cmdline string) {
-	c.Assert(os.WriteFile(s.cmdlineFile, []byte(cmdline), 0644), IsNil)
+	c.Assert(os.WriteFile(s.cmdlineFile, []byte(cmdline), 0o644), IsNil)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
@@ -3586,10 +3586,10 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
 	s.bootloader.TrustedAssetsMap = map[string]string{"asset": "asset"}
@@ -4083,7 +4083,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1"), 0644)
+	err := os.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1"), 0o644)
 	c.Assert(err, IsNil)
 	restore = kcmdline.MockProcCmdline(cmdlineFile)
 	s.AddCleanup(restore)
@@ -4266,7 +4266,7 @@ volumes:
 	// command line will include arguments that came from gadget snap
 	s.bootloader.SetBootVarsCalls = 0
 	s.resealCalls = 0
-	err = os.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1 extra args"), 0644)
+	err = os.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1 extra args"), 0o644)
 	c.Assert(err, IsNil)
 	err = boot.MarkBootSuccessful(s.uc20dev)
 	c.Assert(err, IsNil)
@@ -4595,10 +4595,10 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -4706,10 +4706,10 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -4816,10 +4816,10 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -4913,10 +4913,10 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0o644), IsNil)
 
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
@@ -5084,8 +5084,8 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0o644), IsNil)
 	// mock the files in cache
 	boottest.MockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
 		"asset-" + dataHash,
@@ -5291,9 +5291,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulAutoRepair(c *C) {
 	jsonData, err := json.Marshal(data)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap"), 0755)
+	err = os.MkdirAll(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap/unlocked.json"), jsonData, 0644)
+	err = os.WriteFile(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap/unlocked.json"), jsonData, 0o644)
 	c.Assert(err, IsNil)
 
 	resealCalls := 0

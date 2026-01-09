@@ -113,8 +113,8 @@ func (s *SystemObserveInterfaceSuite) TestMountPermanentPlug(c *C) {
 	// Create a /boot/config-* file so that the interface will generate a bind
 	// mount for it
 	fakeBootDir := filepath.Join(tmpdir, "/boot")
-	c.Assert(os.MkdirAll(fakeBootDir, 0777), IsNil)
-	file, err := os.OpenFile(filepath.Join(fakeBootDir, "config-5.10"), os.O_CREATE, 0644)
+	c.Assert(os.MkdirAll(fakeBootDir, 0o777), IsNil)
+	file, err := os.OpenFile(filepath.Join(fakeBootDir, "config-5.10"), os.O_CREATE, 0o644)
 	c.Assert(err, IsNil)
 	c.Assert(file.Close(), IsNil)
 

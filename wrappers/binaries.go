@@ -142,16 +142,16 @@ func ensureDirStateGlobsWithKeep(dir string, globs []string, content map[string]
 // ensureSnapBinariesWithContent applies snap binary content but keeps existing completers unchanged.
 func ensureSnapBinariesWithContent(s *snap.Info, binariesContent, completersContent map[string]osutil.FileState, completionVariant completionMode) error {
 	// Create directories
-	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapBinariesDir, 0o755); err != nil {
 		return err
 	}
 	switch completionVariant {
 	case normalCompletion:
-		if err := os.MkdirAll(dirs.CompletersDir, 0755); err != nil {
+		if err := os.MkdirAll(dirs.CompletersDir, 0o755); err != nil {
 			return err
 		}
 	case legacyCompletion:
-		if err := os.MkdirAll(dirs.LegacyCompletersDir, 0755); err != nil {
+		if err := os.MkdirAll(dirs.LegacyCompletersDir, 0o755); err != nil {
 			return err
 		}
 	}

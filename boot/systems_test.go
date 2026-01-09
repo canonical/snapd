@@ -43,8 +43,8 @@ type baseSystemsSuite struct {
 
 func (s *baseSystemsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
-	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0o755), IsNil)
 }
 
 type systemsSuite struct {

@@ -2100,7 +2100,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 // writeSeqFile writes the sequence file for failover handling
 func writeSeqFile(name string, snapst *SnapState) error {
 	p := filepath.Join(dirs.SnapSeqDir, name+".json")
-	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
 

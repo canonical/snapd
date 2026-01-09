@@ -55,7 +55,7 @@ func (s *helpersSuite) SetUpTest(c *C) {
 
 	dir := c.MkDir()
 	s.assertsDir = filepath.Join(dir, "assertions")
-	err := os.MkdirAll(s.assertsDir, 0755)
+	err := os.MkdirAll(s.assertsDir, 0o755)
 	c.Assert(err, IsNil)
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]any{

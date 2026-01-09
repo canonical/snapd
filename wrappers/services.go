@@ -427,7 +427,7 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 		old = &oldFileState
 	}
 
-	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
+	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0o755); mkdirErr != nil {
 		return nil, false, mkdirErr
 	}
 	ensureErr := osutil.EnsureFileState(path, &newFileState)
@@ -827,7 +827,7 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 			continue
 		}
 
-		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0755); err != nil {
+		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0o755); err != nil {
 			return err
 		}
 

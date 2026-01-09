@@ -382,7 +382,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 		// XXX: reuse gadget/install/content.go:mountFilesystem()
 		// instead (it will also call udevadm)
 		mountPoint := runMntFor(volStruct.Label)
-		if err := os.MkdirAll(mountPoint, 0755); err != nil {
+		if err := os.MkdirAll(mountPoint, 0o755); err != nil {
 			return nil, err
 		}
 		// XXX: is there a better way?
@@ -419,7 +419,7 @@ func createClassicRootfsIfNeeded(rootfsCreator string) error {
 }
 
 func copySeedDir(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
 	// Note that we do not use the -a option as cp returns an error if trying to
@@ -592,7 +592,7 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyO
 				return fmt.Errorf("cannot generate recovery key: %v", err)
 			}
 			logger.Debugf("writing  generated recovery key at %q", recoveryKeyOut)
-			if err := os.WriteFile(recoveryKeyOut, []byte(rkey), 0644); err != nil {
+			if err := os.WriteFile(recoveryKeyOut, []byte(rkey), 0o644); err != nil {
 				return fmt.Errorf("cannot write generated recovery key at %q: %v", recoveryKeyOut, err)
 			}
 		}

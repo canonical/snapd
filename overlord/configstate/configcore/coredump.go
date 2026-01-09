@@ -106,7 +106,7 @@ func handleCoredumpConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 		coredumpCfgDir = dirs.SnapSystemdDirUnder(opts.RootDir)
 	}
 	coredumpCfgDir = filepath.Join(coredumpCfgDir, coredumpCfgSubdir)
-	if err := os.MkdirAll(coredumpCfgDir, 0755); err != nil {
+	if err := os.MkdirAll(coredumpCfgDir, 0o755); err != nil {
 		return err
 	}
 

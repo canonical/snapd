@@ -122,7 +122,7 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
 	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
 	c.Assert(err, check.IsNil)
-	err = os.MkdirAll(uc20systemSeed, 0755)
+	err = os.MkdirAll(uc20systemSeed, 0o755)
 	c.Assert(err, check.IsNil)
 
 	// the resolved content is written here

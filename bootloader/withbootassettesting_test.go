@@ -39,7 +39,7 @@ var _ = Suite(&withbootasetstestingTestSuite{})
 
 func (s *withbootasetstestingTestSuite) TestInjects(c *C) {
 	d := c.MkDir()
-	c.Assert(os.WriteFile(filepath.Join(d, "bootassetstesting"), []byte("with-bootassetstesting\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "bootassetstesting"), []byte("with-bootassetstesting\n"), 0o644), IsNil)
 	restore := bootloader.MockMaybeInjectOsReadlink(func(_ string) (string, error) {
 		return filepath.Join(d, "foo"), nil
 	})

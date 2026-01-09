@@ -118,10 +118,10 @@ func createVirtioDevicesInSysfs(c *C, path string, devsToPartition map[string]bo
 	}
 	diskDir := filepath.Join(dirs.SysfsDir, path)
 	for dev, isPartition := range devsToPartition {
-		err := os.MkdirAll(filepath.Join(diskDir, dev), 0755)
+		err := os.MkdirAll(filepath.Join(diskDir, dev), 0o755)
 		c.Assert(err, IsNil)
 		if isPartition {
-			err = os.WriteFile(filepath.Join(diskDir, dev, "partition"), []byte("1"), 0644)
+			err = os.WriteFile(filepath.Join(diskDir, dev, "partition"), []byte("1"), 0o644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -741,15 +741,15 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 
 	// mock the sysfs dm uuid and name files
 	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
-	err := os.MkdirAll(dmDir, 0755)
+	err := os.MkdirAll(dmDir, 0o755)
 	c.Assert(err, IsNil)
 
 	b := []byte("something")
-	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0o644)
 	c.Assert(err, IsNil)
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
-	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0o644)
 	c.Assert(err, IsNil)
 
 	opts := &disks.Options{IsDecryptedDevice: true}
@@ -1198,15 +1198,15 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 
 	// mock the sysfs dm uuid and name files
 	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:0", "dm")
-	err := os.MkdirAll(dmDir, 0755)
+	err := os.MkdirAll(dmDir, 0o755)
 	c.Assert(err, IsNil)
 
 	b := []byte("ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
-	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	err = os.WriteFile(filepath.Join(dmDir, "name"), b, 0o644)
 	c.Assert(err, IsNil)
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
-	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	err = os.WriteFile(filepath.Join(dmDir, "uuid"), b, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the dev nodes in sysfs for the partitions
@@ -1778,11 +1778,11 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	// mock some devices in /sys/block
 
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err := os.MkdirAll(blockDir, 0755)
+	err := os.MkdirAll(blockDir, 0o755)
 	c.Assert(err, IsNil)
 	devsToCreate := []string{"sda", "loop1", "loop2", "sdb", "nvme0n1", "mmcblk0"}
 	for _, dev := range devsToCreate {
-		err := os.WriteFile(filepath.Join(blockDir, dev), nil, 0644)
+		err := os.WriteFile(filepath.Join(blockDir, dev), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1933,10 +1933,10 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPointFallback(c *C) {
 	})
 	defer restore()
 
-	err := os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm"), 0o755)
 	c.Assert(err, IsNil)
 	b := []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something\n")
-	err = os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm/uuid"), b, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm/uuid"), b, 0o644)
 	c.Assert(err, IsNil)
 
 	uuid, err := disks.DMCryptUUIDFromMountPoint("/run/mnt/point")

@@ -80,10 +80,10 @@ func makeReadOnly(c *C, dir string) (restore func()) {
 		// FIXME: we could use osutil.Chattr() here
 		c.Skip("too lazy to make path readonly as root")
 	}
-	err := os.Chmod(dir, 0555)
+	err := os.Chmod(dir, 0o555)
 	c.Assert(err, IsNil)
 	return func() {
-		err := os.Chmod(dir, 0755)
+		err := os.Chmod(dir, 0o755)
 		c.Assert(err, IsNil)
 	}
 }
@@ -166,7 +166,7 @@ func (s *baseRunnerSuite) freshState(c *C) {
 }
 
 func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
-	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
+	err := os.MkdirAll(dirs.SnapRepairDir, 0o775)
 	c.Assert(err, IsNil)
 	stateJSON := map[string]any{
 		"device": map[string]string{
@@ -180,7 +180,7 @@ func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
 	b, err := json.Marshal(stateJSON)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(dirs.SnapRepairStateFile, b, 0600)
+	err = os.WriteFile(dirs.SnapRepairStateFile, b, 0o600)
 	c.Assert(err, IsNil)
 }
 
@@ -633,7 +633,7 @@ func (s *runnerSuite) TestLoadState(c *C) {
 }
 
 func (s *runnerSuite) TestLoadStateInitStateFail(c *C) {
-	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	err := os.MkdirAll(dirs.SnapSeedDir, 0o755)
 	c.Assert(err, IsNil)
 
 	restore := makeReadOnly(c, filepath.Dir(dirs.SnapSeedDir))
@@ -2182,10 +2182,10 @@ func (s *runner16Suite) SetUpTest(c *C) {
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 
 	// sample seed yaml
-	err := os.MkdirAll(s.seedAssertsDir, 0755)
+	err := os.MkdirAll(s.seedAssertsDir, 0o755)
 	c.Assert(err, IsNil)
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	err = os.WriteFile(seedYamlFn, nil, 0644)
+	err = os.WriteFile(seedYamlFn, nil, 0o644)
 	c.Assert(err, IsNil)
 	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
 	c.Assert(err, IsNil)
@@ -2199,7 +2199,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 }
 
 func (s *runner16Suite) writeSeedAssert16(c *C, fname string, a asserts.Assertion) {
-	err := os.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	err := os.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -2227,7 +2227,7 @@ func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 		{func() {
 			// broken signature
 			blob := asserts.Encode(s.brandAcct)
-			err := os.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			err := os.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0o644)
 			c.Assert(err, IsNil)
 		}, errPrefix + "cannot decode signature:.*"},
 		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
@@ -2266,13 +2266,13 @@ func (s *runner20Suite) SetUpTest(c *C) {
 	s.shared1620RunnerSuite.expMode = "run"
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
-	err := os.MkdirAll(s.seedAssertsDir, 0755)
+	err := os.MkdirAll(s.seedAssertsDir, 0o755)
 	c.Assert(err, IsNil)
 
 	// write sample modeenv
-	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
+	err = os.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0o644)
 	c.Assert(err, IsNil)
 	// validate that modeenv is actually valid
 	_, err = boot.ReadModeenv("")
@@ -2295,7 +2295,7 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 	} else {
 		fn = filepath.Join(s.seedAssertsDir, fname)
 	}
-	err := os.WriteFile(fn, asserts.Encode(a), 0644)
+	err := os.WriteFile(fn, asserts.Encode(a), 0o644)
 	c.Assert(err, IsNil)
 
 	// ensure model assertion file has the correct seed time
@@ -2323,7 +2323,7 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 			`cannot set device information: cannot find brand/model in modeenv model string "brand-but-no-model"`,
 		},
 	} {
-		err := os.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
+		err := os.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0o644)
 		c.Assert(err, IsNil)
 		err = runner.LoadState()
 		c.Check(err, ErrorMatches, tc.expectedErr)
@@ -2333,10 +2333,10 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c *C) {
 	runner := repair.NewRunner()
 
-	err := os.Chmod(dirs.SnapModeenvFile, 0300)
+	err := os.Chmod(dirs.SnapModeenvFile, 0o300)
 	c.Assert(err, IsNil)
 	s.AddCleanup(func() {
-		err := os.Chmod(dirs.SnapModeenvFile, 0644)
+		err := os.Chmod(dirs.SnapModeenvFile, 0o644)
 		c.Assert(err, IsNil)
 	})
 	err = runner.LoadState()
@@ -2351,7 +2351,7 @@ func (s *runnerSuite) TestStoreOffline(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0o755)
 	c.Assert(err, IsNil)
 
 	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
@@ -2383,7 +2383,7 @@ func (s *runnerSuite) TestStoreOnlineIfFileBroken(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0o755)
 	c.Assert(err, IsNil)
 
 	runner := repair.NewRunner()

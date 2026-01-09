@@ -55,7 +55,7 @@ func (s *sessionAgentSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(xdgRuntimeDir, 0o700), IsNil)
 	s.socketPath = fmt.Sprintf("%s/snapd-session-agent.socket", xdgRuntimeDir)
 
 	transport := &http.Transport{
@@ -156,8 +156,8 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 
 func (s *sessionAgentSuite) TestFdoNotification(c *C) {
 	desktopFile := "[Desktop Entry]\nIcon=/path/appicon.png"
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0o644), IsNil)
 
 	backend, err := notificationtest.NewFdoServer()
 	c.Assert(err, IsNil)
@@ -200,8 +200,8 @@ func (s *sessionAgentSuite) TestFdoNotification(c *C) {
 
 func (s *sessionAgentSuite) TestGtkNotification(c *C) {
 	desktopFile := "[Desktop Entry]\nIcon=/path/appicon.png"
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0o644), IsNil)
 
 	backend, err := notificationtest.NewGtkServer()
 	c.Assert(err, IsNil)

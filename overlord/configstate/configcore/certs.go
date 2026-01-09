@@ -76,10 +76,10 @@ func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 				return fmt.Errorf("cannot remove store certificate: %v", err)
 			}
 		default:
-			if err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755); err != nil {
+			if err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0o755); err != nil {
 				return fmt.Errorf("cannot create store ssl certs dir: %v", err)
 			}
-			if err := os.WriteFile(certPath, []byte(cert), 0644); err != nil {
+			if err := os.WriteFile(certPath, []byte(cert), 0o644); err != nil {
 				return fmt.Errorf("cannot write store certificate: %v", err)
 			}
 		}

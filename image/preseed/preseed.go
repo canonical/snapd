@@ -219,7 +219,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 		return fmt.Errorf("cannot fetch assertion: %v", err)
 	}
 
-	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}

@@ -55,7 +55,7 @@ func writeSnapReadme() error {
 	content := map[string]osutil.FileState{
 		fname: &osutil.MemoryFileState{Content: []byte(snapReadme()), Mode: 0444},
 	}
-	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapMountDir, 0o755); err != nil {
 		return err
 	}
 	// NOTE: We are using EnsureDirState to not unconditionally write to flash

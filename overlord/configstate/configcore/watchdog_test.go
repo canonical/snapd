@@ -118,7 +118,7 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 
 func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 	// make .conf.d directory already
-	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0o755)
 	c.Assert(err, IsNil)
 
 	times := []int{10, 100}
@@ -160,13 +160,13 @@ func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
-	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0o755)
 	c.Assert(err, IsNil)
 	times := []int{10, 100}
 	content := "[Manager]\n" +
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0]) +
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1])
-	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
 	info, err := os.Stat(s.mockEtcEnvironment)
@@ -195,18 +195,18 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
-	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0o755)
 	c.Assert(err, IsNil)
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(dirs.SnapSystemdConfDir, "05-canary.conf")
-	err = os.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	content := `[Manager]
 RuntimeWatchdogSec=10
 ShutdownWatchdogSec=20
 `
-	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

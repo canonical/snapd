@@ -43,7 +43,7 @@ snaps:
 
 func (s *options20Suite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "options.yaml")
-	err := os.WriteFile(fn, mockOptions20, 0644)
+	err := os.WriteFile(fn, mockOptions20, 0o644)
 	c.Assert(err, IsNil)
 
 	options20, err := internal.ReadOptions20(fn)

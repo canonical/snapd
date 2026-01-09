@@ -157,7 +157,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 		"kernel.efi", bootloader.RoleRecovery)
 
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0o755), IsNil)
 
 	s.readSystemEssentialCalls = 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
@@ -852,7 +852,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 		"model: my-model-uc20\n")
 
 	modeenvDir := filepath.Dir(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
-	defer os.Chmod(modeenvDir, 0755)
+	defer os.Chmod(modeenvDir, 0o755)
 
 	writeModelToBootCalls := 0
 	resealKeysCalls := 0
@@ -887,7 +887,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 			// only 2 calls to reseal until now
 			c.Check(resealKeysCalls, Equals, 1)
 			if tc.breakModeenvAfterFirstWrite {
-				c.Assert(os.Chmod(modeenvDir, 0000), IsNil)
+				c.Assert(os.Chmod(modeenvDir, 0o000), IsNil)
 				return nil
 			}
 		case 2:

@@ -60,7 +60,7 @@ func etcEnvironment() string {
 }
 
 func updateEtcEnvironmentConfig(path string, config map[string]string) error {
-	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o644)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 		for _, entry := range toWrite {
 			fmt.Fprintln(&buf, entry)
 		}
-		return os.WriteFile(path, buf.Bytes(), 0644)
+		return os.WriteFile(path, buf.Bytes(), 0o644)
 	}
 
 	return nil

@@ -124,9 +124,9 @@ output:
 func (r *repairSuite) TestShowRepairSingleUnreadableOutput(c *C) {
 	makeMockRepairState(c)
 	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.retry")
-	err := os.Chmod(scriptPath, 0000)
+	err := os.Chmod(scriptPath, 0o000)
 	c.Assert(err, IsNil)
-	defer os.Chmod(scriptPath, 0644)
+	defer os.Chmod(scriptPath, 0o644)
 
 	err = repair.NewCmdShow("canonical-1").Execute(nil)
 	c.Check(err, IsNil)

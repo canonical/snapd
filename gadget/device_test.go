@@ -40,13 +40,13 @@ func (d *deviceSuite) SetUpTest(c *C) {
 	d.dir = c.MkDir()
 	dirs.SetRootDir(d.dir)
 
-	err := os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-label"), 0755)
+	err := os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-label"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/dev/mapper"), 0755)
+	err = os.MkdirAll(filepath.Join(d.dir, "/dev/mapper"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644)
+	err = os.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -154,7 +154,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 
 	// partlabel of the structure points to a different device
 	fakedeviceOther := filepath.Join(d.dir, "/dev/fakedevice-other")
-	err = os.WriteFile(fakedeviceOther, []byte(""), 0644)
+	err = os.WriteFile(fakedeviceOther, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 	err = os.Symlink(fakedeviceOther, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
 	c.Assert(err, IsNil)
@@ -214,7 +214,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
-	err := os.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
+	err := os.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{

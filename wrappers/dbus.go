@@ -98,10 +98,10 @@ func snapServiceActivationFiles(dir, snapName string) (services []string, err er
 }
 
 func AddSnapDBusActivationFiles(s *snap.Info) error {
-	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0o755); err != nil {
 		return err
 	}
 

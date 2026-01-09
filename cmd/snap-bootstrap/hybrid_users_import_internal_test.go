@@ -43,7 +43,7 @@ func assertLinesInFile(c *C, path string, lines []string) {
 }
 
 func writeTempFile(c *C, path string, content string) string {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
 
 	f, err := os.Create(path)

@@ -235,7 +235,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0o755), IsNil)
 
 	// needed for system key generation
 	s.AddCleanup(osutil.MockMountInfo(""))
@@ -7893,7 +7893,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	s.MockModel(c, nil)
@@ -8189,7 +8189,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -8253,7 +8253,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

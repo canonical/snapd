@@ -1693,7 +1693,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	}
 
 	// make InstallDate work
-	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(info.MountDir(), 0o755), check.IsNil)
 	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
 
 	info.Apps = map[string]*snap.AppInfo{
@@ -1828,7 +1828,7 @@ func (s *snapsSuite) TestMapLocalFieldsWithComponents(c *check.C) {
 	}
 
 	// make InstallDate work
-	c.Assert(os.MkdirAll(info.MountDir(), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(info.MountDir(), 0o755), check.IsNil)
 	c.Assert(os.Symlink("7", filepath.Join(info.MountDir(), "..", "current")), check.IsNil)
 
 	info.Apps = map[string]*snap.AppInfo{
@@ -1875,16 +1875,16 @@ components:
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		csi.Component.ComponentName, csi.Revision, "some-snap")
 	symLn := snap.ComponentLinkPath(cpi, snap.R(7))
-	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), check.IsNil)
-	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0644)
-	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0o755), check.IsNil)
+	os.WriteFile(cpi.MountFile(), []byte{0, 0}, 0o644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn), 0o755), check.IsNil)
 	c.Assert(os.Symlink(cpi.MountDir(), symLn), check.IsNil)
 	cpi2 := snap.MinimalComponentContainerPlaceInfo(
 		csi2.Component.ComponentName, csi2.Revision, "some-snap")
 	symLn2 := snap.ComponentLinkPath(cpi2, snap.R(7))
-	c.Assert(os.MkdirAll(cpi2.MountDir(), 0755), check.IsNil)
-	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0644)
-	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(cpi2.MountDir(), 0o755), check.IsNil)
+	os.WriteFile(cpi2.MountFile(), []byte{0, 0, 0}, 0o644)
+	c.Assert(os.MkdirAll(filepath.Dir(symLn2), 0o755), check.IsNil)
 	c.Assert(os.Symlink(cpi2.MountDir(), symLn2), check.IsNil)
 
 	about := daemon.MakeAboutSnap(info, &snapstate.SnapState{
@@ -1954,7 +1954,7 @@ components:
 }
 
 func (s *snapsSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), check.IsNil)
 
 	info := snap.Info{SideInfo: snap.SideInfo{RealName: "hello", Revision: snap.R(1)}}
 	snapst := snapstate.SnapState{}

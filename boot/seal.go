@@ -129,7 +129,7 @@ func sealKeyToModeenvImpl(
 		InstallHostFDESaveDir,
 	} {
 		// XXX: should that be 0700 ?
-		if err := os.MkdirAll(p, 0755); err != nil {
+		if err := os.MkdirAll(p, 0o755); err != nil {
 			return err
 		}
 	}

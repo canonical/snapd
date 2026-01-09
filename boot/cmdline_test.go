@@ -48,7 +48,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.rootDir = c.MkDir()
 
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc"), 0o755)
 	c.Assert(err, IsNil)
 	restore := kcmdline.MockProcCmdline(filepath.Join(s.rootDir, "proc/cmdline"))
 	s.AddCleanup(restore)
@@ -56,7 +56,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 
 func (s *kernelCommandLineSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(s.rootDir, "proc/cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte(newContent), 0644)
+	err := os.WriteFile(mockProcCmdline, []byte(newContent), 0o644)
 	c.Assert(err, IsNil)
 }
 

@@ -338,14 +338,14 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 
 	c.Assert(err, check.IsNil)
-	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
-	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0o755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0o755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0o755), check.IsNil)
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
@@ -604,9 +604,9 @@ func (s *apiBaseSuite) waitTrivialChange(c *check.C, chg *state.Change) {
 
 func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
-	err := os.MkdirAll(filepath.Dir(df), 0755)
+	err := os.MkdirAll(filepath.Dir(df), 0o755)
 	c.Assert(err, check.IsNil)
-	err = os.WriteFile(df, []byte(content), 0644)
+	err = os.WriteFile(df, []byte(content), 0o644)
 	c.Assert(err, check.IsNil)
 	return df
 }
@@ -678,11 +678,11 @@ version: %s
 	}
 	c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
 
-	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0o755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
 	guidir := filepath.Join(metadir, "gui")
-	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
-	c.Check(os.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
+	c.Assert(os.MkdirAll(guidir, 0o755), check.IsNil)
+	c.Check(os.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0o644), check.IsNil)
 
 	if d == nil {
 		return snapInfo

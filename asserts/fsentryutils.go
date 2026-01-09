@@ -30,7 +30,7 @@ import (
 // utilities to read/write fs entries
 
 func ensureTop(path string) error {
-	err := os.MkdirAll(path, 0775)
+	err := os.MkdirAll(path, 0o775)
 	if err != nil {
 		return fmt.Errorf("cannot create assert storage root: %v", err)
 	}
@@ -47,7 +47,7 @@ func ensureTop(path string) error {
 func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) error {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
 	dir := filepath.Dir(fpath)
-	err := os.MkdirAll(dir, 0775)
+	err := os.MkdirAll(dir, 0o775)
 	if err != nil {
 		return err
 	}

@@ -72,15 +72,15 @@ func (*dbusutilSuite) TestIsSessionBusLikelyPresentEnvVar(c *C) {
 
 func (*dbusutilSuite) TestIsSessionBusLikelyPresentAddrFile(c *C) {
 	f := fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, os.Getuid())
-	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	c.Assert(os.WriteFile(f, []byte("address"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0o755), IsNil)
+	c.Assert(os.WriteFile(f, []byte("address"), 0o644), IsNil)
 
 	c.Assert(dbusutil.IsSessionBusLikelyPresent(), Equals, true)
 }
 
 func (*dbusutilSuite) TestIsSessionBusLikelyPresentSocket(c *C) {
 	f := fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, os.Getuid())
-	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0o755), IsNil)
 	l, err := net.Listen("unix", f)
 	c.Assert(err, IsNil)
 	defer l.Close()

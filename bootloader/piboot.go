@@ -229,7 +229,7 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 	logger.Debugf("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
 		cfgFile, prefix, cfgDir, dstDir)
 
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return err
 	}
 	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
@@ -329,7 +329,7 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	// We create an empty env file
-	err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
+	err := os.MkdirAll(filepath.Dir(p.envFile()), 0o755)
 	if err != nil {
 		return err
 	}

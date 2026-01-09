@@ -1506,7 +1506,7 @@ func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
 
 func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
-	c.Assert(os.Mkdir(path, 0755), IsNil)
+	c.Assert(os.Mkdir(path, 0o755), IsNil)
 
 	fd, err := update.OpenPath(path)
 	c.Assert(err, IsNil)
@@ -1532,7 +1532,7 @@ func (s *realSystemSuite) TestSecureOpenPathRelativePath(c *C) {
 func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
 	base := c.MkDir()
 	path := filepath.Join(base, "test")
-	c.Assert(os.Mkdir(path, 0755), IsNil)
+	c.Assert(os.Mkdir(path, 0o755), IsNil)
 
 	fd, err := update.OpenPath(base + "//test")
 	c.Check(fd, Equals, -1)
@@ -1549,7 +1549,7 @@ func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
 
 func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 	path := filepath.Join(c.MkDir(), "file.txt")
-	c.Assert(os.WriteFile(path, []byte("hello"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello"), 0o644), IsNil)
 
 	fd, err := update.OpenPath(path)
 	c.Assert(err, IsNil)
@@ -1573,7 +1573,7 @@ func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
 func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
 	base := c.MkDir()
 	dir := filepath.Join(base, "test")
-	c.Assert(os.Mkdir(dir, 0755), IsNil)
+	c.Assert(os.Mkdir(dir, 0o755), IsNil)
 
 	symlink := filepath.Join(base, "symlink")
 	c.Assert(os.Symlink(dir, symlink), IsNil)
@@ -1591,9 +1591,9 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	path := filepath.Join(dir, "dir2")
 	symlinkedPath := filepath.Join(symlink, "dir2")
 
-	c.Assert(os.Mkdir(dir, 0755), IsNil)
+	c.Assert(os.Mkdir(dir, 0o755), IsNil)
 	c.Assert(os.Symlink(dir, symlink), IsNil)
-	c.Assert(os.Mkdir(path, 0755), IsNil)
+	c.Assert(os.Mkdir(path, 0o755), IsNil)
 
 	fd, err := update.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)

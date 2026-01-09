@@ -338,7 +338,7 @@ func ReadBootChains(path string) (pbc PredictableBootChains, resealCount int, er
 }
 
 func WriteBootChains(pbc PredictableBootChains, path string, resealCount int) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)

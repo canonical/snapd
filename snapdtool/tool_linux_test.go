@@ -113,11 +113,11 @@ func benchmarkCSRE(b *testing.B, data string) {
 		b.Fatalf("tempdir: %v", err)
 	}
 	defer os.RemoveAll(tempdir)
-	if err = os.MkdirAll(filepath.Join(tempdir, dirs.CoreLibExecDir), 0755); err != nil {
+	if err = os.MkdirAll(filepath.Join(tempdir, dirs.CoreLibExecDir), 0o755); err != nil {
 		b.Fatalf("mkdirall: %v", err)
 	}
 
-	if err = os.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(tempdir, dirs.CoreLibExecDir, "info"), []byte(data), 0o600); err != nil {
 		b.Fatalf("%v", err)
 	}
 	b.ResetTimer()

@@ -39,7 +39,7 @@ var _ = check.Suite(&labelSuite{})
 
 func (l *labelSuite) SetUpTest(c *check.C) {
 	l.path = filepath.Join(c.MkDir(), "foo")
-	os.WriteFile(l.path, []byte("foo"), 0644)
+	os.WriteFile(l.path, []byte("foo"), 0o644)
 }
 
 func (l *labelSuite) TestVerifyHappyOk(c *check.C) {

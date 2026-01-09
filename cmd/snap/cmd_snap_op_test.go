@@ -325,7 +325,7 @@ func (s *SnapOpSuite) TestWaitDaemonUnavailableWithMaintenance(c *check.C) {
 	defer restore()
 
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0o755)
 	c.Assert(err, check.IsNil)
 
 	maintErr := client.Error{
@@ -336,7 +336,7 @@ func (s *SnapOpSuite) TestWaitDaemonUnavailableWithMaintenance(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// write the maintenance json
-	os.WriteFile(dirs.SnapdMaintenanceFile, b, 0666)
+	os.WriteFile(dirs.SnapdMaintenanceFile, b, 0o666)
 
 	// use a port that we can't connect to anyway
 	snap.ClientConfig.BaseURL = "http://localhost:0"
@@ -1334,7 +1334,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
@@ -1368,7 +1368,7 @@ func (s *SnapOpSuite) TestComponentInstallPath(c *check.C) {
 	snapBody := []byte("component-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.comp")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
@@ -1400,7 +1400,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--devmode", snapPath})
@@ -1434,7 +1434,7 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", snapPath})
@@ -1466,7 +1466,7 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", snapPath})
@@ -1498,7 +1498,7 @@ func (s *SnapOpSuite) TestInstallPathQuotaGroup(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--quota-group", "foo", snapPath})
@@ -1557,7 +1557,7 @@ func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := os.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0o644)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1596,7 +1596,7 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	// instance is named foo_bar
 	s.srv.snap = "foo_bar"
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0o644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
@@ -1655,7 +1655,7 @@ func (s *SnapOpSuite) TestInstallPathMany(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := os.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0o644)
 		c.Assert(err, check.IsNil)
 	}
 

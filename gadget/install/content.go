@@ -87,7 +87,7 @@ func (p *mntfsParams) flags() uintptr {
 // mountFilesystem mounts the filesystem on a given device with
 // filesystem type fs under the provided mount point directory.
 func mountFilesystem(fsDevice, fs, mountpoint string, params mntfsParams) error {
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+	if err := os.MkdirAll(mountpoint, 0o755); err != nil {
 		return fmt.Errorf("cannot create mountpoint: %v", err)
 	}
 	if err := sysMount(fsDevice, mountpoint, fs, params.flags(), ""); err != nil {
@@ -113,7 +113,7 @@ func unmountWithFallbackToLazy(mntPt, operationMsg string) error {
 // gadget.
 func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelSnapInfo, fsDevice string, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(dirs.SnapRunDir, "gadget-install", strings.ReplaceAll(strings.Trim(fsDevice, "/"), "/", "-"))
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+	if err := os.MkdirAll(mountpoint, 0o755); err != nil {
 		return err
 	}
 
@@ -228,7 +228,7 @@ func writeContainerMountUnit(destRoot string, cpi snap.ContainerPlaceInfo) error
 	unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
 	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
 		linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
-		if err := os.MkdirAll(linkDir, 0755); err != nil {
+		if err := os.MkdirAll(linkDir, 0o755); err != nil {
 			return err
 		}
 		linkPath := filepath.Join(linkDir, unitFileName)

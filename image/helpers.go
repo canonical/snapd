@@ -160,7 +160,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			// <PrepareDir>/system-seed
 			if ps.Role() == gadget.SystemSeed {
 				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
-				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 					return err
 				}
 				if err := os.Symlink(uc20systemSeedDir, dst); err != nil {

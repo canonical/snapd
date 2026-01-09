@@ -93,8 +93,8 @@ func (s *OpenglDriverLibsInterfaceSuite) TestName(c *C) {
 
 func (s *OpenglDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
 	libDir1 := filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1")
-	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libDir1, "libOPENGL_nvidia.so.0"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(libDir1, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libDir1, "libOPENGL_nvidia.so.0"), []byte(``), 0o644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 

@@ -107,9 +107,9 @@ func (s *scanningSuite) writePids(c *C, dir string, pids []int) string {
 		path = filepath.Join(s.rootDir, "/sys/fs/cgroup", dir)
 	}
 
-	c.Assert(os.MkdirAll(path, 0755), IsNil)
+	c.Assert(os.MkdirAll(path, 0o755), IsNil)
 	finalPath := filepath.Join(path, "cgroup.procs")
-	c.Assert(os.WriteFile(finalPath, buf.Bytes(), 0644), IsNil)
+	c.Assert(os.WriteFile(finalPath, buf.Bytes(), 0o644), IsNil)
 	return finalPath
 }
 
@@ -352,8 +352,8 @@ func (s *scanningSuite) TestPidsOfSnapUnrelated(c *C) {
 		// Write a file which is not cgroup.procs with the number 666 inside.
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
-		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(f), 0o755), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0o644), IsNil)
 
 		pids, err := cgroup.PidsOfSnap("pkg")
 		c.Assert(err, IsNil, comment)
@@ -382,8 +382,8 @@ func (s *scanningSuite) TestPathsOfSnapUnrelated(c *C) {
 		// Write a file which is not cgroup.procs with the number 666 inside.
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
-		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(f), 0o755), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0o644), IsNil)
 
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)

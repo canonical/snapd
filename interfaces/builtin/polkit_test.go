@@ -165,11 +165,11 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicy(c *C) {
 </policyconfig>`
 	const samplePolicy2 = `<policyconfig/>`
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	policyPath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy1), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy1), 0o644), IsNil)
 	policyPath = filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.bar.policy")
-	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy2), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -214,11 +214,11 @@ apps:
 	mockPlugSnapInfoYaml := fmt.Sprintf(mockPlugSnapInfoYamlTemplate, hash1, hash2)
 	plug, plugInfo := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "polkit")
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.rules")
-	c.Assert(os.WriteFile(rulePath, sampleRule1, 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, sampleRule1, 0o644), IsNil)
 	rulePath = filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.bar.rules")
-	c.Assert(os.WriteFile(rulePath, sampleRule2, 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, sampleRule2, 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -246,9 +246,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleMissing(c *C) {
 	c.Check(err, ErrorMatches, `cannot find any rule files for plug "polkit"`)
 
 	// Files without plug-name prefix are not read.
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/foo.rules")
-	c.Assert(os.WriteFile(rulePath, []byte("// js code"), 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, []byte("// js code"), 0o644), IsNil)
 
 	err = polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Check(err, ErrorMatches, `cannot find any rule files for plug "polkit"`)
@@ -257,9 +257,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleMissing(c *C) {
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyNotFile(c *C) {
 	plug, plugInfo := mockPolkitPolicyConnectedPlug(c)
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	policyPath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(os.Mkdir(policyPath, 0755), IsNil)
+	c.Assert(os.Mkdir(policyPath, 0o755), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -269,9 +269,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyNotFile(c *C) {
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleNotFile(c *C) {
 	plug, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.rules")
-	c.Assert(os.Mkdir(rulePath, 0755), IsNil)
+	c.Assert(os.Mkdir(rulePath, 0o755), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -282,9 +282,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyBadXML(c *C) {
 	plug, plugInfo := mockPolkitPolicyConnectedPlug(c)
 
 	const samplePolicy = `<malformed`
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	policyPath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -303,9 +303,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyBadAction(c *C) {
     </defaults>
   </action>
 </policyconfig>`
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	policyPath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -325,9 +325,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyBadImplies(c *C) {
     <annotate key="org.freedesktop.policykit.imply">org.freedesktop.systemd1.manage-units</annotate>
   </action>
 </policyconfig>`
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	policyPath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -337,9 +337,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitPolicyBadImplies(c *C) {
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleNoMatchingEntry(c *C) {
 	plug, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.no-match.rules")
-	c.Assert(os.WriteFile(rulePath, []byte("// js code"), 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, []byte("// js code"), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -349,9 +349,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleNoMatchingEntry(c *C) 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleBadHash(c *C) {
 	plug, plugInfo := mockPolkitRuleConnectedPlug(c, "bad-hash")
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.rules")
-	c.Assert(os.WriteFile(rulePath, []byte("// js code - 1"), 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, []byte("// js code - 1"), 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)
@@ -361,13 +361,13 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleBadHash(c *C) {
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitRuleBadFileSize(c *C) {
 	plug, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
 
-	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit"), 0o755), IsNil)
 	rulePath := filepath.Join(plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.rules")
 	ruleContent := make([]byte, 128*1024+1)
 	n, err := rand.Read(ruleContent)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 128*1024+1)
-	c.Assert(os.WriteFile(rulePath, ruleContent, 0644), IsNil)
+	c.Assert(os.WriteFile(rulePath, ruleContent, 0o644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err = polkitSpec.AddConnectedPlug(s.iface, plug, s.slot)

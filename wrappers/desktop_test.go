@@ -77,16 +77,16 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
 	oldDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop")
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
-	c.Assert(os.WriteFile(oldDesktopFilePath, mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(oldDesktopFilePath, mockDesktopFile, 0o644), IsNil)
 	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, true)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, IsNil)
@@ -111,10 +111,10 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicate(c *C) {
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	baseDir := info.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
 	// When mangled, both files will be foo_foobar._.desktop and should error
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.*.desktop"), mockDesktopFile, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.$.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.*.desktop"), mockDesktopFile, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.$.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, Equals, nil)
@@ -153,9 +153,9 @@ plugs:
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "org.example.Foo.desktop"), mockDesktopFile, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "org.example.Foo.desktop"), mockDesktopFile, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, IsNil)
@@ -215,13 +215,13 @@ plugs:
 func (s *desktopSuite) TestEnsurePackageDesktopFilesMultiple(c *C) {
 	info1 := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	baseDir := info1.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	info2 := snaptest.MockSnap(c, strings.Replace(desktopAppYaml, "name: foo", "name: bar", 1), &snap.SideInfo{Revision: snap.R(12)})
 	baseDir = info2.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info1, info2})
 	c.Assert(err, IsNil)
@@ -254,13 +254,13 @@ plugs:
 Name=foo
 X-SnapInstanceName=bar`)
 	badDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
-	c.Assert(os.WriteFile(badDesktopFilePath, mockBadDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(badDesktopFilePath, mockBadDesktopFile, 0o644), IsNil)
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "org.example.Foo.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "org.example.Foo.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, ErrorMatches, `cannot install "org.example.Foo.desktop": ".*/var/lib/snapd/desktop/applications/org.example.Foo.desktop" already exists for another snap`)
@@ -280,14 +280,14 @@ Name=Test`
 		"org.example.Bar.desktop": "bar",
 		"bar_app.desktop":         "bar",
 	}
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
 	for desktopFile, snapName := range desktopFileToSnapName {
 		mockDesktopFile := fmt.Sprintf(desktopFileTemplate, snapName)
-		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, desktopFile), []byte(mockDesktopFile), 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, desktopFile), []byte(mockDesktopFile), 0o644), IsNil)
 	}
 
 	if triggerErr {
-		c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0o755), IsNil)
 	}
 
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
@@ -329,7 +329,7 @@ func (s *desktopSuite) TestRemovePackageDesktopFilesError(c *C) {
 }
 
 func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755)
 	c.Assert(err, IsNil)
 
 	const desktopFileTemplate = `
@@ -338,11 +338,11 @@ Name=Test
 X-SnapInstanceName=%s`
 
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	err = os.WriteFile(mockDesktopFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo")), 0644)
+	err = os.WriteFile(mockDesktopFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo")), 0o644)
 	c.Assert(err, IsNil)
 
 	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
-	err = os.WriteFile(mockDesktopInstanceFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo_instance")), 0644)
+	err = os.WriteFile(mockDesktopInstanceFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo_instance")), 0o644)
 	c.Assert(err, IsNil)
 
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
@@ -358,7 +358,7 @@ X-SnapInstanceName=%s`
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 
 	// restore the non-instance file
-	err = os.WriteFile(mockDesktopFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo")), 0644)
+	err = os.WriteFile(mockDesktopFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo")), 0o644)
 	c.Assert(err, IsNil)
 
 	s.mockUpdateDesktopDatabase.ForgetCalls()
@@ -378,26 +378,26 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanupOnError(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 
-	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755)
 	c.Assert(err, IsNil)
 
 	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
-	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0o644)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0o755)
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
+	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
+	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0o644)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
+	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0o644)
 	c.Assert(err, IsNil)
 
 	err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
@@ -425,16 +425,16 @@ X-SnapInstanceName=%s`
 		"bar_app.desktop":             "bar",
 	}
 	// Mock already installed desktop files
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
 	for desktopFile, snapName := range desktopFileToSnapName {
 		mockDesktopFile := fmt.Sprintf(desktopFileTemplate, snapName)
-		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, desktopFile), []byte(mockDesktopFile), 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, desktopFile), []byte(mockDesktopFile), 0o644), IsNil)
 	}
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "app.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "app.desktop"), mockDesktopFile, 0o644), IsNil)
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, IsNil)
@@ -907,10 +907,10 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 
 		// generate .desktop file in the package baseDir
 		baseDir := info.MountDir()
-		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
+		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0o755)
 		c.Assert(err, IsNil)
 
-		err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
+		err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0o644)
 		c.Assert(err, IsNil)
 
 		err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
@@ -932,7 +932,7 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 }
 
 func (s *desktopSuite) TestForAllDesktopFilesSkipsSnapdDesktopFiles(c *C) {
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
 
 	var mockDesktopFile = []byte(`
 [Desktop Entry]
@@ -942,7 +942,7 @@ X-SnapInstanceName=foo`)
 	desktopFiles := wrappers.SnapdDesktopFileNames
 	desktopFiles = append(desktopFiles, "foo_foo.desktop", "foo_bar.desktop")
 	for _, df := range desktopFiles {
-		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, df), mockDesktopFile, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, df), mockDesktopFile, 0o644), IsNil)
 	}
 
 	found := make(map[string]string, 2)
@@ -958,7 +958,7 @@ X-SnapInstanceName=foo`)
 }
 
 func (s *desktopSuite) TestForAllDesktopFilesSkipsBadDesktopFiles(c *C) {
-	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
 
 	var mockEmpty []byte
 	var mockNoInstanceName = []byte(`
@@ -968,9 +968,9 @@ Name=foo`)
 [Desktop Entry]
 [Desktop Entry]`)
 
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "empty.desktop"), mockEmpty, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "no-instance-name.desktop"), mockNoInstanceName, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "invalid.desktop"), mockInvalid, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "empty.desktop"), mockEmpty, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "no-instance-name.desktop"), mockNoInstanceName, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "invalid.desktop"), mockInvalid, 0o644), IsNil)
 
 	err := wrappers.ForAllDesktopFiles(func(base, instanceName string) error {
 		return errors.New("unexpected call")

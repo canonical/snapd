@@ -94,7 +94,7 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 		return output, nil
 	}
 	s.unit = unitStateNone
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0o755), IsNil)
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 

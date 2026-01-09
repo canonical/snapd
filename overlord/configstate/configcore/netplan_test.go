@@ -110,7 +110,7 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	restore = release.MockOnClassic(false)
 	s.AddCleanup(restore)
 
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/netplan"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/netplan"), 0o755)
 	c.Assert(err, IsNil)
 }
 

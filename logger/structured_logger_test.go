@@ -209,7 +209,7 @@ func (s *LogStructuredSuite) TestIntegrationDebugFromKernelCmdlineStructured(c *
 	defer restore()
 
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0644)
+	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1\n"), 0o644)
 	c.Assert(err, IsNil)
 	restore = kcmdline.MockProcCmdline(mockProcCmdline)
 	defer restore()

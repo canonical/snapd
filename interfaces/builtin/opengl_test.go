@@ -86,7 +86,7 @@ func (s *OpenglInterfaceSuite) TearDownTest(c *C) {
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0o777), IsNil)
 
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -168,7 +168,7 @@ func (s *OpenglInterfaceSuite) TestInterfaces(c *C) {
 func (s *OpenglInterfaceSuite) TestMountSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0o777), IsNil)
 
 	spec := mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)

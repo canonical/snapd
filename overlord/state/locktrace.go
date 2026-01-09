@@ -58,7 +58,7 @@ func traceCallers(ts, heldMs, waitMs int64) error {
 		return fmt.Errorf("internal error: trace file path unset")
 	}
 
-	logFile, err := os.OpenFile(traceFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	logFile, err := os.OpenFile(traceFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return fmt.Errorf("cannot not open/create log trace file: %v", err)
 	}

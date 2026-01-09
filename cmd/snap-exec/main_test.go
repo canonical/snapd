@@ -379,7 +379,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 	script := fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir)
-	err := os.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
+	err := os.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0o755)
 	c.Assert(err, IsNil)
 
 	// we can not use the real syscall.execv here because it would
@@ -420,7 +420,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 	hookPathAndContents := []string{hookPath, fmt.Sprintf(binaryTemplate, canaryFile)}
 	snaptest.PopulateDir(testSnap.MountDir(), [][]string{hookPathAndContents})
 	hookPath = filepath.Join(testSnap.MountDir(), hookPath)
-	c.Assert(os.Chmod(hookPath, 0755), IsNil)
+	c.Assert(os.Chmod(hookPath, 0o755), IsNil)
 
 	// we can not use the real syscall.execv here because it would
 	// replace the entire test :)

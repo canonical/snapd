@@ -392,8 +392,8 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *
 	})
 
 	for _, hook := range hooks {
-		c.Assert(os.MkdirAll(info.HooksDir(), 0775), IsNil)
-		err := os.WriteFile(filepath.Join(info.HooksDir(), hook), nil, 0755)
+		c.Assert(os.MkdirAll(info.HooksDir(), 0o775), IsNil)
+		err := os.WriteFile(filepath.Join(info.HooksDir(), hook), nil, 0o755)
 		c.Assert(err, IsNil)
 	}
 

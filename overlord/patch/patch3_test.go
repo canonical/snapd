@@ -99,9 +99,9 @@ var statePatch3JSON = []byte(`
 func (s *patch3Suite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(dirs.SnapStateFile, statePatch3JSON, 0644)
+	err = os.WriteFile(dirs.SnapStateFile, statePatch3JSON, 0o644)
 	c.Assert(err, IsNil)
 }
 

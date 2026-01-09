@@ -38,7 +38,7 @@ type checkpointOnlyBackend struct {
 }
 
 func (b *checkpointOnlyBackend) Checkpoint(data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(b.path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(b.path), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(b.path, data, 0600, 0)

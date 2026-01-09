@@ -110,10 +110,10 @@ func removeKernelBootFiles(bootChains []boot.BootChain) []boot.BootChain {
 
 func mockAssetsCache(c *C, rootdir, bootloaderName string, cachedAssets []string) {
 	p := filepath.Join(dirs.SnapBootAssetsDirUnder(rootdir), bootloaderName)
-	err := os.MkdirAll(p, 0755)
+	err := os.MkdirAll(p, 0o755)
 	c.Assert(err, IsNil)
 	for _, cachedAsset := range cachedAssets {
-		err = os.WriteFile(filepath.Join(p, cachedAsset), nil, 0644)
+		err = os.WriteFile(filepath.Join(p, cachedAsset), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 }
@@ -234,13 +234,13 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 		runKernel,
 	}
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"shim-shimhash",
 		"asset-runassethash",
 		"asset-assethash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -2619,12 +2619,12 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 		runKernel,
 	}
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0o755), IsNil)
 	for _, name := range []string{
 		"asset-runassethash",
 		"asset-assethash",
 	} {
-		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		err := os.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0o644)
 		c.Assert(err, IsNil)
 	}
 

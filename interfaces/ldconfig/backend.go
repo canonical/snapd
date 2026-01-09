@@ -134,7 +134,7 @@ func (b *Backend) setupLdconfigCache(spec *Specification) error {
 			content += "\n"
 		}
 
-		if err := os.MkdirAll(ldConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(ldConfigDir, 0o755); err != nil {
 			return fmt.Errorf("cannot create directory for ldconfig files %q: %s", ldConfigDir, err)
 		}
 		err := osutil.EnsureFileState(ldconfigPath, &osutil.MemoryFileState{

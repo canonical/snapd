@@ -57,16 +57,16 @@ func (s *iconsTestSuite) TestFindIconFiles(c *C) {
 
 	baseDir := info.MountDir()
 	iconsDir := filepath.Join(baseDir, "meta", "gui", "icons")
-	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "256x256", "apps"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "256x256", "apps", "snap.hello-snap.foo.png"), []byte("256x256"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "256x256", "apps"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "256x256", "apps", "snap.hello-snap.foo.png"), []byte("256x256"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0o644), IsNil)
 
 	// Some files that shouldn't be picked up
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.exe"), []byte("bad extension"), 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "org.example.hello.png"), []byte("bad prefix"), 0644), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "snap.whatever"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.whatever", "snap.hello-snap.foo.png"), []byte("bad dir"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.exe"), []byte("bad extension"), 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "org.example.hello.png"), []byte("bad prefix"), 0o644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "snap.whatever"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.whatever", "snap.hello-snap.foo.png"), []byte("bad dir"), 0o644), IsNil)
 
 	icons, err := wrappers.FindIconFiles(info.SnapName(), iconsDir)
 	sort.Strings(icons)
@@ -82,12 +82,12 @@ func (s *iconsTestSuite) TestEnsureSnapIcons(c *C) {
 
 	baseDir := info.MountDir()
 	iconsDir := filepath.Join(baseDir, "meta", "gui", "icons")
-	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0o644), IsNil)
 
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps"), 0o755), IsNil)
 	oldIconFile := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.bar.svg")
-	c.Assert(os.WriteFile(oldIconFile, []byte("scalable"), 0644), IsNil)
+	c.Assert(os.WriteFile(oldIconFile, []byte("scalable"), 0o644), IsNil)
 
 	c.Assert(wrappers.EnsureSnapIcons(info), IsNil)
 	iconFile := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg")
@@ -104,8 +104,8 @@ func (s *iconsTestSuite) TestEnsureSnapIconsNilSnapInfo(c *C) {
 func (s *iconsTestSuite) TestRemoveSnapIcons(c *C) {
 	iconDir := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps")
 	iconFile := filepath.Join(iconDir, "snap.hello-snap.foo.svg")
-	c.Assert(os.MkdirAll(iconDir, 0755), IsNil)
-	c.Assert(os.WriteFile(iconFile, []byte("contents"), 0644), IsNil)
+	c.Assert(os.MkdirAll(iconDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(iconFile, []byte("contents"), 0o644), IsNil)
 
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 	c.Assert(wrappers.RemoveSnapIcons(info), IsNil)
@@ -118,8 +118,8 @@ func (s *iconsTestSuite) TestParallelInstanceEnsureIcons(c *C) {
 
 	baseDir := info.MountDir()
 	iconsDir := filepath.Join(baseDir, "meta", "gui", "icons")
-	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "hicolor", "scalable", "apps"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "hicolor", "scalable", "apps", "snap.hello-snap.foo.svg"), []byte("scalable"), 0o644), IsNil)
 
 	c.Assert(wrappers.EnsureSnapIcons(info), IsNil)
 	iconFile := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps", "snap.hello-snap_instance.foo.svg")
@@ -132,11 +132,11 @@ func (s *iconsTestSuite) TestParallelInstanceEnsureIcons(c *C) {
 
 func (s *iconsTestSuite) TestParallelInstanceRemoveIcons(c *C) {
 	iconDir := filepath.Join(dirs.SnapDesktopIconsDir, "hicolor", "scalable", "apps")
-	c.Assert(os.MkdirAll(iconDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(iconDir, 0o755), IsNil)
 	snapNameFile := filepath.Join(iconDir, "snap.hello-snap.foo.svg")
-	c.Assert(os.WriteFile(snapNameFile, []byte("contents"), 0644), IsNil)
+	c.Assert(os.WriteFile(snapNameFile, []byte("contents"), 0o644), IsNil)
 	instanceNameFile := filepath.Join(iconDir, "snap.hello-snap_instance.foo.svg")
-	c.Assert(os.WriteFile(instanceNameFile, []byte("contents"), 0644), IsNil)
+	c.Assert(os.WriteFile(instanceNameFile, []byte("contents"), 0o644), IsNil)
 
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 	info.InstanceKey = "instance"

@@ -59,7 +59,7 @@ func (s *cacheSuite) makeTestFile(c *C, name, content string) string {
 }
 func (s *cacheSuite) makeTestFileInDir(c *C, dir, name, content string) string {
 	p := filepath.Join(dir, name)
-	err := os.WriteFile(p, []byte(content), 0644)
+	err := os.WriteFile(p, []byte(content), 0o644)
 	c.Assert(err, IsNil)
 	return p
 }
@@ -282,7 +282,7 @@ func (s *cacheSuite) TestCleanupBusy(c *C) {
 
 func (s *cacheSuite) TestHardLinkCount(c *C) {
 	p := filepath.Join(s.tmp, "foo")
-	err := os.WriteFile(p, nil, 0644)
+	err := os.WriteFile(p, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// trivial case
@@ -315,7 +315,7 @@ func (s *cacheSuite) TestHardLinkCount(c *C) {
 
 func (s *cacheSuite) TestCacheHitOnErrExist(c *C) {
 	targetPath := filepath.Join(s.tmp, "foo")
-	err := os.WriteFile(targetPath, nil, 0644)
+	err := os.WriteFile(targetPath, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// put file in target path
@@ -483,7 +483,7 @@ func (s *cachePolicySuite) SetUpTest(c *C) {
 func (s *cachePolicySuite) makeTestDirEntry(c *C, name string, size int64, modTime time.Time) os.DirEntry {
 	p := filepath.Join(s.tmp, name)
 	content := make([]byte, size)
-	err := os.WriteFile(p, content, 0644)
+	err := os.WriteFile(p, content, 0o644)
 	c.Assert(err, IsNil)
 
 	err = os.Chtimes(p, modTime, modTime)

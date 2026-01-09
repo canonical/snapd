@@ -43,11 +43,11 @@ func (s *sessionSuite) SetUpTest(c *C) {
 
 func (s *sessionSuite) TestAvailableUserSessionsHappy(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1337", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1337", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	res, err := clientutil.AvailableUserSessions()
@@ -63,11 +63,11 @@ func (s *sessionSuite) TestAvailableUserSessionsHappy(c *C) {
 
 func (s *sessionSuite) TestAvailableUserSessionsIgnoresBadUids(c *C) {
 	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "hello", "snapd-session-agent.socket"), 0700)
+	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "hello", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "*34i8932", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "*34i8932", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "3", "snapd-session-agent.socket"), 0700)
+	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "3", "snapd-session-agent.socket"), 0o700)
 	c.Assert(err, IsNil)
 
 	res, err := clientutil.AvailableUserSessions()

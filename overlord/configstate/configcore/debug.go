@@ -72,7 +72,7 @@ func handleDebugSnapdLogConfiguration(tr RunTransaction, opts *fsOnlyContext) er
 	var enableDebug bool
 	switch debugLog {
 	case "true":
-		if err := os.Mkdir(envDir, 0755); err != nil && !os.IsExist(err) {
+		if err := os.Mkdir(envDir, 0o755); err != nil && !os.IsExist(err) {
 			return err
 		}
 		if err := osutil.EnsureFileState(snapdEnvPath, &osutil.MemoryFileState{
@@ -150,7 +150,7 @@ func handleDebugSystemdLogLevelConfiguration(tr RunTransaction, opts *fsOnlyCont
 		logLevel = "info"
 	} else {
 		// Otherwise, write persistent configuration
-		if err := os.MkdirAll(confDir, 0755); err != nil && !os.IsExist(err) {
+		if err := os.MkdirAll(confDir, 0o755); err != nil && !os.IsExist(err) {
 			return err
 		}
 		confData := fmt.Sprintf("[Manager]\nLogLevel=%s\n", logLevel)

@@ -184,9 +184,9 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
-	err := os.MkdirAll(dirs.SnapRunDir, 0755)
+	err := os.MkdirAll(dirs.SnapRunDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0755)
+	err = os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755)
 	c.Assert(err, IsNil)
 
 	s.AddCleanup(osutil.MockMountInfo(``))
@@ -1511,7 +1511,7 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 	c.Assert(boot.InitramfsExposeBootFlagsForSystem(nil), IsNil)
 	// data present
 	ubuntuData := filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
-	c.Assert(os.MkdirAll(ubuntuData, 0755), IsNil)
+	c.Assert(os.MkdirAll(ubuntuData, 0o755), IsNil)
 
 	smi, err := mgr.SystemModeInfo()
 	c.Assert(err, IsNil)
@@ -2007,7 +2007,7 @@ var _ = Suite(&startOfOperationTimeSuite{})
 
 func (s *startOfOperationTimeSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	os.MkdirAll(dirs.SnapRunDir, 0755)
+	os.MkdirAll(dirs.SnapRunDir, 0o755)
 
 	s.state = state.New(nil)
 	s.runner = state.NewTaskRunner(s.state)
@@ -2188,7 +2188,7 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
 
 func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	// create /var/lib/snapd/void with the wrong permissions
-	err := os.MkdirAll(dirs.SnapVoidDir, 0755)
+	err := os.MkdirAll(dirs.SnapVoidDir, 0o755)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -2221,7 +2221,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
 		[]byte("save-key"), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0o755), IsNil)
 	err = os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		[]byte("old"), 0644)
 	c.Assert(err, IsNil)
@@ -2231,7 +2231,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	// matches the .factory key
 	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
 `)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0o644), IsNil)
 
 	transitionCalls := 0
 	restore := devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
@@ -2314,7 +2314,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 
 	// have the marker, but keep the keys rotated as if boot code would do it and
 	// try again, in this setup the marker hash matches the migrated key
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0o644), IsNil)
 
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2338,7 +2338,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
-	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0o755), IsNil)
 	err := os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		[]byte("old"), 0644)
 	c.Check(err, IsNil)
@@ -2348,7 +2348,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	// does not match the save key
 	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
 `)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0o644), IsNil)
 
 	err = s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
@@ -2377,8 +2377,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	devicestate.SetSystemMode(s.mgr, "run")
 
 	// mock the factory reset marker of a system that isn't encrypted
-	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0o644), IsNil)
 
 	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)

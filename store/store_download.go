@@ -202,7 +202,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}
 
@@ -232,7 +232,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	partialPath := targetPath + ".partial"
-	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
+	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}
@@ -806,7 +806,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 
 	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
-		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
+		file, err := os.OpenFile(path, os.O_RDONLY, 0o600)
 		if err != nil {
 			// There's a TOCTOU race between getting a path from the cache and
 			// opening the file. It is possible that a cache cleanup running in
@@ -910,7 +910,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 		return runErr
 	}
 
-	if err := os.Chmod(partialTargetPath, 0600); err != nil {
+	if err := os.Chmod(partialTargetPath, 0o600); err != nil {
 		return err
 	}
 
@@ -940,7 +940,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
 
-	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}

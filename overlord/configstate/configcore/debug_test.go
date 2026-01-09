@@ -51,9 +51,9 @@ func (s *debugSuite) SetUpTest(c *C) {
 	s.systemdLogConfPath = filepath.Join(dirs.SnapSystemdConfDir,
 		"20-debug_systemd_log-level.conf")
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0o644)
 	c.Assert(err, IsNil)
 }
 

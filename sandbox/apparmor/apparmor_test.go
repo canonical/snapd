@@ -82,10 +82,10 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(libSnapdDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0o644), IsNil)
 
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
@@ -113,11 +113,11 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(libSnapdDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0o644), IsNil)
 
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
@@ -154,7 +154,7 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	// SystemCacheDir should take that value
 	dir1 := c.MkDir()
 	systemCacheDir := filepath.Join(dir1, "/etc/apparmor.d/cache")
-	err := os.MkdirAll(systemCacheDir, 0755)
+	err := os.MkdirAll(systemCacheDir, 0o755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir1)
 	c.Assert(apparmor.SystemCacheDir, Equals, systemCacheDir)
@@ -168,7 +168,7 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	// finally test that it's insufficient to just have the conf dir, we need
 	// specifically the cache dir
 	dir3 := c.MkDir()
-	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0755)
+	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0o755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir3)
 	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
@@ -278,22 +278,22 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory exists but is empty.
-	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath), 0o755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory contains some entries.
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "bar"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "xyz"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo"), 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "bar"), 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "xyz"), 0o755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo", "xyz"})
 
 	// Also test sub-features features
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "baz"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "qux"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "baz"), 0o755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "qux"), 0o755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
@@ -307,7 +307,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
 
 	// Also test that prompt feature is read from permstable32 if it exists
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
 	for _, testCase := range []struct {
 		permstableContent string
 		expectedSuffixes  []string
@@ -345,7 +345,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 			[]string{"prompt"},
 		},
 	} {
-		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte(testCase.permstableContent), 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte(testCase.permstableContent), 0o644), IsNil)
 		features, err = apparmor.ProbeKernelFeatures()
 		c.Assert(err, IsNil)
 		expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy"}
@@ -357,9 +357,9 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	}
 
 	// Set permstable32 to good value
-	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte("allow deny prompt"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte("allow deny prompt"), 0o644), IsNil)
 	// Create notify directory
-	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0o755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:prompt", "xyz"}
@@ -383,7 +383,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 			[]string{"dbus", "file", "network"},
 		},
 	} {
-		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "notify", "user"), []byte(testCase.userContent), 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "notify", "user"), []byte(testCase.userContent), 0o644), IsNil)
 		features, err = apparmor.ProbeKernelFeatures()
 		c.Assert(err, IsNil)
 		expected = []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify"}
@@ -588,10 +588,10 @@ func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
 	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(libSnapdDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0o644), IsNil)
 
 	// Pretend that we are running snapd from that snap location.
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
@@ -619,8 +619,8 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	d := c.MkDir()
 	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0o755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
@@ -661,8 +661,8 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	d := c.MkDir()
 	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0o755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
@@ -991,15 +991,15 @@ func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
 
 	d := dirs.DistroLibExecDir
-	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	c.Assert(os.MkdirAll(d, 0o755), IsNil)
 	infoFile := filepath.Join(d, "info")
-	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo"), 0o644), IsNil)
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
-	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=0"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=0"), 0o644), IsNil)
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
-	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=foo"), 0o644), IsNil)
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
-	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=1"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=1"), 0o644), IsNil)
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, true)
 }
 
@@ -1014,10 +1014,10 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 
 	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
 	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(libSnapdDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(parser, nil, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0o644), IsNil)
 	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
 		return filepath.Join(libSnapdDir, "snapd"), nil
@@ -1043,7 +1043,7 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
-	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0750)
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0o750)
 	c.Assert(err, IsNil)
 
 	os.Setenv("SNAPD_DEBUG", "1")
@@ -1061,7 +1061,7 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {
 		return
 	}
 	// log generated for errors
-	err = os.WriteFile(fakeApparmorFunctionsPath, nil, 0100)
+	err = os.WriteFile(fakeApparmorFunctionsPath, nil, 0o100)
 	c.Assert(err, IsNil)
 	c.Check(apparmor.SystemAppArmorLoadsSnapPolicy(), Equals, false)
 	c.Check(log.String(), Matches, `(?ms).* DEBUG: cannot open apparmor functions file: open .*/lib/apparmor/functions: permission denied`)
@@ -1076,7 +1076,7 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
 	dirs.SnapAppArmorDir = dirs.SnapAppArmorDir[len(fakeroot):]
 
 	fakeApparmorFunctionsPath := filepath.Join(fakeroot, "/lib/apparmor/functions")
-	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0755)
+	err := os.MkdirAll(filepath.Dir(fakeApparmorFunctionsPath), 0o755)
 	c.Assert(err, IsNil)
 
 	for _, tc := range []struct {
@@ -1090,7 +1090,7 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
 		// 18.04
 		{`PROFILES_VAR="/var/lib/snapd/apparmor/profiles"`, true},
 	} {
-		err := os.WriteFile(fakeApparmorFunctionsPath, []byte(tc.apparmorFunctionsContent), 0644)
+		err := os.WriteFile(fakeApparmorFunctionsPath, []byte(tc.apparmorFunctionsContent), 0o644)
 		c.Assert(err, IsNil)
 
 		loadsPolicy := apparmor.SystemAppArmorLoadsSnapPolicy()

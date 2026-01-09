@@ -583,8 +583,8 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentEMMCWithPaths(c
 	dirs.SetRootDir(r.dir)
 
 	// create the force_ro path that should be available for emmc block devices
-	c.Assert(os.MkdirAll(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0", "force_ro"), []byte(`1`), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(r.dir, "sys", "block", "mmcblk1boot0", "force_ro"), []byte(`1`), 0o644), IsNil)
 
 	// test with paths in place
 	r.testRawUpdaterBackupUpdateRestoreDifferentEMMC(c, "")
@@ -896,7 +896,7 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img"@0x80\{128\}\): cannot restore backup: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
-	err = os.Chmod(diskPath, 0000)
+	err = os.Chmod(diskPath, 0o000)
 	c.Assert(err, IsNil)
 	err = ru.Rollback()
 	c.Assert(err, ErrorMatches, "cannot open device for writing: .* permission denied")
@@ -952,7 +952,7 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img"@0x80\{128\}\).*: cannot write image: EOF`)
 
 	// pretend device cannot be opened for writing
-	err = os.Chmod(diskPath, 0000)
+	err = os.Chmod(diskPath, 0o000)
 	c.Assert(err, IsNil)
 	err = ru.Update()
 	c.Assert(err, ErrorMatches, "cannot open device for writing: .* permission denied")

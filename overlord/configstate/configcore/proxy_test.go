@@ -51,7 +51,7 @@ var _ = Suite(&proxySuite{})
 func (s *proxySuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir, "/etc/environment")
 

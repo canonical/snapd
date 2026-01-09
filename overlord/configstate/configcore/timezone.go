@@ -87,7 +87,7 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 		// not part of the "writable-path" so we must set the file
 		// in /etc/writable here for this to work.
 		localtimePath := filepath.Join(opts.RootDir, "/etc/writable/localtime")
-		if err := os.MkdirAll(filepath.Dir(localtimePath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(localtimePath), 0o755); err != nil {
 			return err
 		}
 		if err := os.Symlink(filepath.Join("/usr/share/zoneinfo", timezone), localtimePath); err != nil {

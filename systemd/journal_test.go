@@ -42,10 +42,10 @@ func (j *journalTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	j.journalDir = path.Join(dirs.SnapSystemdRunDir, "journal")
-	c.Assert(os.MkdirAll(j.journalDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(j.journalDir, 0o755), IsNil)
 
 	j.journalNamespaceDir = path.Join(dirs.SnapSystemdRunDir, "journal.test")
-	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0o755), IsNil)
 }
 
 func (j *journalTestSuite) TestStreamFileErrorNoIdentifier(c *C) {

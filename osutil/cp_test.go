@@ -74,7 +74,7 @@ func (s *cpSuite) SetUpTest(c *C) {
 	s.f1 = filepath.Join(s.dir, "f1")
 	s.f2 = filepath.Join(s.dir, "f2")
 	s.data = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-	c.Assert(os.WriteFile(s.f1, s.data, 0644), IsNil)
+	c.Assert(os.WriteFile(s.f1, s.data, 0o644), IsNil)
 }
 
 func (s *cpSuite) mock() {
@@ -101,7 +101,7 @@ func (s *cpSuite) TestCpOverwrite(c *C) {
 }
 
 func (s *cpSuite) TestCpOverwriteTruncates(c *C) {
-	c.Assert(os.WriteFile(s.f2, []byte("xxxxxxxxxxxxxxxx"), 0644), IsNil)
+	c.Assert(os.WriteFile(s.f2, []byte("xxxxxxxxxxxxxxxx"), 0o644), IsNil)
 	c.Check(osutil.CopyFile(s.f1, s.f2, osutil.CopyFlagOverwrite), IsNil)
 	c.Check(s.f2, testutil.FileEquals, s.data)
 }
@@ -215,7 +215,7 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	src := filepath.Join(c.MkDir(), "meep")
 	dst := filepath.Join(c.MkDir(), "copied-meep")
 
-	err := os.WriteFile(src, []byte(nil), 0644)
+	err := os.WriteFile(src, []byte(nil), 0o644)
 	c.Assert(err, IsNil)
 
 	// Give the file a different mtime to ensure CopyFlagPreserveAll
@@ -247,7 +247,7 @@ func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
 
-	err := os.WriteFile(src, []byte(nil), 0644)
+	err := os.WriteFile(src, []byte(nil), 0o644)
 	c.Assert(err, IsNil)
 
 	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
@@ -267,7 +267,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncCpFailure(c *C) {
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
 
-	err := os.WriteFile(src, []byte(nil), 0644)
+	err := os.WriteFile(src, []byte(nil), 0o644)
 	c.Assert(err, IsNil)
 
 	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
@@ -285,7 +285,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
 
-	err := os.WriteFile(src, []byte(nil), 0644)
+	err := os.WriteFile(src, []byte(nil), 0o644)
 	c.Assert(err, IsNil)
 
 	err = osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
@@ -322,7 +322,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyPreservesModTime(c *C) {
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopyOverwrites(c *C) {
-	err := os.WriteFile(s.f2, []byte("this is f2 content"), 0644)
+	err := os.WriteFile(s.f2, []byte("this is f2 content"), 0o644)
 	c.Assert(err, IsNil)
 
 	err = osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
@@ -362,7 +362,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyErrReal(c *C) {
 	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/random-dir/f3\.[a-zA-Z0-9]+~: no such file or directory`)
 
-	err = os.MkdirAll(filepath.Join(dir, "read-only"), 0000)
+	err = os.MkdirAll(filepath.Join(dir, "read-only"), 0o000)
 	c.Assert(err, IsNil)
 	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/read-only/f3\.[a-zA-Z0-9]+~: permission denied`)

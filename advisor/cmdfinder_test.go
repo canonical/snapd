@@ -40,7 +40,7 @@ var _ = Suite(&cmdfinderSuite{})
 
 func (s *cmdfinderSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0o755), IsNil)
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)

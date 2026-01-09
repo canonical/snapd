@@ -243,7 +243,7 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 	}
 
 	cloudDir := filepath.Join(rootDir, "/etc/cloud")
-	if err := os.MkdirAll(cloudDir, 0755); err != nil {
+	if err := os.MkdirAll(cloudDir, 0o755); err != nil {
 		return err
 	}
 	dst := filepath.Join(cloudDir, "cloud.cfg")
@@ -257,10 +257,10 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 		// https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html
 		// https://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html
 		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
-		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
+		if err := os.MkdirAll(varCloudDir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0o644); err != nil {
 			return err
 		}
 		dst := filepath.Join(varCloudDir, "user-data")
@@ -272,10 +272,10 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 	if custo.ConsoleConf == "disabled" {
 		// TODO: maybe share code with configcore somehow
 		consoleConfDisabled := filepath.Join(defaultsDir, "/var/lib/console-conf/complete")
-		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+		if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0o644); err != nil {
 			return err
 		}
 	}
@@ -359,7 +359,7 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 		gadgetUnpackDir := filepath.Join(s.prepareDir, "gadget")
 		kernelUnpackDir := filepath.Join(s.prepareDir, "kernel")
 		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
-			if err := os.MkdirAll(unpackDir, 0755); err != nil {
+			if err := os.MkdirAll(unpackDir, 0o755); err != nil {
 				return nil, fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
 			}
 		}
@@ -838,7 +838,7 @@ func (s *imageSeeder) finishSeedCore() error {
 		defaultsDir := sysconfig.WritableDefaultsDir(s.rootDir)
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(s.rootDir, "/etc"), 0755); err != nil {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(s.rootDir, "/etc"), 0o755); err != nil {
 				return err
 			}
 			if err := sysconfig.ApplyFilesystemOnlyDefaults(s.model, defaultsDir, defaults); err != nil {

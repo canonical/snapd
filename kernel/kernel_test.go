@@ -34,16 +34,16 @@ import (
 
 func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
 	kernelRootDir := c.MkDir()
-	err := os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
+	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0o644)
 	c.Assert(err, IsNil)
 
 	for fname, content := range filesWithContent {
 		p := filepath.Join(kernelRootDir, fname)
-		err = os.MkdirAll(filepath.Dir(p), 0755)
+		err = os.MkdirAll(filepath.Dir(p), 0o755)
 		c.Assert(err, IsNil)
-		err = os.WriteFile(p, []byte(content), 0644)
+		err = os.WriteFile(p, []byte(content), 0o644)
 		c.Assert(err, IsNil)
 	}
 
@@ -107,9 +107,9 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlOptional(c *C) {
 func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
-	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
+	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(kernelYamlPath, []byte(`invalid-kernel-yaml`), 0644)
+	err = os.WriteFile(kernelYamlPath, []byte(`invalid-kernel-yaml`), 0o644)
 	c.Assert(err, IsNil)
 
 	ki, err := kernel.ReadInfo(mockKernelSnapRoot)
@@ -120,9 +120,9 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
 func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
-	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
+	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(kernelYamlPath, mockKernelYaml, 0644)
+	err = os.WriteFile(kernelYamlPath, mockKernelYaml, 0o644)
 	c.Assert(err, IsNil)
 
 	ki, err := kernel.ReadInfo(mockKernelSnapRoot)

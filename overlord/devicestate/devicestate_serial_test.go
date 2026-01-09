@@ -142,9 +142,9 @@ func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatete
 
 	mockServer, extraCerts := devicestatetest.MockDeviceService(c, bhv)
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
-	err := os.MkdirAll(filepath.Dir(fname), 0755)
+	err := os.MkdirAll(filepath.Dir(fname), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0o644)
 	c.Assert(err, IsNil)
 	return mockServer
 }
@@ -2333,8 +2333,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 	inst.AddTask(task)
 
 	// create /run/snapd/noregister
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0o644), IsNil)
 
 	// attempt to run the whole device registration process
 	s.state.Unlock()
@@ -2372,10 +2372,10 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	devicestate.SetSaveAvailable(s.mgr, true)
 
 	// this is the regular assertions DB
-	c.Assert(os.MkdirAll(dirs.SnapAssertsDBDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapAssertsDBDir, 0o755), IsNil)
 	// this is the ubuntu-save is bind mounted under /var/lib/snapd/save,
 	// there is a device directory under it
-	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0o755), IsNil)
 
 	bs, err := asserts.OpenFSBackstore(dirs.SnapAssertsDBDir)
 	c.Assert(err, IsNil)

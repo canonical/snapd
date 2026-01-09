@@ -197,9 +197,9 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	c.Check(f.IsEnabled(), Equals, false)
 
 	// If the feature file is a regular file then the feature is enabled.
-	err := os.MkdirAll(dirs.FeaturesDir, 0755)
+	err := os.MkdirAll(dirs.FeaturesDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0o644)
 	c.Assert(err, IsNil)
 	c.Check(f.IsEnabled(), Equals, true)
 

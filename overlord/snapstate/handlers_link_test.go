@@ -2299,7 +2299,7 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 
 func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	// this is very chummy with the order of LinkSnap
-	c.Assert(os.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapSeqDir, nil, 0o644), IsNil)
 
 	// we start without the auxiliary store info
 	c.Check(backend.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)

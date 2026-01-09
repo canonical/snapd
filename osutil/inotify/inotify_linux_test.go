@@ -62,7 +62,7 @@ func TestInotifyEvents(t *testing.T) {
 
 	// Create a file
 	// This should add at least one event to the inotify event queue
-	_, err = os.OpenFile(testFile, os.O_WRONLY|os.O_CREATE, 0666)
+	_, err = os.OpenFile(testFile, os.O_WRONLY|os.O_CREATE, 0o666)
 	if err != nil {
 		t.Fatalf("creating test file: %s", err)
 	}
@@ -125,7 +125,7 @@ func TestLockOnEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Watch failed: %s", err)
 	}
-	os.Mkdir(dir+"/TestInotifyEvents.testfile", 0)
+	os.Mkdir(dir+"/TestInotifyEvents.testfile", 0o000)
 	// wait one second to ensure that the event is created
 	time.Sleep(1 * time.Second)
 	// now close the watcher. It must close everything and unlock from the event

@@ -218,42 +218,42 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
-	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0o640), IsNil)
 
 	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0o755), IsNil)
 	kernelSnapYamlContent := seedtest.SampleSnapYaml["pc-kernel=24+kmods"]
-	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0o555), IsNil)
 
 	for _, compName := range []string{"kcomp1", "kcomp2"} {
 		compFullName := fmt.Sprintf("pc-kernel+%s", compName)
 		compSnapYaml := filepath.Join(boot.InitramfsRunMntDir, fmt.Sprintf("snap-content/%s/meta/component.yaml", compFullName))
-		c.Assert(os.MkdirAll(filepath.Dir(compSnapYaml), 0755), IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(compSnapYaml), 0o755), IsNil)
 		compYamlContent := seedtest.SampleSnapYaml[compFullName]
-		c.Assert(os.WriteFile(compSnapYaml, []byte(compYamlContent), 0555), IsNil)
+		c.Assert(os.WriteFile(compSnapYaml, []byte(compYamlContent), 0o555), IsNil)
 	}
 
 	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0o755), IsNil)
 	baseSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0o555), IsNil)
 
 	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
-	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0o755), IsNil)
 	gadgetSnapYamlContent := `{}`
-	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0o555), IsNil)
 
 	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
-	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0o755), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0o555), IsNil)
 
 	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
-	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0o755), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0o555), IsNil)
 	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
-	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
-	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(grub), 0o755), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0o555), IsNil)
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
@@ -290,7 +290,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		kernelVer := "6.8.0-51-generic"
 		updatesDir := filepath.Join(dirs.GlobalRootDir,
 			"run/mnt/data/system-data/_writable_defaults/var/lib/snapd/kernel/pc-kernel/1/lib/modules", kernelVer, "updates")
-		c.Assert(os.MkdirAll(updatesDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(updatesDir, 0o755), IsNil)
 		os.Symlink(filepath.Join(dirs.SnapMountDir,
 			"pc-kernel/components/mnt/kcomp1/77/modules", kernelVer),
 			filepath.Join(updatesDir, "kcomp1"))

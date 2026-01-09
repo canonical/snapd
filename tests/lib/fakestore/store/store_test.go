@@ -62,9 +62,9 @@ func getSha(fn string) (string, uint64) {
 
 func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
-	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
+	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.Mkdir(filepath.Join(topdir, "channels"), 0755)
+	err = os.Mkdir(filepath.Join(topdir, "channels"), 0o755)
 	c.Assert(err, IsNil)
 	s.store = NewStore(topdir, "localhost:0", false)
 	err = s.store.Start()
@@ -443,17 +443,17 @@ func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, d
 		Digest:      dgst,
 	}
 
-	f, err := os.OpenFile(filepath.Join(s.store.assertDir, snapID+".fake.snap-declaration"), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(s.store.assertDir, snapID+".fake.snap-declaration"), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	err = tSnapDecl.Execute(f, info)
 	c.Assert(err, IsNil)
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, dgst+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(filepath.Join(s.store.assertDir, dgst+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	err = tSnapRev.Execute(f, info)
 	c.Assert(err, IsNil)
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, develID+".fake.account"), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(filepath.Join(s.store.assertDir, develID+".fake.account"), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	err = tAccount.Execute(f, info)
 	c.Assert(err, IsNil)
@@ -463,7 +463,7 @@ func (s *storeTestSuite) addToChannel(c *C, snapFn, channel string) {
 	dgst, _, err := asserts.SnapFileSHA3_384(snapFn)
 	c.Assert(err, IsNil)
 
-	f, err := os.OpenFile(filepath.Join(s.store.blobDir, "channels", dgst), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(s.store.blobDir, "channels", dgst), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	defer f.Close()
 
@@ -494,12 +494,12 @@ func (s *storeTestSuite) makeComponentAssertions(c *C, fn, name, snapID, develID
 		Size:         size,
 	}
 
-	f, err := os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s.fake.snap-resource-revison", snapID, name)), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s.fake.snap-resource-revison", snapID, name)), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	err = tResourceRevision.Execute(f, info)
 	c.Assert(err, IsNil)
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s+%d.fake.snap-resource-pair", snapID, name, snapRev)), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(filepath.Join(s.store.assertDir, fmt.Sprintf("%s+%s+%d.fake.snap-resource-pair", snapID, name, snapRev)), os.O_CREATE|os.O_WRONLY, 0o644)
 	c.Assert(err, IsNil)
 	err = tResourcePair.Execute(f, info)
 	c.Assert(err, IsNil)
@@ -629,7 +629,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	c.Assert(err, IsNil)
 	rev := a.(*asserts.SnapRevision)
 
-	err = os.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
+	err = os.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0o655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/snap-revision/` + rev.SnapSHA3_384())
@@ -643,7 +643,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0o655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`)
@@ -657,7 +657,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0o655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`)
@@ -671,7 +671,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(c *C) {
-	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0o655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)

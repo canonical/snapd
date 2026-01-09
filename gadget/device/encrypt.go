@@ -122,7 +122,7 @@ const (
 // StampSealedKeys writes what sealing method was used for key sealing
 func StampSealedKeys(rootdir string, content SealingMethod) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(stamp), 0o755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 

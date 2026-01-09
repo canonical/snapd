@@ -67,19 +67,19 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	mockRoot := c.MkDir()
 	os.Setenv("PATH", mockRoot+"/bin")
 	mockBin := mockRoot + "/bin/"
-	err := os.Mkdir(mockBin, 0755)
+	err := os.Mkdir(mockBin, 0o755)
 	c.Assert(err, IsNil)
 
 	// no fde-reveal-key binary
 	c.Check(fde.HasRevealKey(), Equals, false)
 
 	// fde-reveal-key without +x
-	err = os.WriteFile(mockBin+"fde-reveal-key", nil, 0644)
+	err = os.WriteFile(mockBin+"fde-reveal-key", nil, 0o644)
 	c.Assert(err, IsNil)
 	c.Check(fde.HasRevealKey(), Equals, false)
 
 	// correct fde-reveal-key, no logging
-	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
+	err = os.Chmod(mockBin+"fde-reveal-key", 0o755)
 	c.Assert(err, IsNil)
 
 	c.Check(fde.HasRevealKey(), Equals, true)

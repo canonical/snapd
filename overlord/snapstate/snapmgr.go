@@ -831,7 +831,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 		m.backend = backend.Backend{}
 	}
 
-	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapCookieDir, 0o700); err != nil {
 		return nil, fmt.Errorf("cannot create directory %q: %v", dirs.SnapCookieDir, err)
 	}
 

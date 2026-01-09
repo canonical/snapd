@@ -47,7 +47,7 @@ func (s *networkSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.mockSysctl.Restore)
 
 	s.mockNetworkSysctlPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/10-snapd-network.conf")
-	c.Assert(os.MkdirAll(filepath.Dir(s.mockNetworkSysctlPath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(s.mockNetworkSysctlPath), 0o755), IsNil)
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
@@ -111,7 +111,7 @@ func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0o755), IsNil)
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-snapd-network.conf")

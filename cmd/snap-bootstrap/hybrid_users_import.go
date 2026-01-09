@@ -44,7 +44,7 @@ var (
 // elevated privileges, only users from the sudo and admin groups are imported.
 func importHybridUserData(hybridRoot, baseRoot string) error {
 	outputDir := filepath.Join(dirs.SnapRunDir, "hybrid-users")
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return err
 	}
 
@@ -252,12 +252,12 @@ func mergeAndWriteUserFiles(baseUsers map[string]user, importUsers map[string]us
 	}
 
 	destinationPasswd := filepath.Join(outputDir, "passwd")
-	if err := os.WriteFile(destinationPasswd, passwdBuffer.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(destinationPasswd, passwdBuffer.Bytes(), 0o644); err != nil {
 		return err
 	}
 
 	destinationShadow := filepath.Join(outputDir, "shadow")
-	return os.WriteFile(destinationShadow, shadowBuffer.Bytes(), 0600)
+	return os.WriteFile(destinationShadow, shadowBuffer.Bytes(), 0o600)
 }
 
 // mergeAndWriteUserFiles merges the given base groups with the given users and
@@ -325,12 +325,12 @@ func mergeAndWriteGroupFiles(baseGroups map[string]group, importUsers map[string
 	}
 
 	destinationGroup := filepath.Join(outputDir, "group")
-	if err := os.WriteFile(destinationGroup, groupBuffer.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(destinationGroup, groupBuffer.Bytes(), 0o644); err != nil {
 		return err
 	}
 
 	destinationGShadow := filepath.Join(outputDir, "gshadow")
-	return os.WriteFile(destinationGShadow, gshadowBuffer.Bytes(), 0600)
+	return os.WriteFile(destinationGShadow, gshadowBuffer.Bytes(), 0o600)
 }
 
 // unique returns a slice with unique entries; the provided slice is modified

@@ -186,7 +186,7 @@ func (cr *PreinstallCheckResult) save(filename string) error {
 		return fmt.Errorf("cannot serialize preinstall check result: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)

@@ -100,8 +100,8 @@ func (s *systemSuite) TestLoadDesiredProfile(c *C) {
 
 	// Write a desired system mount profile for snap "foo".
 	path := update.DesiredSystemProfilePath(upCtx.InstanceName())
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0o644), IsNil)
 
 	// Ask the system profile update helper to read the desired profile.
 	profile, err := upCtx.LoadDesiredProfile()
@@ -122,8 +122,8 @@ func (s *systemSuite) TestLoadCurrentProfile(c *C) {
 
 	// Write a current system mount profile for snap "foo".
 	path := update.CurrentSystemProfilePath(upCtx.InstanceName())
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0o644), IsNil)
 
 	// Ask the system profile update helper to read the current profile.
 	profile, err := upCtx.LoadCurrentProfile()
@@ -139,7 +139,7 @@ func (s *systemSuite) TestSaveCurrentProfile(c *C) {
 	// Mock directories and create directory for runtime mount profiles.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0o755), IsNil)
 
 	upCtx := update.NewSystemProfileUpdateContext("foo", false)
 	text := "/snap/foo/42/dir /snap/bar/13/dir none bind,rw 0 0\n"

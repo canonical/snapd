@@ -838,12 +838,12 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -869,14 +869,14 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	// mbr and bios images
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
 	}
 	// system-boot - partition w/ filesystem struct
 	grubImg := filepath.Join(newData.RootDir, "grub.efi")
-	err = os.WriteFile(grubImg, nil, 0644)
+	err = os.WriteFile(grubImg, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
 	newData.Info.Volumes["pc"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "grub.efi"}}
@@ -1022,12 +1022,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// consider it at all
 
 	// setup symlink for the BIOS Boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1065,7 +1065,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
@@ -1073,7 +1073,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
+		err = os.WriteFile(fPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
@@ -1304,12 +1304,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// consider it at all
 
 	// setup symlink for the ubuntu-seed partition, in capitals
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1347,14 +1347,14 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure
 	imgName := "mbr.img"
 	imgPath := filepath.Join(newData.RootDir, imgName)
-	err = os.WriteFile(imgPath, nil, 0644)
+	err = os.WriteFile(imgPath, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["pc"].Structure[0].Content = []gadget.VolumeContent{{Image: imgName}}
 	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
 	// ubuntu-{seed,boot,save} - we do not put content in ubuntu-data
 	for i, fName := range []string{"seed", "boot", "save"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
+		err = os.WriteFile(fPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i+1].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+1].Update.Edition = 1
@@ -1564,12 +1564,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1606,7 +1606,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
@@ -1614,7 +1614,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
+		err = os.WriteFile(fPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
@@ -1622,14 +1622,14 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	for i, imgName := range []string{"bare", "part"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
 	}
 	fName := "some-file"
 	fPath := filepath.Join(newData.RootDir, fName)
-	err = os.WriteFile(fPath, nil, 0644)
+	err = os.WriteFile(fPath, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
@@ -1831,7 +1831,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0o755)
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
@@ -1868,12 +1868,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1912,7 +1912,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	// mbr - bare structure, and bios - partition w/o filesystem
 	for i, imgName := range []string{"mbr.img", "bios.img"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
@@ -1920,7 +1920,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	// ubuntu-{seed,boot,save,data}
 	for i, fName := range []string{"seed", "boot", "save", "data"} {
 		fPath := filepath.Join(newData.RootDir, fName)
-		err = os.WriteFile(fPath, nil, 0644)
+		err = os.WriteFile(fPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
@@ -1928,14 +1928,14 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	// foo
 	for i, imgName := range []string{"bare", "part"} {
 		imgPath := filepath.Join(newData.RootDir, imgName)
-		err = os.WriteFile(imgPath, nil, 0644)
+		err = os.WriteFile(imgPath, nil, 0o644)
 		c.Assert(err, IsNil)
 		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
 		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
 	}
 	fName := "some-file"
 	fPath := filepath.Join(newData.RootDir, fName)
-	err = os.WriteFile(fPath, nil, 0644)
+	err = os.WriteFile(fPath, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
@@ -2178,7 +2178,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0o755)
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
@@ -2262,7 +2262,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
 	imgName := "img"
 	imgPath := filepath.Join(newData.RootDir, imgName)
-	err = os.WriteFile(imgPath, nil, 0644)
+	err = os.WriteFile(imgPath, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["foo"].Structure[1].Content = []gadget.VolumeContent{{Image: imgName}}
 
@@ -2376,7 +2376,7 @@ volumes:
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0o755)
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
@@ -2413,12 +2413,12 @@ volumes:
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2722,7 +2722,7 @@ volumes:
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0o755)
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
@@ -2759,12 +2759,12 @@ volumes:
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2806,7 +2806,7 @@ volumes:
 
 	// some filesystem
 	someFile := filepath.Join(newData.RootDir, "some-file")
-	err = os.WriteFile(someFile, nil, 0644)
+	err = os.WriteFile(someFile, nil, 0o644)
 	c.Assert(err, IsNil)
 	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "some-file"}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
@@ -3858,12 +3858,12 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	defer dirs.SetRootDir("/")
 
 	// prepare some state for mocked mount point lookup
-	err := os.MkdirAll(filepath.Join(rootDir, "/dev"), 0755)
+	err := os.MkdirAll(filepath.Join(rootDir, "/dev"), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755)
+	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevice := filepath.Join(rootDir, "/dev/sdxxx2")
-	err = os.WriteFile(fakedevice, []byte(""), 0644)
+	err = os.WriteFile(fakedevice, []byte(""), 0o644)
 	c.Assert(err, IsNil)
 	err = os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable"))
 	c.Assert(err, IsNil)
@@ -4677,9 +4677,9 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateEMMC(c *C) {
 	gadgetRoot := filepath.Join(testRoot, "gadget")
 
 	// write test content images
-	c.Assert(os.MkdirAll(gadgetRoot, 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot0filename"), []byte(``), 0644), IsNil)
-	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot1filename"), []byte(``), 0644), IsNil)
+	c.Assert(os.MkdirAll(gadgetRoot, 0o755), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot0filename"), []byte(``), 0o644), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot1filename"), []byte(``), 0o644), IsNil)
 
 	const yaml = `
 volumes:
@@ -5115,7 +5115,7 @@ func testSearchForVolumeWithTraits(c *C,
 
 	// mock two disks in /sys/block
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err = os.MkdirAll(blockDir, 0755)
+	err = os.MkdirAll(blockDir, 0o755)
 	c.Assert(err, IsNil)
 	for _, f := range []string{"real", "other"} {
 		blockDevSym := filepath.Join(blockDir, f)
@@ -5186,12 +5186,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -5249,12 +5249,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -5382,12 +5382,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C
 	}
 
 	// setup symlink for the system-boot partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -5428,12 +5428,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	}
 
 	// setup symlink for the ubuntu-seed partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -5470,12 +5470,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	}
 
 	// setup symlink for the ubuntu-seed partition
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -5492,10 +5492,10 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 
 	// write an encryption marker
 	markerFile := filepath.Join(dirs.SnapFDEDir, "marker")
-	err = os.MkdirAll(filepath.Dir(markerFile), 0755)
+	err = os.MkdirAll(filepath.Dir(markerFile), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(markerFile, nil, 0644)
+	err = os.WriteFile(markerFile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	vols := make(map[string]*gadget.Volume)
@@ -5783,10 +5783,10 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolumeNonMo
 }
 
 func (s *updateTestSuite) mockEMMCDeviceNodes(c *C) {
-	c.Assert(os.Mkdir(path.Join(dirs.GlobalRootDir, "dev"), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot0"), []byte(``), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot1"), []byte(``), 0755), IsNil)
-	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0rpmb"), []byte(``), 0755), IsNil)
+	c.Assert(os.Mkdir(path.Join(dirs.GlobalRootDir, "dev"), 0o755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot0"), []byte(``), 0o755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot1"), []byte(``), 0o755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0rpmb"), []byte(``), 0o755), IsNil)
 }
 
 func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
@@ -5970,7 +5970,7 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 
 	// mock two disks in /sys/block
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
-	err = os.MkdirAll(blockDir, 0755)
+	err = os.MkdirAll(blockDir, 0o755)
 	c.Assert(err, IsNil)
 	for volName, vol := range allLaidOutVolumes {
 		switch vol.Schema {
@@ -5997,9 +5997,9 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	s.AddCleanup(restore)
 
 	// setup symlinks in /dev
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path"), 0o755), IsNil)
 
 	partDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
 	diskDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
@@ -6022,7 +6022,7 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel))
 			c.Assert(err, IsNil)
-			err = os.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0o644)
 			c.Assert(err, IsNil)
 			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
 			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
@@ -6030,17 +6030,17 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
 			c.Assert(err, IsNil)
-			err = os.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0o644)
 			c.Assert(err, IsNil)
 			partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
 			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
 		case "emmc":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, "mmcblk0boot0")
 			c.Assert(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path", "mmcblk0.mmc-boot0")), IsNil)
-			c.Assert(os.WriteFile(fakedevicepart, nil, 0644), IsNil)
+			c.Assert(os.WriteFile(fakedevicepart, nil, 0o644), IsNil)
 			fakedevicepart = filepath.Join(dirs.GlobalRootDir, "mmcblk0boot1")
 			c.Assert(os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path", "mmcblk0.mmc-boot1")), IsNil)
-			c.Assert(os.WriteFile(fakedevicepart, nil, 0644), IsNil)
+			c.Assert(os.WriteFile(fakedevicepart, nil, 0o644), IsNil)
 
 			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
 			diskDeviceNodeMappings[traits[volName].OriginalKernelPath+"boot0"] = volMappings[volName]
@@ -6072,7 +6072,7 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
 ) {
-	err := os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	err := os.MkdirAll(dirs.SnapDeviceDir, 0o755)
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation

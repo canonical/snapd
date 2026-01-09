@@ -110,10 +110,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	content := b.deriveContent(udevSpec)
 	subsystemTriggers := udevSpec.TriggeredSubsystems()
 
-	if err := os.MkdirAll(dirs.SnapUdevRulesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapUdevRulesDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for udev rules: %w", err)
 	}
-	if err := os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapCgroupPolicyDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for cgroup flags: %w", err)
 	}
 

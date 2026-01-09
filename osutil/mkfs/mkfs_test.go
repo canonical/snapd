@@ -394,7 +394,7 @@ func (m *mkfsSuite) TestMkfsInvalidFs(c *C) {
 }
 
 func makeSizedFile(c *C, path string, size int64, content []byte) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
 
 	f, err := os.Create(path)

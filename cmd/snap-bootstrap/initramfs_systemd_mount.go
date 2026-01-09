@@ -324,7 +324,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
 		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
 			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
-			err := os.MkdirAll(targetDir, 0755)
+			err := os.MkdirAll(targetDir, 0o755)
 			if err != nil {
 				return err
 			}
@@ -333,7 +333,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			err = os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
+			err = os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0o644)
 			if err != nil {
 				return err
 			}
@@ -414,7 +414,7 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	what = dirs.StripRootDir(what)
 	where = dirs.StripRootDir(where)
 	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	if err := os.MkdirAll(unitDir, 0755); err != nil {
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
 		return err
 	}
 	var unit string
@@ -430,13 +430,13 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	unitFileName := systemd.EscapeUnitNamePath(where) + ".mount"
 	unitPath := filepath.Join(unitDir, unitFileName)
 	// This is in /run, no need for atomic writes
-	if err := os.WriteFile(unitPath, []byte(unit), 0644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
 		return err
 	}
 
 	// Pull the unit from initrd-fs.target
 	wantsDir := filepath.Join(unitDir, "initrd-fs.target.wants")
-	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+	if err := os.MkdirAll(wantsDir, 0o755); err != nil {
 		return err
 	}
 	linkPath := filepath.Join(wantsDir, unitFileName)
@@ -482,7 +482,7 @@ func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 	// /lib/systemd/system/sysroot-writable.mount - we will remove
 	// this unit eventually from the initramfs.
 	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	if err = os.MkdirAll(unitDir, 0755); err != nil {
+	if err = os.MkdirAll(unitDir, 0o755); err != nil {
 		return err
 	}
 	unitFileName := "sysroot.mount"
@@ -502,13 +502,13 @@ func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 
 	unitContent := assembleSysrootMountUnitContent(what, mntType, options)
 	// This is in the initramfs, no need for atomic writes
-	if err := os.WriteFile(unitPath, []byte(unitContent), 0644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(unitContent), 0o644); err != nil {
 		return err
 	}
 
 	// Pull the unit from initrd-root-fs.target
 	wantsDir := filepath.Join(unitDir, "initrd-root-fs.target.wants")
-	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+	if err := os.MkdirAll(wantsDir, 0o755); err != nil {
 		return err
 	}
 	linkPath := filepath.Join(wantsDir, unitFileName)
@@ -542,7 +542,7 @@ func writeSnapMountUnit(destRoot, what, where string, unitType systemd.MountUnit
 	unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
 	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
 		linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
-		if err := os.MkdirAll(linkDir, 0755); err != nil {
+		if err := os.MkdirAll(linkDir, 0o755); err != nil {
 			return err
 		}
 		linkPath := filepath.Join(linkDir, unitFileName)

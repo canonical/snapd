@@ -83,7 +83,7 @@ func keepAuxStoreInfo(snapID string, aux AuxStoreInfo) error {
 	if snapID == "" {
 		return nil
 	}
-	if err := os.MkdirAll(dirs.SnapAuxStoreInfoDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapAuxStoreInfoDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for auxiliary store info: %w", err)
 	}
 

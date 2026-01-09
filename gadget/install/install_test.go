@@ -763,7 +763,7 @@ fi
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
 	jsonBytes := []byte(opts.traitsJSON)
-	err = os.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0o644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
@@ -823,11 +823,11 @@ type mockUdevDeviceSetup struct {
 }
 
 func (s *installSuite) setupMockUdevSymlinks(c *C, opts mockUdevDeviceSetup) {
-	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-path"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-path"), 0o755), IsNil)
 
 	// mock the device node
-	c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+opts.name), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+opts.name), nil, 0o644), IsNil)
 
 	// mock the by-path node
 	if opts.path != "" {
@@ -836,7 +836,7 @@ func (s *installSuite) setupMockUdevSymlinks(c *C, opts mockUdevDeviceSetup) {
 
 	// mock partitions
 	for name, label := range opts.parts {
-		c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+name), nil, 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(s.dir, "/dev/"+name), nil, 0o644), IsNil)
 		c.Assert(os.Symlink("../../"+name, filepath.Join(s.dir, fmt.Sprintf("/dev/disk/by-partlabel/%s", label))), IsNil)
 	}
 }
@@ -1179,7 +1179,7 @@ fi
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
 	jsonBytes := []byte(opts.traitsJSON)
-	err = os.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0o644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))

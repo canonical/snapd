@@ -79,7 +79,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// If we do not have any content to write, there is no point
 	// ensuring the directory exists.
 	if content != nil {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)
 		}
 	}

@@ -56,7 +56,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	// Prepare a directory for DBus configuration files.
 	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0700)
+	err := os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0o700)
 	c.Assert(err, IsNil)
 }
 
@@ -419,23 +419,23 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 }
 
 func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
-	err := os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d"), 0755)
+	err := os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d"), 0o755)
 	c.Assert(err, IsNil)
 	content := fmt.Sprintf("content of snapd.session-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
-	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d/snapd.session-services.conf"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d/snapd.session-services.conf"), []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d"), 0755)
+	err = os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d"), 0o755)
 	c.Assert(err, IsNil)
 	content = fmt.Sprintf("content of snapd.system-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
-	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d/snapd.system-services.conf"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d/snapd.system-services.conf"), []byte(content), 0o644)
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0o755)
 	c.Assert(err, IsNil)
 
 	servicesPath := filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/services")
-	err = os.MkdirAll(servicesPath, 0755)
+	err = os.MkdirAll(servicesPath, 0o755)
 	c.Assert(err, IsNil)
 
 	for _, fn := range []string{
@@ -443,7 +443,7 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 		"io.snapcraft.Settings.service",
 	} {
 		content := fmt.Sprintf("content of %s for snap %s", fn, coreOrSnapdSnap.InstanceName())
-		err = os.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0644)
+		err = os.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0o644)
 		c.Assert(err, IsNil)
 	}
 }
@@ -545,7 +545,7 @@ func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 }
 
 func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
-	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0o755)
 	c.Assert(err, IsNil)
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})

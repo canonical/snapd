@@ -53,12 +53,12 @@ func (s *cmdutilSuite) makeMockLdSoConf(c *C, root string) {
 	ldSoConf := filepath.Join(root, "/etc/ld.so.conf")
 	ldSoConfD := ldSoConf + ".d"
 
-	err := os.MkdirAll(filepath.Dir(ldSoConf), 0755)
+	err := os.MkdirAll(filepath.Dir(ldSoConf), 0o755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(ldSoConfD, 0755)
+	err = os.MkdirAll(ldSoConfD, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(ldSoConf, []byte("include /etc/ld.so.conf.d/*.conf"), 0644)
+	err = os.WriteFile(ldSoConf, []byte("include /etc/ld.so.conf.d/*.conf"), 0o644)
 	c.Assert(err, IsNil)
 
 	ldSoConf1 := filepath.Join(ldSoConfD, "x86_64-linux-gnu.conf")
@@ -74,7 +74,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapOldTrick(c *C) {
 	root := filepath.Join(dirs.SnapMountDir, "core", "current")
 	s.makeMockLdSoConf(c, root)
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0o755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
@@ -99,7 +99,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeeded(c *C) {
 	c.Logf("mount dir: %v", dirs.SnapMountDir)
 	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0o755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
@@ -118,7 +118,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapNoTrickNeededSymlink(c *C) {
 	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
 	c.Assert(os.Symlink(filepath.Join(dirs.SnapMountDir), filepath.Join(dirs.GlobalRootDir, "snap")), IsNil)
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0o755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
@@ -140,7 +140,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnapLDsoTrickNeeded(c *C) {
 
 	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0o755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
@@ -158,7 +158,7 @@ func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
 	s.makeMockLdSoConf(c, root)
 
-	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0o755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 
 	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
@@ -166,7 +166,7 @@ func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	interp := strings.TrimSpace(string(out))
 
 	coreInterp := filepath.Join(root, interp)
-	c.Assert(os.MkdirAll(filepath.Dir(coreInterp), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(coreInterp), 0o755), IsNil)
 	c.Assert(os.Symlink(filepath.Base(coreInterp), coreInterp), IsNil)
 
 	_, err = snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")

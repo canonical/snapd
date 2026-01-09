@@ -72,7 +72,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	content := deriveContent(spec.(*Specification), appSet)
 	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
 	glob := serviceName(snapName, "*")

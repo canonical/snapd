@@ -97,7 +97,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
 	c.Check(stateSetID, check.Equals, uint64(1))
 
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0o644), check.IsNil)
 
 	// Disk last set id 9 > state set id 1, use 9++ = 10
 	sid, err = snapshotstate.NewSnapshotSetID(st)
@@ -115,7 +115,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
 	c.Check(stateSetID, check.Equals, uint64(11))
 
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0o644), check.IsNil)
 
 	// Disk last set id 88 > state set id 11, use 88++ = 89
 	sid, err = snapshotstate.NewSnapshotSetID(st)
@@ -602,7 +602,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 
-	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0o755), check.IsNil)
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
 
 	defer backend.MockUserLookup(func(username string) (*user.User, error) {
@@ -645,8 +645,8 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 		})
 		snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0o755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0o755), check.IsNil)
 
 		snapshots[name] = &client.Snapshot{
 			SetID:    1,
@@ -697,7 +697,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0o755), check.IsNil)
 	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
@@ -756,8 +756,8 @@ exec /bin/tar "$@"
 		})
 		snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common"), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0o755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common"), 0o755), check.IsNil)
 		mode := os.FileMode(0755)
 		if i == 1 {
 			mode = 0
@@ -807,7 +807,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0o755), check.IsNil)
 	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
@@ -860,10 +860,10 @@ exec /bin/tar "$@"
 		SnapType: "app",
 	})
 	snaptest.MockSnap(c, "name: tar-fail-snap\nversion: v1", sideInfo)
-	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/1/canary-tar-fail-snap"), 0755), check.IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/common"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/1/canary-tar-fail-snap"), 0o755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/common"), 0o755), check.IsNil)
 	// these dir permissions (000) make tar unhappy
-	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
+	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 0o00), check.IsNil)
 
 	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
 	c.Assert(err, check.IsNil)
@@ -1217,7 +1217,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 
-	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0o755), check.IsNil)
 	homedirA := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
 	homedirB := filepath.Join(dirs.GlobalRootDir, "home", "b-user")
 
@@ -1257,8 +1257,8 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
 		for _, home := range []string{homedirA, homedirB} {
-			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, fmt.Sprint(i+1), "canary-"+name), 0o755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0o755), check.IsNil)
 		}
 
 		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil, opts)
@@ -1301,7 +1301,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
-	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0o755), check.IsNil)
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
 
 	defer backend.MockUserLookup(func(username string) (*user.User, error) {
@@ -1337,8 +1337,8 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		})
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: vv1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0o755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0o755), check.IsNil)
 
 		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil, nil)
 		c.Assert(err, check.IsNil)
@@ -1347,7 +1347,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	// move the old away
 	c.Assert(os.Rename(filepath.Join(homedir, "snap"), filepath.Join(homedir, "snap.old")), check.IsNil)
 	// but poison the well
-	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap"), 0o755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", "too-snap"), 0), check.IsNil)
 
 	found, taskset, err := snapshotstate.Restore(st, 42, nil, []string{"a-user"})

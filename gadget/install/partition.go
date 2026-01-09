@@ -422,7 +422,7 @@ func reloadPartitionTableWithDeviceRescan(device string) error {
 	rescanFile := filepath.Join(disk.KernelDevicePath(), "device", "rescan")
 
 	logger.Noticef("reload partition table via rescan file %s for device %s as indicated by gadget", rescanFile, device)
-	f, err := os.OpenFile(rescanFile, os.O_WRONLY, 0644)
+	f, err := os.OpenFile(rescanFile, os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}

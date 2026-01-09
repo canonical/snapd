@@ -104,10 +104,10 @@ func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	ref := a.Ref()
 	fn := fmt.Sprintf("%s.%s", strings.Join(asserts.ReducePrimaryKey(ref.Type, ref.PrimaryKey), ","), ref.Type.Name)
 	p := filepath.Join(targetDir, "asserts", fn)
-	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	err := os.WriteFile(p, asserts.Encode(a), 0644)
+	err := os.WriteFile(p, asserts.Encode(a), 0o644)
 	return p, err
 }
 

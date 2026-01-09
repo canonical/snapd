@@ -76,7 +76,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	dir := dirs.SnapMountPolicyDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
 	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {

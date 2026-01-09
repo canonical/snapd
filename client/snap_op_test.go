@@ -319,7 +319,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "", nil)
@@ -349,7 +349,7 @@ func (cs *clientSuite) TestClientOpInstallPathIgnoreRunning(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "", &client.SnapOptions{IgnoreRunning: true})
@@ -380,7 +380,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "foo_bar", nil)
@@ -412,7 +412,7 @@ func (cs *clientSuite) TestClientOpInstallPathMany(c *check.C) {
 	for _, name := range names {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0o644), check.IsNil)
 	}
 
 	id, err := cs.cli.InstallPathMany(paths, nil)
@@ -449,7 +449,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyTransactionally(c *check.C) {
 	for _, name := range names {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0o644), check.IsNil)
 	}
 
 	id, err := cs.cli.InstallPathMany(paths, &client.SnapOptions{Transaction: client.TransactionAllSnaps})
@@ -486,7 +486,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithOptions(c *check.C) {
 	for _, name := range []string{"foo.snap", "bar.snap"} {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0o644), check.IsNil)
 	}
 
 	// InstallPathMany supports opts
@@ -518,7 +518,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithQuotaGroup(c *check.C) {
 	for _, name := range []string{"foo.snap", "bar.snap"} {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0o644), check.IsNil)
 	}
 
 	// Verify that the quota group option is serialized as a part of multipart form.
@@ -546,7 +546,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -581,7 +581,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -617,7 +617,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -655,7 +655,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := os.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0o644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{

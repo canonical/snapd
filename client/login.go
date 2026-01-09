@@ -136,7 +136,7 @@ func writeAuthData(user User) error {
 	}
 
 	return sys.RunAsUidGid(uid, gid, func() error {
-		if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(targetFile), 0o700); err != nil {
 			return err
 		}
 

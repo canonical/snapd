@@ -97,7 +97,7 @@ func writeLogs(rootdir string, fromMode string) error {
 	if fromMode == "factory-reset" {
 		logPath = filepath.Join(rootdir, "var/log/factory-reset-mode.log.gz")
 	}
-	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		return err
 	}
 
@@ -130,7 +130,7 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 		logPath = filepath.Join(rootdir, "var/log/factory-reset-timings.txt.gz")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		return err
 	}
 
@@ -875,7 +875,7 @@ type encryptionSetupDataKey struct {
 
 func mountSeedContainer(filePath, subdir string) (mountpoint string, unmount func() error, err error) {
 	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", subdir)
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+	if err := os.MkdirAll(mountpoint, 0o755); err != nil {
 		return "", nil, err
 	}
 
@@ -1148,7 +1148,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			}
 
 			enabledUnitDir := filepath.Join(boot.InstallUbuntuDataDir, "etc/systemd/system/snapd.mounts.target.wants")
-			if err := os.MkdirAll(enabledUnitDir, 0755); err != nil {
+			if err := os.MkdirAll(enabledUnitDir, 0o755); err != nil {
 				return fmt.Errorf("cannot create directory for systemd unit: %w", err)
 			}
 

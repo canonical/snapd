@@ -64,7 +64,7 @@ func (s *statusDecoratorSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tempdir)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
+	err := os.MkdirAll(xdgRuntimeDir, 0o700)
 	c.Assert(err, IsNil)
 	s.agent, err = agent.New()
 	c.Assert(err, IsNil)
@@ -87,7 +87,7 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 			Revision: snap.R(1),
 		},
 	}
-	err := os.MkdirAll(snp.MountDir(), 0755)
+	err := os.MkdirAll(snp.MountDir(), 0o755)
 	c.Assert(err, IsNil)
 	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
 	c.Assert(err, IsNil)
@@ -309,7 +309,7 @@ func (s *statusDecoratorSuite) TestUserServiceDecorateWithStatus(c *C) {
 			Revision: snap.R(1),
 		},
 	}
-	err := os.MkdirAll(snp.MountDir(), 0755)
+	err := os.MkdirAll(snp.MountDir(), 0o755)
 	c.Assert(err, IsNil)
 	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
 	c.Assert(err, IsNil)

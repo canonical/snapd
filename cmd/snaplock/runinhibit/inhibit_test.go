@@ -181,7 +181,7 @@ func (s *runInhibitSuite) TestIsLockedMissing(c *C) {
 	c.Check(unlockerCalled, Equals, 1)
 	c.Check(relockCalled, Equals, 1)
 
-	err = os.MkdirAll(runinhibit.InhibitDir, 0755)
+	err = os.MkdirAll(runinhibit.InhibitDir, 0o755)
 	c.Assert(err, IsNil)
 
 	hint, info, err = runinhibit.IsLocked("pkg", fakeUnlocker)
@@ -388,8 +388,8 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedNilCallbacks(c *C) {
 }
 
 func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
-	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), IsNil)
-	c.Assert(os.WriteFile(runinhibit.HintFile("pkg"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(runinhibit.HintFile("pkg"), nil, 0o644), IsNil)
 
 	notInhibited := func(ctx context.Context) error {
 		return fmt.Errorf("notInhibited error")

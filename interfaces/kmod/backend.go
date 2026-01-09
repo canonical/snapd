@@ -75,7 +75,7 @@ func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specificatio
 	// synchronize the content with the filesystem
 	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dir := dirs.SnapKModModulesDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
@@ -98,7 +98,7 @@ func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specificatio
 // - a module whose option change should get reloaded
 func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specification) error {
 	dir := dirs.SnapKModModprobeDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 

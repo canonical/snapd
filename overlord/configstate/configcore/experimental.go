@@ -64,7 +64,7 @@ func doExportExperimentalFlags(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 	} else {
 		dir = dirs.FeaturesDir
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	feat := features.KnownFeatures()

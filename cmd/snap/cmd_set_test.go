@@ -185,7 +185,7 @@ func (s *confdbSuite) mockConfdbFlag(c *check.C) (restore func()) {
 	dirs.FeaturesDir = s.tmpDir
 
 	confdbCtlFile := features.Confdb.ControlFile()
-	c.Assert(os.WriteFile(confdbCtlFile, []byte(nil), 0644), check.IsNil)
+	c.Assert(os.WriteFile(confdbCtlFile, []byte(nil), 0o644), check.IsNil)
 
 	return func() {
 		c.Assert(os.Remove(confdbCtlFile), check.IsNil)

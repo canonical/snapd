@@ -71,14 +71,14 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
 		data, err := os.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644)
+		err = os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0o644)
 		c.Assert(err, IsNil)
 	}
 	fakePinentryFn := filepath.Join(s.tempdir, "pinentry-fake")
-	err := os.WriteFile(fakePinentryFn, fakePinentryData, 0755)
+	err := os.WriteFile(fakePinentryFn, fakePinentryData, 0o755)
 	c.Assert(err, IsNil)
 	gpgAgentConfFn := filepath.Join(s.tempdir, "gpg-agent.conf")
-	err = os.WriteFile(gpgAgentConfFn, []byte(fmt.Sprintf(`pinentry-program %s`, fakePinentryFn)), 0644)
+	err = os.WriteFile(gpgAgentConfFn, []byte(fmt.Sprintf(`pinentry-program %s`, fakePinentryFn)), 0o644)
 	c.Assert(err, IsNil)
 
 	os.Setenv("SNAP_GNUPG_HOME", s.tempdir)

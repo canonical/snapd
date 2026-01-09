@@ -92,12 +92,12 @@ func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/metainfo"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/appdata"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/swcatalog"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/swcatalog"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/swcatalog"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/apt/lists"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/metainfo"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/appdata"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/swcatalog"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/swcatalog"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/swcatalog"), 0o777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/apt/lists"), 0o777), IsNil)
 
 	c.Assert(os.Symlink("swcatalog", filepath.Join(tmpdir, "/usr/share/app-info")), IsNil)
 	c.Assert(os.Symlink("swcatalog", filepath.Join(tmpdir, "/var/cache/app-info")), IsNil)

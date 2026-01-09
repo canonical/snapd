@@ -39,7 +39,7 @@ func (ts *FileDigestSuite) TestFileDigest(c *C) {
 
 	tempdir := c.MkDir()
 	fn := filepath.Join(tempdir, "ex.file")
-	err := os.WriteFile(fn, exData, 0644)
+	err := os.WriteFile(fn, exData, 0o644)
 	c.Assert(err, IsNil)
 
 	digest, size, err := osutil.FileDigest(fn, crypto.SHA512)

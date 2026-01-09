@@ -45,7 +45,7 @@ var _ = Suite(&encryptSuite{})
 
 func (s *encryptSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
 
 	// create empty key to prevent blocking on lack of system entropy
 	s.mockedEncryptionKey = keys.EncryptionKey{}

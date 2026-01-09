@@ -125,9 +125,9 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 
 	if cond != noHook {
 		hookFn := filepath.Join(s.info.MountDir(), "meta", "hooks", "check-health")
-		c.Assert(os.MkdirAll(filepath.Dir(hookFn), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Dir(hookFn), 0o755), check.IsNil)
 		// the hook won't actually be called, but needs to exist
-		c.Assert(os.WriteFile(hookFn, nil, 0755), check.IsNil)
+		c.Assert(os.WriteFile(hookFn, nil, 0o755), check.IsNil)
 	}
 
 	s.state.Lock()

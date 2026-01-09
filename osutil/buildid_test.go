@@ -94,7 +94,7 @@ func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 	}
 
 	md5Truth := filepath.Join(c.MkDir(), "true")
-	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
+	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0o644)
 	c.Assert(err, IsNil)
 	output, err := exec.Command(gccPath, "-Wl,--build-id=md5", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
@@ -111,7 +111,7 @@ func (s *buildIDSuite) TestReadBuildIDFixedELF(c *C) {
 	}
 
 	md5Truth := filepath.Join(c.MkDir(), "true")
-	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0644)
+	err := os.WriteFile(md5Truth+".c", []byte(`int main(){return 0;}`), 0o644)
 	c.Assert(err, IsNil)
 	output, err := exec.Command(gccPath, "-Wl,--build-id=0xdeadcafe", "-xc", md5Truth+".c", "-o", md5Truth).CombinedOutput()
 	c.Assert(string(output), Equals, "")
@@ -147,7 +147,7 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 
 	tmpdir := c.MkDir()
 	goTruth := filepath.Join(tmpdir, "true")
-	err := os.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0644)
+	err := os.WriteFile(goTruth+".go", []byte(`package main; func main(){}`), 0o644)
 	c.Assert(err, IsNil)
 	// force specific Go BuildID
 	//

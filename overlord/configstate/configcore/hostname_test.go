@@ -43,7 +43,7 @@ var _ = Suite(&hostnameSuite{})
 func (s *hostnameSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 
 	script := `if [ "$1" = "status" ]; then echo bar; fi`

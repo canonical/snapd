@@ -163,7 +163,7 @@ func (s *DirsTestSuite) TestClassicConfinementFullPathSymlinkAltDistro(c *C) {
 	// just symlink, no actual alt mount directory
 	c.Check(dirs.SupportsClassicConfinement(), Equals, false)
 	d := filepath.Join(altRoot, "/var/lib/snapd/snap")
-	os.MkdirAll(d, 0755)
+	os.MkdirAll(d, 0o755)
 	c.Check(dirs.SupportsClassicConfinement(), Equals, true)
 }
 
@@ -277,7 +277,7 @@ func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(inside, Equals, false)
 
-	err = os.WriteFile(snapYaml, []byte{}, 0755)
+	err = os.WriteFile(snapYaml, []byte{}, 0o755)
 	c.Assert(err, IsNil)
 
 	inside, err = dirs.IsInsideBaseSnap()
@@ -294,7 +294,7 @@ func (s *DirsTestSuite) TestCompleteShPath(c *C) {
 	// new-style in-host complete.sh
 	c.Check(dirs.CompleteShPath("x"), Equals, filepath.Join(dirs.DistroLibExecDir, "complete.sh"))
 	// new-style in-snapd complete.sh
-	c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
+	c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0o755), IsNil)
 	c.Check(dirs.CompleteShPath("x"), Equals, filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd/complete.sh"))
 }
 

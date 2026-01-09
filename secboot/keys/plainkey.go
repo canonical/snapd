@@ -52,7 +52,7 @@ func NewProtectorKey() (ProtectorKey, error) {
 
 // SaveToFile saves the ProtectorKey to a file at given path.
 func (key ProtectorKey) SaveToFile(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return osutil.AtomicWriteFile(path, key[:], 0600, 0)

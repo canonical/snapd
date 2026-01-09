@@ -89,7 +89,7 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
 "apparmor-features": ["caps", "dbus"]
 }`))
-	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0o755)
 	c.Assert(err, IsNil)
 	extraData := interfaces.SystemKeyExtraData{}
 	err = interfaces.WriteSystemKey(extraData)
@@ -185,10 +185,10 @@ func mockArgs(args ...string) (restore func()) {
 
 func mockSnapConfine(libExecDir string) func() {
 	snapConfine := filepath.Join(libExecDir, "snap-confine")
-	if err := os.MkdirAll(libExecDir, 0755); err != nil {
+	if err := os.MkdirAll(libExecDir, 0o755); err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile(snapConfine, nil, 0644); err != nil {
+	if err := os.WriteFile(snapConfine, nil, 0o644); err != nil {
 		panic(err)
 	}
 	return func() {
@@ -296,7 +296,7 @@ func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
-	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0o755)
 	c.Assert(err, IsNil)
 
 	// "wrapper" symlinks

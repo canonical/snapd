@@ -38,7 +38,7 @@ var _ = Suite(&backlightSuite{})
 func (s *backlightSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0o755)
 	c.Assert(err, IsNil)
 }
 

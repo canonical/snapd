@@ -131,7 +131,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// to the seed snaps
 
 	snapBlobDir := dirs.SnapBlobDirUnder(rootdir)
-	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+	if err := os.MkdirAll(snapBlobDir, 0o755); err != nil {
 		return err
 	}
 
@@ -466,7 +466,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	// here because unasserted snaps/components will have names like
 	// pc-kernel_5.19.4.snap but snapd expects "pc-kernel_x1.snap"
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
-	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+	if err := os.MkdirAll(snapBlobDir, 0o755); err != nil {
 		return err
 	}
 	for _, origDest := range []struct {

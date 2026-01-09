@@ -67,7 +67,7 @@ func (s *userSuite) TestIsPlausibleHomeErrorPathNotExist(c *C) {
 func (s *userSuite) TestLock(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0o755), IsNil)
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
@@ -119,8 +119,8 @@ func (s *userSuite) TestLoadDesiredProfileHomeRequiredAndValid(c *C) {
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(input), 0o644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
 	profile, err := upCtx.LoadDesiredProfile()
@@ -148,8 +148,8 @@ func (s *userSuite) TestLoadDesiredProfileHomeNotRequiredAndMissing(c *C) {
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(input), 0o644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
 	profile, err := upCtx.LoadDesiredProfile()
@@ -177,8 +177,8 @@ func (s *userSuite) TestLoadDesiredProfileErrorHomeRequiredAndMissing(c *C) {
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(input), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(input), 0o644), IsNil)
 
 	// Ask the user profile update helper to read the desired profile.
 	profile, err := upCtx.LoadDesiredProfile()
@@ -198,8 +198,8 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	// Write a current user mount profile for snap "foo".
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
 	path := update.CurrentUserProfilePath(upCtx.InstanceName(), 1234)
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte(text), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte(text), 0o644), IsNil)
 
 	// Ask the user profile update helper to read the current profile.
 	profile, err := upCtx.LoadCurrentProfile()
@@ -216,7 +216,7 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	// Mock directories and create directory runtime mount profiles.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0o755), IsNil)
 	tmpHomeDir := c.MkDir()
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir)
 	defer restore()
@@ -230,8 +230,8 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 
 	// Write a fake current user mount profile for snap "foo".
 	path := update.CurrentUserProfilePath("foo", 1234)
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-	c.Assert(os.WriteFile(path, []byte("banana"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.WriteFile(path, []byte("banana"), 0o644), IsNil)
 
 	// Ask the user profile update helper to write the current profile.
 	err = upCtx.SaveCurrentProfile(profile)

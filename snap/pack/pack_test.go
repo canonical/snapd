@@ -69,13 +69,13 @@ func (s *packSuite) TearDownTest(c *C) {
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 	tempdir := c.MkDir()
-	c.Assert(os.Chmod(tempdir, 0755), IsNil)
+	c.Assert(os.Chmod(tempdir, 0o755), IsNil)
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
+	err := os.Mkdir(metaDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0o644)
 	c.Assert(err, IsNil)
 
 	const helloBinContent = `#!/bin/sh
@@ -84,24 +84,24 @@ printf "hello world"
 
 	// an example binary
 	binDir := filepath.Join(tempdir, "bin")
-	err = os.Mkdir(binDir, 0755)
+	err = os.Mkdir(binDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
+	err = os.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0o755)
 	c.Assert(err, IsNil)
 
 	// unusual permissions for dir
 	tmpDir := filepath.Join(tempdir, "tmp")
-	err = os.Mkdir(tmpDir, 0755)
+	err = os.Mkdir(tmpDir, 0o755)
 	c.Assert(err, IsNil)
 	// avoid umask
-	err = os.Chmod(tmpDir, 01777)
+	err = os.Chmod(tmpDir, 0o1777)
 	c.Assert(err, IsNil)
 
 	// and file
 	someFile := filepath.Join(tempdir, "file-with-perm")
-	err = os.WriteFile(someFile, []byte(""), 0666)
+	err = os.WriteFile(someFile, []byte(""), 0o666)
 	c.Assert(err, IsNil)
-	err = os.Chmod(someFile, 0666)
+	err = os.Chmod(someFile, 0o666)
 	c.Assert(err, IsNil)
 
 	// an example symlink
@@ -113,13 +113,13 @@ printf "hello world"
 
 func makeExampleComponentSourceDir(c *C, componentYaml string) string {
 	tempdir := c.MkDir()
-	c.Assert(os.Chmod(tempdir, 0755), IsNil)
+	c.Assert(os.Chmod(tempdir, 0o755), IsNil)
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
-	err := os.Mkdir(metaDir, 0755)
+	err := os.Mkdir(metaDir, 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0o644)
 	c.Assert(err, IsNil)
 	return tempdir
 }
@@ -173,8 +173,8 @@ func (s *packSuite) TestPackKernelGadgetOSAppWithConfigureHookHappy(c *C) {
 version: 0
 type: %[1]s`, snapType)
 		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
-		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0o755), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		c.Assert(err, IsNil)
 	}
@@ -187,9 +187,9 @@ version: 0
 type: %[1]s`, snapType)
 		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
 		configureHooks := []string{"default-configure", "configure"}
-		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
 		for _, hook := range configureHooks {
-			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0o755), IsNil)
 		}
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		c.Assert(err, IsNil)
@@ -202,8 +202,8 @@ func (s *packSuite) TestPackSnapdBaseWithConfigureHookError(c *C) {
 version: 0
 type: %[1]s`, snapType)
 		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
-		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0o755), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "configure" hook for %[1]q snap %[1]q`, snapType))
 	}
@@ -215,8 +215,8 @@ func (s *packSuite) TestPackSnapdBaseOSWithDefaultConfigureHookError(c *C) {
 version: 0
 type: %[1]s`, snapType)
 		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
-		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0o755), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		// an error due to a prohibited hook for the snap type takes precedence over the
 		// error for missing a configure hook when default-configure is present
@@ -231,8 +231,8 @@ apps:
  foo:
   command: bin/hello-world
 `)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0o755), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
 	c.Check(err, ErrorMatches, `cannot validate snap "hello": cannot specify "default-configure" hook without "configure" hook`)
 }
@@ -244,15 +244,15 @@ apps:
  foo:
   command: bin/hello-world
 `)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0o755), IsNil)
 	configureHooks := []string{"configure", "default-configure"}
 	for _, hook := range configureHooks {
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0644), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0o644), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`snap is unusable due to bad permissions: "meta/hooks/%s" should be executable, and isn't: -rw-r--r--`, hook))
 		// Fix hook error to catch next hook's error
-		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 0755), IsNil)
+		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 0o755), IsNil)
 	}
 }
 
@@ -268,7 +268,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_UNKNOWN_DIR/two
 `
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0o444), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, "snapshot exclude path must start with one of.*")
 }
@@ -285,7 +285,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_COMMON/two
 `
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0411), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0o411), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
 	c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
 	c.Assert(err, ErrorMatches, `snap is unusable due to bad permissions: "meta/snapshots.yaml" should be world-readable, and isn't: -r----x--x`)
@@ -303,7 +303,7 @@ apps:
     - $SNAP_DATA/one
     - $SNAP_COMMON/two
 `
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "snapshots.yaml"), []byte(invalidSnapshotYaml), 0o444), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
 	c.Assert(err, IsNil)
 }
@@ -334,7 +334,7 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a backup file
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0o755), IsNil)
 	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
@@ -350,9 +350,9 @@ func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a toplevel DEBIAN
-	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0o755), IsNil)
 	// and a non-toplevel DEBIAN
-	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0o755), IsNil)
 	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
@@ -369,8 +369,8 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a file inside a skipped dir
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0o755), IsNil)
 	snapfile, err := pack.Pack(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
@@ -564,7 +564,7 @@ volumes:
           - image: bare.img
 
 `
-	err := os.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644)
+	err := os.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0o644)
 	c.Assert(err, IsNil)
 
 	outputDir := filepath.Join(c.MkDir(), "output")
@@ -577,7 +577,7 @@ volumes:
 	})
 	c.Assert(err, ErrorMatches, `structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
 
-	err = os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
+	err = os.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0o644)
 	c.Assert(err, IsNil)
 
 	// gadget validation fails during content presence checks
@@ -587,7 +587,7 @@ volumes:
 	})
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
 
-	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0644)
+	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0o644)
 	c.Assert(err, IsNil)
 	// all good now
 	_, err = pack.Pack(sourceDir, &pack.Options{

@@ -90,8 +90,8 @@ func (s *nsSuite) TestDiscardNamespaceMnt(c *C) {
 		defer cmd.Restore()
 
 		if t.mnt {
-			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0o755), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0o644), IsNil)
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
@@ -143,8 +143,8 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		defer cmd.Restore()
 
 		if t.mnt {
-			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0644), IsNil)
+			c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0o755), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), nil, 0o644), IsNil)
 		} else {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}

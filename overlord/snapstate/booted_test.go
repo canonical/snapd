@@ -68,7 +68,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0o755)
 	c.Assert(err, IsNil)
 
 	bs.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))

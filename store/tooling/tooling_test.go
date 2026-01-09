@@ -179,7 +179,7 @@ func (s *toolingSuite) TestNewToolingStoreWithBase64AuthFile(c *C) {
 "d": "DISCHARGE"
 }`)
 	enc := []byte(base64.StdEncoding.EncodeToString(authObj))
-	err := os.WriteFile(authFn, enc, 0600)
+	err := os.WriteFile(authFn, enc, 0o600)
 	c.Assert(err, IsNil)
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
@@ -216,7 +216,7 @@ unbound_discharge =
 	}
 
 	for _, t := range tests {
-		err := os.WriteFile(authFn, []byte(t.data), 0600)
+		err := os.WriteFile(authFn, []byte(t.data), 0o600)
 		c.Assert(err, IsNil)
 
 		_, err = tooling.NewToolingStore()

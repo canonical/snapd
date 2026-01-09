@@ -79,7 +79,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy_NotContainer(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
-	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	err := os.MkdirAll(appArmorSecurityFSPath, 0o755)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
@@ -104,7 +104,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy_WSL2WithSecurityFS(c *C) {
 	defer restore()
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
-	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	err := os.MkdirAll(appArmorSecurityFSPath, 0o755)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
@@ -115,7 +115,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy_LinuxContainers(c *C) {
 	defer restore()
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
-	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	err := os.MkdirAll(appArmorSecurityFSPath, 0o755)
 	c.Assert(err, IsNil)
 
 	for _, prefix := range []string{"lxc", "lxd", "incus"} {
@@ -123,19 +123,19 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy_LinuxContainers(c *C) {
 		restore := testutil.MockCommand(c, "systemd-detect-virt", "echo "+prefix)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
-		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_stacked"), []byte("yes"), 0644)
+		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_stacked"), []byte("yes"), 0o644)
 		c.Assert(err, IsNil)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
-		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), nil, 0644)
+		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), nil, 0o644)
 		c.Assert(err, IsNil)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
-		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), []byte("foo"), 0644)
+		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), []byte("foo"), 0o644)
 		c.Assert(err, IsNil)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 		// lxc/lxd name should result in a container with internal policy
-		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), []byte(prefix+"-foo"), 0644)
+		err = os.WriteFile(filepath.Join(appArmorSecurityFSPath, ".ns_name"), []byte(prefix+"-foo"), 0o644)
 		c.Assert(err, IsNil)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 
@@ -156,16 +156,16 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	c.Assert(parserCmd.Calls(), HasLen, 0)
 
 	// mock a profile
-	err = os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	err = os.MkdirAll(dirs.SnapAppArmorDir, 0o755)
 	c.Assert(err, IsNil)
 
 	profile := filepath.Join(dirs.SnapAppArmorDir, "foo")
-	err = os.WriteFile(profile, nil, 0644)
+	err = os.WriteFile(profile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	// pretend that the host apparmor has a 3.0 abi file.
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi"), 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi/3.0"), nil, 0o644), IsNil)
 
 	// ensure SNAPD_DEBUG is set in the environment so then --quiet
 	// will *not* be included in the apparmor_parser arguments (since
@@ -277,10 +277,10 @@ func (s *integrationSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.parserCmd.Restore)
 	restore := snapd_apparmor.MockParserSearchPath(s.parserCmd.BinDir())
 	s.AddCleanup(restore)
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0o755)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "foo")
-	err = os.WriteFile(profile, nil, 0644)
+	err = os.WriteFile(profile, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	os.Args = []string{"snapd-apparmor", "start"}

@@ -472,7 +472,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			}
 		}
 
-		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
+		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0o660)
 		if err != nil {
 			return fmt.Errorf("cannot open boot partition [%s]: %v", bpart, err)
 		}

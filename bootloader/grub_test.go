@@ -250,14 +250,14 @@ func (s *grubTestSuite) grubEFINativeDir() string {
 }
 
 func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
-	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
+	err := os.MkdirAll(s.grubEFINativeDir(), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0o644)
 	c.Assert(err, IsNil)
 }
 
 func (s *grubTestSuite) makeFakeShimFallback(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootdir, "/EFI/boot"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/EFI/boot"), 0o755)
 	c.Assert(err, IsNil)
 	_, err = os.Create(filepath.Join(s.rootdir, "/EFI/boot/fbx64.efi"))
 	c.Assert(err, IsNil)
@@ -330,7 +330,7 @@ func (s *grubTestSuite) TestGetRecoverySystemEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0o755)
 	c.Assert(err, IsNil)
 	recoverySystemGrubenv := filepath.Join(s.rootdir, "/systems/20191209/grubenv")
 
@@ -362,10 +362,10 @@ func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.Plac
 
 	// make a kernel.efi snap as it would be by ExtractKernelAssets()
 	kernelSnapExtractedAssetsDir := filepath.Join(s.grubDir(), snapFileName)
-	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
+	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0644)
+	err = os.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0o644)
 	c.Assert(err, IsNil)
 
 	return kernelSnap
@@ -413,10 +413,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernel(c *C) {
 	kernelSnapExtractedAssetsDir := filepath.Join(s.grubDir(), "bad_snap_rev_name")
 	badKernelSnapPath := filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi")
 	tryKernelSymlink := filepath.Join(s.grubDir(), "try-kernel.efi")
-	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
+	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(badKernelSnapPath, nil, 0644)
+	err = os.WriteFile(badKernelSnapPath, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = os.Symlink("bad_snap_rev_name/kernel.efi", tryKernelSymlink)
@@ -530,7 +530,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
 	s.makeKernelAssetSnapAndSymlink(c, "pc-kernel_1.snap", "try-kernel.efi")
 	err = os.Chmod(s.grubDir(), 000)
 	c.Assert(err, IsNil)
-	defer os.Chmod(s.grubDir(), 0755)
+	defer os.Chmod(s.grubDir(), 0o755)
 
 	err = eg.DisableTryKernel()
 	c.Assert(err, ErrorMatches, "remove .*/grub/try-kernel.efi: permission denied")
@@ -822,20 +822,20 @@ this is updated grub.cfg
 	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	err := os.Chmod(s.grubEFINativeDir(), 0000)
+	err := os.Chmod(s.grubEFINativeDir(), 0o000)
 	c.Assert(err, IsNil)
-	defer os.Chmod(s.grubEFINativeDir(), 0755)
+	defer os.Chmod(s.grubEFINativeDir(), 0o755)
 
 	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
 	c.Assert(updated, Equals, false)
-	err = os.Chmod(s.grubEFINativeDir(), 0555)
+	err = os.Chmod(s.grubEFINativeDir(), 0o555)
 	c.Assert(err, IsNil)
 
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 
 	// writing out new config fails
-	err = os.Chmod(s.grubEFINativeDir(), 0111)
+	err = os.Chmod(s.grubEFINativeDir(), 0o111)
 	c.Assert(err, IsNil)
 	updated, err = tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)

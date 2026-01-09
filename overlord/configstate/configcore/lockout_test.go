@@ -42,7 +42,7 @@ func (s *faillockSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	s.markerPath = filepath.Join(dirs.GlobalRootDir, "/etc/writable/account-lockout.enabled")
-	err := os.MkdirAll(filepath.Dir(s.markerPath), 0755)
+	err := os.MkdirAll(filepath.Dir(s.markerPath), 0o755)
 	c.Assert(err, IsNil)
 }
 
@@ -65,7 +65,7 @@ func (s *faillockSuite) TestFaillockSetFalse(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
-	err := os.WriteFile(s.markerPath, nil, 0644)
+	err := os.WriteFile(s.markerPath, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
@@ -85,7 +85,7 @@ func (s *faillockSuite) TestFaillockHandlesErrors(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockUnsetChangeNothing(c *C) {
-	err := os.WriteFile(s.markerPath, nil, 0644)
+	err := os.WriteFile(s.markerPath, nil, 0o644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

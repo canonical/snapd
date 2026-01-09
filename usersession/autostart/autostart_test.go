@@ -58,7 +58,7 @@ func (s *autostartSuite) SetUpTest(c *C) {
 		return &user.User{HomeDir: s.userDir}, nil
 	})
 
-	err := os.MkdirAll(s.autostartDir, 0755)
+	err := os.MkdirAll(s.autostartDir, 0o755)
 	c.Assert(err, IsNil)
 }
 
@@ -181,9 +181,9 @@ func (s *autostartSuite) TestTryAutostartInvalid(c *C) {
 }
 
 func writeFile(c *C, path string, content []byte) {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(path, content, 0644)
+	err = os.WriteFile(path, content, 0o644)
 	c.Assert(err, IsNil)
 }
 

@@ -76,7 +76,7 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 
 func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 	fwOrig := fwMount.UnderCurrentPath("firmware")
-	if err := os.MkdirAll(fwDest, 0755); err != nil {
+	if err := os.MkdirAll(fwDest, 0o755); err != nil {
 		return err
 	}
 
@@ -135,7 +135,7 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	// "/lib/modules/<kernel_version>" to the directory passed with option
 	// "-b".
 	modsRoot := filepath.Join(kernelTree, "lib", "modules", kversion)
-	if err := os.MkdirAll(modsRoot, 0755); err != nil {
+	if err := os.MkdirAll(modsRoot, 0o755); err != nil {
 		return err
 	}
 
@@ -194,7 +194,7 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
 	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
-	if err := os.MkdirAll(compsRoot, 0755); err != nil {
+	if err := os.MkdirAll(compsRoot, 0o755); err != nil {
 		return err
 	}
 
@@ -363,7 +363,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	updateFwDir := filepath.Join(fwDir, "updates")
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
-	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
+	if err := os.MkdirAll(updateFwDir, 0o755); err != nil {
 		return err
 	}
 	for _, cmp := range compsMntPts {

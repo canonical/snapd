@@ -554,7 +554,7 @@ func (s *preinstallSuite) TestLoadCheckResultFileNotFound(c *C) {
 func (s *preinstallSuite) TestLoadCheckResultInvalidJSON(c *C) {
 	filename := filepath.Join(c.MkDir(), "preinstall")
 
-	err := os.WriteFile(filename, []byte("invalid json content"), 0600)
+	err := os.WriteFile(filename, []byte("invalid json content"), 0o600)
 	c.Assert(err, IsNil)
 
 	checkResult, err := secboot.LoadCheckResult(filename)

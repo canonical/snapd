@@ -86,14 +86,14 @@ func (s *selinuxSuite) TestIsEnforcingHappy(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := os.WriteFile(enforcePath, []byte("1"), 0644)
+	err := os.WriteFile(enforcePath, []byte("1"), 0o644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
 	c.Assert(err, check.IsNil)
 	c.Assert(enforcing, check.Equals, true)
 
-	err = os.WriteFile(enforcePath, []byte("0"), 0644)
+	err = os.WriteFile(enforcePath, []byte("0"), 0o644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err = selinux.IsEnforcing()
@@ -118,7 +118,7 @@ func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := os.WriteFile(enforcePath, []byte("garbage"), 0644)
+	err := os.WriteFile(enforcePath, []byte("garbage"), 0o644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
@@ -134,7 +134,7 @@ func (s *selinuxSuite) TestIsEnforcingFailOther(c *check.C) {
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := os.WriteFile(enforcePath, []byte("not-readable"), 0000)
+	err := os.WriteFile(enforcePath, []byte("not-readable"), 0o000)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()

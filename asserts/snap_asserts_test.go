@@ -807,7 +807,7 @@ func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
 
 	tempdir := c.MkDir()
 	snapFn := filepath.Join(tempdir, "ex.snap")
-	err := os.WriteFile(snapFn, exData, 0644)
+	err := os.WriteFile(snapFn, exData, 0o644)
 	c.Assert(err, IsNil)
 
 	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)

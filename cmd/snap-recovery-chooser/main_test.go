@@ -60,7 +60,7 @@ func (s *baseCmdSuite) SetUpTest(c *C) {
 	s.AddCleanup(r)
 	d := c.MkDir()
 	s.markerFile = filepath.Join(d, "marker")
-	err := os.WriteFile(s.markerFile, nil, 0644)
+	err := os.WriteFile(s.markerFile, nil, 0o644)
 	c.Assert(err, IsNil)
 }
 
@@ -380,7 +380,7 @@ func (s *mockedClientCmdSuite) TestMainChooserFallbackToSnapConsoleConf(c *C) {
 	s.testMainChooserConsoleConfAlternatives(c, func(script string) *testutil.MockCmd {
 		// create /snap/bin/console-conf as a symlink like when a snap
 		// is installed
-		c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0o755), IsNil)
 		err := os.Symlink(filepath.Join(d, "console-conf"),
 			filepath.Join(dirs.SnapBinariesDir, "console-conf"))
 		c.Assert(err, IsNil)

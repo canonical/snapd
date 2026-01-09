@@ -84,7 +84,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
+	err := os.MkdirAll(xdgRuntimeDir, 0o700)
 	c.Assert(err, IsNil)
 	s.agent, err = agent.New()
 	c.Assert(err, IsNil)
@@ -1349,14 +1349,14 @@ WantedBy=multi-user.target
 		systemd.EscapeUnitNamePath(dir),
 	)
 
-	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	err := os.MkdirAll(filepath.Dir(sliceFile), 0o755)
 	c.Assert(err, IsNil)
 
 	oldContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit1.String())
-	err = os.WriteFile(sliceFile, []byte(oldContent), 0644)
+	err = os.WriteFile(sliceFile, []byte(oldContent), 0o644)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(svcFile, []byte(svcContent), 0644)
+	err = os.WriteFile(svcFile, []byte(svcContent), 0o644)
 	c.Assert(err, IsNil)
 
 	// use new memory limit
@@ -1450,13 +1450,13 @@ WantedBy=multi-user.target
 		systemd.EscapeUnitNamePath(dir),
 	)
 
-	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	err := os.MkdirAll(filepath.Dir(sliceFile), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit)), 0644)
+	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit)), 0o644)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(svcFile, []byte(svcContent), 0644)
+	err = os.WriteFile(svcFile, []byte(svcContent), 0o644)
 	c.Assert(err, IsNil)
 
 	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit).WithThreadLimit(taskLimit).Build()
@@ -1515,10 +1515,10 @@ MemoryMax=1024
 MemoryLimit=1024
 `
 
-	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	err = os.MkdirAll(filepath.Dir(sliceFile), 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0644)
+	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0o644)
 	c.Assert(err, IsNil)
 
 	// removing it deletes it
@@ -1789,10 +1789,10 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 
 	// make the directory where the service file is written not writable, this
 	// will make EnsureFileState return an error
-	err := os.MkdirAll(svcFileDir, 0755)
+	err := os.MkdirAll(svcFileDir, 0o755)
 	c.Assert(err, IsNil)
 
-	err = os.Chmod(svcFileDir, 0644)
+	err = os.Chmod(svcFileDir, 0o644)
 	c.Assert(err, IsNil)
 
 	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
@@ -1991,9 +1991,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	err := os.MkdirAll(filepath.Dir(svc1File), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0o644)
 	c.Assert(err, IsNil)
 
 	// both will be written, one is new
@@ -2081,9 +2081,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	err := os.MkdirAll(filepath.Dir(svc1File), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0o644)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -2149,9 +2149,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	err := os.MkdirAll(filepath.Dir(svcFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0o644)
 	c.Assert(err, IsNil)
 
 	// now ensuring with no options will not modify anything or trigger a
@@ -2216,9 +2216,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	err := os.MkdirAll(filepath.Dir(svcFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0o644)
 	c.Assert(err, IsNil)
 
 	// now ensuring with the VitalityRank set will modify the file
@@ -2278,9 +2278,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	err := os.MkdirAll(filepath.Dir(svcFile), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0o644)
 	c.Assert(err, IsNil)
 
 	// make systemctl fail the first time when we try to do a daemon-reload,
@@ -2444,9 +2444,9 @@ WantedBy=multi-user.target
 		"",
 	)
 
-	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	err := os.MkdirAll(filepath.Dir(svc1File), 0o755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0o644)
 	c.Assert(err, IsNil)
 
 	// make systemctl fail the first time when we try to do a daemon-reload,
