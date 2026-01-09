@@ -408,6 +408,13 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	})
 }
 
+func getVisibilityFromCommand(c *baseCommand) confdb.Visibility {
+	if c.uid == "0" {
+		return confdb.SecretVisibility
+	}
+	return confdb.DefaultVisibility
+}
+
 func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, requests []string, previous bool) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return errors.New(i18n.G("cannot use --plug or --slot with --view"))
@@ -442,7 +449,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	}
 
 	// TODO: support constraints in snapctl
-	res, err := confdbstate.GetViaView(bag, view, requests, nil)
+	res, err := confdbstate.GetViaView(bag, view, requests, nil, getVisibilityFromCommand(&c.baseCommand))
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

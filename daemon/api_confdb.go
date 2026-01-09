@@ -54,6 +54,17 @@ var (
 	}
 )
 
+func getVisibility(r *http.Request) (confdb.Visibility, error) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return confdb.DefaultVisibility, fmt.Errorf("cannot get remote user: %v", err)
+	}
+	if ucred.Uid == 0 {
+		return confdb.SecretVisibility, nil
+	}
+	return confdb.DefaultVisibility, nil
+}
+
 func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st := c.d.state
 	st.Lock()
@@ -96,7 +107,12 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
+	visibility, err := getVisibility(r)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints, visibility)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -143,7 +159,12 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	err = confdbstateSetViaView(tx, view, action.Values)
+	visibility, err := getVisibility(r)
+	if err != nil {
+		return toAPIError(err)
+	}
+
+	err = confdbstateSetViaView(tx, view, action.Values, visibility)
 	if err != nil {
 		return toAPIError(err)
 	}

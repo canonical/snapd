@@ -160,6 +160,22 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
+type UnAuthorizedAccessError struct {
+	viewID    string
+	operation string
+	request   string
+}
+
+func (e *UnAuthorizedAccessError) Error() string {
+	var reqStr string
+	if e.request != "" {
+		reqStr = "\"" + e.request + "\""
+	} else {
+		reqStr = "empty path"
+	}
+	return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+}
+
 // Databag controls access to the confdb data storage.
 type Databag interface {
 	Get(path []Accessor, constraints map[string]string) (any, error)
@@ -201,6 +217,9 @@ type DatabagSchema interface {
 
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
+
+	// PruneVisibility prunes all elements of the indicated visibility or higher from the schema along the given path
+	PruneData(any, Visibility, []Accessor) (any, error)
 }
 
 type SchemaType uint
@@ -1035,8 +1054,29 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
-func (v *View) Set(databag Databag, request string, value any) error {
+func pathContainsHigherLevelVisibility(accessors []Accessor, visibility Visibility, schema DatabagSchema) (bool, error) {
+	if visibility == SecretVisibility {
+		// There is nothing higher than secret visibility, so no schema has a higher level
+		return false, nil
+	}
+	for i := range accessors {
+		nested, err := schema.SchemaAt(accessors[:i+1])
+		if err != nil {
+			return false, err
+		}
+		for _, n := range nested {
+			if n.Visibility() > visibility {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// Set sets the named view to a specified non-nil value. It will only set the value if
+// the supplied visibility is not higher than any part of the request path. If the path
+// contains a higher visibility, then it will return an UnAuthorizedAccessError
+func (v *View) Set(databag Databag, request string, value any, visibility Visibility) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
 	}
@@ -1071,6 +1111,13 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	var expandedMatches []expandedMatch
 	suffixes := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
+		contains, err := pathContainsHigherLevelVisibility(match.storagePath, visibility, v.schema.DatabagSchema)
+		if err != nil {
+			return fmt.Errorf("internal error: %s", err)
+		}
+		if contains {
+			return &UnAuthorizedAccessError{operation: "set", request: request, viewID: v.ID()}
+		}
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
 			return badRequestErrorFrom(v, "set", request, err.Error())
@@ -1143,7 +1190,10 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 	}
 }
 
-func (v *View) Unset(databag Databag, request string) error {
+// Unset unsets the value at request in the named view. It will only set the value if
+// the supplied visibility is not higher than any part of the request path. If the path
+// contains a higher visibility, then it will return an UnAuthorizedAccessError
+func (v *View) Unset(databag Databag, request string, visibility Visibility) error {
 	opts := ParseOptions{AllowPlaceholders: false}
 	accessors, err := ParsePathIntoAccessors(request, opts)
 	if err != nil {
@@ -1160,6 +1210,14 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	for _, match := range matches {
+		contains, err := pathContainsHigherLevelVisibility(match.storagePath, visibility, v.schema.DatabagSchema)
+		if err != nil {
+			return fmt.Errorf("internal error: %s", err)
+		}
+		if contains {
+			return &UnAuthorizedAccessError{operation: "unset", request: request, viewID: v.ID()}
+		}
+
 		if err := databag.Unset(match.storagePath); err != nil {
 			return err
 		}
@@ -1652,10 +1710,13 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 }
 
 // Get returns the view value identified by the request after the constraints
-// have been applied to any matching filter in the storage path. If the request
-// cannot be matched against any rule, it returns a NoMatchError, and if no data
-// is stored for the request, a NoDataError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
+// have been applied to any matching filter in the storage path. All data above
+// the specified level of visibility will be removed. If the request cannot
+// be matched against any rule, it returns a NoMatchError, and if no data
+// is stored for the request, a NoDataError is returned. If data would have
+// been returned but was removed due to the visibility level, then a
+// NoDataPermissionError is returned.
+func (v *View) Get(databag Databag, request string, constraints map[string]string, visibility Visibility) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1676,6 +1737,7 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 	}
 
 	var merged any
+	pruned := false
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath, constraints)
 		if err != nil {
@@ -1683,6 +1745,18 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 				continue
 			}
 			return nil, err
+		}
+		// Only prune data if the visibility level of the caller is less than secret
+		// (i.e. if the caller should not have access to secret data)
+		if visibility < SecretVisibility {
+			val, err = v.schema.DatabagSchema.PruneData(val, visibility+1, match.storagePath)
+			if err != nil {
+				return nil, err
+			}
+			if val == nil {
+				pruned = true
+				continue
+			}
 		}
 
 		// build a namespace around the result based on the unmatched suffix parts
@@ -1698,6 +1772,9 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		}
 	}
 
+	if merged == nil && pruned {
+		return nil, &UnAuthorizedAccessError{operation: "get", request: request, viewID: v.ID()}
+	}
 	if merged == nil {
 		var requests []string
 		if request != "" {
@@ -2950,8 +3027,9 @@ func (v JSONSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	return []DatabagSchema{v}, nil
 }
 
-func (v JSONSchema) Type() SchemaType                 { return Any }
-func (v JSONSchema) Ephemeral() bool                  { return false }
-func (v JSONSchema) NestedEphemeral() bool            { return false }
-func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
-func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
+func (v JSONSchema) Type() SchemaType                                            { return Any }
+func (v JSONSchema) Ephemeral() bool                                             { return false }
+func (v JSONSchema) NestedEphemeral() bool                                       { return false }
+func (v JSONSchema) Visibility() Visibility                                      { return DefaultVisibility }
+func (v JSONSchema) NestedVisibility(Visibility) bool                            { return false }
+func (v JSONSchema) PruneData(data any, _ Visibility, _ []Accessor) (any, error) { return data, nil }
