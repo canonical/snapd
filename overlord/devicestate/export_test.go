@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -286,15 +287,20 @@ func SetPostFactoryResetRan(m *DeviceManager, b bool) {
 	m.ensurePostFactoryResetRan = b
 }
 
+func SetEarlyBootLocaleConfigUpdatedRan(m *DeviceManager, b bool) {
+	m.ensureEarlyBootLocaleConfigUpdatedRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
 
 type (
-	RegistrationContext = registrationContext
-	RemodelContext      = remodelContext
-	SeededSystem        = seededSystem
-	RecoverySystemSetup = recoverySystemSetup
+	RegistrationContext        = registrationContext
+	RemodelContext             = remodelContext
+	SeededSystem               = seededSystem
+	RecoverySystemSetup        = recoverySystemSetup
+	ExtraSnapdKernelCmdlineArg = extraSnapdKernelCmdlineArg
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
@@ -341,6 +347,8 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
+
+	SetExtraSnapdKernelCommandLineArg = setExtraSnapdKernelCommandLineArg
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
@@ -575,6 +583,18 @@ func MockUserLookup(lookup func(username string) (*user.User, error)) (restore f
 
 func EnsureExpiredUsersRemoved(m *DeviceManager) error {
 	return m.ensureExpiredUsersRemoved()
+}
+
+func MockKeyboardCurrentXKBConfig(f func() (*keyboard.XKBConfig, error)) (restore func()) {
+	return testutil.Mock(&keyboardCurrentXKBConfig, f)
+}
+
+func MockKeyboardNewXKBConfigListener(f func(ctx context.Context, cb func(config *keyboard.XKBConfig)) (*keyboard.XKBConfigListener, error)) (restore func()) {
+	return testutil.Mock(&keyboardNewXKBConfigListener, f)
+}
+
+func EnsureEarlyBootXKBConfigUpdated(m *DeviceManager) error {
+	return m.ensureEarlyBootXKBConfigUpdated()
 }
 
 var ProcessAutoImportAssertions = processAutoImportAssertions

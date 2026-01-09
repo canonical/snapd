@@ -150,10 +150,11 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 }
 
 type testBootConfigUpdateOpts struct {
-	updateAttempted     bool
-	updateApplied       bool
-	cmdlineAppend       string
-	cmdlineAppendDanger string
+	updateAttempted             bool
+	updateApplied               bool
+	cmdlineAppend               string
+	cmdlineAppendDanger         string
+	extraSnapdKernelCmdlineArgs map[string]string
 }
 
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootConfigUpdateOpts, errMatch string) {
@@ -180,6 +181,18 @@ kernel-cmdline:
 	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
 	c.Assert(err, IsNil)
 	tr.Commit()
+
+	// Set extra snapd kernel command line args as well
+	for name, value := range opts.extraSnapdKernelCmdlineArgs {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+		c.Assert(err, IsNil)
+		c.Check(updated, Equals, true)
+	}
+	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
+		checkPendingExtraSnapdArgs(c, s.state, false)
+	} else {
+		checkPendingExtraSnapdArgs(c, s.state, true)
+	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
@@ -261,6 +274,18 @@ kernel-cmdline:
 	tr.Set("core", "system.kernel.dangerous-cmdline-append", opts.cmdlineAppendDanger)
 	c.Assert(err, IsNil)
 	tr.Commit()
+
+	// Set extra snapd kernel command line args as well
+	for name, value := range opts.extraSnapdKernelCmdlineArgs {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+		c.Assert(err, IsNil)
+		c.Check(updated, Equals, true)
+	}
+	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
+		checkPendingExtraSnapdArgs(c, s.state, false)
+	} else {
+		checkPendingExtraSnapdArgs(c, s.state, true)
+	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
@@ -373,6 +398,61 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate par1=val par2",
 	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModesWithExtraSnapdArgs(c *C) {
+	s.state.Lock()
+	s.setupClassicWithModesModel(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+		extraSnapdKernelCmdlineArgs: map[string]string{
+			"snapd.xkb": "some-value",
+		},
+	}
+	s.testBootConfigUpdateRunClassic(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value"`,
+	})
+	s.state.Lock()
+	checkPendingExtraSnapdArgs(c, s.state, false)
+	s.state.Unlock()
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModesWithExtraSnapdArgsAndAppend(c *C) {
+	s.state.Lock()
+	s.setupClassicWithModesModel(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+		cmdlineAppend:   "par1=val par2",
+		extraSnapdKernelCmdlineArgs: map[string]string{
+			"snapd.xkb": "some-value",
+		},
+	}
+	s.testBootConfigUpdateRunClassic(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value" par1=val par2`,
+	})
+	s.state.Lock()
+	checkPendingExtraSnapdArgs(c, s.state, false)
+	s.state.Unlock()
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
@@ -508,6 +588,62 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendBothOptsDang
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithAppendBothOptsSignedModel(c *C) {
 	s.testBootConfigUpdateRunWithAppendBothOpts(c, "signed")
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgs(c *C) {
+	s.state.Lock()
+	s.setupUC20Model(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted: true,
+		updateApplied:   true,
+		extraSnapdKernelCmdlineArgs: map[string]string{
+			"snapd.xkb": "some-value",
+		},
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value"`,
+	})
+	s.state.Lock()
+	checkPendingExtraSnapdArgs(c, s.state, false)
+	s.state.Unlock()
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgsAndAppend(c *C) {
+	s.state.Lock()
+	s.setupUC20Model(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	opts := testBootConfigUpdateOpts{
+		updateAttempted:     true,
+		updateApplied:       true,
+		cmdlineAppend:       "par1=val par2",
+		cmdlineAppendDanger: "par3=val par4",
+		extraSnapdKernelCmdlineArgs: map[string]string{
+			"snapd.xkb": "some-value",
+		},
+	}
+	s.testBootConfigUpdateRun(c, opts, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value" par1=val par2 par3=val par4`,
+	})
+	s.state.Lock()
+	checkPendingExtraSnapdArgs(c, s.state, false)
+	s.state.Unlock()
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
