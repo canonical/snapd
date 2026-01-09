@@ -806,10 +806,12 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.expandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
+	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
 }
 
-func (s *Info) expandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
+// ExpandSnapVariablesSetSnapMountDir resolves $SNAP, $SNAP_DATA and
+// $SNAP_COMMON in path for this snap using snapMountDir as root directory.
+func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
@@ -821,19 +823,6 @@ func (s *Info) expandSnapVariablesSetSnapMountDir(path, snapMountDir string) str
 		}
 		return ""
 	})
-}
-
-// ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA and $SNAP_COMMON
-// for paths, using the rootfs as mount namespace.
-func (s *Info) ExpandSliceSnapVariablesInRootfs(paths []string) []string {
-	expandedDirs := make([]string, 0, len(paths))
-	for _, dir := range paths {
-		expandedDirs = append(expandedDirs, filepath.Clean(
-			s.expandSnapVariablesSetSnapMountDir(
-				filepath.Join(dirs.GlobalRootDir, dir),
-				dirs.StripRootDir(dirs.SnapMountDir))))
-	}
-	return expandedDirs
 }
 
 // InstallDate returns the "install date" of the snap.
