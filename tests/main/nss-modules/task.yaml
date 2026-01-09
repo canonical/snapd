@@ -26,10 +26,15 @@ environment:
     MODULE/nis: nis
     MODULE/winbind: winbind
 
+skip:
+    - if: |
+        [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is-arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
+      reason: The nis and windbind variants are not supported on openstack arm due to lack of virtualization
+    - if: |
+        [[ "$SPREAD_BACKEND" =~ google ]] && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
+      reason: The nis and windbind variants are not supported on google due to lack of virtualization
+
 prepare: |
-    if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is-arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }; then
-        tests.exec skip-test "The openstack ARM environment is not KVM-enabled and cannot run LXD VMs" && exit 0
-    fi
     backup_if_exists() {
         local item=$1
         if [ -f "$item" ]; then
@@ -368,7 +373,6 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-sh
 
 restore: |
-    tests.exec is-skipped && exit 0
     tests.pkgs list-installed > installed-final.pkgs
     comm -13 installed-initial.pkgs installed-final.pkgs > installed-in-test.pkgs
     packages="$(tr "\n" " " < installed-in-test.pkgs)"
@@ -381,7 +385,6 @@ restore: |
     snap remove --purge lxd
 
 execute: |
-    tests.exec is-skipped && exit 0
     su -l -c "test-snapd-sh.sh -c 'echo hello'" ${nss_user} 2>stderr | MATCH 'hello'
 
     # there should be no warnings nor errors like seen in https://bugs.launchpad.net/snapd/+bug/2083890
