@@ -47,14 +47,34 @@ func (a *SnapAppSet) InstanceName() string {
 
 // ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA, $SNAP_COMMON
 // and $SNAP_COMPONENT(<component>) for paths, using the rootfs as mount
-// namespace.
+// namespace. Paths for components not installed are filtered out.
 func (a *SnapAppSet) ExpandSliceSnapVariablesInRootfs(paths []string) []string {
+	pathsWithDirIdx := a.ExpandSliceSnapVariablesWithOrder(paths)
+	expanded := make([]string, 0, len(pathsWithDirIdx))
+	for _, pwi := range pathsWithDirIdx {
+		expanded = append(expanded, pwi.Path)
+	}
+	return expanded
+}
+
+// ExpandedDirWithIdx returns the path of an expanded directory and the index in the input
+// slice.
+type ExpandedDirWithIdx struct {
+	Path   string
+	DirIdx int
+}
+
+// ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA, $SNAP_COMMON and
+// $SNAP_COMPONENT(<component>) for paths, using the rootfs as mount namespace. Paths for
+// components not installed are filtered out. The order specified in paths is returned in the
+// output.
+func (a *SnapAppSet) ExpandSliceSnapVariablesWithOrder(paths []string) []ExpandedDirWithIdx {
 	const componentPrefix = "$SNAP_COMPONENT("
 
-	expandedDirs := make([]string, 0, len(paths))
-	for _, dir := range paths {
+	expandedDirs := make([]ExpandedDirWithIdx, 0, len(paths))
+	for idx, dir := range paths {
 		if strings.HasPrefix(dir, componentPrefix) {
-			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")", 2)
+			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")/", 2)
 			if len(compAndPath) != 2 {
 				// Should not really happen as these paths are
 				// validated by validateSourceDirs
@@ -70,22 +90,28 @@ func (a *SnapAppSet) ExpandSliceSnapVariablesInRootfs(paths []string) []string {
 				}
 			}
 			if ci == nil {
-				// Component not installed, so we filter out
+				// Component not installed, so we filter out (note however that
+				// the presence of the path influences the directory index
+				// which might be used later to set the file priority).
 				continue
 			}
-			expandedDirs = append(expandedDirs, filepath.Clean(
+			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
 				filepath.Join(
 					dirs.SnapMountDir,
 					a.info.SnapName(),
 					"components", "mnt",
 					compAndPath[0],
 					ci.Revision.String(),
-					compAndPath[1])))
+					compAndPath[1])),
+				DirIdx: idx,
+			})
 		} else {
-			expandedDirs = append(expandedDirs, filepath.Clean(
+			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
 				a.info.ExpandSnapVariablesSetSnapMountDir(
 					filepath.Join(dirs.GlobalRootDir, dir),
-					dirs.StripRootDir(dirs.SnapMountDir))))
+					dirs.StripRootDir(dirs.SnapMountDir))),
+				DirIdx: idx,
+			})
 		}
 	}
 	return expandedDirs
