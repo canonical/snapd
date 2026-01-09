@@ -81,7 +81,7 @@ execute: |
         exit 1
     fi
 
-    if systemctl list-unit-files | grep systemd-networkd | awk '{print $2}' | MATCH "enabled"; then
+    if systemctl is-enabled systemd-networkd.service 2>/dev/null | MATCH "enabled"; then
         echo "Check that subcommands ntp-servers and revert work"
         iface="$(find /sys/class/net -maxdepth 1 ! -name lo ! -path "/sys/class/net" | head -n1 | xargs basename)"
         test-snapd-timedate-control-consumer.timedatectl-timeserver ntp-servers "${iface}" 127.0.0.1
