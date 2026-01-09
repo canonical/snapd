@@ -116,7 +116,23 @@ func (s *SnapOpSuite) TestComponentShowNoComponents(c *check.C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "mysnap"})
 
-	c.Assert(err, check.ErrorMatches, "no components specified")
+	c.Assert(err, check.ErrorMatches, "no component specified")
+}
+
+func (s *SnapOpSuite) TestComponentShowEmptyString(c *check.C) {
+    s.RedirectClientToTestServer(nil)
+
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", ""})
+
+    c.Assert(err, check.ErrorMatches, "argument cannot be empty")
+}
+
+func (s *SnapOpSuite) TestComponentShowJustPlus(c *check.C) {
+    s.RedirectClientToTestServer(nil)
+
+    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+"})
+
+    c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
 }
 
 func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
@@ -171,7 +187,7 @@ func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 				Status:        "active",
 				Type:          "app",
 				InstalledSize: 10 * 1000 * 1000,
-				Description:   "A mock AI snap",
+				Description:   "A mock LLM snap",
 			},
 			Revision:   "100",
 			Components: []mockComponent{comp1, comp2},
