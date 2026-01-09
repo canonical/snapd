@@ -13,19 +13,28 @@ restore: |
     snap set system experimental.user-daemons=false
 
 execute: |
+    case "$SPREAD_SYSTEM" in
+        amazon-*|arch-*|centos-*|fedora-*)
+            SNAP_BIN="/var/lib/snapd/snap/bin"
+            ;;
+        *)
+            SNAP_BIN="/snap/bin"
+            ;;
+    esac
+
     echo "Test that the non-daemon apps have binaries"
-    test -L /snap/bin/test-snapd-graphical-user-daemons.normal
-    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop
-    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay
+    test -L "$SNAP_BIN"/test-snapd-graphical-user-daemons.normal
+    test -L "$SNAP_BIN"/test-snapd-graphical-user-daemons.normal-with-desktop
+    test -L "$SNAP_BIN"/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay
 
     echo "Test that daemons do not have binaries"
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical-nodisplay
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical-nodisplay
-    test ! -e /snap/bin/test-snapd-graphical-user-daemons.decoy # not a daemon, but should not exist
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.daemon
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.daemon-graphical
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.daemon-graphical-nodisplay
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.user-daemon
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.user-daemon-graphical
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.user-daemon-graphical-nodisplay
+    test ! -e "$SNAP_BIN"/test-snapd-graphical-user-daemons.decoy # not a daemon, but should not exist
 
     echo "Test that expected apps have .desktop files"
     test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop.desktop
@@ -44,11 +53,11 @@ execute: |
     test ! -e /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon.desktop
 
     echo "Test that non-daemon app .desktop files have Exec values set to app binaries"
-    MATCH Exec=/snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop.desktop
-    MATCH Exec=/snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop-nodisplay.desktop
+    MATCH Exec="$SNAP_BIN"/test-snapd-graphical-user-daemons.normal-with-desktop < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop.desktop
+    MATCH Exec="$SNAP_BIN"/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop-nodisplay.desktop
 
     echo "Test that the decoy .desktop file has its Exec line erased"
-    NOMATCH Exec= < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_decoy.desktop
+    NOMATCH 'Exec=' < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_decoy.desktop
 
     echo "Test that daemon .desktop files have Exec values set to /usr/bin/false"
     MATCH Exec=/usr/bin/false < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon-graphical.desktop
