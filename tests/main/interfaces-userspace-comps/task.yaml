@@ -33,6 +33,8 @@ execute: |
   COMP_MNT2=$COMPS_MNT/$COMP2
   egl_cfg1=/etc/glvnd/egl_vendor.d/16_snap_libs-provider+comp1_egl-driver-libs_egl.d-vendor.json
   egl_cfg2=/etc/glvnd/egl_vendor.d/17_snap_libs-provider+comp2_egl-driver-libs_egl.d-vendor.json
+  export_egl=/var/lib/snapd/export/system_libs-provider_egl-driver-libs_egl-driver-libs.library-source
+  export_cuda=/var/lib/snapd/export/system_libs-provider_cuda-driver-libs_cuda-driver-libs.library-source
 
   check_config_ok() {
       local version=$1
@@ -42,14 +44,25 @@ execute: |
       ldd user | MATCH "$COMP_MNT1"/"$version"/libs/libsquare.so
       ldd user | MATCH "$COMP_MNT2"/"$version"/libs/libmultiply.so
       ./user 2 | MATCH 8
+      # Export files for snap-confine should exist
+      for export_f in "$export_egl" "$export_cuda"; do
+          MATCH "$COMP_MNT1"/"$version"/libs < "$export_f"
+          MATCH "$COMP_MNT2"/"$version"/libs < "$export_f"
+      done
       # Check symlinks to EGL vendor configuration files
       test "$(readlink "$egl_cfg1")" = "$COMP_MNT1"/"$version"/egl.d/vendor.json
       test "$(readlink "$egl_cfg2")" = "$COMP_MNT2"/"$version"/egl.d/vendor.json
   }
 
   check_no_config() {
-      not MATCH "$COMP_MNT1" < "$LDCONF_PATH"
-      not MATCH "$COMP_MNT2" < "$LDCONF_PATH"
+      # $LDCONF_PATH does not exist if both components are removed, but double
+      # checking in case there is another snap sharing libraries in the system.
+      if [ -f "$LDCONF_PATH" ]; then
+          not MATCH "$COMP_MNT1" < "$LDCONF_PATH"
+          not MATCH "$COMP_MNT2" < "$LDCONF_PATH"
+      fi
+      not stat "$export_egl"
+      not stat "$export_cuda"
       not stat "$egl_cfg1"
       not stat "$egl_cfg2"
   }
