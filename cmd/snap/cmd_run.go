@@ -1826,6 +1826,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				// because only snapd can create warnings, internally.
 				logger.Debugf("snapd cannot track the started application")
 				logger.Debugf("snap refreshes will not be postponed by this process")
+			case "bare":
+				// Bare is unversioned but we want it to behave
+				// according to the more strict logic.
+				fallthrough
 			default:
 				// For apps using core26+, fail hard unless they don't rely on
 				// cgroup for device control and have the self-managed=true
