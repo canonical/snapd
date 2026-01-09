@@ -143,10 +143,10 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appInf
 	desktopFileApp := strings.TrimSuffix(df, filepath.Ext(df))
 	app, ok := s.Apps[desktopFileApp]
 	if ok {
-		if app.IsService() {
-			return app, "Exec=/usr/bin/false", nil
-		}
 		newExec := fmt.Sprintf("Exec=%s", app.WrapperPath())
+		if app.IsService() {
+			newExec = "Exec=/usr/bin/false"
+		}
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
 		return app, newExec, nil
 	}
