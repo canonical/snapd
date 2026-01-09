@@ -192,9 +192,17 @@ execute: |
 
             echo "Checking AppArmor"
             case "$SPREAD_SYSTEM" in
-                fedora-*|centos-*|amazon-linux-*)
+                fedora-*|centos-*)
                     MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-default.out
                     MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-force-reexec.out
+                    ;;
+                amazon-linux-*)
+                    # there's no AppArmor installed in the system
+                    MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-default.out
+                    # but there is /snap -> /var/lib/snapd/snap symlink, so
+                    # internal apparmor utilities are available, when reexec is
+                    # forced
+                    MATCH 'internal: true' < snap-apparmor-force-reexec.out
                     ;;
                 *)
                     # arch and opensuse have AppArmor installed
