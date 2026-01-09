@@ -1002,7 +1002,7 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 
 	// check for the minimal mandatory fields. We're not rejecting unknown fields
 	// for forwards compatibility
-	mandatory := []string{"hardware-id-key", "hardware-id-key-sha384", "request-id-signature"}
+	mandatory := []string{"hardware-id-key-sha384", "request-id-signature"}
 	for _, field := range mandatory {
 		if _, ok := body[field]; !ok {
 			return nil, fmt.Errorf("'prepare-serial-request' hook did not set mandatory field %q in registration body", field)

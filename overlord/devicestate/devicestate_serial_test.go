@@ -1289,7 +1289,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	serial := a.(*asserts.Serial)
 
 	var details map[string]any
-	err = yaml.Unmarshal(serial.Body(), &details)
+	err = json.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
@@ -1495,7 +1495,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	serial := a.(*asserts.Serial)
 
 	var details map[string]any
-	err = yaml.Unmarshal(serial.Body(), &details)
+	err = json.Unmarshal(serial.Body(), &details)
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
@@ -1514,12 +1514,6 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookNoOverwite(c *C) {
 	expectedErr := `cannot unmarshal registration body as JSON (hook did not overwrite or wrote incorrectly?):`
 	s.testBadPrepareDeviceSerialHook(c, "", expectedErr)
-}
-
-func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKey(c *C) {
-	body := `{"hardware-id-key-sha384":"b", "request-id-signature":"c"}`
-	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key" in registration body`
-	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
 }
 
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKeyHash(c *C) {
