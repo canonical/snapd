@@ -127,7 +127,7 @@ execute: |
                 MATCH 'internal: false' < snap-apparmor-no-reexec.out
             fi
 
-            echo "Checking AppArmor"
+            echo "Checking AppArmor (forced reexec)"
             if [ "$SNAP_REEXEC" = 0 ]; then
                 # with native package and when forced to reexec, we're using vendored apparmor
                 MATCH 'internal: true' < snap-apparmor-force-reexec.out
