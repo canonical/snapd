@@ -1,0 +1,57 @@
+summary: Check that graphical user daemons with .desktop files are handled correctly
+
+details: |
+    Verifies that graphical user daemons with .desktop files have their Exec=
+    lines overridden with /usr/bin/false.
+
+prepare: |
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-graphical-user-daemons
+
+restore: |
+    snap remove --purge test-snapd-graphical-user-daemons || true
+    snap set system experimental.user-daemons=false
+
+execute: |
+    echo "Test that the non-daemon apps have binaries"
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop
+    test -L /snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay
+
+    echo "Test that daemons do not have binaries"
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.daemon-graphical-nodisplay
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.user-daemon-graphical-nodisplay
+    test ! -e /snap/bin/test-snapd-graphical-user-daemons.decoy # not a daemon, but should not exist
+
+    echo "Test that expected apps have .desktop files"
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop.desktop
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop-nodisplay.desktop
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon-graphical.desktop
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon-graphical-nodisplay.desktop
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon-graphical.desktop
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon-graphical-nodisplay.desktop
+
+    echo "Test that decoy .desktop file was installed"
+    test -f /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_decoy.desktop
+
+    echo "Test that expected apps do not have .desktop files"
+    test ! -e /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal.desktop
+    test ! -e /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon.desktop
+    test ! -e /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon.desktop
+
+    echo "Test that non-daemon app .desktop files have Exec values set to app binaries"
+    MATCH Exec=/snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop.desktop
+    MATCH Exec=/snap/bin/test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_normal-with-desktop-nodisplay.desktop
+
+    echo "Test that the decoy .desktop file has its Exec line erased"
+    NOMATCH Exec= < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_decoy.desktop
+
+    echo "Test that daemon .desktop files have Exec values set to /usr/bin/false"
+    MATCH Exec=/usr/bin/false < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon-graphical.desktop
+    MATCH Exec=/usr/bin/false < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_daemon-graphical-nodisplay.desktop
+    MATCH Exec=/usr/bin/false < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon-graphical.desktop
+    MATCH Exec=/usr/bin/false < /var/lib/snapd/desktop/applications/test-snapd-graphical-user-daemons_user-daemon-graphical-nodisplay.desktop
