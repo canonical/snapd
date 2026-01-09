@@ -1,0 +1,5 @@
+component: libs-provider+comp2
+type: standard
+version: 1.0
+summary: Component 2
+description: Second component for libs-provider
