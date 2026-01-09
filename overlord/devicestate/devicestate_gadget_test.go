@@ -1178,10 +1178,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 }
 
 type testGadgetCommandlineUpdateOpts struct {
-	updated       bool
-	isClassic     bool
-	grade         string
-	cmdlineAppend string
+	updated                     bool
+	isClassic                   bool
+	grade                       string
+	extraSnapdKernelCmdlineArgs map[string]string
+	cmdlineAppend               string
 	// This is the part of cmdlineAppend that is allowed by the gadget
 	allowedCmdline string
 	// and this is the not allowed part
@@ -1225,6 +1226,18 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		tsk.Set("dangerous-cmdline-append", opts.cmdlineAppendDanger)
 		argsAppended = true
 	}
+	// Set extra snapd kernel command line args as well
+	for name, value := range opts.extraSnapdKernelCmdlineArgs {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+		c.Assert(err, IsNil)
+		c.Check(updated, Equals, true)
+	}
+	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
+		checkPendingExtraSnapdArgs(c, s.state, false)
+	} else {
+		checkPendingExtraSnapdArgs(c, s.state, true)
+	}
+
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	s.state.Unlock()
@@ -1615,6 +1628,57 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewAppendedArgsSig
 		}
 		s.testUpdateGadgetCommandlineWithNewAppendedArgs(c, opts)
 	}
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *C) {
+	// no command line arguments prior to the gadget update
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	sameFiles := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	}
+	// old and new gadget have the same command line arguments, nothing changes
+	opts := testGadgetCommandlineUpdateOpts{
+		updated:   true,
+		isClassic: false,
+		grade:     "dangerous",
+		extraSnapdKernelCmdlineArgs: map[string]string{
+			"snapd.xkb": "some-value",
+		},
+	}
+	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles, "", "Updated kernel command line", opts)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget snapd.xkb="some-value"`,
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	s.state.Lock()
+	checkPendingExtraSnapdArgs(c, s.state, false)
+	s.state.Unlock()
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {

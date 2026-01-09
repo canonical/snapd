@@ -84,6 +84,9 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}
 
+	// Any pending extra snapd args should have been applied by now.
+	st.Set(pendingExtraSnapdKernelCmdlineArgsKey, false)
+
 	// set this status already before returning to minimize wasteful redos
 	finalStatus := state.DoneStatus
 	if updated {
