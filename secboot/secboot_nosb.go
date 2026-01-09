@@ -206,6 +206,14 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 type ActivateState struct {
 }
 
+func (*ActivateState) TotalActivatedContainers() uint {
+	return 0
+}
+
+func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
+	return 0
+}
+
 type ActivateContext interface {
 	State() *ActivateState
 }
