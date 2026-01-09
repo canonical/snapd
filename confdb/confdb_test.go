@@ -557,6 +557,26 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			expectedErr: nil,
 		},
 		{
+			testName: "single request: invalid request path",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo"},
+			},
+			requests:    []string{"123badPath"},
+			constraints: map[string]string{"bar": "value"},
+			expectedErr: errors.New(`.*invalid subkey "123badPath".*`),
+		},
+		{
+			testName: "single request: no matching rule",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo"},
+			},
+			requests:    []string{"bar"},
+			constraints: map[string]string{"baz": "value"},
+			expectedErr: errors.New(`.*no matching rule.*`),
+		},
+		{
 			testName: "single request: no constraints",
 			params:   map[string]any{},
 			rules: []any{
