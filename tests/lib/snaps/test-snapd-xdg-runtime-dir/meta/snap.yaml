@@ -1,0 +1,9 @@
+name: test-snapd-xdg-runtime-dir
+version: '1.0'
+summary: A test snap to check the existence of the XDG_RUNTIME_DIR folder
+description: |
+  A test snap to check the existence of the XDG_RUNTIME_DIR folder
+
+apps:
+  test-snapd-xdg-runtime-dir:
+    command: bin/script
