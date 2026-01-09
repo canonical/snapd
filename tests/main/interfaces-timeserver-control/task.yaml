@@ -81,6 +81,9 @@ execute: |
         exit 1
     fi
 
+    # TODO for classic Ubuntu, openstack images have chrony instead of
+    # timesyncd, so this ever only runs in non-openstack nightly tests or in
+    # garden
     if systemctl is-enabled systemd-networkd.service && systemctl is-enabled systemd-timesyncd;  then
         echo "Check that subcommands ntp-servers and revert work"
         iface="$(find /sys/class/net -maxdepth 1 ! -name lo ! -path "/sys/class/net" | head -n1 | xargs basename)"
