@@ -1651,6 +1651,51 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	return nil
 }
 
+// CheckAllConstraintsAreUsed returns an error if any constraint is unused across all the unmatchedSuffix
+// of the matching rules' storage paths, otherwise returns nil.
+func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]string) error {
+	if len(constraints) == 0 {
+		return nil
+	}
+	if len(requests) == 0 {
+		requests = []string{""}
+	}
+
+	constrainablePlaceholders := make(map[string]struct{})
+	opts := ParseOptions{AllowPlaceholders: false}
+	for _, request := range requests {
+		accessors, err := ParsePathIntoAccessors(request, opts)
+		if err != nil {
+			return badRequestErrorFrom(v, "get", request, err.Error())
+		}
+
+		matches, err := v.matchGetRequest(accessors)
+		if err != nil {
+			return err
+		}
+
+		for _, match := range matches {
+			// unmatched suffix of storage path starts at len(accessors)
+			for _, acc := range match.storagePath[len(accessors):] {
+				if acc.Type() == KeyPlaceholderType {
+					constrainablePlaceholders[acc.Name()] = struct{}{}
+				}
+				for _, param := range acc.FieldFilters() {
+					constrainablePlaceholders[param] = struct{}{}
+				}
+			}
+		}
+	}
+	allowedPlaceholders := keys(constrainablePlaceholders)
+
+	for cPlaceholder := range constraints {
+		if !strutil.ListContains(allowedPlaceholders, cPlaceholder) {
+			return fmt.Errorf("constraint %q is not a valid placeholder for the matched paths", cPlaceholder)
+		}
+	}
+	return nil
+}
+
 // Get returns the view value identified by the request after the constraints
 // have been applied to any matching filter in the storage path. If the request
 // cannot be matched against any rule, it returns a NoMatchError, and if no data
