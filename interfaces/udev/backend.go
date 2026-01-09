@@ -93,11 +93,6 @@ func snapRulesFilePath(snapName string) string {
 	return filepath.Join(dirs.SnapUdevRulesDir, rulesFileName)
 }
 
-func snapDeviceCgroupSelfManageFilePath(snapName string) string {
-	selfManageFileName := fmt.Sprintf("%s.device", snap.SecurityTag(snapName))
-	return filepath.Join(dirs.SnapCgroupPolicyDir, selfManageFileName)
-}
-
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
@@ -123,7 +118,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	rulesFilePath := snapRulesFilePath(snapName)
-	selfManageDeviceCgroupPath := snapDeviceCgroupSelfManageFilePath(snapName)
+	selfManageDeviceCgroupPath := cgroup.SnapDeviceFile(snap.SecurityTag(snapName))
 
 	needReload := false
 	// content is always empty whenever the snap controls device
@@ -216,7 +211,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
 	rulesFilePath := snapRulesFilePath(snapName)
-	selfManageDeviceCgroupPath := snapDeviceCgroupSelfManageFilePath(snapName)
+	selfManageDeviceCgroupPath := cgroup.SnapDeviceFile(snap.SecurityTag(snapName))
 
 	// If file doesn't exist we avoid reloading the udev rules when we return here
 	needReload := false
