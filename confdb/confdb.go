@@ -1651,8 +1651,8 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	return nil
 }
 
-// CheckAllConstraintsAreUsed returns an error if any constraint is unused across all the unmatchedSuffix
-// of the matching rules' storage paths, otherwise returns nil.
+// CheckAllConstraintsAreUsed returns an error if any constraint is unused across all the matching
+// rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
 func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]string) error {
 	if len(constraints) == 0 {
 		return nil
@@ -1675,8 +1675,9 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 		}
 
 		for _, match := range matches {
-			// unmatched suffix of storage path starts at len(accessors)
-			for _, acc := range match.storagePath[len(accessors):] {
+			// check against storage path as field filters are specified
+			// only in storage path
+			for _, acc := range match.storagePath {
 				if acc.Type() == KeyPlaceholderType {
 					constrainablePlaceholders[acc.Name()] = struct{}{}
 				}
