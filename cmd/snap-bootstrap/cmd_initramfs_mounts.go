@@ -127,6 +127,7 @@ var (
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
 	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
+	secbootNewActivateContext        = secboot.NewActivateContext
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -171,7 +172,7 @@ func generateInitramfsMounts() (err error) {
 		return err
 	}
 
-	activationContext, err := secboot.NewActivateContext(context.Background())
+	activationContext, err := secbootNewActivateContext(context.Background())
 	if err != nil {
 		return err
 	}
@@ -880,6 +881,8 @@ type partitionState struct {
 }
 
 type diskUnlockState struct {
+	Activation secboot.ActivateContext
+
 	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
 	// partition.
 	UbuntuData partitionState
@@ -897,6 +900,7 @@ func (r *diskUnlockState) serializeTo(name string) error {
 		UbuntuData: r.UbuntuData.PartitionState,
 		UbuntuBoot: r.UbuntuBoot.PartitionState,
 		UbuntuSave: r.UbuntuSave.PartitionState,
+		State:      r.Activation.State(),
 	}
 
 	return exportState.WriteTo(name)
@@ -1215,7 +1219,7 @@ func newRecoverModeStateMachine(activateContext secboot.ActivateContext, model *
 		model:           model,
 		mode:            bootMode,
 		disk:            disk,
-		degradedState:   &diskUnlockState{},
+		degradedState:   &diskUnlockState{Activation: activateContext},
 		noFallback:      !allowFallback,
 		activateContext: activateContext,
 	}
@@ -2442,7 +2446,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	diskState := &diskUnlockState{}
+	diskState := &diskUnlockState{Activation: mst.activateContext}
 
 	// at this point on a system with TPM-based encryption
 	// data can be open only if the measured model matches the actual

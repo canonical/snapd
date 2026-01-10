@@ -203,9 +203,32 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 	return nil, errBuildWithoutSecboot
 }
 
+type ActivateState struct {
+}
+
+func NewActivateState() *ActivateState {
+	return &ActivateState{}
+}
+
+func (a *ActivateState) HasActivations() bool {
+	return false
+}
+
+func (a *ActivateState) UsedRecoveryKey() bool {
+	return false
+}
+
 type ActivateContext interface {
+	State() *ActivateState
+}
+
+type fakeActivateContext struct {
+}
+
+func (f *fakeActivateContext) State() *ActivateState {
+	return &ActivateState{}
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
-	return nil, nil
+	return &fakeActivateContext{}, nil
 }

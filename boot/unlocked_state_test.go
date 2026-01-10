@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,6 +51,7 @@ func (s *diskUnlockStateSuite) TestUnlockedStateWriteTo(c *C) {
 		UbuntuData: boot.PartitionState{
 			MountState: boot.PartitionMounted,
 		},
+		State: &secboot.ActivateState{},
 	}
 
 	state.WriteTo("test.json")
@@ -59,13 +61,19 @@ func (s *diskUnlockStateSuite) TestUnlockedStateWriteTo(c *C) {
 	var data map[string]any
 	err = json.Unmarshal(jsonData, &data)
 	c.Assert(err, IsNil)
-	c.Check(data, DeepEquals, map[string]any{
+	expected := map[string]any{
 		"ubuntu-boot": map[string]any{},
 		"ubuntu-data": map[string]any{
 			"mount-state": "mounted",
 		},
 		"ubuntu-save": map[string]any{},
-	})
+	}
+	if secboot.WithSecbootSupport {
+		expected["state"] = nil
+	} else {
+		expected["state"] = map[string]any{}
+	}
+	c.Check(data, DeepEquals, expected)
 }
 
 func (s *diskUnlockStateSuite) TestUnlockedStateLoad(c *C) {

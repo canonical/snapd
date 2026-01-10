@@ -287,6 +287,17 @@ func checkDegradedJSON(c *C, name string, exp map[string]any) {
 	degradedJSONObj := make(map[string]any)
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
+	_, hasState := exp["state"]
+	if !hasState {
+		if secboot.WithSecbootSupport {
+			exp["state"] = map[string]any{
+				"activations":    map[string]any{},
+				"primary-key-id": 0.,
+			}
+		} else {
+			exp["state"] = map[string]any{}
+		}
+	}
 
 	c.Assert(degradedJSONObj, DeepEquals, exp)
 }
