@@ -68,14 +68,6 @@ prepare: |
   # Sign the model
   gendeveloper1 sign-model < classic.json > classic.model
 
-  # Prepare rootfs
-  cat << EOF > ./prepare-rootfs.sh
-  rootfs="\$1"
-  echo ID=ubuntu > \${rootfs}/etc/os-release
-  echo VERSION_ID="${MODEL_VERSION}" >> \${rootfs}/etc/os-release
-  EOF
-  export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
-
   # Create preinstall environment, but do not run muninstaller
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
       --model classic.model \
