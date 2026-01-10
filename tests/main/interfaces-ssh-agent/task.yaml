@@ -1,0 +1,46 @@
+summary: Ensure that the ssh-agent interface works.
+
+details: |
+    The ssh-agent interface allows to access to the users
+    local ssh-agent socket for managing keys.
+
+environment:
+    KEYRING_SOCKET: "/run/user/1000/keyring/ssh"
+    OPENSSH_SOCKET: "/tmp/ssh-abcdefg123/agent.123456"
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    # Create files to simulate ssh authentication agent sockets
+    "$TESTSTOOLS"/fs-state mock-file "$KEYRING_SOCKET"
+    "$TESTSTOOLS"/fs-state mock-file "$OPENSSH_SOCKET"
+
+restore: |
+    # Delete the created files
+    "$TESTSTOOLS"/fs-state restore-file "$KEYRING_SOCKET"
+    "$TESTSTOOLS"/fs-state restore-file "$OPENSSH_SOCKET"
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i ssh-agent | MATCH -- '^- +test-snapd-sh:ssh-agent'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-sh:ssh-agent
+    
+    echo "Then the snap is able to write to the socket files"
+    test-snapd-sh.with-ssh-agent-plug -c "echo test >> $KEYRING_SOCKET"
+    test-snapd-sh.with-ssh-agent-plug -c "echo test >> $OPENSSH_SOCKET"
+
+    echo "And the snap is able to read the socket files"
+    test-snapd-sh.with-ssh-agent-plug -c "cat $KEYRING_SOCKET"
+    test-snapd-sh.with-ssh-agent-plug -c "cat $OPENSSH_SOCKET"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:ssh-agent
+    
+    echo "Then the snap is not able to access the ssh-agent socket"
+    if test-snapd-sh.with-ssh-agent -c "cat $KEYRING_SOCKET" 2> call.error; then
+        echo "Expected permission error accessing ssh-agent socket"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
