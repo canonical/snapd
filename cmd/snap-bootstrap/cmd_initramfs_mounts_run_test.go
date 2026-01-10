@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -689,6 +690,89 @@ Wants=%[1]s
 		"ubuntu-boot": map[string]any{},
 		"ubuntu-data": map[string]any{},
 		"ubuntu-save": map[string]any{},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeActivationState(c *C) {
+	fakeState := &secboot.ActivateState{}
+	defer main.MockSecbootNewActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
+		return &fakeActivateContext{state: fakeState}, nil
+	})()
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	isMountedChecks := []string{}
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		isMountedChecks = append(isMountedChecks, where)
+		return true, nil
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	addActivation(fakeState, "credential-name-save", "platform-key")
+	addActivation(fakeState, "credential-name-data", "platform-key")
+	setActivationPrimaryKey(fakeState, 42)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	expectedState := map[string]any{}
+	if secboot.WithSecbootSupport {
+		expectedState["primary-key-id"] = 42.
+		expectedState["activations"] = map[string]any{
+			"credential-name-data": map[string]any{
+				"status":               "platform-key",
+				"keyslot-errors":       nil,
+				"keyslot-errors-order": nil,
+			},
+			"credential-name-save": map[string]any{
+				"status":               "platform-key",
+				"keyslot-errors":       nil,
+				"keyslot-errors-order": nil,
+			},
+		}
+	}
+
+	checkDegradedJSON(c, "unlocked.json", map[string]any{
+		"ubuntu-boot": map[string]any{},
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{},
+		"state":       expectedState,
 	})
 }
 
