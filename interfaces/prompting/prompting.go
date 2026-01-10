@@ -30,6 +30,34 @@ import (
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 )
 
+type Request interface {
+	// Key returns a namespaced ID which uniquely identifies this request. If a
+	// request is re-received (indicated by a key matching one which was
+	// previously received), then the content of the request must be identical
+	// to that which was previously received.
+	Key() string
+	// UID returns the user ID of the subject which triggered the request.
+	UID() uint32
+	// PID returns the process ID of the process which triggered the request.
+	PID() int32
+	// Cgroup returns the cgroup path of the process which triggered the request.
+	Cgroup() string
+	// AppArmorLabel returns the AppArmor security label of the process which
+	// triggered the request. E.g. snap.libreoffice.writer
+	AppArmorLabel() string
+	// Interface returns the snapd interface associated with this request.
+	Interface() string
+	// Permissions returns the abstract permissions being requested.
+	Permissions() []string
+	// Path returns the path associated with this request.
+	// TODO: eventually decouple the concept of paths from Requests, Constraints,
+	// and the rules backend, so interfaces without paths can be handled more
+	// ergonomically.
+	Path() string
+	// Reply causes a reply to be sent back to the originator of this request.
+	Reply(allowedPermissions []string) error
+}
+
 // Metadata stores information about the origin or applicability of a prompt or
 // rule.
 type Metadata struct {

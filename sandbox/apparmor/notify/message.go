@@ -472,12 +472,18 @@ type MsgNotificationResponse struct {
 
 // BuildResponse returns a MsgNotificationResponse with the given information.
 func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) *MsgNotificationResponse {
-	aaDenyMask := requested.AsAppArmorOpMask()
-	// If permission was originally both allowed and denied in the message,
-	// treat it as initially denied.
-	aaAllowMask := initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+	var aaDenyMask uint32
+	if requested != nil {
+		aaDenyMask = requested.AsAppArmorOpMask()
+	}
+	var aaAllowMask uint32
+	if initiallyAllowed != nil {
+		// If permission was originally both allowed and denied in the message,
+		// treat it as initially denied.
+		aaAllowMask = initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+	}
 
-	userAllowMask := uint32(0)
+	var userAllowMask uint32
 	if explicitlyAllowed != nil {
 		userAllowMask = explicitlyAllowed.AsAppArmorOpMask()
 	}
@@ -838,7 +844,11 @@ func (msg *MsgNotificationFile) MarshalBinary() ([]byte, error) {
 }
 
 func (msg *MsgNotificationFile) AllowedDeniedPermissions() (allowed, denied AppArmorPermission, err error) {
-	return msg.DecodeFilePermissions()
+	allowed, denied, err = msg.DecodeFilePermissions()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get allowed/denied permissions from message with mediation class %s: %w", msg.Class, err)
+	}
+	return allowed, denied, nil
 }
 
 func (msg *MsgNotificationFile) SubjectUID() uint32 {
