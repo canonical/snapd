@@ -1,7 +1,7 @@
-summary: Verify DBX on a hybrid system
+summary: Verify DB on a hybrid system
 
 details: |
-  Verify handling of DBX updates on a hybrid system.
+  Verify handling of DB updates on a hybrid system.
 
 systems: [-ubuntu-1*, -ubuntu-20*]
 
@@ -89,7 +89,7 @@ prepare: |
   remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
 
   keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
-  # generate 3 dbx updates
+  # generate a db update
   MYGUID="11111111-0000-1111-0000-000000000000"
   # generate a key
   openssl req -new -x509 -newkey rsa:2048 -subj "/CN=bad key/" \
@@ -97,48 +97,48 @@ prepare: |
   # convert to EFI sig list
   cert-to-efi-sig-list -g $MYGUID "bad-key.crt" "bad-key.esl"
   # and sign as an update for appending
-  sign-efi-sig-list -a -c "$keys_dir/KEK.crt" -k "$keys_dir/KEK.key" dbx \
-    "bad-key.esl" "dbx-update.auth"
+  sign-efi-sig-list -a -c "$keys_dir/KEK.crt" -k "$keys_dir/KEK.key" db \
+    "bad-key.esl" "db-update.auth"
 
-  remote.push dbx-update.auth
+  remote.push db-update.auth
   remote.exec sudo apt install efitools -y
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
-  echo "Perform DBX update and verify that the system boots correctly"
+  echo "Perform DB update and verify that the system boots correctly"
 
-  update_payload="$(base64 -w0 dbx-update.auth)"
-  echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"$update_payload\"}" | \
+  update_payload="$(base64 -w0 db-update.auth)"
+  echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DB\",\"payload\":\"$update_payload\"}" | \
     remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
   jq -r .status < prepare.out | MATCH "OK"
   remote.exec snap change --last=fde-efi-secureboot-db-update | \
-    MATCH 'Done .* Prepare for external EFI DBX update'
+    MATCH 'Done .* Prepare for external EFI DB update'
   remote.exec snap change --last=fde-efi-secureboot-db-update | \
-    MATCH 'Do .* Reseal after external EFI DBX update'
+    MATCH 'Do .* Reseal after external EFI DB update'
 
-  remote.exec sudo efi-readvar -v dbx 2>&1 | tee efi-dbx-state-initial.log
-  # count how many entries we have in DBX initially
-  initial_dbx_entries_count="$(grep -c 'List ' efi-dbx-state-initial.log)"
+  remote.exec sudo efi-readvar -v db 2>&1 | tee efi-db-state-initial.log
+  # count how many entries we have in DB initially
+  initial_db_entries_count="$(grep -c 'List ' efi-db-state-initial.log)"
 
   remote.exec sudo efi-readvar 2>&1 | tee efi-vars.log
-  remote.push dbx-update.auth
-  remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
-  # update dbx
-  remote.exec sudo efi-readvar -v dbx 2>&1 | tee efi-dbx-before.log
+  remote.push db-update.auth
+  remote.exec "sudo chattr -i /sys/firmware/efi/efivars/db-*"
+  # update db
+  remote.exec sudo efi-readvar -v db 2>&1 | tee efi-db-before.log
   # expecting no additional entries in the list
-  grep -c 'List ' efi-dbx-before.log | MATCH "$initial_dbx_entries_count"
-  remote.exec sudo efi-updatevar -a -f dbx-update.auth dbx
-  remote.exec sudo efi-readvar -v dbx 2>&1 | tee efi-dbx-after.log
+  grep -c 'List ' efi-db-before.log | MATCH "$initial_db_entries_count"
+  remote.exec sudo efi-updatevar -a -f db-update.auth db
+  remote.exec sudo efi-readvar -v db 2>&1 | tee efi-db-after.log
   # expecting one additional entry in the list
-  grep -c 'List ' efi-dbx-after.log | MATCH "$((initial_dbx_entries_count + 1))"
+  grep -c 'List ' efi-db-after.log | MATCH "$((initial_db_entries_count + 1))"
 
   echo "Completed with a 'cleanup request'"
   echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
     remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > cleanup.out
   jq -r .status < cleanup.out | MATCH "OK"
-  remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DBX update'
+  remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DB update'
 
   echo "The system reboots without problems"
   boot_id="$( tests.nested boot-id )"
