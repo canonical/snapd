@@ -16,3 +16,4 @@ plugs:
     desktop-file-ids:
     - org.example.desktop
     - org.example.Fallback
+    - org.example.MyCommonID.desktop
