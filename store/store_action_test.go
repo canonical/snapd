@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1265,7 +1266,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "xdelta3")
+		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, squashfs.SupportedDeltaFormats())
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
