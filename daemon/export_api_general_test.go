@@ -69,3 +69,9 @@ func MockSnapstateSnapsAffectedByTask(f func(t *state.Task) ([]string, error)) (
 func MockSnapdtoolsIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
+
+func MockFdestateSystemEncryptedFromState(f func(*state.State) (bool, error)) (restore func()) {
+	old := fdestateSystemEncryptedFromState
+	fdestateSystemEncryptedFromState = f
+	return func() { fdestateSystemEncryptedFromState = old }
+}

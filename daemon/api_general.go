@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -61,6 +62,16 @@ var (
 		Actions:     []string{"advise-system-key-mismatch"},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 		WriteAccess: openAccess{},
+	}
+
+	sysInfoStorageEncCmd = &Command{
+		Path: "/v2/system-info/storage-encrypted",
+		GET:  sysInfoStorageEnc,
+		// The "status" field is publicly accessible. If additional sensitive fields
+		// are added in the future, they must not be included in the response unless
+		// the caller satisfies the required access constraints. Any such filtering
+		// is performed at a lower level.
+		ReadAccess: openAccess{},
 	}
 
 	stateChangeCmd = &Command{
@@ -89,9 +100,10 @@ var (
 )
 
 var (
-	buildID            = "unknown"
-	systemdVirt        = ""
-	snapdtoolIsReexecd = snapdtool.IsReexecd
+	buildID                          = "unknown"
+	systemdVirt                      = ""
+	snapdtoolIsReexecd               = snapdtool.IsReexecd
+	fdestateSystemEncryptedFromState = fdestate.SystemEncryptedFromState
 )
 
 func init() {
@@ -553,4 +565,27 @@ func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	n := stateOkayWarnings(st, op.Timestamp)
 
 	return SyncResponse(n)
+}
+
+func sysInfoStorageEnc(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// TODO:FDEM: replace with complete status implementation
+	encrypted, err := fdestateSystemEncryptedFromState(st)
+	if err != nil {
+		return InternalError("cannot determine system encrypted state: %s", err)
+	}
+
+	status := "inactive"
+	if encrypted {
+		status = "active"
+	}
+
+	response := map[string]any{
+		"status": status,
+	}
+
+	return SyncResponse(response)
 }

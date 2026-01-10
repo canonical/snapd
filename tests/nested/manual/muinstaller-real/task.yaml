@@ -147,13 +147,19 @@ execute: |
       remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
 
+  api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+  }
+
   # check encryption 
   remote.exec "sudo snap install test-snapd-tools"
   remote.exec "snap list" | MATCH "test-snapd-tools"
   if [ "$NESTED_ENABLE_TPM" = false ]; then
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | NOMATCH "storage-encrypted"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "inactive"
   else
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | MATCH "storage-encrypted: managed"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
 
       remote.exec "sudo test -d /var/lib/snapd/device/fde"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
