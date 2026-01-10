@@ -97,6 +97,47 @@ func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	}
 }
 
+func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
+    var buf flushBuffer
+    iw := snap.NewInfoWriter(&buf)
+
+    // define some reusable dummy components
+    // c1 is "installed" (size > 0), c2 is "not installed" (size == 0)
+    c1 := client.Component{Name: "comp-1", InstalledSize: 1024}
+    c2 := client.Component{Name: "comp-2", InstalledSize: 0}
+    
+    remoteSnap := &client.Snap{Components: []client.Component{c1, c2}}
+    snap.SetupSnap(iw, nil, remoteSnap, nil) 
+
+    snap.MaybePrintComponents(iw)
+
+    // Expect: 0 installed, 2 available
+    c.Check(buf.String(), check.Equals, "components: 0/2\n")
+
+    buf.Reset()
+
+    // Setup Local and remote Snaps
+    snap.SetupSnap(iw, &client.Snap{
+        Name:       "foo",
+        Components: []client.Component{c1, c2},
+    }, remoteSnap, nil)
+
+    snap.MaybePrintComponents(iw)
+
+    // Expect: 1 installed (c1 has size), 2 available
+    c.Check(buf.String(), check.Equals, "components: 1/2\n")
+
+    // --- Case 3: No components anywhere (Silence) ---
+    buf.Reset()
+
+    snap.SetupSnap(iw, nil, &client.Snap{Components: []client.Component{}}, nil)
+
+    snap.MaybePrintComponents(iw)
+
+    // Expect: No output
+    c.Check(buf.String(), check.Equals, "")
+}
+
 func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
