@@ -1,0 +1,70 @@
+summary: Ensure devlxd interface works.
+
+details: |
+    The devlxd interface allows a snap to access the LXD devlxd socket.
+    This socket provides instance information and metadata to applications
+    running inside LXD instances.
+
+    A snap which defines the devlxd plug must be shown in the interfaces list.
+    The plug must not be auto-connected on install and must be able to be
+    connected manually.
+
+    A snap declaring a plug on this interface must be able to access the
+    devlxd socket when the plug is connected.
+
+systems: [ubuntu-*]
+
+prepare: |
+    echo "Given a snap declaring a devlxd plug is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "And the devlxd socket directory exists"
+    devlxd_paths=(
+        /var/snap/lxd/common/lxd/devlxd/sock
+        /dev/lxd/sock
+    )
+    for p in "${devlxd_paths[@]}"; do
+        if [ -e "$p" ]; then
+            echo "Socket path $p already exists"
+            exit 1
+        fi
+
+        mkdir -p "$(dirname "$p")"
+        touch "$p"
+    done
+
+restore: |
+    rm -rf /var/snap/lxd/common/lxd/devlxd /dev/lxd
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i devlxd | MATCH -- '- +test-snapd-sh:devlxd'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-sh:devlxd
+
+    devlxd_paths=(
+        /var/snap/lxd/common/lxd/devlxd/sock
+        /dev/lxd/sock
+    )
+
+    echo "Then the snap is able to access the socket path"
+    for p in "${devlxd_paths[@]}"; do
+        test-snapd-sh.with-devlxd-plug -c "ls -l $p"
+    done
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:devlxd
+
+    echo "Then the snap cannot access the socket path"
+    for p in "${devlxd_paths[@]}"; do
+        if test-snapd-sh.with-devlxd-plug -c "ls -l $p" 2>access.error; then
+            echo "Socket access should be denied"
+            exit 1
+        fi
+    done
+    MATCH "Permission denied" < access.error
