@@ -17,6 +17,33 @@
  *
  */
 
+// Package ubootenv implements reading and writing of U-Boot environment files.
+//
+// # Single Environment Format
+//
+// The basic U-Boot environment format consists of:
+//   - 4-byte CRC32 (IEEE polynomial, little-endian)
+//   - Optional 1-byte flag (present when SYS_REDUNDAND_ENVIRONMENT is enabled)
+//   - Data section containing null-terminated "key=value" strings
+//   - Double null byte (0x00 0x00) marking end of data
+//   - Remaining space filled with 0xff bytes
+//
+// # Redundant Environment Format
+//
+// When U-Boot's CONFIG_SYS_REDUNDAND_ENVIRONMENT is enabled, the environment consists of
+// two identical copies stored consecutively, i.e. CONFIG_ENV_OFFSET_REDUND is set so that
+// the second copy follows the first.
+//
+// Each copy has the format above with the 1-byte flag present. The flag byte determines
+// which copy is active:
+//   - The copy with the higher flag value is considered active (but 0 is higher than 255)
+//   - When saving, the inactive copy is written first with flag = active_flag + 1
+//   - This provides atomic updates: if power is lost during write, the old
+//     copy remains valid
+//   - If one copy has a bad CRC, the other copy is used (failover)
+//
+// For more details, see the U-Boot documentation:
+// https://docs.u-boot.org/en/latest/usage/environment.html
 package ubootenv
 
 import (
@@ -39,6 +66,10 @@ type Env struct {
 	size           int
 	headerFlagByte bool
 	data           map[string]string
+
+	// redundant mode fields
+	redundant  bool // true if using redundant mode with two copies
+	activeFlag byte // which copy is active (FlagActive or FlagObsolete state)
 }
 
 // little endian helpers
@@ -56,6 +87,43 @@ func writeUint32(u uint32) []byte {
 }
 
 const sizeOfUint32 = 4
+
+// Constants for redundant environment support
+const (
+	// DefaultRedundantEnvSize is the default size for each copy in a redundant environment (8KiB)
+	DefaultRedundantEnvSize = 8192
+	// FlagActive marks an environment copy as the current active one
+	FlagActive = 0x01
+	// FlagObsolete marks an environment copy as obsolete/backup
+	FlagObsolete = 0x00
+)
+
+// redundantOffsets returns the byte offsets for the two environment copies.
+func redundantOffsets(size int) (copy1Offset, copy2Offset int64) {
+	return 0, int64(size)
+}
+
+// readEnvCopy reads a single environment copy from the device.
+// Returns nil if the read fails.
+func readEnvCopy(f *os.File, offset int64, size int) []byte {
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return nil
+	}
+	buf := make([]byte, size)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return nil
+	}
+	if n < size {
+		return nil
+	}
+	return buf
+}
+
+// isNewerFlag returns true if flag1 is newer than flag2 (handles wraparound).
+func isNewerFlag(flag1, flag2 byte) bool {
+	return int8(flag1-flag2) >= 0
+}
 
 func calcHeaderSize(headerFlagByte bool) int {
 	if headerFlagByte {
@@ -250,16 +318,13 @@ func (env *Env) iterEnv(f func(key, value string)) {
 	}
 }
 
-// Save will write out the environment data
-func (env *Env) Save() error {
+// buildPayload builds the environment payload and returns it along with its CRC.
+func (env *Env) buildPayload() ([]byte, uint32) {
 	headerSize := calcHeaderSize(env.headerFlagByte)
 
 	w := bytes.NewBuffer(nil)
-	// will panic if the buffer can't grow, all writes to
-	// the buffer will be ok because we sized it correctly
 	w.Grow(env.size - headerSize)
 
-	// write the payload
 	env.iterEnv(func(key, value string) {
 		w.Write([]byte(fmt.Sprintf("%s=%s", key, value)))
 		w.Write([]byte{0})
@@ -273,14 +338,25 @@ func (env *Env) Save() error {
 		w.Write([]byte{0})
 	}
 
-	// write ff into the remaining parts
+	// write 0xff into the remaining parts
 	writtenSoFar := w.Len()
 	for i := 0; i < env.size-headerSize-writtenSoFar; i++ {
 		w.Write([]byte{0xff})
 	}
 
-	// checksum
-	crc := crc32.ChecksumIEEE(w.Bytes())
+	payload := w.Bytes()
+	return payload, crc32.ChecksumIEEE(payload)
+}
+
+// Save will write out the environment data
+func (env *Env) Save() error {
+	// Use redundant save logic if in redundant mode
+	if env.redundant {
+		return env.saveRedundant()
+	}
+
+	headerSize := calcHeaderSize(env.headerFlagByte)
+	payload, crc := env.buildPayload()
 
 	// ensure dir sync
 	dir, err := os.Open(filepath.Dir(env.fname))
@@ -315,7 +391,7 @@ func (env *Env) Save() error {
 	if _, err := f.Write(pad); err != nil {
 		return err
 	}
-	if _, err := f.Write(w.Bytes()); err != nil {
+	if _, err := f.Write(payload); err != nil {
 		return err
 	}
 
@@ -345,4 +421,189 @@ func (env *Env) Import(r io.Reader) error {
 	}
 
 	return scanner.Err()
+}
+
+// CreateRedundant creates a new redundant U-Boot environment image with two copies.
+// This is used at prepare-image time to create an image that will be written to
+// a raw partition. The image will be 2*size bytes total, with two environment copies.
+// Both copies are initialized as empty with the first copy marked active.
+func CreateRedundant(fname string, size int) (*Env, error) {
+	f, err := os.Create(fname)
+	if err != nil {
+		return nil, err
+	}
+	// Pre-allocate file to full size (2 copies)
+	if err := f.Truncate(int64(size * 2)); err != nil {
+		f.Close()
+		return nil, err
+	}
+	f.Close()
+
+	env := &Env{
+		fname:          fname,
+		size:           size,
+		headerFlagByte: true, // redundant environments always have the flag byte
+		data:           make(map[string]string),
+		redundant:      true,
+		activeFlag:     0, // first Save() will write flag 1
+	}
+
+	// Write initial empty environment with two copies
+	if err := env.Save(); err != nil {
+		return nil, err
+	}
+
+	return env, nil
+}
+
+// OpenRedundant opens an existing redundant U-Boot environment from a raw device.
+// It reads both copies and selects the active one based on CRC validity and flag bytes.
+func OpenRedundant(devname string, size int) (*Env, error) {
+	return OpenRedundantWithFlags(devname, size, OpenFlags(0))
+}
+
+// OpenRedundantWithFlags opens a redundant environment from a raw device with additional flags.
+func OpenRedundantWithFlags(devname string, size int, flags OpenFlags) (*Env, error) {
+	f, err := os.Open(devname)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	copy1Offset, copy2Offset := redundantOffsets(size)
+
+	// Read each copy separately so that a read error on one copy
+	// doesn't prevent us from trying the other
+	copy1 := readEnvCopy(f, copy1Offset, size)
+	copy2 := readEnvCopy(f, copy2Offset, size)
+
+	// If both reads failed completely, return error
+	if copy1 == nil && copy2 == nil {
+		return nil, fmt.Errorf("redundant environment device too small or unreadable")
+	}
+
+	// Try to parse both copies
+	var env1, env2 *Env
+	var err1, err2 error
+
+	if copy1 != nil {
+		env1, err1 = readEnv(copy1, flags, true)
+	} else {
+		err1 = fmt.Errorf("copy1 unreadable")
+	}
+
+	if copy2 != nil {
+		env2, err2 = readEnv(copy2, flags, true)
+	} else {
+		err2 = fmt.Errorf("copy2 unreadable")
+	}
+
+	// Select the active copy based on validity and flag byte
+	var env *Env
+	var activeFlag byte
+
+	switch {
+	case err1 == nil && err2 == nil:
+		// Both valid - choose based on flag byte
+		// The flag byte is at offset 4 (after CRC)
+		flag1 := copy1[sizeOfUint32]
+		flag2 := copy2[sizeOfUint32]
+		if isNewerFlag(flag1, flag2) {
+			env = env1
+			activeFlag = flag1
+		} else {
+			env = env2
+			activeFlag = flag2
+		}
+	case err1 == nil:
+		// Only copy1 valid
+		env = env1
+		activeFlag = copy1[sizeOfUint32]
+	case err2 == nil:
+		// Only copy2 valid
+		env = env2
+		activeFlag = copy2[sizeOfUint32]
+	default:
+		// Both invalid
+		return nil, fmt.Errorf("cannot open redundant environment %q: both copies invalid: copy1: %v, copy2: %v", devname, err1, err2)
+	}
+
+	env.fname = devname
+	env.size = size
+	env.redundant = true
+	env.activeFlag = activeFlag
+
+	return env, nil
+}
+
+// Redundant returns true if this environment uses redundant mode.
+func (env *Env) Redundant() bool {
+	return env.redundant
+}
+
+// saveRedundant writes the environment to the inactive copy first,
+// then updates the flag byte to make it active.
+func (env *Env) saveRedundant() error {
+	payload, crc := env.buildPayload()
+
+	copy1Offset, copy2Offset := redundantOffsets(env.size)
+
+	// Determine which copy to write to (the inactive one)
+	// and what the new flag value should be
+	var writeOffset int64
+	var newFlag byte
+
+	// Increment the flag value for the new active copy (wraps from 255 to 0)
+	newFlag = env.activeFlag + 1
+
+	// Write to the inactive copy (we alternate between copies)
+	// Odd flag means copy2 is active, so write to copy1
+	// Even flag (including 0) means copy1 is active, so write to copy2
+	if env.activeFlag%2 == 1 {
+		writeOffset = copy1Offset
+	} else {
+		writeOffset = copy2Offset
+	}
+
+	// Build the complete copy buffer: CRC + flag + payload
+	copyBuf := make([]byte, env.size)
+	copy(copyBuf[0:4], writeUint32(crc))
+	copyBuf[4] = newFlag
+	copy(copyBuf[5:], payload)
+
+	f, err := os.OpenFile(env.fname, os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Verify device is large enough for both copies
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	expectedSize := int64(env.size * 2)
+	if fi.Size() < expectedSize {
+		return fmt.Errorf("environment device too small: got %d bytes, need %d", fi.Size(), expectedSize)
+	}
+
+	// Seek to the write position
+	if _, err := f.Seek(writeOffset, io.SeekStart); err != nil {
+		return err
+	}
+
+	// Write entire copy in a single operation
+	if _, err := f.Write(copyBuf); err != nil {
+		return err
+	}
+
+	// Sync to ensure data is written
+	if err := f.Sync(); err != nil {
+		return err
+	}
+
+	// Update our tracking of the active flag
+	env.activeFlag = newFlag
+
+	return nil
 }

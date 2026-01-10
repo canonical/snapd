@@ -21,6 +21,7 @@ package ubootenv_test
 
 import (
 	"bytes"
+	"fmt"
 	"hash/crc32"
 	"io"
 	"os"
@@ -421,4 +422,76 @@ func (u *uenvTestSuite) TestWritesContentCorrectlyNoHeaderFlagByte(c *C) {
 	c.Assert(env.String(), Equals, "a=b\nc=d\n")
 	c.Assert(env.Size(), Equals, totalSize)
 	c.Assert(env.HeaderFlagByte(), Equals, false)
+}
+
+func (u *uenvTestSuite) TestRedundantFlagByteWraparound(c *C) {
+	// Test that flag byte comparison handles wraparound correctly
+	// (e.g., flag=1 should be considered newer than flag=255 after wrap)
+	env, err := ubootenv.CreateRedundant(u.envFile, ubootenv.DefaultRedundantEnvSize)
+	c.Assert(err, IsNil)
+
+	// Save many times to get close to wraparound
+	// Start at flag=1, need to get to flag=255, then wrap to 0
+	for i := 0; i < 256; i++ {
+		env.Set("counter", fmt.Sprintf("%d", i))
+		err = env.Save()
+		c.Assert(err, IsNil)
+	}
+
+	// After 256 saves starting from flag=1, we should have wrapped
+	env2, err := ubootenv.OpenRedundant(u.envFile, ubootenv.DefaultRedundantEnvSize)
+	c.Assert(err, IsNil)
+	c.Assert(env2.Get("counter"), Equals, "255")
+}
+
+func (u *uenvTestSuite) TestRedundantOffsets(c *C) {
+	copy1, copy2 := ubootenv.RedundantOffsets(ubootenv.DefaultRedundantEnvSize)
+	c.Assert(copy1, Equals, int64(0))
+	c.Assert(copy2, Equals, int64(ubootenv.DefaultRedundantEnvSize))
+}
+
+func (u *uenvTestSuite) TestRedundantAlternatesCopies(c *C) {
+	// Test that saves alternate between copy1 and copy2
+	size := ubootenv.DefaultRedundantEnvSize
+	env, err := ubootenv.CreateRedundant(u.envFile, size)
+	c.Assert(err, IsNil)
+
+	// Helper to read flag bytes from both copies
+	readFlags := func() (flag1, flag2 byte) {
+		data, err := os.ReadFile(u.envFile)
+		c.Assert(err, IsNil)
+		// Flag byte is at offset 4 (after CRC) in each copy
+		flag1 = data[4]
+		flag2 = data[size+4]
+		return
+	}
+
+	// After CreateRedundant + initial Save(), copy2 should have flag 1
+	flag1, flag2 := readFlags()
+	c.Assert(flag1, Equals, byte(0), Commentf("copy1 flag after create"))
+	c.Assert(flag2, Equals, byte(1), Commentf("copy2 flag after create"))
+
+	// Second save should write to copy1 with flag 2
+	env.Set("key", "value1")
+	err = env.Save()
+	c.Assert(err, IsNil)
+	flag1, flag2 = readFlags()
+	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after 2nd save"))
+	c.Assert(flag2, Equals, byte(1), Commentf("copy2 flag after 2nd save"))
+
+	// Third save should write to copy2 with flag 3
+	env.Set("key", "value2")
+	err = env.Save()
+	c.Assert(err, IsNil)
+	flag1, flag2 = readFlags()
+	c.Assert(flag1, Equals, byte(2), Commentf("copy1 flag after 3rd save"))
+	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 3rd save"))
+
+	// Fourth save should write to copy1 with flag 4
+	env.Set("key", "value3")
+	err = env.Save()
+	c.Assert(err, IsNil)
+	flag1, flag2 = readFlags()
+	c.Assert(flag1, Equals, byte(4), Commentf("copy1 flag after 4th save"))
+	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 4th save"))
 }
