@@ -10,7 +10,15 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-  CHANNEL="$(tests.nested show version)/stable"
+  VERSION="$(tests.nested show version)"
+  case "${VERSION}" in
+    26)
+      CHANNEL="${VERSION}/edge"
+    ;;
+    *)
+      CHANNEL="${VERSION}/stable"
+    ;;
+  esac
   snap download --basename=pc --channel="${CHANNEL}" pc
   unsquashfs -d pc pc.snap
   KEY_NAME=$(tests.nested download snakeoil-key)

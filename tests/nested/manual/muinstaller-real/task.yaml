@@ -2,7 +2,10 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [-ubuntu-1*, -ubuntu-20*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   # No partial gadget by default
