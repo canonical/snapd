@@ -50,6 +50,7 @@ parts:
       - bison
       - quilt
       - python3-pyelftools
+      - xz-utils
     source: https://git.launchpad.net/ubuntu/+source/glibc
     source-branch: ubuntu/jammy-updates
     source-type: git
@@ -88,7 +89,7 @@ parts:
       "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}" -C .. objdir="${PWD}" "${PWD}/linkobj/libc_pic.a"
       make elf/ldso_install DESTDIR="${CRAFT_PART_INSTALL}"
-      strip "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
     stage:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
@@ -240,6 +241,7 @@ parts:
         - optee-client-dev
       - on arm64:
         - optee-client-dev
+      - xz-utils
     override-pull: |
       craftctl default
       ln -sf packaging/ubuntu-16.04 debian
@@ -477,7 +479,7 @@ parts:
         ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
       fi
 
-      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
+      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" {} ";"
 
       if [ -f fips-build ]; then
         touch "${CRAFT_PART_INSTALL}/fips-build"
