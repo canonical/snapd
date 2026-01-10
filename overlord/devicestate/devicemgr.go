@@ -268,6 +268,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddCleanup("create-recovery-system", m.cleanupRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
+	runner.AddHandler("update-ca-certificates", m.doGenerateCertificateDatabase, m.undoGenerateCertificateDatabase)
 
 	// used from the install API
 	// TODO: use better task names that are close to our usual pattern
@@ -1845,6 +1846,40 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureCaCertificateDatabase() error {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	// Expect the system to be seeded, otherwise we ignore this.
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	// If the CA certificate database is already present, nothing to do.
+	certDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
+	if osutil.FileExists(certDbPath) {
+		return nil
+	}
+
+	// Create the update CA certificate database change, this is likely a first
+	// run on a pre-existing system after this was introduced.
+	logger.Noticef("No CA certificate database found, scheduling change to create it")
+
+	summary := i18n.G("Update CA certificate database")
+	updateCaCertsTask := st.NewTask("update-ca-certificates", summary)
+
+	chg := st.NewChange("update-certs", summary)
+	chg.AddTask(updateCaCertsTask)
+	st.EnsureBefore(0)
+
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1921,6 +1956,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureExpiredUsersRemoved(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureCaCertificateDatabase(); err != nil {
 			errs = append(errs, err)
 		}
 	}
