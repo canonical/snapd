@@ -1819,11 +1819,46 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			if err != cgroup.ErrCannotTrackProcess {
 				return err
 			}
-			// If we cannot track the process then log a debug message.
-			// TODO: if we could, create a warning. Currently this is not possible
-			// because only snapd can create warnings, internally.
-			logger.Debugf("snapd cannot track the started application")
-			logger.Debugf("snap refreshes will not be postponed by this process")
+			switch runner.info.Base {
+			case "core22-desktop", "core24-desktop":
+				// Those are special-cases of the core snap so
+				// they follow the same behavior as their
+				// non-desktop variants.
+				fallthrough
+			case "", "core", "core18", "core20", "core22", "core24":
+				// If we cannot track the process then log a debug message.
+				// TODO: if we could, create a warning. Currently this is not possible
+				// because only snapd can create warnings, internally.
+				logger.Debugf("snapd cannot track the started application")
+				logger.Debugf("snap refreshes will not be postponed by this process")
+			case "bare":
+				// Bare is unversioned but we want it to behave
+				// according to the more strict logic.
+				fallthrough
+			default:
+				// For apps using core26+, fail hard unless they don't rely on
+				// cgroup for device control and have the self-managed=true
+				// setting.
+				opts, err2 := cgroup.LoadSnapDeviceCgroupOptions(securityTag)
+				if err2 != nil {
+					logger.Noticef("cannot load snap device cgroup options: %s", err)
+				}
+
+				// NOTE: opts is never nil so this is safe to use even in the error case.
+				if opts.SelfManaged == false {
+					// If the application is not self-managed, log a notice and return an error.
+					// Self-managed applications have no constraints on device access so failure
+					// to establish a control group where this is enforced is not a fatal problem.
+					//
+					// We do want to do this for NonStrict (devmode) applications as it would mask
+					// a legitimate environmental problem that is beyond the control of snap author/developer.
+					if usr, err := userCurrent(); err == nil {
+						logger.Noticef("The user %s cannot run snap applications on this system.\n"+
+							"See https://forum.snapcraft.io/t/46210 for more details.", usr.Username)
+					}
+					return err
+				}
+			}
 		}
 	}
 
