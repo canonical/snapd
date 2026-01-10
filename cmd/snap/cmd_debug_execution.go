@@ -74,6 +74,7 @@ func (x *cmdDebugExecSnap) Execute(args []string) error {
 	fmt.Fprintf(Stdout, "distro-supports-reexec: %v\n", snapdtool.DistroSupportsReExec())
 	fmt.Fprintf(Stdout, "is-reexec-enabled: %v\n", snapdtool.IsReexecEnabled())
 	fmt.Fprintf(Stdout, "is-reexec-explicitly-enabled: %v\n", snapdtool.IsReexecExplicitlyEnabled())
+	fmt.Fprintf(Stdout, "is-reexec-forced: %v\n", snapdtool.IsReexecForced())
 
 	isReexecd, err := snapdtool.IsReexecd()
 	if err == nil {
