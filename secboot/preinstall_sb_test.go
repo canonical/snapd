@@ -260,9 +260,9 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			if permitVM {
-				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine|sb_preinstall.PermitVARSuppliedDrivers)
+				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine|sb_preinstall.PermitAddonDrivers)
 			} else {
-				c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
+				c.Assert(initialFlags, Equals, sb_preinstall.PermitAddonDrivers)
 			}
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, IsNil)
@@ -318,7 +318,7 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			c.Assert(checkAction, IsNil)
-			c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
+			c.Assert(initialFlags, Equals, sb_preinstall.PermitAddonDrivers)
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, HasLen, len(bootImagePaths))
 			for i, image := range loadedImages {
@@ -485,7 +485,7 @@ func (s *preinstallSuite) TestSave(c *C) {
 			PCRAlg: tpm2.HashAlgorithmSHA512,
 			Flags:  sb_preinstall.NoPlatformConfigProfileSupport | sb_preinstall.NoDriversAndAppsProfileSupport,
 		},
-		sb_preinstall.PCRProfileOptionsDefault|sb_preinstall.PCRProfileOptionMostSecure|sb_preinstall.PCRProfileOptionNoDiscreteTPMResetMitigation,
+		sb_preinstall.PCRProfileOptionsDefault|sb_preinstall.PCRProfileOptionMostSecure|sb_preinstall.PCRProfileOptionNoPartialDiscreteTPMResetAttackMitigation,
 	)
 
 	expectedData :=
@@ -499,8 +499,13 @@ func (s *preinstallSuite) TestSave(c *C) {
     ]
   },
   "pcr-profile-opts": [
-    "most-secure",
-    "no-discrete-tpm-reset-mitigation"
+    "lock-platform-firmware",
+    "lock-platform-config",
+    "lock-drivers-and-apps",
+    "lock-drivers-and-apps-config",
+    "lock-boot-manager-code",
+    "lock-boot-manager-config",
+    "no-partial-dtpm-reset-attack-mitigation"
   ]
 }`
 
