@@ -321,6 +321,9 @@ var templateCommon = `
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
 
+  # Allow access to pressure stall info
+  @{PROC}/pressure/{memory,cpu,io} rw,
+
   # Reads of oom_adj and oom_score_adj are safe
   owner @{PROC}/@{pid}/oom_{,score_}adj r,
 
