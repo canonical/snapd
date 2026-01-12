@@ -6,6 +6,10 @@ details: |
 # no i18n yet in debian-sid
 systems: [-debian-sid-*]
 
+skip:
+  - if: os.query is_resolute
+    reason: The Latvian translation is missing <> and causing the test to fail. Once that is fixed, the test should be renabled.
+
 restore: |
   if os.query is_ubuntu && ! os.query is_core; then
     apt remove -y 'language-pack-[a-z]+$'
