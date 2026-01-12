@@ -6,6 +6,10 @@ details: |
 
 systems: [ubuntu-*]
 
+skip:
+  - if: os.query is_resolute
+    reason: Resolute's kernel requires Ubuntu flavors for this test to work. This test should be enabled when the kernel is ready.
+
 environment:
   # downloading docker snap occasionally triggers OOM
   SNAPD_NO_MEMORY_LIMIT: 1
