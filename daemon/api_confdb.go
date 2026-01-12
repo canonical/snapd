@@ -72,10 +72,15 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	constraintsRaw := r.URL.Query().Get("constraints")
-	var constraints map[string]string
+	var constraints map[string]any
 	if constraintsRaw != "" {
 		if err := json.Unmarshal([]byte(constraintsRaw), &constraints); err != nil || constraints == nil {
 			return BadRequest(`"constraints" must be a JSON object`)
+		}
+
+		err := validateConstraints(constraints)
+		if err != nil {
+			return BadRequest(err.Error())
 		}
 	}
 
@@ -91,6 +96,26 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chgID)
+}
+
+func validateConstraints(cstrs map[string]any) error {
+	for k, v := range cstrs {
+		var typeStr string
+		switch v.(type) {
+		case nil:
+			typeStr = "null"
+		case []any:
+			typeStr = "array"
+		case map[string]any:
+			typeStr = "map"
+		default:
+			continue
+		}
+
+		return fmt.Errorf("constraint value must be non-null scalar but parameter %q has %s constraint", k, typeStr)
+	}
+
+	return nil
 }
 
 func setView(c *Command, r *http.Request, _ *auth.UserState) Response {

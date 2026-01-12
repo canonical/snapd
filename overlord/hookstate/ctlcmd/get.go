@@ -112,8 +112,10 @@ that invoked the hook.
 The --default flag can be used to provide a default value to be returned if no
 value is stored.
 
-The --with flag can be used to provide constraints in the form of param=constraint
-pairs.
+The --with flag can be used to provide constraints in the form of 
+<param>=<constraint> pairs. Constraints are parsed as JSON values. If they
+cannot be interpreted as non-null JSON scalars, snapctl defaults to 
+interpreting values as strings unless -t is also provided.
 `)
 
 func init() {
@@ -489,18 +491,46 @@ func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) 
 	return map[string]any{request: defaultVal}, nil
 }
 
-func (c *getCommand) parseConstraints() (map[string]string, error) {
+func (c *getCommand) parseConstraints() (map[string]any, error) {
 	if len(c.With) == 0 {
 		return nil, nil
 	}
 
-	constraints := make(map[string]string, len(c.With))
+	constraints := make(map[string]any, len(c.With))
 	for _, constraint := range c.With {
 		parts := strings.SplitN(constraint, "=", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
 		}
-		constraints[parts[0]] = parts[1]
+
+		var cstrVal any
+		if err := json.Unmarshal([]byte(parts[1]), &cstrVal); err != nil {
+			var merr *json.SyntaxError
+			if !errors.As(err, &merr) {
+				// can only happen due to programmer error
+				return nil, fmt.Errorf("internal error: cannot unmarshal --with constraint: %v", err)
+			}
+
+			if c.Typed {
+				return nil, fmt.Errorf("cannot unmarshal constraint as JSON as required by -t flag: %s", parts[1])
+			}
+
+			// fallback to interpreting the value as a string
+			cstrVal = parts[1]
+		}
+
+		// check if the constraint is valid JSON but of a type we don't accept
+		_, isArray := cstrVal.([]any)
+		_, isMap := cstrVal.(map[string]any)
+		if cstrVal == nil || isArray || isMap {
+			if c.Typed {
+				return nil, fmt.Errorf("--with constraints cannot take non-scalar JSON constraint: %s", parts[1])
+			}
+
+			cstrVal = parts[1]
+		}
+
+		constraints[parts[0]] = cstrVal
 	}
 	return constraints, nil
 }

@@ -60,6 +60,9 @@ format <account-id>/<schema>/<view>, get will use the confdb API. In this
 case, the command returns the data retrieved from the requested view paths.
 Use --default to provide a default value to be used if no value is stored.
 Use --with to provide constraints in the form of param=constraint pairs.
+Constraints are parsed as JSON values. If they cannot be interpreted as
+non-null JSON scalars, snap defaults to interpreting values as strings 
+unless -t is also provided.
 `)
 
 type cmdGet struct {
@@ -378,18 +381,46 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	return map[string]any{request: defaultVal}, nil
 }
 
-func (x *cmdGet) parseConstraints() (map[string]string, error) {
+func (x *cmdGet) parseConstraints() (map[string]any, error) {
 	if len(x.With) == 0 {
 		return nil, nil
 	}
 
-	constraints := make(map[string]string, len(x.With))
+	constraints := make(map[string]any, len(x.With))
 	for _, constraint := range x.With {
 		parts := strings.SplitN(constraint, "=", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
 		}
-		constraints[parts[0]] = parts[1]
+
+		var cstrVal any
+		if err := json.Unmarshal([]byte(parts[1]), &cstrVal); err != nil {
+			var merr *json.SyntaxError
+			if !errors.As(err, &merr) {
+				// can only happen due to programmer error
+				return nil, fmt.Errorf("internal error: cannot unmarshal --with constraint: %v", err)
+			}
+
+			if x.Typed {
+				return nil, fmt.Errorf("cannot unmarshal constraint as JSON as required by -t flag: %s", parts[1])
+			}
+
+			// fallback to interpreting the value as a string
+			cstrVal = parts[1]
+		}
+
+		// check if the constraint is valid JSON but of a type we don't accept
+		_, isArray := cstrVal.([]any)
+		_, isMap := cstrVal.(map[string]any)
+		if cstrVal == nil || isArray || isMap {
+			if x.Typed {
+				return nil, fmt.Errorf("--with constraints cannot take non-scalar JSON constraint: %s", parts[1])
+			}
+
+			cstrVal = parts[1]
+		}
+
+		constraints[parts[0]] = cstrVal
 	}
 
 	return constraints, nil
