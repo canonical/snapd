@@ -140,9 +140,9 @@ execute: |
     remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
   jq -r .status < prepare.out | MATCH "OK"
   remote.exec snap change --last=fde-efi-secureboot-db-update | \
-    MATCH 'Done .* Prepare for external EFI $KEY_DATABASE update'
+    MATCH "Done .* Prepare for external EFI $KEY_DATABASE update"
   remote.exec snap change --last=fde-efi-secureboot-db-update | \
-    MATCH 'Do .* Reseal after external EFI $KEY_DATABASE update'
+    MATCH "Do .* Reseal after external EFI $KEY_DATABASE update"
 
   var_name=""
   case "$KEY_DATABASE" in
@@ -195,7 +195,7 @@ execute: |
   echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
     remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > cleanup.out
   jq -r .status < cleanup.out | MATCH "OK"
-  remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI $KEY_DATABASE update'
+  remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH "Done .* Reseal after external EFI $KEY_DATABASE update"
 
   echo "The system reboots without problems"
   boot_id="$( tests.nested boot-id )"
