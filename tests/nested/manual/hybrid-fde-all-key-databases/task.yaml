@@ -184,15 +184,12 @@ execute: |
       ;;
     PK)
       # PK updates replace the existing entry
-      diff efi-pk-before.log efi-pk-after.log | MATCH "CN=new key"
+      diff efi-before.log efi-after.log | MATCH "CN=new key"
       ;;
     *)
       ERROR "Unknown KEY_DATABASE value: $KEY_DATABASE"
       ;;
   esac
-
-
-  # expecting one additional entry in the list
 
   echo "Completed with a 'cleanup request'"
   echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
