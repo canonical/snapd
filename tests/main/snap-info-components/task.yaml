@@ -9,28 +9,23 @@ details: |
 
 prepare: |
 
-  snap pack test-snap1
-
-  # --- Setup for "No Components" case ---
-  # Packs 'test-snapd-sh' -> outputs 'test-snapd-sh_1.0_amd64.snap'
-  snap pack test-snapd-sh
+  ${TESTSTOOLS}/snaps-state install-local mock-snap
+  ${TESTSTOOLS}/snaps-state install-local test-snapd-sh
 
 restore: |
   snap remove --purge mock-snap
-  rm -f mock-snap_*.snap test-snapd-sh_*.snap
+  snap remove --purge test-snapd-sh
 
 execute: |
-  OUTPUT_FILE=$(snap info ./mock-snap_*.snap)
+  OUTPUT=$(snap info mock-snap)
   
-  if echo "$OUTPUT_FILE" | grep -q "components: 0/2"; then
+  if echo "$OUTPUT" | grep -q "components: 0/2"; then
     echo "PASS (Remote Only): Found expected 'components: 0/2'"
   else
     echo "FAIL (Remote Only): Expected 'components: 0/2', got:"
-    echo "$OUTPUT_FILE"
+    echo "$OUTPUT"
     exit 1
   fi
-
-  snap install --dangerous mock-snap_*.snap
   
   OUTPUT_INSTALLED=$(snap info mock-snap)
   
@@ -42,8 +37,7 @@ execute: |
     exit 1
   fi
 
-
-  OUTPUT_EMPTY=$(snap info ./test-snapd-sh_*.snap)
+  OUTPUT_EMPTY=$(snap info test-snapd-sh)
   
   if echo "$OUTPUT_EMPTY" | grep -q "components:"; then
     echo "FAIL (No Components): Found 'components:' line but expected silence."
