@@ -8,13 +8,13 @@ details: |
 # ubuntu-14.04: Docker is not supported anymore in ubuntu 14.04
 systems: [-ubuntu-14.04-64]
 
-skip:
-  - if: os.query is_resolute
-    reason: Resolute's kernel requires Ubuntu flavors for this test to work. This test should be enabled when the kernel is ready.
-
 environment:
   IMAGE_URL_X86: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04.tar
   IMAGE_URL_ARM: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04-arm64.tar
+
+skip:
+  - if: os.query is_resolute
+    reason: Resolute's kernel requires Ubuntu flavors for this test to work. This test should be enabled (in SNAPDENG-36203) when the kernel is ready.
 
 prepare: |
     # build and install the strict test snap

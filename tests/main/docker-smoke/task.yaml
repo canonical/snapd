@@ -6,16 +6,16 @@ details: |
 
 systems: [ubuntu-*]
 
-skip:
-  - if: os.query is_resolute
-    reason: Resolute's kernel requires Ubuntu flavors for this test to work. This test should be enabled when the kernel is ready.
-
 environment:
   # downloading docker snap occasionally triggers OOM
   SNAPD_NO_MEMORY_LIMIT: 1
   CHANNEL: "latest/stable"
   IMAGE_URL_X86: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world.tar
   IMAGE_URL_ARM: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world-arm64.tar
+
+skip:
+  - if: os.query is_resolute
+    reason: Resolute's kernel requires Ubuntu flavors for this test to work. This test should be enabled (in SNAPDENG-36203) when the kernel is ready.
 
 prepare: |
   if ! snap install --channel="$CHANNEL" docker; then

@@ -8,7 +8,7 @@ systems: [-debian-sid-*]
 
 skip:
   - if: os.query is_resolute
-    reason: The Latvian translation is missing <> and causing the test to fail. Once that is fixed, the test should be renabled.
+    reason: The Latvian translation is missing <> and causing the test to fail. Once that is fixed, the test should be renabled (in SNAPDENG-36202).
 
 restore: |
   if os.query is_ubuntu && ! os.query is_core; then
