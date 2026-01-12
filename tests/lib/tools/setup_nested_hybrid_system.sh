@@ -287,6 +287,10 @@ main() {
                 extra_muinstaller_args+=("${2}")
                 shift 2
                 ;;
+            --preseed-rootfs)
+                extra_muinstaller_args+=("-preseed-rootfs")
+                shift
+                ;;
             --*|-*)
                 echo "Unknown option ${1}"
                 exit 1
