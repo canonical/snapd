@@ -36,12 +36,21 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Set Fedora tag for Docker image
+      run: |
+        echo "DOCKER_TAG=latest" >> $GITHUB_ENV
+        if [ "${{ inputs.system }}" = "amazon-linux-2-64" ]; then
+          echo "DOCKER_TAG=42" >> $GITHUB_ENV
+        fi
+
     - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
         push: false
         load: true
+        build-args: |
+          TAG=${{ env.DOCKER_TAG }}
         file: tests/lib/packaging/fedora.dockerfile
         tags: mock-base:latest
 
