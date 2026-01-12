@@ -3972,29 +3972,29 @@ func (*schemaSuite) TestPruneVisibilityArrayElements(c *C) {
 	c.Assert(data, DeepEquals, map[string]any{"eph": "y"})
 }
 
-// func (*schemaSuite) TestPruneVisibilityArrayPathToSecretElement(c *C) {
-// 	schemaStr := []byte(`{
-// 	"schema": {
-// 		"foo": {
-// 			"type": "array",
-// 			"values": {
-// 				"schema": {
-// 					"bar": {
-// 						"schema": {
-// 							"baz": "string"
-// 						},
-// 						"visibility": "secret"
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }`)
-// 	schema, err := confdb.ParseStorageSchema(schemaStr)
-// 	c.Assert(err, IsNil)
-// 	var data any
-// 	data = map[string]any{"baz": "secret"}
-// 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo[1].bar"))
-// 	c.Assert(err, IsNil)
-// 	c.Assert(data, IsNil)
-// }
+func (*schemaSuite) TestPruneVisibilityArrayPathToSecretElement(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"schema": {
+							"baz": "string"
+						},
+						"visibility": "secret"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	var data any
+	data = map[string]any{"baz": "secret"}
+	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo[1].bar"))
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
