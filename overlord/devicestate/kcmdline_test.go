@@ -30,7 +30,7 @@ import (
 
 func checkExtraSnapdArgs(c *C, st *state.State, expectedArgs map[string]string) {
 	var args map[string]string
-	err := st.Get("extra-snapd-kcmdline-args", &args)
+	err := st.Get("kcmdline-extra-snapd-args", &args)
 	if !errors.Is(err, state.ErrNoState) {
 		c.Assert(err, IsNil)
 	}
@@ -39,7 +39,7 @@ func checkExtraSnapdArgs(c *C, st *state.State, expectedArgs map[string]string) 
 
 func checkPendingExtraSnapdArgs(c *C, st *state.State, expected bool) {
 	var pending bool
-	err := st.Get("pending-extra-snapd-kcmdline-args", &pending)
+	err := st.Get("kcmdline-pending-extra-snapd-args", &pending)
 	if !errors.Is(err, state.ErrNoState) {
 		c.Assert(err, IsNil)
 	}
@@ -50,7 +50,7 @@ func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineArg(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// extra-snapd-kcmdline-args doesn't exist yet
+	// kcmdline-extra-snapd-args doesn't exist yet
 	checkExtraSnapdArgs(c, s.state, nil)
 
 	argName := devicestate.ExtraSnapdKernelCmdlineArg("snapd.xkb")
@@ -71,7 +71,7 @@ func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineArg(c *C) {
 	checkExtraSnapdArgs(c, s.state, map[string]string{"snapd.xkb": "some-val"})
 
 	// Try again with pending flag reset
-	s.state.Set("pending-extra-snapd-kcmdline-args", false)
+	s.state.Set("kcmdline-pending-extra-snapd-args", false)
 	updated, err = devicestate.SetExtraSnapdKernelCommandLineArg(s.state, argName, "some-val")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)

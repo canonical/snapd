@@ -51,12 +51,12 @@ func (arg extraSnapdKernelCmdlineArg) validate(val string) error {
 
 const (
 	// This holds kernel command line arguments that snapd internally.
-	extraSnapdKernelCmdlineArgsKey string = "extra-snapd-kcmdline-args"
+	kcmdlineExtraSnapdArgsKey string = "kcmdline-extra-snapd-args"
 	// This holds a boolean that indicates whether there are pending
 	// extra snapd args in state which can only be cleared by tasks that
 	// update the kernel command line i.e. "update-managed-boot-config"
 	// and "update-gadget-cmdline".
-	pendingExtraSnapdKernelCmdlineArgsKey string = "pending-extra-snapd-kcmdline-args"
+	kcmdlinePendingExtraSnapdArgsKey string = "kcmdline-pending-extra-snapd-args"
 )
 
 // setExtraSnapdKernelCommandLineArg updates the specified extra snap kernel
@@ -64,7 +64,7 @@ const (
 // existed.
 //
 // If the passed value is different from the existing argument value then
-// "pending-extra-snapd-kcmdline-args" will be set to true which can only
+// "kcmdline-pending-extra-snapd-args" will be set to true which can only
 // be cleared by tasks that apply the pending extra snapd args from state
 // i.e. "update-managed-boot-config" and "update-gadget-cmdline".
 //
@@ -85,7 +85,7 @@ func setExtraSnapdKernelCommandLineArg(st *state.State, name extraSnapdKernelCmd
 	}
 
 	var args map[extraSnapdKernelCmdlineArg]string
-	if err := st.Get(extraSnapdKernelCmdlineArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := st.Get(kcmdlineExtraSnapdArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	oldVal := args[name]
@@ -103,8 +103,8 @@ func setExtraSnapdKernelCommandLineArg(st *state.State, name extraSnapdKernelCmd
 	} else {
 		args[name] = val
 	}
-	st.Set(extraSnapdKernelCmdlineArgsKey, args)
-	st.Set(pendingExtraSnapdKernelCmdlineArgsKey, true)
+	st.Set(kcmdlineExtraSnapdArgsKey, args)
+	st.Set(kcmdlinePendingExtraSnapdArgsKey, true)
 	return true, nil
 }
 
@@ -112,7 +112,7 @@ func setExtraSnapdKernelCommandLineArg(st *state.State, name extraSnapdKernelCmd
 // might set internally using setExtraSnapdKernelCommandLineArg.
 func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
 	var args map[extraSnapdKernelCmdlineArg]string
-	if err := st.Get(extraSnapdKernelCmdlineArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := st.Get(kcmdlineExtraSnapdArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
 	if len(args) == 0 {

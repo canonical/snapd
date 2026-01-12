@@ -1949,7 +1949,7 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 //
 // TODO:FDEM: Trigger immediate kernel cmdline update change
 // if args are updated or if there are previous pending changes
-// which can be detected if "pending-extra-snapd-kcmdline-args"
+// which can be detected if "kcmdline-pending-extra-snapd-args"
 // is set. This requires proper blocking logic for all resealing
 // tasks to be implemented first.
 // Currently, The extra snapd args are only applied lazily when

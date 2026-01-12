@@ -324,7 +324,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 	// Any pending extra snapd args should have been applied by now.
-	st.Set(pendingExtraSnapdKernelCmdlineArgsKey, false)
+	st.Set(kcmdlinePendingExtraSnapdArgsKey, false)
 
 	if !updated {
 		logger.Debugf("no kernel command line update from gadget")

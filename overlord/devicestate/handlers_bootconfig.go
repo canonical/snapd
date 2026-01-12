@@ -85,7 +85,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	}
 
 	// Any pending extra snapd args should have been applied by now.
-	st.Set(pendingExtraSnapdKernelCmdlineArgsKey, false)
+	st.Set(kcmdlinePendingExtraSnapdArgsKey, false)
 
 	// set this status already before returning to minimize wasteful redos
 	finalStatus := state.DoneStatus
