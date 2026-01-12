@@ -40,6 +40,7 @@ import (
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
+	sysInfoStorageEncCmd,
 	loginCmd,
 	logoutCmd,
 	snapIconCmd,

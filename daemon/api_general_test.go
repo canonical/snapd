@@ -70,6 +70,10 @@ func (s *generalSuite) expectChangeReadAccess() {
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "ros-snapd-support"}})
 }
 
+func (s *generalSuite) expectSystemInfoStorageEncReadAccess() {
+	s.expectReadAccess(daemon.OpenAccess{})
+}
+
 func (s *generalSuite) TestRoot(c *check.C) {
 	s.daemon(c)
 
@@ -1225,4 +1229,58 @@ func (s *generalSuite) TestAckWarnings(c *check.C) {
 	calls, result := s.testWarnings(c, false, bytes.NewReader([]byte(`{"action": "okay", "timestamp": "2006-01-02T15:04:05Z"}`)))
 	c.Check(calls, check.Equals, "ok")
 	c.Check(result, check.DeepEquals, 0)
+}
+
+func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
+	s.daemon(c)
+	s.expectSystemInfoStorageEncReadAccess()
+
+	expectedStatus := ""
+	expectedResponse := map[string]any{}
+
+	setExpectedStatus := func(status string) {
+		expectedStatus = status
+		expectedResponse["status"] = status
+	}
+
+	defer daemon.MockFdestateSystemEncryptedFromState(func(*state.State) (bool, error) {
+		switch expectedStatus {
+		case "active":
+			return true, nil
+
+		case "inactive":
+			return false, nil
+		}
+
+		return false, errors.New("cannot set unsupported expected status")
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/system-info/storage-encrypted", nil)
+	c.Assert(err, check.IsNil)
+
+	setExpectedStatus("active")
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, expectedResponse)
+
+	setExpectedStatus("inactive")
+	rsp = s.syncReq(c, req, nil, actionIsExpected)
+	c.Assert(err, check.IsNil)
+	c.Check(rsp.Result, check.DeepEquals, expectedResponse)
+}
+
+func (s *generalSuite) TestSysInfoStorageEncErrorImpl(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockFdestateSystemEncryptedFromState(func(*state.State) (bool, error) {
+		return false, errors.New("cannot calculate status")
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/system-info/storage-encrypted", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Message, check.Equals, "cannot determine system encrypted state: cannot calculate status")
 }
