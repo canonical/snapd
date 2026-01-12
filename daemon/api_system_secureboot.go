@@ -151,20 +151,14 @@ func postSystemSecurebootActionJSON(c *Command, r *http.Request) Response {
 var fdestateEFISecurebootDBUpdatePrepare = fdestate.EFISecurebootDBUpdatePrepare
 
 func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootRequest) Response {
-	if !isValidKeyDatabase(req.KeyDatabase) {
-		return InternalError("internal error: unexpected key database %q", req.KeyDatabase)
-	}
-
 	payload, err := base64.StdEncoding.DecodeString(req.Payload)
 	if err != nil {
 		return BadRequest("cannot decode payload: %v", err)
 	}
 
-	// extra smoke test on KeyDatabase string, should not be needed due to earlier
-	// validation but just in case of future code changes
 	keyDatabase, err := keyDatabaseFromString(req.KeyDatabase)
 	if err != nil {
-		return InternalError("internal error: cannot convert key database %q: %v", req.KeyDatabase, err)
+		return InternalError("cannot convert key database %q: %v", req.KeyDatabase, err)
 	}
 
 	err = fdestateEFISecurebootDBUpdatePrepare(c.d.state,
