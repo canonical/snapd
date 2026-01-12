@@ -3048,8 +3048,7 @@ func (s *schemaSuite) TestPruneMapPlaceholder(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{
+	var data any = map[string]any{
 		"bar": "a",
 		"baz": false,
 	}
@@ -3112,8 +3111,7 @@ func (s *schemaSuite) TestPruneMapPlaceholderErrors(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"baz": false}
+	var data any = map[string]any{"baz": false}
 	path, err := confdb.ParsePathIntoAccessors("foo.{n}.eph", confdb.ParseOptions{AllowPlaceholders: true})
 	c.Assert(err, IsNil)
 	_, err = schema.PruneData(data, confdb.SecretVisibility, path)
@@ -3221,8 +3219,7 @@ func (s *schemaSuite) TestPruneMapDataKeyNotFound(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"eph": "a"}
+	var data any = map[string]any{"eph": "a"}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, `key eph not found in map schema`)
 }
@@ -3243,8 +3240,7 @@ func (s *schemaSuite) TestPruneMapNoErrorOnNilData(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": nil}
+	var data any = map[string]any{"bar": nil}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 }
@@ -3265,8 +3261,7 @@ func (s *schemaSuite) TestPruneMapDataValuePruningError(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": true}
+	var data any = map[string]any{"bar": true}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
@@ -3320,8 +3315,7 @@ func (s *schemaSuite) TestPruneArrayValueError(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = []any{true, false}
+	var data any = []any{true, false}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
@@ -3345,8 +3339,7 @@ func (s *schemaSuite) TestPruneArrayNoErrorOnNilData(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": nil}
+	var data any = map[string]any{"bar": nil}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 }
@@ -3366,8 +3359,7 @@ func (*schemaSuite) TestPruneDataMapAllSecretSchema(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": "baz"}
+	var data any = map[string]any{"bar": "baz"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3387,8 +3379,7 @@ func (*schemaSuite) TestPruneVisibilitySecretMap(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": false, "baz": true}
+	var data any = map[string]any{"bar": false, "baz": true}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3408,8 +3399,7 @@ func (*schemaSuite) TestPruneVisibilityMapSecretValues(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": "a", "baz": "b"}
+	var data any = map[string]any{"bar": "a", "baz": "b"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, map[string]any{"bar": nil, "baz": nil})
@@ -3434,8 +3424,7 @@ func (*schemaSuite) TestPruneVisibilityMapSecretValuesNested(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{
+	var data any = map[string]any{
 		"a": map[string]any{"bar": "a-secret", "baz": "a-no-secret"},
 		"b": map[string]any{"bar": "b-secret", "baz": "b-no-secret"},
 	}
@@ -3465,8 +3454,7 @@ func (*schemaSuite) TestPruneVisibilitySecretArray(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = []any{"bar", "baz"}
+	var data any = []any{"bar", "baz"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3486,8 +3474,7 @@ func (*schemaSuite) TestPruneVisibilityArrayWithSecretElements(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = []any{"bar", "baz"}
+	var data any = []any{"bar", "baz"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3515,8 +3502,7 @@ func (*schemaSuite) TestPruneAllAlternatives(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = []any{"a", "b"}
+	var data any = []any{"a", "b"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3547,8 +3533,7 @@ func (*schemaSuite) TestPruneVisibilityAlternatives(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = []any{"a", "b"}
+	var data any = []any{"a", "b"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3640,8 +3625,7 @@ func (*schemaSuite) TestPruneVisibilityIdenticalPathWithDataAlternatives(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": map[string]any{"baz": "a"}}
+	var data any = map[string]any{"bar": map[string]any{"baz": "a"}}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
@@ -3711,8 +3695,7 @@ func (*schemaSuite) TestPruneVisibilitySimilarBeginningShortPathAlternatives(c *
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": map[string]any{"eph": "a"}}
+	var data any = map[string]any{"bar": map[string]any{"eph": "a"}}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, map[string]any{"bar": map[string]any{"eph": "a"}})
@@ -3745,8 +3728,7 @@ func (s *schemaSuite) TestPruneNilDataAlternatives(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": nil}
+	var data any = map[string]any{"bar": nil}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 }
@@ -3774,8 +3756,7 @@ func (s *schemaSuite) TestPruneAlternativesDataError(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": true}
+	var data any = map[string]any{"bar": true}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, `cannot prune alternatives: cannot accept top level element: expected map type but value was bool`)
 }
@@ -3793,7 +3774,7 @@ func (s *schemaSuite) TestPruneAlternativesPathDataError(c *C) {
 								"foobar": "string"
 							}
 						}
-					}
+					}v
 				},
 				{
 					"schema": {
@@ -3837,8 +3818,7 @@ func (*schemaSuite) TestPruneSecretAllTypesShortPath(c *C) {
 }`, typ))
 		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
-		var data any
-		data = map[string]any{"bar": values[typ], "baz": true}
+		var data any = map[string]any{"bar": values[typ], "baz": true}
 		data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 		c.Assert(err, IsNil, cmt)
 		c.Assert(data, DeepEquals, map[string]any{"baz": true}, cmt)
@@ -3866,8 +3846,7 @@ func (*schemaSuite) TestPruneSecretAllTypes(c *C) {
 }`, typ))
 		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
-		var data any
-		data = values[typ]
+		var data any = values[typ]
 		data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 		c.Assert(err, IsNil, cmt)
 		c.Assert(data, IsNil, cmt)
@@ -3933,8 +3912,7 @@ func (s *schemaSuite) TestShortAccessorsPath(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"bar": []any{map[string]any{"baz": "a", "eph": "b"}}}
+	var data any = map[string]any{"bar": []any{map[string]any{"baz": "a", "eph": "b"}}}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, map[string]any{"bar": []any{map[string]any{"eph": "b"}}})
@@ -3965,8 +3943,7 @@ func (*schemaSuite) TestPruneVisibilityArrayElements(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"baz": "b", "eph": "y"}
+	var data any = map[string]any{"baz": "b", "eph": "y"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo[1].bar"))
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, map[string]any{"eph": "y"})
@@ -3992,8 +3969,7 @@ func (*schemaSuite) TestPruneVisibilityArrayPathToSecretElement(c *C) {
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-	var data any
-	data = map[string]any{"baz": "secret"}
+	var data any = map[string]any{"baz": "secret"}
 	data, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo[1].bar"))
 	c.Assert(err, IsNil)
 	c.Assert(data, IsNil)
