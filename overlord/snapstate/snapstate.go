@@ -745,14 +745,10 @@ func (sc *snapInstallChoreographer) PostReboot(st *state.State, s *taskChainSpan
 	if isConfigureAllowed(sc.snapsup) {
 		confFlags := configureSnapFlags(sc.snapst, sc.snapsup)
 		configSet := ConfigureSnap(st, sc.snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(s.b.TaskSet())
-		for _, t := range configSet.Tasks() {
-			s.AppendWithoutData(t)
-		}
+		s.AppendTSWithoutData(configSet)
 	}
 
 	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName(), sc.snapsup.Revision())
-	healthCheck.WaitAll(s.b.TaskSet())
 	s.Append(healthCheck)
 	s.UpdateEdge(healthCheck, EndEdge)
 
