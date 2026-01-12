@@ -33,7 +33,7 @@ func (s *SnapOpSuite) TestComponentShowInvalid(c *check.C) {
 	// Check multiple arguments are handled correctly
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"})
-	c.Assert(err, check.ErrorMatches, `exactly one snap and its components must be specified`)
+	c.Assert(err, check.ErrorMatches, `exactly one snap and one or more of its components must be specified`)
 }
 
 func (s *SnapOpSuite) TestComponentShowSnapNotFound(c *check.C) {
@@ -120,19 +120,27 @@ func (s *SnapOpSuite) TestComponentShowNoComponents(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestComponentShowEmptyString(c *check.C) {
-    s.RedirectClientToTestServer(nil)
+	s.RedirectClientToTestServer(nil)
 
-    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", ""})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", ""})
 
-    c.Assert(err, check.ErrorMatches, "argument cannot be empty")
+	c.Assert(err, check.ErrorMatches, "argument cannot be empty")
+}
+
+func (s *SnapOpSuite) TestComponentShowEmptyComponent(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "test-snap1++arg2"})
+
+	c.Assert(err, check.ErrorMatches, "component name cannot be empty")
 }
 
 func (s *SnapOpSuite) TestComponentShowJustPlus(c *check.C) {
-    s.RedirectClientToTestServer(nil)
+	s.RedirectClientToTestServer(nil)
 
-    _, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+"})
 
-    c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
+	c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
 }
 
 func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {

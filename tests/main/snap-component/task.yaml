@@ -5,7 +5,7 @@ details: |
     when given valid and invalid snap and component names.
 
 prepare: |
-    ${TESTSTOOLS}/install-local test-snap1
+    "${TESTSTOOLS}"/install-local test-snap1
 
 restore: |
     snap remove --purge test-snap1
@@ -23,7 +23,7 @@ execute: |
     # The command prints metadata, not execution output.
     snap component test-snap1+runtime > snap-component.stdout
     MATCH 'component: test-snap1\+runtime' < snap-component.stdout
-    MATCH 'type: app' < snap-component.stdout
+    MATCH 'type: standard' < snap-component.stdout
     MATCH 'summary: The runtime component' < snap-component.stdout
 
     # 4. Check multiple valid components
