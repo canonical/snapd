@@ -882,6 +882,9 @@ EOF
         cp /etc/environment "${UNPACK_DIR}"/etc/environment
     fi
 
+    #shellcheck disable=SC2016
+    sed -i 's/[[] "[$]unconfined_userns" -eq 0 ]/[ "$unconfined_userns" = 0 ] || [ "$unconfined_userns" = no ]/' "${UNPACK_DIR}"/lib/apparmor/rc.apparmor.functions
+
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf "$UNPACK_DIR"
