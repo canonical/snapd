@@ -79,7 +79,7 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	//  - referenced in the DriverOrder UEFI variable
 	//  - loaded from PCI device option ROMs (e.g. network card PXE ROMs)
 	//TODO:FDEM: remove once secboot provides an action to apply this configuration
-	checkFlags := sb_preinstall.PermitVARSuppliedDrivers
+	checkFlags := sb_preinstall.PermitAddonDrivers
 	if systemd.IsVirtualMachine() {
 		// when running in Virtual Machine, allow it
 		checkFlags |= sb_preinstall.PermitVirtualMachine
