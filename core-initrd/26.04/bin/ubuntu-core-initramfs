@@ -478,10 +478,21 @@ def install_misc(dest_dir, sysroot, deb_arch):
     install_files(files, dest_dir, sysroot)
 
     # Set AllowPasswordClearTextToggle in the bgrt theme
-    bgrt_theme_file = os.path.join(dest_dir, "usr/share/plymouth/themes/bgrt/bgrt.plymouth")
-    config_option = "AllowPasswordClearTextToggle=true"
-    set_option_command = f"sed -i '/\\[two-step\\]/a {config_option}' {bgrt_theme_file}"
-    check_call(set_option_command, shell=True)
+    bgrt_theme_file: str  = os.path.join(dest_dir, "usr/share/plymouth/themes/bgrt/bgrt.plymouth")
+    with open(bgrt_theme_file, "r") as f:
+        lines: list[str] = f.readlines()
+
+    option_found = False
+    for i, line in enumerate(lines):
+        if "[two-step]" in line:
+            lines.insert(i + 1, "AllowPasswordClearTextToggle=true\n")
+            option_found = True
+            break
+    if not option_found:
+        raise RuntimeError("Cannot find [two-step] section in bgrt theme configuration")
+
+    with open(bgrt_theme_file, "w") as f:
+        f.writelines(lines)
 
     # Links for fsck
     os.symlink("e2fsck", os.path.join(dest_dir, "usr/sbin", "fsck.ext4"))
