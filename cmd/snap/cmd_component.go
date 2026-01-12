@@ -34,7 +34,7 @@ import (
 var shortComponentHelp = i18n.G("Show information about installed snap components")
 var longComponentHelp = i18n.G(`
 The component command shows information about installed snap components.
-You must specify exactly one snap and its component(s) in the form
+You must specify exactly one snap and one or more of its components in the form
 <snap>+<component>[+<component>...].
 `)
 
@@ -43,7 +43,7 @@ type cmdComponent struct {
 	waitMixin
 
 	Positional struct {
-		SnapsAndComponents []remoteSnapName `positional-arg-name:"<snap+component+component...>" required:"1"`
+		SnapsAndComponents []remoteSnapName `positional-arg-name:"<snap+component+[component...]>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -53,7 +53,7 @@ func init() {
 
 func (x *cmdComponent) showComponents() error {
 	snapName, comps := snap.SplitSnapInstanceAndComponents(string(x.Positional.SnapsAndComponents[0]))
-	if (x.Positional.SnapsAndComponents[0] == "") {
+	if x.Positional.SnapsAndComponents[0] == "" {
 		return errors.New(i18n.G("argument cannot be empty"))
 	}
 
@@ -63,6 +63,12 @@ func (x *cmdComponent) showComponents() error {
 
 	if snapName == "" {
 		return errors.New(i18n.G("no snap for the component(s) was specified"))
+	}
+
+	for _, compName := range comps {
+		if compName == "" {
+			return errors.New(i18n.G("component name cannot be empty"))
+		}
 	}
 
 	names := []string{snapName}
@@ -100,7 +106,7 @@ func (x *cmdComponent) showComponents() error {
 
 func (c *cmdComponent) Execute([]string) error {
 	if len(c.Positional.SnapsAndComponents) != 1 {
-		return errors.New(i18n.G("exactly one snap and its components must be specified"))
+		return errors.New(i18n.G("exactly one snap and one or more of its components must be specified"))
 	}
 	return c.showComponents()
 }
