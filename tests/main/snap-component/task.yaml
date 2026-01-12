@@ -5,10 +5,10 @@ details: |
     when given valid and invalid snap and component names.
 
 prepare: |
-    "${TESTSTOOLS}"/install-local test-snap1
+    "${TESTSTOOLS}"/snaps-state install-local test-snap-component
 
 restore: |
-    snap remove --purge test-snap1
+    snap remove --purge test-snap-component
 
 execute: |
     # 1. Check invalid snap name
@@ -16,18 +16,18 @@ execute: |
     MATCH 'error: no matching snaps installed' < snap-component.stderr
 
     # 2. Check invalid component name
-    snap component test-snap1+invalid-component-name 2>snap-component.stderr
-    MATCH 'error: component "invalid-component-name" for snap "test-snap1" is not installed' < snap-component.stderr
+    snap component test-snap-component+invalid-component-name 2>snap-component.stderr
+    MATCH 'error: component "invalid-component-name" for snap "test-snap-component" is not installed' < snap-component.stderr
 
     # 3. Check valid component (Single)
     # The command prints metadata, not execution output.
-    snap component test-snap1+runtime > snap-component.stdout
-    MATCH 'component: test-snap1\+runtime' < snap-component.stdout
+    snap component test-snap-component+runtime > snap-component.stdout
+    MATCH 'component: test-snap-component\+runtime' < snap-component.stdout
     MATCH 'type: standard' < snap-component.stdout
     MATCH 'summary: The runtime component' < snap-component.stdout
 
     # 4. Check multiple valid components
     # Should list both sequentially
-    snap component test-snap1+compiler+runtime > snap-component.stdout
-    MATCH 'component: test-snap1\+compiler' < snap-component.stdout
-    MATCH 'component: test-snap1\+runtime' < snap-component.stdout
+    snap component test-snap-component+compiler+runtime > snap-component.stdout
+    MATCH 'component: test-snap-component\+compiler' < snap-component.stdout
+    MATCH 'component: test-snap-component\+runtime' < snap-component.stdout
