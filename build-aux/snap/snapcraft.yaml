@@ -163,8 +163,8 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.1.3/apparmor-v4.1.3.tar.gz
-    source-checksum: sha256/88a15e4865e2dca573000950ae41e180a6dde5af63ea75903b3ecaae4dd54a22
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.2/apparmor-v4.0.2.tar.gz
+    source-checksum: sha256/0b847751b8c0e2344169ec2065cad6251063c5c5ff311953e194bbf25686d981
     override-build: |
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
@@ -173,6 +173,11 @@ parts:
       if [ ! -d $LOCAL_APPARMOR_DIR ]; then
         LOCAL_APPARMOR_DIR="${CRAFT_PROJECT_DIR}"/snap/local/apparmor/
       fi
+      # apply prompting patch from the build-aux folder - this is the same as
+      # what is used in the Ubuntu 24.10 (oracular) version
+      patch -p1 < "${LOCAL_APPARMOR_DIR}"/parser-add-support-for-prompting.patch
+      # apply compatibility fix for older kernels
+      patch -p1 < "${LOCAL_APPARMOR_DIR}"/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
 
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh

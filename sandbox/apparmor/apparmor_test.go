@@ -565,7 +565,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.1.3")), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.0.2")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?
