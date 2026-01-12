@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -265,4 +266,8 @@ func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integri
 	return func() {
 		lookupDmVerityDataAndCrossCheck = old
 	}
+}
+
+func MockSecbootNewActivateContext(f func(ctx context.Context) (secboot.ActivateContext, error)) (restore func()) {
+	return testutil.Mock(&secbootNewActivateContext, f)
 }
