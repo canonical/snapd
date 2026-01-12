@@ -874,7 +874,10 @@ apps:
 	case "default-configure":
 		// service command tasks are injected after start-snap-services
 		expectedWaitTaskKinds = []string{"start-snap-services"}
-		expectedHaltTaskKinds = []string{"run-hook[configure]", "run-hook[check-health]"}
+		// only configure directly depends on start-snap-services; check-health
+		// depends transitively through configure.
+		expectedHaltTaskKinds = []string{"run-hook[configure]"}
+		verifyCheckHealthTransitivelyWaitsForCmdTasks(c, chg, cmdTasksPerSnap)
 	case "configure":
 		// service command tasks are queued after all tasks
 		expectedWaitTaskKinds = installTaskKinds
@@ -915,6 +918,34 @@ apps:
 			}
 			c.Assert(taskKinds(filteredWaitTasks), DeepEquals, expectedWaitTaskKinds)
 			c.Assert(taskKinds(filteredHaltTasks), DeepEquals, expectedHaltTaskKinds)
+		}
+	}
+}
+
+// verifyCheckHealthTransitivelyWaitsForCmdTasks verifies that check-health
+// transitively depends on the injected service command tasks through configure,
+// ensuring correct execution order despite the linear task chain.
+func verifyCheckHealthTransitivelyWaitsForCmdTasks(c *C, chg *state.Change, cmdTasksPerSnap map[string][]*state.Task) {
+	for snapName, cmdTasks := range cmdTasksPerSnap {
+		// Find check-health task for this snap
+		var checkHealthTask *state.Task
+		for _, t := range chg.Tasks() {
+			if t.Kind() != "run-hook" {
+				continue
+			}
+			var setup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &setup), IsNil)
+			if setup.Hook == "check-health" && setup.Snap == snapName {
+				checkHealthTask = t
+				break
+			}
+		}
+		c.Assert(checkHealthTask, NotNil, Commentf("check-health task not found for snap %q", snapName))
+
+		// Verify check-health transitively waits on each service command task
+		for _, cmdTask := range cmdTasks {
+			c.Assert(taskTransitivelyWaitsFor(checkHealthTask, cmdTask), Equals, true,
+				Commentf("check-health for snap %q should transitively wait for %q", snapName, cmdTask.Summary()))
 		}
 	}
 }
