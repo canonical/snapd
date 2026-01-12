@@ -3141,7 +3141,7 @@ func (s *schemaSuite) TestPruneMapPlaceholderDataWrongDataType(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneData(true, confdb.SecretVisibility, path)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `data provided was not a map`)
+	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
 
 func (s *schemaSuite) TestPruneMapDataWrongType(c *C) {
@@ -3162,7 +3162,7 @@ func (s *schemaSuite) TestPruneMapDataWrongType(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneData(true, confdb.SecretVisibility, parsePath(c, "foo"))
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `data provided was not a map`)
+	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
 
 func (s *schemaSuite) TestPruneMapDataWrongPath(c *C) {
@@ -3268,7 +3268,7 @@ func (s *schemaSuite) TestPruneMapDataValuePruningError(c *C) {
 	var data any
 	data = map[string]any{"bar": true}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
-	c.Assert(err, ErrorMatches, `data provided was not a map`)
+	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
 
 func (s *schemaSuite) TestPruneArrayWrongDataTypeError(c *C) {
@@ -3323,7 +3323,7 @@ func (s *schemaSuite) TestPruneArrayValueError(c *C) {
 	var data any
 	data = []any{true, false}
 	_, err = schema.PruneData(data, confdb.SecretVisibility, parsePath(c, "foo"))
-	c.Assert(err, ErrorMatches, `data provided was not a map`)
+	c.Assert(err, ErrorMatches, `data provided must be a map`)
 }
 
 func (s *schemaSuite) TestPruneArrayNoErrorOnNilData(c *C) {

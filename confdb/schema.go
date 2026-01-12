@@ -620,7 +620,6 @@ func (v *alternativesSchema) PruneData(data any, vis Visibility, path []Accessor
 	}
 
 	var lastErr error
-	lastErr = nil
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prune alternatives: %w", err)
@@ -644,9 +643,8 @@ func (v *alternativesSchema) PruneData(data any, vis Visibility, path []Accessor
 				if err != nil {
 					lastErr = err
 					continue
-				} else {
-					allErrored = false
 				}
+				allErrored = false
 			}
 			if allErrored {
 				continue
@@ -911,7 +909,7 @@ func (v *mapSchema) PruneData(data any, vis Visibility, path []Accessor) (any, e
 	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
 		_, ok := (data).(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("data provided was not a map")
+			return nil, fmt.Errorf("data provided must be a map")
 		}
 	} else {
 		key := path[0]
@@ -934,7 +932,7 @@ func (v *mapSchema) PruneData(data any, vis Visibility, path []Accessor) (any, e
 		// We've arrived to where the data begins
 		values, ok := (data).(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("data provided was not a map")
+			return nil, fmt.Errorf("data provided must be a map")
 		}
 		pruned := make(map[string]any, len(values))
 		for key, value := range values {
@@ -944,7 +942,8 @@ func (v *mapSchema) PruneData(data any, vis Visibility, path []Accessor) (any, e
 					return nil, fmt.Errorf("key %s not found in map schema", key)
 				}
 				if valSchema.Visibility() >= vis {
-					// If the entry has higher visibility than in input, skip it altogether
+					// If the entry requires a visibility level that is either the same or
+					// higher than what is indicated for pruning in input, skip it altogether
 					continue
 				}
 				d, err := valSchema.PruneData(value, vis, []Accessor{})
@@ -1718,43 +1717,37 @@ func (v *arraySchema) PruneData(data any, vis Visibility, path []Accessor) (any,
 	if data == nil {
 		return nil, nil
 	}
-	if len(path) == 0 {
-		_, ok := (data).([]any)
-		if !ok {
-			return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
-		}
-	} else {
+	values, ok := data.([]any)
+	if len(path) == 0 && !ok {
+		return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
+	} else if len(path) > 0 {
 		key := path[0]
 		if key.Type() != IndexPlaceholderType && key.Type() != ListIndexType {
 			return nil, fmt.Errorf(`key %q cannot be used to index array`, key.Access())
 		}
 	}
-
 	if v.visibility >= vis {
 		return nil, nil
 	}
-	if len(path) == 0 {
-		values, ok := (data).([]any)
-		if !ok {
-			return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
-		}
-		newList := make([]any, 0, len(values))
-		for _, value := range values {
-			d, err := v.elementType.PruneData(value, vis, path)
-			if err != nil {
-				return nil, err
-			}
-			if d != nil {
-				newList = append(newList, d)
-			}
-		}
-		if len(newList) > 0 {
-			return newList, nil
-		}
-		return nil, nil
-	}
 
-	return v.elementType.PruneData(data, vis, path[1:])
+	if len(path) > 0 {
+		return v.elementType.PruneData(data, vis, path[1:])
+	}
+	newList := make([]any, 0, len(values))
+	for _, value := range values {
+		d, err := v.elementType.PruneData(value, vis, []Accessor{})
+		if err != nil {
+			return nil, err
+		}
+		if d != nil {
+			newList = append(newList, d)
+		}
+	}
+	if len(newList) > 0 {
+		return newList, nil
+	}
+	return nil, nil
+
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
