@@ -588,7 +588,7 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 func MockEncryptionSetupDataInCache(
 	st *state.State,
 	label string,
-	recoveryKeyID string,
+	rkey *keys.RecoveryKey,
 	volumesAuth *device.VolumesAuthOptions,
 	checkContext *secboot.PreinstallCheckContext,
 ) (restore func()) {
@@ -605,7 +605,7 @@ func MockEncryptionSetupDataInCache(
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
 		},
 	}
-	esd = install.MockEncryptionSetupData(labelToEncData, recoveryKeyID, volumesAuth, checkContext)
+	esd = install.MockEncryptionSetupData(labelToEncData, rkey, volumesAuth, checkContext)
 	st.Cache(encryptionSetupDataKey{label}, esd)
 	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
 }

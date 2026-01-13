@@ -1187,13 +1187,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 
-		recoveryKeyID := encryptSetupData.RecoveryKeyID()
-		if recoveryKeyID != "" {
-			rkey, err := fdestateGetRecoveryKey(st, recoveryKeyID)
-			if err != nil {
-				return err
-			}
-			if err := addPreInstallRecoveryKey(bootstrappedContainersForRole[gadget.SystemData], bootstrappedContainersForRole[gadget.SystemSave], rkey); err != nil {
+		rkey := encryptSetupData.RecoveryKey()
+		if rkey != nil {
+			if err := addPreInstallRecoveryKey(bootstrappedContainersForRole[gadget.SystemData], bootstrappedContainersForRole[gadget.SystemSave], *rkey); err != nil {
 				return err
 			}
 		}
@@ -1577,20 +1573,25 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 		return keys.RecoveryKey{}, fmt.Errorf("storage encryption setup step was not called")
 	}
 
-	// XXX: just let it panic?
 	encryptSetupData, ok := cached.(*install.EncryptionSetupData)
 	if !ok {
 		return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
 	}
 
-	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	_, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+	// Immediately consume the recovery key to remove it from the
+	// recovery key store.
+	rkey, err = fdestateGetRecoveryKey(st, keyID)
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
 
-	// attach key-id to encryption setup data so it can be used
-	// in the install finish step.
-	encryptSetupData.SetRecoveryKeyID(keyID)
+	// Attach the recovery key to encryption setup data so it
+	// can be used in the install finish step.
+	encryptSetupData.SetRecoveryKey(&rkey)
 	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
 
 	return rkey, err
