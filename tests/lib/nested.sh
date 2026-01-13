@@ -491,6 +491,7 @@ nested_cleanup_env() {
 
 nested_get_core_channel() {
     if nested_is_core_26_system; then
+        # TODO: Remove when it becomes available in the other channels
         echo "edge"
     else
         echo "${NESTED_CORE_CHANNEL}"
@@ -499,6 +500,7 @@ nested_get_core_channel() {
 
 nested_get_kernel_channel() {
     if nested_is_core_26_system; then
+        # TODO: Remove when it becomes available in the other channels
         echo "edge"
     else
         echo "${NESTED_KERNEL_CHANNEL}"
@@ -507,6 +509,7 @@ nested_get_kernel_channel() {
 
 nested_get_gadget_channel() {
     if nested_is_core_26_system; then
+        # TODO: Remove when it becomes available in the other channels
         echo "edge"
     else
         echo "${NESTED_GADGET_CHANNEL}"
