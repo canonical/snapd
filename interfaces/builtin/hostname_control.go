@@ -37,6 +37,10 @@ const hostnameControlConnectedPlugAppArmor = `
 # on core /etc/hostname is a link to /etc/writable/hostname
 /etc/writable/hostname w,
 
+# At installation time on core, the hostname can be set here via the install-device hook
+/run/mnt/ubuntu-data/system-data/_writable_defaults/etc/writable/ w,
+/run/mnt/ubuntu-data/system-data/_writable_defaults/etc/writable/hostname w,
+
 #include <abstractions/dbus-strict>
 /{,usr/}{,s}bin/hostnamectl           ixr,
 
