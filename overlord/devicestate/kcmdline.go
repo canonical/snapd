@@ -122,8 +122,8 @@ func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
 
 	// XXX: Prune fragments that are no longer used?
 	sorted := make([]string, 0, len(fragments))
-	for _, cmdlineAppend := range fragments {
-		sorted = append(sorted, cmdlineAppend)
+	for _, fragment := range fragments {
+		sorted = append(sorted, fragment)
 	}
 	// Sorting is needed so that the same set of args would
 	// always have the same order so we don't accidentally
