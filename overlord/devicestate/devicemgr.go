@@ -1904,7 +1904,7 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 
 	// Initialize config, It is fine to run this even if the config
 	// was initilized in a previous snapd startup because no change
-	// will be triggered unless the kernel command line argument are
+	// will be triggered unless the kernel command line arguments are
 	// updated, otherwise it is a no-op.
 	config, err := keyboardCurrentXKBConfig()
 	if err != nil {
@@ -1933,8 +1933,8 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 }
 
 // updateEarlyBootXKBConfig adds an extra snapd kernel cmdline
-// argument "snapd.xkb" with a simplified XKB configuration
-// embedded into it based on the current system XKB config.
+// fragment with a simplified XKB configuration embedded into it
+// based on the current system XKB config.
 //
 // This kernel cmdline argument would then be consumed by
 // plymouth-set-keymap.service very early in boot to construct
@@ -1949,21 +1949,21 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 //
 // TODO:FDEM: Trigger immediate kernel cmdline update change
 // if args are updated or if there are previous pending changes
-// which can be detected if "kcmdline-pending-extra-snapd-appends"
+// which can be detected if "kcmdline-pending-extra-snapd-fragments"
 // is set. This requires proper blocking logic for all resealing
 // tasks to be implemented first.
 // Currently, The extra snapd args are only applied lazily when
 // some task updates the kernel command line (e.g. snap set
 // system system.kernel.cmdline-append).
 func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) error {
-	cmdlineAppend := config.KernelCommandLineAppend()
-	updated, err := setExtraSnapdKernelCommandLineAppend(m.state, extraSnapdKernelCommandLineAppendTypeXKB, cmdlineAppend)
+	fragment := config.KernelCommandLineFragment()
+	updated, err := setExtraSnapdKernelCommandLineFragment(m.state, extraSnapdKernelCommandLineFragmentXKB, fragment)
 	if err != nil {
 		return err
 	}
 
 	if updated {
-		logger.Noticef("Extra snapd kernel cmdline argument is updated (%s)", cmdlineAppend)
+		logger.Noticef("Extra snapd kernel cmdline fragment is updated (%s)", fragment)
 		logger.Noticef("Change will take effect in the next kernel cmdline update")
 	}
 

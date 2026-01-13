@@ -90,14 +90,14 @@ func (s *xkbTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(dbusutil.MockOnlySystemBusAvailable(systemBus))
 }
 
-func (s *xkbTestSuite) TestXKBConfigKernelCommandLineAppend(c *C) {
+func (s *xkbTestSuite) TestXKBConfigKernelCommandLineFragment(c *C) {
 	config := keyboard.XKBConfig{
 		Model:    "pc105",
 		Variants: []string{"", "bksl", ""},
 		Layouts:  []string{"us", "cz", "de"},
 		Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
 	}
-	c.Assert(config.KernelCommandLineAppend(), Equals, `snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"`)
+	c.Assert(config.KernelCommandLineFragment(), Equals, `snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"`)
 }
 
 func (s *xkbTestSuite) TestCurrentXKBConfig(c *C) {
@@ -116,7 +116,7 @@ func (s *xkbTestSuite) TestCurrentXKBConfig(c *C) {
 		Layouts:  []string{"us", "cz", "de"},
 		Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
 	})
-	c.Assert(config.KernelCommandLineAppend(), Equals, `snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"`)
+	c.Assert(config.KernelCommandLineFragment(), Equals, `snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"`)
 
 	// defaults
 	s.mockDBusProperties = map[string]any{
@@ -134,7 +134,7 @@ func (s *xkbTestSuite) TestCurrentXKBConfig(c *C) {
 		Layouts:  nil,
 		Options:  nil,
 	})
-	c.Assert(config.KernelCommandLineAppend(), Equals, `snapd.xkb=",,,"`)
+	c.Assert(config.KernelCommandLineFragment(), Equals, `snapd.xkb=",,,"`)
 }
 
 func (s *xkbTestSuite) TestCurrentXKBConfigErrors(c *C) {

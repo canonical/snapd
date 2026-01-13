@@ -150,11 +150,11 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 }
 
 type testBootConfigUpdateOpts struct {
-	updateAttempted                bool
-	updateApplied                  bool
-	cmdlineAppend                  string
-	cmdlineAppendDanger            string
-	extraSnapdKernelCmdlineAppends map[string]string
+	updateAttempted                  bool
+	updateApplied                    bool
+	cmdlineAppend                    string
+	cmdlineAppendDanger              string
+	extraSnapdKernelCmdlineFragments map[string]string
 }
 
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootConfigUpdateOpts, errMatch string) {
@@ -183,15 +183,15 @@ kernel-cmdline:
 	tr.Commit()
 
 	// Set extra snapd kernel command line args as well
-	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
+	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
-		checkPendingExtraSnapdAppends(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
+		checkPendingExtraSnapdFragments(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdAppends(c, s.state, true)
+		checkPendingExtraSnapdFragments(c, s.state, true)
 	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -276,15 +276,15 @@ kernel-cmdline:
 	tr.Commit()
 
 	// Set extra snapd kernel command line args as well
-	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
+	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
-		checkPendingExtraSnapdAppends(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
+		checkPendingExtraSnapdFragments(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdAppends(c, s.state, true)
+		checkPendingExtraSnapdFragments(c, s.state, true)
 	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -410,7 +410,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	opts := testBootConfigUpdateOpts{
 		updateAttempted: true,
 		updateApplied:   true,
-		extraSnapdKernelCmdlineAppends: map[string]string{
+		extraSnapdKernelCmdlineFragments: map[string]string{
 			"xkb": `arg1="val-1" arg1="val-2" arg2`,
 		},
 	}
@@ -423,7 +423,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate arg1="val-1" arg1="val-2" arg2`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdAppends(c, s.state, false)
+	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -438,7 +438,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		updateAttempted: true,
 		updateApplied:   true,
 		cmdlineAppend:   "par1=val par2",
-		extraSnapdKernelCmdlineAppends: map[string]string{
+		extraSnapdKernelCmdlineFragments: map[string]string{
 			"xkb": `snapd.xkb="some-value"`,
 		},
 	}
@@ -451,7 +451,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value" par1=val par2`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdAppends(c, s.state, false)
+	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -600,7 +600,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgs(c *
 	opts := testBootConfigUpdateOpts{
 		updateAttempted: true,
 		updateApplied:   true,
-		extraSnapdKernelCmdlineAppends: map[string]string{
+		extraSnapdKernelCmdlineFragments: map[string]string{
 			"xkb": "some-value",
 		},
 	}
@@ -613,7 +613,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgs(c *
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate some-value",
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdAppends(c, s.state, false)
+	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -629,7 +629,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgsAndA
 		updateApplied:       true,
 		cmdlineAppend:       "par1=val par2",
 		cmdlineAppendDanger: "par3=val par4",
-		extraSnapdKernelCmdlineAppends: map[string]string{
+		extraSnapdKernelCmdlineFragments: map[string]string{
 			"xkb": "xkb-val",
 		},
 	}
@@ -642,7 +642,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgsAndA
 		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate xkb-val par1=val par2 par3=val par4`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdAppends(c, s.state, false)
+	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Unlock()
 }
 

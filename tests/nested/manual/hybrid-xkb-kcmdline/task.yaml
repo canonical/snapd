@@ -107,11 +107,11 @@ execute: |
   }
 
   get_snapd_xkb() {
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-extra-snapd-appends"."xkb"'
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-extra-snapd-fragments"."xkb"'
   }
 
   get_pending() {
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-pending-extra-snapd-appends"'
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-pending-extra-snapd-fragments"'
   }
   export -f get_pending
 

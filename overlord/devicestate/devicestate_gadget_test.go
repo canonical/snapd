@@ -1178,11 +1178,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 }
 
 type testGadgetCommandlineUpdateOpts struct {
-	updated                        bool
-	isClassic                      bool
-	grade                          string
-	extraSnapdKernelCmdlineAppends map[string]string
-	cmdlineAppend                  string
+	updated                          bool
+	isClassic                        bool
+	grade                            string
+	extraSnapdKernelCmdlineFragments map[string]string
+	cmdlineAppend                    string
 	// This is the part of cmdlineAppend that is allowed by the gadget
 	allowedCmdline string
 	// and this is the not allowed part
@@ -1227,15 +1227,15 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		argsAppended = true
 	}
 	// Set extra snapd kernel command line args as well
-	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
+	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
-		checkPendingExtraSnapdAppends(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
+		checkPendingExtraSnapdFragments(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdAppends(c, s.state, true)
+		checkPendingExtraSnapdFragments(c, s.state, true)
 	}
 
 	chg := s.state.NewChange("sample", "...")
@@ -1663,7 +1663,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *
 		updated:   true,
 		isClassic: false,
 		grade:     "dangerous",
-		extraSnapdKernelCmdlineAppends: map[string]string{
+		extraSnapdKernelCmdlineFragments: map[string]string{
 			"xkb": "xkb-val",
 		},
 	}
@@ -1677,7 +1677,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
 	s.state.Lock()
-	checkPendingExtraSnapdAppends(c, s.state, false)
+	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Unlock()
 }
 

@@ -300,7 +300,7 @@ type (
 	RemodelContext                    = remodelContext
 	SeededSystem                      = seededSystem
 	RecoverySystemSetup               = recoverySystemSetup
-	ExtraSnapdKernelCmdlineAppendType = extraSnapdKernelCommandLineAppendType
+	ExtraSnapdKernelCmdlineFragmentID = extraSnapdKernelCommandLineFragmentID
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
@@ -348,7 +348,7 @@ var (
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 
-	SetExtraSnapdKernelCommandLineAppend = setExtraSnapdKernelCommandLineAppend
+	SetExtraSnapdKernelCommandLineFragment = setExtraSnapdKernelCommandLineFragment
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {

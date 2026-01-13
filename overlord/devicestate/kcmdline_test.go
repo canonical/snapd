@@ -28,81 +28,81 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func checkExtraSnapdAppends(c *C, st *state.State, expected map[string]string) {
+func checkExtraSnapdFragments(c *C, st *state.State, expected map[string]string) {
 	var cmdlineAppends map[string]string
-	err := st.Get("kcmdline-extra-snapd-appends", &cmdlineAppends)
+	err := st.Get("kcmdline-extra-snapd-fragments", &cmdlineAppends)
 	if !errors.Is(err, state.ErrNoState) {
 		c.Assert(err, IsNil)
 	}
 	c.Check(cmdlineAppends, DeepEquals, expected)
 }
 
-func checkPendingExtraSnapdAppends(c *C, st *state.State, expected bool) {
+func checkPendingExtraSnapdFragments(c *C, st *state.State, expected bool) {
 	var pending bool
-	err := st.Get("kcmdline-pending-extra-snapd-appends", &pending)
+	err := st.Get("kcmdline-pending-extra-snapd-fragments", &pending)
 	if !errors.Is(err, state.ErrNoState) {
 		c.Assert(err, IsNil)
 	}
 	c.Check(pending, Equals, expected)
 }
 
-func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineAppend(c *C) {
+func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineFragment(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// kcmdline-extra-snapd-appends doesn't exist yet
-	checkExtraSnapdAppends(c, s.state, nil)
+	// kcmdline-extra-snapd-fragments doesn't exist yet
+	checkExtraSnapdFragments(c, s.state, nil)
 
-	argName := devicestate.ExtraSnapdKernelCmdlineAppendType("xkb")
+	argName := devicestate.ExtraSnapdKernelCmdlineFragmentID("xkb")
 
-	updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
+	updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	checkPendingExtraSnapdAppends(c, s.state, true)
-	checkExtraSnapdAppends(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
 
 	// Set the same value
-	updated, err = devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
+	updated, err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	// But pending flag was not explicitly reset so it stays from
 	// last run.
-	checkPendingExtraSnapdAppends(c, s.state, true)
-	checkExtraSnapdAppends(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
 
 	// Try again with pending flag reset
-	s.state.Set("kcmdline-pending-extra-snapd-appends", false)
-	updated, err = devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
+	updated, err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, argName, `arg1="val-1" arg1="val-2" arg2`)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
-	checkPendingExtraSnapdAppends(c, s.state, false)
-	checkExtraSnapdAppends(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `arg1="val-1" arg1="val-2" arg2`})
 
 	// Set a different value
-	updated, err = devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, `arg1="val-1"`)
+	updated, err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, argName, `arg1="val-1"`)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	checkPendingExtraSnapdAppends(c, s.state, true)
-	checkExtraSnapdAppends(c, s.state, map[string]string{"xkb": `arg1="val-1"`})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `arg1="val-1"`})
 
 	// Unset value
-	updated, err = devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, "")
+	updated, err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, argName, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	checkPendingExtraSnapdAppends(c, s.state, true)
-	checkExtraSnapdAppends(c, s.state, map[string]string{})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	checkExtraSnapdFragments(c, s.state, map[string]string{})
 }
 
-func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineAppendErrors(c *C) {
-	argName := devicestate.ExtraSnapdKernelCmdlineAppendType("bad-type")
-	_, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, "some-val")
-	c.Assert(err, ErrorMatches, `internal error: unexpected extra snapd kernel command line append type: "bad-type"`)
+func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineFragmentErrors(c *C) {
+	fragmentID := devicestate.ExtraSnapdKernelCmdlineFragmentID("bad-id")
+	_, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, fragmentID, "some-val")
+	c.Assert(err, ErrorMatches, `internal error: unexpected extra snapd kernel command line fragment ID: "bad-id"`)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	s.state.Set("seeded", false)
-	argName = devicestate.ExtraSnapdKernelCmdlineAppendType("xkb")
-	_, err = devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, argName, "some-val")
-	c.Assert(err, ErrorMatches, "cannot set extra snapd kernel command line arguments until fully seeded")
+	fragmentID = devicestate.ExtraSnapdKernelCmdlineFragmentID("xkb")
+	_, err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, fragmentID, "some-val")
+	c.Assert(err, ErrorMatches, "cannot set extra snapd kernel command line fragments until fully seeded")
 }

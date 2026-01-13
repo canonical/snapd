@@ -54,8 +54,8 @@ func (c *XKBConfig) validate() error {
 	return nil
 }
 
-// KernelCommandLineAppend returns a simplified XKB configuration
-// cmdline append that can be parsed by plymouth-set-keymap.service.
+// KernelCommandLineFragment returns a simplified XKB configuration kernel
+// cmdline fragment that can be parsed by plymouth-set-keymap.service.
 //
 // XKB config can each have multiple comma separated values
 // but for early boot this is simplified and only the first
@@ -73,12 +73,12 @@ func (c *XKBConfig) validate() error {
 //	-------------------------
 //
 // This example would be simplified to the following kernel cmdline
-// append:
+// fragment:
 // snapd.xkb="us,pc105,,grp:alt_shift_toggle,terminate:ctrl_alt_bksp"
 //
 // Note that order is important and plymouth-set-keymap.service
 // must match this ordering when parsing: layout,model,variant,option(s).
-func (c *XKBConfig) KernelCommandLineAppend() string {
+func (c *XKBConfig) KernelCommandLineFragment() string {
 	var layout, variant string
 	if len(c.Layouts) > 0 {
 		layout = c.Layouts[0]

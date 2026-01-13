@@ -33,45 +33,46 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type extraSnapdKernelCommandLineAppendType string
+type extraSnapdKernelCommandLineFragmentID string
 
 const (
-	extraSnapdKernelCommandLineAppendTypeXKB extraSnapdKernelCommandLineAppendType = "xkb"
+	extraSnapdKernelCommandLineFragmentXKB extraSnapdKernelCommandLineFragmentID = "xkb"
 )
 
-func (appendType extraSnapdKernelCommandLineAppendType) validate(val string) error {
-	switch appendType {
-	case extraSnapdKernelCommandLineAppendTypeXKB:
-		// TODO:FDEM: add type-specific validation?
+func (id extraSnapdKernelCommandLineFragmentID) validate(val string) error {
+	switch id {
+	case extraSnapdKernelCommandLineFragmentXKB:
+		// TODO:FDEM: add kind-specific validation?
 	default:
-		return fmt.Errorf("internal error: unexpected extra snapd kernel command line append type: %q", appendType)
+		return fmt.Errorf("internal error: unexpected extra snapd kernel command line fragment ID: %q", id)
 	}
 	return nil
 }
 
 const (
-	// This holds kernel command line appends that snapd adds internally.
-	kcmdlineExtraSnapdAppendsKey string = "kcmdline-extra-snapd-appends"
+	// This holds kernel command line fragments that snapd adds internally.
+	kcmdlineExtraSnapdFragmentsKey string = "kcmdline-extra-snapd-fragments"
 	// This holds a boolean that indicates whether there are pending
-	// extra snapd kernel command line appends in state which can only
-	// be cleared by tasks that update the kernel command line i.e.
-	// "update-managed-boot-config" and "update-gadget-cmdline".
-	kcmdlinePendingExtraSnapdAppendsKey string = "kcmdline-pending-extra-snapd-appends"
+	// extra snapd kernel command line fragments in state that need to be
+	// appended to the kernel command line which can only be cleared by
+	// tasks that update the kernel command line i.e. "update-managed-boot-config"
+	// and "update-gadget-cmdline".
+	kcmdlinePendingExtraSnapdFragmentsKey string = "kcmdline-pending-extra-snapd-fragments"
 )
 
-// setExtraSnapdKernelCommandLineAppend updates the specified extra snapd
-// kernel command line appends. An empty string removes the specified append
-// if it exists.
+// setExtraSnapdKernelCommandLineFragment updates the specified extra snapd
+// named fragment that is appended to the kernel command line. An empty
+// string removes the specified fragment if it exists.
 //
 // If the passed arguments are different from the current arguments then
-// "kcmdline-pending-extra-snapd-appends" will be set to true which can only
+// "kcmdline-pending-extra-snapd-fragments" will be set to true which can only
 // be cleared by tasks that apply the pending extra snapd appends from state
 // i.e. "update-managed-boot-config" and "update-gadget-cmdline".
 //
-// Note that this only updates the specified appends in snapd state and does not
-// directly update the command line and key polices.
-func setExtraSnapdKernelCommandLineAppend(st *state.State, appendType extraSnapdKernelCommandLineAppendType, cmdlineAppend string) (updated bool, err error) {
-	if err := appendType.validate(cmdlineAppend); err != nil {
+// Note that this only updates the specified fragment in snapd state and
+// does not directly update the command line and key polices.
+func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSnapdKernelCommandLineFragmentID, fragment string) (updated bool, err error) {
+	if err := fragmentID.validate(fragment); err != nil {
 		return false, err
 	}
 
@@ -81,47 +82,47 @@ func setExtraSnapdKernelCommandLineAppend(st *state.State, appendType extraSnapd
 		return false, err
 	}
 	if !seeded {
-		return false, fmt.Errorf("cannot set extra snapd kernel command line arguments until fully seeded")
+		return false, fmt.Errorf("cannot set extra snapd kernel command line fragments until fully seeded")
 	}
 
-	var currentAppends map[extraSnapdKernelCommandLineAppendType]string
-	if err := st.Get(kcmdlineExtraSnapdAppendsKey, &currentAppends); err != nil && !errors.Is(err, state.ErrNoState) {
+	var currentFragments map[extraSnapdKernelCommandLineFragmentID]string
+	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &currentFragments); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
-	currentAppend := currentAppends[appendType]
-	if cmdlineAppend == currentAppend {
+	currentFragment := currentFragments[fragmentID]
+	if fragment == currentFragment {
 		// Nothing changed, no-op.
 		return false, nil
 	}
 
-	if currentAppends == nil {
-		currentAppends = make(map[extraSnapdKernelCommandLineAppendType]string, 1)
+	if currentFragments == nil {
+		currentFragments = make(map[extraSnapdKernelCommandLineFragmentID]string, 1)
 	}
 
-	if cmdlineAppend == "" {
-		delete(currentAppends, appendType)
+	if fragment == "" {
+		delete(currentFragments, fragmentID)
 	} else {
-		currentAppends[appendType] = cmdlineAppend
+		currentFragments[fragmentID] = fragment
 	}
-	st.Set(kcmdlineExtraSnapdAppendsKey, currentAppends)
-	st.Set(kcmdlinePendingExtraSnapdAppendsKey, true)
+	st.Set(kcmdlineExtraSnapdFragmentsKey, currentFragments)
+	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, true)
 	return true, nil
 }
 
 // kernelCommandLineAppendArgsFromSnapd returns extra arguments that snapd
-// might set internally using setExtraSnapdKernelCommandLineAppend.
+// might set internally using setExtraSnapdKernelCommandLineFragment.
 func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
-	var cmdlineAppends map[extraSnapdKernelCommandLineAppendType]string
-	if err := st.Get(kcmdlineExtraSnapdAppendsKey, &cmdlineAppends); err != nil && !errors.Is(err, state.ErrNoState) {
+	var fragments map[extraSnapdKernelCommandLineFragmentID]string
+	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &fragments); err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
-	if len(cmdlineAppends) == 0 {
+	if len(fragments) == 0 {
 		return "", nil
 	}
 
-	// XXX: Prune arguments that are no longer known (removed)?
-	sorted := make([]string, 0, len(cmdlineAppends))
-	for _, cmdlineAppend := range cmdlineAppends {
+	// XXX: Prune fragments that are no longer used?
+	sorted := make([]string, 0, len(fragments))
+	for _, cmdlineAppend := range fragments {
 		sorted = append(sorted, cmdlineAppend)
 	}
 	// Sorting is needed so that the same set of args would
