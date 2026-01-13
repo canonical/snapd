@@ -245,7 +245,7 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 owner @{HOME}/.config/kdeglobals r,
 
 # lxqt theming support
-# Note: Subfolders are being ignored to avoid providing access to files that are not related to the LXQt theme.
+# Note: Subfolders are ignored to avoid providing access to files that involve more than just simple LXQt configurations.
 owner @{HOME}/.config/lxqt/*.conf r,
 
 # kvantum theming support
