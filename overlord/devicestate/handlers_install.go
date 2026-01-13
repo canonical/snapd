@@ -1582,8 +1582,8 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
-	// Immediately consume the recovery key to remove it from the
-	// recovery key store.
+	// Immediately use the recovery key ID to remove the
+	// recovery key from the recovery key store.
 	rkey, err = fdestateGetRecoveryKey(st, keyID)
 	if err != nil {
 		return keys.RecoveryKey{}, err
@@ -1591,6 +1591,8 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 
 	// Attach the recovery key to encryption setup data so it
 	// can be used in the install finish step.
+	// The encryption setup data is stored in-memory so it is
+	// fine to attach secrets there.
 	encryptSetupData.SetRecoveryKey(&rkey)
 	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
 
