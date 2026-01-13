@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -56,6 +57,7 @@ const (
 
 var (
 	runtimeNumCPU = runtime.NumCPU
+	totalMemoryFn = totalMemory
 
 	osutilIsHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
 	osutilIsRootWritableOverlay = osutil.IsRootWritableOverlay
@@ -89,24 +91,33 @@ var capabilityBPFSnippet = `
 capability bpf,
 `
 
-func numberOfJobsParam() string {
+func numberOfJobs() int {
+	const cpuReserve = 2
+	const gigabyte = 1024 * 1024 * 1024
+
 	cpus := runtimeNumCPU()
-	// Do not use all CPUs as this may have negative impact when booting.
-	if cpus > 2 {
-		// otherwise spare 2
-		cpus = cpus - 2
-	} else {
-		// Systems with only two CPUs, spare 1.
-		//
-		// When there is a a single CPU, pass -j1 to allow a single
-		// compilation job only. Note, we could pass -j0 in such case
-		// for further improvement, but that has incompatible meaning
-		// between apparmor 2.x (automatic job count, equivalent to
-		// -jauto) and 3.x (compile everything in the main process).
-		cpus = 1
+	totalMem, err := totalMemoryFn()
+	// To err on the safe side, use one CPU if we cannot check memory
+	// or when the total amount of memory is <= 2048MB
+	if err != nil || totalMem <= 2*gigabyte {
+		return 1
+	}
+	// If we don't have enough CPUs to let some background activity to happen,
+	// then serialize everything.
+	if cpus <= cpuReserve {
+		return 1
+	}
+	// If we have enough resources, set two CPUs aside for system tasks.
+	cpus -= cpuReserve
+	// Assume that apparmor may use around a gigabyte of memory for each CPU
+	// core. This is a heuristic so that a VM with lots of cores and little
+	// memory does not try to use the theoretical concurrency and OOM the
+	// system.
+	for cpus > 1 && totalMem < uint64(cpus)*gigabyte {
+		cpus--
 	}
 
-	return fmt.Sprintf("-j%d", cpus)
+	return cpus
 }
 
 // LoadProfiles loads apparmor profiles from the given files.
@@ -119,8 +130,11 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 	}
 
 	args := []string{"--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+
 	if flags&ConserveCPU != 0 {
-		args = append(args, numberOfJobsParam())
+		if j := numberOfJobs(); j != 0 {
+			args = append(args, "--jobs", strconv.Itoa(j))
+		}
 	}
 
 	if flags&SkipKernelLoad != 0 {

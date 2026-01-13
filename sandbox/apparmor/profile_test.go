@@ -329,19 +329,45 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
 
 func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 	var cpus int
+	var totalRam uint64
+
 	restore := apparmor.MockRuntimeNumCPU(func() int {
 		return cpus
 	})
 	defer restore()
 
-	cpus = 10
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j8")
+	restore = apparmor.MockTotalMemory(func() (uint64, error) {
+		return totalRam, nil
+	})
+	defer restore()
 
+	// Pretend we have 10CPUs and matching 10GB of RAM.
+	cpus = 10
+	totalRam = 10 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 8)
+
+	// Now we only have 2CPUs.
+	// One is set aside for other system tasks.
 	cpus = 2
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
 
 	cpus = 1
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
+
+	// Pretend we have 10CPUs but only 1GB of RAM.
+	cpus = 10
+	totalRam = 1 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
+
+	// Now we have 4GB of RAM
+	totalRam = 4 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 4)
+
+	// Now we have 9GB of RAM.
+	// Note that we have enough memory for 9 concurrent jobs but we set two
+	// CPUs aside for other system tasks.
+	totalRam = 9 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 8)
 }
 
 func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
