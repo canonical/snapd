@@ -140,6 +140,7 @@ jobs:
       fail-fast: false
       matrix:
         build-config:
+          - { system: "ubuntu-26.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '26.04' }
           - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10' }
           - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04' }
           - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
