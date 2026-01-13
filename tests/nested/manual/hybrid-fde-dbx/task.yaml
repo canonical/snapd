@@ -5,7 +5,6 @@ details: |
 
 systems:
   # FIXME: make it work on 26
-  - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
 
