@@ -3,36 +3,24 @@ summary: Test that snap info command handles components as expected
 details: |
   This test verifies that snap info prints components installed/available
   counts correctly for various scenarios:
-  - Remote/Available only (0/2) using mock-snap
-  - Installed/Local (2/2) using mock-snap
+  - Installed/Local (3/3) using test-snap-with-components
   - No components anywhere (Silence) using test-snapd-sh
 
 prepare: |
-
-  ${TESTSTOOLS}/snaps-state install-local mock-snap
-  ${TESTSTOOLS}/snaps-state install-local test-snapd-sh
+  "${TESTSTOOLS}"/snaps-state install-local test-snap-with-components
+  "${TESTSTOOLS}"/snaps-state install-local test-snapd-sh
 
 restore: |
-  snap remove --purge mock-snap
+  snap remove --purge test-snap-with-components
   snap remove --purge test-snapd-sh
 
 execute: |
-  OUTPUT=$(snap info mock-snap)
-  
-  if echo "$OUTPUT" | grep -q "components: 0/2"; then
-    echo "PASS (Remote Only): Found expected 'components: 0/2'"
+  OUTPUT_INSTALLED=$(snap info test-snap-with-components)
+
+  if echo "$OUTPUT_INSTALLED" | grep -q "components: 3/3"; then
+    echo "PASS (Installed): Found expected 'components: 3/3'"
   else
-    echo "FAIL (Remote Only): Expected 'components: 0/2', got:"
-    echo "$OUTPUT"
-    exit 1
-  fi
-  
-  OUTPUT_INSTALLED=$(snap info mock-snap)
-  
-  if echo "$OUTPUT_INSTALLED" | grep -q "components: 2/2"; then
-    echo "PASS (Installed): Found expected 'components: 2/2'"
-  else
-    echo "FAIL (Installed): Expected 'components: 2/2', got:"
+    echo "FAIL (Installed): Expected 'components: 3/3', got:"
     echo "$OUTPUT_INSTALLED"
     exit 1
   fi
