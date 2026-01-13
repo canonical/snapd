@@ -35,7 +35,7 @@ var shortComponentHelp = i18n.G("Show information about installed snap component
 var longComponentHelp = i18n.G(`
 The component command shows information about installed snap components.
 You must specify exactly one snap and one or more of its components in the form
-<snap>+<component>[+<component>...].
+<snap>+<component>+[<component>...].
 `)
 
 type cmdComponent struct {
