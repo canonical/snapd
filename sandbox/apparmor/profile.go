@@ -131,11 +131,11 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 
 	args := []string{"--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 
+	j := numberOfJobs()
 	if flags&ConserveCPU != 0 {
-		if j := numberOfJobs(); j != 0 {
-			args = append(args, "--jobs", strconv.Itoa(j))
-		}
+		j = 1
 	}
+	args = append(args, "--jobs", strconv.Itoa(j))
 
 	if flags&SkipKernelLoad != 0 {
 		args = append(args, "--skip-kernel-load")
