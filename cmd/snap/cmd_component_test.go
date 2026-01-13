@@ -29,120 +29,6 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapOpSuite) TestComponentShowInvalid(c *check.C) {
-	// Check multiple arguments are handled correctly
-	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"})
-	c.Assert(err, check.ErrorMatches, `exactly one snap and one or more of its components must be specified`)
-}
-
-func (s *SnapOpSuite) TestComponentShowSnapNotFound(c *check.C) {
-	// Mock a server response returning 0 snaps
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-
-		// Return an empty list of snaps
-		resp := map[string]any{
-			"type":        "sync",
-			"status-code": 200,
-			"result":      []map[string]any{},
-		}
-		json.NewEncoder(w).Encode(resp)
-	})
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "missing-snap+compiler"})
-
-	c.Assert(err, check.ErrorMatches, "no matching snaps installed")
-}
-
-func (s *SnapOpSuite) TestComponentShowNoSnapName(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-
-	// SplitSnapInstanceAndComponents parses this as empty snap name.
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+mycomp"})
-
-	c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
-}
-
-func (s *SnapOpSuite) TestComponentShowComponentNotFound(c *check.C) {
-	type mockComponent struct {
-		client.Component
-		Type     string `json:"type"`
-		Revision string `json:"revision"`
-	}
-	type mockSnap struct {
-		client.Snap
-		Revision   string          `json:"revision"`
-		Components []mockComponent `json:"components"`
-	}
-
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		comp1 := mockComponent{
-			Component: client.Component{
-				Name:          "compiler",
-				Version:       "1.0",
-				InstalledSize: 1024,
-			},
-			Type:     "framework",
-			Revision: "42",
-		}
-
-		ms := mockSnap{
-			Snap: client.Snap{
-				Name:    "qwen-vl",
-				Version: "2.0",
-				Status:  "active",
-				Type:    "app",
-			},
-			Revision:   "100",
-			Components: []mockComponent{comp1},
-		}
-
-		resp := map[string]any{
-			"type":        "sync",
-			"status-code": 200,
-			"result":      []mockSnap{ms},
-		}
-		json.NewEncoder(w).Encode(resp)
-	})
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+phantom"})
-
-	c.Assert(err, check.ErrorMatches, `component "phantom" for snap "qwen-vl" is not installed`)
-}
-
-func (s *SnapOpSuite) TestComponentShowNoComponents(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "mysnap"})
-
-	c.Assert(err, check.ErrorMatches, "no component specified")
-}
-
-func (s *SnapOpSuite) TestComponentShowEmptyString(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", ""})
-
-	c.Assert(err, check.ErrorMatches, "argument cannot be empty")
-}
-
-func (s *SnapOpSuite) TestComponentShowEmptyComponent(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "test-snap1++arg2"})
-
-	c.Assert(err, check.ErrorMatches, "component name cannot be empty")
-}
-
-func (s *SnapOpSuite) TestComponentShowJustPlus(c *check.C) {
-	s.RedirectClientToTestServer(nil)
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "+"})
-
-	c.Assert(err, check.ErrorMatches, "no snap for the component\\(s\\) was specified")
-}
-
 func (s *SnapOpSuite) TestComponentShowValid(c *check.C) {
 	n := 0
 
@@ -228,4 +114,115 @@ installed: 1.2 (10) 10MB
 
 	c.Assert(err, check.IsNil)
 	c.Assert(s.Stdout(), check.DeepEquals, expectedOutput)
+}
+
+func (s *SnapOpSuite) TestComponentShowSnapNotFound(c *check.C) {
+	// Mock a server response returning 0 snaps
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		// Return an empty list of snaps
+		resp := map[string]any{
+			"type":        "sync",
+			"status-code": 200,
+			"result":      []map[string]any{},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "missing-snap+compiler"})
+
+	c.Assert(err, check.ErrorMatches, "no matching snaps installed")
+}
+
+func (s *SnapOpSuite) TestComponentShowComponentNotFound(c *check.C) {
+	type mockComponent struct {
+		client.Component
+		Type     string `json:"type"`
+		Revision string `json:"revision"`
+	}
+	type mockSnap struct {
+		client.Snap
+		Revision   string          `json:"revision"`
+		Components []mockComponent `json:"components"`
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		comp1 := mockComponent{
+			Component: client.Component{
+				Name:          "compiler",
+				Version:       "1.0",
+				InstalledSize: 1024,
+			},
+			Type:     "framework",
+			Revision: "42",
+		}
+
+		ms := mockSnap{
+			Snap: client.Snap{
+				Name:    "qwen-vl",
+				Version: "2.0",
+				Status:  "active",
+				Type:    "app",
+			},
+			Revision:   "100",
+			Components: []mockComponent{comp1},
+		}
+
+		resp := map[string]any{
+			"type":        "sync",
+			"status-code": 200,
+			"result":      []mockSnap{ms},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+phantom"})
+
+	c.Assert(err, check.ErrorMatches, `component "phantom" for snap "qwen-vl" is not installed`)
+}
+
+func (s *SnapOpSuite) TestComponentInvalidMatrix(c *check.C) {
+	invalidMatrix := []struct {
+		args        []string
+		expectedErr string
+	}{
+		{
+			args:        []string{"qwen-vl+llamacpp", "deepseek-r1+llamacpp-avx512"},
+			expectedErr: "exactly one snap and one or more of its components must be specified",
+		},
+		{
+			args:        []string{"+mycomp"},
+			expectedErr: "no snap for the component\\(s\\) was specified",
+		},
+		{
+			args:        []string{"mysnap"},
+			expectedErr: "no component specified",
+		},
+		{
+			args:        []string{""},
+			expectedErr: "argument cannot be empty",
+		},
+		{
+			args:        []string{"test-snap1++arg2"},
+			expectedErr: "component name cannot be empty",
+		},
+		{
+			args:        []string{"+"},
+			expectedErr: "no snap for the component\\(s\\) was specified",
+		},
+	}
+
+	for _, tc := range invalidMatrix {
+		s.testComponentInvalid(c, tc.args, tc.expectedErr)
+	}
+}
+
+func (s *SnapOpSuite) testComponentInvalid(c *check.C, cmd []string, expectedErr string) {
+	s.RedirectClientToTestServer(nil)
+
+	args := append([]string{"component"}, cmd...)
+	_, err := snap.Parser(snap.Client()).ParseArgs(args)
+
+	c.Assert(err, check.ErrorMatches, expectedErr)
 }
