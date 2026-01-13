@@ -22,7 +22,7 @@ snaps:
     type: kernel
   -
     default-channel: latest/edge
-    id: dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+    id: cUqM61hRuZAJYmIS898Ux66VY61gBbZf
     name: core26
     type: base
   -
@@ -31,15 +31,15 @@ snaps:
     name: snapd
     type: snapd
 timestamp: 2024-04-24T00:00:00+00:00
-sign-key-sha3-384: Dwtj-EPpm3Nh0t5OOaSz4nDgAr5ShnbPvIc89Q0F-LzxGbNWPgYEQ936W_vBigky
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
-AcLBcwQAAQoAHRYhBEqNlIFXB9LhztzSP90EciVbB6G9BQJoyCwiAAoJEN0EciVbB6G952cQAJ3t
-sSyi7s9CHC7lbiG3bECDlujPJfSCG9M5bYuSpTLh/7Q8/ws9rq9OD+xM98P+VJxar6MjFv0HZ8M0
-QL2FpMkrL6ytn/KIoHAxrhiQDRIxoeEE1xJqwSCy9xiWAd3+9hRX55xETpIYIEUQ+HBSMMDW/YwX
-DvsJYUWgRLUNnjFdQQcuPArYa8kj21lhBd+cRBP+G7SeVlYy5MFH251swvt6BWSaTjisi4b8pE34
-FbMoMcs1hbWrtmj8y+TzqaGadbMcUAYvPm9gAFPrnTIXCom+bz0zK65YKDDLZqujviLs4oGIFCl+
-w7CBCEBzfPBWacpqdZqqHdCRG3Ac2p0UIUQstmjR0Vnka2r7GHrJeuq6x6itm88CZEYIlZDe3tnI
-SmOLjc3jJsEir78gpcEleoW72DaIz2Kp6LIxxsTbe5hDbW6g+9WhhxBuSwN6WAhJWoeHVmThJtLY
-uYw3N1u9qGAhvT3xCI4+/F7a8moqEieOYfETfeF2iAt5Scicv2U7pj+Z+3JRvkuyHx9RykqCLbq4
-L6khSpL2SfAiUEmT6oxNlHNlIP+SD63E4t5KRvvNZWOoVvBIZa7W+mhg+ugv6vDp9cfOGHtrlCzF
-wjQf/832C0nypC1T1xSuZnT4f+/8GigkW2E6JKvojTt2Qy6zGx8ztojGiTxekzw+4Mn5xdJr
+AcLBUgQAAQoABgUCaWayWQAAVPoQAKT4h3kWrjRndZcgkvrejoRLMIbYsHa6buXWhwhBGcPGkip0
+u0HJK4788xXlLbhlpJaS6AoHTvcM0I0N4MXNH1lNDox86+HpJ363FDSSomi8HIoB+DzxjpSrTZbF
+tEveh9XWFRZ2hG1SCubUi2AuqEwU3ccGxnB4l4UPSPi24UjzO/RlNOUAx1/gAwZAGE05OBr+teZW
+XDSriTb5qFi68zMM6QXZMVudmQIpEvzTVnJt/jpeU03HvZV9pn2BUxP340yjHwRFVtaCgqy7iNzl
+bdt6v8aXX0Q93umdEJWdbb7odKN3bmG4jHfM/22NmyQ333CmEHd8HCfql0gak1csVuRMNTEBXmwy
+/SHmjo9a6Ui5+pJ6HVPzHiDL1h1vMOpZeaP3TlBJpCrEuzMHOMH4Nw+xXBZpbytWa4vuH6jDprzF
+fKnz3VqgkWYKElAo5CRR7k7DNsNUjinLMiBtGB5x3QrGDbzK/6a0GNIDn0CSL2cZ9EITPHBGWxcw
+ipFTCz3sRKcJXtCSBOaebc/17W1Tbba5DIRao8/Dp2j8TbKzgVq/dDOxlmoPpbOXW/4rv1VY85fl
+IB8GeQUkjgo9O1Wt+K3Kigv4lOr+D1cadj4i+eeMgBb4Fepy/4hXb9zfphlx1zkFM04SwpqIWGRA
+Hjc09812Nd5m8me1ccLwph+4OcR/
