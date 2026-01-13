@@ -1178,11 +1178,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 }
 
 type testGadgetCommandlineUpdateOpts struct {
-	updated                     bool
-	isClassic                   bool
-	grade                       string
-	extraSnapdKernelCmdlineArgs map[string]string
-	cmdlineAppend               string
+	updated                        bool
+	isClassic                      bool
+	grade                          string
+	extraSnapdKernelCmdlineAppends map[string]string
+	cmdlineAppend                  string
 	// This is the part of cmdlineAppend that is allowed by the gadget
 	allowedCmdline string
 	// and this is the not allowed part
@@ -1227,15 +1227,15 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		argsAppended = true
 	}
 	// Set extra snapd kernel command line args as well
-	for name, value := range opts.extraSnapdKernelCmdlineArgs {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
-		checkPendingExtraSnapdArgs(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
+		checkPendingExtraSnapdAppends(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdArgs(c, s.state, true)
+		checkPendingExtraSnapdAppends(c, s.state, true)
 	}
 
 	chg := s.state.NewChange("sample", "...")
@@ -1663,8 +1663,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *
 		updated:   true,
 		isClassic: false,
 		grade:     "dangerous",
-		extraSnapdKernelCmdlineArgs: map[string]string{
-			"snapd.xkb": "some-value",
+		extraSnapdKernelCmdlineAppends: map[string]string{
+			"xkb": "xkb-val",
 		},
 	}
 	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles, "", "Updated kernel command line", opts)
@@ -1673,11 +1673,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
-		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget snapd.xkb="some-value"`,
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget xkb-val`,
 	})
 	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
 	s.state.Lock()
-	checkPendingExtraSnapdArgs(c, s.state, false)
+	checkPendingExtraSnapdAppends(c, s.state, false)
 	s.state.Unlock()
 }
 

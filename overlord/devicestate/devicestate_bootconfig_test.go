@@ -150,11 +150,11 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 }
 
 type testBootConfigUpdateOpts struct {
-	updateAttempted             bool
-	updateApplied               bool
-	cmdlineAppend               string
-	cmdlineAppendDanger         string
-	extraSnapdKernelCmdlineArgs map[string]string
+	updateAttempted                bool
+	updateApplied                  bool
+	cmdlineAppend                  string
+	cmdlineAppendDanger            string
+	extraSnapdKernelCmdlineAppends map[string]string
 }
 
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootConfigUpdateOpts, errMatch string) {
@@ -183,15 +183,15 @@ kernel-cmdline:
 	tr.Commit()
 
 	// Set extra snapd kernel command line args as well
-	for name, value := range opts.extraSnapdKernelCmdlineArgs {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
-		checkPendingExtraSnapdArgs(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
+		checkPendingExtraSnapdAppends(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdArgs(c, s.state, true)
+		checkPendingExtraSnapdAppends(c, s.state, true)
 	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -276,15 +276,15 @@ kernel-cmdline:
 	tr.Commit()
 
 	// Set extra snapd kernel command line args as well
-	for name, value := range opts.extraSnapdKernelCmdlineArgs {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineArg(s.state, devicestate.ExtraSnapdKernelCmdlineArg(name), value)
+	for appendType, cmdlineAppend := range opts.extraSnapdKernelCmdlineAppends {
+		updated, err := devicestate.SetExtraSnapdKernelCommandLineAppend(s.state, devicestate.ExtraSnapdKernelCmdlineAppendType(appendType), cmdlineAppend)
 		c.Assert(err, IsNil)
 		c.Check(updated, Equals, true)
 	}
-	if len(opts.extraSnapdKernelCmdlineArgs) == 0 {
-		checkPendingExtraSnapdArgs(c, s.state, false)
+	if len(opts.extraSnapdKernelCmdlineAppends) == 0 {
+		checkPendingExtraSnapdAppends(c, s.state, false)
 	} else {
-		checkPendingExtraSnapdArgs(c, s.state, true)
+		checkPendingExtraSnapdAppends(c, s.state, true)
 	}
 
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
@@ -410,8 +410,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	opts := testBootConfigUpdateOpts{
 		updateAttempted: true,
 		updateApplied:   true,
-		extraSnapdKernelCmdlineArgs: map[string]string{
-			"snapd.xkb": "some-value",
+		extraSnapdKernelCmdlineAppends: map[string]string{
+			"xkb": `arg1="val-1" arg1="val-2" arg2`,
 		},
 	}
 	s.testBootConfigUpdateRunClassic(c, opts, "")
@@ -420,10 +420,10 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value"`,
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate arg1="val-1" arg1="val-2" arg2`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdArgs(c, s.state, false)
+	checkPendingExtraSnapdAppends(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -438,8 +438,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		updateAttempted: true,
 		updateApplied:   true,
 		cmdlineAppend:   "par1=val par2",
-		extraSnapdKernelCmdlineArgs: map[string]string{
-			"snapd.xkb": "some-value",
+		extraSnapdKernelCmdlineAppends: map[string]string{
+			"xkb": `snapd.xkb="some-value"`,
 		},
 	}
 	s.testBootConfigUpdateRunClassic(c, opts, "")
@@ -451,7 +451,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value" par1=val par2`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdArgs(c, s.state, false)
+	checkPendingExtraSnapdAppends(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -600,8 +600,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgs(c *
 	opts := testBootConfigUpdateOpts{
 		updateAttempted: true,
 		updateApplied:   true,
-		extraSnapdKernelCmdlineArgs: map[string]string{
-			"snapd.xkb": "some-value",
+		extraSnapdKernelCmdlineAppends: map[string]string{
+			"xkb": "some-value",
 		},
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
@@ -610,10 +610,10 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgs(c *
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value"`,
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate some-value",
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdArgs(c, s.state, false)
+	checkPendingExtraSnapdAppends(c, s.state, false)
 	s.state.Unlock()
 }
 
@@ -629,8 +629,8 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgsAndA
 		updateApplied:       true,
 		cmdlineAppend:       "par1=val par2",
 		cmdlineAppendDanger: "par3=val par4",
-		extraSnapdKernelCmdlineArgs: map[string]string{
-			"snapd.xkb": "some-value",
+		extraSnapdKernelCmdlineAppends: map[string]string{
+			"xkb": "xkb-val",
 		},
 	}
 	s.testBootConfigUpdateRun(c, opts, "")
@@ -639,10 +639,10 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunWithExtraSnapdArgsAndA
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate snapd.xkb="some-value" par1=val par2 par3=val par4`,
+		`snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate xkb-val par1=val par2 par3=val par4`,
 	})
 	s.state.Lock()
-	checkPendingExtraSnapdArgs(c, s.state, false)
+	checkPendingExtraSnapdAppends(c, s.state, false)
 	s.state.Unlock()
 }
 

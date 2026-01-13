@@ -1,7 +1,15 @@
-summary: TODO
+summary: Verify XKB configurations are injected into kernel command line
 
 details: |
-  TODO
+  This checks that snapd detects XKB configurations and injects
+  a simplified version of it into the kernel command line.
+  
+  This kernel cmdline argument would then be consumed by
+  plymouth-set-keymap.service very early in boot to construct
+  a temporary XKB configuration that can be consumed by plymouth
+  before disks are unlocked so the the correct keyboard layout
+  can be detected when entring a recovery-key, passphrase or PIN
+  in a FDE system.
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
@@ -99,11 +107,11 @@ execute: |
   }
 
   get_snapd_xkb() {
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-extra-snapd-args"."snapd.xkb"'
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-extra-snapd-appends"."xkb"'
   }
 
   get_pending() {
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-pending-extra-snapd-args"'
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-pending-extra-snapd-appends"'
   }
   export -f get_pending
 
@@ -127,7 +135,7 @@ execute: |
   retry -n 100 bash -c 'get_pending | MATCH "^true$"'
 
   # Pending snapd kcmdline args for XKB
-  get_snapd_xkb | MATCH "^uk,pc105,basic,compat$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
 
   # But not yet applied
   get_modeenv | NOMATCH "uk"
@@ -136,14 +144,14 @@ execute: |
   # Not even after reboot
   reboot
   get_pending | MATCH "^true$"
-  get_snapd_xkb | MATCH "^uk,pc105,basic,compat$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
   get_modeenv | NOMATCH "uk"
   get_kcmdline | NOMATCH "uk"
 
   # Force apply pending snapd args
   force_cmdline_update
   get_pending | MATCH "^false$"
-  get_snapd_xkb | MATCH "^uk,pc105,basic,compat$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
   get_modeenv | MATCH "uk,pc105,basic,compat"
 
   # But not yet reflected in kcmdline because we didn't reboot yet
@@ -156,7 +164,7 @@ execute: |
   # Layout changes are detected realtime
   remote.exec "sudo sed -i 's/XKBLAYOUT=uk/XKBLAYOUT=eg/g' /etc/default/keyboard"
   retry -n 100 bash -c 'get_pending | MATCH "^true$"'
-  get_snapd_xkb | MATCH "^eg,pc105,basic,compat$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="eg,pc105,basic,compat"$'
 
   # But as before, not applied immediately
   get_modeenv | MATCH "uk,pc105,basic,compat"
@@ -168,6 +176,6 @@ execute: |
   force_cmdline_update
   reboot
   get_pending | MATCH "^false$"
-  get_snapd_xkb | MATCH "^eg,pc105,basic,compat$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="eg,pc105,basic,compat"$'
   get_modeenv | MATCH "eg,pc105,basic,compat"
   get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="eg,pc105,basic,compat"$'

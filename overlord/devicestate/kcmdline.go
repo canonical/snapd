@@ -33,45 +33,45 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type extraSnapdKernelCmdlineArg string
+type extraSnapdKernelCommandLineAppendType string
 
 const (
-	extraSnapdKernelCmdlineArgXKB extraSnapdKernelCmdlineArg = "snapd.xkb"
+	extraSnapdKernelCommandLineAppendTypeXKB extraSnapdKernelCommandLineAppendType = "xkb"
 )
 
-func (arg extraSnapdKernelCmdlineArg) validate(val string) error {
-	switch arg {
-	case extraSnapdKernelCmdlineArgXKB:
-		// TODO:FDEM: add arg-specific validation?
+func (appendType extraSnapdKernelCommandLineAppendType) validate(val string) error {
+	switch appendType {
+	case extraSnapdKernelCommandLineAppendTypeXKB:
+		// TODO:FDEM: add type-specific validation?
 	default:
-		return fmt.Errorf("internal error: unexpected extra snapd kcmdline arg: %q", arg)
+		return fmt.Errorf("internal error: unexpected extra snapd kernel command line append type: %q", appendType)
 	}
 	return nil
 }
 
 const (
-	// This holds kernel command line arguments that snapd internally.
-	kcmdlineExtraSnapdArgsKey string = "kcmdline-extra-snapd-args"
+	// This holds kernel command line appends that snapd adds internally.
+	kcmdlineExtraSnapdAppendsKey string = "kcmdline-extra-snapd-appends"
 	// This holds a boolean that indicates whether there are pending
-	// extra snapd args in state which can only be cleared by tasks that
-	// update the kernel command line i.e. "update-managed-boot-config"
-	// and "update-gadget-cmdline".
-	kcmdlinePendingExtraSnapdArgsKey string = "kcmdline-pending-extra-snapd-args"
+	// extra snapd kernel command line appends in state which can only
+	// be cleared by tasks that update the kernel command line i.e.
+	// "update-managed-boot-config" and "update-gadget-cmdline".
+	kcmdlinePendingExtraSnapdAppendsKey string = "kcmdline-pending-extra-snapd-appends"
 )
 
-// setExtraSnapdKernelCommandLineArg updates the specified extra snap kernel
-// argument. An empty string removes the specified argument if it already
-// existed.
+// setExtraSnapdKernelCommandLineAppend updates the specified extra snapd
+// kernel command line appends. An empty string removes the specified append
+// if it exists.
 //
-// If the passed value is different from the existing argument value then
-// "kcmdline-pending-extra-snapd-args" will be set to true which can only
-// be cleared by tasks that apply the pending extra snapd args from state
+// If the passed arguments are different from the current arguments then
+// "kcmdline-pending-extra-snapd-appends" will be set to true which can only
+// be cleared by tasks that apply the pending extra snapd appends from state
 // i.e. "update-managed-boot-config" and "update-gadget-cmdline".
 //
-// Note that this only updates the specified args in snapd state and does not
+// Note that this only updates the specified appends in snapd state and does not
 // directly update the command line and key polices.
-func setExtraSnapdKernelCommandLineArg(st *state.State, name extraSnapdKernelCmdlineArg, val string) (updated bool, err error) {
-	if err := name.validate(val); err != nil {
+func setExtraSnapdKernelCommandLineAppend(st *state.State, appendType extraSnapdKernelCommandLineAppendType, cmdlineAppend string) (updated bool, err error) {
+	if err := appendType.validate(cmdlineAppend); err != nil {
 		return false, err
 	}
 
@@ -81,56 +81,58 @@ func setExtraSnapdKernelCommandLineArg(st *state.State, name extraSnapdKernelCmd
 		return false, err
 	}
 	if !seeded {
-		return false, fmt.Errorf("cannot set extra snapd kernel cmdline arguments until fully seeded")
+		return false, fmt.Errorf("cannot set extra snapd kernel command line arguments until fully seeded")
 	}
 
-	var args map[extraSnapdKernelCmdlineArg]string
-	if err := st.Get(kcmdlineExtraSnapdArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
+	var currentAppends map[extraSnapdKernelCommandLineAppendType]string
+	if err := st.Get(kcmdlineExtraSnapdAppendsKey, &currentAppends); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
-	oldVal := args[name]
-	if val == oldVal {
+	currentAppend := currentAppends[appendType]
+	if cmdlineAppend == currentAppend {
 		// Nothing changed, no-op.
 		return false, nil
 	}
 
-	if args == nil {
-		args = make(map[extraSnapdKernelCmdlineArg]string, 1)
+	if currentAppends == nil {
+		currentAppends = make(map[extraSnapdKernelCommandLineAppendType]string, 1)
 	}
 
-	if val == "" {
-		delete(args, name)
+	if cmdlineAppend == "" {
+		delete(currentAppends, appendType)
 	} else {
-		args[name] = val
+		currentAppends[appendType] = cmdlineAppend
 	}
-	st.Set(kcmdlineExtraSnapdArgsKey, args)
-	st.Set(kcmdlinePendingExtraSnapdArgsKey, true)
+	st.Set(kcmdlineExtraSnapdAppendsKey, currentAppends)
+	st.Set(kcmdlinePendingExtraSnapdAppendsKey, true)
 	return true, nil
 }
 
 // kernelCommandLineAppendArgsFromSnapd returns extra arguments that snapd
-// might set internally using setExtraSnapdKernelCommandLineArg.
+// might set internally using setExtraSnapdKernelCommandLineAppend.
 func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
-	var args map[extraSnapdKernelCmdlineArg]string
-	if err := st.Get(kcmdlineExtraSnapdArgsKey, &args); err != nil && !errors.Is(err, state.ErrNoState) {
+	var cmdlineAppends map[extraSnapdKernelCommandLineAppendType]string
+	if err := st.Get(kcmdlineExtraSnapdAppendsKey, &cmdlineAppends); err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
-	if len(args) == 0 {
+	if len(cmdlineAppends) == 0 {
 		return "", nil
 	}
 
-	sortedArgs := make([]string, 0, len(args))
-	for name, value := range args {
-		// Values are quoted to protect against spaces.
-		sortedArgs = append(sortedArgs, fmt.Sprintf("%s=%q", name, value))
+	sorted := make([]string, 0, len(cmdlineAppends))
+	for _, cmdlineAppend := range cmdlineAppends {
+		sorted = append(sorted, cmdlineAppend)
 	}
-	sort.Strings(sortedArgs)
-	return strings.Join(sortedArgs, " "), nil
+	// Sorting is needed so that the same set of args would
+	// always have the same order so we don't accidentally
+	// trigger a kcmdline update when the args are unchanged.
+	sort.Strings(sorted)
+	return strings.Join(sorted, " "), nil
 }
 
-// kernelCommandLineAppendArgsFromConfig returns extra arguments that we want to
-// append to the kernel command line, searching first by looking at
-// the task, and if not found, looking at the current configuration
+// kernelCommandLineAppendArgsFromConfig returns extra arguments that we
+// want to append to the kernel command line, searching first by looking
+// at the task, and if not found, looking at the current configuration
 // options. One thing or the other could happen depending on whether
 // this is a task created when setting a kernel option or by gadget
 // installation.
@@ -153,7 +155,7 @@ func kernelCommandLineAppendArgsFromConfig(tsk *state.Task, tr *config.Transacti
 	case "dangerous-cmdline-append":
 		option = "system.kernel.dangerous-cmdline-append"
 	default:
-		return "", fmt.Errorf("internal error, unexpected task parameter %q", taskParam)
+		return "", fmt.Errorf("internal error: unexpected task parameter %q", taskParam)
 	}
 	if err := tr.Get("core", option, &value); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -163,15 +165,20 @@ func kernelCommandLineAppendArgsFromConfig(tsk *state.Task, tr *config.Transacti
 }
 
 func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, deviceCtx snapstate.DeviceContext) (string, error) {
+	extraSnapdCmdlineAppend, err := kernelCommandLineAppendArgsFromSnapd(t.State())
+	if err != nil {
+		return "", err
+	}
+
 	tr := config.NewTransaction(t.State())
-	rawCmdlineAppend, err := kernelCommandLineAppendArgsFromConfig(t, tr, "cmdline-append")
+	rawConfigCmdlineAppend, err := kernelCommandLineAppendArgsFromConfig(t, tr, "cmdline-append")
 	if err != nil {
 		return "", err
 	}
 	// Validation against allow list has already happened in
 	// configcore, but the gadget might have changed, so we check
 	// again and filter any unallowed argument.
-	cmdlineAppend, forbidden := gadget.FilterKernelCmdline(rawCmdlineAppend, gd.Info.KernelCmdline.Allow)
+	configCmdlineAppend, forbidden := gadget.FilterKernelCmdline(rawConfigCmdlineAppend, gd.Info.KernelCmdline.Allow)
 	if forbidden != "" {
 		warnMsg := fmt.Sprintf("%q is not allowed by the gadget and has been filtered out from the kernel command line", forbidden)
 		logger.Notice(warnMsg)
@@ -180,21 +187,17 @@ func buildAppendedKernelCommandLine(t *state.Task, gd *gadget.GadgetData, device
 
 	// Dangerous extra cmdline only considered for dangerous models
 	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		cmdlineAppendDanger, err := kernelCommandLineAppendArgsFromConfig(t, tr,
+		configCmdlineAppendDanger, err := kernelCommandLineAppendArgsFromConfig(t, tr,
 			"dangerous-cmdline-append")
 		if err != nil {
 			return "", err
 		}
-		cmdlineAppend = strutil.JoinNonEmpty(
-			[]string{cmdlineAppend, cmdlineAppendDanger}, " ")
+		configCmdlineAppend = strutil.JoinNonEmpty(
+			[]string{configCmdlineAppend, configCmdlineAppendDanger}, " ")
 	}
 
-	extraSnapdCmdlineAppend, err := kernelCommandLineAppendArgsFromSnapd(t.State())
-	if err != nil {
-		return "", err
-	}
-	cmdlineAppend = strutil.JoinNonEmpty(
-		[]string{extraSnapdCmdlineAppend, cmdlineAppend}, " ")
+	cmdlineAppend := strutil.JoinNonEmpty(
+		[]string{extraSnapdCmdlineAppend, configCmdlineAppend}, " ")
 
 	logger.Debugf("appended kernel command line part is %q", cmdlineAppend)
 

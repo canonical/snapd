@@ -296,11 +296,11 @@ func StartTime() time.Time {
 }
 
 type (
-	RegistrationContext        = registrationContext
-	RemodelContext             = remodelContext
-	SeededSystem               = seededSystem
-	RecoverySystemSetup        = recoverySystemSetup
-	ExtraSnapdKernelCmdlineArg = extraSnapdKernelCmdlineArg
+	RegistrationContext               = registrationContext
+	RemodelContext                    = remodelContext
+	SeededSystem                      = seededSystem
+	RecoverySystemSetup               = recoverySystemSetup
+	ExtraSnapdKernelCmdlineAppendType = extraSnapdKernelCommandLineAppendType
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
@@ -348,7 +348,7 @@ var (
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 
-	SetExtraSnapdKernelCommandLineArg = setExtraSnapdKernelCommandLineArg
+	SetExtraSnapdKernelCommandLineAppend = setExtraSnapdKernelCommandLineAppend
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {

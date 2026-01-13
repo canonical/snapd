@@ -1920,7 +1920,7 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 		m.state.Lock()
 		defer m.state.Unlock()
 		if err := m.updateEarlyBootXKBConfig(config); err != nil {
-			logger.Noticef("cannot update early boot locale config: %v", err)
+			m.state.Warnf("cannot update early boot locale config: %v", err)
 			return
 		}
 	}
@@ -1933,37 +1933,37 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 }
 
 // updateEarlyBootXKBConfig adds an extra snapd kernel cmdline
-// argument "snapd.xkb" with a simplified xkb configuration
+// argument "snapd.xkb" with a simplified XKB configuration
 // embedded into it based on the current system XKB config.
 //
 // This kernel cmdline argument would then be consumed by
 // plymouth-set-keymap.service very early in boot to construct
-// a temporary xkb configuration that can be consumed by plymouth
+// a temporary XKB configuration that can be consumed by plymouth
 // before disks are unlocked so the the correct keyboard layout
 // can be detected when entring a recovery-key, passphrase or PIN
 // in a FDE system.
 //
 // This workaround is needed because we cannot updated the initrd
-// to set the updated xkb configs for plymouth because it is
+// to set the updated XKB configs for plymouth because it is
 // embedded in the signed UKI.
 //
 // TODO:FDEM: Trigger immediate kernel cmdline update change
 // if args are updated or if there are previous pending changes
-// which can be detected if "kcmdline-pending-extra-snapd-args"
+// which can be detected if "kcmdline-pending-extra-snapd-appends"
 // is set. This requires proper blocking logic for all resealing
 // tasks to be implemented first.
 // Currently, The extra snapd args are only applied lazily when
 // some task updates the kernel command line (e.g. snap set
 // system system.kernel.cmdline-append).
 func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) error {
-	val := config.KernelCommandLineValue()
-	updated, err := setExtraSnapdKernelCommandLineArg(m.state, extraSnapdKernelCmdlineArgXKB, val)
+	cmdlineAppend := config.KernelCommandLineAppend()
+	updated, err := setExtraSnapdKernelCommandLineAppend(m.state, extraSnapdKernelCommandLineAppendTypeXKB, cmdlineAppend)
 	if err != nil {
 		return err
 	}
 
 	if updated {
-		logger.Noticef("Extra snapd kernel cmdline argument is updated %s=%q", extraSnapdKernelCmdlineArgXKB, val)
+		logger.Noticef("Extra snapd kernel cmdline argument is updated (%s)", cmdlineAppend)
 		logger.Noticef("Change will take effect in the next kernel cmdline update")
 	}
 
