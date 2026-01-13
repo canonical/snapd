@@ -58,6 +58,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // Env contains the data of the uboot environment
@@ -111,7 +113,7 @@ func readEnvCopy(f *os.File, offset int64, size int) []byte {
 	}
 	buf := make([]byte, size)
 	n, err := io.ReadFull(f, buf)
-	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+	if err != nil {
 		return nil
 	}
 	if n < size {
@@ -144,7 +146,11 @@ func Create(fname string, size int, opts CreateOptions) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	if err := f.Truncate(int64(size)); err != nil {
+		f.Close()
+		return nil, err
+	}
+	f.Close()
 
 	env := &Env{
 		fname:          fname,
@@ -348,22 +354,58 @@ func (env *Env) buildPayload() ([]byte, uint32) {
 	return payload, crc32.ChecksumIEEE(payload)
 }
 
-// Save will write out the environment data
-func (env *Env) Save() error {
-	// Use redundant save logic if in redundant mode
-	if env.redundant {
-		return env.saveRedundant()
-	}
-
-	headerSize := calcHeaderSize(env.headerFlagByte)
-	payload, crc := env.buildPayload()
-
-	// ensure dir sync
-	dir, err := os.Open(filepath.Dir(env.fname))
+// writeToDevice opens a device, optionally checks the size, writes the buffer
+// at the given offset, and syncs.
+func writeToDevice(fname string, buf []byte, offset int64, minimumSize int64) error {
+	f, err := os.OpenFile(fname, os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if fi.Size() < minimumSize {
+		return fmt.Errorf("device too small: got %d bytes, need %d", fi.Size(), minimumSize)
+	}
+
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return err
+	}
+	if _, err := f.Write(buf); err != nil {
+		return err
+	}
+	return f.Sync()
+}
+
+// buildImage builds a complete environment image with header (CRC + flag) and payload.
+func (env *Env) buildImage(flag byte) []byte {
+	payload, crc := env.buildPayload()
+
+	buf := make([]byte, env.size)
+	copy(buf[0:4], writeUint32(crc))
+	if env.headerFlagByte {
+		buf[4] = flag
+		copy(buf[5:], payload)
+	} else {
+		copy(buf[4:], payload)
+	}
+	return buf
+}
+
+// Save will write out the environment data
+func (env *Env) Save() error {
+	if !env.redundant {
+		return env.saveLegacy()
+	}
+	return env.saveRedundant()
+}
+
+// saveLegacy writes the environment to a single-copy file.
+func (env *Env) saveLegacy() error {
+	buf := env.buildImage(0)
 
 	// Note that we overwrite the existing file and do not do
 	// the usual write-rename. The rationale is that we want to
@@ -377,27 +419,16 @@ func (env *Env) Save() error {
 	//
 	// We also do not O_TRUNC to avoid reallocations on the FS
 	// to minimize risk of fs corruption.
-	f, err := os.OpenFile(env.fname, os.O_WRONLY, 0666)
+	if err := writeToDevice(env.fname, buf, 0, int64(env.size)); err != nil {
+		return err
+	}
+
+	// Sync the directory as well for FAT filesystems
+	dir, err := os.Open(filepath.Dir(env.fname))
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	if _, err := f.Write(writeUint32(crc)); err != nil {
-		return err
-	}
-	// padding bytes (e.g. for redundant header)
-	pad := make([]byte, headerSize-binary.Size(crc))
-	if _, err := f.Write(pad); err != nil {
-		return err
-	}
-	if _, err := f.Write(payload); err != nil {
-		return err
-	}
-
-	if err := f.Sync(); err != nil {
-		return err
-	}
+	defer dir.Close()
 
 	return dir.Sync()
 }
@@ -517,10 +548,12 @@ func OpenRedundantWithFlags(devname string, size int, flags OpenFlags) (*Env, er
 		}
 	case err1 == nil:
 		// Only copy1 valid
+		logger.Noticef("redundant environment copy2 is invalid: %v", err2)
 		env = env1
 		activeFlag = copy1[sizeOfUint32]
 	case err2 == nil:
 		// Only copy2 valid
+		logger.Noticef("redundant environment copy1 is invalid: %v", err1)
 		env = env2
 		activeFlag = copy2[sizeOfUint32]
 	default:
@@ -544,17 +577,14 @@ func (env *Env) Redundant() bool {
 // saveRedundant writes the environment to the inactive copy first,
 // then updates the flag byte to make it active.
 func (env *Env) saveRedundant() error {
-	payload, crc := env.buildPayload()
-
 	copy1Offset, copy2Offset := redundantOffsets(env.size)
 
 	// Determine which copy to write to (the inactive one)
 	// and what the new flag value should be
 	var writeOffset int64
-	var newFlag byte
 
 	// Increment the flag value for the new active copy (wraps from 255 to 0)
-	newFlag = env.activeFlag + 1
+	newFlag := env.activeFlag + 1
 
 	// Write to the inactive copy (we alternate between copies)
 	// Odd flag means copy2 is active, so write to copy1
@@ -565,40 +595,10 @@ func (env *Env) saveRedundant() error {
 		writeOffset = copy2Offset
 	}
 
-	// Build the complete copy buffer: CRC + flag + payload
-	copyBuf := make([]byte, env.size)
-	copy(copyBuf[0:4], writeUint32(crc))
-	copyBuf[4] = newFlag
-	copy(copyBuf[5:], payload)
-
-	f, err := os.OpenFile(env.fname, os.O_RDWR, 0666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Verify device is large enough for both copies
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
+	buf := env.buildImage(newFlag)
 	expectedSize := int64(env.size * 2)
-	if fi.Size() < expectedSize {
-		return fmt.Errorf("environment device too small: got %d bytes, need %d", fi.Size(), expectedSize)
-	}
 
-	// Seek to the write position
-	if _, err := f.Seek(writeOffset, io.SeekStart); err != nil {
-		return err
-	}
-
-	// Write entire copy in a single operation
-	if _, err := f.Write(copyBuf); err != nil {
-		return err
-	}
-
-	// Sync to ensure data is written
-	if err := f.Sync(); err != nil {
+	if err := writeToDevice(env.fname, buf, writeOffset, expectedSize); err != nil {
 		return err
 	}
 

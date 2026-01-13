@@ -1877,7 +1877,7 @@ func validateRole(vs *VolumeStructure) error {
 func validateSystemBootStateRole(vs *VolumeStructure) error {
 	// Note: offset is checked earlier during parsing, before auto-computation
 	// Constraint: min-size is not allowed (MinSize must equal Size or be zero)
-	if vs.MinSize != 0 && vs.MinSize != vs.Size {
+	if vs.MinSize != vs.Size {
 		return errors.New("system-boot-state role does not support min-size")
 	}
 	// Constraint: minimum 1MiB partition size
