@@ -119,6 +119,7 @@ func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
 		return "", nil
 	}
 
+	// XXX: Prune arguments that are no longer known (removed)?
 	sorted := make([]string, 0, len(cmdlineAppends))
 	for _, cmdlineAppend := range cmdlineAppends {
 		sorted = append(sorted, cmdlineAppend)
