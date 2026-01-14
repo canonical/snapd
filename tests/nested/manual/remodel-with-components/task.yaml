@@ -8,8 +8,8 @@ details: |
   validates that the newly created system can be rebooted into.
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-initial-pc-VERSION.json
@@ -84,9 +84,17 @@ execute: |
 
   kernel_id='pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza'
 
+  # for UC26+, include declaration extras for driver library slots
+  extra_decl_args=""
+  if [ "$(tests.nested show version)" -ge 26 ]; then
+      extra_decl_args="--extra-decl-json $TESTSLIB/assertions/pc-kernel-26-snap-decl-extras.json"
+  fi
+
   # bump the available kernel version in the fake store
+  #shellcheck disable=SC2086
   "${TESTSTOOLS}"/store-state make-snap-installable --noack \
     --revision 2 \
+    $extra_decl_args \
     "${NESTED_FAKESTORE_BLOB_DIR}" \
     ./pc-kernel-with-comps.snap \
     "${kernel_id}"

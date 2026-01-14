@@ -1,0 +1,23 @@
+{
+    "format": "5",
+    "slots": {
+        "cuda-driver-libs": {
+            "allow-installation": "true"
+        },
+        "egl-driver-libs": {
+            "allow-installation": "true"
+        },
+        "gbm-driver-libs": {
+            "allow-installation": "true"
+        },
+        "opengl-driver-libs": {
+            "allow-installation": "true"
+        },
+        "opengles-driver-libs": {
+            "allow-installation": "true"
+        },
+        "vulkan-driver-libs": {
+            "allow-installation": "true"
+        }
+    }
+}
