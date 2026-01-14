@@ -52,7 +52,7 @@ func (f *failingSchema) Ephemeral() bool                         { return false 
 func (f *failingSchema) NestedEphemeral() bool                   { return false }
 func (f *failingSchema) Visibility() confdb.Visibility           { return confdb.DefaultVisibility }
 func (f *failingSchema) NestedVisibility(confdb.Visibility) bool { return false }
-func (f *failingSchema) PruneData(data any, _ confdb.Visibility, _ []confdb.Accessor) (any, error) {
+func (f *failingSchema) PruneByVisibility(data any, _ confdb.Visibility, _ []confdb.Accessor) (any, error) {
 	return data, nil
 }
 
