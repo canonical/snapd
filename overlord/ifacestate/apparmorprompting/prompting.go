@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -45,8 +44,8 @@ var (
 	listenerReady    = (*listener.Listener).Ready
 	listenerReqs     = (*listener.Listener).Reqs
 
-	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error { // TODO: make prompting.Request and use []string
-		return req.OldReply(allowedPermission)
+	requestReply = func(req prompting.Request, allowedPermissions []string) error {
+		return req.Reply(allowedPermissions)
 	}
 
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
@@ -230,7 +229,7 @@ run_loop:
 			}
 
 			logger.Debugf("received from kernel requests channel: %+v", req)
-			if err := m.handleListenerReq(req); err != nil {
+			if err := m.handleReq(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
 		case <-m.tomb.Dying():
@@ -253,7 +252,7 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 	}
 }
 
-func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error { // TODO: make prompting.Request
+func (m *InterfacesRequestsManager) handleReq(req prompting.Request) error {
 	userID := req.UID()
 	if userID == 0 {
 		// Deny any request for the root user
@@ -285,13 +284,9 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			logger.Debugf("request allowed by existing rule: %+v", req)
 		}
 		// Allow any requested permissions which were explicitly allowed by
-		// existing rules (there may be no such permissions) and let the
-		// listener deny all permissions which were not explicitly included in
-		// the allowed permissions.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-		// Error should not occur, but if it does, allowedPermission is set to
-		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		// existing rules (there may be no such permissions) and auto-deny all
+		// permissions which were not explicitly included in the allowed permissions.
+		return requestReply(req, allowedPerms)
 	}
 
 	// Request not satisfied by any of existing rules, record a prompt for the user
@@ -310,11 +305,8 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
-		// allowed by existing rules, and let the listener deny the rest.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-		// Error should not occur, but if it does, allowedPermission is set to
-		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		// allowed by existing rules, and auto-deny the rest.
+		return requestReply(req, allowedPerms)
 	}
 
 	if merged {

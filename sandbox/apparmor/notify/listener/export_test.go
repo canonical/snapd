@@ -48,7 +48,7 @@ func FakeRequestWithIDVersionAllowDenyIfacePerms(id uint64, version notify.Proto
 		protocolVersion: version,
 	}
 	return &Request{
-		ID:             id,
+		id:             id,
 		aaRequested:    aaDeny,
 		aaAllowed:      aaAllow,
 		iface:          iface,

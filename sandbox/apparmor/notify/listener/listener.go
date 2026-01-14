@@ -67,8 +67,8 @@ var (
 //
 // A request must be replied to via its Reply method.
 type Request struct {
-	// ID is the unique ID of the message notification associated with the request.
-	ID uint64 // TODO: unexport once i/p/requestprompts is updated
+	// id is the unique ID of the message notification associated with the request.
+	id uint64
 	// pid is the identifier of the process which triggered the request.
 	pid int32
 	// cgroup is the cgroup path of the process which triggered the request.
@@ -76,7 +76,7 @@ type Request struct {
 	// label is the apparmor label on the process which triggered the request.
 	label string
 	// subjectUID is the UID of the subject which triggered the request.
-	subjectUID uint32 // TODO: unexport once o/i/apparmorprompting is updated
+	subjectUID uint32
 
 	// path is the path of the file, as seen by the process triggering the request.
 	path string
@@ -97,7 +97,7 @@ type Request struct {
 }
 
 func (r *Request) Key() string {
-	return fmt.Sprintf("kernel:%s:%016X", r.iface, r.ID)
+	return fmt.Sprintf("kernel:%s:%016X", r.iface, r.id)
 }
 
 func (r *Request) UID() uint32 {
@@ -137,18 +137,7 @@ func (r *Request) Reply(allowedPermissions []string) error {
 		return err
 	}
 
-	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.aaAllowed, r.aaRequested, allowedAAPerms)
-
-	return encodeAndSendResponse(r.listener, resp)
-}
-
-// OldReply validates that the given permission is of the appropriate type for
-// the mediation class associated with the request, and then constructs a
-// response which allows those permissions and sends it to the kernel.
-//
-// TODO: delete this function after i/p/requestprompts updated
-func (r *Request) OldReply(allowedPermission notify.AppArmorPermission) error {
-	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.aaAllowed, r.aaRequested, allowedPermission)
+	resp := notify.BuildResponse(r.listener.protocolVersion, r.id, r.aaAllowed, r.aaRequested, allowedAAPerms)
 
 	return encodeAndSendResponse(r.listener, resp)
 }
@@ -162,7 +151,7 @@ type Listener struct {
 
 	// reqs is a channel over which to send requests to the manager.
 	// Only the main run loop may close this channel.
-	reqs chan *Request // TODO: make prompting.Request
+	reqs chan prompting.Request
 
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
@@ -238,7 +227,7 @@ func Register() (listener *Listener, err error) {
 	logger.Debugf("registered listener with protocol version %d", protoVersion)
 
 	listener = &Listener{
-		reqs: make(chan *Request),
+		reqs: make(chan prompting.Request),
 
 		ready:        make(chan struct{}),
 		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
@@ -312,7 +301,7 @@ func (l *Listener) Close() error {
 
 // Reqs returns a read-only channel through which requests may be received.
 // The channel is closed when the Close() method is called or an error occurs.
-func (l *Listener) Reqs() <-chan *Request { // TODO: make prompting.Request
+func (l *Listener) Reqs() <-chan prompting.Request {
 	return l.reqs
 }
 
@@ -603,7 +592,7 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		return nil, err
 	}
 	return &Request{
-		ID:         msg.ID(),
+		id:         msg.ID(),
 		pid:        pid,
 		cgroup:     cgroup,
 		label:      msg.ProcessLabel(),
