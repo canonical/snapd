@@ -240,6 +240,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
 	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-serial-request$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
