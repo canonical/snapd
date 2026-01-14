@@ -29,6 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -57,6 +60,7 @@ var (
 	notifyRegisterFileDescriptor      = notify.RegisterFileDescriptor
 	notifyIoctl                       = notify.Ioctl
 	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+	promptingInterfaceFromTagsets     = prompting.InterfaceFromTagsets
 )
 
 // Request is a high-level representation of an apparmor prompting message.
@@ -64,66 +68,89 @@ var (
 // A request must be replied to via its Reply method.
 type Request struct {
 	// ID is the unique ID of the message notification associated with the request.
-	ID uint64
-	// PID is the identifier of the process which triggered the request.
-	PID int32
-	// Cgroup is the cgroup path of the process which triggered the request.
-	Cgroup string
-	// Label is the apparmor label on the process which triggered the request.
-	Label string
-	// SubjectUID is the UID of the subject which triggered the request.
-	SubjectUID uint32
+	ID uint64 // TODO: unexport once i/p/requestprompts is updated
+	// pid is the identifier of the process which triggered the request.
+	pid int32
+	// cgroup is the cgroup path of the process which triggered the request.
+	cgroup string
+	// label is the apparmor label on the process which triggered the request.
+	label string
+	// subjectUID is the UID of the subject which triggered the request.
+	subjectUID uint32 // TODO: unexport once o/i/apparmorprompting is updated
 
-	// Path is the path of the file, as seen by the process triggering the request.
-	Path string
-	// Class is the mediation class corresponding to this request.
-	Class notify.MediationClass
-	// Permission is the opaque permission that is being requested.
-	Permission notify.AppArmorPermission
-	// AaAllowed is the opaque permission mask which was already allowed by
+	// path is the path of the file, as seen by the process triggering the request.
+	path string
+	// aaRequested is the opaque AppArmor permission that is being requested.
+	aaRequested notify.AppArmorPermission
+	// aaAllowed is the opaque permission mask which was already allowed by
 	// AppArmor rules.
-	AaAllowed notify.AppArmorPermission
-	// Tagsets is the metadata tagsets associated with the permissions in the
-	// request. The tagsets map from permission mask to the list of tags
-	// associated with those permissions.
-	Tagsets notify.TagsetMap
+	aaAllowed notify.AppArmorPermission
+
+	// iface is the interface associated with the request.
+	iface string
+	// requestedPerms is the list of abstract permissions which are being requested.
+	// These are derived from aaRequested when the request is received.
+	requestedPerms []string
 
 	// listener is a pointer to the Listener which will handle the reply.
 	listener *Listener
 }
 
-// Reply validates that the given permission is of the appropriate type for
-// the mediation class associated with the request, and then constructs a
-// response which allows those permissions and sends it to the kernel.
-func (r *Request) Reply(allowedPermission notify.AppArmorPermission) error {
-	var ok bool
-	switch r.Class {
-	case notify.AA_CLASS_FILE:
-		_, ok = allowedPermission.(notify.FilePermission)
-	default:
-		// should not occur, since the request was created in this package
-		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class)
-	}
-	// Treat nil allowedPermission as allowing no permissions, which is valid
-	if !ok && allowedPermission != nil {
-		expectedType := expectedResponseTypeForClass(r.Class)
-		return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
+func (r *Request) Key() string {
+	return fmt.Sprintf("kernel:%s:%016X", r.iface, r.ID)
+}
+
+func (r *Request) UID() uint32 {
+	return r.subjectUID
+}
+
+func (r *Request) PID() int32 {
+	return r.pid
+}
+
+func (r *Request) Cgroup() string {
+	return r.cgroup
+}
+
+func (r *Request) AppArmorLabel() string {
+	return r.label
+}
+
+func (r *Request) Interface() string {
+	return r.iface
+}
+
+func (r *Request) Permissions() []string {
+	return r.requestedPerms
+}
+
+func (r *Request) Path() string {
+	return r.path
+}
+
+// Reply checks that the given permissions are valid, converts them to AppArmor
+// permissions for the interface associated with the request, constructs a
+// response which allows those permissions, and sends it to the kernel.
+func (r *Request) Reply(allowedPermissions []string) error {
+	allowedAAPerms, err := prompting.AbstractPermissionsToAppArmorPermissions(r.Interface(), allowedPermissions)
+	if err != nil {
+		return err
 	}
 
-	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.AaAllowed, r.Permission, allowedPermission)
+	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.aaAllowed, r.aaRequested, allowedAAPerms)
 
 	return encodeAndSendResponse(r.listener, resp)
 }
 
-func expectedResponseTypeForClass(class notify.MediationClass) string {
-	switch class {
-	case notify.AA_CLASS_FILE:
-		return "notify.FilePermission"
-	default:
-		// This should never occur, as caller should return an error before
-		// calling this if the class is unsupported.
-		return "???"
-	}
+// OldReply validates that the given permission is of the appropriate type for
+// the mediation class associated with the request, and then constructs a
+// response which allows those permissions and sends it to the kernel.
+//
+// TODO: delete this function after i/p/requestprompts updated
+func (r *Request) OldReply(allowedPermission notify.AppArmorPermission) error {
+	resp := notify.BuildResponse(r.listener.protocolVersion, r.ID, r.aaAllowed, r.aaRequested, allowedPermission)
+
+	return encodeAndSendResponse(r.listener, resp)
 }
 
 // Listener encapsulates a loop for receiving apparmor notification requests
@@ -135,7 +162,7 @@ type Listener struct {
 
 	// reqs is a channel over which to send requests to the manager.
 	// Only the main run loop may close this channel.
-	reqs chan *Request
+	reqs chan *Request // TODO: make prompting.Request
 
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
@@ -285,7 +312,7 @@ func (l *Listener) Close() error {
 
 // Reqs returns a read-only channel through which requests may be received.
 // The channel is closed when the Close() method is called or an error occurs.
-func (l *Listener) Reqs() <-chan *Request {
+func (l *Listener) Reqs() <-chan *Request { // TODO: make prompting.Request
 	return l.reqs
 }
 
@@ -421,7 +448,7 @@ func (l *Listener) doIoctl(sendOrRecv notify.IoctlRequest, buf notify.IoctlReque
 }
 
 // decodeAndDispatchRequest reads all messages from the given buffer, decodes
-// each one into a message notification for a particular mediation class,
+// each one into a message notification for the particular mediation class,
 // creates a Request from that message, and attempts to send it to the manager
 // via the request channel.
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
@@ -448,22 +475,24 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
+		// Build request, but don't return error until after we handle whether
+		// the message was resent
+		var req *Request
+		var newReqErr error
+
 		var msg notify.MsgNotificationGeneric
 		// What kind of operation notification did we get?
 		switch omsg.Class {
 		case notify.AA_CLASS_FILE:
-			msg, err = parseMsgNotificationFile(first)
+			msg, newReqErr = parseMsgNotificationFile(first)
 		default:
-			return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
-		}
-		if err != nil {
-			return err
+			newReqErr = fmt.Errorf("unsupported mediation class: %v", omsg.Class)
 		}
 
-		// Build request
-		req, err := l.newRequest(msg)
-		if err != nil {
-			return err
+		// If msg was parsed without error, build the Request from it.
+		// If not, we still want to handle the RESENT flag correctly.
+		if newReqErr == nil {
+			req, newReqErr = l.newRequest(msg)
 		}
 
 		// Keep track of whether this is the final pending request so that if
@@ -475,8 +504,8 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 		// guaranteed to resend all previously-pending messages before it sends
 		// any new messages, so if it's NOT resent, then we know the kernel is
 		// done sending pending messages. Regardless, all requests are forwarded
-		// over the reqs channel.
-		if msg.Resent() {
+		// over the reqs channel (except those which are malformed).
+		if omsg.Resent() {
 			// Message was previously sent, see if it was the last one we're
 			// waiting for. Also ensure the pending count is decremented before
 			// waiting for the request to be received, so the pending count in
@@ -492,6 +521,15 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 					logger.Noticef("received non-resent message when pending count was %d", pendingCount)
 				}
 			}
+		}
+
+		// If any error occurred when parsing the message, we can't create the
+		// new request, so we need to auto-deny it now that potential RESENT
+		// has been handled, else the triggering application will just hang
+		// until the message times out in the kernel.
+		if newReqErr != nil {
+			l.denyMalformedRequest(&omsg)
+			return newReqErr
 		}
 
 		// Try to send request to manager, or wait for listener to be closed
@@ -531,7 +569,7 @@ func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
 }
 
 func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, error) {
-	aaAllowed, aaDenied, err := msg.AllowedDeniedPermissions()
+	aaAllowed, aaRequested, err := msg.AllowedDeniedPermissions()
 	if err != nil {
 		return nil, err
 	}
@@ -540,18 +578,43 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	if err != nil {
 		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
 	}
+	path := msg.Name()
+	tagsets := msg.DeniedMetadataTagsets()
+	iface, err := promptingInterfaceFromTagsets(tagsets)
+	if err != nil {
+		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
+			// There were no tags registered with a snapd interface, so we
+			// look at the path to decide whether it's "home" or "camera".
+			// XXX: this is a temporary workaround until metadata tags are
+			// supported by the AppArmor parser and kernel.
+			if builtin.DetectCameraFromPath(path) {
+				iface = "camera"
+			} else {
+				iface = "home"
+			}
+		} else {
+			// There was either more than one interface associated with tags, or
+			// none which applied to all requested permissions.
+			return nil, fmt.Errorf("cannot select interface from metadata tags: %w", err)
+		}
+	}
+	requestedPerms, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, aaRequested)
+	if err != nil {
+		return nil, err
+	}
 	return &Request{
 		ID:         msg.ID(),
-		PID:        pid,
-		Cgroup:     cgroup,
-		Label:      msg.ProcessLabel(),
-		SubjectUID: msg.SubjectUID(),
+		pid:        pid,
+		cgroup:     cgroup,
+		label:      msg.ProcessLabel(),
+		subjectUID: msg.SubjectUID(),
 
-		Path:       msg.Name(),
-		Class:      msg.MediationClass(),
-		Permission: aaDenied, // Request permissions which were initially denied
-		AaAllowed:  aaAllowed,
-		Tagsets:    msg.DeniedMetadataTagsets(),
+		path:        path,
+		aaRequested: aaRequested,
+		aaAllowed:   aaAllowed,
+
+		iface:          iface,
+		requestedPerms: requestedPerms,
 
 		listener: l,
 	}, nil
@@ -587,6 +650,11 @@ func (l *Listener) signalReady() (pendingCount int) {
 	l.pendingCount = 0 // if timed out, tell the run loop we're ready
 	close(l.ready)
 	return pendingCount
+}
+
+func (l *Listener) denyMalformedRequest(msg *notify.MsgNotificationOp) {
+	resp := msg.BuildDenyResponse()
+	encodeAndSendResponse(l, resp)
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {

@@ -20,13 +20,11 @@
 package apparmorprompting
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
@@ -47,13 +45,11 @@ var (
 	listenerReady    = (*listener.Listener).Ready
 	listenerReqs     = (*listener.Listener).Reqs
 
-	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
-		return req.Reply(allowedPermission)
+	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error { // TODO: make prompting.Request and use []string
+		return req.OldReply(allowedPermission)
 	}
 
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
-
-	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -257,46 +253,21 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 	}
 }
 
-func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
-	userID := uint32(req.SubjectUID)
+func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error { // TODO: make prompting.Request
+	userID := req.UID()
 	if userID == 0 {
 		// Deny any request for the root user
 		return requestReply(req, nil)
 	}
-	snap := req.Label // Default to apparmor label, in case process is not a snap
-	if tag, err := naming.ParseSecurityTag(req.Label); err == nil {
+	snap := req.AppArmorLabel() // Default to apparmor label, in case process is not a snap
+	if tag, err := naming.ParseSecurityTag(req.AppArmorLabel()); err == nil {
 		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
 
-	iface, err := promptingInterfaceFromTagsets(req.Tagsets)
-	if err != nil {
-		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
-			// There were no tags registered with a snapd interface, so we
-			// look at the path to decide whether it's "home" or "camera".
-			// XXX: this is a temporary workaround until metadata tags are
-			// supported by the AppArmor parser and kernel.
-			if builtin.DetectCameraFromPath(req.Path) {
-				iface = "camera"
-			} else {
-				iface = "home"
-			}
-		} else {
-			// There was either more than one interface associated with tags, or
-			// none which applied to all requested permissions. Since we can't
-			// decide which interface to use, automatically deny this request.
-			logger.Noticef("error while selecting interface from metadata tags: %v", err)
-			return requestReply(req, nil)
-		}
-	}
-
-	path := req.Path
-
-	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
-	if err != nil {
-		logger.Noticef("error while parsing AppArmor permissions: %v", err)
-		return requestReply(req, nil)
-	}
+	iface := req.Interface()
+	path := req.Path()
+	permissions := req.Permissions()
 
 	// we're done with early checks, serious business starts now, and we can
 	// take the lock
@@ -328,8 +299,8 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	metadata := &prompting.Metadata{
 		User:      userID,
 		Snap:      snap,
-		PID:       req.PID,
-		Cgroup:    req.Cgroup,
+		PID:       req.PID(),
+		Cgroup:    req.Cgroup(),
 		Interface: iface,
 	}
 
@@ -490,7 +461,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		}
 
 		defer func() {
-			if retErr != nil || lifespan == prompting.LifespanSingle {
+			if retErr != nil {
 				m.rules.RemoveRule(userID, newRule.ID)
 			}
 		}()

@@ -139,10 +139,6 @@ func MockPromptsHandleReadying(f func(pdb *requestprompts.PromptDB) error) (rest
 	return testutil.Mock(&promptsHandleReadying, f)
 }
 
-func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
-	return testutil.Mock(&promptingInterfaceFromTagsets, f)
-}
-
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {
 	return m.prompts
 }

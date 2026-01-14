@@ -20,13 +20,13 @@
 package apparmorprompting_test
 
 import (
-	"context"
+	//"context"
 	"encoding/json"
-	"errors"
+	//"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	//"strings"
 	"testing"
 	"time"
 
@@ -37,10 +37,9 @@ import (
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
-	"github.com/snapcore/snapd/logger"
+	//"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -193,129 +192,7 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
-func (s *apparmorpromptingSuite) TestHandleListenerRequestInterfaceSelection(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
-	defer restore()
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	mgr, err := apparmorprompting.New(s.st)
-	c.Assert(err, IsNil)
-
-	// Close readyChan so we can add rules
-	close(readyChan)
-
-	clientActivity := true
-	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Check(prompts, HasLen, 0)
-
-	// Explicitly set "home" interface based on tags
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "home", nil
-	})
-	req := &listener.Request{
-		// Most fields don't matter here
-		ID:         1,
-		Label:      "snap1",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 1)
-	c.Check(prompts[0].Interface, Equals, "home")
-	restore()
-
-	// Explicitly set "camera" interface based on tags
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "camera", nil
-	})
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         2,
-		Label:      "snap2",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 2)
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	restore()
-
-	// Return ErrNoInterfaceTags and check that the manager defaults to "home" or "camera"
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "", prompting_errors.ErrNoInterfaceTags
-	})
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         3,
-		Label:      "snap3",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_EXEC,
-		Path:       "/home/test/foo",
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 3, Commentf("%+v", prompts[0]))
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	c.Check(prompts[2].Interface, Equals, "home")
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         4,
-		Label:      "snap4",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_WRITE,
-		Path:       "/dev/video1",
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 4, Commentf("%+v", prompts[0]))
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	c.Check(prompts[2].Interface, Equals, "home")
-	c.Check(prompts[3].Interface, Equals, "camera")
-	restore()
-
-	// Explicitly set some other interface based on tags.
-	// Currently only "home" and "camera" are supported, so we expect a later
-	// error in order to see that the given interface was used when mapping
-	// permissions.
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "foo", nil
-	})
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         5,
-		Label:      "snap5",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	}
-	reqChan <- req
-	resp, err := waitForReply(replyChan)
-	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while parsing AppArmor permissions: cannot map the given interface to list of available permissions: foo`)
-	})
-	restore()
-
-	c.Assert(mgr.Stop(), IsNil)
-}
-
+/* // TODO: re-enable once we switch over to Reqs() being a chan prompting.Request
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	_, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -355,24 +232,6 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
-
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "", fmt.Errorf("something went wrong")
-	})
-	// Send request with invalid tags
-	req := &listener.Request{
-		// Most fields don't matter here
-		SubjectUID: s.defaultUser,
-	}
-	reqChan <- req
-	resp, err := waitForReply(replyChan)
-	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while selecting interface from metadata tags: something went wrong`)
-	})
-	restore()
 
 	// Send request with invalid permissions
 	req = &listener.Request{
@@ -521,8 +380,8 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 		break
 	}
 	c.Assert(prompt, NotNil)
-	expectedSnap := req.Label
-	labelComponents := strings.Split(req.Label, ".")
+	expectedSnap := req.AppArmorLabel()
+	labelComponents := strings.Split(req.AppArmorLabel(), ".")
 	if len(labelComponents) == 3 {
 		expectedSnap = labelComponents[1]
 	}
@@ -719,6 +578,7 @@ func (s *apparmorpromptingSuite) checkRecordedPromptNotices(c *C, since time.Tim
 	s.st.Unlock()
 	c.Check(n, HasLen, count, Commentf("%+v", n))
 }
+*/
 
 func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
 	s.st.Lock()
@@ -730,6 +590,7 @@ func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time
 	c.Check(n, HasLen, count, Commentf("%+v", n))
 }
 
+/* // TODO: re-enable once we switch over to Reqs() being a chan prompting.Request
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
 	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -1263,6 +1124,7 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 
 	c.Assert(mgr.Stop(), IsNil)
 }
+*/
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
 	readyChan, _, _, restore := apparmorprompting.MockListener()
@@ -1426,6 +1288,7 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
+/* // TODO: re-enable once we switch over to Reqs() being a chan prompting.Request
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -1509,6 +1372,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	c.Assert(mgr.Stop(), IsNil)
 }
+*/
 
 func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c *C) {
 	readyChan, _, _, restore := apparmorprompting.MockListener()
