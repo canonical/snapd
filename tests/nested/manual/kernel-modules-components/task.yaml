@@ -3,7 +3,13 @@ details: |
   Install a kernel-modules component and verify that the shipped
   kernel module is installed.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+  # FIXME
+  - -ubuntu-26*
+
 environment:
   # Test both encrypted and unencrypted cases
   NESTED_ENABLE_TPM/encrypted: true

@@ -6,7 +6,9 @@ details: |
   first boot. Multiple transitions between the available authentication
   modes are exercised (PIN <-> Passphrase <-> None).
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   # Defaults

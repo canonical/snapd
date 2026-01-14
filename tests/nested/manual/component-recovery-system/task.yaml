@@ -4,7 +4,9 @@ details: |
   This test creates a recovery system with a kernel module component and
   validates that the newly created system can be rebooted into.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-recovery-system-pc-VERSION.json

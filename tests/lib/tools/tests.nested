@@ -202,6 +202,9 @@ is_nested() {
             uc24)
                 nested_is_core_24_system
                 ;;
+            uc26)
+                nested_is_core_26_system
+                ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2
                 exit 1
@@ -450,6 +453,8 @@ nested_system() {
         echo ubuntu-core-22-64
     elif os.query is-ubuntu 24.04; then
         echo ubuntu-core-24-64
+    elif os.query is-ubuntu 26.04; then
+        echo ubuntu-core-26-64
     else
         echo "unsupported nested system"
         exit 1
