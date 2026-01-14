@@ -186,11 +186,9 @@ func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *cli
 }
 
 func (iw *infoWriter) maybePrintComponents() {
-	// Initialize counts to 0
 	totalCount := 0
 	localCount := 0
 
-	// Get the number of installed components
 	if iw.localSnap != nil {
 		for _, comp := range iw.localSnap.Components {
 			if comp.InstalledSize != 0 {
@@ -199,7 +197,6 @@ func (iw *infoWriter) maybePrintComponents() {
 		}
 	}
 
-	// Get the total count of the component structures
 	if iw.theSnap != nil {
 		totalCount = len(iw.theSnap.Components)
 	}

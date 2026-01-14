@@ -3,8 +3,8 @@ summary: Test that snap info command handles components as expected
 details: |
   This test verifies that snap info prints components installed/available
   counts correctly for various scenarios:
-  - Installed/Local (3/3) using test-snap-with-components
-  - No components anywhere (Silence) using test-snapd-sh
+  - 2/3 (installed/total) using test-snap-with-components
+  - No components anywhere using test-snapd-sh
 
 prepare: |
   snap install test-snap-with-components
@@ -16,22 +16,6 @@ restore: |
 
 execute: |
   snap install test-snap-with-components+one+two
-  OUTPUT_INSTALLED=$(snap info test-snap-with-components)
 
-  if echo "$OUTPUT_INSTALLED" | grep -q "components: 2/3"; then
-    echo "PASS (Installed): Found expected 'components: 2/3'"
-  else
-    echo "FAIL (Installed): Expected 'components: 2/3', got:"
-    echo "$OUTPUT_INSTALLED"
-    exit 1
-  fi
-
-  OUTPUT_EMPTY=$(snap info test-snapd-sh)
-  
-  if echo "$OUTPUT_EMPTY" | grep -q "components:"; then
-    echo "FAIL (No Components): Found 'components:' line but expected silence."
-    echo "$OUTPUT_EMPTY"
-    exit 1
-  else
-    echo "PASS (No Components): No 'components' line found."
-  fi
+  snap info test-snap-with-components | MATCH 'components: 2/3'
+  snap info test-snapd-sh | NOMATCH 'components:'
