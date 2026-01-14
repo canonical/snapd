@@ -1,8 +1,11 @@
-summary: Test installing a component from the store
+summary: Test installing a component from the store and snap component command
 
 details: |
   Verifies that we can install a snap and components from the store at the same
   time.
+
+  Also verifies that the snap component command works as expected for
+  installed components and available components in the store.
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
@@ -38,3 +41,20 @@ execute: |
   snap components test-snap-with-components_key | MATCH "test-snap-with-components_key\+two\s+installed\s+test"
   snap components test-snap-with-components_key | MATCH "test-snap-with-components_key\+three\s+available\s+test"
   snap components test-snap-with-components_key | NOMATCH "test-snap-with-components\+one\s+installed\s+test"
+
+  # test the snap component command
+  snap component test-snap-with-components+one > snap-component.stdout
+  MATCH 'component: test-snap-with-components\+one' < snap-component.stdout
+  MATCH 'type: test' < snap-component.stdout
+  MATCH 'summary: First component for test-snap-with-components' < snap-component.stdout
+  snap component test-snap-with-components+two | MATCH "component: test-snap-with-components\+two"
+  snap component test-snap-with-components+three | MATCH "component: test-snap-with-components\+three"
+
+  # test non-installed component
+  snap component test-snap-with-components+four | MATCH "no component \"four\" found for snap \"test-snap-with-components\""
+
+  # test multiple components, one not installed
+  snap component test-snap-with-components+one+four | MATCH "component: test-snap-with-components\+one" | MATCH "warning: no component \"four\" found for snap \"test-snap-with-components\""
+
+  # test multiple components, all not installed
+  snap component test-snap-with-components+four+five | MATCH "no valid components given"
