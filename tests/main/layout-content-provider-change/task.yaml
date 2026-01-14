@@ -1,0 +1,74 @@
+summary: Verify scenario in which the content provider of a snap is changed
+
+details: |
+    Verify a scenario like
+    https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2072395 where there's a
+    snap with a content consumer plug, which uses layouts to move around the
+    data coming from the content provider snap. The snap is refreshed, changing
+    to a different content provider along the way.
+
+environment:
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+
+skip:
+    - reason: "Test keys need to be trusted"
+      if: |
+          [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    snap install core24
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+    tests.cleanup defer "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+    snap ack "$TESTSLIB/assertions/developer1.account"
+    snap ack "$TESTSLIB/assertions/developer1.account-key"
+
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+
+    snap pack test-snapd-content-provider-v1
+    snap pack test-snapd-content-provider-v2
+
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" \
+        test-snapd-content-provider-v1_*.snap provider-v1-id
+
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" \
+        test-snapd-content-provider-v2_*.snap provider-v2-id
+
+    snap pack test-snapd-content-consumer-v1
+    snap pack test-snapd-content-consumer-v2
+
+execute: |
+    # make consumer 1.0.0 available in the store
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" \
+        test-snapd-content-consumer_1.*.snap consumer-id
+
+    # install the first version
+    snap install test-snapd-content-consumer
+
+    # the provider was pulled in and the plug is connected
+    snap connections test-snapd-content-consumer | MATCH "test-snapd-content-provider-v1:special-content"
+
+    test-snapd-content-consumer.app |& tee output-v1.log
+    MATCH 'hello from app' < output-v1.log
+    MATCH 'hello from content provider V1' < output-v1.log
+
+    # now simulate what a snap like firefox may do, by switching the version of
+    # gnome runtime
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 2 "$STORE_DIR" \
+        test-snapd-content-consumer_2.*.snap consumer-id
+
+    snap refresh test-snapd-content-consumer
+
+    # new provider was pulled in and is connected now
+    snap connections test-snapd-content-consumer | NOMATCH "test-snapd-content-provider-v1"
+    snap connections test-snapd-content-consumer | MATCH "test-snapd-content-provider-v2:special-content"
+
+    test-snapd-content-consumer.app |& tee output-v2.log
+    MATCH 'hello from app' < output-v2.log
+    MATCH 'hello from content provider V2' < output-v2.log
+    
