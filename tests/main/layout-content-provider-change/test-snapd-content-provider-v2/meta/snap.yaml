@@ -1,0 +1,10 @@
+name: test-snapd-content-provider-v2
+version: 2.0.0
+base: core24
+
+slots:
+    special-content-v2:
+        interface: content
+        read:
+            - /
+        
