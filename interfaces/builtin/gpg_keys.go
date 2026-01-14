@@ -42,6 +42,9 @@ const gpgKeysConnectedPlugAppArmor = `
 owner /run/user/[0-9]*/gnupg/S.* rw,
 
 owner @{HOME}/.gnupg/{,**} r,
+
+# Allow write access to the lock files created by gpg
+owner @{HOME}/.gnupg/.#lk* w,
 # gpg sometimes updates the trustdb to decide whether or not to update the
 # trustdb. For now, silence the denial since no other policy references this
 deny @{HOME}/.gnupg/trustdb.gpg w,
