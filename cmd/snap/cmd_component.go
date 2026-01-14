@@ -31,11 +31,13 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var shortComponentHelp = i18n.G("Show information about installed snap components")
+var shortComponentHelp = i18n.G("Show detailed information about snap components")
 var longComponentHelp = i18n.G(`
-The component command shows information about installed snap components.
+The component command shows detailed information about snap components.
+
 You must specify exactly one snap and one or more of its components in the form
-<snap>+<component>+[<component>...].
+<snap>+<component>+[<component>...]. names are looked for both in the
+store and in the installed snaps.
 `)
 
 type cmdComponent struct {
@@ -82,10 +84,15 @@ func (x *cmdComponent) showComponents() error {
 
 	matchingSnap := snaps[0]
 
+	validPrinted := false
+
 	for i, compName := range comps {
 		comp := compByName(compName, matchingSnap)
-		if comp == nil {
-			return fmt.Errorf(i18n.G("component %q for snap %q is not installed"), compName, matchingSnap.Name)
+		if comp == nil && len(comps) == 1 {
+			return fmt.Errorf(i18n.G("no component %q found for snap %q"), compName, matchingSnap.Name)
+		} else if comp == nil {
+			fmt.Fprintf(Stdout, "warning: no component %q found for snap %q\n", compName, matchingSnap.Name)
+			continue
 		}
 
 		fmt.Fprintf(Stdout, "component: %s+%s\n", matchingSnap.Name, comp.Name)
@@ -99,6 +106,12 @@ func (x *cmdComponent) showComponents() error {
 		if i < len(comps)-1 {
 			fmt.Fprintln(Stdout, "---")
 		}
+
+		validPrinted = true
+	}
+
+	if !validPrinted {
+		return errors.New(i18n.G("no valid components given"))
 	}
 
 	return nil
