@@ -110,6 +110,7 @@ else
     BASETAR=ubuntu-base.tar.gz
     # important to use "-q" to avoid journalctl suppressing  log output
     release=$(lsb_release -r -s)
+    release_folder=release
     case "$release" in
         22.04)
             pointrel=.4
@@ -117,11 +118,15 @@ else
         24.04)
             pointrel=.3
             ;;
+	26.04)
+	    # TODO: Change to point release, upgrade to newer snapshot or point release when it becomes available
+	    pointrel=-snapshot2
+	    ;;
         *)
             pointrel=
             ;;
     esac
-    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/"release_folder"/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi
