@@ -17,6 +17,7 @@
 : "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
 : "${NESTED_REPACK_FOR_FAKESTORE:=false}"
 : "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
+: "${NESTED_FAKESTORE_SNAP_DECL_PC_KERNEL:=}"
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 : "${NESTED_UBUNTU_SEED_SIZE:=}"
@@ -754,7 +755,19 @@ nested_prepare_kernel() {
 
         # sign the pc-kernel snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+            local extra_decl_args=""
+            local kernel_decl="$NESTED_FAKESTORE_SNAP_DECL_PC_KERNEL"
+            # apply kernel snap declaration extras for UC26+ kernels if not
+            # explicitly set. UC26+ kernels have slots that require
+            # "allow-installation: true" in the snap declaration.
+            if [ -z "$kernel_decl" ] && nested_is_core_ge 26; then
+                kernel_decl="$TESTSLIB/assertions/pc-kernel-26-snap-decl-extras.json"
+            fi
+            if [ -n "$kernel_decl" ]; then
+                extra_decl_args="--extra-decl-json $kernel_decl"
+            fi
+            # shellcheck disable=SC2086
+            "$TESTSTOOLS"/store-state make-snap-installable --noack $extra_decl_args "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
 }
