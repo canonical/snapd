@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (72+2.73+g132.524048f+25.10ubuntu1) UNRELEASED; urgency=medium
+
+  * Change dependency from libteec1 to libteec2
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 14 Jan 2026 17:05:01 -0500
+
 ubuntu-core-initramfs (72+2.73+g132.524048f+25.10) questing; urgency=medium
 
   * Update to snapd version 2.73+g132.524048f
