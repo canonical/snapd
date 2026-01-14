@@ -7,20 +7,21 @@ details: |
   - No components anywhere (Silence) using test-snapd-sh
 
 prepare: |
-  "${TESTSTOOLS}"/snaps-state install-local test-snap-with-components
-  "${TESTSTOOLS}"/snaps-state install-local test-snapd-sh
+  snap install test-snap-with-components
+  snap install test-snapd-sh
 
 restore: |
   snap remove --purge test-snap-with-components
   snap remove --purge test-snapd-sh
 
 execute: |
+  snap install test-snap-with-components+one+two
   OUTPUT_INSTALLED=$(snap info test-snap-with-components)
 
-  if echo "$OUTPUT_INSTALLED" | grep -q "components: 3/3"; then
-    echo "PASS (Installed): Found expected 'components: 3/3'"
+  if echo "$OUTPUT_INSTALLED" | grep -q "components: 2/3"; then
+    echo "PASS (Installed): Found expected 'components: 2/3'"
   else
-    echo "FAIL (Installed): Expected 'components: 3/3', got:"
+    echo "FAIL (Installed): Expected 'components: 2/3', got:"
     echo "$OUTPUT_INSTALLED"
     exit 1
   fi

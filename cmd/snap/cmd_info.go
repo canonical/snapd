@@ -186,29 +186,29 @@ func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *cli
 }
 
 func (iw *infoWriter) maybePrintComponents() {
-    // Initialize counts to 0
-    totalCount := 0
-    localCount := 0
+	// Initialize counts to 0
+	totalCount := 0
+	localCount := 0
 
 	// Get the number of installed components
-    if iw.localSnap != nil {
+	if iw.localSnap != nil {
 		for _, comp := range iw.localSnap.Components {
 			if comp.InstalledSize != 0 {
 				localCount++
 			}
 		}
-    }
+	}
 
-    // Get the total count of the component structures
-    if iw.theSnap != nil {
-        totalCount = len(iw.theSnap.Components)
-    }
-    
+	// Get the total count of the component structures
+	if iw.theSnap != nil {
+		totalCount = len(iw.theSnap.Components)
+	}
+
 	if totalCount == 0 && localCount == 0 {
 		return
 	}
 
-    fmt.Fprintf(iw, "components: %d/%d\n", localCount, totalCount)
+	fmt.Fprintf(iw, "components: %d/%d\n", localCount, totalCount)
 }
 
 func (iw *infoWriter) maybePrintPrice() {
