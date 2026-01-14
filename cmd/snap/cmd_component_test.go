@@ -179,7 +179,7 @@ func (s *SnapOpSuite) TestComponentShowComponentNotFound(c *check.C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"component", "qwen-vl+phantom"})
 
-	c.Assert(err, check.ErrorMatches, `component "phantom" for snap "qwen-vl" is not installed`)
+	c.Assert(err, check.ErrorMatches, `no component "phantom" found for snap "qwen-vl"`)
 }
 
 func (s *SnapOpSuite) TestComponentInvalidMatrix(c *check.C) {
