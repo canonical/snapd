@@ -54,7 +54,7 @@ func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*
 	}
 	dependeciesList := []string{}
 	for _, plug := range append(plugs, globalPlugNames...) {
-		// Check no forbiden dependency is in the app plugs list
+		// Check no forbidden dependency is in the app plugs list
 		if CheckInterfaceIsInvalid(plug) {
 			return nil, fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", plug)
 		}
