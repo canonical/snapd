@@ -1653,6 +1653,8 @@ func (*listenerSuite) TestRunErrors(c *C) {
 func (*listenerSuite) TestRunMalformedMessage(c *C) {
 	// Rare case:
 	// Pending count 3, send 2 malformed RESENT messages, then one malformed non-RESENT message.
+	// Malformed messages should get auto-denied, and should not result in a request being sent
+	// over the Reqs channel, but they should be handled like any other RESENT/non-RESENT messages.
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
@@ -1712,7 +1714,6 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 	for i, step := range []struct {
 		mClass      notify.MediationClass
 		prepareFunc func() func()
-		expectedErr string
 	}{
 		{
 			notify.AA_CLASS_FILE,
@@ -1721,12 +1722,10 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 					return "", fmt.Errorf("something failed")
 				})
 			},
-			"cannot read cgroup path for request process with PID 123: something failed",
 		},
 		{
 			notify.AA_CLASS_DBUS,
 			func() func() { return func() {} },
-			"unsupported mediation class: AA_CLASS_DBUS",
 		},
 	} {
 		restore := step.prepareFunc()
@@ -1742,7 +1741,7 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		case recvChan <- buf:
 			// all good
 		case <-time.NewTimer(time.Second).C:
-			c.Fatalf("timed out waiting to send request %d", msg.KernelNotificationID)
+			c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
 		}
 
 		// Check that we don't receive a request
@@ -1772,8 +1771,6 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		checkListenerReady(c, l, false)
 		c.Check(timer.Active(), Equals, true)
 
-		c.Check(logbuf.String(), testutil.Contains, step.expectedErr)
-
 		restore()
 	}
 
@@ -1781,7 +1778,6 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 	restore = listener.MockPromptingInterfaceFromTagsets(func(tm notify.TagsetMap) (string, error) {
 		return "foo", nil
 	})
-	defer restore()
 
 	// Send a message without UNOTIF_RESENT
 	msg := msgTemplate
@@ -1791,7 +1787,7 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 	case recvChan <- buf:
 		// all good
 	case <-time.NewTimer(time.Second).C:
-		c.Fatalf("timed out waiting to send request %d", msg.KernelNotificationID)
+		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
 	}
 
 	// Wait for the auto-deny reply
@@ -1824,6 +1820,35 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		// all good
 	}
 
+	restore() // no longer bad interface
+
+	// Send one more well-formed message and wait for it, so we're sure the
+	// listener finished logging all previous errors.
+	msg = msgTemplate
+	msg.KernelNotificationID = idTemplate + 3
+	buf = msg.MarshalBinary(c)
+	select {
+	case recvChan <- buf:
+		// all good
+	case <-time.NewTimer(time.Second).C:
+		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
+	}
+	select {
+	case req := <-l.Reqs():
+		if req != nil {
+			// all good
+		} else {
+			c.Fatal("l.Reqs() unexpectedly closed")
+		}
+	case <-time.NewTimer(time.Second).C:
+		// all good
+		c.Errorf("timed out waiting to receive request %x", msg.KernelNotificationID)
+	}
+
+	c.Log(logbuf.String())
+
+	c.Check(logbuf.String(), testutil.Contains, "cannot read cgroup path for request process with PID 123: something failed")
+	c.Check(logbuf.String(), testutil.Contains, "unsupported mediation class: AA_CLASS_DBUS")
 	c.Check(logbuf.String(), testutil.Contains, "received non-resent message when pending count was 1")
 	c.Check(logbuf.String(), testutil.Contains, "error in prompting listener run loop: cannot map the given interface to list of available permissions: foo")
 
