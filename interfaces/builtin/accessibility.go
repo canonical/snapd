@@ -152,6 +152,10 @@ owner /run/user/[0-9]*/speech-dispatcher/** rwk,
 
 type accessibilityInterface struct{}
 
+func (iface *accessibilityInterface) String() string {
+	return iface.Name()
+}
+
 func (iface *accessibilityInterface) Name() string {
 	return "accessibility"
 }
