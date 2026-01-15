@@ -169,6 +169,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"accel":                   true,
+		"accessibility":           true,
 		"audio-playback":          true,
 		"browser-support":         true,
 		"desktop-legacy":          true,
@@ -808,6 +809,7 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"adb-support":               {"core"},
+		"accessibility":             {"app", "core"},
 		"audio-playback":            {"app", "core"},
 		"audio-record":              {"app", "core"},
 		"autopilot-introspection":   {"core"},

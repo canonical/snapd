@@ -150,8 +150,17 @@ owner /run/user/[0-9]*/ rw,
 owner /run/user/[0-9]*/speech-dispatcher/** rwk,
 `
 
-type accessibilityInterface struct {
-	commonInterface
+type accessibilityInterface struct{}
+
+func (iface *accessibilityInterface) Name() string {
+	return "accessibility"
+}
+
+func (iface *accessibilityInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              accessibilitySummary,
+		BaseDeclarationSlots: accessibilityBaseDeclarationSlots,
+	}
 }
 
 func (iface *accessibilityInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -162,7 +171,7 @@ func (iface *accessibilityInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *accessibilityInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.ConnectedSlot) error {
+func (iface *accessibilityInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(accessibilitySlotAppArmor)
 	return nil
 }
@@ -172,11 +181,5 @@ func (iface *accessibilityInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 }
 
 func init() {
-	registerIface(&accessibilityInterface{
-		commonInterface: commonInterface{
-			name:                 "accessibility",
-			summary:              accessibilitySummary,
-			baseDeclarationSlots: accessibilityBaseDeclarationSlots,
-		},
-	})
+	registerIface(&accessibilityInterface{})
 }
