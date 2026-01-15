@@ -47,7 +47,7 @@ execute: |
   MATCH 'component: test-snap-with-components\+one' < snap-component.stdout
   MATCH 'type: test' < snap-component.stdout
   MATCH 'summary: First component for test-snap-with-components' < snap-component.stdout
-  MATCH 'installed: 1.1 (Unset) 26B' < snap-component.stdout
+  MATCH 'installed: 1.1 (5) 26B' < snap-component.stdout
   snap component test-snap-with-components+two | MATCH "component: test-snap-with-components\+two"
   snap component test-snap-with-components+three | MATCH "component: test-snap-with-components\+three"
 
