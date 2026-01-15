@@ -19,5 +19,8 @@ execute: |
   snap info test-snap-with-components | MATCH 'components: 2/3'
   snap info test-snapd-sh | NOMATCH 'components:'
 
+  snap remove --purge test-snap-with-components+one+two
+  snap info test-snap-with-components | MATCH 'components: 0/3'
+
   snap remove --purge test-snap-with-components
   snap info test-snap-with-components | MATCH 'components: 0/3'
