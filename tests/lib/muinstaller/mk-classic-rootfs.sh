@@ -121,12 +121,13 @@ else
 	26.04)
 	    # TODO: Change to point release, upgrade to newer snapshot or point release when it becomes available
 	    pointrel=-snapshot2
+	    release_folder=snapshot-2
 	    ;;
         *)
             pointrel=
             ;;
     esac
-    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/"release_folder"/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/"$release_folder"/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi
