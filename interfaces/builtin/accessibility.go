@@ -162,7 +162,7 @@ func (iface *accessibilityInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *accessibilityInterface) AppArmorPermanentSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *accessibilityInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(accessibilitySlotAppArmor)
 	return nil
 }
