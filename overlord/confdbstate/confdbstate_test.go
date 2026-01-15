@@ -219,7 +219,8 @@ func (s *confdbTestSuite) TestGetViewUnusedConstraints(c *C) {
 	c.Assert(err, IsNil)
 
 	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]string{"bla": "foo"})
-	c.Assert(err, ErrorMatches, `.*"bla" is not a valid placeholder.*`)
+	c.Assert(err, FitsTypeOf, &confdb.NoPlaceholderError{})
+	c.Assert(err, ErrorMatches, `.*no placeholder for constraint "bla".*`)
 	c.Check(res, IsNil)
 }
 
