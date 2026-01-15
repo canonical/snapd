@@ -3610,16 +3610,21 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 }
 
 func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
-	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", "", nil, preinstallCheckContext)()
+	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", nil, nil, preinstallCheckContext)()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	encSetupData := devicestate.GetEncryptionSetupDataFromCache(s.state, "20250528")
-	c.Check(encSetupData.RecoveryKeyID(), Equals, "")
+	c.Check(encSetupData.RecoveryKey(), IsNil)
 
 	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}, "7", nil
+	})()
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+		c.Assert(keyID, Equals, "7")
+		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}, nil
 	})()
 
 	rkey, err := devicestate.GeneratePreInstallRecoveryKey(s.state, "20250528")
@@ -3627,7 +3632,7 @@ func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'})
 
 	encSetupData = devicestate.GetEncryptionSetupDataFromCache(s.state, "20250528")
-	c.Check(encSetupData.RecoveryKeyID(), Equals, "7")
+	c.Check(encSetupData.RecoveryKey(), DeepEquals, &keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'})
 }
 
 func (s *installStepSuite) TestGeneratePreInstallRecoveryKeySetupNotCalledError(c *C) {
