@@ -39,7 +39,7 @@ var dependencies = map[string][]dependency{
 
 // This is the list of interfaces that can't be manually defined in the
 // snapcraft.yaml file.
-var forbidenInterfaces = []string{
+var forbiddenInterfaces = []string{
 	"accessibility",
 }
 
@@ -99,5 +99,5 @@ func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*
 }
 
 func CheckInterfaceIsInvalid(iface string) bool {
-	return slices.Contains(forbidenInterfaces, iface)
+	return slices.Contains(forbiddenInterfaces, iface)
 }
