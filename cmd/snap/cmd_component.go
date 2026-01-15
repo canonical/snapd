@@ -36,8 +36,7 @@ var longComponentHelp = i18n.G(`
 The component command shows detailed information about snap components.
 
 You must specify exactly one snap and one or more of its components in the form
-<snap>+<component>+[<component>...]. names are looked for both in the
-store and in the installed snaps.
+<snap>+<component>+[<component>...].
 `)
 
 type cmdComponent struct {
@@ -88,11 +87,13 @@ func (x *cmdComponent) showComponents() error {
 
 	for i, compName := range comps {
 		comp := compByName(compName, matchingSnap)
-		if comp == nil && len(comps) == 1 {
-			return fmt.Errorf(i18n.G("no component %q found for snap %q"), compName, matchingSnap.Name)
-		} else if comp == nil {
-			fmt.Fprintf(Stdout, "warning: no component %q found for snap %q\n", compName, matchingSnap.Name)
-			continue
+		if comp == nil {
+			if len(comps) == 1 {
+				return fmt.Errorf(i18n.G("no component %q found for snap %q"), compName, matchingSnap.Name)
+			} else {
+				fmt.Fprintf(Stdout, "warning: no component %q found for snap %q\n", compName, matchingSnap.Name)
+				continue
+			}
 		}
 
 		fmt.Fprintf(Stdout, "component: %s+%s\n", matchingSnap.Name, comp.Name)
