@@ -539,12 +539,13 @@ func (s *witnessDatabag) getLastPaths() (get, set string) {
 
 func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 	for _, t := range []struct {
-		testName    string
-		params      map[string]any
-		rules       []any
-		requests    []string
-		constraints map[string]string
-		expectedErr error
+		testName         string
+		params           map[string]any
+		rules            []any
+		requests         []string
+		constraints      map[string]string
+		expectedErr      error
+		expectedErrorMsg string
 	}{
 		{
 			testName: "empty request: constraint for key placeholder",
@@ -562,9 +563,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			rules: []any{
 				map[string]any{"storage": "foo"},
 			},
-			requests:    []string{"123badPath"},
-			constraints: map[string]string{"bar": "value"},
-			expectedErr: errors.New(`.*invalid subkey "123badPath".*`),
+			requests:         []string{"123badPath"},
+			constraints:      map[string]string{"bar": "value"},
+			expectedErr:      &confdb.BadRequestError{},
+			expectedErrorMsg: `.*invalid subkey "123badPath".*`,
 		},
 		{
 			testName: "single request: no matching rule",
@@ -572,9 +574,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			rules: []any{
 				map[string]any{"storage": "foo"},
 			},
-			requests:    []string{"bar"},
-			constraints: map[string]string{"baz": "value"},
-			expectedErr: errors.New(`.*no matching rule.*`),
+			requests:         []string{"bar"},
+			constraints:      map[string]string{"baz": "value"},
+			expectedErr:      &confdb.NoMatchError{},
+			expectedErrorMsg: `.*no matching rule.*`,
 		},
 		{
 			testName: "single request: no constraints",
@@ -592,9 +595,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			rules: []any{
 				map[string]any{"storage": "foo.bar"},
 			},
-			requests:    []string{"foo"},
-			constraints: map[string]string{"bar": "value"},
-			expectedErr: errors.New(`.*"bar" is not a valid placeholder.*`),
+			requests:         []string{"foo"},
+			constraints:      map[string]string{"bar": "value"},
+			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
 		{
 			testName: "single request: constraint for key placeholder in unmatched suffix",
@@ -612,9 +616,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			rules: []any{
 				map[string]any{"storage": "foo.{bar}.{baz}"},
 			},
-			requests:    []string{"foo.abc"},
-			constraints: map[string]string{"bar": "value"},
-			expectedErr: errors.New(`.*"bar" is not a valid placeholder.*`),
+			requests:         []string{"foo.abc"},
+			constraints:      map[string]string{"bar": "value"},
+			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
 		{
 			testName: "single request: constraint for key placeholder with different storage and request path lengths",
@@ -632,9 +637,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			rules: []any{
 				map[string]any{"storage": "foo.bar[{baz}]"},
 			},
-			requests:    []string{"foo"},
-			constraints: map[string]string{"baz": "1"},
-			expectedErr: errors.New(`.*"baz" is not a valid placeholder.*`),
+			requests:         []string{"foo"},
+			constraints:      map[string]string{"baz": "1"},
+			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErrorMsg: `.*no placeholder for constraint "baz".*`,
 		},
 		{
 			testName: "single request: constraint for field filter of key placeholder in unmatched suffix",
@@ -709,9 +715,10 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
 				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
 			},
-			requests:    []string{"foo", "xyz"},
-			constraints: map[string]string{"ggg": "value"},
-			expectedErr: errors.New(`.*"ggg" is not a valid placeholder.*`),
+			requests:         []string{"foo", "xyz"},
+			constraints:      map[string]string{"ggg": "value", "hhh": "value"},
+			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErrorMsg: `.*no placeholder for constraints "ggg", "hhh".*`,
 		},
 	} {
 		cmt := Commentf("sub-test %q failed", t.testName)
@@ -729,7 +736,8 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 		if t.expectedErr == nil {
 			c.Assert(err, IsNil, cmt)
 		} else {
-			c.Assert(err, ErrorMatches, t.expectedErr.Error(), cmt)
+			c.Assert(err, testutil.ErrorIs, t.expectedErr, cmt)
+			c.Assert(err, ErrorMatches, t.expectedErrorMsg, cmt)
 		}
 	}
 }
