@@ -180,6 +180,8 @@ func toAPIError(err error) *apiError {
 		}
 	case errors.Is(err, &confdbstate.NoViewError{}):
 		fallthrough
+	case errors.Is(err, &confdb.NoPlaceholderError{}):
+		fallthrough
 	case errors.Is(err, &confdb.NoMatchError{}):
 		return &apiError{
 			Status:  400,
