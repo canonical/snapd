@@ -411,14 +411,14 @@ func (*listenerSuite) TestNewRequestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 
-	c.Check(result.Key(), Equals, fmt.Sprintf("kernel:home:%016X", id))
-	c.Check(result.UID(), Equals, msg.SUID)
-	c.Check(result.PID(), Equals, msg.Pid)
-	c.Check(result.Cgroup(), Equals, "some-cgroup-path")
-	c.Check(result.AppArmorLabel(), Equals, label)
-	c.Check(result.Interface(), Equals, iface)
-	c.Check(result.Permissions(), DeepEquals, expectedPerms)
-	c.Check(result.Path(), Equals, path)
+	c.Check(result.Key, Equals, fmt.Sprintf("kernel:home:%016X", id))
+	c.Check(result.UID, Equals, msg.SUID)
+	c.Check(result.PID, Equals, msg.Pid)
+	c.Check(result.Cgroup, Equals, "some-cgroup-path")
+	c.Check(result.AppArmorLabel, Equals, label)
+	c.Check(result.Interface, Equals, iface)
+	c.Check(result.Permissions, DeepEquals, expectedPerms)
+	c.Check(result.Path, Equals, path)
 }
 
 func (*listenerSuite) TestNewRequestInterfaceSelection(c *C) {
@@ -515,7 +515,7 @@ func (*listenerSuite) TestNewRequestInterfaceSelection(c *C) {
 		}
 		c.Assert(err, IsNil, Commentf("testCase %d: %+v", i, testCase))
 		c.Assert(result, NotNil, Commentf("testCase %d: %+v", i, testCase))
-		c.Check(result.Interface(), Equals, testCase.expectedIface, Commentf("testCase %d: %+v", i, testCase))
+		c.Check(result.Interface, Equals, testCase.expectedIface, Commentf("testCase %d: %+v", i, testCase))
 	}
 }
 
@@ -610,7 +610,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	t.Go(l.Run)
 
 	ids := []uint64{0xdead, 0xbeef}
-	requests := make([]prompting.Request, 0, len(ids))
+	requests := make([]*prompting.Request, 0, len(ids))
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -648,14 +648,14 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 		select {
 		case req := <-l.Reqs():
-			c.Check(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", id))
-			c.Check(req.UID(), Equals, msg.SUID)
-			c.Check(req.PID(), Equals, msg.Pid)
-			c.Check(req.Cgroup(), Equals, "some-cgroup-path")
-			c.Check(req.AppArmorLabel(), Equals, label)
-			c.Check(req.Interface(), Equals, iface)
-			c.Check(req.Permissions(), DeepEquals, perms)
-			c.Check(req.Path(), Equals, path)
+			c.Check(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", id))
+			c.Check(req.UID, Equals, msg.SUID)
+			c.Check(req.PID, Equals, msg.Pid)
+			c.Check(req.Cgroup, Equals, "some-cgroup-path")
+			c.Check(req.AppArmorLabel, Equals, label)
+			c.Check(req.Interface, Equals, iface)
+			c.Check(req.Permissions, DeepEquals, perms)
+			c.Check(req.Path, Equals, path)
 			requests = append(requests, req)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error: %v", t.Err())
@@ -783,7 +783,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+			c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
@@ -802,7 +802,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
@@ -879,7 +879,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+			c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
@@ -906,7 +906,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	// Now receive it
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
@@ -982,7 +982,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
@@ -1016,7 +1016,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	// Now receive it
 	select {
 	case req := <-l.Reqs():
-		c.Assert(req.Key(), Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
+		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
 	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
@@ -1083,7 +1083,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	select {
 	case req, ok := <-l.Reqs():
 		c.Assert(ok, Equals, true)
-		c.Assert(req.Path(), Equals, path)
+		c.Assert(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", t.Err())
 	case <-time.NewTimer(time.Second).C:
@@ -1136,7 +1136,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	for i, path := range paths {
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Path(), DeepEquals, path)
+			c.Assert(req.Path, DeepEquals, path)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, t.Err())
 		case <-time.NewTimer(time.Second).C:
@@ -1212,7 +1212,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	requestTimer := time.NewTimer(time.Second)
 	select {
 	case req := <-l.Reqs():
-		c.Check(req.Path(), Equals, path)
+		c.Check(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Errorf("listener encountered unexpected error: %v", t.Err())
 	case <-requestTimer.C:
@@ -1748,7 +1748,7 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		select {
 		case req := <-l.Reqs():
 			if req != nil {
-				c.Fatalf("unexpectedly received request %s", req.Key())
+				c.Fatalf("unexpectedly received request %s", req.Key)
 			} else {
 				c.Fatal("l.Reqs() unexpectedly closed")
 			}
@@ -1812,7 +1812,7 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 	select {
 	case req := <-l.Reqs():
 		if req != nil {
-			c.Fatalf("unexpectedly received request %s", req.Key())
+			c.Fatalf("unexpectedly received request %s", req.Key)
 		} else {
 			c.Fatal("l.Reqs() unexpectedly closed")
 		}

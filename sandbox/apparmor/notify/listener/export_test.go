@@ -20,11 +20,13 @@
 package listener
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -43,17 +45,17 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithIDVersionAllowDenyIfacePerms(id uint64, version notify.ProtocolVersion, aaAllow, aaDeny notify.FilePermission, iface string, perms []string) *Request {
+func FakeRequestWithIDVersionAllowDenyIfacePerms(id uint64, version notify.ProtocolVersion, aaAllow, aaDeny notify.FilePermission, iface string, perms []string) *prompting.Request {
 	l := &Listener{
 		protocolVersion: version,
 	}
-	return &Request{
-		id:             id,
-		aaRequested:    aaDeny,
-		aaAllowed:      aaAllow,
-		iface:          iface,
-		requestedPerms: perms,
-		listener:       l,
+	key := fmt.Sprintf("kernel:%s:%016X", iface, id)
+	reply := l.buildReplyClosure(id, iface, aaAllow, aaDeny)
+	return &prompting.Request{
+		Key:         key,
+		Interface:   iface,
+		Permissions: perms,
+		Reply:       reply,
 	}
 }
 

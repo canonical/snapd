@@ -55,7 +55,7 @@ func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface stri
 	}
 }
 
-func (p *Prompt) Requests() []prompting.Request {
+func (p *Prompt) Requests() []*prompting.Request {
 	return p.requests
 }
 

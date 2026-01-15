@@ -86,64 +86,19 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.requestIDMapFilepath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json")
 }
 
-type fakeRequest struct {
-	id        uint32
-	replyChan chan []string
-}
-
-func newFakeRequest(id uint32) (*fakeRequest, <-chan []string) {
-	replyChan := make(chan []string, 1)
-	req := &fakeRequest{
-		id:        id,
-		replyChan: replyChan,
+func newRequestWithReplyChan(key string) (req *prompting.Request, replyChan chan []string) {
+	replyChan = make(chan []string, 1)
+	req = &prompting.Request{
+		Key: key,
+		Reply: func(allowedPerms []string) error {
+			replyChan <- allowedPerms
+			return nil
+		},
 	}
 	return req, replyChan
 }
 
-func (r *fakeRequest) Key() string {
-	return fmt.Sprintf("fake:%d", r.id)
-}
-
-func (r *fakeRequest) UID() uint32 {
-	return 1000
-}
-
-func (r *fakeRequest) PID() int32 {
-	return 123
-}
-
-func (r *fakeRequest) Cgroup() string {
-	return "fake cgroup path"
-}
-
-func (r *fakeRequest) AppArmorLabel() string {
-	return "snap.foo.bar"
-}
-
-func (r *fakeRequest) Interface() string {
-	return "foo"
-}
-
-func (r *fakeRequest) Permissions() []string {
-	return []string{"bar"}
-}
-
-func (r *fakeRequest) Path() string {
-	return "/fake/path"
-}
-
-func (r *fakeRequest) Reply(allowedPermissions []string) error {
-	r.replyChan <- allowedPermissions
-	return nil
-}
-
 func (s *requestpromptsSuite) TestNew(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
@@ -158,12 +113,6 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
@@ -210,12 +159,6 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
@@ -252,12 +195,6 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 
 	var initialMaxID uint64 = 42
@@ -323,12 +260,6 @@ func (s *requestpromptsSuite) checkWrittenRequestMap(c *C, requestMap map[string
 }
 
 func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
 
 	var initialMaxID uint64 = 42
@@ -348,18 +279,12 @@ func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
 	// Set maxIDPath to legacyMaxIDPath so checkWrittenID checks legacy path.
 	// Since the legacy path existed, it should have been hard linked to the
 	// new path, and it should have been updated as the max ID updated.
-	restore = testutil.Mock(&s.maxIDPath, s.legacyMaxIDPath)
+	restore := testutil.Mock(&s.maxIDPath, s.legacyMaxIDPath)
 	defer restore()
 	s.checkWrittenMaxID(c, expectedID)
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -374,12 +299,12 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	req1, _ := newFakeRequest(1)
-	req2, _ := newFakeRequest(2)
-	req3, _ := newFakeRequest(3)
-	req4, _ := newFakeRequest(4)
-	req5, _ := newFakeRequest(5)
-	req6, _ := newFakeRequest(6)
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
+	req3 := &prompting.Request{Key: "fake:3"}
+	req4 := &prompting.Request{Key: "fake:4"}
+	req5 := &prompting.Request{Key: "fake:5"}
+	req6 := &prompting.Request{Key: "fake:6"}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadataTemplate.User, clientActivity)
@@ -403,7 +328,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt1.Requests(), HasLen, 1)
-	c.Check(prompt1.Requests()[0].Key(), Equals, "fake:1")
+	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
 
 	expectedID := uint64(1)
 	expectedMap := map[string]requestprompts.RequestMapEntry{"fake:1": {PromptID: 1, UserID: s.defaultUser}}
@@ -442,7 +367,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	// Request was added to the requests list
 	c.Assert(prompt2.Requests(), HasLen, 1)
-	c.Check(prompt2.Requests()[0].Key(), Equals, "fake:2")
+	c.Check(prompt2.Requests()[0].Key, Equals, "fake:2")
 
 	// New prompts should record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
@@ -482,7 +407,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt3.Constraints.Path(), Equals, path)
 	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt3.Requests(), HasLen, 1)
-	c.Check(prompt3.Requests()[0].Key(), Equals, "fake:3")
+	c.Check(prompt3.Requests()[0].Key, Equals, "fake:3")
 
 	// New prompts should record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt3.ID}, nil)
@@ -524,7 +449,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt4.Constraints.Path(), Equals, path)
 	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt4.Requests(), HasLen, 1)
-	c.Check(prompt4.Requests()[0].Key(), Equals, "fake:4")
+	c.Check(prompt4.Requests()[0].Key, Equals, "fake:4")
 
 	// New prompts should record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt4.ID}, nil)
@@ -568,7 +493,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt5.Constraints.Path(), Equals, path)
 	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt5.Requests(), HasLen, 1)
-	c.Check(prompt5.Requests()[0].Key(), Equals, "fake:5")
+	c.Check(prompt5.Requests()[0].Key, Equals, "fake:5")
 
 	// New prompts should record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt5.ID}, nil)
@@ -615,7 +540,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt6.Constraints.Path(), Equals, path)
 	c.Check(prompt6.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt6.Requests(), HasLen, 1)
-	c.Check(prompt6.Requests()[0].Key(), Equals, "fake:6")
+	c.Check(prompt6.Requests()[0].Key, Equals, "fake:6")
 
 	// New prompts should record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt6.ID}, nil)
@@ -644,12 +569,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -664,9 +583,9 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	req1, _ := newFakeRequest(1)
-	req2, _ := newFakeRequest(2)
-	req3, _ := newFakeRequest(3)
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
+	req3 := &prompting.Request{Key: "fake:3"}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -681,7 +600,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 
 	// Request was added to the requests list
 	c.Assert(prompt1.Requests(), HasLen, 1)
-	c.Check(prompt1.Requests()[0].Key(), Equals, "fake:1")
+	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
 
 	expectedID := uint64(1)
 	expectedMap := map[string]requestprompts.RequestMapEntry{"fake:1": {PromptID: 1, UserID: s.defaultUser}}
@@ -697,8 +616,8 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 
 	// New request was added to the requests list
 	c.Assert(prompt2.Requests(), HasLen, 2)
-	c.Check(prompt2.Requests()[0].Key(), Equals, "fake:1")
-	c.Check(prompt2.Requests()[1].Key(), Equals, "fake:2")
+	c.Check(prompt2.Requests()[0].Key, Equals, "fake:1")
+	c.Check(prompt2.Requests()[1].Key, Equals, "fake:2")
 
 	// Merged prompts should re-record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -738,9 +657,9 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 
 	// New request was added to the requests list
 	c.Assert(prompt3.Requests(), HasLen, 3)
-	c.Check(prompt3.Requests()[0].Key(), Equals, "fake:1")
-	c.Check(prompt3.Requests()[1].Key(), Equals, "fake:2")
-	c.Check(prompt3.Requests()[2].Key(), Equals, "fake:3")
+	c.Check(prompt3.Requests()[0].Key, Equals, "fake:1")
+	c.Check(prompt3.Requests()[1].Key, Equals, "fake:2")
+	c.Check(prompt3.Requests()[2].Key, Equals, "fake:3")
 
 	// Merged prompts should re-record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -752,12 +671,6 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -772,7 +685,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	req1, _ := newFakeRequest(1)
+	req1 := &prompting.Request{Key: "fake:1"}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -785,7 +698,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 
 	// Request was added to the requests list
 	c.Assert(prompt1.Requests(), HasLen, 1)
-	c.Check(prompt1.Requests()[0].Key(), Equals, "fake:1")
+	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
 
 	expectedID := uint64(1)
 	expectedMap := map[string]requestprompts.RequestMapEntry{"fake:1": {PromptID: 1, UserID: s.defaultUser}}
@@ -801,7 +714,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 
 	// Duplicate request was not added again to the requests list
 	c.Assert(prompt2.Requests(), HasLen, 1)
-	c.Check(prompt2.Requests()[0].Key(), Equals, "fake:1")
+	c.Check(prompt2.Requests()[0].Key, Equals, "fake:1")
 
 	// Merged prompts should re-record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -817,7 +730,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 
 	// Duplicate request was not added again to the requests list
 	c.Assert(prompt3.Requests(), HasLen, 1)
-	c.Check(prompt3.Requests()[0].Key(), Equals, "fake:1")
+	c.Check(prompt3.Requests()[0].Key, Equals, "fake:1")
 
 	// Merged prompts should re-record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -883,12 +796,6 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -906,7 +813,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request, _ := newFakeRequest(1)
+		request := &prompting.Request{Key: "fake:1"}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -917,18 +824,17 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	}
 
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
-	lr, _ := newFakeRequest(1)
-
-	restore = requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Assert(request, Equals, lr)
-		c.Assert(allowedPermissions, HasLen, 0)
-		return nil
-	})
-	defer restore()
+	req := &prompting.Request{
+		Key: "fake:1",
+		Reply: func(allowedPermissions []string) error {
+			c.Assert(allowedPermissions, HasLen, 0)
+			return nil
+		},
+	}
 
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
-		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, lr)
+		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Check(err, Equals, prompting_errors.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
 		c.Check(merged, Equals, false)
@@ -937,13 +843,16 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		c.Assert(stored, HasLen, requestprompts.MaxOutstandingPromptsPerUser)
 	}
 
-	// Restore sendReply to fail if called
-	restore()
+	// Make Reply fail if called
+	req.Reply = func(allowedPerms []string) error {
+		c.Fatalf("called Reply with %v", allowedPerms)
+		return nil
+	}
 
 	// Check that new requests can still merge into existing prompts
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request, _ := newFakeRequest(1)
+		request := &prompting.Request{Key: "fake:1"}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -956,12 +865,6 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -976,7 +879,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	request, _ := newFakeRequest(1)
+	request := &prompting.Request{Key: "fake:1"}
 
 	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 	c.Assert(err, IsNil)
@@ -1020,14 +923,14 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 	for _, outcome := range []prompting.OutcomeType{prompting.OutcomeAllow, prompting.OutcomeDeny} {
 		promptID++
-		req1, replyChan1 := newFakeRequest(1)
-		req2, replyChan2 := newFakeRequest(2)
+		req1, replyChan1 := newRequestWithReplyChan("fake:1")
+		req2, replyChan2 := newRequestWithReplyChan("fake:2")
 
 		prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req1)
 		c.Assert(err, IsNil)
 		c.Check(merged, Equals, false)
 		c.Assert(prompt1.Requests(), HasLen, 1)
-		c.Check(prompt1.Requests()[0].Key(), Equals, "fake:1")
+		c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
 
 		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 		expectedMap := map[string]requestprompts.RequestMapEntry{"fake:1": {PromptID: promptID, UserID: s.defaultUser}}
@@ -1038,8 +941,8 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Check(merged, Equals, true)
 		c.Check(prompt2, Equals, prompt1)
 		c.Assert(prompt2.Requests(), HasLen, 2)
-		c.Check(prompt2.Requests()[0].Key(), Equals, "fake:1")
-		c.Check(prompt2.Requests()[1].Key(), Equals, "fake:2")
+		c.Check(prompt2.Requests()[0].Key, Equals, "fake:1")
+		c.Check(prompt2.Requests()[1].Key, Equals, "fake:2")
 
 		// Merged prompts should re-record notice
 		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -1052,8 +955,8 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Check(merged, Equals, true)
 		c.Check(prompt3, Equals, prompt1)
 		c.Assert(prompt3.Requests(), HasLen, 2)
-		c.Check(prompt3.Requests()[0].Key(), Equals, "fake:1")
-		c.Check(prompt3.Requests()[1].Key(), Equals, "fake:2")
+		c.Check(prompt3.Requests()[0].Key, Equals, "fake:1")
+		c.Check(prompt3.Requests()[1].Key, Equals, "fake:2")
 
 		// Merged prompts should re-record notice
 		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
@@ -1098,15 +1001,6 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		request.Reply(allowedPermissions)
-		// Return ENOENT, indicating that the notification does not exist.
-		// If the prompt exists but the notification does not, then the
-		// notification most likely timed out in the kernel.
-		return unix.ENOENT
-	})
-	defer restore()
-
 	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
 
@@ -1125,8 +1019,21 @@ func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
 	permissions := []string{"read", "write", "execute"}
 	outcome := prompting.OutcomeAllow
 
-	req1, replyChan1 := newFakeRequest(1)
-	req2, replyChan2 := newFakeRequest(2)
+	// call f, then return an error
+	replyWithError := func(f func([]string) error) func([]string) error {
+		return func(allowedPerms []string) error {
+			f(allowedPerms)
+			// Return ENOENT, indicating that the notification does not exist.
+			// If the prompt exists but the notification does not, then the
+			// notification most likely timed out in the kernel.
+			return unix.ENOENT
+		}
+	}
+
+	req1, replyChan1 := newRequestWithReplyChan("fake:1")
+	req1.Reply = replyWithError(req1.Reply)
+	req2, replyChan2 := newRequestWithReplyChan("fake:2")
+	req2.Reply = replyWithError(req2.Reply)
 
 	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req1)
 	c.Assert(err, IsNil)
@@ -1161,12 +1068,6 @@ func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
-	fakeError := fmt.Errorf("fake reply error")
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermission []string) error {
-		return fakeError
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1181,7 +1082,14 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	req, _ := newFakeRequest(123)
+	fakeError := fmt.Errorf("fake reply error")
+
+	req := &prompting.Request{
+		Key: "fake:123",
+		Reply: func(allowedPerms []string) error {
+			return fakeError
+		},
+	}
 
 	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 	c.Assert(err, IsNil)
@@ -1224,25 +1132,25 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	path := "/home/test/Documents/foo.txt"
 
 	permissions1 := []string{"read", "write", "execute"}
-	req1, replyChan1 := newFakeRequest(12)
+	req1, replyChan1 := newRequestWithReplyChan("fake:12")
 	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions1, permissions1, req1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions2 := []string{"read", "write"}
-	req2, replyChan2 := newFakeRequest(34)
+	req2, replyChan2 := newRequestWithReplyChan("fake:34")
 	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions2, permissions2, req2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions3 := []string{"read"}
-	req3, replyChan3 := newFakeRequest(56)
+	req3, replyChan3 := newRequestWithReplyChan("fake:56")
 	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions3, permissions3, req3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions4 := []string{"open"}
-	req4, _ := newFakeRequest(78)
+	req4 := &prompting.Request{Key: "fake:78"}
 	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions4, permissions4, req4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
@@ -1363,7 +1271,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	}
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read"}
-	req, replyChan := newFakeRequest(1)
+	req, replyChan := newRequestWithReplyChan("fake:1")
 	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
@@ -1485,12 +1393,6 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	})
 	defer restore()
 
-	restore = requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 
@@ -1511,7 +1413,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for i, path := range paths {
-		req, _ := newFakeRequest(uint32(i))
+		req := &prompting.Request{Key: fmt.Sprintf("fake:%d", i)}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Assert(err, IsNil)
 		c.Assert(merged, Equals, false)
@@ -1562,12 +1464,6 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 
@@ -1606,17 +1502,11 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 }
 
 func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
-	req1, _ := newFakeRequest(1)
-	req2, _ := newFakeRequest(2)
-	req3, _ := newFakeRequest(3)
-	req4, _ := newFakeRequest(5)
-	req5, _ := newFakeRequest(8)
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
+	req3 := &prompting.Request{Key: "fake:3"}
+	req4 := &prompting.Request{Key: "fake:5"}
+	req5 := &prompting.Request{Key: "fake:8"}
 
 	// Write initial mappings from request IDs to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
@@ -1717,14 +1607,8 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleReadying(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
-	req1, _ := newFakeRequest(1)
-	req2, _ := newFakeRequest(2)
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
 
 	// Write initial mappings from request IDs to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
@@ -1817,12 +1701,6 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
-	restore := requestprompts.MockSendReply(func(request prompting.Request, allowedPermissions []string) error {
-		c.Fatalf("should not have called sendReply")
-		return nil
-	})
-	defer restore()
-
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1865,7 +1743,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
 		},
 	} {
-		fakeRequest, _ := newFakeRequest(1234)
+		fakeRequest := &prompting.Request{Key: "fake:1234"}
 
 		prompt, merged, err := pdb.AddOrMerge(testCase.metadata, testCase.path, testCase.requestedPerms, testCase.outstandingPerms, fakeRequest)
 		c.Assert(err, IsNil)
@@ -1917,7 +1795,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	defer pdb.Close()
 
 	// Add prompt
-	req1, replyChan1 := newFakeRequest(123)
+	req1, replyChan1 := newRequestWithReplyChan("fake:123")
 	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, req1)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
@@ -1933,7 +1811,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(timer.FireCount(), Equals, 0)
 
 	// Add another prompt, check that it does not bump the activity timeout
-	req2, replyChan2 := newFakeRequest(456)
+	req2, replyChan2 := newRequestWithReplyChan("fake:456")
 	otherPath := "/home/test/bar"
 	prompt2, merged, err := pdb.AddOrMerge(metadata, otherPath, requestedPermissions, outstandingPermissions, req2)
 	c.Assert(err, IsNil)
@@ -1956,7 +1834,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Add prompt again
-	req3, replyChan3 := newFakeRequest(789)
+	req3, replyChan3 := newRequestWithReplyChan("fake:789")
 	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, req3)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
@@ -2004,7 +1882,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Add prompt again
-	req4, replyChan4 := newFakeRequest(101112)
+	req4, replyChan4 := newRequestWithReplyChan("fake:101112")
 	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, req4)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
@@ -2078,7 +1956,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	defer pdb.Close()
 
 	// Add prompt
-	req, replyChan := newFakeRequest(1)
+	req, replyChan := newRequestWithReplyChan("fake:1")
 	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, req)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)

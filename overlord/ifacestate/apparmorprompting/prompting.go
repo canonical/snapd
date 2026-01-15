@@ -44,10 +44,6 @@ var (
 	listenerReady    = (*listener.Listener).Ready
 	listenerReqs     = (*listener.Listener).Reqs
 
-	requestReply = func(req prompting.Request, allowedPermissions []string) error {
-		return req.Reply(allowedPermissions)
-	}
-
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
 )
 
@@ -252,28 +248,23 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 	}
 }
 
-func (m *InterfacesRequestsManager) handleReq(req prompting.Request) error {
-	userID := req.UID()
-	if userID == 0 {
+func (m *InterfacesRequestsManager) handleReq(req *prompting.Request) error {
+	if req.UID == 0 {
 		// Deny any request for the root user
-		return requestReply(req, nil)
+		return req.Reply(nil)
 	}
-	snap := req.AppArmorLabel() // Default to apparmor label, in case process is not a snap
-	if tag, err := naming.ParseSecurityTag(req.AppArmorLabel()); err == nil {
+	snap := req.AppArmorLabel // Default to apparmor label, in case process is not a snap
+	if tag, err := naming.ParseSecurityTag(req.AppArmorLabel); err == nil {
 		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
-
-	iface := req.Interface()
-	path := req.Path()
-	permissions := req.Permissions()
 
 	// we're done with early checks, serious business starts now, and we can
 	// take the lock
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(userID, snap, iface, path, permissions)
+	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, snap, req.Interface, req.Path, req.Permissions)
 	if err != nil || matchedDenyRule || len(outstandingPerms) == 0 {
 		switch {
 		case err != nil:
@@ -286,27 +277,29 @@ func (m *InterfacesRequestsManager) handleReq(req prompting.Request) error {
 		// Allow any requested permissions which were explicitly allowed by
 		// existing rules (there may be no such permissions) and auto-deny all
 		// permissions which were not explicitly included in the allowed permissions.
-		return requestReply(req, allowedPerms)
+		return req.Reply(allowedPerms)
 	}
 
 	// Request not satisfied by any of existing rules, record a prompt for the user
 
 	metadata := &prompting.Metadata{
-		User:      userID,
+		User:      req.UID,
 		Snap:      snap,
-		PID:       req.PID(),
-		Cgroup:    req.Cgroup(),
-		Interface: iface,
+		PID:       req.PID,
+		Cgroup:    req.Cgroup,
+		Interface: req.Interface,
 	}
+	// TODO: metadata isn't really necessary, since req holds almost all info;
+	// or, req isn't really necessary, and could instead just pass Reply() ?
 
-	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, outstandingPerms, req)
+	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, req.Path, req.Permissions, outstandingPerms, req)
 	if err != nil {
 		logger.Noticef("error while checking request against prompt DB: %v", err)
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
 		// allowed by existing rules, and auto-deny the rest.
-		return requestReply(req, allowedPerms)
+		return req.Reply(allowedPerms)
 	}
 
 	if merged {

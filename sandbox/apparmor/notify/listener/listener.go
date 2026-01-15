@@ -63,85 +63,6 @@ var (
 	promptingInterfaceFromTagsets     = prompting.InterfaceFromTagsets
 )
 
-// Request is a high-level representation of an apparmor prompting message.
-//
-// A request must be replied to via its Reply method.
-type Request struct {
-	// id is the unique ID of the message notification associated with the request.
-	id uint64
-	// pid is the identifier of the process which triggered the request.
-	pid int32
-	// cgroup is the cgroup path of the process which triggered the request.
-	cgroup string
-	// label is the apparmor label on the process which triggered the request.
-	label string
-	// subjectUID is the UID of the subject which triggered the request.
-	subjectUID uint32
-
-	// path is the path of the file, as seen by the process triggering the request.
-	path string
-	// aaRequested is the opaque AppArmor permission that is being requested.
-	aaRequested notify.AppArmorPermission
-	// aaAllowed is the opaque permission mask which was already allowed by
-	// AppArmor rules.
-	aaAllowed notify.AppArmorPermission
-
-	// iface is the interface associated with the request.
-	iface string
-	// requestedPerms is the list of abstract permissions which are being requested.
-	// These are derived from aaRequested when the request is received.
-	requestedPerms []string
-
-	// listener is a pointer to the Listener which will handle the reply.
-	listener *Listener
-}
-
-func (r *Request) Key() string {
-	return fmt.Sprintf("kernel:%s:%016X", r.iface, r.id)
-}
-
-func (r *Request) UID() uint32 {
-	return r.subjectUID
-}
-
-func (r *Request) PID() int32 {
-	return r.pid
-}
-
-func (r *Request) Cgroup() string {
-	return r.cgroup
-}
-
-func (r *Request) AppArmorLabel() string {
-	return r.label
-}
-
-func (r *Request) Interface() string {
-	return r.iface
-}
-
-func (r *Request) Permissions() []string {
-	return r.requestedPerms
-}
-
-func (r *Request) Path() string {
-	return r.path
-}
-
-// Reply checks that the given permissions are valid, converts them to AppArmor
-// permissions for the interface associated with the request, constructs a
-// response which allows those permissions, and sends it to the kernel.
-func (r *Request) Reply(allowedPermissions []string) error {
-	allowedAAPerms, err := prompting.AbstractPermissionsToAppArmorPermissions(r.Interface(), allowedPermissions)
-	if err != nil {
-		return err
-	}
-
-	resp := notify.BuildResponse(r.listener.protocolVersion, r.id, r.aaAllowed, r.aaRequested, allowedAAPerms)
-
-	return encodeAndSendResponse(r.listener, resp)
-}
-
 // Listener encapsulates a loop for receiving apparmor notification requests
 // and responding with notification responses, hiding the low-level details.
 type Listener struct {
@@ -151,7 +72,7 @@ type Listener struct {
 
 	// reqs is a channel over which to send requests to the manager.
 	// Only the main run loop may close this channel.
-	reqs chan prompting.Request
+	reqs chan *prompting.Request
 
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
@@ -227,7 +148,7 @@ func Register() (listener *Listener, err error) {
 	logger.Debugf("registered listener with protocol version %d", protoVersion)
 
 	listener = &Listener{
-		reqs: make(chan prompting.Request),
+		reqs: make(chan *prompting.Request),
 
 		ready:        make(chan struct{}),
 		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
@@ -301,7 +222,7 @@ func (l *Listener) Close() error {
 
 // Reqs returns a read-only channel through which requests may be received.
 // The channel is closed when the Close() method is called or an error occurs.
-func (l *Listener) Reqs() <-chan prompting.Request {
+func (l *Listener) Reqs() <-chan *prompting.Request {
 	return l.reqs
 }
 
@@ -466,7 +387,7 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 
 		// Build request, but don't return error until after we handle whether
 		// the message was resent
-		var req *Request
+		var req *prompting.Request
 		var newReqErr error
 
 		var msg notify.MsgNotificationGeneric
@@ -557,7 +478,7 @@ func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
 	return &fmsg, nil
 }
 
-func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, error) {
+func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*prompting.Request, error) {
 	aaAllowed, aaRequested, err := msg.AllowedDeniedPermissions()
 	if err != nil {
 		return nil, err
@@ -587,26 +508,41 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 			return nil, fmt.Errorf("cannot select interface from metadata tags: %w", err)
 		}
 	}
+	id := msg.ID()
+	key := fmt.Sprintf("kernel:%s:%016X", iface, id)
 	requestedPerms, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, aaRequested)
 	if err != nil {
 		return nil, err
 	}
-	return &Request{
-		id:         msg.ID(),
-		pid:        pid,
-		cgroup:     cgroup,
-		label:      msg.ProcessLabel(),
-		subjectUID: msg.SubjectUID(),
-
-		path:        path,
-		aaRequested: aaRequested,
-		aaAllowed:   aaAllowed,
-
-		iface:          iface,
-		requestedPerms: requestedPerms,
-
-		listener: l,
+	reply := l.buildReplyClosure(id, iface, aaAllowed, aaRequested)
+	return &prompting.Request{
+		Key:           key,
+		UID:           msg.SubjectUID(),
+		PID:           pid,
+		Cgroup:        cgroup,
+		AppArmorLabel: msg.ProcessLabel(),
+		Interface:     iface,
+		Permissions:   requestedPerms,
+		Path:          path,
+		Reply:         reply,
 	}, nil
+}
+
+// buildReplyClosure builds a closure which checks that the given permissions
+// are valid, converts them to AppArmor permissions for the interface
+// associated with the request, constructs a response which allows those
+// permissions, and sends it to the kernel.
+func (l *Listener) buildReplyClosure(id uint64, iface string, aaAllowed, aaRequested notify.AppArmorPermission) func([]string) error {
+	return func(allowedPermissions []string) error {
+		allowedAAPerms, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
+		if err != nil {
+			return err
+		}
+
+		resp := notify.BuildResponse(l.protocolVersion, id, aaAllowed, aaRequested, allowedAAPerms)
+
+		return encodeAndSendResponse(l, resp)
+	}
 }
 
 // decrementPendingCheckFinal decrements the pending count if it's not already

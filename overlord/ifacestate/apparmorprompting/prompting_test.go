@@ -66,55 +66,22 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
 }
 
-type fakeRequest struct {
-	id          uint32
-	uid         uint32
-	pid         int32
-	cgroup      string
-	label       string
-	iface       string
-	permissions []string
-	path        string
+func requestWithReplyChan(req *prompting.Request) (*prompting.Request, chan []string) {
+	replyChan := make(chan []string, 1)
+	injectReplyChan(req, replyChan)
+	return req, replyChan
 }
 
-func (r *fakeRequest) Key() string {
-	return fmt.Sprintf("fake:%d", r.id)
-}
-
-func (r *fakeRequest) UID() uint32 {
-	return r.uid
-}
-
-func (r *fakeRequest) PID() int32 {
-	return r.pid
-}
-
-func (r *fakeRequest) Cgroup() string {
-	return r.cgroup
-}
-
-func (r *fakeRequest) AppArmorLabel() string {
-	return r.label
-}
-
-func (r *fakeRequest) Interface() string {
-	return r.iface
-}
-
-func (r *fakeRequest) Permissions() []string {
-	return r.permissions
-}
-
-func (r *fakeRequest) Path() string {
-	return r.path
-}
-
-func (r *fakeRequest) Reply(allowedPermissions []string) error {
-	return fmt.Errorf("ERROR: reply should always be mocked in these tests")
+func injectReplyChan(req *prompting.Request, replyChan chan []string) *prompting.Request {
+	req.Reply = func(allowedPerms []string) error {
+		replyChan <- allowedPerms
+		return nil
+	}
+	return req
 }
 
 func (s *apparmorpromptingSuite) TestNew(c *C) {
-	_, _, _, restore := apparmorprompting.MockListener()
+	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -137,7 +104,7 @@ func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
-	_, reqChan, _, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Prevent prompt backend from opening successfully
@@ -155,7 +122,7 @@ func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 	checkListenerClosed(c, reqChan)
 }
 
-func checkListenerClosed(c *C, reqChan <-chan prompting.Request) {
+func checkListenerClosed(c *C, reqChan <-chan *prompting.Request) {
 	select {
 	case _, ok := <-reqChan:
 		// reqChan was already closed
@@ -166,7 +133,7 @@ func checkListenerClosed(c *C, reqChan <-chan prompting.Request) {
 }
 
 func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
-	_, reqChan, _, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Prevent rule backend from opening successfully
@@ -190,7 +157,7 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestStop(c *C) {
-	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -240,29 +207,28 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
-	_, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
 	// Send request for root
-	req := &fakeRequest{
+	req, replyChan := requestWithReplyChan(&prompting.Request{
 		// Most fields don't matter here
-		uid: 0,
-	}
+		UID: 0,
+	})
 	reqChan <- req
 	// Should get immediate denial
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
-	c.Check(resp.AllowedPermissions, HasLen, 0)
+	c.Check(allowedPermissions, HasLen, 0)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
-	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()
@@ -283,14 +249,14 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	// count limit
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
-		req := &fakeRequest{
-			pid:         1234,
-			cgroup:      "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-			label:       "snap.firefox.firefox",
-			uid:         s.defaultUser,
-			path:        fmt.Sprintf("/home/test/%d", i),
-			iface:       "home",
-			permissions: []string{"write"},
+		req := &prompting.Request{
+			PID:           1234,
+			Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+			AppArmorLabel: "snap.firefox.firefox",
+			UID:           s.defaultUser,
+			Path:          fmt.Sprintf("/home/test/%d", i),
+			Interface:     "home",
+			Permissions:   []string{"write"},
 		}
 		reqChan <- req
 	}
@@ -305,17 +271,19 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 		logbuf.Reset()
 	})
 
-	req := &fakeRequest{
-		pid:         1234,
-		cgroup:      "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-		label:       "snap.firefox.firefox",
-		uid:         s.defaultUser,
-		path:        fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
-		iface:       "home",
-		permissions: []string{"write"},
-	}
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		PID:           1234,
+		Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+		AppArmorLabel: "snap.firefox.firefox",
+		UID:           s.defaultUser,
+		Path:          fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
+		Interface:     "home",
+		Permissions:   []string{"write"},
+	})
 	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
+	allowedPermissions, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(allowedPermissions, DeepEquals, []string{})
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains,
 			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
@@ -325,7 +293,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -334,7 +302,8 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
 	close(readyChan)
 
-	req, prompt := s.simulateRequest(c, reqChan, mgr, &fakeRequest{}, false)
+	req, replyChan := requestWithReplyChan(&prompting.Request{})
+	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
 
 	// Reply to the request
 	constraintsJSON := prompting.ConstraintsJSON{
@@ -347,17 +316,15 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	c.Check(satisfied, HasLen, 0)
 
 	// Simulate the listener receiving the response
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-
-	c.Check(resp.Request, Equals, req)
 	expectedPerms := []string{"read"}
-	c.Check(resp.AllowedPermissions, DeepEquals, expectedPerms)
+	c.Check(allowedPermissions, DeepEquals, expectedPerms)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan prompting.Request, mgr *apparmorprompting.InterfacesRequestsManager, req *fakeRequest, shouldMerge bool) (prompting.Request, *requestprompts.Prompt) {
+func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.Request, mgr *apparmorprompting.InterfacesRequestsManager, req *prompting.Request, shouldMerge bool) (*prompting.Request, *requestprompts.Prompt) {
 	clientActivity := false
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
@@ -410,17 +377,17 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan prompting.Re
 		break
 	}
 	c.Assert(prompt, NotNil)
-	expectedSnap := req.AppArmorLabel()
-	labelComponents := strings.Split(req.AppArmorLabel(), ".")
+	expectedSnap := req.AppArmorLabel
+	labelComponents := strings.Split(req.AppArmorLabel, ".")
 	if len(labelComponents) == 3 {
 		expectedSnap = labelComponents[1]
 	}
 
 	c.Check(prompt.Snap, Equals, expectedSnap)
-	c.Check(prompt.PID, Equals, req.PID())
-	c.Check(prompt.Cgroup, Equals, req.Cgroup())
+	c.Check(prompt.PID, Equals, req.PID)
+	c.Check(prompt.Cgroup, Equals, req.Cgroup)
 	c.Check(prompt.Interface, Equals, "home")
-	c.Check(prompt.Constraints.Path(), Equals, req.Path())
+	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
 	promptByID, err := mgr.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
@@ -433,43 +400,43 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan prompting.Re
 
 // fillInPartialRequest fills in any blank fields from the given request
 // with default non-empty values.
-func (s *apparmorpromptingSuite) fillInPartialRequest(req *fakeRequest) {
-	if req.pid == 0 {
-		req.pid = 1234
+func (s *apparmorpromptingSuite) fillInPartialRequest(req *prompting.Request) {
+	if req.PID == 0 {
+		req.PID = 1234
 	}
-	if req.cgroup == "" {
-		req.cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"
+	if req.Cgroup == "" {
+		req.Cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"
 	}
-	if req.label == "" {
-		req.label = "snap.firefox.firefox"
+	if req.AppArmorLabel == "" {
+		req.AppArmorLabel = "snap.firefox.firefox"
 	}
-	if req.uid == uint32(0) {
-		req.uid = s.defaultUser
+	if req.UID == uint32(0) {
+		req.UID = s.defaultUser
 	}
-	if req.path == "" {
-		req.path = "/home/test/foo"
+	if req.Path == "" {
+		req.Path = "/home/test/foo"
 	}
-	if req.iface == "" {
-		req.iface = "home"
+	if req.Interface == "" {
+		req.Interface = "home"
 	}
-	if req.permissions == nil {
-		req.permissions = []string{"read"}
+	if req.Permissions == nil {
+		req.Permissions = []string{"read"}
 	}
 }
 
 var errNoReply = errors.New("no reply received")
 
-func waitForReply(replyChan chan apparmorprompting.RequestResponse) (*apparmorprompting.RequestResponse, error) {
+func waitForReply(replyChan chan []string) ([]string, error) {
 	select {
-	case resp := <-replyChan:
-		return &resp, nil
+	case allowedPerms := <-replyChan:
+		return allowedPerms, nil
 	case <-time.NewTimer(100 * time.Millisecond).C:
 		return nil, errNoReply
 	}
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -478,7 +445,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
 	close(readyChan)
 
-	_, prompt := s.simulateRequest(c, reqChan, mgr, &fakeRequest{}, false)
+	_, prompt := s.simulateRequest(c, reqChan, mgr, &prompting.Request{}, false)
 
 	// Wrong user ID
 	clientActivity := true
@@ -537,15 +504,11 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Check(err, ErrorMatches, "cannot add rule.*")
 	c.Check(result, IsNil)
 
-	// Should not have received a reply
-	_, err = waitForReply(replyChan)
-	c.Assert(err, NotNil)
-
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -571,10 +534,9 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
-	req := &fakeRequest{
-		iface:       "home",
-		permissions: []string{"read", "write"},
-	}
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
 	reqChan <- req
@@ -590,11 +552,10 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	s.checkRecordedPromptNotices(c, whenSent, 0)
 
 	// Check that kernel received a reply
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
 	expectedPermissions := []string{"read", "write"}
-	c.Check(resp.AllowedPermissions, DeepEquals, expectedPermissions)
+	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -620,7 +581,7 @@ func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
-	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -640,9 +601,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	// Do NOT add rule to match write permission
 
 	// Create request for read and write
-	partialReq := &fakeRequest{
-		iface:       "home",
-		permissions: []string{"read", "write"},
+	partialReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
@@ -653,7 +613,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -673,9 +633,9 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	// Add no rule for write permissions
 
 	// Create request for read and write
-	req := &fakeRequest{
-		permissions: []string{"read", "write"},
-	}
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
 	reqChan <- req
@@ -691,16 +651,15 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	s.checkRecordedPromptNotices(c, whenSent, 0)
 
 	// Check that kernel received a reply
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
-	c.Check(resp.AllowedPermissions, DeepEquals, []string{})
+	c.Check(allowedPermissions, DeepEquals, []string{})
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -726,9 +685,9 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
-	req := &fakeRequest{
-		permissions: []string{"read", "write"},
-	}
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
 	reqChan <- req
@@ -749,17 +708,16 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	// automatically denied by the kernel.
 
 	// Check that kernel received a reply
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, req)
 	expectedPermissions := []string{"write"}
-	c.Check(resp.AllowedPermissions, DeepEquals, expectedPermissions)
+	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -769,20 +727,20 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq := &fakeRequest{
-		permissions: []string{"read"},
-	}
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
+	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &fakeRequest{
-		permissions: []string{"write"},
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq := &fakeRequest{
-		permissions: []string{"read", "write"},
+	rwReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
@@ -796,11 +754,10 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	c.Assert(err, IsNil)
 
 	// Check that kernel received a reply
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(readReplyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, readReq)
 	expectedPermissions := []string{"read"}
-	c.Check(resp.AllowedPermissions, DeepEquals, expectedPermissions)
+	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	// Check that read request prompt was satisfied
 	clientActivity := false
@@ -835,7 +792,7 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -845,21 +802,21 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq := &fakeRequest{
-		permissions: []string{"read"},
-	}
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
+	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &fakeRequest{
-		permissions: []string{"write"},
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq := &fakeRequest{
-		permissions: []string{"read", "write"},
-	}
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
 	// Add rule to deny read request
@@ -871,11 +828,11 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	rule, err := mgr.AddRule(s.defaultUser, "firefox", "home", constraints)
 	c.Assert(err, IsNil)
 
-	// Check that kernel received two replies
-	for i := 0; i < 2; i++ {
-		resp, err := waitForReply(replyChan)
+	// Check that kernel received replies for read and rw
+	for _, replyChan := range []chan []string{readReplyChan, rwReplyChan} {
+		allowedPermissions, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		c.Check(resp.AllowedPermissions, DeepEquals, []string{})
+		c.Check(allowedPermissions, DeepEquals, []string{})
 	}
 
 	// Check that read and rw prompts were satisfied
@@ -904,7 +861,7 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -918,21 +875,21 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq := &fakeRequest{
-		permissions: []string{"read"},
-	}
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
+	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &fakeRequest{
-		permissions: []string{"write"},
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq := &fakeRequest{
-		permissions: []string{"read", "write"},
-	}
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
 	// Reply to read prompt with denial
@@ -948,11 +905,11 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	// Check that rw prompt was also satisfied
 	c.Check(satisfiedPromptIDs, DeepEquals, []prompting.IDType{rwPrompt.ID})
 
-	// Check that kernel received two replies
-	for i := 0; i < 2; i++ {
-		resp, err := waitForReply(replyChan)
+	// Check that kernel received replies for read and rw
+	for _, replyChan := range []chan []string{readReplyChan, rwReplyChan} {
+		allowedPermissions, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		c.Check(resp.AllowedPermissions, DeepEquals, []string{})
+		c.Check(allowedPermissions, DeepEquals, []string{})
 	}
 
 	// Check that read and rw prompts no longer exist
@@ -1002,7 +959,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 		duration = "10m"
 	}
 
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -1016,12 +973,12 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	close(readyChan)
 
 	// Add read request
-	readReq := &fakeRequest{
-		permissions: []string{"read"},
-	}
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
+	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
-	// Reply to read prompt with denial
+	// Reply to read prompt with denial for read and write
 	whenSent := time.Now()
 	constraints := prompting.ConstraintsJSON{
 		"path-pattern": json.RawMessage(`"/home/test/**"`),
@@ -1032,14 +989,13 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	c.Check(err, IsNil)
 
 	// Check that kernel received reply
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(readReplyChan)
 	c.Assert(err, IsNil)
-	c.Check(resp.Request, Equals, readReq)
 	switch outcome {
 	case prompting.OutcomeAllow:
-		c.Check(resp.AllowedPermissions, DeepEquals, []string{"read"})
+		c.Check(allowedPermissions, DeepEquals, []string{"read"})
 	case prompting.OutcomeDeny:
-		c.Check(resp.AllowedPermissions, HasLen, 0)
+		c.Check(allowedPermissions, HasLen, 0)
 	}
 
 	// Check that no other prompts were satisfied
@@ -1062,28 +1018,34 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	whenSent = time.Now()
 
 	// Add request for write
-	writeReq := &fakeRequest{
-		permissions: []string{"write"},
-	}
+	writeReq, writeReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"write"},
+	})
 	s.fillInPartialRequest(writeReq)
 	reqChan <- writeReq
 
 	// Add request for read and write
-	rwReq := &fakeRequest{
-		permissions: []string{"read", "write"},
-	}
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
+	})
 	s.fillInPartialRequest(rwReq)
 	reqChan <- rwReq
 
 	// Check that kernel received replies
-	for i := 0; i < 2; i++ {
-		resp, err := waitForReply(replyChan)
+	for _, pair := range []struct {
+		req       *prompting.Request
+		replyChan chan []string
+	}{
+		{writeReq, writeReplyChan},
+		{rwReq, rwReplyChan},
+	} {
+		allowedPermissions, err := waitForReply(pair.replyChan)
 		c.Assert(err, IsNil)
 		switch outcome {
 		case prompting.OutcomeAllow:
-			c.Check(resp.AllowedPermissions, DeepEquals, resp.Request.Permissions())
+			c.Check(allowedPermissions, DeepEquals, pair.req.Permissions)
 		case prompting.OutcomeDeny:
-			c.Check(resp.AllowedPermissions, HasLen, 0)
+			c.Check(allowedPermissions, HasLen, 0)
 		}
 	}
 
@@ -1094,7 +1056,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 }
 
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
-	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -1107,14 +1069,14 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	close(readyChan)
 
 	// Create request for read and write
-	partialReq := &fakeRequest{
-		permissions: []string{"read", "write"},
+	partialReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
 	// Create identical request, it should merge
-	identicalReq := &fakeRequest{
-		permissions: []string{"read", "write"},
+	identicalReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, identicalReq, true)
 
@@ -1128,15 +1090,15 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 
 	// Create identical request again, it should merge even though some
 	// permissions have been satisfied
-	identicalReqAgain := &fakeRequest{
-		permissions: []string{"read", "write"},
+	identicalReqAgain := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, identicalReqAgain, true)
 
 	// Now new requests for just write access will have identical outstanding
 	// permissions, but not identical original permissions, so should not merge
-	readReq := &fakeRequest{
-		permissions: []string{"write"},
+	readReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, readReq, false)
 
@@ -1144,7 +1106,7 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Close readyChan so we can add rules
@@ -1224,7 +1186,7 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Close readyChan so we can add rules
@@ -1250,7 +1212,7 @@ func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Close readyChan so we can add rules
@@ -1276,7 +1238,7 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Close readyChan so we can add rules
@@ -1302,7 +1264,7 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
-	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -1312,10 +1274,9 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	close(readyChan)
 
 	// Add read request
-	req := &fakeRequest{
-		iface:       "home",
-		permissions: []string{"read"},
-	}
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
+	})
 	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
 
 	// Add write rule
@@ -1365,9 +1326,9 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	s.checkRecordedPromptNotices(c, whenPatched, 1)
 
 	// Check that a reply has been received
-	resp, err := waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Assert(resp.Request, Equals, req)
+	c.Assert(allowedPermissions, DeepEquals, []string{"read"})
 
 	// Remove the rule
 	whenRemoved := time.Now()
@@ -1387,7 +1348,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c *C) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	handleStarted := make(chan struct{})
@@ -1483,7 +1444,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 }
 
 func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorprompting.InterfacesRequestsManager)) {
-	readyChan, _, _, restore := apparmorprompting.MockListener()
+	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)

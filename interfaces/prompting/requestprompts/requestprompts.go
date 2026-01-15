@@ -68,7 +68,7 @@ type Prompt struct {
 	Cgroup      string
 	Interface   string
 	Constraints *promptConstraints
-	requests    []prompting.Request
+	requests    []*prompting.Request
 }
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
@@ -114,8 +114,8 @@ func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraint
 
 // addRequest adds the given request to the list of requests associated with
 // the receiving prompt if it is not already in the list.
-func (p *Prompt) addRequest(request prompting.Request) {
-	if !p.containsRequest(request.Key()) {
+func (p *Prompt) addRequest(request *prompting.Request) {
+	if !p.containsRequest(request.Key) {
 		p.requests = append(p.requests, request)
 	}
 }
@@ -123,13 +123,13 @@ func (p *Prompt) addRequest(request prompting.Request) {
 // containsRequest returns true if the receiving prompt contains a request
 // with the given key in its list of requests.
 func (p *Prompt) containsRequest(requestKey string) bool {
-	return slicesContainsFunc(p.requests, func(r prompting.Request) bool {
-		return r.Key() == requestKey
+	return slicesContainsFunc(p.requests, func(r *prompting.Request) bool {
+		return r.Key == requestKey
 	})
 }
 
 // TODO:GOVERSION: replace this with slices.ContainsFunc once on go 1.21+
-func slicesContainsFunc(s []prompting.Request, f func(r prompting.Request) bool) bool {
+func slicesContainsFunc(s []*prompting.Request, f func(r *prompting.Request) bool) bool {
 	for _, element := range s {
 		if f(element) {
 			return true
@@ -159,7 +159,7 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 
 func (p *Prompt) sendReplyWithPermission(allowedPermission []string) error {
 	for _, request := range p.requests {
-		if err := sendReply(request, allowedPermission); err != nil {
+		if err := request.Reply(allowedPermission); err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// If err is ENOENT, then notification with the given ID does not
 				// exist, so it timed out in the kernel.
@@ -175,8 +175,6 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission []string) error {
 	}
 	return nil
 }
-
-var sendReply = (prompting.Request).Reply
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
@@ -449,7 +447,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// Remove the request mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {
 		for _, request := range p.requests {
-			delete(pdb.requestMap, request.Key())
+			delete(pdb.requestMap, request.Key)
 		}
 	}
 	pdb.saveRequestMap()
@@ -670,7 +668,7 @@ var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, request prompting.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, request *prompting.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -712,9 +710,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		}
 	}()
 
-	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key(), metadata, constraints)
+	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key, metadata, constraints)
 	if result.foundInvalidRequestMapping {
-		delete(pdb.requestMap, request.Key())
+		delete(pdb.requestMap, request.Key)
 		needToSave = true
 	}
 
@@ -723,7 +721,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		if !result.foundExistingRequestMapping {
 			// Request matched existing prompt but doesn't have an ID mapped,
 			// so map the request key to the prompt ID.
-			pdb.requestMap[request.Key()] = requestMapEntry{
+			pdb.requestMap[request.Key] = requestMapEntry{
 				PromptID: existingPrompt.ID,
 				UserID:   metadata.User,
 			}
@@ -746,7 +744,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 			// Deny all permissions which are not already allowed by existing rules
 			allowedPermission := constraints.buildResponse(constraints.outstandingPermissions)
-			sendReply(request, allowedPermission)
+			request.Reply(allowedPermission)
 			return nil, false, prompting_errors.ErrTooManyPrompts
 		}
 
@@ -754,7 +752,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 
 		// Map the new ID
-		pdb.requestMap[request.Key()] = requestMapEntry{
+		pdb.requestMap[request.Key] = requestMapEntry{
 			PromptID: promptID,
 			UserID:   metadata.User,
 		}
@@ -770,7 +768,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		Cgroup:      metadata.Cgroup,
 		Interface:   metadata.Interface,
 		Constraints: constraints,
-		requests:    []prompting.Request{request},
+		requests:    []*prompting.Request{request},
 	}
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
@@ -935,7 +933,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	}
 
 	for _, request := range prompt.requests {
-		delete(pdb.requestMap, request.Key())
+		delete(pdb.requestMap, request.Key)
 	}
 	pdb.saveRequestMap() // error should not occur
 
@@ -1036,7 +1034,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 
 		// Remove the ID mappings for the requests associated with the prompt.
 		for _, request := range prompt.requests {
-			delete(pdb.requestMap, request.Key())
+			delete(pdb.requestMap, request.Key)
 		}
 		needToSave = true
 
@@ -1081,15 +1079,4 @@ func (pdb *PromptDB) Close() error {
 // The caller must ensure that the DB lock is held.
 func (pdb *PromptDB) isClosed() bool {
 	return pdb.maxIDMmap.IsClosed()
-}
-
-// MockSendReply mocks the function to send a reply back to the request
-// originator so that tests, both for this package and for consumers of
-// this package, can mock that originator.
-func MockSendReply(f func(request prompting.Request, allowedPermission []string) error) (restore func()) {
-	orig := sendReply
-	sendReply = f
-	return func() {
-		sendReply = orig
-	}
 }

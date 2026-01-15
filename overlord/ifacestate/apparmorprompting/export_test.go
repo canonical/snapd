@@ -42,7 +42,7 @@ func MockListenerReady(f func(l *listener.Listener) <-chan struct{}) (restore fu
 	return testutil.Mock(&listenerReady, f)
 }
 
-func MockListenerReqs(f func(l *listener.Listener) <-chan prompting.Request) (restore func()) {
+func MockListenerReqs(f func(l *listener.Listener) <-chan *prompting.Request) (restore func()) {
 	return testutil.Mock(&listenerReqs, f)
 }
 
@@ -50,21 +50,12 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 	return testutil.Mock(&listenerClose, f)
 }
 
-type RequestResponse struct {
-	Request            prompting.Request
-	AllowedPermissions []string
-}
-
-func MockListener() (readyChan chan struct{}, reqChan chan prompting.Request, replyChan chan RequestResponse, restore func()) {
+func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
 	// The readyChan should be closed once all pending previously-sent requests
 	// have been re-sent.
 	readyChan = make(chan struct{})
 	// Since the manager run loop is in a tracked goroutine, shouldn't block.
-	reqChan = make(chan prompting.Request)
-	// Replies would be sent synchronously to a request originator running in
-	// its own goroutine, but it's mocked to be synchronous, so we need a
-	// non-zero buffer here.
-	replyChan = make(chan RequestResponse, 5)
+	reqChan = make(chan *prompting.Request)
 
 	closeChan := make(chan struct{})
 
@@ -81,7 +72,7 @@ func MockListener() (readyChan chan struct{}, reqChan chan prompting.Request, re
 	restoreReady := MockListenerReady(func(l *listener.Listener) <-chan struct{} {
 		return readyChan
 	})
-	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan prompting.Request {
+	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *prompting.Request {
 		return reqChan
 	})
 	restoreClose := MockListenerClose(func(l *listener.Listener) error {
@@ -90,7 +81,6 @@ func MockListener() (readyChan chan struct{}, reqChan chan prompting.Request, re
 			return listener.ErrAlreadyClosed
 		default:
 			close(reqChan)
-			close(replyChan)
 			close(closeChan)
 		}
 		select {
@@ -101,33 +91,14 @@ func MockListener() (readyChan chan struct{}, reqChan chan prompting.Request, re
 		}
 		return nil
 	})
-	restoreReply := MockRequestReply(func(req prompting.Request, allowedPermissions []string) error {
-		reqResp := RequestResponse{
-			Request:            req,
-			AllowedPermissions: allowedPermissions,
-		}
-		replyChan <- reqResp
-		return nil
-	})
 	restore = func() {
-		restoreReply()
 		restoreClose()
 		restoreReqs()
 		restoreReady()
 		restoreRun()
 		restoreRegister()
 	}
-	return readyChan, reqChan, replyChan, restore
-}
-
-func MockRequestReply(f func(req prompting.Request, allowedPermissions []string) error) (restore func()) {
-	restoreRequestReply := testutil.Backup(&requestReply)
-	requestReply = f
-	restoreRequestpromptsSendReply := requestprompts.MockSendReply(f)
-	return func() {
-		restoreRequestpromptsSendReply()
-		restoreRequestReply()
-	}
+	return readyChan, reqChan, restore
 }
 
 // Export the manager-level ready channel so it can be used in tests.
