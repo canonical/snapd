@@ -191,7 +191,7 @@ func (iw *infoWriter) maybePrintComponents() {
 
 	if iw.localSnap != nil {
 		for _, comp := range iw.localSnap.Components {
-			if comp.InstalledSize != 0 {
+			if comp.Revision.Unset() {
 				localCount++
 			}
 		}
