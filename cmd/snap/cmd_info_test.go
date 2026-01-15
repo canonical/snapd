@@ -102,8 +102,8 @@ func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
 	iw := snap.NewInfoWriter(&buf)
 
 	// c1 is "installed" (size > 0), c2 is "not installed" (size == 0)
-	c1 := client.Component{Name: "comp-1", InstalledSize: 1024}
-	c2 := client.Component{Name: "comp-2", InstalledSize: 0}
+	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10), InstalledSize: 1024}
+	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(0), InstalledSize: 0}
 
 	remoteSnap := &client.Snap{Components: []client.Component{c1, c2}}
 	snap.SetupSnap(iw, nil, remoteSnap, nil)
