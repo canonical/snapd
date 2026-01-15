@@ -27,9 +27,7 @@ import (
 	"strings"
 )
 
-var (
-	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
-)
+var validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 
 // Control holds the delegations done by the device to operators.
 type Control struct {
