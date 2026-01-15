@@ -101,7 +101,7 @@ func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
-	// c1 is "installed" (size > 0), c2 is "not installed" (size == 0)
+	// c1 is "installed" (revision != 0), c2 is "not installed" (revision == 0)
 	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10), InstalledSize: 1024}
 	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(0), InstalledSize: 0}
 
@@ -135,9 +135,8 @@ func (s *infoSuite) TestMaybePrintComponentsBothInstalled(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
-	// c1 is "installed" (size > 0), c2 is "not installed" (size == 0)
-	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10), InstalledSize: 1024}
-	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(20), InstalledSize: 0}
+	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10)}
+	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(20)}
 
 	remoteSnap := &client.Snap{Components: []client.Component{c1, c2}}
 	snap.SetupSnap(iw, nil, remoteSnap, nil)
