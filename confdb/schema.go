@@ -615,53 +615,23 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *alternativesSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
-	if data == nil || v.Visibility() >= vis {
+	if data == nil {
 		return nil, nil
 	}
 
 	var lastErr error
-	marshaled, err := json.Marshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("cannot prune alternatives: %w", err)
-	}
 	for _, alt := range v.schemas {
-		// Alternatives can have multiple paths with identical prefixes. To avoid pruning
-		// a non-secret path whose prefix matches a secret one, only continue pruning on
-		// matching alternatives. If we're not at the end of the path, find all schemas at
-		// the end of the path and validate the data against them. If we're at the end of
-		// the path, then validate the data. Only alternatives for those whose data checks
-		// out will then be pruned.
-		if len(path) > 0 {
-			schemas, err := alt.SchemaAt(path)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-			allErrored := true
-			for _, schema := range schemas {
-				err := schema.Validate(marshaled)
-				if err != nil {
-					lastErr = err
-					continue
-				}
-				allErrored = false
-			}
-			if allErrored {
-				continue
-			}
-		} else {
-			err := alt.Validate(marshaled)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-		}
 		d, err := alt.PruneByVisibility(data, vis, path)
 		if err != nil {
-			return nil, fmt.Errorf("cannot prune alternatives: %w", err)
+			lastErr = err
+			continue
 		}
+		// Because the visibility of an alternativesSchema is determined by its
+		// set of alternatives, no need to check visibility here. If the schema
+		// is private, then d will already be nil.
 		return d, nil
 	}
+	// The path/data does not match
 	return nil, fmt.Errorf("cannot prune alternatives: %w", lastErr)
 }
 
@@ -906,29 +876,16 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 	if data == nil {
 		return nil, nil
 	}
-	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
-		_, ok := (data).(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("data provided must be a map")
-		}
-	} else {
-		key := path[0]
-		if key.Type() != MapKeyType && key.Type() != KeyPlaceholderType {
-			return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
-		}
-	}
 
-	// Keys can only be strings, so no need to prune further down.
-	// If the keys are private, then the map must be emptied.
-	if v.visibility >= vis || (v.keySchema != nil && v.keySchema.Visibility() >= vis) {
-		return nil, nil
-	}
-
-	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
+	if len(path) == 0 || path[0].Type() == KeyPlaceholderType {
 		// We've arrived to where the data begins
 		values, ok := (data).(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("data provided must be a map")
+		}
+		rest := []Accessor{}
+		if len(path) > 0 {
+			rest = path[1:]
 		}
 		pruned := make(map[string]any, len(values))
 		for key, value := range values {
@@ -937,12 +894,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 				if !ok {
 					return nil, fmt.Errorf("key %s not found in map schema", key)
 				}
-				if valSchema.Visibility() >= vis {
-					// If the entry requires a visibility level that is either the same or
-					// higher than what is indicated for pruning in input, skip it altogether
-					continue
-				}
-				d, err := valSchema.PruneByVisibility(value, vis, []Accessor{})
+				d, err := valSchema.PruneByVisibility(value, vis, rest)
 				if err != nil {
 					return nil, err
 				}
@@ -951,43 +903,48 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 				}
 			}
 			if v.valueSchema != nil {
-				d, err := v.valueSchema.PruneByVisibility(value, vis, []Accessor{})
+				d, err := v.valueSchema.PruneByVisibility(value, vis, rest)
 				if err != nil {
 					return nil, err
 				}
-				pruned[key] = d
+				if d != nil {
+					pruned[key] = d
+				}
 			}
 		}
-		if len(pruned) > 0 {
+		if len(pruned) > 0 && v.Visibility() < vis && (v.keySchema == nil || v.keySchema.Visibility() < vis) {
 			return pruned, nil
 		}
 		return nil, nil
 	}
+	key := path[0]
+	if key.Type() != MapKeyType {
+		return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
+	}
 
 	if v.valueSchema != nil {
-		return v.valueSchema.PruneByVisibility(data, vis, path[1:])
+		d, err := v.valueSchema.PruneByVisibility(data, vis, path[1:])
+		if err != nil {
+			return d, err
+		}
+		if v.Visibility() < vis && (v.keySchema == nil || v.keySchema.Visibility() < vis) {
+			return d, err
+		}
+		return nil, nil
 	}
-	key := path[0]
-	if v.entrySchemas != nil && key.Type() == MapKeyType {
+	if v.entrySchemas != nil {
 		valSchema, ok := v.entrySchemas[key.Name()]
 		if !ok {
 			return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
 		}
-		return valSchema.PruneByVisibility(data, vis, path[1:])
-	}
-	// The path is longer than the placeholder so attempt pruning on all
-	// entries since the data must begin further down the path.
-	if v.entrySchemas != nil && key.Type() == KeyPlaceholderType {
-		var lastError error
-		for _, schema := range v.entrySchemas {
-			d, err := schema.PruneByVisibility(data, vis, path[1:])
-			if err != nil {
-				lastError = err
-				continue
-			}
-			return d, nil
+		d, err := valSchema.PruneByVisibility(data, vis, path[1:])
+		if err != nil {
+			return d, err
 		}
-		return nil, fmt.Errorf("cannot prune map: %w", lastError)
+		if v.Visibility() < vis {
+			return d, err
+		}
+		return nil, nil
 	}
 
 	// This should be unreachable
@@ -1219,6 +1176,10 @@ func (v *stringSchema) PruneByVisibility(data any, vis Visibility, path []Access
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "string" type`)
 	}
+	_, ok := data.(string)
+	if !ok {
+		return nil, errors.New(`data provided must be a string`)
+	}
 	if v.visibility >= vis {
 		data = nil
 	}
@@ -1314,6 +1275,9 @@ func (v *intSchema) Type() SchemaType {
 func (v *intSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "int" type`)
+	}
+	if !isNumber(data) {
+		return nil, errors.New(`data provided must be an int`)
 	}
 	if v.visibility >= vis {
 		data = nil
@@ -1465,9 +1429,24 @@ func (v *numberSchema) Type() SchemaType {
 	return Number
 }
 
+func isNumber(data any) bool {
+	switch data.(type) {
+	case
+		uint8, uint16, uint32, uint64, uint, uintptr,
+		int8, int16, int32, int64, int,
+		float32, float64,
+		complex64, complex128:
+		return true
+	}
+	return false
+}
+
 func (v *numberSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "number" type`)
+	}
+	if !isNumber(data) {
+		return nil, errors.New(`data provided must be a number`)
 	}
 	if v.visibility >= vis {
 		data = nil
@@ -1601,6 +1580,10 @@ func (v *booleanSchema) PruneByVisibility(data any, vis Visibility, path []Acces
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "bool" type`)
 	}
+	_, ok := data.(bool)
+	if !ok {
+		return nil, errors.New(`data provided must be a bool`)
+	}
 	if v.visibility >= vis {
 		data = nil
 	}
@@ -1713,27 +1696,34 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 	if data == nil {
 		return nil, nil
 	}
-	values, ok := data.([]any)
-	if len(path) == 0 && !ok {
-		return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
-	} else if len(path) > 0 {
-		key := path[0]
-		if key.Type() != IndexPlaceholderType && key.Type() != ListIndexType {
-			return nil, fmt.Errorf(`key %q cannot be used to index array`, key.Access())
-		}
-	}
-	if v.visibility >= vis {
-		return nil, nil
+	if len(path) > 0 && path[0].Type() != IndexPlaceholderType && path[0].Type() != ListIndexType {
+		return nil, fmt.Errorf(`key %q cannot be used to index array`, path[0].Access())
 	}
 
-	if len(path) > 0 {
+	if len(path) > 0 && path[0].Type() == ListIndexType {
 		// Since the path is not empty, the data begins further down,
 		// and we don't yet know its type so use data here rather than values
-		return v.elementType.PruneByVisibility(data, vis, path[1:])
+		d, err := v.elementType.PruneByVisibility(data, vis, path[1:])
+		if err != nil {
+			return nil, err
+		}
+		if v.Visibility() < vis {
+			return d, err
+		}
+		return nil, nil
 	}
+	values, ok := data.([]any)
+	if !ok {
+		return nil, errors.New("data provided must be a list")
+	}
+
 	newList := make([]any, 0, len(values))
+	rest := []Accessor{}
+	if len(path) > 0 {
+		rest = path[1:]
+	}
 	for _, value := range values {
-		d, err := v.elementType.PruneByVisibility(value, vis, []Accessor{})
+		d, err := v.elementType.PruneByVisibility(value, vis, rest)
 		if err != nil {
 			return nil, err
 		}
@@ -1741,7 +1731,7 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 			newList = append(newList, d)
 		}
 	}
-	if len(newList) > 0 {
+	if len(newList) > 0 && v.Visibility() < vis {
 		return newList, nil
 	}
 	return nil, nil
