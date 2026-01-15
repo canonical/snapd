@@ -90,10 +90,10 @@ func (x *cmdComponent) showComponents() error {
 		if comp == nil {
 			if len(comps) == 1 {
 				return fmt.Errorf(i18n.G("no component %q found for snap %q"), compName, matchingSnap.Name)
-			} else {
-				fmt.Fprintf(Stdout, "warning: no component %q found for snap %q\n", compName, matchingSnap.Name)
-				continue
 			}
+
+			fmt.Fprintf(Stdout, "warning: no component %q found for snap %q\n", compName, matchingSnap.Name)
+			continue
 		}
 
 		fmt.Fprintf(Stdout, "component: %s+%s\n", matchingSnap.Name, comp.Name)
