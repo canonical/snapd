@@ -51,6 +51,9 @@ execute: |
         elif os.query is-core24; then
             REPAIR_SCRIPT=uc24-run.sh
             REPAIR_JSON=uc24-run.json
+        elif os.query is-core26; then
+            REPAIR_SCRIPT=uc26-run.sh
+            REPAIR_JSON=uc26-run.json
         fi
 
         fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/$REPAIR_JSON"
@@ -129,6 +132,8 @@ execute: |
             fakestore new-repair --dir "$BLOB_DIR" uc22-recover.sh --repair-json="$PWD/uc22-recover.json"
         elif os.query is-core24; then
             fakestore new-repair --dir "$BLOB_DIR" uc24-recover.sh --repair-json="$PWD/uc24-recover.json"
+        elif os.query is-core26; then
+            fakestore new-repair --dir "$BLOB_DIR" uc26-recover.sh --repair-json="$PWD/uc26-recover.json"
         fi
 
         "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
