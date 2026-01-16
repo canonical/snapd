@@ -388,6 +388,7 @@ func newComponentInstallChoreographer(
 	snapst SnapState,
 	compsup ComponentSetup,
 	fromChange string,
+	snapsupTask, setupSecurityTask, kmodSetupTask *state.Task,
 ) (*componentInstallChoreographer, error) {
 	if compsup.SkipAssertionsDownload {
 		return nil, errors.New("internal error: component setup cannot have SkipFetchingAssertions set by caller")
@@ -423,6 +424,13 @@ func newComponentInstallChoreographer(
 		snapsup: snapsup,
 		snapst:  snapst,
 		compsup: compsup,
+
+		// we inject some tasks here. the choreographer considers these when
+		// building the full chain and splices them into the correct places. if
+		// they're nil, then the choreographer will create them on demand.
+		snapsupTask:       snapsupTask,
+		setupSecurityTask: setupSecurityTask,
+		kmodSetupTask:     kmodSetupTask,
 	}, nil
 }
 
@@ -873,17 +881,13 @@ func doInstallComponent(
 	setupSecurity, kmodSetup *state.Task,
 	fromChange string,
 ) (componentInstallTaskSet, *state.TaskSet, error) {
-	cc, err := newComponentInstallChoreographer(st, snapsup, *snapst, compsup, fromChange)
+	cc, err := newComponentInstallChoreographer(
+		st, &snapsup, snapst, &compsup, fromChange,
+		snapsupTask, setupSecurity, kmodSetup,
+	)
 	if err != nil {
 		return componentInstallTaskSet{}, nil, err
 	}
-
-	// we inject some tasks here. the choreographer considers these when building the
-	// full chain and splices them into the correct places. if they're nil, then
-	// the choreographer will create them on demand.
-	cc.setupSecurityTask = setupSecurity
-	cc.kmodSetupTask = kmodSetup
-	cc.snapsupTask = snapsupTask
 
 	cts, ts, err := cc.choreograph(st)
 	if err != nil {
