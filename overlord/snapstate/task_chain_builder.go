@@ -59,11 +59,11 @@ func (b *taskChainBuilder) NewSpan() taskChainSpan {
 	return taskChainSpan{b: b}
 }
 
-// ChainWithoutAppending makes the given task wait for the current tail and updates
-// the tail to this task, but does NOT add the task to the builder's TaskSet. This
-// is useful for shared tasks that belong to another TaskSet but need to be part of
-// this chain's dependency graph.
-func (b *taskChainBuilder) ChainWithoutAppending(t *state.Task) {
+// JoinOn makes the given task wait for the current tail and updates the tail to
+// this task, but does NOT add the task to the builder's TaskSet. This is useful
+// for shared tasks that belong to another TaskSet but need to be part of this
+// chain's dependency graph.
+func (b *taskChainBuilder) JoinOn(t *state.Task) {
 	for _, prev := range b.tails {
 		t.WaitFor(prev)
 	}
