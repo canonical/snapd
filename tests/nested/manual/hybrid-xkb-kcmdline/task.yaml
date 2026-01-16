@@ -11,14 +11,11 @@ details: |
   can be detected when entring a recovery-key, passphrase or PIN
   in a FDE system.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # TODO:FDEM: test that nothing happens in 24.04
+  - ubuntu-26*
 
 environment:
-  # TODO:FDEM: add 26.04 variant
-  MODEL_VERSION: "25.10"
-  GADGET_VERSION: "classic-25.10"
-  KERNEL_VERSION: "25.10"
-
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -48,31 +45,21 @@ prepare: |
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
+  version="$(nested_get_version)"
+
   # Retrieve the gadget
-  snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
+  snap download --basename=pc --channel="$version/${GADGET_CHANNEL}" pc
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
-  # Fetch upstream models
-  model_version_string="${MODEL_VERSION//\./}"
-  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
-  # but only keep relevant snaps
-  gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
-  mv classic-tmp.json classic.json
-  # and replace authority-id and brand-id
-  gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
-  mv classic-tmp.json classic.json
-
   cat << EOF > ./prepare-rootfs.sh
   rootfs="\$1"
-  echo ID=ubuntu > \${rootfs}/etc/os-release
-  echo VERSION_ID="${MODEL_VERSION}" >> \${rootfs}/etc/os-release
   # Setup initial keyboard layout
   echo XKBLAYOUT=uk > \${rootfs}/etc/default/keyboard
   echo XKBMODEL=pc105 >> \${rootfs}/etc/default/keyboard
@@ -82,9 +69,7 @@ prepare: |
   EOF
   export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
 
-  gendeveloper1 sign-model < classic.json > classic.model
-
-  truncate --size=10G disk.img
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
@@ -95,8 +80,7 @@ prepare: |
      --gadget pc.snap \
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert \
-     --disk disk.img
+     --kernel-assertion pc-kernel-from-store.assert
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -130,7 +114,7 @@ execute: |
 
   # Fresh start, nothing applied yet
   get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1$'
-  
+
   # Wait for snapd to pick up the current keyboard config
   retry -n 100 bash -c 'get_pending | MATCH "^true$"'
 

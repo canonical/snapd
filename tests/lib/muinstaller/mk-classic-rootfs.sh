@@ -24,6 +24,9 @@ prepare_classic_rootfs() {
     [ -e "$DESTDIR"/dev/random ] || sudo mknod -m 666 "$DESTDIR"/dev/random c 1 8
     [ -e "$DESTDIR"/dev/urandom ] || sudo mknod -m 666 "$DESTDIR"/dev/urandom c 1 9
 
+    # and mount /proc which is needed by systemd.postinst script
+    [ -e "$DESTDIR"/proc/cmdline ] || sudo mount -t proc none "$DESTDIR"/proc
+
     if [ "$ROLE" = spread ]; then
     # ensure the proxy and resolv configuration is set inside the chroot
         if [ "${SNAPD_USE_PROXY:-}" = true ]; then
@@ -86,6 +89,9 @@ EOF
     sudo tee -a "$DESTDIR/etc/fstab" <<'EOF'
 /run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind
 EOF
+
+    # we no longer need the mounted /proc
+    sudo umount "$DESTDIR"/proc
 }
 
 # get target dir from user
@@ -121,7 +127,12 @@ else
             pointrel=
             ;;
     esac
-    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
+    if [ "$release" == "26.04" ]; then
+        # TODO: remove this workaround when the 26.04 rootfs is released, for now use the snapshot
+        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/26.04/snapshot-2/ubuntu-base-26.04-snapshot2-base-amd64.tar.gz -O "$BASETAR"
+    else
+        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
+    fi
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi
