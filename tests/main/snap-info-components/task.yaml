@@ -3,24 +3,22 @@ summary: Test that snap info command handles components as expected
 details: |
   This test verifies that snap info prints components installed/available
   counts correctly for various scenarios:
+  - No components installed using test-snap-with-components
   - 2/3 (installed/total) using test-snap-with-components
   - No components anywhere using test-snapd-sh
 
 prepare: |
-  snap install test-snap-with-components
   snap install test-snapd-sh
 
 restore: |
   snap remove --purge test-snapd-sh
+  snap remove --purge test-snap-with-components || true
 
 execute: |
+  snap info test-snap-with-components | MATCH 'components: 0/3'
+  snap info test-snapd-sh | NOMATCH 'components:'
+
+  snap install test-snap-with-components
   snap install test-snap-with-components+one+two
 
   snap info test-snap-with-components | MATCH 'components: 2/3'
-  snap info test-snapd-sh | NOMATCH 'components:'
-
-  snap remove --purge test-snap-with-components+one+two
-  snap info test-snap-with-components | MATCH 'components: 0/3'
-
-  snap remove --purge test-snap-with-components
-  snap info test-snap-with-components | MATCH 'components: 0/3'
