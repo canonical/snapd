@@ -22,6 +22,7 @@ package interfaces
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -35,6 +36,7 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 	var errors []error
 	// use .SetupMany() if implemented by the backend, otherwise fall back to .Setup()
 	if setupManyInterface, ok := backend.(SecurityBackendSetupMany); ok {
+		logger.Debugf("setup many")
 		timings.Run(tm, "setup-security-backend[many]", fmt.Sprintf("setup security backend %q for %d snaps", backend.Name(), len(appSets)), func(nesttm timings.Measurer) {
 			errors = setupManyInterface.SetupMany(appSets, confinementOpts, setupCtx, repo, nesttm)
 		})
@@ -46,6 +48,8 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 			// Compute confinement options
 			opts := confinementOpts(snapName)
 			sctx := setupCtx(snapName)
+
+			logger.Debugf("setup for %v", set.info.InstanceName())
 
 			// Refresh security of this snap and backend
 			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {

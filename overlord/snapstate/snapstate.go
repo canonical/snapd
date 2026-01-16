@@ -689,6 +689,12 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// TODO:deferred-mount-ns-update: where else should this be added?
+	deferredTask := st.NewTask("deferred-consumer-update", "Deferred update of slot consumers")
+	deferredTask.WaitAll(ts)
+	ts.AddTask(deferredTask)
+
 	return ts, info, nil
 }
 
@@ -1722,6 +1728,8 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		installTasksets = append(installTasksets, addAutoAliasesTs)
 	}
 
+	// TODO:deferred-mount-ns-update add deferred work here?
+
 	for _, up := range alreadySatisfied {
 		switchTs, err := maybeSwitchSnapMetadataTaskSet(st, up.Setup, up.SnapState, opts)
 		if err != nil {
@@ -1746,6 +1754,14 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	for name := range reportUpdated {
 		updated = append(updated, name)
 	}
+
+	// TODO:deferred-mount-ns-update: where else should this be added?
+	deferredTs := state.NewTaskSet(st.NewTask("deferred-consumer-update", "Deferred update of slot consumers"))
+	for _, ts := range installTasksets {
+		deferredTs.WaitAll(ts)
+	}
+
+	installTasksets = append(installTasksets, deferredTs)
 
 	updateTss := &UpdateTaskSets{
 		Refresh:     installTasksets,

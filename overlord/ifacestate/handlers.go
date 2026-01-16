@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -145,6 +146,15 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 	return nil
 }
 
+func deferredUpdateTask(tasks []*state.Task) *state.Task {
+	for _, t := range tasks {
+		if t.Kind() == "deferred-consumer-update" {
+			return t
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -157,6 +167,18 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	if err != nil {
 		return err
 	}
+
+	var newConns []string
+	if err := task.Get("new-connections", &newConns); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	logger.Debugf("new connections: %v", newConns)
+
+	deferTask := deferredUpdateTask(task.Change().Tasks())
+	// we can only defer work if we have the defer task
+	canDefer := deferTask != nil
+	logger.Debugf("has deferred update support? %v", canDefer)
 
 	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
@@ -197,10 +219,28 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
+	// TODO:deferred-mount-ns-update: should collect information on snaps for
+	// which work was deferred
+	deferredSnapsWork, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDefer, perfTimings)
+	if err != nil {
 		return err
 	}
-	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
+
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet); err != nil {
+		return err
+	}
+
+	if len(deferredSnapsWork) != 0 {
+		logger.Debugf("has deferred work for snaps: %v", deferredSnapsWork)
+		task.Logf("deferred work for snaps:\n%v", deferredSnapsWork)
+		// TODO:deferred-mount-ns-update: set information for which snaps setup work was deferred
+		// Store affected connection IDs in SnapSetup for use by deferred-consumer-update task
+		if err := DeferBackendWorkFor(deferTask, deferredSnapsWork); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // setupPendingProfilesSideInfo helps updating information about any
@@ -240,8 +280,10 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 
 func (m *InterfaceManager) setupProfilesForAppSet(
 	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	newConns []string,
+	canDefer bool,
 	tm timings.Measurer,
-) error {
+) (deferredSnaps map[string]string, err error) {
 	st := task.State()
 
 	snapInfo := appSet.Info()
@@ -259,15 +301,15 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// - setup the security of all the affected snaps
 	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
 	if err := m.repo.RemoveSnap(snapName); err != nil {
-		return err
+		return nil, err
 	}
 	if err := m.repo.AddAppSet(appSet); err != nil {
-		return err
+		return nil, err
 	}
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
@@ -282,7 +324,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// snaps cannot be found in the state.
 	affectedConnections, err := m.reloadConnections(snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	affectedSet := make(map[string]bool)
 	for _, name := range disconnectedSnaps {
@@ -291,11 +333,12 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 	snapsWithConnectedPlugs := make(map[string]bool)
 	snapsWithConnectedSlots := make(map[string]bool)
+	newConnectedSnaps := make(map[string]bool)
 	// Identify affected snaps on either side of the connection.
 	for _, connID := range affectedConnections {
 		connRef, err := interfaces.ParseConnRef(connID)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
+			return nil, fmt.Errorf("internal error: cannot parse existing connection: %w", err)
 		}
 
 		affectedSet[connRef.PlugRef.Snap] = true
@@ -311,6 +354,16 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 	}
 
+	for _, connId := range newConns {
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot parse new connection: %w", err)
+		}
+		newConnectedSnaps[connRef.PlugRef.Snap] = true
+		newConnectedSnaps[connRef.SlotRef.Snap] = true
+	}
+
+	// TODO:deferred-mount-ns-update: move to the loop above
 	// Sort the set of affected names, ensuring that the snap being setup
 	// is first regardless of the name it has.
 	affectedNames := make([]string, 0, len(affectedSet))
@@ -321,6 +374,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	}
 	sort.Strings(affectedNames)
 	affectedNames = append([]string{snapName}, affectedNames...)
+
+	logger.Noticef(">>>> affected snaps: %v", affectedNames)
+	logger.Noticef(">>>> affected connections: %v", affectedConnections)
+	logger.Noticef(">>>> new connections; %v", newConns)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
@@ -333,8 +390,14 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	confinementOpts = append(confinementOpts, opts)
 	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
 		// We are being updated
-		Reason: interfaces.SnapSetupReasonOwnUpdate,
+		Reason:   interfaces.SnapSetupReasonOwnUpdate,
+		CanDefer: false,
 	}
+
+	// TODO:deferred-mount-ns-update: wrap in a nicer structure?
+	// map of snapName -> reason for deferring
+	var deferredWorkForSnapsLock sync.Mutex
+	deferredWorkForSnaps := map[string]string{}
 
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
@@ -345,10 +408,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := addImplicitInterfaces(st, snapInfo); err != nil {
-			return err
+			return nil, err
 		}
 
 		var appSet *interfaces.SnapAppSet
@@ -362,7 +425,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 			for _, csi := range snapst.PendingSecurity.Components {
 				ci, err := snapstate.ReadComponentInfo(snapInfo, csi)
 				if err != nil {
-					return fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
+					return nil, fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
 				}
 
 				comps = append(comps, ci)
@@ -374,12 +437,12 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 
 		if err != nil {
-			return fmt.Errorf("building app set for snap %q: %v", name, err)
+			return nil, fmt.Errorf("building app set for snap %q: %v", name, err)
 		}
 
 		opts, err := m.buildConfinementOptions(st, task, snapInfo, snapst.Flags)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// The snap is affected though a connection, set the context for the
@@ -395,13 +458,35 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		case snapsWithConnectedSlots[name]:
 			sctx.Reason = interfaces.SnapSetupReasonConnectedPlugConsumerUpdate
 		}
+
+		// Set SetupContext for snaps on the plug side of connections
+		// where the snap being setup is on the slot side (provider snap update).
+		if sctx.Reason == interfaces.SnapSetupReasonConnectedSlotProviderUpdate {
+			// TODO:deferred-mount-ns-update: does it make sense to have this
+			// for non-plug side snaps as well?
+			_, isNewConnected := newConnectedSnaps[name]
+			sctx.CanDefer = canDefer && !isNewConnected
+			if canDefer {
+				// callback only makes sense if we can handle deferred work in the first place
+				sctx.EnqueueDeferredWork = func(reason string) {
+					deferredWorkForSnapsLock.Lock()
+					defer deferredWorkForSnapsLock.Unlock()
+					deferredWorkForSnaps[snapst.InstanceName()] = reason
+				}
+			}
+		}
+
 		setupContexts[name] = sctx
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
 	}
 
-	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm)
+	if err := m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm); err != nil {
+		return nil, err
+	}
+
+	return deferredWorkForSnaps, nil
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
@@ -525,7 +610,8 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 
-		if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
+		const canDefer = false
+		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
 		return setPendingProfilesSideInfo(task.State(), snapName, appSet)
@@ -1353,6 +1439,7 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 		return nil, false, nil
 	}
 
+	var newConnections []string
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
@@ -1388,8 +1475,13 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 			afterConnectTask.WaitFor(setupProfiles)
 		}
 		ts.AddAll(connectTs)
+
+		newConnections = append(newConnections, conn.ID())
 	}
 	if len(ts.Tasks()) > 0 {
+		sort.Strings(newConnections)
+		setupProfiles.Set("new-connections", newConnections)
+
 		ts.AddTask(setupProfiles)
 	}
 	return ts, hasInterfaceHooks, nil
@@ -2220,4 +2312,142 @@ func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *
 	// of state for the duration of security backend operations
 	const unlockState = true
 	return m.regenerateAllSecurityProfiles(perfTimings, unlockState)
+}
+
+// DeferBackendWorkFor queues deferred backend work forr specific snaps
+func DeferBackendWorkFor(deferTask *state.Task, newDefrredSnapsWork map[string]string) error {
+	var deferredWork map[string]string
+	if err := deferTask.Get("deferred-work-for-snaps", &deferredWork); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if deferredWork == nil {
+		deferredWork = make(map[string]string, len(newDefrredSnapsWork))
+	}
+
+	for sn, reason := range newDefrredSnapsWork {
+		alreadyQeueued := deferredWork[sn]
+		if alreadyQeueued != "" {
+			// TODO:deferred-mount-ns-update: find a better way of
+			// formatting/handling if more than one reason is provided?
+			reason = alreadyQeueued + ";" + reason
+		}
+		deferredWork[sn] = reason
+	}
+
+	deferTask.Set("deferred-work-for-snaps", deferredWork)
+
+	return nil
+}
+
+// deferredWork returns deferred backed work
+func deferredWork(deferTask *state.Task) (deferredWork map[string]string, err error) {
+	if err := deferTask.Get("deferred-work-for-snaps", &deferredWork); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+	return deferredWork, err
+}
+
+func (m *InterfaceManager) doDeferredConsumerUpdate(task *state.Task, _ *tomb.Tomb) error {
+	//  Single catch all task handler for all deferred consumer updates.
+	//  Identify which snaps are affected and create new 'update' task for
+	//  each one
+
+	// TODO:deferred-mount-ns-update should this behave more like re-refresh in
+	// the sense we'd only run after re-refresh has completed?
+
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	logger.Debugf("deferred update coordination")
+
+	deferred, err := deferredWork(task)
+	if err != nil {
+		return err
+	}
+
+	if len(deferred) == 0 {
+		task.Logf("no deferred backend work")
+		logger.Debug("no deferred work")
+		return nil
+	}
+
+	ts := state.NewTaskSet()
+	for affectedSnap, reason := range deferred {
+		task.Logf("scheduling deferred work for snap %q: %v", affectedSnap, reason)
+		logger.Debugf("scheduling deferred work for snap %q: %v", affectedSnap, reason)
+
+		// One task per connected snap instance
+		updateTask := st.NewTask("deferred-single-consumer-update",
+			fmt.Sprintf("Deferred update of connected snap %q", affectedSnap))
+		updateTask.Set("affected-consumer-snap-instance", affectedSnap)
+		ts.AddTask(updateTask)
+
+		// TODO:deferred-mount-ns-update: which lane should the tasks join? 0?
+		ts.WaitFor(task)
+	}
+	task.Change().AddAll(ts)
+
+	// Update the status before we unlock
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *InterfaceManager) doDeferredSingleConsumerUpdate(task *state.Task, _ *tomb.Tomb) error {
+	// Perform actual deferred update for a consumer snap.
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(task.State())
+
+	var instanceName string
+	if err := task.Get("affected-consumer-snap-instance", &instanceName); err != nil {
+		return err
+	}
+
+	logger.Debugf("deferred update for snap %v", instanceName)
+
+	// Get the snap state to build an app set
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return err
+	}
+
+	// Get the current snap info
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// Add implicit interfaces if needed
+	if err := addImplicitInterfaces(st, snapInfo); err != nil {
+		return err
+	}
+
+	// Build an app set for the current snap revision
+	appSet, err := appSetForSnapRevision(st, snapInfo)
+	if err != nil {
+		return fmt.Errorf("building app set for snap %q: %v", instanceName, err)
+	}
+
+	// Unlock state for the duration of security backend operations
+	st.Unlock()
+	defer st.Lock()
+
+	// Call SetupDelayed on each backend
+	for _, backend := range m.repo.Backends() {
+		errs := interfaces.SetupDeferred(m.repo, backend, []*interfaces.SnapAppSet{appSet}, perfTimings)
+		if len(errs) > 0 {
+			// SetupDelayed processes all profiles and returns all encountered errors; report just the first one
+			return errs[0]
+		}
+	}
+
+	return nil
 }
