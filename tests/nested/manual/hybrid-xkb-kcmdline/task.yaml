@@ -65,7 +65,9 @@ prepare: |
   echo XKBMODEL=pc105 >> \${rootfs}/etc/default/keyboard
   echo XKBVARIANT=basic >> \${rootfs}/etc/default/keyboard
   echo XKBOPTIONS=compat >> \${rootfs}/etc/default/keyboard
-  ln -s \${rootfs}/etc/default/keyboard \${rootfs}/etc/vconsole.conf
+  if [ ! -f "\${rootfs}/etc/vconsole.conf" ]; then
+    ln -s \${rootfs}/etc/default/keyboard \${rootfs}/etc/vconsole.conf
+  fi
   EOF
   export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
 

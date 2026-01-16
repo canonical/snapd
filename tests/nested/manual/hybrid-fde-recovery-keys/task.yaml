@@ -78,7 +78,7 @@ restore: |
 
 execute: |
   # The APIs tested here shouldn't be available on anything before 25.10
-  if [ os.query is-ubuntu-lt 26.04 ]; then
+  if os.query is-ubuntu-lt 25.10; then
     remote.exec sudo snap debug api /v2/system-volumes | gojq .result.message | MATCH "this action is not supported on this system"
     exit 0
   fi
