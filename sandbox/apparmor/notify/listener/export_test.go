@@ -20,11 +20,13 @@
 package listener
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -34,6 +36,7 @@ import (
 
 var (
 	ReadyTimeout = readyTimeout
+	NewRequest   = (*Listener).newRequest
 )
 
 func ExitOnError() (restore func()) {
@@ -42,16 +45,17 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVersion, class notify.MediationClass, aaAllow, aaDeny notify.AppArmorPermission) *Request {
-	listener := &Listener{
+func FakeRequestWithIDVersionAllowDenyIfacePerms(id uint64, version notify.ProtocolVersion, aaAllow, aaDeny notify.FilePermission, iface string, perms []string) *prompting.Request {
+	l := &Listener{
 		protocolVersion: version,
 	}
-	return &Request{
-		ID:         id,
-		Class:      class,
-		Permission: aaDeny,
-		AaAllowed:  aaAllow,
-		listener:   listener,
+	key := fmt.Sprintf("kernel:%s:%016X", iface, id)
+	reply := l.buildReplyClosure(id, iface, aaAllow, aaDeny)
+	return &prompting.Request{
+		Key:         key,
+		Interface:   iface,
+		Permissions: perms,
+		Reply:       reply,
 	}
 }
 
@@ -173,6 +177,10 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 
 func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
 	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
+}
+
+func MockPromptingInterfaceFromTagsets(f func(tm notify.TagsetMap) (string, error)) (restore func()) {
+	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
 
 func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {

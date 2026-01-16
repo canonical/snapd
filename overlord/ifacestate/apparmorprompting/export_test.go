@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -43,7 +42,7 @@ func MockListenerReady(f func(l *listener.Listener) <-chan struct{}) (restore fu
 	return testutil.Mock(&listenerReady, f)
 }
 
-func MockListenerReqs(f func(l *listener.Listener) <-chan *listener.Request) (restore func()) {
+func MockListenerReqs(f func(l *listener.Listener) <-chan *prompting.Request) (restore func()) {
 	return testutil.Mock(&listenerReqs, f)
 }
 
@@ -51,20 +50,12 @@ func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
 	return testutil.Mock(&listenerClose, f)
 }
 
-type RequestResponse struct {
-	Request           *listener.Request
-	AllowedPermission notify.AppArmorPermission
-}
-
-func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
+func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
 	// The readyChan should be closed once all pending previously-sent requests
 	// have been re-sent.
 	readyChan = make(chan struct{})
 	// Since the manager run loop is in a tracked goroutine, shouldn't block.
-	reqChan = make(chan *listener.Request)
-	// Replies would be sent synchronously to an async listener, but it's
-	// mocked to be synchronous, so we need a non-zero buffer here.
-	replyChan = make(chan RequestResponse, 5)
+	reqChan = make(chan *prompting.Request)
 
 	closeChan := make(chan struct{})
 
@@ -81,7 +72,7 @@ func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, re
 	restoreReady := MockListenerReady(func(l *listener.Listener) <-chan struct{} {
 		return readyChan
 	})
-	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
+	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *prompting.Request {
 		return reqChan
 	})
 	restoreClose := MockListenerClose(func(l *listener.Listener) error {
@@ -90,7 +81,6 @@ func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, re
 			return listener.ErrAlreadyClosed
 		default:
 			close(reqChan)
-			close(replyChan)
 			close(closeChan)
 		}
 		select {
@@ -101,33 +91,14 @@ func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, re
 		}
 		return nil
 	})
-	restoreReply := MockRequestReply(func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
-		reqResp := RequestResponse{
-			Request:           req,
-			AllowedPermission: allowedPermission,
-		}
-		replyChan <- reqResp
-		return nil
-	})
 	restore = func() {
-		restoreReply()
 		restoreClose()
 		restoreReqs()
 		restoreReady()
 		restoreRun()
 		restoreRegister()
 	}
-	return readyChan, reqChan, replyChan, restore
-}
-
-func MockRequestReply(f func(req *listener.Request, allowedPermission notify.AppArmorPermission) error) (restore func()) {
-	restoreRequestReply := testutil.Backup(&requestReply)
-	requestReply = f
-	restoreRequestpromptsSendReply := requestprompts.MockSendReply(f)
-	return func() {
-		restoreRequestpromptsSendReply()
-		restoreRequestReply()
-	}
+	return readyChan, reqChan, restore
 }
 
 // Export the manager-level ready channel so it can be used in tests.
@@ -137,10 +108,6 @@ func (m *InterfacesRequestsManager) Ready() <-chan struct{} {
 
 func MockPromptsHandleReadying(f func(pdb *requestprompts.PromptDB) error) (restore func()) {
 	return testutil.Mock(&promptsHandleReadying, f)
-}
-
-func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
-	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
 
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {

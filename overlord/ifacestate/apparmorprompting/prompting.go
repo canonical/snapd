@@ -20,20 +20,17 @@
 package apparmorprompting
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -47,13 +44,7 @@ var (
 	listenerReady    = (*listener.Listener).Ready
 	listenerReqs     = (*listener.Listener).Reqs
 
-	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
-		return req.Reply(allowedPermission)
-	}
-
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
-
-	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -234,7 +225,7 @@ run_loop:
 			}
 
 			logger.Debugf("received from kernel requests channel: %+v", req)
-			if err := m.handleListenerReq(req); err != nil {
+			if err := m.handleReq(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
 		case <-m.tomb.Dying():
@@ -257,45 +248,15 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 	}
 }
 
-func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
-	userID := uint32(req.SubjectUID)
-	if userID == 0 {
+func (m *InterfacesRequestsManager) handleReq(req *prompting.Request) error {
+	if req.UID == 0 {
 		// Deny any request for the root user
-		return requestReply(req, nil)
+		return req.Reply(nil)
 	}
-	snap := req.Label // Default to apparmor label, in case process is not a snap
-	if tag, err := naming.ParseSecurityTag(req.Label); err == nil {
+	snap := req.AppArmorLabel // Default to apparmor label, in case process is not a snap
+	if tag, err := naming.ParseSecurityTag(req.AppArmorLabel); err == nil {
 		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
-	}
-
-	iface, err := promptingInterfaceFromTagsets(req.Tagsets)
-	if err != nil {
-		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
-			// There were no tags registered with a snapd interface, so we
-			// look at the path to decide whether it's "home" or "camera".
-			// XXX: this is a temporary workaround until metadata tags are
-			// supported by the AppArmor parser and kernel.
-			if builtin.DetectCameraFromPath(req.Path) {
-				iface = "camera"
-			} else {
-				iface = "home"
-			}
-		} else {
-			// There was either more than one interface associated with tags, or
-			// none which applied to all requested permissions. Since we can't
-			// decide which interface to use, automatically deny this request.
-			logger.Noticef("error while selecting interface from metadata tags: %v", err)
-			return requestReply(req, nil)
-		}
-	}
-
-	path := req.Path
-
-	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
-	if err != nil {
-		logger.Noticef("error while parsing AppArmor permissions: %v", err)
-		return requestReply(req, nil)
 	}
 
 	// we're done with early checks, serious business starts now, and we can
@@ -303,7 +264,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(userID, snap, iface, path, permissions)
+	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, snap, req.Interface, req.Path, req.Permissions)
 	if err != nil || matchedDenyRule || len(outstandingPerms) == 0 {
 		switch {
 		case err != nil:
@@ -314,36 +275,31 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			logger.Debugf("request allowed by existing rule: %+v", req)
 		}
 		// Allow any requested permissions which were explicitly allowed by
-		// existing rules (there may be no such permissions) and let the
-		// listener deny all permissions which were not explicitly included in
-		// the allowed permissions.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-		// Error should not occur, but if it does, allowedPermission is set to
-		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		// existing rules (there may be no such permissions) and auto-deny all
+		// permissions which were not explicitly included in the allowed permissions.
+		return req.Reply(allowedPerms)
 	}
 
 	// Request not satisfied by any of existing rules, record a prompt for the user
 
 	metadata := &prompting.Metadata{
-		User:      userID,
+		User:      req.UID,
 		Snap:      snap,
 		PID:       req.PID,
 		Cgroup:    req.Cgroup,
-		Interface: iface,
+		Interface: req.Interface,
 	}
+	// TODO: metadata isn't really necessary, since req holds almost all info;
+	// or, req isn't really necessary, and could instead just pass Reply() ?
 
-	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, outstandingPerms, req)
+	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, req.Path, req.Permissions, outstandingPerms, req)
 	if err != nil {
 		logger.Noticef("error while checking request against prompt DB: %v", err)
 
 		// We weren't able to create a new prompt, so respond with the best
 		// information we have, which is to allow any permissions which were
-		// allowed by existing rules, and let the listener deny the rest.
-		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-		// Error should not occur, but if it does, allowedPermission is set to
-		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		// allowed by existing rules, and auto-deny the rest.
+		return req.Reply(allowedPerms)
 	}
 
 	if merged {
@@ -490,7 +446,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		}
 
 		defer func() {
-			if retErr != nil || lifespan == prompting.LifespanSingle {
+			if retErr != nil {
 				m.rules.RemoveRule(userID, newRule.ID)
 			}
 		}()
