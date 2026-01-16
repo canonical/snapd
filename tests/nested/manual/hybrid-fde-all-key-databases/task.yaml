@@ -45,7 +45,7 @@ prepare: |
   version="$(nested_get_version)"
 
   # Retrieve the gadget
-  snap download --basename=pc --channel="$version/${GADGET_CHANNEL}" pc
+  snap download --basename=pc --channel="$version/edge" pc
   # the fakestore needs the assertion
   snap ack pc.assert
   # keep original blob just so we can find the assertion later

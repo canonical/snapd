@@ -44,7 +44,7 @@ prepare: |
   version="$(nested_get_version)"
 
   # Retrieve the gadget
-  snap download --basename=pc --channel="$version/${GADGET_CHANNEL}" pc
+  snap download --basename=pc --channel="$version/edge" pc
 
   # Retrieve kernel
   snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
