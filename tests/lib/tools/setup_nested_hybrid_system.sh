@@ -105,6 +105,7 @@ run_muinstaller() {
     done
 
     remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
+    remote.exec "sudo sh -c 'echo SNAPPY_TESTING=1 >> /etc/environment'"
     # push our snap down
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
