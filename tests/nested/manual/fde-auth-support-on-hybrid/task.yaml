@@ -247,7 +247,7 @@ execute: |
   # Test kernel refresh causing reseal.
 
   # Resigning kernel should be enough to trigger a reseal.
-  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$PWD/pc-kernel-new.snap"
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-repacked.snap" "$PWD/pc-kernel-new.snap"
   refresh_rebooting_snap pc-kernel-new.snap pc
 
   # We expect a reseal, PCR profile should have been updated.
