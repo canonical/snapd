@@ -45,8 +45,6 @@ const accessibilityPlugAppArmor = `
 
 network netlink,
 
-#include <abstractions/dbus-accessibility-strict>
-
 # Allow access to the non-abstract D-Bus socket used by at-spi > 2.42.0
 #   https://gitlab.gnome.org/GNOME/at-spi2-core/-/issues/43
 owner /{,var/}run/user/[0-9]*/at-spi/bus* rw,
@@ -161,6 +159,15 @@ func (iface *accessibilityInterface) StaticInfo() interfaces.StaticInfo {
 		Summary:              accessibilitySummary,
 		BaseDeclarationSlots: accessibilityBaseDeclarationSlots,
 	}
+}
+
+func (iface *accessibilityInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error {
+	// give access to the unconfined screen reader
+	old := "###SLOT_SECURITY_TAGS###"
+	new := "unconfined"
+	snippet := strings.Replace(accessibilityPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+	return nil
 }
 
 func (iface *accessibilityInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
