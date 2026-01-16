@@ -757,11 +757,8 @@ nested_prepare_kernel() {
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
             local extra_decl_args=""
             local kernel_decl="$NESTED_FAKESTORE_SNAP_DECL_PC_KERNEL"
-            # apply kernel snap declaration extras for UC26+ kernels if not
-            # explicitly set. UC26+ kernels have slots that require
-            # "allow-installation: true" in the snap declaration.
-            if [ -z "$kernel_decl" ] && nested_is_core_ge 26; then
-                kernel_decl="$TESTSLIB/assertions/pc-kernel-26-snap-decl-extras.json"
+            if [ -z "$kernel_decl" ] ; then
+                kernel_decl="$TESTSLIB/assertions/pc-kernel-snap-decl-extras.json"
             fi
             if [ -n "$kernel_decl" ]; then
                 extra_decl_args="--extra-decl-json $kernel_decl"
