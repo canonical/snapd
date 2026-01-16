@@ -71,7 +71,8 @@ type Env struct {
 
 	// redundant mode fields
 	redundant  bool // true if using redundant mode with two copies
-	activeFlag byte // which copy is active (FlagActive or FlagObsolete state)
+	activeFlag byte // flag value of the active copy (initially FlagActive or FlagObsolete)
+	activeCopy int  // which copy is active (Copy1 or Copy2)
 }
 
 // little endian helpers
@@ -98,6 +99,10 @@ const (
 	FlagActive = 0x01
 	// FlagObsolete marks an environment copy as obsolete/backup
 	FlagObsolete = 0x00
+	// Copy1 identifies the first environment copy
+	Copy1 = 1
+	// Copy2 identifies the second environment copy
+	Copy2 = 2
 )
 
 // redundantOffsets returns the byte offsets for the two environment copies.
@@ -477,6 +482,7 @@ func CreateRedundant(fname string, size int) (*Env, error) {
 		data:           make(map[string]string),
 		redundant:      true,
 		activeFlag:     0, // first Save() will write flag 1
+		activeCopy:     Copy1, // first Save() will write to Copy2
 	}
 
 	// Write initial empty environment with two copies
@@ -532,6 +538,7 @@ func OpenRedundantWithFlags(devname string, size int, flags OpenFlags) (*Env, er
 	// Select the active copy based on validity and flag byte
 	var env *Env
 	var activeFlag byte
+	var activeCopy int
 
 	switch {
 	case err1 == nil && err2 == nil:
@@ -542,20 +549,24 @@ func OpenRedundantWithFlags(devname string, size int, flags OpenFlags) (*Env, er
 		if isNewerFlag(flag1, flag2) {
 			env = env1
 			activeFlag = flag1
+			activeCopy = Copy1
 		} else {
 			env = env2
 			activeFlag = flag2
+			activeCopy = Copy2
 		}
 	case err1 == nil:
 		// Only copy1 valid
 		logger.Noticef("redundant environment copy2 is invalid: %v", err2)
 		env = env1
 		activeFlag = copy1[sizeOfUint32]
+		activeCopy = Copy1
 	case err2 == nil:
 		// Only copy2 valid
 		logger.Noticef("redundant environment copy1 is invalid: %v", err1)
 		env = env2
 		activeFlag = copy2[sizeOfUint32]
+		activeCopy = Copy2
 	default:
 		// Both invalid
 		return nil, fmt.Errorf("cannot open redundant environment %q: both copies invalid: copy1: %v, copy2: %v", devname, err1, err2)
@@ -565,6 +576,7 @@ func OpenRedundantWithFlags(devname string, size int, flags OpenFlags) (*Env, er
 	env.size = size
 	env.redundant = true
 	env.activeFlag = activeFlag
+	env.activeCopy = activeCopy
 
 	return env, nil
 }
@@ -582,17 +594,18 @@ func (env *Env) saveRedundant() error {
 	// Determine which copy to write to (the inactive one)
 	// and what the new flag value should be
 	var writeOffset int64
+	var newActiveCopy int
 
 	// Increment the flag value for the new active copy (wraps from 255 to 0)
 	newFlag := env.activeFlag + 1
 
-	// Write to the inactive copy (we alternate between copies)
-	// Odd flag means copy2 is active, so write to copy1
-	// Even flag (including 0) means copy1 is active, so write to copy2
-	if env.activeFlag%2 == 1 {
-		writeOffset = copy1Offset
-	} else {
+	// Write to the inactive copy based on which copy is currently active
+	if env.activeCopy == Copy1 {
 		writeOffset = copy2Offset
+		newActiveCopy = Copy2
+	} else {
+		writeOffset = copy1Offset
+		newActiveCopy = Copy1
 	}
 
 	buf := env.buildImage(newFlag)
@@ -602,8 +615,9 @@ func (env *Env) saveRedundant() error {
 		return err
 	}
 
-	// Update our tracking of the active flag
+	// Update our tracking of the active copy and flag
 	env.activeFlag = newFlag
+	env.activeCopy = newActiveCopy
 
 	return nil
 }

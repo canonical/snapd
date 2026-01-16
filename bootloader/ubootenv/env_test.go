@@ -457,13 +457,11 @@ func (u *uenvTestSuite) TestRedundantAlternatesCopies(c *C) {
 	c.Assert(err, IsNil)
 
 	// Helper to read flag bytes from both copies
-	readFlags := func() (flag1, flag2 byte) {
+	readFlags := func() (byte, byte) {
 		data, err := os.ReadFile(u.envFile)
 		c.Assert(err, IsNil)
 		// Flag byte is at offset 4 (after CRC) in each copy
-		flag1 = data[4]
-		flag2 = data[size+4]
-		return
+		return data[4], data[size+4]
 	}
 
 	// After CreateRedundant + initial Save(), copy2 should have flag 1
@@ -494,4 +492,83 @@ func (u *uenvTestSuite) TestRedundantAlternatesCopies(c *C) {
 	flag1, flag2 = readFlags()
 	c.Assert(flag1, Equals, byte(4), Commentf("copy1 flag after 4th save"))
 	c.Assert(flag2, Equals, byte(3), Commentf("copy2 flag after 4th save"))
+}
+
+// makeRedundantEnvWithFlags creates a redundant environment file where
+// copy1 has flag1 and copy2 has flag2. Both copies contain the same data.
+func (u *uenvTestSuite) makeRedundantEnvWithFlags(c *C, size int, flag1, flag2 byte, data []byte) {
+	// Build a single copy: CRC32 (4 bytes) + flag (1 byte) + payload
+	buildCopy := func(flag byte) []byte {
+		buf := make([]byte, size)
+		// Fill with 0xff, then overlay the header and data
+		for i := range buf {
+			buf[i] = 0xff
+		}
+		copy(buf[5:], data)
+
+		// CRC is computed over payload only (after header)
+		payload := buf[5:]
+		crc := crc32.ChecksumIEEE(payload)
+		copy(buf[0:4], ubootenv.WriteUint32(crc))
+		buf[4] = flag
+		return buf
+	}
+
+	copy1Data := buildCopy(flag1)
+	copy2Data := buildCopy(flag2)
+
+	f, err := os.Create(u.envFile)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	_, err = f.Write(copy1Data)
+	c.Assert(err, IsNil)
+	_, err = f.Write(copy2Data)
+	c.Assert(err, IsNil)
+}
+
+func (u *uenvTestSuite) TestRedundantSaveInvertedFlags(c *C) {
+	// This test verifies that Save() writes to the inactive copy even when
+	// the flag pattern is inverted from what the code might assume.
+	//
+	// Normal pattern: copy1 has even flags, copy2 has odd flags
+	// Inverted pattern: copy1 has odd flags (5), copy2 has even flags (4)
+	//
+	// With flag1=5 and flag2=4, copy1 is active (higher flag).
+	// Save() should write to copy2 (the inactive copy).
+	// Bug: if Save() uses odd/even to determine which copy to write,
+	// it will incorrectly write to copy1 (overwriting the active copy).
+
+	size := ubootenv.DefaultRedundantEnvSize
+
+	// Create sample env data
+	envData := []byte("key=original\x00\x00")
+
+	// Create a redundant env with an inverted flag pattern:
+	// copy1 = flag 5 (odd, active), copy2 = flag 4 (even, inactive)
+	u.makeRedundantEnvWithFlags(c, size, 5, 4, envData)
+
+	// Open the redundant environment
+	env, err := ubootenv.OpenRedundant(u.envFile, size)
+	c.Assert(err, IsNil)
+
+	// Verify we read the correct data
+	c.Assert(env.Get("key"), Equals, "original")
+
+	// Modify and save
+	env.Set("key", "modified")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	// Read the raw file to check which copy was written
+	data, err := os.ReadFile(u.envFile)
+	c.Assert(err, IsNil)
+
+	// Flag bytes are at offset 4 in each copy
+	flag1 := data[4]
+	flag2 := data[size+4]
+
+	// After save, the inactive copy (copy2) should have the new flag (6)
+	// and copy1 should be unchanged (5)
+	c.Assert(flag1, Equals, byte(5), Commentf("copy1 flag should remain 5 (was active, not written)"))
+	c.Assert(flag2, Equals, byte(6), Commentf("copy2 flag should be 6 (was inactive, now updated)"))
 }
