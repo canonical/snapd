@@ -34,6 +34,7 @@ import (
 
 var (
 	ReadyTimeout = readyTimeout
+	NewRequest   = (*Listener).newRequest
 )
 
 func ExitOnError() (restore func()) {
@@ -42,16 +43,17 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVersion, class notify.MediationClass, aaAllow, aaDeny notify.AppArmorPermission) *Request {
-	listener := &Listener{
+func FakeRequestWithIDVersionAllowDenyIfacePerms(id uint64, version notify.ProtocolVersion, aaAllow, aaDeny notify.FilePermission, iface string, perms []string) *Request {
+	l := &Listener{
 		protocolVersion: version,
 	}
 	return &Request{
-		ID:         id,
-		Class:      class,
-		Permission: aaDeny,
-		AaAllowed:  aaAllow,
-		listener:   listener,
+		ID:             id,
+		aaRequested:    aaDeny,
+		aaAllowed:      aaAllow,
+		iface:          iface,
+		requestedPerms: perms,
+		listener:       l,
 	}
 }
 
@@ -173,6 +175,10 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 
 func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
 	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
+}
+
+func MockPromptingInterfaceFromTagsets(f func(tm notify.TagsetMap) (string, error)) (restore func()) {
+	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
 
 func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {

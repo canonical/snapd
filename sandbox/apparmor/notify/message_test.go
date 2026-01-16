@@ -1063,6 +1063,90 @@ func (s *messageSuite) TestBuildResponse(c *C) {
 	}
 }
 
+func (s *messageSuite) TestBuildResponseErrorHandling(c *C) {
+	var (
+		protocol = notify.ProtocolVersion(123)
+		id       = uint64(456)
+
+		aaAllowedNonNil   = notify.FilePermission(0b01001011)
+		requestedNonNil   = notify.FilePermission(0b00101101)
+		userAllowedNonNil = notify.FilePermission(0b00010111)
+	)
+
+	for i, testCase := range []struct {
+		aaAllowed     notify.AppArmorPermission
+		requested     notify.AppArmorPermission
+		userAllowed   notify.AppArmorPermission
+		expectedAllow uint32
+		expectedDeny  uint32
+	}{
+		{
+			nil,
+			nil,
+			nil,
+			0,
+			0,
+		},
+		{
+			aaAllowedNonNil,
+			nil,
+			nil,
+			0b01001011,
+			0,
+		},
+		{
+			nil,
+			requestedNonNil,
+			nil,
+			0,
+			0b00101101,
+		},
+		{
+			nil,
+			nil,
+			userAllowedNonNil,
+			0,
+			0,
+		},
+		{
+			aaAllowedNonNil,
+			requestedNonNil,
+			nil,
+			0b01000010,
+			0b00101101,
+		},
+		{
+			aaAllowedNonNil,
+			nil,
+			userAllowedNonNil,
+			0b01001011,
+			0,
+		},
+		{
+			nil,
+			requestedNonNil,
+			userAllowedNonNil,
+			0b00000101,
+			0b00101000,
+		},
+		{
+			aaAllowedNonNil,
+			requestedNonNil,
+			userAllowedNonNil,
+			0b01000111,
+			0b00101000,
+		},
+	} {
+		resp := notify.BuildResponse(protocol, id, testCase.aaAllowed, testCase.requested, testCase.userAllowed)
+		c.Check(resp.Version, Equals, protocol)
+		c.Check(resp.NotificationType, Equals, notify.APPARMOR_NOTIF_RESP)
+		c.Check(resp.Flags, Equals, uint8(1))
+		c.Check(resp.KernelNotificationID, Equals, id)
+		c.Check(resp.Allow, Equals, testCase.expectedAllow, Commentf("testCase %d: %+v", i, testCase))
+		c.Check(resp.Deny, Equals, testCase.expectedDeny, Commentf("testCase %d: %+v", i, testCase))
+	}
+}
+
 func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	if notify.NativeByteOrder == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")
@@ -1098,13 +1182,29 @@ func (s *messageSuite) TestMsgNotificationResponseMarshalBinary(c *C) {
 	})
 }
 
-func (*messageSuite) TestDecodeFilePermissions(c *C) {
-	msg := notify.MsgNotificationFile{
-		MsgNotificationOp: notify.MsgNotificationOp{
-			Allow: 5,
-			Deny:  3,
-			Class: notify.AA_CLASS_FILE,
+func (s *messageSuite) TestBuildDenyResponse(c *C) {
+	msg := notify.MsgNotificationOp{
+		MsgNotification: notify.MsgNotification{
+			MsgHeader: notify.MsgHeader{
+				Version: 123,
+			},
+			KernelNotificationID: 0xF00,
 		},
+		Allow: 0b0101,
+		Deny:  0b0011,
+	}
+	resp := msg.BuildDenyResponse()
+	c.Check(resp.Version, Equals, msg.Version)
+	c.Check(resp.KernelNotificationID, Equals, msg.KernelNotificationID)
+	c.Check(resp.Allow, Equals, uint32(0b0100))
+	c.Check(resp.Deny, Equals, uint32(0b0011))
+}
+
+func (*messageSuite) TestDecodeFilePermissions(c *C) {
+	msg := notify.MsgNotificationOp{
+		Allow: 5,
+		Deny:  3,
+		Class: notify.AA_CLASS_FILE,
 	}
 	allow, deny, err := msg.DecodeFilePermissions()
 	c.Assert(err, IsNil)
@@ -1113,15 +1213,13 @@ func (*messageSuite) TestDecodeFilePermissions(c *C) {
 }
 
 func (*messageSuite) TestDecodeFilePermissionsWrongClass(c *C) {
-	msg := notify.MsgNotificationFile{
-		MsgNotificationOp: notify.MsgNotificationOp{
-			Allow: 5,
-			Deny:  3,
-			Class: notify.AA_CLASS_DBUS,
-		},
+	msg := notify.MsgNotificationOp{
+		Allow: 5,
+		Deny:  3,
+		Class: notify.AA_CLASS_DBUS,
 	}
 	_, _, err := msg.DecodeFilePermissions()
-	c.Assert(err, ErrorMatches, "mediation class AA_CLASS_DBUS does not describe file permissions")
+	c.Assert(err, ErrorMatches, "cannot decode file permissions for other mediation class: AA_CLASS_DBUS")
 }
 
 func (*messageSuite) TestMsgNotificationFileAsGeneric(c *C) {
@@ -1165,4 +1263,18 @@ func testMsgNotificationGeneric(c *C, generic notify.MsgNotificationGeneric, id 
 	c.Check(generic.SubjectUID(), Equals, suid)
 	c.Check(generic.Name(), Equals, name)
 	c.Check(generic.DeniedMetadataTagsets(), DeepEquals, tagsets)
+}
+
+func (*messageSuite) TestAllowedDeniedPermissionsError(c *C) {
+	msg := notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
+			Allow: 5,
+			Deny:  3,
+			Class: notify.AA_CLASS_DBUS,
+		},
+	}
+	allowed, denied, err := msg.AllowedDeniedPermissions()
+	c.Check(err, ErrorMatches, "cannot decode file permissions for other mediation class: AA_CLASS_DBUS")
+	c.Check(allowed, Equals, notify.FilePermission(0))
+	c.Check(denied, Equals, notify.FilePermission(0))
 }
