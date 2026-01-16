@@ -390,6 +390,11 @@
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
     mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
 
+    # WSL2 GPU
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/wsl/{,*} w,
+    mount options=(rw bind) /usr/lib/wsl/lib/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/wsl/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/wsl/,
+
     # create gl dirs as needed
     /tmp/snap.rootfs_*/ r,
     /tmp/snap.rootfs_*/var/ r,
@@ -402,6 +407,8 @@
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/** rw,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/ r,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/** rw,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/wsl/ r,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/wsl/** rw,
 
     ## nvidia libraries exported by a snap
     # read source paths
