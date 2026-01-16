@@ -159,6 +159,9 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/dma_heap/linux,cma rw,
 /dev/dma_heap/system rw,
 
+# IMX specific
+/dev/dma_heap/linux,cma-uncached rw,
+
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
 /dev/galcore rw,
