@@ -111,6 +111,38 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+// ActivateStateHasDegradedErrors looks for any error that is not
+// ignorable and should be reported on an ActivateState.
+// This function assumes all activations have been unlocked using
+// platform key. The caller should call this function only in this
+// case.
+func ActivateStateHasDegradedErrors(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			case sb.KeyslotErrorInvalidKeyData:
+				// FIXME: specs this is degraded. But we
+				// have this case where we use external
+				// key data files. Maybe secboot should
+				// provide a different error code.
+
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return true
+			case sb.KeyslotErrorPlatformFailure:
+				return true
+			case sb.KeyslotErrorUnknown:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
 	State() *ActivateState
