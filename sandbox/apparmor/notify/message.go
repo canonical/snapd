@@ -472,12 +472,18 @@ type MsgNotificationResponse struct {
 
 // BuildResponse returns a MsgNotificationResponse with the given information.
 func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, requested, explicitlyAllowed AppArmorPermission) *MsgNotificationResponse {
-	aaDenyMask := requested.AsAppArmorOpMask()
-	// If permission was originally both allowed and denied in the message,
-	// treat it as initially denied.
-	aaAllowMask := initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+	var aaDenyMask uint32
+	if requested != nil {
+		aaDenyMask = requested.AsAppArmorOpMask()
+	}
+	var aaAllowMask uint32
+	if initiallyAllowed != nil {
+		// If permission was originally both allowed and denied in the message,
+		// treat it as initially denied.
+		aaAllowMask = initiallyAllowed.AsAppArmorOpMask() &^ aaDenyMask
+	}
 
-	userAllowMask := uint32(0)
+	var userAllowMask uint32
 	if explicitlyAllowed != nil {
 		userAllowMask = explicitlyAllowed.AsAppArmorOpMask()
 	}
@@ -570,11 +576,18 @@ type MsgNotificationOp struct {
 	Op uint16
 }
 
+// BuildDenyResponse returns a MsgNotificationResponse denying all requested
+// permissions.
+func (msg *MsgNotificationOp) BuildDenyResponse() *MsgNotificationResponse {
+	// Cast msg.Allow and msg.Deny as FilePermission, doesn't matter which class
+	return BuildResponse(msg.Version, msg.KernelNotificationID, FilePermission(msg.Allow), FilePermission(msg.Deny), nil)
+}
+
 // DecodeFilePermissions returns a pair of permissions describing the state of a
 // process attempting to perform an operation.
 func (msg *MsgNotificationOp) DecodeFilePermissions() (allow, deny FilePermission, err error) {
 	if msg.Class != AA_CLASS_FILE {
-		return 0, 0, fmt.Errorf("mediation class %s does not describe file permissions", msg.Class)
+		return 0, 0, fmt.Errorf("cannot decode file permissions for other mediation class: %s", msg.Class)
 	}
 	return FilePermission(msg.Allow), FilePermission(msg.Deny), nil
 }
