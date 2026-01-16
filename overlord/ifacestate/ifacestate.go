@@ -675,3 +675,18 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 
 	return chg, nil
 }
+
+// DelayedBackendEffects creates a task set for applying delayed effects from
+// backend setup calls.
+//
+// The task which applies delayed effects if free standing and and has no direct
+// dependencies on other tasks, However, any delayed effects are applied only
+// when snaps that triggered them have been processed (installed, refreshed,
+// removed) successfully. The monitorLanes parameter carries a list of lanes
+// that should be monitored for tasks related to snap processing.
+func DelayedBackendEffects(st *state.State, monitorLanes []int) (ts *state.TaskSet) {
+	delayedCoordinationTask := st.NewTask("delayed-backend-effects", "Delayed side effects for affected snaps")
+	delayedCoordinationTask.Set("monitor-lanes", monitorLanes)
+	ts = state.NewTaskSet(delayedCoordinationTask)
+	return ts
+}
