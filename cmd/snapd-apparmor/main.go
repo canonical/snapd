@@ -144,7 +144,7 @@ func loadAppArmorProfiles() error {
 		return nil
 	}
 	logger.Noticef("Loading profiles %v", profiles)
-	return apparmor_sandbox.LoadProfiles(profiles, apparmor_sandbox.SystemCacheDir, 0)
+	return apparmor_sandbox.LoadProfiles(profiles, apparmor_sandbox.SystemCacheDir, apparmor_sandbox.ConserveCPU)
 }
 
 func isContainer() bool {

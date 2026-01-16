@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	NumberOfJobsParam     = numberOfJobsParam
+	NumberOfJobs          = numberOfJobs
 	SetupConfCacheDirs    = setupConfCacheDirs
 	SetupNotifySocketPath = setupNotifySocketPath
 )
@@ -38,6 +38,14 @@ func MockRuntimeNumCPU(new func() int) (restore func()) {
 	runtimeNumCPU = new
 	return func() {
 		runtimeNumCPU = old
+	}
+}
+
+func MockTotalMemory(m func() (uint64, error)) (restore func()) {
+	old := totalMemoryFn
+	totalMemoryFn = m
+	return func() {
+		totalMemoryFn = old
 	}
 }
 
