@@ -21,9 +21,7 @@ package snap
 
 import (
 	"fmt"
-	"maps"
 	"os"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -432,8 +430,17 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
+// TODO:GOVERSION: remove in favor of slices.Collect once we're on Go 1.21+
+func slicesCollect(mapvar map[string]any) []string {
+	retval := []string{}
+	for key := range mapvar {
+		retval = append(retval, key)
+	}
+	return retval
+}
+
 func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
-	globalPlugs := slices.Collect(maps.Keys(y.Plugs))
+	globalPlugs := slicesCollect(y.Plugs)
 
 	for appName, yApp := range y.Apps {
 		// Collect all apps
@@ -506,7 +513,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 					Name:       plugName,
 					Interface:  plugName,
 					Apps:       make(map[string]*AppInfo),
-					Dependency: slices.Contains(plugDependencies, plugName),
+					Dependency: slicesContains(plugDependencies, plugName),
 				}
 				snap.Plugs[plugName] = plug
 			}

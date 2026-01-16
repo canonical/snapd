@@ -22,7 +22,6 @@ package snap
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strconv"
 )
 
@@ -51,7 +50,7 @@ func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, 
 	dependeciesList := []string{}
 	for _, plug := range plugs {
 		// Check no forbidden dependency is in the app plugs list
-		if slices.Contains(forbiddenInterfaces, plug) {
+		if slicesContains(forbiddenInterfaces, plug) {
 			return nil, fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", plug)
 		}
 		deps, ok := dependencies[plug]
@@ -67,15 +66,15 @@ func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, 
 					continue
 				}
 			}
-			if slices.Contains(dependeciesList, dep.Name) {
+			if slicesContains(dependeciesList, dep.Name) {
 				// Don't add duplicated dependencies
 				continue
 			}
-			if slices.Contains(plugs, dep.Name) {
+			if slicesContains(plugs, dep.Name) {
 				// Don't add a dependency plug if it is already a app-specific plug
 				continue
 			}
-			if slices.Contains(slots, dep.Name) {
+			if slicesContains(slots, dep.Name) {
 				// Don't add a dependency plug if it is already an app-specific slot
 				continue
 			}
@@ -83,4 +82,14 @@ func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, 
 		}
 	}
 	return dependeciesList, nil
+}
+
+// TODO:GOVERSION: remove in favor of slices.Contains once we're on Go 1.21+
+func slicesContains[T comparable](haystack []T, needle T) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
