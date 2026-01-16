@@ -43,22 +43,17 @@ var forbiddenInterfaces = []string{
 	"accessibility",
 }
 
-func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*PlugInfo, globalSlots map[string]*SlotInfo, base string) ([]string, error) {
-	globalPlugNames := []string{}
-	for plugName := range globalPlugs {
-		globalPlugNames = append(globalPlugNames, plugName)
-	}
+func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, error) {
 	baseVersion := 0
 	if match, _ := regexp.MatchString("[cC]ore[0-9]+", base); match {
 		baseVersion, _ = strconv.Atoi(base[4:])
 	}
 	dependeciesList := []string{}
-	for _, plug := range append(plugs, globalPlugNames...) {
+	for _, plug := range plugs {
 		// Check no forbidden dependency is in the app plugs list
 		if CheckInterfaceIsInvalid(plug) {
 			return nil, fmt.Errorf("the interface %q is internal and can't be manually defined in the snapcraft.yaml file", plug)
 		}
-
 		deps, ok := dependencies[plug]
 		if !ok {
 			continue
@@ -82,14 +77,6 @@ func GetDependenciesFor(plugs []string, slots []string, globalPlugs map[string]*
 			}
 			if slices.Contains(slots, dep.Name) {
 				// Don't add a dependency plug if it is already an app-specific slot
-				continue
-			}
-			if _, ok := globalPlugs[dep.Name]; ok {
-				// Don't add a plug dependency that is already in the global plugs
-				continue
-			}
-			if _, ok := globalSlots[dep.Name]; ok {
-				// Don't add a plug dependency that is already in the global slots
 				continue
 			}
 			dependeciesList = append(dependeciesList, dep.Name)

@@ -92,6 +92,88 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	c.Assert(err, ErrorMatches, "(?m)cannot parse snap.yaml:.*")
 }
 
+func (s *InfoSnapYamlTestSuite) TestDependencies(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: test
+
+apps:
+  app1:
+    plugs: [ desktop-legacy ]
+`))
+	c.Assert(err, IsNil)
+	c.Check(len(info.Apps), Equals, 1)
+	plugs := info.Apps["app1"].Plugs
+	c.Check(len(plugs), Equals, 2)
+	_, plug1 := plugs["desktop-legacy"]
+	c.Check(plug1, Equals, true)
+	_, plug2 := plugs["accessibility"]
+	c.Check(plug2, Equals, true)
+}
+
+func (s *InfoSnapYamlTestSuite) TestDependencies2(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: test
+
+base: core24
+apps:
+  app1:
+    plugs: [ desktop-legacy ]
+  app2:
+    plugs: [ desktop-legacy ]
+`))
+	c.Assert(err, IsNil)
+	c.Check(len(info.Apps), Equals, 2)
+	plugs := info.Apps["app1"].Plugs
+	c.Check(len(plugs), Equals, 2)
+	_, plug1 := plugs["desktop-legacy"]
+	c.Check(plug1, Equals, true)
+	_, plug2 := plugs["accessibility"]
+	c.Check(plug2, Equals, true)
+
+	plugs = info.Apps["app2"].Plugs
+	c.Check(len(plugs), Equals, 2)
+	_, plug1 = plugs["desktop-legacy"]
+	c.Check(plug1, Equals, true)
+	_, plug2 = plugs["accessibility"]
+	c.Check(plug2, Equals, true)
+}
+
+func (s *InfoSnapYamlTestSuite) TestDependencies3(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: test
+
+base: core24
+plugs:
+  desktop-legacy:
+
+apps:
+  app1:
+  app2:
+`))
+	c.Assert(err, IsNil)
+	c.Check(len(info.Apps), Equals, 2)
+	plugs := info.Apps["app1"].Plugs
+	c.Check(len(plugs), Equals, 2)
+	_, plug1 := plugs["desktop-legacy"]
+	c.Check(plug1, Equals, true)
+	_, plug2 := plugs["accessibility"]
+	c.Check(plug2, Equals, true)
+
+	plugs = info.Apps["app2"].Plugs
+	c.Check(len(plugs), Equals, 2)
+	_, plug1 = plugs["desktop-legacy"]
+	c.Check(plug1, Equals, true)
+	_, plug2 = plugs["accessibility"]
+	c.Check(plug2, Equals, true)
+}
+
+func (s *InfoSnapYamlTestSuite) TestDependencies4(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`name: test
+
+apps:
+  app1:
+    plugs: [ desktop-legacy, accessibility ]
+`))
+	c.Assert(err, NotNil)
+}
+
 type YamlSuite struct {
 	restore func()
 	testutil.BaseTest

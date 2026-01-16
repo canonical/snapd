@@ -21,6 +21,7 @@ package snap
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -432,6 +433,8 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 }
 
 func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
+	globalPlugs := slices.Collect(maps.Keys(y.Plugs))
+
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
@@ -487,7 +490,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			snap.LegacyAliases[alias] = app
 		}
 
-		plugDependencies, err := GetDependenciesFor(yApp.PlugNames, yApp.SlotNames, snap.Plugs, snap.Slots, snap.Base)
+		plugDependencies, err := GetDependenciesFor(append(yApp.PlugNames, globalPlugs...), yApp.SlotNames, snap.Base)
 		if err != nil {
 			return err
 		}
