@@ -617,6 +617,8 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 
 	csi := cc.compsup.CompSideInfo
 
+	// add the link-component task to the chain. note, this isn't part of one of
+	// the spans, since callers want to be able to reference it individually
 	var maybeLink *state.Task
 	if !cc.snapsup.Revert {
 		// finalize (sets SnapState). if we're reverting, there isn't anything to
@@ -634,6 +636,8 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 		return componentInstallTaskSet{}, nil, err
 	}
 
+	// add the discard-component task to the chain. note, this isn't part of one
+	// of the spans, since callers want to be able to reference it individually
 	var maybeDiscard *state.Task
 	if cc.canDiscardOldRevision() {
 		// we can only discard the component if all of the following are true:
