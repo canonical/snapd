@@ -52,10 +52,12 @@ execute: |
   snap component test-snap-with-components+three | MATCH "component: test-snap-with-components\+three"
 
   # test non-installed component
-  snap component test-snap-with-components+four | MATCH "no component \"four\" found for snap \"test-snap-with-components\""
+  snap component test-snap-with-components+four 2> out.stderr || true
+  MATCH "no component \"four\" found for snap \"test-snap-with-components\"" < out.stderr
 
   # test multiple components, one not installed
   snap component test-snap-with-components+one+four | MATCH "component: test-snap-with-components\+one" | MATCH "warning: no component \"four\" found for snap \"test-snap-with-components\""
 
   # test multiple components, all not installed
-  snap component test-snap-with-components+four+five | MATCH "no valid components given"
+  snap component test-snap-with-components+four+five 2> out.stderr2 || true
+  MATCH "no valid components given" < out.stderr2
