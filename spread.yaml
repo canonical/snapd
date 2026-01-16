@@ -199,7 +199,7 @@ backends:
                   workers: 8
                   storage: 20G
             - ubuntu-core-26-64:
-                  image: ubuntu-2510-64
+                  image: ubuntu-2604-64
                   workers: 8
                   storage: 20G
 
@@ -411,6 +411,9 @@ backends:
                 workers: 8
             - ubuntu-core-24-64:
                 image: snapd-spread/ubuntu-24.04-64-uefi
+                workers: 8
+            - ubuntu-core-26-64:
+                image: snapd-spread/ubuntu-26.04-64-uefi
                 workers: 8
 
             - debian-12-64:
