@@ -683,6 +683,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-sid*)
             echo "
+                busybox
                 debhelper
                 autopkgtest
                 bpftool

@@ -7,7 +7,7 @@ details: |
 
 # Skip 32-bit architectures because the core20 snap is not available there
 # Skip debian-sid as pivot_root binary is not anymore within util-linux
-systems: [-*-32, -debian-sid-*]
+systems: [-*-32]
 
 skip:
     - reason: Unshare command doesn't support saving the namespace
