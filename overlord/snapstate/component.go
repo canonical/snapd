@@ -361,9 +361,9 @@ func (c *componentInstallTaskSet) taskSet() *state.TaskSet {
 // for installing a snap component. It provides phase methods that correspond to
 // different stages of the installation.
 type componentInstallChoreographer struct {
-	compsup ComponentSetup
-	snapsup SnapSetup
-	snapst  SnapState
+	compsup *ComponentSetup
+	snapsup *SnapSetup
+	snapst  *SnapState
 
 	// compsupTask is the task that carries the ComponentSetup for this
 	// operation. Can optionally be injected by the caller.
@@ -384,9 +384,9 @@ type componentInstallChoreographer struct {
 
 func newComponentInstallChoreographer(
 	st *state.State,
-	snapsup SnapSetup,
-	snapst SnapState,
-	compsup ComponentSetup,
+	snapsup *SnapSetup,
+	snapst *SnapState,
+	compsup *ComponentSetup,
 	fromChange string,
 	snapsupTask, setupSecurityTask, kmodSetupTask *state.Task,
 ) (*componentInstallChoreographer, error) {
@@ -416,7 +416,7 @@ func newComponentInstallChoreographer(
 	}
 
 	// we consider the same conflicts as if the component was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), &snapst, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
 		return nil, err
 	}
 
@@ -876,6 +876,9 @@ func doInstallComponentLegacy(
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
+//
+// TODO: make this function, and other relevant places, operate on pointers to
+// SnapState, ComponentSetup, and SnapSetup.
 func doInstallComponent(
 	st *state.State,
 	snapst *SnapState,
