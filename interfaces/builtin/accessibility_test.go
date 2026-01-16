@@ -65,12 +65,27 @@ func (s *AccessibilityLegacyInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "accessibility")
 }
 
-func (s *AccessibilityLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *AccessibilityLegacyInterfaceSuite) TestAppArmorSpecForConnectedPlug(c *C) {
 	// connected plug to core slot
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/dbus-accessibility-strict>")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.a11y.atspi.Registry, label=\"snap.core.\"),")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.a11y.atspi.Registry, label=unconfined),")
+}
+
+func (s *AccessibilityLegacyInterfaceSuite) TestAppArmorSpecForNotConnectedPlug(c *C) {
+	// connected plug to core slot
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/dbus-accessibility-strict>")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "peer=(name=org.a11y.atspi.Registry, label=\"snap.core.\"),")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.a11y.atspi.Registry, label=unconfined),")
 }

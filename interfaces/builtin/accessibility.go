@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -126,12 +126,12 @@ network netlink,
 
 # full access to the accessibility bus
 dbus (receive, send)
-	bus=accessibility,
+    bus=accessibility,
 
 # full access to a11y elements in session bus
 dbus (send)
-	bus=session
-	path=/org/a11y/bus{,/**},
+    bus=session
+    path=/org/a11y/bus{,/**},
 
 dbus (bind)
     bus=session
