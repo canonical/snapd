@@ -126,7 +126,7 @@ func (s *taskChainBuilderTestSuite) TestSpanChainWithoutAppending(c *C) {
 	second := st.NewTask("task-2", "second")
 
 	// ChainWithoutAppending chains the task but does not add it to the taskChainBuilder or the taskChainSpan
-	b.ChainWithoutAppending(second)
+	b.JoinOn(second)
 
 	// second waits for first but is not kept around in the taskChainBuilder or the taskChainSpan
 	c.Check(second.WaitTasks(), DeepEquals, []*state.Task{first})
@@ -153,8 +153,8 @@ func (s *taskChainBuilderTestSuite) TestChainWithoutAppendingSharedTask(c *C) {
 
 	// ChainWithoutAppending adds the same task to both chains
 	chained := st.NewTask("chained", "in-both")
-	b1.ChainWithoutAppending(chained)
-	b2.ChainWithoutAppending(chained)
+	b1.JoinOn(chained)
+	b2.JoinOn(chained)
 
 	// chained now waits for both task1 and task3, belonging to multiple chains
 	c.Check(chained.WaitTasks(), HasLen, 2)

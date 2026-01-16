@@ -563,7 +563,7 @@ func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChai
 	} else if cc.setupSecurityTask != nil {
 		// pre-existing tasks don't get task data added to them, nor do they get
 		// added to the task set. just set up the dependency
-		s.b.ChainWithoutAppending(cc.setupSecurityTask)
+		s.b.JoinOn(cc.setupSecurityTask)
 	}
 
 	return nil
@@ -588,7 +588,7 @@ func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State
 	} else if cc.kmodSetupTask != nil {
 		// pre-existing tasks don't get task data added to them, nor do they get
 		// added to the task set. just set up the dependency
-		s.b.ChainWithoutAppending(cc.kmodSetupTask)
+		s.b.JoinOn(cc.kmodSetupTask)
 	}
 
 	return nil
