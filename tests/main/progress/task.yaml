@@ -4,6 +4,10 @@ details: |
   Verify that progress reporting from snap command works as expected depending
   on whether the command is ran with a tty attached or not.
 
+systems:
+  #FIXME: stop depending on script
+  - -ubuntu-core-26-*
+
 execute: |
   echo "Minimal status reported when stdout is redirected"
   # no stdin, stdout to a pipe

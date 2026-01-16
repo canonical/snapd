@@ -12,7 +12,12 @@ details: |
 backends: [-external]
 
 # only run on UC20+ to use the convenient cmdline.extra file
-systems: [ubuntu-core-2*]
+# FIXME: /proc/cgroups is only for v1 cgroup controllers, and
+# /sys/fs/cgroup/cgroup.controller should be used instead on core26+
+systems:
+  - ubuntu-core-20*
+  - ubuntu-core-22*
+  - ubuntu-core-24*
 
 environment:
   SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service

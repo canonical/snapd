@@ -23,5 +23,7 @@ execute: |
         VER="^5.15"
     elif os.query is-core24; then
         VER="^6.8"
+    elif os.query is-core26; then
+        VER="^6.19"
     fi
     uname -r | MATCH "$VER"

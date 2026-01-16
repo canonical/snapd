@@ -23,5 +23,6 @@ systems:
     - -ubuntu-26.*
     - -ubuntu-core-22-*
     - -ubuntu-core-24-*
+    - -ubuntu-core-26-*
 
 execute: ./task.sh
