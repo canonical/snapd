@@ -18,6 +18,9 @@
         },
         "vulkan-driver-libs": {
             "allow-installation": "true"
+        },
+        "nvidia-video-driver-libs": {
+            "allow-installation": "true"
         }
     }
 }

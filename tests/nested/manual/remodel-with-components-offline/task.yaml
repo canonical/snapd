@@ -84,10 +84,10 @@ execute: |
 
   kernel_id='pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza'
 
-  # for UC26+, include declaration extras for driver library slots
+  # include declaration extras for driver slots
   extra_decl_args=""
   if [ "$(tests.nested show version)" -ge 26 ]; then
-      extra_decl_args="--extra-decl-json $TESTSLIB/assertions/pc-kernel-26-snap-decl-extras.json"
+      extra_decl_args="--extra-decl-json $TESTSLIB/assertions/pc-kernel-snap-decl-extras.json"
   fi
 
   # bump the available kernel version in the fake store
