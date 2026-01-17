@@ -6,6 +6,7 @@ details: |
 
 environment:
     KEYRING_SOCKET: "/run/user/1000/keyring/ssh"
+    GCR_SOCKET: "/run/user/1000/gcr/ssh"
     OPENSSH_SOCKET: "/tmp/ssh-abcdefg123/agent.123456"
 
 prepare: |
@@ -13,11 +14,13 @@ prepare: |
 
     # Create files to simulate ssh authentication agent sockets
     "$TESTSTOOLS"/fs-state mock-file "$KEYRING_SOCKET"
+    "$TESTSTOOLS"/fs-state mock-file "$GCR_SOCKET"
     "$TESTSTOOLS"/fs-state mock-file "$OPENSSH_SOCKET"
 
 restore: |
     # Delete the created files
     "$TESTSTOOLS"/fs-state restore-file "$KEYRING_SOCKET"
+    "$TESTSTOOLS"/fs-state restore-file "$GCR_SOCKET"
     "$TESTSTOOLS"/fs-state restore-file "$OPENSSH_SOCKET"
 
 execute: |
@@ -29,10 +32,12 @@ execute: |
     
     echo "Then the snap is able to write to the socket files"
     test-snapd-sh.with-ssh-agent-plug -c "echo test >> $KEYRING_SOCKET"
+    test-snapd-sh.with-ssh-agent-plug -c "echo test >> $GCR_SOCKET"
     test-snapd-sh.with-ssh-agent-plug -c "echo test >> $OPENSSH_SOCKET"
 
     echo "And the snap is able to read the socket files"
     test-snapd-sh.with-ssh-agent-plug -c "cat $KEYRING_SOCKET"
+    test-snapd-sh.with-ssh-agent-plug -c "cat $GCR_SOCKET"
     test-snapd-sh.with-ssh-agent-plug -c "cat $OPENSSH_SOCKET"
 
     echo "When the plug is disconnected"

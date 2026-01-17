@@ -33,6 +33,8 @@ const sshAgentConnectedPlugAppArmor = `
 owner /tmp/ssh-*/agent.* rw,
 # allow access to default location for gnome keyring ssh-agent
 owner /run/user/*/keyring/ssh rw,
+# allow access to default location for gcr ssh-agent socket
+owner /run/user/*/gcr/ssh rw,
 `
 
 func init() {

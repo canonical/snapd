@@ -80,6 +80,7 @@ func (s *SshAgentInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /tmp/ssh-*/agent.* rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/*/keyring/ssh rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/*/gcr/ssh rw,`)
 }
 
 func (s *SshAgentInterfaceSuite) TestStaticInfo(c *C) {
