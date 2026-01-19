@@ -128,8 +128,8 @@ else
             ;;
     esac
     if [ "$release" == "26.04" ]; then
-        # TODO: remove this workaround when the 26.04 rootfs is released, for now use the snapshot
-        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/26.04/snapshot-2/ubuntu-base-26.04-snapshot2-base-amd64.tar.gz -O "$BASETAR"
+        # TODO: remove this workaround when the 26.04 rootfs is released, for now use the daily base
+        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/daily/current/resolute-base-amd64.tar.gz -O "$BASETAR"
     else
         wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     fi
