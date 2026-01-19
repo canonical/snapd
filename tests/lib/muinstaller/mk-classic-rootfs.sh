@@ -24,6 +24,9 @@ prepare_classic_rootfs() {
     [ -e "$DESTDIR"/dev/random ] || sudo mknod -m 666 "$DESTDIR"/dev/random c 1 8
     [ -e "$DESTDIR"/dev/urandom ] || sudo mknod -m 666 "$DESTDIR"/dev/urandom c 1 9
 
+    # and mount /proc which is needed by systemd.postinst script
+    [ -e "$DESTDIR"/proc/cmdline ] || sudo mount -t proc none "$DESTDIR"/proc
+
     if [ "$ROLE" = spread ]; then
     # ensure the proxy and resolv configuration is set inside the chroot
         if [ "${SNAPD_USE_PROXY:-}" = true ]; then
@@ -86,6 +89,10 @@ EOF
     sudo tee -a "$DESTDIR/etc/fstab" <<'EOF'
 /run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind
 EOF
+
+    # we no longer need the mounted /proc
+    sudo umount "$DESTDIR"/proc
+
 }
 
 # get target dir from user
@@ -110,6 +117,7 @@ else
     BASETAR=ubuntu-base.tar.gz
     # important to use "-q" to avoid journalctl suppressing  log output
     release=$(lsb_release -r -s)
+    release_folder=release
     case "$release" in
         22.04)
             pointrel=.4
@@ -117,11 +125,16 @@ else
         24.04)
             pointrel=.3
             ;;
+        26.04)
+            # TODO: Change to point release, upgrade to newer snapshot or point release when it becomes available
+            pointrel=-snapshot2
+            release_folder=snapshot-2
+            ;;
         *)
             pointrel=
             ;;
     esac
-    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/"$release_folder"/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi

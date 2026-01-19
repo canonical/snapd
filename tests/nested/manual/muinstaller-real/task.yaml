@@ -3,9 +3,9 @@ summary: End-to-end test for install via muinstaller
 details: End-to-end test for install via muinstaller
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   # No partial gadget by default
@@ -153,7 +153,7 @@ execute: |
       # Make sure it was loaded early
       remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
-      remote.exec lsmod | MATCH ip_tables
+      remote.exec lsmod | MATCH ahci
       # Check that the kernel-modules component can be removed
       remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
