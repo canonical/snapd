@@ -22,6 +22,7 @@ package daemon
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -70,8 +71,8 @@ func MockSnapdtoolsIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
 
-func MockFdestateSystemEncryptedFromState(f func(*state.State) (bool, error)) (restore func()) {
-	old := fdestateSystemEncryptedFromState
-	fdestateSystemEncryptedFromState = f
-	return func() { fdestateSystemEncryptedFromState = old }
+func MockFdestateSystemState(f func(*state.State) (*fdestate.FDESystemState, error)) (restore func()) {
+	old := fdestateSystemState
+	fdestateSystemState = f
+	return func() { fdestateSystemState = old }
 }
