@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/certsstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -275,7 +276,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddCleanup("create-recovery-system", m.cleanupRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
-	runner.AddHandler("update-ca-certificates", m.doGenerateCertificateDatabase, m.undoGenerateCertificateDatabase)
 
 	// used from the install API
 	// TODO: use better task names that are close to our usual pattern

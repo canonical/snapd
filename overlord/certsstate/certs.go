@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,7 +16,7 @@
  *
  */
 
-package devicestate
+package certsstate
 
 import (
 	"crypto/sha256"
@@ -27,8 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -43,6 +41,12 @@ type certificate struct {
 	Digest   string
 }
 
+// parseCertificateData only returns the first certificate found in a PEM file that may
+// contain multiple certificates. If a .crt file contains a certificate
+// chain (multiple certificates in sequence), only the first one will
+// be used for digest calculation. This could lead to different certificates
+// being treated as identical if they share the same first certificate
+// but have different chains.
 func parseCertificateData(certData []byte) (*x509.Certificate, error) {
 	// Many distro-provided *.crt files are PEM-encoded, while x509.ParseCertificate
 	// expects DER.
@@ -72,7 +76,7 @@ func trimCrtExtension(name string) string {
 	return name
 }
 
-// isBlocked this function validates the name of the certificate. We only allow certificates
+// isBlocked validates the name of the certificate. We only allow certificates
 // with the correct suffix ".crt" except for the ca-certificates.crt,
 // or if the name is in the blockedCerts lists.
 func isBlocked(cert certificate, blockedCerts []string) bool {
@@ -221,11 +225,19 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	return nil
 }
 
-func (m *DeviceManager) doGenerateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
+func undoGenerateCertificateDatabase() error {
+	// restore the backup of the ca-certificates.crt
+	caCertificateDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
+	caCertificateDbBackupPath := caCertificateDbPath + ".bak"
 
+	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot restore backup of ca-certificates.crt: %v", err)
+	}
+
+	return nil
+}
+
+func GenerateCertificateDatabase(t *state.State) error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)
@@ -243,7 +255,9 @@ func (m *DeviceManager) doGenerateCertificateDatabase(t *state.Task, _ *tomb.Tom
 	var err error
 	defer func() {
 		if err != nil {
-			os.Rename(caCertificateDbBackupPath, caCertificateDbPath)
+			if restoreErr := undoGenerateCertificateDatabase(); restoreErr != nil {
+				logger.Noticef("cannot restore backup of ca-certificates: %v", restoreErr)
+			}
 		}
 	}()
 
@@ -253,6 +267,8 @@ func (m *DeviceManager) doGenerateCertificateDatabase(t *state.Task, _ *tomb.Tom
 	// /var/lib/snapd/pki/v1/merged/*.crt (symlinks)
 	// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
 	// /var/lib/snapd/pki/v1/<digest>.crt
+
+	// we create the added/blocked/merged directories if they don't exist here.
 
 	// We will be using the certificates from the rootfs as a starting point,
 	// meaning we need to go into /etc/ssl/certs/ and read
@@ -265,7 +281,7 @@ func (m *DeviceManager) doGenerateCertificateDatabase(t *state.Task, _ *tomb.Tom
 
 	addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
 	if err := os.MkdirAll(addedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+		return fmt.Errorf("cannot create added certificates directory: %v", err)
 	}
 
 	added, err := parseCertificates(addedDir)
@@ -275,28 +291,15 @@ func (m *DeviceManager) doGenerateCertificateDatabase(t *state.Task, _ *tomb.Tom
 
 	blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
 	if err := os.MkdirAll(blockedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+		return fmt.Errorf("cannot create blocked certificates directory: %v", err)
 	}
 
 	blocked, err := readDigests(blockedDir)
 	if err != nil {
 		return err
 	}
-	return generateCACertificates(certs, added, blocked, mergedDir)
-}
 
-func (m *DeviceManager) undoGenerateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	// restore the backup of the ca-certificates.crt
-	caCertificateDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".bak"
-
-	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot restore backup of ca-certificates.crt: %v", err)
-	}
-
-	return nil
+	// make sure we catch any error here and restore the backup
+	err = generateCACertificates(certs, added, blocked, mergedDir)
+	return err
 }
