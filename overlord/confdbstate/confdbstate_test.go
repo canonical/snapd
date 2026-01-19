@@ -1691,7 +1691,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid", "ssids"}, map[string]string{"foo": "bar"})
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid", "ssids"}, map[string]any{"foo": "bar"})
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1746,7 +1746,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 
 	view := s.dbSchema.View("setup-wifi")
 	requests := []string{"private", "ssids"}
-	constraints := map[string]string{"placeholder": "foo"}
+	constraints := map[string]any{"placeholder": "foo"}
 	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, requests, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)

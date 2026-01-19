@@ -162,7 +162,7 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 
 // Databag controls access to the confdb data storage.
 type Databag interface {
-	Get(path []Accessor, constraints map[string]string) (any, error)
+	Get(path []Accessor, constraints map[string]any) (any, error)
 	Set(path []Accessor, value any) error
 	Unset(path []Accessor) error
 	Data() ([]byte, error)
@@ -1613,7 +1613,7 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
-func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]string) error {
+func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
 	if op != "get" && op != "set" {
 		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
 	}
@@ -1655,7 +1655,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 // have been applied to any matching filter in the storage path. If the request
 // cannot be matched against any rule, it returns a NoMatchError, and if no data
 // is stored for the request, a NoDataError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
+func (v *View) Get(databag Databag, request string, constraints map[string]any) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1781,7 +1781,7 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
-func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]string) (bool, error) {
+func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]any) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
 		requests = []string{""}
@@ -1819,7 +1819,12 @@ func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]st
 						continue
 					}
 
-					match.storagePath[i] = newKey(val, acc.FieldFilters())
+					valStr, ok := val.(string)
+					if !ok {
+						continue
+					}
+
+					match.storagePath[i] = newKey(valStr, acc.FieldFilters())
 				}
 			}
 
@@ -2170,7 +2175,7 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]string) (any, error) {
+func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]any) (any, error) {
 	// TODO: create this in the return below as well?
 	var value any
 	if err := get(accessors, 0, s, constraints, &value); err != nil {
@@ -2185,7 +2190,7 @@ func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]string) (a
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(accessors []Accessor, index int, node any, constraints map[string]string, result *any) error {
+func get(accessors []Accessor, index int, node any, constraints map[string]any, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2210,7 +2215,7 @@ func get(accessors []Accessor, index int, node any, constraints map[string]strin
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
+func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]any, result *any) error {
 	acc := accessors[index]
 
 	var matchAll bool
@@ -2328,7 +2333,7 @@ func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, co
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
+func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]any, result *any) error {
 	acc := accessors[keyIndex]
 
 	var matchAll bool
@@ -2443,7 +2448,7 @@ type entry struct {
 	value json.RawMessage
 }
 
-func matchesConstraints(acc Accessor, e entry, constraints map[string]string) (bool, error) {
+func matchesConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
 	if !constrainSubkeyPlaceholders(acc, e.key, constraints) {
 		return false, nil
 	}
@@ -2451,7 +2456,7 @@ func matchesConstraints(acc Accessor, e entry, constraints map[string]string) (b
 	return fieldFiltersMatchConstraints(acc, e.value, constraints)
 }
 
-func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]string) bool {
+func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]any) bool {
 	if acc.Type() != KeyPlaceholderType {
 		// filter doesn't apply
 		return true
@@ -2468,7 +2473,7 @@ func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[strin
 
 // fieldFiltersMatchConstraints returns true only if the object should not be
 // filtered out, either because it matches the constraints or they're not applicable.
-func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
+func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]any) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
@@ -2496,13 +2501,9 @@ func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints
 			return false, nil
 		}
 
-		// only allow constraining strings for now
-		var fieldVal string
+		// unmarshal the field value based on the constraint type
+		var fieldVal any
 		if err := json.Unmarshal(mapVal[field], &fieldVal); err != nil {
-			if _, ok := err.(*json.UnmarshalTypeError); ok {
-				// can't compare this field to constraints
-				return false, nil
-			}
 			return false, fmt.Errorf(`internal error: %w`, err)
 		}
 

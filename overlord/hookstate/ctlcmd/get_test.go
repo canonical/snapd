@@ -619,7 +619,7 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]any) (*confdbstate.Transaction, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -643,7 +643,7 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]any) (*confdbstate.Transaction, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -672,7 +672,7 @@ func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string, _ map[string]any) (*confdbstate.Transaction, error) {
 		c.Assert(requests, IsNil)
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
@@ -835,7 +835,7 @@ func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	err = tx.Set(parsePath(c, "wifi.ssid"), "bar")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1002,7 +1002,7 @@ func (s *confdbSuite) TestConfdbAccessUnconnectedPlug(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error) {
 		c.Fatal("should not allow access to confdb")
 		return tx, nil
 	})
@@ -1062,7 +1062,7 @@ func (s *confdbSuite) TestConfdbDefaultIfNoData(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1083,7 +1083,7 @@ func (s *confdbSuite) TestConfdbDefaultNoFallbackIfTyped(c *C) {
 
 	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1102,7 +1102,7 @@ func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
@@ -1175,8 +1175,8 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	var gotConstraints map[string]string
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(_ *hookstate.Context, _ *confdb.View, _ []string, constraints map[string]string) (*confdbstate.Transaction, error) {
+	var gotConstraints map[string]any
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(_ *hookstate.Context, _ *confdb.View, _ []string, constraints map[string]any) (*confdbstate.Transaction, error) {
 		gotConstraints = constraints
 		return tx, nil
 	})
@@ -1186,17 +1186,126 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "my-ssid\n")
 	c.Check(stderr, IsNil)
-	c.Check(gotConstraints, DeepEquals, map[string]string{"field1": "value1", "field2": "value2"})
+	c.Check(gotConstraints, DeepEquals, map[string]any{"field1": "value1", "field2": "value2"})
 }
 
-func (s *confdbSuite) TestConfdbGetWithInvalidConstraint(c *C) {
-	for _, tc := range []string{"invalid", "invalid=", "=invalid", "="} {
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", tc}, 0)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, tc))
+func (s *confdbSuite) TestConfdbGetWithStrictConstraintsInvalid(c *C) {
+	type testcase struct {
+		constraint string
+		err        string
+	}
+
+	tcs := []testcase{
+		{
+			constraint: "invalid",
+			err:        `--with constraints must be in the form <param>=<constraint> but got "invalid" instead`,
+		},
+		{
+			constraint: "invalid=",
+			err:        `--with constraints must be in the form <param>=<constraint> but got "invalid=" instead`,
+		},
+		{
+			constraint: "=invalid",
+			err:        `--with constraints must be in the form <param>=<constraint> but got "=invalid" instead`,
+		},
+		{
+			constraint: "=",
+			err:        `--with constraints must be in the form <param>=<constraint> but got "=" instead`,
+		},
+		{
+			constraint: "foo=bar",
+			err:        `cannot unmarshal constraint as JSON as required by -t flag: bar`,
+		},
+		{
+			constraint: "foo=[1,2,3]",
+			err:        `--with constraints cannot take non-scalar JSON constraint: \[1,2,3\]`,
+		},
+		{
+			constraint: `foo={"a":"b"}`,
+			err:        `--with constraints cannot take non-scalar JSON constraint: {"a":"b"}`,
+		},
+		{
+			constraint: "foo=null",
+			err:        `--with constraints cannot take non-scalar JSON constraint: null`,
+		},
+	}
+
+	for _, tc := range tcs {
+		_, _, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "-t", ":read-wifi", "ssid", "--with", tc.constraint}, 0)
+		c.Assert(err, ErrorMatches, tc.err)
 	}
 }
 
 func (s *confdbSuite) TestWithNonConfdbRead(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"get", ":read-wifi", "ssid", "--with", "field=value"}, 0)
 	c.Assert(err, ErrorMatches, `cannot use --with with non-confdb read \(missing --view\)`)
+}
+
+func (s *confdbSuite) TestConfdbGetTypedConstraints(c *C) {
+	s.state.Lock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	type testcase struct {
+		constraint string
+		expected   any
+	}
+
+	tcs := []testcase{
+		{
+			constraint: `param="foo"`,
+			expected:   "foo",
+		},
+		{
+			constraint: `param=1.2`,
+			expected:   1.2,
+		},
+		{
+			constraint: `param=2.0`,
+			expected:   float64(2),
+		},
+		{
+			constraint: `param=true`,
+			expected:   true,
+		},
+		// the following would be invalid with strict typing (-t) but we fallback
+		// to interpreting them as strings
+		{
+			constraint: `param=bar`,
+			expected:   "bar",
+		},
+		{
+			constraint: `param=null`,
+			expected:   "null",
+		},
+		{
+			constraint: `param=[1,2]`,
+			expected:   "[1,2]",
+		},
+		{
+			constraint: `param={"a":"b"}`,
+			expected:   `{"a":"b"}`,
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+
+		var gotConstraints map[string]any
+		restore := ctlcmd.MockConfdbstateTransactionForGet(func(_ *hookstate.Context, _ *confdb.View, _ []string, constraints map[string]any) (*confdbstate.Transaction, error) {
+			gotConstraints = constraints
+			return tx, nil
+		})
+
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", tc.constraint}, 0)
+		c.Assert(err, IsNil, cmt)
+		c.Check(string(stdout), Equals, "my-ssid\n", cmt)
+		c.Check(stderr, IsNil, cmt)
+		c.Check(gotConstraints, DeepEquals, map[string]any{"param": tc.expected}, cmt)
+
+		restore()
+	}
 }

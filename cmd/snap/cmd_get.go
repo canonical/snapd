@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -60,6 +61,9 @@ format <account-id>/<schema>/<view>, get will use the confdb API. In this
 case, the command returns the data retrieved from the requested view paths.
 Use --default to provide a default value to be used if no value is stored.
 Use --with to provide constraints in the form of param=constraint pairs.
+Constraints are parsed as JSON values. If they cannot be interpreted as
+non-null JSON scalars, snap defaults to interpreting values as strings 
+unless -t is also provided.
 `)
 
 type cmdGet struct {
@@ -314,7 +318,8 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	constraints, err := x.parseConstraints()
+	opts := clientutil.ConfdbOptions{Typed: x.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(x.With, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -376,23 +381,6 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	}
 
 	return map[string]any{request: defaultVal}, nil
-}
-
-func (x *cmdGet) parseConstraints() (map[string]string, error) {
-	if len(x.With) == 0 {
-		return nil, nil
-	}
-
-	constraints := make(map[string]string, len(x.With))
-	for _, constraint := range x.With {
-		parts := strings.SplitN(constraint, "=", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
-		}
-		constraints[parts[0]] = parts[1]
-	}
-
-	return constraints, nil
 }
 
 func validateConfdbFeatureFlag() error {
