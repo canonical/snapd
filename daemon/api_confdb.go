@@ -180,7 +180,7 @@ func toAPIError(err error) *apiError {
 		}
 	case errors.Is(err, &confdbstate.NoViewError{}):
 		fallthrough
-	case errors.Is(err, &confdb.NoPlaceholderError{}):
+	case errors.Is(err, &confdb.UnmatchedConstraintsError{}):
 		fallthrough
 	case errors.Is(err, &confdb.NoMatchError{}):
 		return &apiError{

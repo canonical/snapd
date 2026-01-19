@@ -124,13 +124,13 @@ func NewNoMatchError(view *View, operation string, requests []string) *NoMatchEr
 	}
 }
 
-type NoPlaceholderError struct {
+type UnmatchedConstraintsError struct {
 	view        string
 	requests    []string
 	constraints []string
 }
 
-func (e *NoPlaceholderError) Error() string {
+func (e *UnmatchedConstraintsError) Error() string {
 	var requestsStr string
 	if (len(e.requests) == 1 && e.requests[0] != "") || len(e.requests) > 1 {
 		requestsStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(e.requests))
@@ -145,13 +145,13 @@ func (e *NoPlaceholderError) Error() string {
 	return fmt.Sprintf(i18n.G("cannot get%s %s: no placeholder for %s"), requestsStr, e.view, constraintsStr)
 }
 
-func (e *NoPlaceholderError) Is(err error) bool {
-	_, ok := err.(*NoPlaceholderError)
+func (e *UnmatchedConstraintsError) Is(err error) bool {
+	_, ok := err.(*UnmatchedConstraintsError)
 	return ok
 }
 
-func NewNoPlaceholderError(view *View, requests, constraints []string) *NoPlaceholderError {
-	return &NoPlaceholderError{
+func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+	return &UnmatchedConstraintsError{
 		view:        view.ID(),
 		requests:    requests,
 		constraints: constraints,
@@ -1685,7 +1685,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	return nil
 }
 
-// CheckAllConstraintsAreUsed returns a NoPlaceholderError if any constraints are unused across all the matching
+// CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any constraints are unused across all the matching
 // rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
 func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]string) error {
 	if len(constraints) == 0 {
@@ -1734,7 +1734,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 	unusedConstraints := keys(constraintPlaceholders)
 	sort.Strings(unusedConstraints)
-	return NewNoPlaceholderError(v, requests, unusedConstraints)
+	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 // Get returns the view value identified by the request after the constraints

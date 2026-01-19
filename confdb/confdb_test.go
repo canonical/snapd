@@ -597,7 +597,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:         []string{"foo"},
 			constraints:      map[string]string{"bar": "value"},
-			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
 		{
@@ -618,7 +618,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:         []string{"foo.abc"},
 			constraints:      map[string]string{"bar": "value"},
-			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
 		{
@@ -639,7 +639,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:         []string{"foo"},
 			constraints:      map[string]string{"baz": "1"},
-			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "baz".*`,
 		},
 		{
@@ -717,7 +717,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			requests:         []string{"foo", "xyz"},
 			constraints:      map[string]string{"ggg": "value", "hhh": "value"},
-			expectedErr:      &confdb.NoPlaceholderError{},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraints "ggg", "hhh".*`,
 		},
 	} {
