@@ -10,27 +10,10 @@ details: |
     - Users can add new recovery keys at runtime
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
-  # TODO:FDEM: add 26.04 variant
-  MODEL_VERSION/2510: "25.10"
-  GADGET_VERSION/2510: "classic-25.10"
-  KERNEL_VERSION/2510: "25.10"
-
-  # Only 25.10+ systems (including core) should be able to
-  # use the new TPM FDE recovery key APIs, so keep those systems
-  # so it fails hard when those checks are added to force
-  # changing the test accordingly.
-  MODEL_VERSION/2404: "24.04"
-  GADGET_VERSION/2404: classic-24.04
-  KERNEL_VERSION/2404: "24"
-
-  MODEL_VERSION/2504: "25.04"
-  GADGET_VERSION/2504: "classic-25.04"
-  KERNEL_VERSION/2504: "25.04"
-
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -60,51 +43,20 @@ prepare: |
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
+  version="$(nested_get_version)"
+
   # Retrieve the gadget
-  snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
+  snap download --basename=pc --channel="$version/edge" pc
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
-  if [ "$MODEL_VERSION" = "25.04" ]; then
-    # TODO: 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
-    # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
-    cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
-  else
-    # fetch upstream models
-    model_version_string="${MODEL_VERSION//\./}"
-    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
-    # but only keep relevant snaps
-    gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
-    mv classic-tmp.json classic.json
-    # and replace authority-id and brand-id
-    gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
-    mv classic-tmp.json classic.json
-  fi
-
-
-  cat << EOF > ./prepare-rootfs.sh
-  rootfs="\$1"
-  echo ID=ubuntu > \${rootfs}/etc/os-release
-  echo VERSION_ID="${MODEL_VERSION}" >> \${rootfs}/etc/os-release
-  EOF
-
-  export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
-
-  gendeveloper1 sign-model < classic.json > classic.model
-
-  # 25.10 gadget require much larger disks
-  # https://github.com/canonical/pc-gadget/commit/814d80acbcc0de4ac799b3bcb67f7ec625d6c53a
-  if [ "${MODEL_VERSION}" == "25.10" ]; then
-    truncate --size=10G disk.img
-  else
-    truncate --size=6G disk.img
-  fi
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
@@ -116,7 +68,6 @@ prepare: |
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel-from-store.assert \
-     --disk disk.img \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
 
   echo "Check recovery key is generated and stored"
@@ -126,8 +77,8 @@ restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
-  # the APIs tested here shouldn't be available on anything before 25.10
-  if [ "${MODEL_VERSION}" != "25.10" ]; then
+  # The APIs tested here shouldn't be available on anything before 25.10
+  if os.query is-ubuntu-lt 25.10; then
     remote.exec sudo snap debug api /v2/system-volumes | gojq .result.message | MATCH "this action is not supported on this system"
     exit 0
   fi
