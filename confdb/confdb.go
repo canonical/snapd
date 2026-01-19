@@ -137,9 +137,9 @@ func (e *UnmatchedConstraintsError) Error() string {
 	}
 	var constraintsStr string
 	if len(e.constraints) > 1 {
-		constraintsStr = fmt.Sprintf(i18n.G("constraints "))
+		constraintsStr = i18n.G("constraints ")
 	} else {
-		constraintsStr = fmt.Sprintf(i18n.G("constraint "))
+		constraintsStr = i18n.G("constraint ")
 	}
 	constraintsStr += strutil.Quoted(e.constraints)
 	return fmt.Sprintf(i18n.G("cannot get%s %s: no placeholder for %s"), requestsStr, e.view, constraintsStr)
