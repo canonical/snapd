@@ -111,6 +111,29 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+func ActivateStateHasDegradedErrors(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			case sb.KeyslotErrorInvalidKeyData:
+				return true
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return true
+			case sb.KeyslotErrorPlatformFailure:
+				return true
+			case sb.KeyslotErrorUnknown:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
 	State() *ActivateState
