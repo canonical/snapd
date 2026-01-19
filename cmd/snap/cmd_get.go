@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -317,7 +318,8 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	constraints, err := x.parseConstraints()
+	opts := clientutil.ConfdbOptions{Typed: x.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(x.With, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -379,51 +381,6 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	}
 
 	return map[string]any{request: defaultVal}, nil
-}
-
-func (x *cmdGet) parseConstraints() (map[string]any, error) {
-	if len(x.With) == 0 {
-		return nil, nil
-	}
-
-	constraints := make(map[string]any, len(x.With))
-	for _, constraint := range x.With {
-		parts := strings.SplitN(constraint, "=", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
-		}
-
-		var cstrVal any
-		if err := json.Unmarshal([]byte(parts[1]), &cstrVal); err != nil {
-			var merr *json.SyntaxError
-			if !errors.As(err, &merr) {
-				// can only happen due to programmer error
-				return nil, fmt.Errorf("internal error: cannot unmarshal --with constraint: %v", err)
-			}
-
-			if x.Typed {
-				return nil, fmt.Errorf("cannot unmarshal constraint as JSON as required by -t flag: %s", parts[1])
-			}
-
-			// fallback to interpreting the value as a string
-			cstrVal = parts[1]
-		}
-
-		// check if the constraint is valid JSON but of a type we don't accept
-		_, isArray := cstrVal.([]any)
-		_, isMap := cstrVal.(map[string]any)
-		if cstrVal == nil || isArray || isMap {
-			if x.Typed {
-				return nil, fmt.Errorf("--with constraints cannot take non-scalar JSON constraint: %s", parts[1])
-			}
-
-			cstrVal = parts[1]
-		}
-
-		constraints[parts[0]] = cstrVal
-	}
-
-	return constraints, nil
 }
 
 func validateConfdbFeatureFlag() error {
