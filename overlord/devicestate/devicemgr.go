@@ -173,6 +173,8 @@ type DeviceManager struct {
 
 	ensureEarlyBootLocaleConfigUpdatedRan bool
 
+	ensureEarlyCertificateGenerationRan bool
+
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
 	cloudInitEnabledInactiveAttemptStart *time.Time
@@ -1978,6 +1980,15 @@ func (m *DeviceManager) ensureCaCertificateDatabase() error {
 	st.Lock()
 	defer st.Unlock()
 
+	if m.ensureEarlyCertificateGenerationRan {
+		return nil
+	}
+
+	// UC20+ in run mode only
+	if m.SystemMode(SysHasModeenv) != "run" {
+		return nil
+	}
+
 	// Expect the system to be seeded, otherwise we ignore this.
 	var seeded bool
 	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1987,9 +1998,19 @@ func (m *DeviceManager) ensureCaCertificateDatabase() error {
 		return nil
 	}
 
+	m.ensureEarlyCertificateGenerationRan = true
+
 	// If the CA certificate database is already present, nothing to do.
 	certDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
 	if osutil.FileExists(certDbPath) {
+		logger.Debugf("ca-certificate database has already been generated, skipping generation")
+		return nil
+	}
+
+	// If the ssl certs directory is missing, nothing to do.
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	if exists, isDir, err := osutil.DirExists(baseCertsDir); !exists || !isDir || err != nil {
+		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
 	}
 
