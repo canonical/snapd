@@ -71,4 +71,3 @@ execute: |
     test-snapd-content-consumer.app |& tee output-v2.log
     MATCH 'hello from app' < output-v2.log
     MATCH 'hello from content provider V2' < output-v2.log
-    
