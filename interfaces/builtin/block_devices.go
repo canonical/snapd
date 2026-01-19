@@ -79,6 +79,8 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/loop-control rw,                                      # loopback control
 /dev/zd[0-9]{,[0-9],[0-9][0-9]} rwk,                       # ZFS volumes (up to 1000 devices)
 /dev/zfs rw,                                               # ZFS control
+/dev/xvd{,[a-h]}[a-z] rwk,                                 # Xen VBD
+/dev/xvdi[a-v] rwk,                                        # Xen VBD continued
 
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device
@@ -140,6 +142,8 @@ const blockDevicesPartitionsConnectedPlugAppArmor = `
 /dev/vd[a-z][1-9]{,[0-9]} rwk,                                                      # virtio
 /dev/loop[0-9]{,[0-9],[0-9][0-9]}p[1-9]{,[0-9]} rwk,                                # loopback
 /dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]}p[1-9]{,[0-9],[0-9][0-9]} rwk, # NVMe
+/dev/xvd{,[a-h]}[a-z][1-9]{,[0-5]} rwk,                                             # Xen VBD partitions
+/dev/xvdi[a-v][1-9]{,[0-5]} rwk,                                                    # Xen VBD continued partitions
 `
 
 var blockDevicesConnectedPlugUDev = []string{
