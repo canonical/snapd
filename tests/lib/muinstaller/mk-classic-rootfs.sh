@@ -125,11 +125,11 @@ else
         24.04)
             pointrel=.3
             ;;
-	26.04)
-	    # TODO: Change to point release, upgrade to newer snapshot or point release when it becomes available
-	    pointrel=-snapshot2
-	    release_folder=snapshot-2
-	    ;;
+        26.04)
+            # TODO: Change to point release, upgrade to newer snapshot or point release when it becomes available
+            pointrel=-snapshot2
+            release_folder=snapshot-2
+            ;;
         *)
             pointrel=
             ;;
