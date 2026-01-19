@@ -1,0 +1,22 @@
+name: test-snapd-content-consumer
+version: 2.0.0
+base: core24
+
+assumes:
+    - command-chain
+
+apps:
+    app:
+        command: bin/app
+        command-chain:
+            - snap/command-chain/launch
+        plugs:
+            - special-content-v2
+
+plugs:
+  special-content-v2:
+    interface: content
+    target: $SNAP/connected-content
+    # in v2, we switch to a different content provider, but with a similar mount
+    # namespace setup
+    default-provider: test-snapd-content-provider-v2
