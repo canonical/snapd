@@ -55,9 +55,13 @@ func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) 
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, request)
+			//TODO pass the caller's visibility level
+			//For now, allow caller to unset everything, including secrets
+			err = view.Unset(bag, request, confdb.SecretVisibility)
 		} else {
-			err = view.Set(bag, request, value)
+			//TODO pass the caller's visibility level
+			//For now, allow caller to see everything, including secrets
+			err = view.Set(bag, request, value, confdb.SecretVisibility)
 		}
 
 		if err != nil {
@@ -128,7 +132,9 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 // the transaction.
 func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]string) (any, error) {
 	if len(requests) == 0 {
-		val, err := view.Get(bag, "", constraints)
+		//TODO pass the caller's level of visibility here
+		//For now, allow seeing everything, including secrets
+		val, err := view.Get(bag, "", constraints, confdb.SecretVisibility)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +144,9 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		value, err := view.Get(bag, request, constraints)
+		//TODO pass the caller's level of visibility here
+		//For now, allow seeing everything, including secrets
+		value, err := view.Get(bag, request, constraints, confdb.SecretVisibility)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
