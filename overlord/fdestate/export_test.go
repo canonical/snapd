@@ -168,3 +168,5 @@ func VolumesAuthOptionsKey() volumesAuthOptionsKey {
 func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, error)) (restore func()) {
 	return testutil.Mock(&bootLoadDiskUnlockState, f)
 }
+
+type CachedActivateStateKey = cachedActivateStateKey
