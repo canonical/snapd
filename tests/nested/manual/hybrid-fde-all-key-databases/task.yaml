@@ -4,9 +4,9 @@ details: |
   Verify handling of Key Database updates on a hybrid system.
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   NESTED_ENABLE_TPM: true
