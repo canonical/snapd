@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents the constraints associated with a reply to a prompt for the camera interface.
+required:
+  - permissions
+properties:
+  permissions:
+    type: array
+    description: The permissions applied to requests to access cameras via the camera interface.
+    items:
+      type: string
+      enum:
+        - access

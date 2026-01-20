@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionReboot
+description: Payload to reboot the device into a specific system mode.
+required:
+  - action
+  - mode
+properties:
+  action:
+    type: string
+    enum:
+      - reboot
+  mode:
+    type: string
+    description: The mode to reboot into.
+    enum:
+      - factory-reset
+      - install
+      - recover
+      - run

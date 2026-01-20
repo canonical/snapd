@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The snap does not exist on the system.
+properties:
+  kind:
+    type: string
+    description: machine-readable definition of the error.
+    enum:
+      - snap-not-found
+      - snap-not-installed  # TODO Need follow up PR focusing only on errors
+  message:
+    type: string
+    description: Human-readable string describing the error.
+    example: no state entry for key
+  value:
+    type: string
+    description: Value passed that triggered the error.
+    example: firefox

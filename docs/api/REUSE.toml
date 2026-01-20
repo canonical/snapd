@@ -1,0 +1,16 @@
+version = 1
+
+# This first block acts as the "default" for all files in the project.
+# The path "*/**" matches every file in every directory.
+[[annotations]]
+path = "*/**"
+SPDX-License-Identifier = "GPL-3.0-only"
+SPDX-FileCopyrightText = "2025 Canonical Ltd"
+
+# This block OVERRIDES the default for the third-party renovate.json file
+# and correctly attributes it.
+[[annotations]]
+path = "renovate.json"
+precedence = "override"
+SPDX-FileCopyrightText= "2025 Canonical Ltd"
+SPDX-License-Identifier = "GPL-3.0-only"

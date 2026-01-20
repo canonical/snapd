@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: user-id
+in: query
+required: false
+description: |-
+  Admin only: Specify a particular UID with which to identify when acting on the
+  API, rather than the default, which is the UID of the client.
+schema:
+  type: integer

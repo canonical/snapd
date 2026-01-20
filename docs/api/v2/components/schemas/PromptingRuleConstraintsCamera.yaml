@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Details about the applicability of the existing rule to requests.
+required:
+  - permissions
+properties:
+  permissions:
+    type: object
+    description: |-
+      A map linking the permission name to it's respective information.
+    additionalProperties:
+      $ref: './PromptingPermissionRuleEntry.yaml'

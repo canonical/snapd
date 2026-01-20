@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: name
+    in: path
+    required: true
+    description: The name of the snap to get the icon for.
+    schema:
+      type: string
+
+get:
+  tags:
+    - OpenAccess
+    - Synchronous
+    - Snaps
+  summary: Get a snap's icon
+  description: |-
+    Retrieves the icon for a snap that is installed on the system. The response is the raw content of the icon file.
+    The Content-Disposition header will specify the filename.
+  operationId: getSnapIcon
+  security: []
+  responses:
+    200:
+      description: The raw icon file. The Content-Type will be set appropriately.
+      headers:
+        Accept-Ranges:
+          schema:
+            type: string
+            example: bytes
+        Content-Type:
+          description: The media type of the icon file, for example 'image/svg+xml' or 'image/png'.
+          schema:
+            type: string
+            enum:
+              - image/jpeg
+              - image/png
+              - image/svg+xml
+        Content-Disposition:
+          description: "Indicates that the content is expected to be downloaded as a file; specifies the filename."
+          schema:
+            type: string
+            example: 'attachment; filename="icon.svg"'
+        Content-Length:
+          description: The size of the icon file in bytes.
+          schema:
+            type: integer
+            example: 1623
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+            format: binary
+        image/png:
+          schema:
+            type: string
+            format: binary
+        image/jpeg:
+          schema:
+            type: string
+            format: binary
+    404:
+      $ref: '../components/responses/NotFound.yaml'

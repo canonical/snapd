@@ -1,0 +1,319 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+openapi: 3.0.3
+info:
+  title: Snapd REST API
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.txt
+  version: '0.1'
+  description: |
+        The REST API provides access to snapd's state and many of its key functions,
+        as listed below.
+
+        For general information on how to use the API, including how to access it,
+        its requests and responses, results fields and error types, see [Using the
+        REST API](https://snapcraft.io/docs/using-the-api).
+servers:
+  - url: unix:///run/snapd.socket
+    description: |-
+      Local snapd socket access. Unless otherwise specified, routes appear on
+      this socket.
+  - url: unix:///run/snapd-snap.socket
+    description: Snapd socket access for snaps
+externalDocs:
+  url: https://snapcraft.io/docs
+  description: Snap and Snapcraft documentation
+
+tags:
+  - name: Assertions
+    description: List and add assertion types.
+  - name: Asynchronous
+    description: Return the reference to a change that will occur in the background.
+  - name: AuthenticationRequired
+    description: Access is restricted to the root user.
+  - name: Changes
+    description: Interact with changes.
+  - name: Experimental
+    description: Interact with experimental features.
+  - name: Interfaces
+    description: Display and manage interactions between snaps.
+  - name: Notices
+    description: Interact with notices.
+  - name: OpenAccess
+    description: Do not require the user to authenticate.
+  - name: Prompting
+    description:  Interact with the prompting system.
+  - name: Root
+    description: Requires the user to authenticate with root access.    # TODO Properly describe the difference between AuthenticationRequired and Root
+  - name: Snaps
+    description: Interact with snaps.
+  - name: Store
+    description: Interact with the store.
+  - name: Synchronous
+    description: Return the complete response synchronously.
+  - name: Systems
+    description: Interact with system configuration.
+  - name: Users
+    description: Manage user accounts and authentication.
+  - name: Validation Sets
+    description: Interact with validation sets.
+  - name: Warnings
+    description: Retrieve recorded warnings.
+
+components:
+  securitySchemes:
+    PeerAuth:
+      $ref: './v2/components/security/PeerAuth.yaml'
+
+  responses:
+    Accepted:
+      $ref: './v2/components/responses/Accepted.yaml'
+    AccessDenied:
+      $ref: './v2/components/responses/AccessDenied.yaml'
+    BadRequest:
+      $ref: './v2/components/responses/BadRequest.yaml'
+    Conflict:
+      $ref: './v2/components/responses/Conflict.yaml'
+    Forbidden:
+      $ref: './v2/components/responses/Forbidden.yaml'
+    InternalError:
+      $ref: './v2/components/responses/InternalError.yaml'
+    MethodNotAllowed:
+      $ref: './v2/components/responses/MethodNotAllowed.yaml'
+    NotFound:
+      $ref: './v2/components/responses/NotFound.yaml'
+
+  schemas:
+    ConfdbError:
+      $ref: './v2/components/errors/ConfdbError.yaml'
+    ConflictError:
+      $ref: './v2/components/errors/ConflictError.yaml'
+    InternalServerError:
+      $ref: './v2/components/errors/InternalServerError.yaml'
+    MalformedRequestError:
+      $ref: './v2/components/errors/MalformedRequestError.yaml'
+    NoModelAssertionError:
+      $ref: './v2/components/errors/NoModelAssertionError.yaml'
+    NoSerialAssertionError:
+      $ref: './v2/components/errors/NoSerialAssertionError.yaml'
+    NoSSHKeysError:
+      $ref: './v2/components/errors/NoSSHKeysError.yaml'
+    NotFound:
+      $ref: './v2/components/errors/NotFoundError.yaml'
+    SnapNotInstalledError:
+      $ref: './v2/components/errors/SnapNotInstalledError.yaml'
+    UserNotFoundError:
+      $ref: './v2/components/errors/UserNotFoundError.yaml'
+
+    Activator:
+      $ref: './v2/components/schemas/Activator.yaml'
+    App:
+      $ref: './v2/components/schemas/App.yaml'
+    AppActionBase:
+      $ref: './v2/components/schemas/AppActionBase.yaml'
+    AppActionRestart:
+      $ref: './v2/components/schemas/AppActionRestart.yaml'
+    AppActionStart:
+      $ref: './v2/components/schemas/AppActionStart.yaml'
+    AppActionStop:
+      $ref: './v2/components/schemas/AppActionStop.yaml'
+    AssertionResult:
+      $ref: './v2/components/schemas/AssertionResult.yaml'
+    Change:
+      $ref: './v2/components/schemas/Change.yaml'
+    Connection:
+      $ref: './v2/components/schemas/Connection.yaml'
+    ConnectionStatus:
+      $ref: './v2/components/schemas/ConnectionStatus.yaml'
+    FindResult:
+      $ref: './v2/components/schemas/FindResult.yaml'
+    InstalledSnap:
+      $ref: './v2/components/schemas/InstalledSnap.yaml'
+    LegacyInterfaceObject:
+      $ref: './v2/components/schemas/LegacyInterfaceObject.yaml'
+    Links:
+      $ref: './v2/components/schemas/Links.yaml'
+    Log:
+      $ref: './v2/components/schemas/Log.yaml'
+    Media:
+      $ref: './v2/components/schemas/Media.yaml'
+    ModernInterfaceObject:
+      $ref: './v2/components/schemas/ModernInterfaceObject.yaml'
+    Notice:
+      $ref: './v2/components/schemas/Notice.yaml'
+    NoticeType:
+      $ref: './v2/components/schemas/NoticeType.yaml'
+    Plug:
+      $ref: './v2/components/schemas/Plug.yaml'
+    PlugRef:
+      $ref: './v2/components/schemas/PlugRef.yaml'
+    Progress:
+      $ref: './v2/components/schemas/Progress.yaml'
+    PromptingConstraintsCamera:
+      $ref: './v2/components/schemas/PromptingConstraintsCamera.yaml'
+    PromptingConstraintsHome:
+      $ref: './v2/components/schemas/PromptingConstraintsHome.yaml'
+    PromptingPatchConstraintsCamera:
+      $ref: './v2/components/schemas/PromptingPatchConstraintsCamera.yaml'
+    PromptingPatchConstraintsHome:
+      $ref: './v2/components/schemas/PromptingPatchConstraintsHome.yaml'
+    PromptingPermissionEntry:
+      $ref: './v2/components/schemas/PromptingPermissionEntry.yaml'
+    PromptingPermissionRuleEntry:
+      $ref: './v2/components/schemas/PromptingPermissionRuleEntry.yaml'
+    PromptingPrompt:
+      $ref: './v2/components/schemas/PromptingPrompt.yaml'
+    PromptingPromptConstraintsCamera:
+      $ref: './v2/components/schemas/PromptingPromptConstraintsCamera.yaml'
+    PromptingPromptConstraintsHome:
+      $ref: './v2/components/schemas/PromptingPromptConstraintsHome.yaml'
+    PromptingReply:
+      $ref: './v2/components/schemas/PromptingReply.yaml'
+    PromptingReplyConstraintsCamera:
+      $ref: './v2/components/schemas/PromptingReplyConstraintsCamera.yaml'
+    PromptingReplyConstraintsHome:
+      $ref: './v2/components/schemas/PromptingReplyConstraintsHome.yaml'
+    PromptingRule:
+      $ref: './v2/components/schemas/PromptingRule.yaml'
+    PromptingRuleActionAdd:
+      $ref: './v2/components/schemas/PromptingRuleActionAdd.yaml'
+    PromptingRuleActionPatch:
+      $ref: './v2/components/schemas/PromptingRuleActionPatch.yaml'
+    PromptingRuleActionRemove:
+      $ref: './v2/components/schemas/PromptingRuleActionRemove.yaml'
+    PromptingRuleActionRemoveByID:
+      $ref: './v2/components/schemas/PromptingRuleActionRemoveById.yaml'
+    PromptingRuleConstraintsCamera:
+      $ref: './v2/components/schemas/PromptingRuleConstraintsCamera.yaml'
+    PromptingRuleConstraintsHome:
+      $ref: './v2/components/schemas/PromptingRuleConstraintsHome.yaml'
+    Publisher:
+      $ref: './v2/components/schemas/Publisher.yaml'
+    QuotaGroup:
+      $ref: './v2/components/schemas/QuotaGroup.yaml'
+    Slot:
+      $ref: './v2/components/schemas/Slot.yaml'
+    SlotRef:
+      $ref: './v2/components/schemas/SlotRef.yaml'
+    Snap:
+      $ref: './v2/components/schemas/Snap.yaml'
+    Snapshot:
+      $ref: './v2/components/schemas/Snapshot.yaml'
+    SnapshotSet:
+      $ref: './v2/components/schemas/SnapshotSet.yaml'
+    StoreCategory:
+      $ref: './v2/components/schemas/StoreCategory.yaml'
+    SystemActionCheckPassphrase:
+      $ref: './v2/components/schemas/SystemActionCheckPassphrase.yaml'
+    SystemActionCheckPin:
+      $ref: './v2/components/schemas/SystemActionCheckPin.yaml'
+    SystemActionCreate:
+      $ref: './v2/components/schemas/SystemActionCreate.yaml'
+    SystemActionDo:
+      $ref: './v2/components/schemas/SystemActionDo.yaml'
+    SystemActionFixEncryptionSupport:
+      $ref: './v2/components/schemas/SystemActionFixEncryptionSupport.yaml'
+    SystemActionInstall:
+      $ref: './v2/components/schemas/SystemActionInstall.yaml'
+    SystemActionReboot:
+      $ref: './v2/components/schemas/SystemActionReboot.yaml'
+    SystemActionRemove:
+      $ref: './v2/components/schemas/SystemActionRemove.yaml'
+    System:
+      $ref: './v2/components/schemas/System.yaml'
+    SystemInfo:
+      $ref: './v2/components/schemas/SystemInfo.yaml'
+    Task:
+      $ref: './v2/components/schemas/Task.yaml'
+    TimerString:
+      $ref: './v2/components/schemas/TimerString.yaml'
+    User:
+      $ref: './v2/components/schemas/User.yaml'
+    ValidationSet:
+      $ref: './v2/components/schemas/ValidationSet.yaml'
+    Warning:
+      $ref: './v2/components/schemas/Warning.yaml'
+
+paths:
+  /v2/aliases:
+    $ref: './v2/paths/aliases.yaml'
+  /v2/apps:
+    $ref: './v2/paths/apps.yaml'
+  /v2/assertions:
+    $ref: './v2/paths/assertions.yaml'
+  /v2/assertions/{assertion-type}:
+    $ref: './v2/paths/assertions-type.yaml'
+  /v2/changes:
+    $ref: './v2/paths/changes.yaml'
+  /v2/changes/{id}:
+    $ref: './v2/paths/changes-id.yaml'
+  /v2/cohorts:
+    $ref: './v2/paths/cohorts.yaml'
+  /v2/confdb/{account}/{confdb-schema}/{view}:
+    $ref: './v2/paths/confdb.yaml'
+  /v2/connections:
+    $ref: './v2/paths/connections.yaml'
+  /v2/find:
+    $ref: './v2/paths/find.yaml'
+  /v2/icons/{name}/icon:
+    $ref: './v2/paths/icons-name-icon.yaml'
+  /v2/interfaces:
+    $ref: './v2/paths/interfaces.yaml'
+  /v2/interfaces/requests/prompts:
+    $ref: './v2/paths/interfaces-requests-prompts.yaml'
+  /v2/interfaces/requests/prompts/{id}:
+    $ref: './v2/paths/interfaces-requests-prompts-id.yaml'
+  /v2/interfaces/requests/rules:
+    $ref: './v2/paths/interfaces-requests-rules.yaml'
+  /v2/interfaces/requests/rules/{id}:
+    $ref: './v2/paths/interfaces-requests-rules-id.yaml'
+  /v2/login:
+    $ref: './v2/paths/login.yaml'
+  /v2/logout:
+    $ref: './v2/paths/logout.yaml'
+  /v2/logs:
+    $ref: './v2/paths/logs.yaml'
+  /v2/model:
+    $ref: './v2/paths/model.yaml'
+  /v2/model/serial:
+    $ref: './v2/paths/model-serial.yaml'
+  /v2/notices:
+    $ref: './v2/paths/notices.yaml'
+  /v2/notices/{id}:
+    $ref: './v2/paths/notices-id.yaml'
+  /v2/quotas:
+    $ref: './v2/paths/quotas.yaml'
+  /v2/quotas/{group-name}:
+    $ref: './v2/paths/quotas-group-name.yaml'
+  /v2/sections:
+    $ref: './v2/paths/sections.yaml'
+  /v2/snapctl:
+    $ref: './v2/paths/snapctl.yaml'
+  /v2/snaps:
+    $ref: './v2/paths/snaps.yaml'
+  /v2/snaps/{name}:
+    $ref: './v2/paths/snaps-name.yaml'
+  /v2/snaps/{name}/conf:
+    $ref: './v2/paths/snaps-name-conf.yaml'
+  /v2/snapshots:
+    $ref: './v2/paths/snapshots.yaml'
+  /v2/snapshots/{set-id}/export:
+    $ref: './v2/paths/snapshots-set-id-export.yaml'
+  /v2/system/system-recovery-keys:
+    $ref: './v2/paths/system-recovery-keys.yaml'
+  /v2/systems:
+    $ref: './v2/paths/systems.yaml'
+  /v2/systems/{label}:
+    $ref: './v2/paths/systems-label.yaml'
+  /v2/system-info:
+    $ref: './v2/paths/system-info.yaml'
+  /v2/users:
+    $ref: './v2/paths/users.yaml'
+  /v2/validation-sets:
+    $ref: './v2/paths/validation-sets.yaml'
+  /v2/validation-sets/{account-id}/{name}:
+    $ref: './v2/paths/validation-sets-account-id-name.yaml'
+  /v2/warnings:
+    $ref: './v2/paths/warnings.yaml'

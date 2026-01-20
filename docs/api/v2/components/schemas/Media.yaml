@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: A media asset for the snap, such as an icon or screenshot.
+properties:
+  height:
+    type: integer
+    description: |-
+      The height of the asset in pixels.
+  type:
+    type: string
+    enum:
+      - icon
+      - screenshot
+  url:
+    type: string
+    format: uri
+    description: |-
+      The URL of the asset.
+  width:
+    type: integer
+    description: |-
+      The width of the asset in pixels.

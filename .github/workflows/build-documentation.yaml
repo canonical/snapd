@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Build and Lint REST OpenAPI
+on:
+  pull_request:
+    types: [labeled]
+jobs:
+  build-documentation:
+    if: ${{ github.event.label.name == 'Update OpenAPI Documentation' }}
+    runs-on: ubuntu-latest
+    name: Lint and build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Check Licensing/Copyright Compliance
+        uses: docker://fsfe/reuse
+        with:
+          args: lint ./docs/api
+      - name: Check API specification
+        uses: docker://redocly/cli
+        with:
+          args: lint ./docs/api/openapi.yaml
+      - name: Build generated documentation
+        uses: docker://redocly/cli
+        with:
+          args: build-docs ./docs/api/openapi.yaml
+      - name: Create dark mode version
+        run: |
+          sudo chown $USER ./docs/api/redoc-static.html
+          python3 ./docs/api/tools/post-process.py ./docs/api/redoc-static.html ./docs/api/tools/dark-theme.css "</head>"
+      - name: Store generated artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: rest-api-documentation
+          path: |
+            ./docs/api/redoc-static.html
