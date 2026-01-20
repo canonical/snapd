@@ -121,6 +121,7 @@ type Overlord struct {
 	noticeMgr     *notices.NoticeManager
 	confdbMgr     *confdbstate.ConfdbManager
 	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
+
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
