@@ -681,6 +681,8 @@ prepare_suite() {
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    snap version | grep snapd | awk '{print $2}' > "/var/tmp/snapd-testing-version"
 }
 
 prepare_suite_each() {
