@@ -119,8 +119,8 @@ type Overlord struct {
 	shotMgr       *snapshotstate.SnapshotManager
 	fdeMgr        *fdestate.FDEManager
 	noticeMgr     *notices.NoticeManager
+	confdbMgr     *confdbstate.ConfdbManager
 	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
-
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -248,6 +248,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.restartMgr = x
 	case *fdestate.FDEManager:
 		o.fdeMgr = x
+	case *confdbstate.ConfdbManager:
+		o.confdbMgr = x
 	case *devicemgmtstate.DeviceMgmtManager:
 		o.deviceMgmtMgr = x
 	}
@@ -725,6 +727,11 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // for notices across all notice backends.
 func (o *Overlord) NoticeManager() *notices.NoticeManager {
 	return o.noticeMgr
+}
+
+// ConfdbManager returns the manager responsible for accesses to confdb.
+func (o *Overlord) ConfdbManager() *confdbstate.ConfdbManager {
+	return o.confdbMgr
 }
 
 // DeviceMgmtManager returns the manager responsible for device management.
