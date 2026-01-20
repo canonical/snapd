@@ -94,8 +94,7 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 		flag           any
 		lastExchange   time.Time
 		readyResponses map[string]store.Message
-		expectedShould bool
-		expectedLimit  int
+		expected       bool
 	}
 
 	wayback := time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
@@ -127,34 +126,32 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 			flag:           false,
 			lastExchange:   enoughTimePassed,
 			readyResponses: map[string]store.Message{"mesg-1": {}},
-			expectedShould: true,
+			expected:       true,
 		},
 		{
-			name:           "feature flag on, too soon",
-			flag:           true,
-			lastExchange:   tooSoon,
-			expectedShould: false,
+			name:         "feature flag on, too soon",
+			flag:         true,
+			lastExchange: tooSoon,
+			expected:     false,
 		},
 		{
-			name:           "feature flag on, enough time passed",
-			flag:           true,
-			lastExchange:   enoughTimePassed,
-			expectedShould: true,
-			expectedLimit:  devicemgmtstate.DefaultExchangeLimit,
+			name:         "feature flag on, enough time passed",
+			flag:         true,
+			lastExchange: enoughTimePassed,
+			expected:     true,
 		},
 		{
 			name:           "feature flag check error, has responses, enough time passed",
 			flag:           "banana",
 			lastExchange:   enoughTimePassed,
 			readyResponses: map[string]store.Message{"mesg-1": {}},
-			expectedShould: true,
-			expectedLimit:  0,
+			expected:       true,
 		},
 		{
-			name:           "feature flag check error, no responses, enough time passed",
-			flag:           "banana",
-			lastExchange:   enoughTimePassed,
-			expectedShould: false,
+			name:         "feature flag check error, no responses, enough time passed",
+			flag:         "banana",
+			lastExchange: enoughTimePassed,
+			expected:     false,
 		},
 	}
 
@@ -171,9 +168,8 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 
 		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
 
-		should, cfg := s.mgr.ShouldExchangeMessages(ms)
-		c.Check(should, Equals, tt.expectedShould, cmt)
-		c.Check(cfg.Limit, Equals, tt.expectedLimit, cmt)
+		exchange := s.mgr.ShouldExchangeMessages(ms)
+		c.Check(exchange, Equals, tt.expected, cmt)
 	}
 }
 
@@ -200,11 +196,6 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	exchange := tasks[0]
 	c.Check(exchange.Kind(), Equals, "exchange-mgmt-messages")
 	c.Check(exchange.Summary(), Equals, "Exchange messages with the Store")
-
-	var cfg devicemgmtstate.ExchangeConfig
-	err = exchange.Get("config", &cfg)
-	c.Assert(err, IsNil)
-	c.Check(cfg.Limit, Equals, devicemgmtstate.DefaultExchangeLimit)
 
 	dispatch := tasks[1]
 	c.Check(dispatch.Kind(), Equals, "dispatch-mgmt-messages")

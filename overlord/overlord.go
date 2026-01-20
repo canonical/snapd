@@ -727,6 +727,11 @@ func (o *Overlord) NoticeManager() *notices.NoticeManager {
 	return o.noticeMgr
 }
 
+// DeviceMgmtManager returns the manager responsible for device management.
+func (o *Overlord) DeviceMgmtManager() *devicemgmtstate.DeviceMgmtManager {
+	return o.deviceMgmtMgr
+}
+
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {

@@ -42,7 +42,7 @@ const (
 	deviceMgmtStateKey = "device-mgmt"
 
 	defaultExchangeLimit    = 10
-	defaultExchangeInterval = 5 * time.Minute
+	defaultExchangeInterval = 6 * time.Hour
 )
 
 var (
@@ -55,10 +55,10 @@ var (
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
 	// Validate checks subsystem-specific constraints (authorization, payload schema, etc).
-	Validate(st *state.State, msg *PendingMessage) error
+	Validate(st *state.State, msg *RequestMessage) error
 
 	// Apply processes a request-message and returns a change ID.
-	Apply(st *state.State, reqAs *PendingMessage) (changeID string, err error)
+	Apply(st *state.State, reqAs *RequestMessage) (changeID string, err error)
 
 	// BuildResponse converts a completed change into a response body and status.
 	BuildResponse(chg *state.Change) (body map[string]any, status asserts.MessageStatus)
@@ -69,40 +69,32 @@ type ResponseMessageSigner interface {
 	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
-// PendingMessage represents a request-message being processed.
+// RequestMessage represents a request-message being processed.
 // Messages remain pending until their associated change completes,
 // at which point a response is queued and the message is removed.
-type PendingMessage struct {
-	BaseID      string    `json:"base-id"`
-	SeqNum      int       `json:"seq-num"`
-	Kind        string    `json:"kind"`
+type RequestMessage struct {
 	AccountID   string    `json:"account-id"`
 	AuthorityID string    `json:"authority-id"`
-	Received    time.Time `json:"received"`
+	ID          string    `json:"message-id"`
+	Kind        string    `json:"message-kind"`
+	Devices     []string  `json:"devices"`
+	ValidSince  time.Time `json:"valid-since"`
+	ValidUntil  time.Time `json:"valid-until"`
+	Body        string    `json:"body"`
 
-	Devices    []string  `json:"devices"`
-	ValidSince time.Time `json:"valid-since"`
-	ValidUntil time.Time `json:"valid-until"`
-
-	Body string `json:"body"`
-}
-
-// exchangeConfig holds parameters for the message exchange task.
-type exchangeConfig struct {
-	// Limit is the maximum number of request messages to fetch.
-	Limit int
+	ReceivedTime time.Time `json:"received-time"`
 }
 
 // deviceMgmtState holds the persistent state for device management operations.
 type deviceMgmtState struct {
 	// PendingMessages maps message IDs to messages being processed. A message
 	// stays here from receipt until its response is queued.
-	PendingMessages map[string]*PendingMessage `json:"pending-messages"`
+	PendingMessages map[string]*RequestMessage `json:"pending-messages"`
 
-	// PendingAckToken is the token of the last message we successfully stored,
+	// LastReceivedToken is the token of the last message successfully stored locally,
 	// sent in the "after" field of the next exchange to acknowledge receipt
 	// up to this point.
-	PendingAckToken string `json:"pending-ack-token"`
+	LastReceivedToken string `json:"pending-ack-token"`
 
 	// ReadyResponses are response-message assertions ready to send in the next exchange.
 	// Cleared after successful transmission.
@@ -143,7 +135,7 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return &deviceMgmtState{
-				PendingMessages: make(map[string]*PendingMessage),
+				PendingMessages: make(map[string]*RequestMessage),
 				ReadyResponses:  make(map[string]store.Message),
 			}, nil
 		}
@@ -169,8 +161,8 @@ func (m *DeviceMgmtManager) Ensure() error {
 		return err
 	}
 
-	shouldExchg, exchgCfg := m.shouldExchangeMessages(ms)
-	if !shouldExchg {
+	exchange := m.shouldExchangeMessages(ms)
+	if !exchange {
 		return nil
 	}
 
@@ -184,22 +176,23 @@ func (m *DeviceMgmtManager) Ensure() error {
 	chg := m.state.NewChange(deviceMgmtCycleChangeKind, "Process device management messages")
 
 	exchg := m.state.NewTask("exchange-mgmt-messages", "Exchange messages with the Store")
-	exchg.Set("config", exchgCfg)
 	chg.AddTask(exchg)
 
 	dispatch := m.state.NewTask("dispatch-mgmt-messages", "Dispatch message(s) to subsystems")
 	dispatch.WaitFor(exchg)
 	chg.AddTask(dispatch)
 
+	m.state.EnsureBefore(0)
+
 	return nil
 }
 
 // shouldExchangeMessages checks whether a message exchange should happen now.
 // Caller must hold state lock.
-func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) (bool, exchangeConfig) {
+func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
 	if timeNow().Before(nextExchange) {
-		return false, exchangeConfig{}
+		return false
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -210,13 +203,7 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) (bool, e
 		enabled = false
 	}
 
-	shouldExchange := enabled || len(ms.ReadyResponses) > 0
-	limit := 0
-	if enabled {
-		limit = defaultExchangeLimit
-	}
-
-	return shouldExchange, exchangeConfig{Limit: limit}
+	return enabled || len(ms.ReadyResponses) > 0
 }
 
 // doExchangeMessages exchanges messages with the store: sends queued response messages,

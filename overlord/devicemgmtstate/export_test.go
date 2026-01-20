@@ -34,8 +34,6 @@ var (
 	DefaultExchangeInterval = defaultExchangeInterval
 )
 
-type ExchangeConfig exchangeConfig
-
 type DeviceMgmtState deviceMgmtState
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
@@ -55,7 +53,7 @@ func (m *DeviceMgmtManager) MockSigner(signer ResponseMessageSigner) {
 	m.signer = signer
 }
 
-func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) (bool, exchangeConfig) {
+func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) bool {
 	return m.shouldExchangeMessages((*deviceMgmtState)(ms))
 }
 
