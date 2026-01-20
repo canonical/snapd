@@ -76,13 +76,13 @@ See also the comment in `overlord/snapstate/handlers.go` about state locking.
 ------------
 By default, when any `Task` in a `Change` fails, the entire `Change` is aborted. Lanes allow dividing `Task`s within a single `Change` into independent failure domains.
 
-This is particularly useful when a `Change` processes multiple independent operations where partial failure is acceptable. For example, when processing multiple messages in one `Change`, assigning each message's `Task`s to a separate lane ensures that if one message fails, the other messages can still be processed to completion.
+This is particularly useful when a `Change` processes multiple independent operations where partial failure is acceptable. For example, when auto-refreshing multiple snaps in one `Change`, assigning each snap's `Task`s to a separate lane ensures that if one snap fails to refresh, the others can still complete successfully.
 
 To assign a `Task` to a lane, use `Task.JoinLane()` where the lane number is obtained from `State.NewLane()`. A `Task` can be in multiple lanes by calling `JoinLane` multiple times. `Task`s not explicitly assigned to any lane are considered to be in lane 0.
 
-When a `Task` in a lane fails, `Change.AbortLanes` aborts all `Task`s exclusively in that lane and any `Task`s waiting on them. However, `Task`s that belong to multiple lanes survive if at least one of their other lanes is healthy i.e., all of the lane's `Task`s are in Do, Doing, or Done status.
+When a `Task` in a lane fails, `Change.AbortLanes` aborts all `Task`s exclusively in that lane and any `Task`s waiting on them. However, `Task`s that belong to multiple lanes survive if at least one of their other lanes is healthy i.e., all of that lane's `Task`s are in Do, Doing, or Done status.
 
-Aborted `Task`s transition based on their current status: `Task`s not yet started (`DoStatus`) are held and never run, `Task`s in progress (`DoingStatus`) are stopped and undone, and completed `Task`s (`DoneStatus`) are undone.
+Aborted `Task`s transition based on their current status: `Task`s not yet started (`DoStatus`) are held and never run, `Task`s in progress (`DoingStatus`) are aborted and undone, and completed `Task`s (`DoneStatus`) are undone.
 
 Testing `Task` handling logic
 ------------------------------
