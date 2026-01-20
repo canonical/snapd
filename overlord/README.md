@@ -82,7 +82,7 @@ To assign a `Task` to a lane, use `Task.JoinLane()` where the lane number is obt
 
 When a `Task` in a lane fails, `Change.AbortLanes` aborts all `Task`s exclusively in that lane and any `Task`s waiting on them. However, `Task`s that belong to multiple lanes survive if at least one of their other lanes is healthy i.e., all of that lane's `Task`s are in Do, Doing, or Done status.
 
-Aborted `Task`s transition based on their current status: `Task`s not yet started (`DoStatus`) are held and never run, `Task`s in progress (`DoingStatus`) are aborted and undone, and completed `Task`s (`DoneStatus`) are undone.
+Aborted `Task`s transition based on their current status: `Task`s not yet started (`DoStatus`) are held and never run, `Task`s in progress (`DoingStatus`) are signaled to stop and are later undone, and completed `Task`s (`DoneStatus`) are undone.
 
 Testing `Task` handling logic
 ------------------------------
