@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
@@ -129,6 +130,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(o.SnapshotManager(), NotNil)
 	c.Check(o.FDEManager(), NotNil)
+	c.Check(o.ConfdbManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
 
 	o.InterfaceManager().DisableUDevMonitor()
@@ -151,10 +153,12 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	// store is setup
 	sto := snapstate.Store(s, nil)
 	c.Check(sto, FitsTypeOf, &store.Store{})
-	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+	c.Check(sto.(*store.Store).CachePolicy(), Equals, store.DefaultCachePolicyClassic)
 }
 
-func (ovs *overlordSuite) TestNewStore(c *C) {
+func (ovs *overlordSuite) TestNewStoreClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
 	// this is a shallow test, the deep testing happens in the
 	// remodeling tests in managers_test.go
 	o, err := overlord.New(nil)
@@ -164,7 +168,27 @@ func (ovs *overlordSuite) TestNewStore(c *C) {
 
 	sto := o.NewStore(devBE)
 	c.Check(sto, FitsTypeOf, &store.Store{})
-	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
+	// we're using a classic system specific policy
+	pol := sto.(*store.Store).CachePolicy()
+	c.Check(pol, Equals, store.DefaultCachePolicyClassic)
+	c.Check(pol.MaxSizeBytes, Equals, uint64(0))
+}
+
+func (ovs *overlordSuite) TestNewStoreCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	devBE := o.DeviceManager().StoreContextBackend()
+
+	sto := o.NewStore(devBE)
+	c.Check(sto, FitsTypeOf, &store.Store{})
+	// we're using a core system specific policy
+	pol := sto.(*store.Store).CachePolicy()
+	c.Check(pol, Equals, store.DefaultCachePolicyCore)
+	// the size limit is set to 1GB
+	c.Check(pol.MaxSizeBytes, Equals, uint64(1*1024*1024*1024))
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {

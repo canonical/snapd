@@ -105,6 +105,8 @@ run_muinstaller() {
     done
 
     remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
+    remote.exec "sudo sh -c 'echo SNAPPY_TESTING=1 >> /etc/environment'"
+
     # push our snap down
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
@@ -167,6 +169,14 @@ fi
 EOF
     remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
 
+    # This is where the installer expects assets to be to run the
+    # pre-install checks.
+    remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+    remote.exec "sudo mkdir -p /cdrom/casper"
+    remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
+
     muinstaller_args=()
     muinstaller_args+=("-label" "$label")
     muinstaller_args+=("-device" "$install_disk")
@@ -202,7 +212,7 @@ EOF
     if ! kpartx -d "${image_path}"; then
         # Sometimes there are random failures, let's wait and re-try
         sleep 1
-        kpartx -d "${image_path}"
+        kpartx -d "$image_path" 2>&1 | grep -v 'LOOP_CLR_FD' || true
     fi
 
     if [ -n "${store_dir}" ]; then
@@ -286,6 +296,10 @@ main() {
             --extra-muinstaller-arg)
                 extra_muinstaller_args+=("${2}")
                 shift 2
+                ;;
+            --preseed-rootfs)
+                extra_muinstaller_args+=("-preseed-rootfs")
+                shift
                 ;;
             --*|-*)
                 echo "Unknown option ${1}"

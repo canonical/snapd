@@ -48,10 +48,11 @@ type getCommand struct {
 	baseCommand
 
 	// these two options are mutually exclusive
-	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
-	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
-	View          bool `long:"view" description:"return confdb values from the view declared in the plug"`
-	Previous      bool `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
+	ForceSlotSide bool     `long:"slot" description:"return attribute values from the slot side of the connection"`
+	ForcePlugSide bool     `long:"plug" description:"return attribute values from the plug side of the connection"`
+	View          bool     `long:"view" description:"return confdb values from the view declared in the plug"`
+	Previous      bool     `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
+	With          []string `long:"with" value-name:"<param>=<constraint>" description:"parameter constraints for filtering confdb queries"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
@@ -110,6 +111,9 @@ that invoked the hook.
 
 The --default flag can be used to provide a default value to be returned if no
 value is stored.
+
+The --with flag can be used to provide constraints in the form of param=constraint
+pairs.
 `)
 
 func init() {
@@ -198,6 +202,10 @@ func (c *getCommand) Execute(args []string) error {
 
 	if c.Default != "" && !c.View {
 		return fmt.Errorf(`cannot use --default with non-confdb read (missing --view)`)
+	}
+
+	if len(c.With) > 0 && !c.View {
+		return fmt.Errorf(`cannot use --with with non-confdb read (missing --view)`)
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
@@ -430,8 +438,12 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	// TODO: support constraints in snapctl
-	tx, err := confdbstateTransactionForGet(ctx, view, requests, nil)
+	constraints, err := c.parseConstraints()
+	if err != nil {
+		return err
+	}
+
+	tx, err := confdbstateTransactionForGet(ctx, view, requests, constraints)
 	if err != nil {
 		return err
 	}
@@ -441,8 +453,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		bag = tx.Previous()
 	}
 
-	// TODO: support constraints in snapctl
-	res, err := confdbstate.GetViaView(bag, view, requests, nil)
+	res, err := confdbstate.GetViaView(bag, view, requests, constraints)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err
@@ -476,6 +487,22 @@ func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) 
 	}
 
 	return map[string]any{request: defaultVal}, nil
+}
+
+func (c *getCommand) parseConstraints() (map[string]string, error) {
+	if len(c.With) == 0 {
+		return nil, nil
+	}
+
+	constraints := make(map[string]string, len(c.With))
+	for _, constraint := range c.With {
+		parts := strings.SplitN(constraint, "=", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
+		}
+		constraints[parts[0]] = parts[1]
+	}
+	return constraints, nil
 }
 
 func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {

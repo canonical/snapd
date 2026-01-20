@@ -141,6 +141,64 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *startPreseedSuite) TestHybridHappy(c *C) {
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	var called bool
+	main.MockPreseedHybrid(func(dir, label string) error {
+		c.Check(dir, Equals, "/a/dir")
+		c.Check(label, Equals, "system-label")
+		called = true
+		return nil
+	})
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{"--hybrid", "--system-label", "system-label", "/a/dir"}), IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestHybridReset(c *C) {
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	var called bool
+	main.MockPreseedHybridReset(func(dir, label string) error {
+		c.Check(dir, Equals, "/a/dir")
+		c.Check(label, Equals, "system-label")
+		called = true
+		return nil
+	})
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{"--hybrid", "--system-label", "system-label", "--reset", "/a/dir"}), IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestHybridMissingLabel(c *C) {
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{"--hybrid", "/a/dir"}), ErrorMatches, `cannot use --hybrid without --system-label`)
+}
+
+func (s *startPreseedSuite) TestLabelWithoutHybrid(c *C) {
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{"--system-label", "label", "/a/dir"}), ErrorMatches, `cannot use --system-label without --hybrid`)
+}
+
 func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 	var called bool
 	inf := &snap.Info{

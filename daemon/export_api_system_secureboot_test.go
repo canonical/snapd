@@ -27,26 +27,26 @@ import (
 
 type SecurebootRequest = securebootRequest
 
-func MockFdestateEFISecureBootDBUpdatePrepare(
+func MockFdestateEFISecurebootDBUpdatePrepare(
 	f func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error,
 ) (restore func()) {
-	restore = testutil.Backup(&fdestateEFISecureBootDBUpdatePrepare)
-	fdestateEFISecureBootDBUpdatePrepare = f
+	restore = testutil.Backup(&fdestateEFISecurebootDBUpdatePrepare)
+	fdestateEFISecurebootDBUpdatePrepare = f
 	return restore
 }
 
-func MockFdestateEFISecureBootDBUpdateCleanup(
+func MockFdestateEFISecurebootDBUpdateCleanup(
 	f func(st *state.State) error,
 ) (restore func()) {
-	restore = testutil.Backup(&fdestateEFISecureBootDBUpdateCleanup)
-	fdestateEFISecureBootDBUpdateCleanup = f
+	restore = testutil.Backup(&fdestateEFISecurebootDBUpdateCleanup)
+	fdestateEFISecurebootDBUpdateCleanup = f
 	return restore
 }
 
-func MockFdestateEFISecureBootDBManagerStartup(
+func MockFdestateEFISecurebootDBManagerStartup(
 	f func(st *state.State) error,
 ) (restore func()) {
-	restore = testutil.Backup(&fdestateEFISecureBootDBManagerStartup)
-	fdestateEFISecureBootDBManagerStartup = f
+	restore = testutil.Backup(&fdestateEFISecurebootDBManagerStartup)
+	fdestateEFISecurebootDBManagerStartup = f
 	return restore
 }

@@ -2,7 +2,10 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [-ubuntu-1*, -ubuntu-20*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   # No partial gadget by default
@@ -20,6 +23,9 @@ environment:
 
   SEED_PARTITION: false
   SEED_PARTITION/seeded: true
+
+  PRESEED_ROOTFS: false
+  PRESEED_ROOTFS/preseed: true
 
   # Using partial case (TPM used, see above)
   PARTIAL_GADGET/partial: true
@@ -112,6 +118,10 @@ execute: |
   EOF
   fi
 
+  if [ "${PRESEED_ROOTFS}" = true ]; then
+      preseed_rootfs_args=--preseed-rootfs
+  fi
+
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
   # shellcheck disable=SC2086
@@ -122,6 +132,7 @@ execute: |
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel-from-store.assert \
+     ${preseed_rootfs_args-} \
      $kmods_arg \
      --disk disk.img
   rm -f disk.img
@@ -147,13 +158,19 @@ execute: |
       remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
 
+  api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+  }
+
   # check encryption 
   remote.exec "sudo snap install test-snapd-tools"
   remote.exec "snap list" | MATCH "test-snapd-tools"
   if [ "$NESTED_ENABLE_TPM" = false ]; then
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | NOMATCH "storage-encrypted"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "inactive"
   else
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | MATCH "storage-encrypted: managed"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
 
       remote.exec "sudo test -d /var/lib/snapd/device/fde"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
@@ -325,6 +342,10 @@ execute: |
       # make sure that our gpt partition is still there
       remote.exec 'test -e "/dev/disk/by-partlabel/BIOS\x20Boot"'
       remote.exec 'sudo fdisk -l /dev/vda' | MATCH '/dev/vda1\s+2048\s+4095\s+2048\s+1M\s+BIOS boot'
+  fi
+
+  if [ "${PRESEED_ROOTFS}" = true ]; then
+      remote.exec "snap debug seeding" | MATCH "^preseeded: +true"
   fi
 
   if [ "$SEED_PARTITION" = 'false' ]; then

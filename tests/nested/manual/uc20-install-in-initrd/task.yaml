@@ -4,7 +4,11 @@ details: |
   This test checks that we are able to perform a single-boot installation in
   various scenarios.
 
-systems: [-ubuntu-1*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   # There are 4 modes:

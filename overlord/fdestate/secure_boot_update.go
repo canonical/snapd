@@ -50,9 +50,24 @@ const (
 	EFISecurebootDBX
 )
 
-// EFISecureBootDBUpdatePrepare notifies that the local EFI key
+func (db EFISecurebootKeyDatabase) String() string {
+	switch db {
+	case EFISecurebootPK:
+		return "PK"
+	case EFISecurebootKEK:
+		return "KEK"
+	case EFISecurebootDB:
+		return "DB"
+	case EFISecurebootDBX:
+		return "DBX"
+	default:
+		return fmt.Sprintf("unknown EFISecurebootKeyDatabase: <%d>", db)
+	}
+}
+
+// EFISecurebootDBUpdatePrepare notifies that the local EFI key
 // database manager is about to update the database.
-func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
+func EFISecurebootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
 		if err == device.ErrNoSealedKeys {
@@ -64,7 +79,7 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	st.Lock()
 	defer st.Unlock()
 
-	if err := checkDBXChangeConflicts(st); err != nil {
+	if err := checkSecurebootChangeConflicts(st, db); err != nil {
 		return err
 	}
 
@@ -72,7 +87,7 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 		return err
 	}
 
-	op, err := addEFISecurebootDBUpdateChange(st, method, payload)
+	op, err := addEFISecurebootDBUpdateChange(st, method, db, payload)
 	if err != nil {
 		return err
 	}
@@ -85,10 +100,10 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	st.EnsureBefore(0)
 
 	// we want to synchronize with the prepare task completing successfully as
-	// at this point the keys will have been resealed with the proposed DBX
+	// at this point the keys will have been resealed with the proposed update
 	// payload
 	chgFailed := false
-	afterPrepareOKC := dbxUpdatePreparedOKChan(st, chgID)
+	afterPrepareOKC := securebootUpdatePreparedOKChan(st, chgID)
 	st.Unlock()
 	// there is no timeout as we expect to observe one of the two outcomes: we
 	// either complete the prepare step successfully or the change fails (and
@@ -126,9 +141,9 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 	return nil
 }
 
-// EFISecureBootDBUpdateCleanup notifies that the local EFI key database manager
+// EFISecurebootDBUpdateCleanup notifies that the local EFI key database manager
 // has reached a cleanup stage of the update process.
-func EFISecureBootDBUpdateCleanup(st *state.State) error {
+func EFISecurebootDBUpdateCleanup(st *state.State) error {
 	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
 		return nil
 	} else if err != nil {
@@ -144,7 +159,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	}
 
 	if op == nil {
-		logger.Debugf("no pending DBX update request for cleanup")
+		logger.Debugf("no pending Secureboot Key Database update request for cleanup")
 		return nil
 	}
 
@@ -155,7 +170,7 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot perform DBX update 'cleanup' action when conflicting actions are in progress",
+			Message:    "cannot perform Secureboot Key Database update 'cleanup' action when conflicting actions are in progress",
 		}
 	}
 
@@ -171,9 +186,9 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 	return completeEFISecurebootDBUpdateChange(chg)
 }
 
-// EFISecureBootDBManagerStartup indicates that the local EFI key database
+// EFISecurebootDBManagerStartup indicates that the local EFI key database
 // manager has started.
-func EFISecureBootDBManagerStartup(st *state.State) error {
+func EFISecurebootDBManagerStartup(st *state.State) error {
 	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
 		return nil
 	} else if err != nil {
@@ -189,12 +204,12 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	}
 
 	if op == nil {
-		logger.Debugf("no pending DBX update request")
+		logger.Debugf("no pending Secureboot Key Database request")
 		return nil
 	}
 
 	// at this point we have a pending request, which means we must mark it as
-	// failed and reseal with the current content of EFI DBX
+	// failed and reseal with the current content of EFI PK/KEK/DB/DBX
 
 	// ensure that the external operation has obtained 'Doing' status which
 	// prevents attempting startup/cleanup when we briefly unlock the state
@@ -203,7 +218,7 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	if op.Status != DoingStatus {
 		return &snapstate.ChangeConflictError{
 			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot perform DBX update 'startup' action when conflicting actions are in progress",
+			Message:    "cannot perform Secureboot Key Database 'startup' action when conflicting actions are in progress",
 		}
 	}
 
@@ -218,14 +233,20 @@ func EFISecureBootDBManagerStartup(st *state.State) error {
 	return completeEFISecurebootDBUpdateChange(chg)
 }
 
-type dbxUpdateContext struct {
-	Payload []byte               `json:"payload"`
-	Method  device.SealingMethod `json:"sealing-method"`
+type securebootUpdateContext struct {
+	Payload []byte                   `json:"payload"`
+	Method  device.SealingMethod     `json:"sealing-method"`
+	DB      EFISecurebootKeyDatabase `json:"db"`
 }
 
-// addEFISecurebootDBUpdateChange adds a state change related to the DBX
+// addEFISecurebootDBUpdateChange adds a state change related to the Secureboot
 // update. The state must be locked by the caller.
-func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod, payload []byte) (*externalOperation, error) {
+func addEFISecurebootDBUpdateChange(
+	st *state.State,
+	method device.SealingMethod,
+	db EFISecurebootKeyDatabase,
+	payload []byte,
+) (*externalOperation, error) {
 	// add a change carrying 2 tasks:
 	// - efi-secureboot-db-update-prepare: with a noop do, but the undo handler
 	// preforms necessary cleanup
@@ -235,17 +256,22 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 	// if the original requester never calls cleanup/startup, the change
 	// will be pruned automatically and the undo will perform a reseal
 
-	tPrep := st.NewTask("efi-secureboot-db-update-prepare", "Prepare for external EFI DBX update")
-	tUpdateWait := st.NewTask("efi-secureboot-db-update", "Reseal after external EFI DBX update")
+	updateKindStr := db.String()
+	tPrep := st.NewTask("efi-secureboot-db-update-prepare",
+		fmt.Sprintf("Prepare for external EFI %s update", updateKindStr))
+	tUpdateWait := st.NewTask("efi-secureboot-db-update",
+		fmt.Sprintf("Reseal after external EFI %s update", updateKindStr))
 	tUpdateWait.WaitFor(tPrep)
 	ts := state.NewTaskSet(tPrep, tUpdateWait)
 
-	chg := st.NewChange(fdeEfiSecurebootDbUpdateChangeKind, "External EFI DBX update")
+	chg := st.NewChange(fdeEfiSecurebootDbUpdateChangeKind,
+		fmt.Sprintf("External EFI %s update", updateKindStr))
 	chg.AddAll(ts)
 
-	data, err := json.Marshal(dbxUpdateContext{
+	data, err := json.Marshal(securebootUpdateContext{
 		Payload: payload,
 		Method:  method,
+		DB:      db,
 	})
 	if err != nil {
 		return nil, err
@@ -264,7 +290,7 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 		return nil, err
 	}
 
-	setupDBXNotifyPrepareDoneOKChan(st, chg.ID())
+	setupSecurebootNotifyPrepareDoneOKChan(st, chg.ID())
 
 	return op, nil
 }
@@ -281,23 +307,23 @@ func completeEFISecurebootDBUpdateChange(chg *state.Change) error {
 	// successfully or with an error; note we are not holding the state lock so
 	// other tasks are not blocked
 	st.Unlock()
-	logger.Debugf("waiting for FDE DBX change %v to become ready", chg.ID())
+	logger.Debugf("waiting for FDE Secureboot Key Database change %v to become ready", chg.ID())
 	<-chg.Ready()
-	logger.Debugf("DBX change complete")
+	logger.Debugf("Secureboot Key Database change complete")
 	st.Lock()
 
 	chg = st.Change(chg.ID())
 	if err := chg.Err(); err != nil {
-		logger.Debugf("completed DBX update change error: %v", chg.Err())
+		logger.Debugf("completed Secureboot Key Database change error: %v", chg.Err())
 	}
 
 	return nil
 }
 
-// postUpdateReseal performs a reseal after a DBX update.
+// postUpdateReseal performs a reseal after a Secureboot Key Database update.
 func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.SealingMethod) error {
 	return boot.WithBootChains(func(bc boot.BootChains) error {
-		logger.Debugf("attempting post DBX update reseal")
+		logger.Debugf("attempting post Secureboot Key Database reseal")
 
 		params := &boot.ResealKeyForBootChainsParams{
 			BootChains: bc,
@@ -311,7 +337,7 @@ func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.Sea
 }
 
 func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.Tomb) error {
-	// the do handler perform the initial reseal with DBX payload which will be
+	// the do handler perform the initial reseal with update payload which will be
 	// used during update
 
 	st := t.State()
@@ -330,9 +356,9 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 			op.Status, PreparingStatus)
 	}
 
-	var updateData dbxUpdateContext
+	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal DBX update context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
 	err = func() error {
@@ -340,9 +366,9 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 
 		return boot.WithBootChains(func(bc boot.BootChains) error {
 			// TODO: are we logging too much?
-			logger.Debugf("attempting reseal for DBX update")
+			logger.Debugf("attempting reseal for Secureboot Key Database")
 			logger.Debugf("boot chains: %v\n", bc)
-			logger.Debugf("DBX update payload: %x", updateData.Payload)
+			logger.Debugf("Secureboot Key Database payload: %x", updateData.Payload)
 
 			params := &boot.ResealKeyForBootChainsParams{
 				BootChains: bc,
@@ -359,7 +385,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 	}()
 
 	if err != nil {
-		err = fmt.Errorf("cannot perform initial reseal of keys for DBX update: %w", err)
+		err = fmt.Errorf("cannot perform initial reseal of keys for Secureboot Key Database update: %w", err)
 		op.SetFailed(err.Error())
 	} else {
 		op.SetStatus(DoingStatus)
@@ -369,7 +395,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 
 	if err == nil {
 		t.SetStatus(state.DoneStatus)
-		notifyDBXUpdatePrepareDoneOK(st, chgID)
+		notifySecurebootUpdatePrepareDoneOK(st, chgID)
 	}
 
 	return err
@@ -389,12 +415,12 @@ func (m *FDEManager) undoEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.
 		return fmt.Errorf("internal error: cannot execute efi-dbx-update handler: %v", err)
 	}
 
-	var updateData dbxUpdateContext
+	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal DBX update context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
-	t.Logf("DBX update prepare undo called with operation in status: %v", op.Status)
+	t.Logf("Secureboot Key Database prepare undo called with operation in status: %v", op.Status)
 
 	switch op.Status {
 	case ErrorStatus:
@@ -469,9 +495,9 @@ func (m *FDEManager) doEFISecurebootDBUpdate(t *state.Task, tomb *tomb.Tomb) err
 		return fmt.Errorf("cannot perform post update reseal, operation in status %v", op.Status)
 	}
 
-	var updateData dbxUpdateContext
+	var updateData securebootUpdateContext
 	if err := json.Unmarshal(op.Context, &updateData); err != nil {
-		return fmt.Errorf("cannot unmarshal DBX update context data: %v", err)
+		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
 	mgr := fdeMgr(st)
@@ -546,12 +572,12 @@ func isEFISecurebootDBUpdateBlocked(t *state.Task) bool {
 	}
 }
 
-type dbxUpdatePrepareSyncKey struct{}
+type securebootUpdatePrepareSyncKey struct{}
 
-func setupDBXNotifyPrepareDoneOKChan(st *state.State, changeID string) {
+func setupSecurebootNotifyPrepareDoneOKChan(st *state.State, changeID string) {
 	var syncChs map[string]chan struct{}
 
-	val := st.Cached(dbxUpdatePrepareSyncKey{})
+	val := st.Cached(securebootUpdatePrepareSyncKey{})
 	if val == nil {
 		syncChs = make(map[string]chan struct{})
 	} else {
@@ -559,11 +585,11 @@ func setupDBXNotifyPrepareDoneOKChan(st *state.State, changeID string) {
 	}
 
 	syncChs[changeID] = make(chan struct{})
-	st.Cache(dbxUpdatePrepareSyncKey{}, syncChs)
+	st.Cache(securebootUpdatePrepareSyncKey{}, syncChs)
 }
 
-func notifyDBXUpdatePrepareDoneOK(st *state.State, changeID string) {
-	val := st.Cached(dbxUpdatePrepareSyncKey{})
+func notifySecurebootUpdatePrepareDoneOK(st *state.State, changeID string) {
+	val := st.Cached(securebootUpdatePrepareSyncKey{})
 
 	if val != nil {
 		syncChs := val.(map[string]chan struct{})
@@ -571,15 +597,15 @@ func notifyDBXUpdatePrepareDoneOK(st *state.State, changeID string) {
 	}
 }
 
-func dbxUpdatePreparedOKChan(st *state.State, changeID string) <-chan struct{} {
-	val := st.Cached(dbxUpdatePrepareSyncKey{})
+func securebootUpdatePreparedOKChan(st *state.State, changeID string) <-chan struct{} {
+	val := st.Cached(securebootUpdatePrepareSyncKey{})
 
 	syncChs := val.(map[string]chan struct{})
 	return syncChs[changeID]
 }
 
 func cleanupUpdatePreparedOKChan(st *state.State, changeID string) {
-	val := st.Cached(dbxUpdatePrepareSyncKey{})
+	val := st.Cached(securebootUpdatePrepareSyncKey{})
 	if val != nil {
 		syncChs := val.(map[string]chan struct{})
 		delete(syncChs, changeID)

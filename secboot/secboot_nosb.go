@@ -121,7 +121,7 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }
 
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
 	return nil, errBuildWithoutSecboot
 }
 
@@ -203,9 +203,28 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 	return nil, errBuildWithoutSecboot
 }
 
+type ActivateState struct {
+}
+
+func (*ActivateState) TotalActivatedContainers() uint {
+	return 0
+}
+
+func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
+	return 0
+}
+
 type ActivateContext interface {
+	State() *ActivateState
+}
+
+type fakeActivateContext struct {
+}
+
+func (f *fakeActivateContext) State() *ActivateState {
+	return &ActivateState{}
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
-	return nil, nil
+	return &fakeActivateContext{}, nil
 }

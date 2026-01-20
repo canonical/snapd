@@ -1,0 +1,36 @@
+name: test-snapd-graphical-user-daemons
+version: 1.0
+summary: Test snap for graphical user daemons
+description: |
+  This snap contains a matrix of normal, daemon, and user-daemon apps which
+  do or do not have corresponding .desktop files, of which do or do not have
+  NoDisplay=true set.
+
+apps:
+  normal:
+    command: bin/foo
+  normal-with-desktop:
+    command: bin/foo
+  normal-with-desktop-nodisplay:
+    command: bin/foo
+  daemon:
+    command: bin/foo
+    daemon: simple
+  daemon-graphical:
+    command: bin/foo
+    daemon: simple
+  daemon-graphical-nodisplay:
+    command: bin/foo
+    daemon: simple
+  user-daemon:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user
+  user-daemon-graphical:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user
+  user-daemon-graphical-nodisplay:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user

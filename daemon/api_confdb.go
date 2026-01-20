@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -75,19 +74,8 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	constraintsRaw := r.URL.Query().Get("constraints")
 	var constraints map[string]string
 	if constraintsRaw != "" {
-		cstrList := strutil.CommaSeparatedList(constraintsRaw)
-		if len(cstrList) == 0 {
-			return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
-		}
-
-		constraints = make(map[string]string, len(cstrList))
-		for _, cstr := range cstrList {
-			parts := strings.Split(cstr, "=")
-			if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-				return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
-			}
-
-			constraints[parts[0]] = parts[1]
+		if err := json.Unmarshal([]byte(constraintsRaw), &constraints); err != nil || constraints == nil {
+			return BadRequest(`"constraints" must be a JSON object`)
 		}
 	}
 

@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
+	"github.com/snapcore/snapd/release"
 
 	// import to register linkNotify callback
 	_ "github.com/snapcore/snapd/overlord/snapstate/agentnotify"
@@ -76,8 +77,6 @@ var (
 	stateLockRetryInterval = 1 * time.Second
 
 	pruneMaxChanges = 500
-
-	defaultCachedDownloads = 5
 
 	configstateInit = configstate.Init
 	systemdSdNotify = systemd.SdNotify
@@ -119,6 +118,7 @@ type Overlord struct {
 	shotMgr    *snapshotstate.SnapshotManager
 	fdeMgr     *fdestate.FDEManager
 	noticeMgr  *notices.NoticeManager
+	confdbMgr  *confdbstate.ConfdbManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -244,6 +244,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.restartMgr = x
 	case *fdestate.FDEManager:
 		o.fdeMgr = x
+	case *confdbstate.ConfdbManager:
+		o.confdbMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -362,7 +364,12 @@ func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snap
 	cfg := store.DefaultConfig()
 	cfg.Proxy = o.proxyConf
 	sto := storeNew(cfg, storeCtx)
-	sto.SetCacheDownloads(defaultCachedDownloads)
+	// TODO add a way for overriding cache policy
+	if release.OnClassic {
+		sto.SetCachePolicy(store.DefaultCachePolicyClassic)
+	} else {
+		sto.SetCachePolicy(store.DefaultCachePolicyCore)
+	}
 	return sto
 }
 
@@ -714,6 +721,11 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // for notices across all notice backends.
 func (o *Overlord) NoticeManager() *notices.NoticeManager {
 	return o.noticeMgr
+}
+
+// ConfdbManager returns the manager responsible for accesses to confdb.
+func (o *Overlord) ConfdbManager() *confdbstate.ConfdbManager {
+	return o.confdbMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend

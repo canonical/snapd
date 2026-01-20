@@ -3,9 +3,11 @@ package interfaces
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
@@ -41,6 +43,74 @@ func (a *SnapAppSet) Components() []*snap.ComponentInfo {
 // based on.
 func (a *SnapAppSet) InstanceName() string {
 	return a.info.InstanceName()
+}
+
+// ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA, $SNAP_COMMON
+// and $SNAP_COMPONENT(<component>) for paths, using the rootfs as mount
+// namespace. Paths for components not installed are filtered out.
+func (a *SnapAppSet) ExpandSliceSnapVariablesInRootfs(paths []string) []string {
+	pathsWithDirIdx := a.ExpandSliceSnapVariablesWithOrder(paths)
+	expanded := make([]string, 0, len(pathsWithDirIdx))
+	for _, pwi := range pathsWithDirIdx {
+		expanded = append(expanded, pwi.Path)
+	}
+	return expanded
+}
+
+// ExpandedDirWithIdx returns the path of an expanded directory and the index in the input
+// slice.
+type ExpandedDirWithIdx struct {
+	Path string
+	Idx  int
+}
+
+// ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA, $SNAP_COMMON and
+// $SNAP_COMPONENT(<component>) for paths, using the rootfs as mount namespace. Paths for
+// components not installed are filtered out. The order specified in paths is returned in the
+// output.
+func (a *SnapAppSet) ExpandSliceSnapVariablesWithOrder(paths []string) []ExpandedDirWithIdx {
+	const componentPrefix = "$SNAP_COMPONENT("
+
+	expandedDirs := make([]ExpandedDirWithIdx, 0, len(paths))
+	for idx, dir := range paths {
+		if strings.HasPrefix(dir, componentPrefix) {
+			compAndPath := strings.SplitN(dir[len(componentPrefix):], ")/", 2)
+			if len(compAndPath) != 2 {
+				// Should not really happen as these paths are
+				// validated by validateSourceDirs
+				logger.Noticef("WARNING: wrongly formatted component path: %s",
+					componentPrefix)
+				continue
+			}
+			var ci *snap.ComponentInfo
+			for _, comp := range a.components {
+				if comp.Component.ComponentName == compAndPath[0] {
+					ci = comp
+					break
+				}
+			}
+			if ci == nil {
+				// Component not installed, so we filter out (note however that
+				// the presence of the path influences the directory index
+				// which might be used later to set the file priority).
+				continue
+			}
+			cpi := snap.MinimalComponentContainerPlaceInfo(
+				ci.Component.ComponentName, ci.Revision, a.info.SnapName())
+			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
+				filepath.Join(cpi.MountDir(), compAndPath[1])),
+				Idx: idx,
+			})
+		} else {
+			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
+				a.info.ExpandSnapVariablesSetSnapMountDir(
+					filepath.Join(dirs.GlobalRootDir, dir),
+					dirs.StripRootDir(dirs.SnapMountDir))),
+				Idx: idx,
+			})
+		}
+	}
+	return expandedDirs
 }
 
 // SecurityTagsForConnectedPlug returns the security tags for the given plug.

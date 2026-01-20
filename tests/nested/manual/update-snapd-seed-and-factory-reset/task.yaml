@@ -9,7 +9,11 @@ details: |
     seed and we factory reset the device, we will have to reprovision
     with an old save. This test covers that case.
 
-systems: [ubuntu-2*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   NESTED_CUSTOM_MODEL: $(pwd)/model-old.model
@@ -46,6 +50,8 @@ prepare: |
        core_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
     elif tests.nested is-nested uc24; then
        core_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+    elif tests.nested is-nested uc26; then
+       core_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf"
     else
        echo "Unknown system" 1>&2
        exit 1

@@ -7,7 +7,7 @@ replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
-	github.com/canonical/go-efilib v1.6.0
+	github.com/canonical/go-efilib v1.7.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.13.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -22,7 +22,7 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20251204121233-e67750cd7939
+	github.com/snapcore/secboot v0.0.0-20260116095945-507475da2340
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sys v0.21.0

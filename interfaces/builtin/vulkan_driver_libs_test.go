@@ -76,13 +76,20 @@ slots:
       - $SNAP/vulkan/icd.d/
       - $SNAP/vulkan_alt.d/
       - $SNAP/vulkan_empty.d/
+      - $SNAP_COMPONENT(comp1)/icd.d
     implicit-layer-source:
       - $SNAP/vulkan/implicit_layer.d/
+      - $SNAP_COMPONENT(comp1)/implicit_layer.d
     explicit-layer-source:
       - $SNAP/vulkan/explicit_layer.d/
+      - $SNAP_COMPONENT(comp1)/explicit_layer.d
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
+      - $SNAP_COMPONENT(comp1)/lib1
+components:
+  comp1:
+    type: standard
 `
 
 func (s *VulkanDriverLibsInterfaceSuite) SetUpTest(c *C) {
@@ -95,8 +102,10 @@ func (s *VulkanDriverLibsInterfaceSuite) SetUpTest(c *C) {
 
 	s.plug, s.plugInfo = MockConnectedPlug(c, vulkanDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "vulkan")
-	s.slot, s.slotInfo = MockConnectedSlot(c, vulkanDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "vulkan-slot")
+	comps := []compRawInfo{
+		{"component: vulkan-provider+comp1\ntype: standard", snap.R(11)}}
+	s.slot, s.slotInfo = mockConnectedSlotWithComps(c, vulkanDriverLibsProvider,
+		&snap.SideInfo{Revision: snap.R(5)}, comps, "vulkan-slot")
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestName(c *C) {
@@ -227,7 +236,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{SnapName: "vulkan-provider", SlotName: "vulkan-slot"}: {
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"),
-			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2")}})
+			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2"),
+			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1"),
+		}})
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -313,6 +324,90 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	})
 }
 
+func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksToComps(c *C) {
+	expected := symlinks.SymlinkToTarget{}
+	gpu := "nvidia"
+	compRev := snap.R(11)
+	compMnt := snap.ComponentMountDir("comp1", compRev, "vulkan-provider")
+
+	// Write ICD file
+	icdDir := filepath.Join(compMnt, "icd.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, gpu+".json")
+	os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libvulkan_%s.so.0",
+        "api_version" : "1.4.303"
+    }
+}
+`, gpu)), 0655)
+
+	// Write provider library
+	libDir := filepath.Join(compMnt, "lib1")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	libPath := filepath.Join(libDir, "libvulkan_"+gpu+".so.0")
+	os.WriteFile(libPath, []byte{}, 0655)
+
+	// Ignored file
+	otherPath := filepath.Join(icdDir, "foo.bar")
+	os.WriteFile(otherPath, []byte{}, 0655)
+
+	// Ignored symlink
+	os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
+
+	expected["snap_vulkan-provider+comp1_vulkan-slot_icd.d-"+gpu+".json"] = icdPath
+
+	// Write layers
+	implicitDir := filepath.Join(compMnt, "implicit_layer.d")
+	c.Assert(os.MkdirAll(implicitDir, 0755), IsNil)
+	implicitPath := filepath.Join(implicitDir, "gpu_layer.json")
+	os.WriteFile(implicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layers" : [
+       {
+         "name": "layer1",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       },
+       {
+         "name": "layer2",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       }
+     ]
+}
+`), 0644)
+	expectedImplicit := symlinks.SymlinkToTarget{
+		"snap_vulkan-provider+comp1_vulkan-slot_implicit_layer.d-gpu_layer.json": implicitPath,
+	}
+
+	explicitDir := filepath.Join(compMnt, "explicit_layer.d")
+	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
+	os.WriteFile(explicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layer": {
+       "name": "layer1",
+       "library_path" : "libvulkan_nvidia.so.0",
+       "api_version" : "1.4.303"
+     }
+}
+`), 0644)
+	expectedExplicit := symlinks.SymlinkToTarget{
+		"snap_vulkan-provider+comp1_vulkan-slot_explicit_layer.d-gpu_layer.json": explicitPath,
+	}
+
+	// Now check symlinks to be created
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
+		"/etc/vulkan/icd.d":            expected,
+		"/etc/vulkan/implicit_layer.d": expectedImplicit,
+		"/etc/vulkan/explicit_layer.d": expectedExplicit,
+	})
+}
+
 func (s *VulkanDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
 	symlinksUser := builtin.SymlinksUserIfaceFromVulkanIface(s.iface)
 	c.Assert(symlinksUser.TrackedDirectories(), DeepEquals, []string{
@@ -336,6 +431,45 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
 		`invalid icd-source: nvidia.json: "libGLX_nvidia.so.0" not found in the library-source directories`)
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecOptional(c *C) {
+	// Ensure adding symlinks is ok with not having *-layer-source attributes
+	const snapYaml = `name: vulkan-provider
+version: 0
+slots:
+  vulkan-slot:
+    interface: vulkan-driver-libs
+    compatibility: vulkan-1-(2..5)-ubuntu-2404
+    icd-source:
+      - $SNAP/vulkan/icd.d/
+    library-source:
+      - $SNAP/lib1
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, snapYaml,
+		&snap.SideInfo{Revision: snap.R(5)}, "vulkan-slot")
+
+	// Write ICD file
+	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, "nvidia.json")
+	os.WriteFile(icdPath, []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libGLX_nvidia.so.0",
+        "api_version" : "1.4.303"
+    }
+}
+`), 0655)
+
+	// Write provider library
+	libDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	libPath := filepath.Join(libDir, "libGLX_nvidia.so.0")
+	os.WriteFile(libPath, []byte{}, 0655)
+
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
@@ -548,7 +682,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
 		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_vulkan-provider_vulkan-slot_vulkan-driver-libs.library-source"): &osutil.MemoryFileState{
 			Content: []byte(filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib1") + "\n" +
-				filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib2") + "\n"), Mode: 0644},
+				filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib2") + "\n" +
+				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1") + "\n",
+			), Mode: 0644},
 	})
 }
 

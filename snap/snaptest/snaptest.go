@@ -85,6 +85,16 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return mockSnap(c, "", yamlText, sideInfo)
 }
 
+// MockComponentInfo creates a snap.ComponentInfo from yaml and includes csi if
+// provided. Disk is not touched, if that is needed use MockComponent instead.
+func MockComponentInfo(c *check.C, yamlText string, csi snap.ComponentSideInfo) *snap.ComponentInfo {
+	compInfo, err := snap.InfoFromComponentYaml([]byte(yamlText))
+	c.Assert(err, check.IsNil)
+	compInfo.ComponentSideInfo = csi
+
+	return compInfo
+}
+
 // MockComponent puts a component.yaml file on disk so to mock an installed
 // component, based on the provided arguments.
 //

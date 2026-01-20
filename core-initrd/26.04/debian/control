@@ -52,7 +52,7 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          dh-dlopenlibdeps,
          amd64-microcode [amd64],
          intel-microcode [amd64],
-         libteec1 [arm64 armhf]
+         libteec2 [arm64 armhf]
 Description: standard embedded initrd
  Standard embedded initrd implementation to be used with Ubuntu Core
  systems. Currently targeting creating BLS Type2 like binaries.

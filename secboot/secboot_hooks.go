@@ -295,7 +295,7 @@ func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyDevices []
 
 var resealKeysWithFDESetupHook = resealKeysWithFDESetupHookImpl
 
-func diskWithHookV1KeyOption(sealed []byte) (sb.ActivateOption, error) {
+func diskWithHookV1KeyOption(name string, sealed []byte) (sb.ActivateOption, error) {
 	p := fde.RevealParams{
 		SealedKey: sealed,
 	}
@@ -303,7 +303,7 @@ func diskWithHookV1KeyOption(sealed []byte) (sb.ActivateOption, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sbWithExternalUnlockKey("v1-hook", unlockKey, sb.ExternalUnlockKeyFromPlatformDevice), nil
+	return sbWithExternalUnlockKey(name, unlockKey, sb.ExternalUnlockKeyFromPlatformDevice), nil
 }
 
 type fdeHookV2DataHandler struct{}
