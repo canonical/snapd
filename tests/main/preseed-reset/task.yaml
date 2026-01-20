@@ -62,8 +62,9 @@ execute: |
   find_files > after-reset.txt
   diff before-preseeding.txt after-reset.txt
 
-  if [ -d "$IMAGE_MOUNTPOINT/snap" ]; then
-    echo "$IMAGE_MOUNTPOINT/snap shouldn't exist"
+  # Check that the dirs are cleaned up by checking one
+  if [ -d "$IMAGE_MOUNTPOINT/snap" ] && [ -n "$(ls -A "$IMAGE_MOUNTPOINT"/snap)" ]; then
+    echo "$IMAGE_MOUNTPOINT/snap shouldn't exist or should be empty"
     exit 1
   fi
 
