@@ -90,11 +90,11 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 
 func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 	type test struct {
-		name           string
-		flag           any
-		lastExchange   time.Time
-		readyResponses map[string]store.Message
-		expected       bool
+		name             string
+		flag             any
+		lastExchangeTime time.Time
+		readyResponses   map[string]store.Message
+		expected         bool
 	}
 
 	wayback := time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
@@ -106,52 +106,52 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 
 	tests := []test{
 		{
-			name:         "feature flag off, no responses, too soon",
-			flag:         false,
-			lastExchange: tooSoon,
+			name:             "feature flag off, no responses, too soon",
+			flag:             false,
+			lastExchangeTime: tooSoon,
 		},
 		{
-			name:         "feature flag off, no responses, enough time passed",
-			flag:         false,
-			lastExchange: enoughTimePassed,
+			name:             "feature flag off, no responses, enough time passed",
+			flag:             false,
+			lastExchangeTime: enoughTimePassed,
 		},
 		{
-			name:           "feature flag off, has responses, too soon",
-			flag:           false,
-			lastExchange:   tooSoon,
-			readyResponses: map[string]store.Message{"mesg-1": {}},
+			name:             "feature flag off, has responses, too soon",
+			flag:             false,
+			lastExchangeTime: tooSoon,
+			readyResponses:   map[string]store.Message{"mesg-1": {}},
 		},
 		{
-			name:           "feature flag off, has responses, enough time passed",
-			flag:           false,
-			lastExchange:   enoughTimePassed,
-			readyResponses: map[string]store.Message{"mesg-1": {}},
-			expected:       true,
+			name:             "feature flag off, has responses, enough time passed",
+			flag:             false,
+			lastExchangeTime: enoughTimePassed,
+			readyResponses:   map[string]store.Message{"mesg-1": {}},
+			expected:         true,
 		},
 		{
-			name:         "feature flag on, too soon",
-			flag:         true,
-			lastExchange: tooSoon,
-			expected:     false,
+			name:             "feature flag on, too soon",
+			flag:             true,
+			lastExchangeTime: tooSoon,
+			expected:         false,
 		},
 		{
-			name:         "feature flag on, enough time passed",
-			flag:         true,
-			lastExchange: enoughTimePassed,
-			expected:     true,
+			name:             "feature flag on, enough time passed",
+			flag:             true,
+			lastExchangeTime: enoughTimePassed,
+			expected:         true,
 		},
 		{
-			name:           "feature flag check error, has responses, enough time passed",
-			flag:           "banana",
-			lastExchange:   enoughTimePassed,
-			readyResponses: map[string]store.Message{"mesg-1": {}},
-			expected:       true,
+			name:             "feature flag check error, has responses, enough time passed",
+			flag:             "banana",
+			lastExchangeTime: enoughTimePassed,
+			readyResponses:   map[string]store.Message{"mesg-1": {}},
+			expected:         true,
 		},
 		{
-			name:         "feature flag check error, no responses, enough time passed",
-			flag:         "banana",
-			lastExchange: enoughTimePassed,
-			expected:     false,
+			name:             "feature flag check error, no responses, enough time passed",
+			flag:             "banana",
+			lastExchangeTime: enoughTimePassed,
+			expected:         false,
 		},
 	}
 
@@ -162,8 +162,8 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 		cmt := Commentf("%s test", tt.name)
 
 		ms := &devicemgmtstate.DeviceMgmtState{
-			LastExchange:   tt.lastExchange,
-			ReadyResponses: tt.readyResponses,
+			LastExchangeTime: tt.lastExchangeTime,
+			ReadyResponses:   tt.readyResponses,
 		}
 
 		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
@@ -210,7 +210,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
-		LastExchange: time.Now().Add(-10 * time.Minute),
+		LastExchangeTime: time.Now().Add(-10 * time.Minute),
 	}
 	s.mgr.SetState(ms)
 

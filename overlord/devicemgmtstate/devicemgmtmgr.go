@@ -51,7 +51,7 @@ var (
 	deviceMgmtCycleChangeKind = swfeats.RegisterChangeKind("device-management-cycle")
 )
 
-// MessageHandler processes request-message messages of a specific kind.
+// MessageHandler processes request messages of a specific kind.
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
 	// Validate checks subsystem-specific constraints (authorization, payload schema, etc).
@@ -94,14 +94,14 @@ type deviceMgmtState struct {
 	// LastReceivedToken is the token of the last message successfully stored locally,
 	// sent in the "after" field of the next exchange to acknowledge receipt
 	// up to this point.
-	LastReceivedToken string `json:"pending-ack-token"`
+	LastReceivedToken string `json:"last-received-token"`
 
-	// ReadyResponses are response-message assertions ready to send in the next exchange.
+	// ReadyResponses are response messages ready to send in the next exchange.
 	// Cleared after successful transmission.
 	ReadyResponses map[string]store.Message `json:"ready-responses"`
 
-	// LastExchange is the timestamp of the last message exchange.
-	LastExchange time.Time `json:"last-exchange"`
+	// LastExchangeTime is the timestamp of the last message exchange.
+	LastExchangeTime time.Time `json:"last-exchange-time"`
 }
 
 // DeviceMgmtManager handles device management operations.
@@ -190,7 +190,7 @@ func (m *DeviceMgmtManager) Ensure() error {
 // shouldExchangeMessages checks whether a message exchange should happen now.
 // Caller must hold state lock.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
-	nextExchange := ms.LastExchange.Add(defaultExchangeInterval)
+	nextExchange := ms.LastExchangeTime.Add(defaultExchangeInterval)
 	if timeNow().Before(nextExchange) {
 		return false
 	}
