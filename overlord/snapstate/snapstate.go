@@ -339,7 +339,7 @@ type installContext struct {
 	DeviceCtx           DeviceContext
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -371,7 +371,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		}
 	}
 
-	if err := isParallelInstallable(&snapsup); err != nil {
+	if err := isParallelInstallable(snapsup); err != nil {
 		return nil, err
 	}
 
@@ -408,7 +408,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
-			if err := softCheckNothingRunningForRefresh(st, snapst, &snapsup, info); err != nil {
+			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
 				// snap is running; schedule its downloading before notifying to close
 				var busyErr *timedBusySnapError
 				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
@@ -721,7 +721,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	// only run default-configure hook if installing the snap for the first time and
 	// default-configure is allowed
-	if !snapst.IsInstalled() && isDefaultConfigureAllowed(&snapsup) {
+	if !snapst.IsInstalled() && isDefaultConfigureAllowed(snapsup) {
 		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
 		addTasksFromTaskSet(defaultConfigureSet)
 	}
@@ -849,8 +849,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		return installSet, nil
 	}
 
-	if isConfigureAllowed(&snapsup) {
-		confFlags := configureSnapFlags(snapst, &snapsup)
+	if isConfigureAllowed(snapsup) {
+		confFlags := configureSnapFlags(snapst, snapsup)
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
 		configSet.WaitAll(installSet)
 		installSet.AddAll(configSet)
@@ -911,7 +911,7 @@ func splitComponentTasksForInstall(
 	compsups []ComponentSetup,
 	st *state.State,
 	snapst *SnapState,
-	snapsup SnapSetup,
+	snapsup *SnapSetup,
 	snapsupTask *state.Task,
 	fromChange string,
 ) (multiComponentInstallTaskSet, error) {
@@ -2451,7 +2451,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, installContext{
+		ts, err := doInstall(st, &up.SnapState, &up.Setup, up.Components, installContext{
 			FromChange:          opts.FromChange,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
@@ -4378,7 +4378,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, installContext{FromChange: fromChange})
+	return doInstall(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4426,7 +4426,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		newInfo := result.Info
 
 		// start by installing the new snap
-		tsInst, err := doInstall(st, &newSnapst, SnapSetup{
+		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
