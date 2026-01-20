@@ -127,13 +127,11 @@ func ParseConfdbConstraints(with []string, opts ConfdbOptions) (map[string]any, 
 		}
 
 		// check if the constraint is valid JSON but of a type we don't accept
-		_, isArray := cstrVal.([]any)
-		_, isMap := cstrVal.(map[string]any)
-		if cstrVal == nil || isArray || isMap {
+		switch cstrVal.(type) {
+		case nil, []any, map[string]any:
 			if opts.Typed {
 				return nil, fmt.Errorf("--with constraints cannot take non-scalar JSON constraint: %s", parts[1])
 			}
-
 			cstrVal = parts[1]
 		}
 

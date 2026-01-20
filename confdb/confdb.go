@@ -2449,14 +2449,14 @@ type entry struct {
 }
 
 func matchesConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
-	if !constrainSubkeyPlaceholders(acc, e.key, constraints) {
+	if !constrainSubkeyPlaceholder(acc, e.key, constraints) {
 		return false, nil
 	}
 
 	return fieldFiltersMatchConstraints(acc, e.value, constraints)
 }
 
-func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]any) bool {
+func constrainSubkeyPlaceholder(acc Accessor, key string, constraints map[string]any) bool {
 	if acc.Type() != KeyPlaceholderType {
 		// filter doesn't apply
 		return true
@@ -2468,7 +2468,8 @@ func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[strin
 		return true
 	}
 
-	return key == constrained
+	strVal, isStr := constrained.(string)
+	return isStr && key == strVal
 }
 
 // fieldFiltersMatchConstraints returns true only if the object should not be
@@ -2507,7 +2508,9 @@ func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints
 			return false, fmt.Errorf(`internal error: %w`, err)
 		}
 
-		if fieldVal != constrVal {
+		// non-scalar constraints should've been rejected before this but use
+		// DeepEqual anyway to be defensive
+		if !reflect.DeepEqual(fieldVal, constrVal) {
 			// the filtered field doesn't match the provided constraint, filter out the map
 			return false, nil
 		}
