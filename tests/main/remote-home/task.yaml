@@ -216,11 +216,23 @@ execute: |
     # same
     test "$(snap changes | grep -c 'Regenerate security profiles')" = "1"
 
-    # we can't snapshot/remove user data if it's in a remote mounted home so check
-    # we detect it early and suggest a workaround
-    snap remove test-snapd-sh 2>&1 | tr '\n' ' ' | tr -s ' ' | \
-      MATCH "error: cannot remove \"test-snapd-sh\": cannot snapshot or remove user data directories in remote mounted homes: use --purge to skip taking a snapshot"
-    snap list test-snapd-sh | MATCH "test-snapd-sh"
+    case "$FS" in
+      nfs)
+        # we can't snapshot/remove user data if it's in a remote mounted home so check
+        # we detect it early and suggest a workaround
+        snap remove test-snapd-sh 2>&1 | tr '\n' ' ' | tr -s ' ' | \
+          MATCH "error: cannot remove \"test-snapd-sh\": cannot snapshot user data directories in NFS mounts: use --purge to skip taking a snapshot"
+        snap list test-snapd-sh | MATCH "test-snapd-sh"
 
-    snap remove --purge test-snapd-sh
-    snap list test-snapd-sh 2>&1 | MATCH "error: no matching snaps installed"
+        snap remove --purge test-snapd-sh
+        snap list test-snapd-sh 2>&1 | MATCH "error: no matching snaps installed"
+        ;;
+      cifs)
+        # root squashing isn't a thing in CIFS, so we shouldn't do anything special here
+        snap remove test-snapd-sh 2>&1 | MATCH 'test-snapd-sh removed \(snap data snapshot saved\)'
+        ;;
+      *)
+        echo "unexpected test case '$FS'"
+        exit 1
+        ;;
+    esac

@@ -3932,7 +3932,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		flags = &RemoveFlags{}
 	}
 
-	if err := checkRemoteHome(flags); err != nil {
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
 		return nil, err
 	}
 
@@ -4237,17 +4237,22 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 	return state.NewTaskSet(tasks...), nil
 }
 
-func checkRemoteHome(flags *RemoveFlags) error {
-	remoteHome, err := osutil.IsHomeUsingRemoteFS()
+func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
+	nfsMount, err := osutil.SnapDirsUnderNFSMounts()
 	if err != nil {
-		logger.Noticef("cannot check if home is a remote mount: %v", err)
+		logger.Noticef("cannot check if any snap dirs are under remote mouts: %v", err)
 		return nil
 	}
 
-	if remoteHome && !flags.Purge {
-		return fmt.Errorf("cannot snapshot or remove user data directories in remote mounted homes: use --purge to skip taking a snapshot")
+	if !nfsMount {
+		return nil
 	}
 
+	if !flags.Purge {
+		return fmt.Errorf("cannot snapshot user data directories in NFS mounts: use --purge to skip taking a snapshot")
+	}
+
+	st.AddWarning("May not be able to remove user data under NFS mounted snap directory", nil)
 	return nil
 }
 
@@ -4258,7 +4263,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		flags = &RemoveFlags{}
 	}
 
-	if err := checkRemoteHome(flags); err != nil {
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
 		return nil, nil, err
 	}
 

@@ -33,3 +33,11 @@ func MockIsHomeUsingRemoteFS(new func() (bool, error)) (restore func()) {
 		isHomeUsingRemoteFS = old
 	}
 }
+
+func MockSnapDirsUnderNFSMounts(new func() (bool, error)) (restore func()) {
+	old := SnapDirsUnderNFSMounts
+	SnapDirsUnderNFSMounts = new
+	return func() {
+		SnapDirsUnderNFSMounts = old
+	}
+}
