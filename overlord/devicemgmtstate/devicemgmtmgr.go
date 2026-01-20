@@ -199,10 +199,12 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
 	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
-		// Assume flag is unset but still send responses if there are any
+
+		// If the flag cannot be checked, assume disabled.
 		enabled = false
 	}
 
+	// If disabled, still exchange to deliver responses for already-processed messages.
 	return enabled || len(ms.ReadyResponses) > 0
 }
 
