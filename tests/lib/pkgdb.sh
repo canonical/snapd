@@ -660,8 +660,6 @@ pkg_dependencies_ubuntu_classic(){
                 "
             ;;
         ubuntu-26.*)
-            # bpftool is part of linux-tools package
-            # ubuntu-25.04+ systemd-dev is optional
             echo "
                 util-linux-extra
                 dbus-user-session
