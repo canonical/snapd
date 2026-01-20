@@ -167,6 +167,14 @@ fi
 EOF
     remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
 
+    # This is where the installer expects assets to be to run the
+    # pre-install checks.
+    remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+    remote.exec "sudo mkdir -p /cdrom/casper"
+    remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
+
     muinstaller_args=()
     muinstaller_args+=("-label" "$label")
     muinstaller_args+=("-device" "$install_disk")
@@ -286,6 +294,10 @@ main() {
             --extra-muinstaller-arg)
                 extra_muinstaller_args+=("${2}")
                 shift 2
+                ;;
+            --preseed-rootfs)
+                extra_muinstaller_args+=("-preseed-rootfs")
+                shift
                 ;;
             --*|-*)
                 echo "Unknown option ${1}"

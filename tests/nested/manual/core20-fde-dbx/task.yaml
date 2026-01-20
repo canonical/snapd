@@ -71,7 +71,7 @@ execute: |
     fetch_and_check_reseal_count_equal "$reseal_count_start"
 
     jq -r .result.message < prepare-invalid.out | \
-        MATCH "cannot perform initial reseal of keys for DBX update: cannot add EFI secure boot and boot manager policy profiles"
+        MATCH "cannot perform initial reseal of keys for Secureboot Key Database update: cannot add EFI secure boot and boot manager policy profiles"
 
     echo "Attempt a valid 'prepare' request"
     # succeeds with correct update payload

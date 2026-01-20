@@ -25,6 +25,7 @@ prepare: |
             test-snapd-user-service test-snapd-user-service-sockets \
             test-snapd-user-timer-service test-snapd-tools \
             test-snapd-control-consumer test-snapd-auto-aliases \
+            test-snapd-desktop \
             test-snapd-kvm ; do
         if echo "$name" | grep -q user && echo "$SPREAD_SYSTEM" | grep -qF ubuntu-14.04; then
             # None of the "user" snaps work on 14.04

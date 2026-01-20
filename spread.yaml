@@ -198,6 +198,10 @@ backends:
                   image: ubuntu-2404-64
                   workers: 8
                   storage: 20G
+            - ubuntu-core-26-64:
+                  image: ubuntu-2510-64
+                  workers: 8
+                  storage: 20G
 
     google-pro:
         type: google
@@ -327,6 +331,10 @@ backends:
                   workers: 14
             - ubuntu-24.04-64:
                   image: ubuntu-2404-64-virt-enabled
+                  storage: 25G
+                  workers: 14
+            - ubuntu-26.04-64:
+                  image: ubuntu-2604-64-virt-enabled
                   storage: 25G
                   workers: 14
 
@@ -489,6 +497,10 @@ backends:
                   image: snapd-spread/ubuntu-24.04-64
                   storage: 25G
                   workers: 12
+            - ubuntu-26.04-64:
+                  image: snapd-spread/ubuntu-26.04-64
+                  storage: 25G
+                  workers: 12
 
     openstack-validation:
         type: openstack
@@ -602,6 +614,9 @@ backends:
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
+            - ubuntu-26.04-64:
+                image: snapd-spread/ubuntu-26.04-64
+                workers: 8
 
     qemu-nested:
         memory: 4G
@@ -620,6 +635,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-24.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -730,6 +748,10 @@ backends:
                   password: root
             - ubuntu-core-24-64:
                   image: ubuntu-24.04-64
+                  username: root
+                  password: root
+            - ubuntu-core-26-64:
+                  image: ubuntu-26.04-64
                   username: root
                   password: root
             - ubuntu-16.04-64:

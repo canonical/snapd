@@ -380,25 +380,14 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 			continue
 		}
 		if mx.Channel != "" {
-			return fmt.Errorf("Please specify a single channel")
+			return fmt.Errorf("please specify a single channel")
 		}
 		mx.Channel = ch.chName
 	}
 
 	if mx.Channel != "" {
 		if _, err := channel.Parse(mx.Channel, ""); err != nil {
-			full, er := channel.Full(mx.Channel)
-			if er != nil {
-				// the parse error has more detailed info
-				return err
-			}
-
-			// TODO: get escapes in here so we can bold the Warning
-			head := i18n.G("Warning:")
-			msg := i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will be an error later.\n")
-			warn := fill(fmt.Sprintf(msg, mx.Channel, full), utf8.RuneCountInString(head)+1) // +1 for the space
-			fmt.Fprint(Stderr, head, " ", warn, "\n\n")
-			mx.Channel = full // so a malformed-but-eh channel will always be full, i.e. //stable// -> latest/stable
+			return fmt.Errorf("cannot parse channel: %v", err)
 		}
 	}
 
@@ -1232,7 +1221,7 @@ func (x *cmdRefresh) trackRefreshes() (err error) {
 			if len(names) == 0 {
 				return err
 			} else {
-				return errors.New(i18n.G("no matching snaps installed"))
+				return ErrNoMatchingSnaps
 			}
 		}
 		return err

@@ -210,12 +210,13 @@ func foundUnencrypted(name string) secboot.UnlockResult {
 	}
 }
 
-func happyUnlocked(name string, method secboot.UnlockMethod) secboot.UnlockResult {
+func happyUnlocked(name string, method secboot.UnlockMethod, keyslot string) secboot.UnlockResult {
 	return secboot.UnlockResult{
 		PartDevice:   filepath.Join("/dev/disk/by-partuuid", name+"-enc-partuuid"),
 		FsDevice:     filepath.Join("/dev/mapper", name+"-random"),
 		IsEncrypted:  true,
 		UnlockMethod: method,
+		Keyslot:      keyslot,
 	}
 }
 
@@ -286,6 +287,17 @@ func checkDegradedJSON(c *C, name string, exp map[string]any) {
 	degradedJSONObj := make(map[string]any)
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
+	_, hasState := exp["state"]
+	if !hasState {
+		if secboot.WithSecbootSupport {
+			exp["state"] = map[string]any{
+				"activations":    map[string]any{},
+				"primary-key-id": 0.,
+			}
+		} else {
+			exp["state"] = map[string]any{}
+		}
+	}
 
 	c.Assert(degradedJSONObj, DeepEquals, exp)
 }
@@ -495,7 +507,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 		c.Check(f, NotNil)
 		return nil
 	}))
-	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+	s.AddCleanup(main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(activateContext secboot.ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*secboot.LegacyKeyFile, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
 		return foundUnencrypted(name), nil
 	}))
 	s.AddCleanup(main.MockSecbootLockSealedKeys(func() error {

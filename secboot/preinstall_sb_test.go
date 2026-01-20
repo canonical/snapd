@@ -260,9 +260,9 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			if permitVM {
-				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine|sb_preinstall.PermitVARSuppliedDrivers)
+				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine|sb_preinstall.PermitAddonDrivers)
 			} else {
-				c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
+				c.Assert(initialFlags, Equals, sb_preinstall.PermitAddonDrivers)
 			}
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, IsNil)
@@ -318,7 +318,7 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			c.Assert(checkAction, IsNil)
-			c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
+			c.Assert(initialFlags, Equals, sb_preinstall.PermitAddonDrivers)
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, HasLen, len(bootImagePaths))
 			for i, image := range loadedImages {
@@ -485,7 +485,7 @@ func (s *preinstallSuite) TestSave(c *C) {
 			PCRAlg: tpm2.HashAlgorithmSHA512,
 			Flags:  sb_preinstall.NoPlatformConfigProfileSupport | sb_preinstall.NoDriversAndAppsProfileSupport,
 		},
-		sb_preinstall.PCRProfileOptionsDefault,
+		sb_preinstall.PCRProfileOptionsDefault|sb_preinstall.PCRProfileOptionMostSecure|sb_preinstall.PCRProfileOptionNoPartialDiscreteTPMResetAttackMitigation,
 	)
 
 	expectedData :=
@@ -498,7 +498,15 @@ func (s *preinstallSuite) TestSave(c *C) {
       "no-drivers-and-apps-profile-support"
     ]
   },
-  "pcr-profile-opts": []
+  "pcr-profile-opts": [
+    "lock-platform-firmware",
+    "lock-platform-config",
+    "lock-drivers-and-apps",
+    "lock-drivers-and-apps-config",
+    "lock-boot-manager-code",
+    "lock-boot-manager-config",
+    "no-partial-dtpm-reset-attack-mitigation"
+  ]
 }`
 
 	err := secboot.Save(expectedCheckResult, filename)
@@ -519,4 +527,42 @@ func (s *preinstallSuite) TestSave(c *C) {
 	checkResult := secboot.NewPreinstallCheckResult(checkResultJSON.Result, checkResultJSON.PCRProfileOpts)
 
 	c.Assert(checkResult, DeepEquals, expectedCheckResult)
+}
+
+func (s *preinstallSuite) TestLoadCheckResult(c *C) {
+	filename := filepath.Join(c.MkDir(), "preinstall")
+
+	expectedCheckResult := secboot.NewPreinstallCheckResult(
+		&sb_preinstall.CheckResult{
+			PCRAlg: tpm2.HashAlgorithmSHA256,
+			Flags:  sb_preinstall.NoPlatformConfigProfileSupport,
+		},
+		sb_preinstall.PCRProfileOptionsDefault,
+	)
+
+	err := secboot.Save(expectedCheckResult, filename)
+	c.Assert(err, IsNil)
+
+	checkResult, err := secboot.LoadCheckResult(filename)
+	c.Assert(err, IsNil)
+	c.Assert(checkResult, DeepEquals, expectedCheckResult)
+}
+
+func (s *preinstallSuite) TestLoadCheckResultFileNotFound(c *C) {
+	filename := filepath.Join(c.MkDir(), "nonexistent")
+
+	checkResult, err := secboot.LoadCheckResult(filename)
+	c.Assert(checkResult, IsNil)
+	c.Assert(err, ErrorMatches, ".*no such file or directory")
+}
+
+func (s *preinstallSuite) TestLoadCheckResultInvalidJSON(c *C) {
+	filename := filepath.Join(c.MkDir(), "preinstall")
+
+	err := os.WriteFile(filename, []byte("invalid json content"), 0600)
+	c.Assert(err, IsNil)
+
+	checkResult, err := secboot.LoadCheckResult(filename)
+	c.Assert(checkResult, IsNil)
+	c.Assert(err, ErrorMatches, "cannot deserialize preinstall check result: .*")
 }

@@ -9,7 +9,9 @@ details: |
     - Users can replace their recovery key at runtime
     - Users can add new recovery keys at runtime
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   # TODO:FDEM: add 26.04 variant
@@ -130,6 +132,12 @@ execute: |
     exit 0
   fi
 
+  api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+  }
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
+
   # Check encryption
   remote.exec sudo snap debug api /v2/system-volumes > containers.out
 
@@ -207,6 +215,8 @@ execute: |
   # We can boot with new recovery key
   tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
   clear_tpm_and_reboot
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"
 
   # Check new/old recovery keys after reboot for good measure
   remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
@@ -286,6 +296,8 @@ execute: |
   # Check we can boot with the default recovery key for good measure
   tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
   clear_tpm_and_reboot
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"
 
   # TODO:FDEM: Grow test to check that we can reprovision and reseal
   # then reboot without recovery keys

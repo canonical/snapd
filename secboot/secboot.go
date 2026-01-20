@@ -257,6 +257,9 @@ type UnlockResult struct {
 	// - UnlockedWithSealedKey
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
+	// Keyslot is the name of the keyslot used or the name of the
+	// associated keyfile used.
+	Keyslot string
 }
 
 type ProtectKeyParams struct {
@@ -326,4 +329,12 @@ type ResealKeyParams struct {
 	NewPCRPolicyVersion bool
 	// Whether old ambiguous key formats interpreted as FDE hook keys.
 	HintExpectFDEHook bool
+}
+
+// LegacyKeyFile represents a legacy key file
+type LegacyKeyFile struct {
+	// Name is the value that will be reported as used keyslot
+	Name string
+	// Path is the absolute path to the key file
+	Path string
 }

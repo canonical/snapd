@@ -73,6 +73,28 @@ type securebootRequest struct {
 	KeyDatabase string `json:"key-database,omitempty"`
 }
 
+func keyDatabaseFromString(db string) (fdestate.EFISecurebootKeyDatabase, error) {
+	switch db {
+	case "PK":
+		return fdestate.EFISecurebootPK, nil
+	case "KEK":
+		return fdestate.EFISecurebootKEK, nil
+	case "DB":
+		return fdestate.EFISecurebootDB, nil
+	case "DBX":
+		return fdestate.EFISecurebootDBX, nil
+	default:
+		// return -1 to indicate invalid value and prevent possible confusion with valid
+		// enum values
+		return -1, fmt.Errorf("invalid key database %q", db)
+	}
+}
+
+func isValidKeyDatabase(db string) bool {
+	_, err := keyDatabaseFromString(db)
+	return err == nil
+}
+
 func (r *securebootRequest) Validate() error {
 	switch r.Action {
 	case "efi-secureboot-update-startup", "efi-secureboot-update-db-cleanup":
@@ -84,9 +106,7 @@ func (r *securebootRequest) Validate() error {
 			return fmt.Errorf("unexpected payload for action %q", r.Action)
 		}
 	case "efi-secureboot-update-db-prepare":
-		switch r.KeyDatabase {
-		case "PK", "KEK", "DB", "DBX":
-		default:
+		if !isValidKeyDatabase(r.KeyDatabase) {
 			return fmt.Errorf("invalid key database %q", r.KeyDatabase)
 		}
 
@@ -128,20 +148,21 @@ func postSystemSecurebootActionJSON(c *Command, r *http.Request) Response {
 	}
 }
 
-var fdestateEFISecureBootDBUpdatePrepare = fdestate.EFISecureBootDBUpdatePrepare
+var fdestateEFISecurebootDBUpdatePrepare = fdestate.EFISecurebootDBUpdatePrepare
 
 func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootRequest) Response {
-	if req.KeyDatabase != "DBX" {
-		return InternalError("support for key database %q is not implemented", req.KeyDatabase)
-	}
-
 	payload, err := base64.StdEncoding.DecodeString(req.Payload)
 	if err != nil {
 		return BadRequest("cannot decode payload: %v", err)
 	}
 
-	err = fdestateEFISecureBootDBUpdatePrepare(c.d.state,
-		fdestate.EFISecurebootDBX, // only DBX updates are supported
+	keyDatabase, err := keyDatabaseFromString(req.KeyDatabase)
+	if err != nil {
+		return InternalError("cannot convert key database %q: %v", req.KeyDatabase, err)
+	}
+
+	err = fdestateEFISecurebootDBUpdatePrepare(c.d.state,
+		keyDatabase,
 		payload)
 	if err != nil {
 		return BadRequest("cannot notify of update prepare: %v", err)
@@ -150,20 +171,20 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 	return SyncResponse(nil)
 }
 
-var fdestateEFISecureBootDBUpdateCleanup = fdestate.EFISecureBootDBUpdateCleanup
+var fdestateEFISecurebootDBUpdateCleanup = fdestate.EFISecurebootDBUpdateCleanup
 
 func postSystemActionEFISecurebootUpdateDBCleanup(c *Command) Response {
-	if err := fdestateEFISecureBootDBUpdateCleanup(c.d.state); err != nil {
+	if err := fdestateEFISecurebootDBUpdateCleanup(c.d.state); err != nil {
 		return BadRequest("cannot notify of update cleanup: %v", err)
 	}
 
 	return SyncResponse(nil)
 }
 
-var fdestateEFISecureBootDBManagerStartup = fdestate.EFISecureBootDBManagerStartup
+var fdestateEFISecurebootDBManagerStartup = fdestate.EFISecurebootDBManagerStartup
 
 func postSystemActionEFISecurebootUpdateStartup(c *Command) Response {
-	if err := fdestateEFISecureBootDBManagerStartup(c.d.state); err != nil {
+	if err := fdestateEFISecurebootDBManagerStartup(c.d.state); err != nil {
 		return BadRequest("cannot notify of manager startup: %v", err)
 	}
 

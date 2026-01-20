@@ -14,15 +14,21 @@ details: |
     qemu can be scripted to dynamically attach devices to the running virtual
     machine.
 
+systems:
+  # FIXME
+  - -ubuntu-26*
+
 prepare: |
     echo "Install snapd.deb in the nested vm"
     remote.push "${GOHOME}"/snapd_*.deb
     remote.exec "sudo apt update"
     remote.exec "sudo apt install -y ./snapd_*.deb"
-    
-    echo "Install linux-modules-extra package as it provides ftdi_sio and usbserial kernel modules"
-    #shellcheck disable=SC2016
-    remote.exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'
+
+    if os.query is-ubuntu-lt 25.10; then
+      echo "Install linux-modules-extra package as it provides ftdi_sio and usbserial kernel modules"
+      #shellcheck disable=SC2016
+      remote.exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'
+    fi
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
     remote.push serial-port-hotplug_1.0_all.snap

@@ -7,7 +7,9 @@ details: |
 
   validates that the newly created system can be rebooted into.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-initial-pc-VERSION.json

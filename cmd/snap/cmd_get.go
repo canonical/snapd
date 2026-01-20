@@ -59,6 +59,7 @@ If the first argument passed into get is a confdb identifier matching the
 format <account-id>/<schema>/<view>, get will use the confdb API. In this
 case, the command returns the data retrieved from the requested view paths.
 Use --default to provide a default value to be used if no value is stored.
+Use --with to provide constraints in the form of param=constraint pairs.
 `)
 
 type cmdGet struct {
@@ -68,10 +69,11 @@ type cmdGet struct {
 		Keys []string
 	} `positional-args:"yes"`
 
-	Typed    bool   `short:"t"`
-	Document bool   `short:"d"`
-	List     bool   `short:"l"`
-	Default  string `long:"default" unquote:"false"`
+	Typed    bool     `short:"t"`
+	Document bool     `short:"d"`
+	List     bool     `short:"l"`
+	Default  string   `long:"default" unquote:"false"`
+	With     []string `long:"with" value-name:"<param>=<constraint>"`
 }
 
 func init() {
@@ -93,6 +95,8 @@ func init() {
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"default": i18n.G("A strictly typed default value to be used when none is found"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"with": i18n.G("Parameter constraints for filtering confdb queries"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -274,6 +278,10 @@ func (x *cmdGet) Execute(args []string) error {
 			return fmt.Errorf(`cannot use --default in non-confdb read`)
 		}
 
+		if len(x.With) > 0 {
+			return fmt.Errorf(`cannot use --with in non-confdb read`)
+		}
+
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
 
@@ -306,7 +314,12 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
+	constraints, err := x.parseConstraints()
+	if err != nil {
+		return nil, err
+	}
+
+	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -363,6 +376,23 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	}
 
 	return map[string]any{request: defaultVal}, nil
+}
+
+func (x *cmdGet) parseConstraints() (map[string]string, error) {
+	if len(x.With) == 0 {
+		return nil, nil
+	}
+
+	constraints := make(map[string]string, len(x.With))
+	for _, constraint := range x.With {
+		parts := strings.SplitN(constraint, "=", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
+		}
+		constraints[parts[0]] = parts[1]
+	}
+
+	return constraints, nil
 }
 
 func validateConfdbFeatureFlag() error {

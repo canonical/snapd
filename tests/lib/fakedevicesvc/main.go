@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -124,6 +125,17 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		serialStr := "7777"
+
+		// Modify serial id for prepare serial request
+		var bodyMap map[string]any
+		err = json.Unmarshal(serialReq.Body(), &bodyMap)
+		// We only change the serial if the body was JSON and hardware-id-key is present
+		if err == nil {
+			if _, ok := bodyMap["hardware-id-key"]; ok {
+				serialStr = "3333"
+			}
+		}
+
 		if r.Header.Get("X-Use-Proposed") == "yes" {
 			// use proposed serial
 			serialStr = serialReq.Serial()

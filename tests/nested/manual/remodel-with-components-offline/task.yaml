@@ -6,7 +6,12 @@ details: |
   component and installing that component. This is done in an offline context,
   and the snaps an components are provided via local files.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+ - -ubuntu-1*
+ - -ubuntu-20*
+ - -ubuntu-22*
+ # FIXME
+ - -ubuntu-26*
 
 environment:
   INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-initial-pc-VERSION.json

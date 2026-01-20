@@ -8,7 +8,11 @@ details: |
   requires a base that was not previously installed on the system. A remodel of
   this kind requires snaps to be installed in a specific order.
 
-systems: [ubuntu-2*]
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  # FIXME: missing test-snapd-tools-core26
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model

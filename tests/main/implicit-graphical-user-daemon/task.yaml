@@ -1,0 +1,40 @@
+summary: Ensure that the graphical user daemons work as expected
+
+details: |
+    This test ensures that an user daemon with the desktop plug
+    will be launched with the desktop session only.
+
+# Same systems than `interfaces-desktop`, since we require that plug.
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
+
+prepare: |
+    snap set system experimental.user-daemons=true
+    "$TESTSTOOLS"/snaps-state install-local test-implicit-graphical-user-daemon
+
+execute: |
+    NORMAL_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.normal.service
+    DESKTOP_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical.service
+    DESKTOP_DBUS_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus.service
+    DESKTOP_DBUS_SOCKET_SERVICE=/etc/systemd/user/snap.test-implicit-graphical-user-daemon.graphical-dbus-socket.service
+
+    echo "Ensure graphical daemon has the right dependencies"
+
+    test -f "${NORMAL_SERVICE}"
+    test -f "${DESKTOP_SERVICE}"
+    test -f "${DESKTOP_DBUS_SERVICE}"
+    test -f "${DESKTOP_DBUS_SOCKET_SERVICE}"
+
+    MATCH "WantedBy=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "After=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_SERVICE}"
+    MATCH "BindsTo=graphical-session\.target" < "${DESKTOP_SERVICE}"
+
+    MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
+    MATCH "PartOf=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
+
+    MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
+    MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
+    MATCH "PartOf=graphical-session\.target" < "${DESKTOP_DBUS_SOCKET_SERVICE}"
+
+    MATCH "WantedBy=default\.target" < "${NORMAL_SERVICE}"

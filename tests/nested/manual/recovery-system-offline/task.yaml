@@ -4,7 +4,11 @@ details: |
   This test creates a recovery system using the offline version of the recovery
   system creation API.
 
-systems: [ubuntu-2*]
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  #FIXME: This will need some work on 26
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model

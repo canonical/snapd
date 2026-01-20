@@ -20,8 +20,8 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 	return testutil.Mock(&doSyscall, syscall)
 }
 
-func MockApparmorMetadataTagsSupported(f func() bool) (restore func()) {
-	return testutil.Mock(&apparmorMetadataTagsSupported, f)
+func MockApparmorMetadataTagsSupportedByKernel(f func() bool) (restore func()) {
+	return testutil.Mock(&apparmorMetadataTagsSupportedByKernel, f)
 }
 
 // VersionAndCheck couples protocol version with a support check function which
@@ -51,14 +51,10 @@ func MockVersionLikelySupportedChecks(pairs []VersionAndCheck) (restore func()) 
 	return restore
 }
 
-// TODO: remove this once v5 is no longer manually disabled
-func OverrideV5ManuallyDisabled() (restore func()) {
-	v5ManuallyDisabled = false
-	return func() {
-		v5ManuallyDisabled = true
-	}
-}
-
 func MockIoctl(f func(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&doIoctl, f)
+}
+
+func MockOsRemove(f func(path string) error) (restore func()) {
+	return testutil.Mock(&osRemove, f)
 }

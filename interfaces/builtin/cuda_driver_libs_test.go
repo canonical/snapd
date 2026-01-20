@@ -71,6 +71,14 @@ slots:
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
+      - $SNAP_COMPONENT(comp1)/lib1
+      - $SNAP_COMPONENT(comp2)/lib2
+      - $SNAP_COMPONENT(comp2)/
+components:
+  comp1:
+    type: standard
+  comp2:
+    type: standard
 `
 
 func (s *CudaDriverLibsInterfaceSuite) SetUpTest(c *C) {
@@ -78,8 +86,11 @@ func (s *CudaDriverLibsInterfaceSuite) SetUpTest(c *C) {
 
 	s.plug, s.plugInfo = MockConnectedPlug(c, cudaDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "cuda")
-	s.slot, s.slotInfo = MockConnectedSlot(c, cudaDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "cuda-slot")
+	comps := []compRawInfo{
+		{"component: cuda-provider+comp1\ntype: standard", snap.R(11)},
+		{"component: cuda-provider+comp2\ntype: standard", snap.R(22)}}
+	s.slot, s.slotInfo = mockConnectedSlotWithComps(c, cudaDriverLibsProvider,
+		&snap.SideInfo{Revision: snap.R(5)}, comps, "cuda-slot")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestName(c *C) {
@@ -134,6 +145,102 @@ slots:
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" does not have attribute "compatibility" for interface "cuda-driver-libs"`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
+    interface: cuda-driver-libs
+    library-source:
+      - $SNAP/../out
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`cuda-driver-libs library-source directory "\$SNAP/../out" cannot point outside of the snap/component`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
+    interface: cuda-driver-libs
+    library-source:
+      - ${SNAP}/../out
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`cuda-driver-libs library-source directory "\${SNAP}/../out" cannot point outside of the snap/component`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP_COMPONENT(comp1)/lib1
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`component comp1 specified in path "\$SNAP_COMPONENT\(comp1\)/lib1" is not defined in the snap`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP_COMPONENT(comp1/lib1
+components:
+  comp1:
+    type: standard
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`invalid format in path "\$SNAP_COMPONENT\(comp1/lib1\"`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP_COMPONENT(comp1)
+components:
+  comp1:
+    type: standard
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`invalid format in path "\$SNAP_COMPONENT\(comp1\)"`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP_COMPONENT(comp1)foo
+components:
+  comp1:
+    type: standard
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`invalid format in path "\$SNAP_COMPONENT\(comp1\)foo"`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP_COMPONENT(comp1)/../out
+components:
+  comp1:
+    type: standard
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`cuda-driver-libs library-source directory "\$SNAP_COMPONENT\(comp1\)/../out" cannot point outside of the snap/component`)
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
@@ -175,8 +282,13 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "cuda-provider", SlotName: "cuda-slot"}: {filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
-			filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2")}})
+		{SnapName: "cuda-provider", SlotName: "cuda-slot"}: {
+			filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
+			filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
+			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1"),
+			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
+			snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
+		}})
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
@@ -189,7 +301,10 @@ func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 		"/var/lib/snapd/export/system_cuda-provider_cuda-slot_cuda-driver-libs.library-source": &osutil.MemoryFileState{
 			Content: []byte(
 				filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1") + "\n" +
-					filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2") + "\n"),
+					filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2") + "\n" +
+					filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1") + "\n" +
+					filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2") + "\n" +
+					snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider") + "\n"),
 			Mode: 0644},
 	})
 }

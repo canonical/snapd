@@ -115,6 +115,31 @@ func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
 }
 
+type compRawInfo struct {
+	yaml string
+	rev  snap.Revision
+}
+
+// mockConnectedSlotWithComps mocks a connected slot for a snap with
+// components. Note that the components provided are expected to be defined in
+// the yaml of the snap too.
+func mockConnectedSlotWithComps(c *C, yaml string, si *snap.SideInfo, compsRaw []compRawInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+	compInfos := make([]*snap.ComponentInfo, 0, len(compsRaw))
+	for _, comp := range compsRaw {
+		compInfos = append(compInfos, snaptest.MockComponentInfo(
+			c, comp.yaml, snap.ComponentSideInfo{Revision: comp.rev}))
+	}
+
+	set, err := interfaces.NewSnapAppSet(info, compInfos)
+	c.Assert(err, IsNil)
+
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return interfaces.NewConnectedSlot(slotInfo, set, nil, nil), slotInfo
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
+}
+
 func MockHotplugSlot(c *C, yaml string, si *snap.SideInfo, hotplugKey snap.HotplugKey, ifaceName, slotName string, staticAttrs map[string]any) *snap.SlotInfo {
 	info := snaptest.MockInfo(c, yaml, si)
 	if _, ok := info.Slots[slotName]; ok {

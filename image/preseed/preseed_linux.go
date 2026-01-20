@@ -32,6 +32,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap/naming"
@@ -106,10 +107,13 @@ func checkChroot(preseedChroot string) error {
 }
 
 var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, baseSnap string, err error) {
+	logger.Debugf("open seed directory: %v, system label: %q", seedDir, sysLabel)
 	seed, err := seedOpen(seedDir, sysLabel)
 	if err != nil {
 		return "", "", err
 	}
+
+	logger.Debugf("seed: %+v", seed)
 
 	// load assertions into temporary database
 	if err := seed.LoadAssertions(nil, nil); err != nil {
@@ -124,7 +128,11 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	}
 
 	if model.Classic() {
-		fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
+		if model.HybridClassic() {
+			fmt.Fprintf(Stdout, "ubuntu hybrid preseeding, base: %q\n", model.Base())
+		} else {
+			fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
+		}
 	} else {
 		coreVersion, err := naming.CoreVersion(model.Base())
 		if err != nil {
@@ -505,8 +513,8 @@ func mountSnapdSnap(rootDir string, coreSnapPath string) (cleanup func(), err er
 	}, nil
 }
 
-func getSnapdVersion(rootDir string) (string, error) {
-	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), "")
+func getSnapdVersion(rootDir, label string) (string, error) {
+	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), label)
 	if err != nil {
 		return "", err
 	}
@@ -527,10 +535,12 @@ func getSnapdVersion(rootDir string) (string, error) {
 	return ver, nil
 }
 
-func prepareClassicChroot(preseedChroot string, reset bool) (*targetSnapdInfo, func(), error) {
+func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
+
+	logger.Debugf("inside chroot: %s", preseedChroot)
 
 	if err := os.Chdir("/"); err != nil {
 		return nil, nil, fmt.Errorf("cannot chdir to /: %v", err)
@@ -585,7 +595,7 @@ func prepareClassicChroot(preseedChroot string, reset bool) (*targetSnapdInfo, f
 		})
 	}
 
-	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), "")
+	coreSnapPath, _, err := systemSnapFromSeed(dirs.SnapSeedDirUnder(rootDir), label)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -683,11 +693,14 @@ func createPreseedArtifact(opts *preseedCoreOptions) (digest []byte, err error) 
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
+func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid bool) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
+	if hybrid {
+		cmd.Env = append(cmd.Env, "SNAPD_PRESEED_HYBRID=1")
+	}
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
@@ -761,8 +774,7 @@ func Core20(opts *CoreOptions) error {
 	return runUC20PreseedMode(popts)
 }
 
-// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
-func Classic(chrootDir string) error {
+func classicLikePreseed(chrootDir, label string) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
@@ -770,10 +782,8 @@ func Classic(chrootDir string) error {
 	}
 
 	if err := checkChroot(chrootDir); err != nil {
-		return err
+		return fmt.Errorf("chroot verification failed: %w", err)
 	}
-
-	var targetSnapd *targetSnapdInfo
 
 	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
 	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
@@ -781,24 +791,37 @@ func Classic(chrootDir string) error {
 	// runPreseedMode/runUC20PreseedMode function that handles both classic
 	// and core20.
 	const reset = false
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot prepare chroot: %w", err)
 	}
 	defer cleanup()
 
 	// executing inside the chroot
-	return runPreseedMode(chrootDir, targetSnapd)
+	hybrid := label != ""
+	return runPreseedMode(chrootDir, targetSnapd, hybrid)
 }
 
-func ClassicReset(chrootDir string) error {
+// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
+func Classic(chrootDir string) error {
+	const label = ""
+	return classicLikePreseed(chrootDir, label)
+}
+
+// Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
+// components pointed by chrootDir and identified by a given system label.
+func Hybrid(chrootDir, label string) error {
+	return classicLikePreseed(chrootDir, label)
+}
+
+func classicLikeReset(chrootDir, label string) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
 		return err
 	}
 
-	snapdVersion, err := getSnapdVersion(chrootDir)
+	snapdVersion, err := getSnapdVersion(chrootDir, label)
 	if err != nil {
 		return err
 	}
@@ -811,13 +834,23 @@ func ClassicReset(chrootDir string) error {
 	}
 
 	const reset = true
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
 	return reexecReset(chrootDir, targetSnapd)
+}
+
+func ClassicReset(chrootDir string) error {
+	const label = ""
+	return classicLikeReset(chrootDir, label)
+}
+
+func HybridReset(chrootDir, label string) error {
+	logger.Debugf("reset hybrid %q", label)
+	return classicLikeReset(chrootDir, label)
 }
 
 func MockSyscallChroot(f func(string) error) (restore func()) {

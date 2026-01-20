@@ -495,21 +495,27 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 // MetadataTagsSupported returns true if metadata tags are supported by the
 // apparmor parser and kernel. Otherwise, returns false.
 func MetadataTagsSupported() bool {
+	return MetadataTagsSupportedByKernel() && MetadataTagsSupportedByParser()
+}
+
+// MetadataTagsSupportedByKernel returns true if metadata tags are supported by
+// the kernel. Otherwise, returns false.
+func MetadataTagsSupportedByKernel() bool {
 	kernelFeatures, err := appArmorAssessment.KernelFeatures()
 	if err != nil {
 		return false
 	}
+	return strutil.ListContains(kernelFeatures, "policy:notify:user:tags")
+}
+
+// MetadataTagsSupportedByParser returns true if metadata tags are supported by
+// the AppArmor parser. Otherwise, returns false.
+func MetadataTagsSupportedByParser() bool {
 	parserFeatures, err := appArmorAssessment.ParserFeatures()
 	if err != nil {
 		return false
 	}
-	if !strutil.ListContains(kernelFeatures, "policy:notify:user:tags") {
-		return false
-	}
-	if !strutil.ListContains(parserFeatures, "tags") {
-		return false
-	}
-	return true
+	return strutil.ListContains(parserFeatures, "tags")
 }
 
 // probe related code

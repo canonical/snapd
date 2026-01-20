@@ -71,6 +71,11 @@ execute: |
     remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-after-update.json
     test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-after-update.json)" = run
 
+    # FIXME: we need a "snap debug" command that gives us the value of
+    # the revocation counter so we can wait on it being increased.
+    remote.exec "sudo snap debug ensure-state-soon"
+    sleep 60
+
     # Now we shutdown and reinstall the old keys and old shim.
     tests.nested vm stop
 

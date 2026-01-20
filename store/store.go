@@ -109,8 +109,8 @@ type Config struct {
 	FindFields  []string
 	DeltaFormat string
 
-	// CacheDownloads is the number of downloads that should be cached
-	CacheDownloads int
+	// CachePolicy defines the cache policy for downloaded snaps
+	CachePolicy CachePolicy
 
 	// Proxy returns the HTTP proxy to use when talking to the store
 	Proxy func(*http.Request) (*url.URL, error)
@@ -426,7 +426,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	}
 	store.auth = auth
 
-	store.SetCacheDownloads(cfg.CacheDownloads)
+	store.SetCachePolicy(cfg.CachePolicy)
 
 	return store
 }
