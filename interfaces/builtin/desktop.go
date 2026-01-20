@@ -98,6 +98,11 @@ owner /run/user/[0-9]*/doc/{,*/} r,
 # the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
+# Allow access to process memory files
+# required by desktop apps using gio
+# For more context: https://github.com/canonical/firefox-snap/pull/174
+@{PROC}/pressure/memory r,
+
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
     bus=session
