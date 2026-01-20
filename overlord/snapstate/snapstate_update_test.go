@@ -10956,7 +10956,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		SnapType: string(snap.TypeApp),
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
@@ -11633,7 +11633,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 		SnapType: string(snap.TypeApp),
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}

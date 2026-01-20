@@ -756,7 +756,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
-		ts, err := doInstall(st, &t.snapst, snapsup, compsups, installContext{
+		ts, err := doInstall(st, &t.snapst, &snapsup, compsups, installContext{
 			FromChange:    opts.FromChange,
 			DeviceCtx:     opts.DeviceCtx,
 			SkipConfigure: opts.Flags.SkipConfigure,

@@ -128,7 +128,7 @@ func InstallComponents(
 		// the component task chains. this results in multiple parallel tasks
 		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		cts, ts, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
+		cts, ts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +285,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	cts, ts, err := doInstallComponent(st, &snapst, compSetup, snapsup, nil, nil, nil, "")
+	cts, ts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -630,13 +630,13 @@ func doInstallComponent(
 	st *state.State,
 	snapst *SnapState,
 	compsup ComponentSetup,
-	snapsup SnapSetup,
+	snapsup *SnapSetup,
 	snapsupTask *state.Task,
 	setupSecurity, kmodSetup *state.Task,
 	fromChange string,
 ) (componentInstallTaskSet, *state.TaskSet, error) {
 	cc, err := newComponentInstallChoreographer(
-		st, &snapsup, snapst, &compsup, fromChange,
+		st, snapsup, snapst, &compsup, fromChange,
 		snapsupTask, setupSecurity, kmodSetup,
 	)
 	if err != nil {
