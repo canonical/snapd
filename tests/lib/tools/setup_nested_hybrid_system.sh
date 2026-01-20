@@ -105,6 +105,8 @@ run_muinstaller() {
     done
 
     remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
+    remote.exec "sudo sh -c 'echo SNAPPY_TESTING=1 >> /etc/environment'"
+
     # push our snap down
     # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
     # can pick it up. the real installer will also need a very recent snapd
@@ -210,7 +212,7 @@ EOF
     if ! kpartx -d "${image_path}"; then
         # Sometimes there are random failures, let's wait and re-try
         sleep 1
-        kpartx -d "${image_path}"
+        kpartx -d "$image_path" 2>&1 | grep -v 'LOOP_CLR_FD' || true
     fi
 
     if [ -n "${store_dir}" ]; then
