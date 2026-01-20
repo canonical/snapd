@@ -217,6 +217,18 @@ check_fakestore_cleaned() {
     fi
 }
 
+check_snapd_version() {
+	if [ "$SRU_VALIDATION" != "1" ] && { [ -z "$PPA_GPG_KEY" ] || [ -z "$PPA_SOURCE_LINE" ]; } && [ -z "$PPA_VALIDATION_NAME" ]; then
+		version="$(snap version)"
+		MATCH '1337' <<<"$version" || {
+			if ! [ -f "/var/tmp/snapd-testing-version" ]; then
+				./mkversion.sh --output-only > /var/tmp/snapd-testing-version
+			fi
+			MATCH "$(cat /var/tmp/snapd-testing-version)" <<<"$version"
+		}
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -249,6 +261,9 @@ check_invariant() {
 		check-fakestore-cleaned)
 			check_fakestore_cleaned
 			;;
+		check-snapd-version)
+			check_snapd_version
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -268,6 +283,7 @@ main() {
 	cgroups
 	segmentation-violations
 	check-fakestore-cleaned
+	check-snapd-version
 	"
 
 	case "$action" in
