@@ -11,6 +11,7 @@ show_help() {
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
+	echo "    check-snapd-version: the version of snapd during restore must be the same as during project prepare"
 }
 
 if [ $# -eq 0 ]; then
@@ -217,6 +218,12 @@ check_fakestore_cleaned() {
     fi
 }
 
+check_snapd_version() {
+	if command -v snap; then
+		snap version | grep -q "$(cat /var/tmp/snapd-testing-version)"
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -249,6 +256,9 @@ check_invariant() {
 		check-fakestore-cleaned)
 			check_fakestore_cleaned
 			;;
+		check-snapd-version)
+			check_snapd_version
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -268,6 +278,7 @@ main() {
 	cgroups
 	segmentation-violations
 	check-fakestore-cleaned
+	check-snapd-version
 	"
 
 	case "$action" in
