@@ -11,6 +11,7 @@ show_help() {
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
+	echo "    check-snapd-version: the version of snapd during restore must be the same as during project prepare"
     echo "    snap-mount-dir: assert that reported snap mount directory is the same as at test start"
     echo
     echo "Supported invariants for 'set' action:"
@@ -261,6 +262,19 @@ check_snap_mount_dir() {
 	fi
 }
 
+check_snapd_version() {
+	if command -v snap; then
+		if tests.info is-snapd-from-archive && not tests.info is-reexec-enabled; then
+			# re-exec may be explicitly disabled in the test variant, in which case the version will not match
+			exit 0
+		fi
+		snap version | grep snapd | grep -qF "$(cat "${SNAPD_WORK_DIR}"/snapd-testing-version)" || {
+			echo "tests.invariant: snapd version mismatch, expected $(cat "${SNAPD_WORK_DIR}"/snapd-testing-version) but got $(snap version | grep snapd | awk '{print $2}')" >&2
+			exit 1
+		}
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -296,6 +310,9 @@ check_invariant() {
         snap-mount-dir)
             check_snap_mount_dir "$1"
             ;;
+		check-snapd-version)
+			check_snapd_version
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -316,6 +333,7 @@ main() {
 	segmentation-violations
 	check-fakestore-cleaned
     snap-mount-dir
+	check-snapd-version
 	"
 
 	case "$action" in
