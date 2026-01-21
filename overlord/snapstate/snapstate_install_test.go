@@ -975,6 +975,40 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
+func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}, nil
+	})
+	defer restore()
+
+	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0\n")
+	c.Assert(snapPath, testutil.FilePresent)
+
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		Type:     snap.TypeApp,
+		SnapPath: snapPath,
+		Flags:    snapstate.Flags{RemoveSnapPath: true},
+	}
+
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
+	c.Assert(err, IsNil)
+	c.Check(snapPath, testutil.FileAbsent)
+}
+
 func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
