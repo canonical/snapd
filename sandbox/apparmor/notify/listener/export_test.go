@@ -37,6 +37,7 @@ import (
 var (
 	ReadyTimeout = readyTimeout
 	NewRequest   = (*Listener).newRequest
+	BuildKey     = buildKey
 )
 
 func ExitOnError() (restore func()) {

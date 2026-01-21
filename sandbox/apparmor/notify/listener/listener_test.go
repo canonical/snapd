@@ -586,6 +586,21 @@ func (*listenerSuite) TestNewRequestErrors(c *C) {
 	}
 }
 
+func (*listenerSuite) TestBuildKey(c *C) {
+	for _, testCase := range []struct {
+		iface    string
+		id       uint64
+		expected string
+	}{
+		{"foo", 0x1234, "kernel:foo:0000000000001234"},
+		{"home", 0x1, "kernel:home:0000000000000001"},
+		{"camera", 0xdeadbeefdeadbeef, "kernel:camera:DEADBEEFDEADBEEF"},
+	} {
+		key := listener.BuildKey(testCase.iface, testCase.id)
+		c.Check(key, Equals, testCase.expected)
+	}
+}
+
 func (*listenerSuite) TestRunSimple(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
@@ -1651,8 +1666,15 @@ func (*listenerSuite) TestRunErrors(c *C) {
 }
 
 func (*listenerSuite) TestRunMalformedMessage(c *C) {
+	testRunMalformedMessage(c, true)
+	testRunMalformedMessage(c, false)
+}
+
+func testRunMalformedMessage(c *C, finalResent bool) {
 	// Rare case:
-	// Pending count 3, send 2 malformed RESENT messages, then one malformed non-RESENT message.
+	// Pending count 3, send 2 malformed RESENT messages, then one malformed
+	// message which is either RESENT or non-RESENT, depending on whether
+	// finalResent is true.
 	// Malformed messages should get auto-denied, and should not result in a request being sent
 	// over the Reqs channel, but they should be handled like any other RESENT/non-RESENT messages.
 	restoreOpen := listener.MockOsOpenWithSocket()
@@ -1779,9 +1801,12 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		return "foo", nil
 	})
 
-	// Send a message without UNOTIF_RESENT
+	// Send a third message, with UNOTIF_RESENT set iff finalResent is true
 	msg := msgTemplate
 	msg.KernelNotificationID = idTemplate + 2
+	if finalResent {
+		msg.Flags = notify.UNOTIF_RESENT
+	}
 	buf := msg.MarshalBinary(c)
 	select {
 	case recvChan <- buf:
@@ -1801,9 +1826,8 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 		c.Fatalf("failed to receive response in time")
 	}
 
-	// The listener even seeing a message without UNOTIF_RESENT should be enough
-	// for it to ready up, since this indicates the kernel is done resending
-	// previously-sent requests.
+	// The listener should ready up regardless of whether UNOTIF_RESENT is set,
+	// since either way the kernel is done resending previously-sent requests.
 	checkListenerReadyWithTimeout(c, l, true, time.Second)
 	// Readiness stops the timer
 	c.Check(timer.Active(), Equals, false)
@@ -1849,7 +1873,11 @@ func (*listenerSuite) TestRunMalformedMessage(c *C) {
 
 	c.Check(logbuf.String(), testutil.Contains, "cannot read cgroup path for request process with PID 123: something failed")
 	c.Check(logbuf.String(), testutil.Contains, "unsupported mediation class: AA_CLASS_DBUS")
-	c.Check(logbuf.String(), testutil.Contains, "received non-resent message when pending count was 1")
+	if finalResent {
+		c.Check(logbuf.String(), Not(testutil.Contains), "received non-resent message when pending count was 1")
+	} else {
+		c.Check(logbuf.String(), testutil.Contains, "received non-resent message when pending count was 1")
+	}
 	c.Check(logbuf.String(), testutil.Contains, "error in prompting listener run loop: cannot map the given interface to list of available permissions: foo")
 
 	// We're still ready, of course
