@@ -585,9 +585,14 @@ type testMakeSystemRunnable20Opts struct {
 	oldCryptsetup        bool
 	forceTokens          string
 	withCustomKernelArgs bool
+	baseName             string
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystemRunnable20Opts) {
+	baseName := opts.baseName
+	if baseName == "" {
+		baseName = "core26"
+	}
 	fakeProc := c.MkDir()
 	fakeCmdline := filepath.Join(fakeProc, "cmdline")
 	defer kcmdline.MockProcCmdline(fakeCmdline)()
@@ -619,7 +624,9 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 			"distribution": "ubuntu",
 		})
 	} else {
-		model = boottest.MakeMockUC20Model()
+		model = boottest.MakeMockUC20Model(map[string]any{
+			"base": baseName,
+		})
 	}
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
@@ -679,10 +686,10 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
-	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+	baseFn, baseInfo := makeSnap(c, baseName, fmt.Sprintf(`name: %s
 type: base
 version: 5.0
-`, snap.R(3))
+`, baseName), snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
@@ -821,12 +828,19 @@ version: 5.0
 		}
 
 		// For now tokens are used only on classic when
-		// cryptsetup has the features we need.
-		// Later this check will change to also include UC24+
+		// cryptsetup has the features we need. Or on UC26+.
 		if opts.classic {
 			c.Check(params.UseTokens, Equals, !opts.oldCryptsetup)
 		} else {
-			c.Check(params.UseTokens, Equals, opts.forceTokens == "1")
+			if baseName == "core26" {
+				c.Check(params.UseTokens, Equals, opts.forceTokens != "0")
+			} else if baseName == "unknown" {
+				if opts.forceTokens == "" {
+					c.Check(params.UseTokens, Equals, !opts.oldCryptsetup)
+				}
+			} else {
+				c.Check(params.UseTokens, Equals, opts.forceTokens == "1")
+			}
 		}
 
 		return nil
@@ -875,7 +889,7 @@ version: 5.0
 	}
 
 	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
-	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "core20_3.snap")
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), fmt.Sprintf("%s_3.snap", baseName))
 	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc_4.snap")
 	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc-kernel_5.snap")
 	c.Check(core20Snap, testutil.FilePresent)
@@ -921,7 +935,7 @@ version: 5.0
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
 		classicLine = "\nclassic=true"
 	} else {
-		base = "\nbase=core20_3.snap"
+		base = fmt.Sprintf("\nbase=%s_3.snap", baseName)
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	}
 	appendedArgs := ""
@@ -1060,6 +1074,25 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceTokens(c *C) {
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallForceDisabledTokens(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
 		forceTokens: "0",
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallLegacy(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		baseName: "core24",
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallUnknown(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		baseName: "unknown",
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallUnknownOldCryptsetup(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		oldCryptsetup: true,
+		baseName:      "unknown",
 	})
 }
 
