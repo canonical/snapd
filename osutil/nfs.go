@@ -23,6 +23,10 @@ func IsHomeUsingRemoteFS() (bool, error) {
 	return isHomeUsingRemoteFS()
 }
 
+func SnapDirsUnderNFSMounts() (bool, error) {
+	return snapDirsUnderNFSMounts()
+}
+
 // MockIsHomeUsingRemoteFS mocks the real implementation of osutil.IsHomeUsingRemoteFS.
 // This is exported so that other packages that indirectly interact with this
 // functionality can mock IsHomeUsingRemoteFS.
@@ -35,9 +39,9 @@ func MockIsHomeUsingRemoteFS(new func() (bool, error)) (restore func()) {
 }
 
 func MockSnapDirsUnderNFSMounts(new func() (bool, error)) (restore func()) {
-	old := SnapDirsUnderNFSMounts
-	SnapDirsUnderNFSMounts = new
+	old := snapDirsUnderNFSMounts
+	snapDirsUnderNFSMounts = new
 	return func() {
-		SnapDirsUnderNFSMounts = old
+		snapDirsUnderNFSMounts = old
 	}
 }

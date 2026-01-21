@@ -65,9 +65,9 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 
 var dirsAllDataHomeGlobs = dirs.AllDataHomeGlobs
 
-// SnapDirsUnderNFSMounts checks if there are any snap user data directories
+// snapDirsUnderNFSMounts checks if there are any snap user data directories
 // in NFS filesystems.
-var SnapDirsUnderNFSMounts = func() (bool, error) {
+var snapDirsUnderNFSMounts = func() (bool, error) {
 	var ds []string
 	for _, entry := range dirsAllDataHomeGlobs() {
 		entryPaths, err := filepath.Glob(entry)
