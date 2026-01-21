@@ -209,8 +209,9 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
+	expired := time.Now().Add(-(devicemgmtstate.DefaultExchangeInterval + time.Minute))
 	ms := &devicemgmtstate.DeviceMgmtState{
-		LastExchangeTime: time.Now().Add(-10 * time.Minute),
+		LastExchangeTime: expired,
 	}
 	s.mgr.SetState(ms)
 
