@@ -543,7 +543,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 		params           map[string]any
 		rules            []any
 		requests         []string
-		constraints      map[string]string
+		constraints      map[string]any
 		expectedErr      error
 		expectedErrorMsg string
 	}{
@@ -554,7 +554,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.{bar}"},
 			},
 			requests:    nil,
-			constraints: map[string]string{"bar": "value"},
+			constraints: map[string]any{"bar": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -564,7 +564,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo"},
 			},
 			requests:         []string{"123badPath"},
-			constraints:      map[string]string{"bar": "value"},
+			constraints:      map[string]any{"bar": "value"},
 			expectedErr:      &confdb.BadRequestError{},
 			expectedErrorMsg: `.*invalid subkey "123badPath".*`,
 		},
@@ -575,7 +575,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo"},
 			},
 			requests:         []string{"bar"},
-			constraints:      map[string]string{"baz": "value"},
+			constraints:      map[string]any{"baz": "value"},
 			expectedErr:      &confdb.NoMatchError{},
 			expectedErrorMsg: `.*no matching rule.*`,
 		},
@@ -586,7 +586,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.{bar}"},
 			},
 			requests:    []string{"foo"},
-			constraints: map[string]string{},
+			constraints: map[string]any{},
 			expectedErr: nil,
 		},
 		{
@@ -596,7 +596,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.bar"},
 			},
 			requests:         []string{"foo"},
-			constraints:      map[string]string{"bar": "value"},
+			constraints:      map[string]any{"bar": "value"},
 			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
@@ -607,7 +607,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.{bar}.{baz}"},
 			},
 			requests:    []string{"foo.abc"},
-			constraints: map[string]string{"baz": "value"},
+			constraints: map[string]any{"baz": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -617,7 +617,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.{bar}.{baz}"},
 			},
 			requests:         []string{"foo.abc"},
-			constraints:      map[string]string{"bar": "value"},
+			constraints:      map[string]any{"bar": "value"},
 			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
 		},
@@ -628,7 +628,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.{bar}", "storage": "{bar}"},
 			},
 			requests:    []string{"foo"},
-			constraints: map[string]string{"bar": "value"},
+			constraints: map[string]any{"bar": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -638,7 +638,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"storage": "foo.bar[{baz}]"},
 			},
 			requests:         []string{"foo"},
-			constraints:      map[string]string{"baz": "1"},
+			constraints:      map[string]any{"baz": "1"},
 			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraint "baz".*`,
 		},
@@ -651,7 +651,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
 			},
 			requests:    []string{"foo"},
-			constraints: map[string]string{"baz": "value"},
+			constraints: map[string]any{"baz": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -663,7 +663,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
 			},
 			requests:    []string{"foo.abc"},
-			constraints: map[string]string{"baz": "value"},
+			constraints: map[string]any{"baz": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -675,7 +675,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
 			},
 			requests:    []string{"foo"},
-			constraints: map[string]string{"baz": "value"},
+			constraints: map[string]any{"baz": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -687,7 +687,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
 			},
 			requests:    []string{"foo.abc[1]"},
-			constraints: map[string]string{"baz": "value"},
+			constraints: map[string]any{"baz": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -702,7 +702,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
 			},
 			requests:    []string{"foo", "xyz.xyz"},
-			constraints: map[string]string{"bar": "value", "uvw": "value", "ggg": "value"},
+			constraints: map[string]any{"bar": "value", "uvw": "value", "ggg": "value"},
 			expectedErr: nil,
 		},
 		{
@@ -716,7 +716,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
 			},
 			requests:         []string{"foo", "xyz"},
-			constraints:      map[string]string{"ggg": "value", "hhh": "value"},
+			constraints:      map[string]any{"ggg": "value", "hhh": "value"},
 			expectedErr:      &confdb.UnmatchedConstraintsError{},
 			expectedErrorMsg: `.*no placeholder for constraints "ggg", "hhh".*`,
 		},

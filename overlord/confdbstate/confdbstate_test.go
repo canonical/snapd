@@ -201,7 +201,7 @@ func (s *confdbTestSuite) TestGetViewUsedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]string{"placeholder": "foo"})
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"placeholder": "foo"})
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]any{"private": map[string]any{"foo": "bar"}})
 }
@@ -218,7 +218,7 @@ func (s *confdbTestSuite) TestGetViewUnusedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]string{"bla": "foo"})
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"bla": "foo"})
 	c.Assert(err, FitsTypeOf, &confdb.UnmatchedConstraintsError{})
 	c.Assert(err, ErrorMatches, `.*no placeholder for constraint "bla".*`)
 	c.Check(res, IsNil)

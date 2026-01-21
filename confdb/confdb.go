@@ -1687,7 +1687,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 
 // CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any constraints are unused across all the matching
 // rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
-func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]string) error {
+func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]any) error {
 	if len(constraints) == 0 {
 		return nil
 	}
