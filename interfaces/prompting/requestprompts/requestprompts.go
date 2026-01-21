@@ -531,7 +531,7 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 		notifyPrompt: notifyPrompt,
 		maxIDMmap:    maxIDMmap,
 
-		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json"),
+		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json"),
 	}
 
 	// Load the previous mappings from disk

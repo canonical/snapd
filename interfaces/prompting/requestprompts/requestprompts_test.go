@@ -83,7 +83,7 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 	s.legacyMaxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
 	s.maxIDPath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
-	s.requestIDMapFilepath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json")
+	s.requestIDMapFilepath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 }
 
 func newRequestWithReplyChan(key string) (req *prompting.Request, replyChan chan []string) {
