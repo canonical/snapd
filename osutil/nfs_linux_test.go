@@ -133,11 +133,6 @@ func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
 	})
 	defer restore()
 
-	type testcase struct {
-		fsType string
-		res    bool
-	}
-
 	dirPath := c.MkDir()
 	restore = osutil.MockAllDataHomeGlobs(func() []string {
 		return []string{filepath.Join(dirPath, "*", "snap")}
