@@ -394,102 +394,6 @@ func (sc *snapInstallChoreographer) runRefreshHooks() bool {
 	return sc.snapst.IsInstalled() && !componentOnlyUpdate && !sc.snapsup.Flags.Revert
 }
 
-// addAutoConnectThroughHooks builds the chain of tasks that starts with
-// auto-connect and runs through any post-refresh/install hooks. Depending on
-// whether kernel-module preparation is required, this chain may belong either
-// to the pre-reboot or post-reboot taskChainSpan, so the taskChainSpan is provided by the caller.
-func (sc *snapInstallChoreographer) addAutoConnectThroughHooks(
-	st *state.State,
-	s *taskChainSpan,
-	ic installContext,
-	postReboot bool,
-	deviceCtx DeviceContext,
-) error {
-	// auto-connections
-	//
-	// For essential snaps that require reboots, 'auto-connect' is marked
-	// as edge 'MaybeRebootWaitEdge' to indicate that this task is expected
-	// to be the first to run after the reboot (for that lane/change). This
-	// is noted here to make sure we consider any changes between 'link-snap'
-	// and 'auto-connect', as that need the edges to be modified as well.
-	//
-	// 'auto-connect' is expected to run first after the reboot as it also
-	// performs some reboot-verification code.
-	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(
-		i18n.G("Automatically connect eligible plugs and slots of snap %q"), sc.snapsup.InstanceName()))
-	autoConnect.Set("finish-restart", postReboot)
-	s.Append(autoConnect)
-	if postReboot {
-		s.UpdateEdge(autoConnect, MaybeRebootWaitEdge)
-	}
-
-	// setup aliases
-	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(
-		i18n.G("Set automatic aliases for snap %q"), sc.snapsup.InstanceName()))
-	s.Append(setAutoAliases)
-
-	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(
-		i18n.G("Setup snap %q aliases"), sc.snapsup.InstanceName()))
-	s.Append(setupAliases)
-	// BeforeHooksEdge is used by preseeding to know up to which task to run
-	s.UpdateEdge(setupAliases, BeforeHooksEdge)
-
-	if snapdenv.Preseeding() && sc.requiresKmodSetup() {
-		// We need this task as the other
-		// prepare-kernel-modules-components defined below will not be
-		// run when creating a preseeding tarball, but we still need to
-		// have a correct driver tree in the tarball. This implies that
-		// if some kernel module is created by the install hook, it
-		// will be available only after full installation on first
-		// boot, but static modules in the components where be
-		// available early.
-		// TODO move the setupKernel task here and make it configure
-		// kernel-modules components too so we can remove this task.
-		preseedKmod := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(
-			i18n.G("Prepare kernel-modules components for %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
-		s.Append(preseedKmod)
-		s.UpdateEdge(preseedKmod, BeforeHooksEdge)
-	}
-
-	if sc.snapsup.Flags.Prefer {
-		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(
-			i18n.G("Prefer aliases for snap %q"), sc.snapsup.InstanceName()))
-		s.Append(prefer)
-	}
-
-	if deviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeSnapd {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
-			return err
-		}
-		// only run for core devices and the snapd snap, run late enough
-		// so that the task is executed by the new snapd
-		bootCfg := st.NewTask("update-managed-boot-config", fmt.Sprintf(
-			i18n.G("Update managed boot config assets from %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
-		s.Append(bootCfg)
-	}
-
-	if sc.runRefreshHooks() {
-		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName())
-		s.Append(hook)
-	}
-
-	if !sc.snapst.IsInstalled() {
-		// only run install hook if installing the snap for the first time
-		hook := SetupInstallHook(st, sc.snapsup.InstanceName())
-		s.Append(hook)
-		s.UpdateEdge(hook, HooksEdge)
-	}
-
-	for _, t := range sc.componentTSS.postHookToDiscardTasks {
-		s.Append(t)
-	}
-
-	return nil
-}
-
 func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) error {
 	prereq := st.NewTask("prerequisites", fmt.Sprintf(
 		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
@@ -751,6 +655,103 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName(), sc.snapsup.Revision())
 	s.Append(healthCheck)
 	s.UpdateEdge(healthCheck, EndEdge)
+
+	return nil
+}
+
+// addAutoConnectThroughHooks builds the chain of tasks that starts with
+// auto-connect and runs through any post-refresh/install hooks. Depending on
+// whether kernel-module preparation is required, this chain may belong either
+// to the up-to-link-snap or after-link-snap taskChainSpan, so the taskChainSpan
+// is provided by the caller.
+func (sc *snapInstallChoreographer) addAutoConnectThroughHooks(
+	st *state.State,
+	s *taskChainSpan,
+	ic installContext,
+	postReboot bool,
+	deviceCtx DeviceContext,
+) error {
+	// auto-connections
+	//
+	// For essential snaps that require reboots, 'auto-connect' is marked
+	// as edge 'MaybeRebootWaitEdge' to indicate that this task is expected
+	// to be the first to run after the reboot (for that lane/change). This
+	// is noted here to make sure we consider any changes between 'link-snap'
+	// and 'auto-connect', as that need the edges to be modified as well.
+	//
+	// 'auto-connect' is expected to run first after the reboot as it also
+	// performs some reboot-verification code.
+	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(
+		i18n.G("Automatically connect eligible plugs and slots of snap %q"), sc.snapsup.InstanceName()))
+	autoConnect.Set("finish-restart", postReboot)
+	s.Append(autoConnect)
+	if postReboot {
+		s.UpdateEdge(autoConnect, MaybeRebootWaitEdge)
+	}
+
+	// setup aliases
+	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(
+		i18n.G("Set automatic aliases for snap %q"), sc.snapsup.InstanceName()))
+	s.Append(setAutoAliases)
+
+	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(
+		i18n.G("Setup snap %q aliases"), sc.snapsup.InstanceName()))
+	s.Append(setupAliases)
+	// BeforeHooksEdge is used by preseeding to know up to which task to run
+	s.UpdateEdge(setupAliases, BeforeHooksEdge)
+
+	if snapdenv.Preseeding() && sc.requiresKmodSetup() {
+		// We need this task as the other
+		// prepare-kernel-modules-components defined below will not be
+		// run when creating a preseeding tarball, but we still need to
+		// have a correct driver tree in the tarball. This implies that
+		// if some kernel module is created by the install hook, it
+		// will be available only after full installation on first
+		// boot, but static modules in the components where be
+		// available early.
+		// TODO move the setupKernel task here and make it configure
+		// kernel-modules components too so we can remove this task.
+		preseedKmod := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(
+			i18n.G("Prepare kernel-modules components for %q%s"),
+			sc.snapsup.InstanceName(), sc.revisionString()))
+		s.Append(preseedKmod)
+		s.UpdateEdge(preseedKmod, BeforeHooksEdge)
+	}
+
+	if sc.snapsup.Flags.Prefer {
+		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(
+			i18n.G("Prefer aliases for snap %q"), sc.snapsup.InstanceName()))
+		s.Append(prefer)
+	}
+
+	if deviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeSnapd {
+		// make sure no other active changes are changing the kernel command line
+		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
+			return err
+		}
+		// only run for core devices and the snapd snap, run late enough
+		// so that the task is executed by the new snapd
+		bootCfg := st.NewTask("update-managed-boot-config", fmt.Sprintf(
+			i18n.G("Update managed boot config assets from %q%s"),
+			sc.snapsup.InstanceName(), sc.revisionString()))
+		s.Append(bootCfg)
+	}
+
+	if sc.runRefreshHooks() {
+		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName())
+		s.Append(hook)
+	}
+
+	if !sc.snapst.IsInstalled() {
+		// only run install hook if installing the snap for the first time
+		hook := SetupInstallHook(st, sc.snapsup.InstanceName())
+		s.Append(hook)
+		s.UpdateEdge(hook, HooksEdge)
+	}
+
+	for _, t := range sc.componentTSS.postHookToDiscardTasks {
+		s.Append(t)
+	}
 
 	return nil
 }
