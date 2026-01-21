@@ -1103,3 +1103,237 @@ func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
 
 	c.Assert(int(size), testutil.IntGreaterThan, int(squashfs.MinimumSnapSize), Commentf("random snap data: %s", randomData))
 }
+
+func (s *SquashfsTestSuite) TestParseCompressionType(c *C) {
+	testCases := []struct {
+		name          string
+		id            uint16
+		initialArgs   []string
+		expectedArgs  []string
+		expectedError string
+	}{
+		{
+			name:          "Gzip compression",
+			id:            1,
+			initialArgs:   []string{"-all-root"},
+			expectedArgs:  []string{"-all-root", "-comp", "gzip"},
+			expectedError: "",
+		},
+		{
+			name:          "Lzma compression",
+			id:            2,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-comp", "lzma"},
+			expectedError: "",
+		},
+		{
+			name:          "Lzo compression",
+			id:            3,
+			initialArgs:   []string{"-no-exports"},
+			expectedArgs:  []string{"-no-exports", "-comp", "lzo"},
+			expectedError: "",
+		},
+		{
+			name:          "Xz compression",
+			id:            4,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-comp", "xz"},
+			expectedError: "",
+		},
+		{
+			name:          "Lz4 compression",
+			id:            5,
+			initialArgs:   []string{"-no-xattrs"},
+			expectedArgs:  []string{"-no-xattrs", "-comp", "lz4"},
+			expectedError: "",
+		},
+		{
+			name:          "Zstd compression",
+			id:            6,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-comp", "zstd"},
+			expectedError: "",
+		},
+		{
+			name:          "Unknown compression",
+			id:            99,
+			initialArgs:   []string{"-all-root"},
+			expectedArgs:  nil,
+			expectedError: "unknown compression id: 99",
+		},
+		{
+			name:          "Zero ID (unknown)",
+			id:            0,
+			initialArgs:   []string{},
+			expectedArgs:  nil,
+			expectedError: "unknown compression id: 0",
+		},
+	}
+
+	// Iterate over test cases
+	for _, tc := range testCases {
+		argsCopy := make([]string, len(tc.initialArgs))
+		copy(argsCopy, tc.initialArgs)
+
+		resultArgs, err := squashfs.ParseCompression(tc.id, argsCopy)
+
+		if tc.expectedError == "" {
+			c.Assert(err, IsNil)
+			c.Check(tc.expectedArgs, DeepEquals, resultArgs)
+		} else {
+			c.Check(err, ErrorMatches, tc.expectedError)
+		}
+	}
+}
+
+func (s *SquashfsTestSuite) TestParseSuperblockFlags(c *C) {
+	// flagCheck             uint16 = 0x0004
+	// flagNoFragments       uint16 = 0x0010
+	// flagNoDuplicates      uint16 = 0x0040 // Note: logic is inverted (default is duplicates)
+	// flagExports           uint16 = 0x0080
+	// flagNoXattrs          uint16 = 0x0200
+	// flagCompressorOptions uint16 = 0x0400
+
+	testCases := []struct {
+		name          string
+		flags         uint16
+		initialArgs   []string
+		expectedArgs  []string
+		expectedError string
+	}{
+		{
+			name:          "Error on flagCheck",
+			flags:         0x0004,
+			initialArgs:   []string{},
+			expectedArgs:  nil,
+			expectedError: "this does not look like Squashfs 4\\+ superblock flags",
+		},
+		{
+			name:          "No flags (default)",
+			flags:         0,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-duplicates"}, // -no-duplicates is added when flag is *not* set
+			expectedError: "",
+		},
+		{
+			name:          "NoFragments flag",
+			flags:         0x0010,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-fragments", "-no-duplicates"},
+			expectedError: "",
+		},
+		{
+			name:          "NoDuplicates flag (should NOT add -no-duplicates)",
+			flags:         0x0040,
+			initialArgs:   []string{},
+			expectedArgs:  []string{}, // Empty because the only default is suppressed
+			expectedError: "",
+		},
+		{
+			name:          "Exports flag",
+			flags:         0x0080,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-duplicates", "-exports"},
+			expectedError: "",
+		},
+		{
+			name:          "NoXattrs flag",
+			flags:         0x0200,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-duplicates", "-no-xattrs"},
+			expectedError: "",
+		},
+		{
+			name:          "CompressorOptions flag (logs warning)",
+			flags:         0x0400,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-duplicates"},
+			expectedError: "",
+		},
+		{
+			name:          "Multiple flags (NoFragments, Exports, NoXattrs)",
+			flags:         0x0010 | 0x0080 | 0x0200,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-fragments", "-no-duplicates", "-exports", "-no-xattrs"},
+			expectedError: "",
+		},
+		{
+			name:          "All flags (NoFragments, NoDuplicates, Exports, NoXattrs, CompressorOptions)",
+			flags:         0x0010 | 0x0040 | 0x0080 | 0x0200 | 0x0400,
+			initialArgs:   []string{},
+			expectedArgs:  []string{"-no-fragments", "-exports", "-no-xattrs"}, // No -no-duplicates
+			expectedError: "",
+		},
+		{
+			name:          "With initial args",
+			flags:         0x0010,
+			initialArgs:   []string{"-existing-arg"},
+			expectedArgs:  []string{"-existing-arg", "-no-fragments", "-no-duplicates"},
+			expectedError: "",
+		},
+	}
+
+	for _, tc := range testCases {
+
+		argsCopy := make([]string, len(tc.initialArgs))
+		copy(argsCopy, tc.initialArgs)
+
+		resultArgs, err := squashfs.ParseSuperblockFlags(tc.flags, argsCopy)
+
+		if tc.expectedError == "" {
+			c.Assert(err, IsNil)
+			c.Check(resultArgs, DeepEquals, tc.expectedArgs)
+		} else {
+			c.Check(err, ErrorMatches, tc.expectedError)
+		}
+	}
+}
+
+func (s *SquashfsTestSuite) TestSetupPipesNoPipes(c *C) {
+	tempDir, pipePaths, err := squashfs.SetupPipes()
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tempDir)
+
+	c.Check(tempDir, Not(HasLen), 0)
+
+	// Check that the directory actually exists
+	_, err = os.Stat(tempDir)
+	c.Assert(os.IsNotExist(err), Equals, false)
+	c.Assert(pipePaths, IsNil)
+}
+
+func (s *SquashfsTestSuite) TestSetupPipesMultiplePipes(c *C) {
+	pipeNames := []string{"fifo1", "fifo2"}
+	tempDir, pipePaths, err := squashfs.SetupPipes(pipeNames...)
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tempDir)
+	c.Check(tempDir, Not(HasLen), 0)
+
+	c.Check(len(pipePaths), Equals, len(pipeNames))
+
+	for i, name := range pipeNames {
+		expectedPath := filepath.Join(tempDir, name)
+		c.Check(pipePaths[i], Equals, expectedPath)
+		// Check if file exists and is a FIFO pipe
+		info, err := os.Stat(pipePaths[i])
+		c.Assert(err, IsNil)
+		// Check if it's a named pipe (FIFO) using the os.ModeNamedPipe bitmask
+		c.Check((info.Mode() & os.ModeNamedPipe), Not(Equals), 0)
+	}
+}
+
+func (s *SquashfsTestSuite) TestSetupPipesFail(c *C) {
+	// This name is invalid because it contains a path separator.
+	// syscall.Mkfifo will fail trying to create a file in a non-existent subdirectory.
+	pipeNames := []string{"good_pipe", "invalid/pipe"}
+	tempDir, pipePaths, err := squashfs.SetupPipes(pipeNames...)
+
+	if err == nil {
+		// If it did succeed (unexpectedly),cleanup before failing
+		defer os.RemoveAll(tempDir)
+		c.Assert(err, NotNil)
+	}
+	// check other return values
+	c.Check(tempDir, HasLen, 0)
+	c.Check(pipePaths, IsNil)
+}

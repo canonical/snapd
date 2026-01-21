@@ -40,6 +40,18 @@ const (
 func (s stat) User() string  { return s.user }
 func (s stat) Group() string { return s.group }
 
+func ParseCompression(id uint16, mksqfsArgs []string) ([]string, error) {
+	return parseCompression(id, mksqfsArgs)
+}
+
+func ParseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
+	return parseSuperblockFlags(flags, mksqfsArgs)
+}
+
+func SetupPipes(pipeNames ...string) (string, []string, error) {
+	return setupPipes(pipeNames...)
+}
+
 func MockLink(newLink func(string, string) error) (restore func()) {
 	oldLink := osLink
 	osLink = newLink
