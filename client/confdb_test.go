@@ -51,7 +51,7 @@ func (cs *clientSuite) TestConfdbGetWithConstraints(c *C) {
 		"type": "async"
 	}`
 
-	constraints := map[string]string{"bar": "value1", "baz": "value2"}
+	constraints := map[string]any{"bar": "value1", "baz": "value2"}
 	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo"}, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
@@ -62,7 +62,7 @@ func (cs *clientSuite) TestConfdbGetWithConstraints(c *C) {
 	c.Check(query.Get("keys"), Equals, "foo")
 
 	cstrsRaw := query.Get("constraints")
-	var cstrs map[string]string
+	var cstrs map[string]any
 	err = json.Unmarshal([]byte(cstrsRaw), &cstrs)
 	c.Assert(err, IsNil)
 	c.Assert(cstrs, DeepEquals, constraints)

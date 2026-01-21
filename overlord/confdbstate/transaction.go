@@ -168,7 +168,7 @@ func (t *Transaction) Unset(path []confdb.Accessor) error {
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]string) (any, error) {
+func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
