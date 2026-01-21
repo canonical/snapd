@@ -749,6 +749,7 @@ func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 			"revision":    float64(424242),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1",
 		},
 	})
 }
@@ -796,6 +797,7 @@ func (s *storeTestSuite) TestSnapActionEndpointUsesLatest(c *C) {
 			"revision":    float64(2),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 2",
 		},
 	})
 }
@@ -845,6 +847,7 @@ func (s *storeTestSuite) TestSnapActionEndpointChannel(c *C) {
 			"revision":    float64(1),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1",
 		},
 	})
 }
@@ -894,6 +897,7 @@ func (s *storeTestSuite) TestSnapActionEndpointChannelRefreshAll(c *C) {
 			"revision":    float64(1),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1",
 		},
 	})
 }
@@ -944,6 +948,7 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithRevision(c *C) {
 				"revision":    float64(rev.N),
 				"confinement": "strict",
 				"type":        "app",
+				"snap-yaml":   "name: test-snapd-tools\nversion: " + version,
 			},
 		})
 	}
@@ -1013,6 +1018,7 @@ func (s *storeTestSuite) TestSnapActionEndpointAssertedWithComponents(c *C) {
 				"revision":    float64(rev.N),
 				"confinement": "strict",
 				"type":        "app",
+				"snap-yaml":   "name: test-snapd-tools\nversion: " + version,
 			},
 		}
 
@@ -1090,6 +1096,7 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 			"revision":    float64(99),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: foo\nversion: 10",
 		},
 	})
 }
@@ -1133,6 +1140,7 @@ func (s *storeTestSuite) TestSnapActionEndpointRefreshAll(c *C) {
 			"revision":    float64(424242),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1",
 		},
 	})
 }
@@ -1177,6 +1185,7 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 			"revision":    float64(99),
 			"confinement": "strict",
 			"type":        "app",
+			"snap-yaml":   "name: foo\nversion: 10",
 		},
 	})
 }
@@ -1221,6 +1230,7 @@ func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
 			"confinement": "strict",
 			"type":        "app",
 			"base":        "core20",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1\nbase: core20",
 		},
 	})
 }
@@ -1289,6 +1299,7 @@ func (s *storeTestSuite) TestSnapActionEndpointUnknownSnapAutoRefresh(c *C) {
 			"confinement": "strict",
 			"type":        "app",
 			"base":        "core20",
+			"snap-yaml":   "name: test-snapd-tools\nversion: 1\nbase: core20",
 		},
 	})
 }

@@ -813,6 +813,7 @@ type detailsResultV2 struct {
 	Confinement string               `json:"confinement"`
 	Type        string               `json:"type"`
 	Resources   []snapResourceResult `json:"resources,omitempty"`
+	SnapYAML    string               `json:"snap-yaml"`
 }
 
 type downloadInfo struct {
@@ -937,6 +938,19 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		// include snap.yaml
+		f, err := snapfile.Open(sn.path)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot open snap container: %v", err.Error()), 500)
+			return
+		}
+
+		snapYaml, err := f.ReadFile("meta/snap.yaml")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot read snap.yaml: %v", err.Error()), 500)
+			return
+		}
+
 		resources := make([]snapResourceResult, 0, len(sn.components))
 		for compName, comp := range sn.components {
 			f, err := snapfile.Open(path.Join(comp.path))
@@ -979,6 +993,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 			Confinement:   essInfo.Confinement,
 			Type:          essInfo.Type,
 			Base:          essInfo.Base,
+			SnapYAML:      string(snapYaml),
 		}
 		if len(resources) > 0 {
 			details.Resources = resources
