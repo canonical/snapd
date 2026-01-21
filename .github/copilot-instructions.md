@@ -75,7 +75,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 **Build natively:**
 
-Note that while there are many binaries, usually you only need `snap` and `snapd` for development. Many go binaries have special build rules (.e.g precise static linking). Snapd can be built with keys to the production
+Note that while there are many binaries, usually you only need `snap` and `snapd` for development. Many go binaries have special build rules (e.g. precise static linking). Snapd can be built with keys to the production
 snap store, or with test keys that allow installing snaps
 signed with the well-known, insecure test key.
 
