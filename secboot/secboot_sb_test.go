@@ -173,7 +173,7 @@ type MockDiskMapping struct {
 
 var _ = secboot.Disk(&MockDiskMapping{})
 
-func (d *MockDiskMapping) SecbootPartitionWithFsLabel(label string) (secboot.Partition, error) {
+func (d *MockDiskMapping) PartitionWithFsLabel(label string) (secboot.Partition, error) {
 	for _, p := range d.Structure {
 		if p.filesystemLabel == label {
 			return &p, nil
@@ -183,7 +183,7 @@ func (d *MockDiskMapping) SecbootPartitionWithFsLabel(label string) (secboot.Par
 	return nil, fmt.Errorf("filesystem label %q not found", label)
 }
 
-func (d *MockDiskMapping) Model() string {
+func (d *MockDiskMapping) DiskModel() string {
 	return d.IDModel
 }
 

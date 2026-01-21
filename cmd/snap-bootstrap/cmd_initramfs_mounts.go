@@ -32,8 +32,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
-	"unicode"
 
 	"github.com/jessevdk/go-flags"
 
@@ -47,8 +45,6 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
-	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 
@@ -114,8 +110,6 @@ var (
 	secbootUnlockEncryptedVolumeUsingProtectorKey func(activation secboot.ActivateContext, disk secboot.Disk, name string, key []byte) (secboot.UnlockResult, error)
 
 	secbootLockSealedKeys func() error
-
-	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 
 	mountReadOnlyOptions = &systemdMountOptions{
 		ReadOnly: true,
@@ -1300,7 +1294,7 @@ func (m *recoverModeStateMachine) unlockData() (stateFunc, error) {
 		WhichModel:       m.whichModel,
 		BootMode:         m.mode,
 	}
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-data", keys, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, &SecbootDisk{Disk: m.disk}, "ubuntu-data", keys, unlockOpts)
 	if unlockRes.Keyslot != "external:legacy-fallback" && unlockRes.Keyslot != "default-fallback" {
 		m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr)
 	} else {
@@ -1370,7 +1364,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	}
 
 	unlockRes, unlockErr := secbootUnlockEncryptedVolumeUsingProtectorKey(
-		m.activateContext, m.disk, "ubuntu-save", key)
+		m.activateContext, &SecbootDisk{Disk: m.disk}, "ubuntu-save", key)
 	m.setUnlockStateWithRunKey("ubuntu-save", unlockRes, unlockErr)
 	if unlockErr != nil {
 		// failed to unlock with run key, try fallback key
@@ -1452,7 +1446,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
-	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, m.disk, "ubuntu-save", keys, unlockOpts)
+	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.activateContext, &SecbootDisk{Disk: m.disk}, "ubuntu-save", keys, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-save", unlockRes, unlockErr); err != nil {
 		return nil, err
 	}
@@ -1727,180 +1721,6 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-// waitFile waits for the given file/device-node/directory to appear.
-var waitFile = func(path string, wait time.Duration, n int) error {
-	for i := 0; i < n; i++ {
-		if osutil.FileExists(path) {
-			return nil
-		}
-		time.Sleep(wait)
-	}
-
-	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n)*wait)
-}
-
-// TODO: those have to be waited by udev instead
-func waitForDevice(path string) error {
-	if !osutil.FileExists(path) {
-		pollWait := 50 * time.Millisecond
-		pollIterations := 1200
-		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, path)
-		if err := waitFile(path, pollWait, pollIterations); err != nil {
-			return fmt.Errorf("cannot find device: %v", err)
-		}
-	}
-	return nil
-}
-
-// Defined externally for faster unit tests
-var pollWaitForLabel = 50 * time.Millisecond
-var pollWaitForLabelIters = 1200
-
-// TODO: those have to be waited by udev instead
-func waitForCandidateByLabelPath(label string) (string, error) {
-	logger.Noticef("waiting up to %v for label %v to appear",
-		time.Duration(pollWaitForLabelIters)*pollWaitForLabel, label)
-	var err error
-	for i := 0; i < pollWaitForLabelIters; i++ {
-		var candidate string
-		// Ideally depending on the type of error we would return
-		// immediately or try again, but that would complicate code more
-		// than necessary and the extra wait will happen only when we
-		// will fail to boot anyway. Note also that this code is
-		// actually racy as we could get a not-best-possible-label (say,
-		// we get "Ubuntu-boot" while actually an exact "ubuntu-boot"
-		// label exists but the link has not been created yet): this is
-		// not a fully solvable problem although waiting by udev will
-		// help if the disk is present on boot.
-		if candidate, err = disks.CandidateByLabelPath(label); err == nil {
-			logger.Noticef("label %q found", candidate)
-			return candidate, nil
-		}
-		time.Sleep(pollWaitForLabel)
-	}
-
-	// This is the last error from CandidateByLabelPath
-	return "", err
-}
-
-func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
-	values, err := kcmdline.KeyValues("snapd_system_disk")
-	if err != nil {
-		return "", err
-	}
-	if value, ok := values["snapd_system_disk"]; ok {
-		if err := waitForDevice(value); err != nil {
-			return "", err
-		}
-		// TODO probe instead using blkid. Note that this path is used
-		// only when we do not run the scan command (UC20/22).
-		systemdDisk, err := disks.DiskFromDeviceName(value)
-		if err != nil {
-			systemdDiskDevicePath, errDevicePath := disks.DiskFromDevicePath(value)
-			if errDevicePath != nil {
-				return "", fmt.Errorf("%q can neither be used as a device nor as a block: %v; %v", value, errDevicePath, err)
-			}
-			systemdDisk = systemdDiskDevicePath
-		}
-		partition, err := systemdDisk.FindMatchingPartitionWithFsLabel(fallbacklabel)
-		if err != nil {
-			return "", err
-		}
-		return partition.KernelDeviceNode, nil
-	}
-
-	candidate, err := waitForCandidateByLabelPath(fallbacklabel)
-	if err != nil {
-		return "", err
-	}
-
-	return candidate, nil
-}
-
-func diskNodeFromDiskSnapdSymlink() (string, error) {
-	symLink, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk"))
-	if err != nil {
-		return "", err
-	}
-	node := filepath.Base(symLink)
-	return filepath.Join("/dev", node), nil
-}
-
-// findBootDisk finds the boot disk partitions using the boot
-// package function FindPartitionUUIDForBootedKernelDisk to determine what
-// partition the booted kernel came from.
-//
-// If "snap-bootstrap scan-disk" was run as part of udev it will
-// restrict the search of the partition from the boot disk it found.
-//
-// If "snap-bootstrap scan-disk" is not in use (legacy case),
-// it will look for any partition that matches the boot.
-//
-// If the disk kernel came from cannot be determined, then it will fallback to
-// looking at the specified disk label.
-func findBootDisk(fallbacklabel string) (*Disk, string, error) {
-	var bootPart string
-	var disk *Disk
-
-	if diskNode, err := diskNodeFromDiskSnapdSymlink(); err == nil {
-		// We have symlinks, we already know the disk (scan-disk was run)
-		logger.Debugf("probing boot disk %s found by scan command", diskNode)
-		disk, err = probeDisk(diskNode, probeDiskOpts{fullProbe: true})
-		if err != nil {
-			return nil, "", err
-		}
-
-		var part *Partition
-		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-		if err == nil {
-			part, err = disk.PartitionWithUUID(partuuid)
-			if err != nil {
-				return nil, "", err
-			}
-		} else {
-			part, err = disk.PartitionWithFsLabel(fallbacklabel)
-			if err != nil {
-				return nil, "", err
-			}
-		}
-		bootPart = part.Node
-	} else {
-		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-		if err == nil {
-			bootPart = filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partuuid)
-		} else {
-			bootPart, err = getNonUEFISystemDisk(fallbacklabel)
-			if err != nil {
-				return nil, "", err
-			}
-		}
-
-		// The partition uuid is read from the EFI variables. At this point
-		// the kernel may not have initialized the storage HW yet so poll
-		// here.
-		logger.Debugf("waiting for partition %s", bootPart)
-		if err := waitForDevice(bootPart); err != nil {
-			return nil, "", err
-		}
-
-		// Resolve if it is a symlink
-		if target, err := os.Readlink(bootPart); err == nil {
-			bootPart = filepath.Join("/dev", filepath.Base(target))
-		}
-		// Find out disk and probe
-		diskNode = strings.TrimRight(bootPart, "0123456789")
-		lenNode := len(diskNode)
-		if diskNode[lenNode-1] == 'p' && unicode.IsDigit(rune(diskNode[lenNode-2])) {
-			diskNode = diskNode[0 : lenNode-1]
-		}
-		disk, err = probeDisk(diskNode, probeDiskOpts{fullProbe: true})
-		if err != nil {
-			return nil, "", err
-		}
-	}
-	return disk, bootPart, nil
-}
-
 func createSysrootMount() bool {
 	// This env var is set by snap-initramfs-mounts.service for 24+ initramfs. We
 	// prefer this to checking the model so 24+ kernels can run with models using
@@ -2164,7 +1984,7 @@ func maybeMountSave(activateContext secboot.ActivateContext, disk *Disk, rootdir
 		if err != nil {
 			return true, unlockRes, err
 		}
-		unlockRes, err = secbootUnlockEncryptedVolumeUsingProtectorKey(activateContext, disk, "ubuntu-save", key)
+		unlockRes, err = secbootUnlockEncryptedVolumeUsingProtectorKey(activateContext, &SecbootDisk{Disk: disk}, "ubuntu-save", key)
 		if err != nil {
 			return true, unlockRes, fmt.Errorf("cannot unlock ubuntu-save volume: %v", err)
 		}
@@ -2434,7 +2254,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		WhichModel:       mst.UnverifiedBootModel,
 		BootMode:         mst.mode,
 	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, disk, "ubuntu-data", keys, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, &SecbootDisk{Disk: disk}, "ubuntu-data", keys, opts)
 	if err != nil {
 		return err
 	}

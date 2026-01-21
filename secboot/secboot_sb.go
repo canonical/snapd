@@ -156,12 +156,12 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk Disk
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.SecbootPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
 		// Partition not found, we search for the unencrypted device
-		part, err = disk.SecbootPartitionWithFsLabel(name)
+		part, err = disk.PartitionWithFsLabel(name)
 		if err != nil {
 			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
@@ -242,7 +242,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk Disk
 	options = append(options,
 		sbWithVolumeName(mapperName),
 		sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice),
-		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.Model(), part.PartitionLabel())),
+		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.DiskModel(), part.PartitionLabel())),
 	)
 	if opts.AllowRecoveryKey {
 		options = append(options, sbWithRecoveryKeyTries(3))
@@ -311,7 +311,7 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk Dis
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.SecbootPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err != nil {
 		return unlockRes, err
 	}

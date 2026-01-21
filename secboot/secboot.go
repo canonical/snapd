@@ -349,6 +349,6 @@ type Partition interface {
 
 // Disk implementations provide disk information required by secboot.
 type Disk interface {
-	SecbootPartitionWithFsLabel(string) (Partition, error)
-	Model() string
+	PartitionWithFsLabel(string) (Partition, error)
+	DiskModel() string
 }

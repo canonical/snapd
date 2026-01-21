@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -269,4 +270,8 @@ func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integri
 
 func MockSecbootNewActivateContext(f func(ctx context.Context) (secboot.ActivateContext, error)) (restore func()) {
 	return testutil.Mock(&secbootNewActivateContext, f)
+}
+
+func MockOsStat(f func(path string) (os.FileInfo, error)) (restore func()) {
+	return testutil.Mock(&osStat, f)
 }

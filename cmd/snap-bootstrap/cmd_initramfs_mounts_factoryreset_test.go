@@ -56,9 +56,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
 		c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		part, err := disk.SecbootPartitionWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
+		c.Assert(part.PartitionNode(), Equals, "/dev/sda4")
+		c.Assert(part.PartitionLabel(), Equals, "ubuntu-save-enc")
 		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(part.FilesystemUUID(), Equals, "ubuntu-save-enc-partuuid")
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
 		c.Assert(opts.WhichModel, NotNil)
 		mod, err := opts.WhichModel()
@@ -312,7 +315,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
 		c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		part, err := disk.SecbootPartitionWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
 		saveActivated = true
@@ -419,7 +422,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 		c.Assert(sealedEncryptionKeyFiles, HasLen, 1)
 		c.Assert(sealedEncryptionKeyFiles[0].Path, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 
-		part, err := disk.SecbootPartitionWithFsLabel(name + "-enc")
+		part, err := disk.PartitionWithFsLabel(name + "-enc")
 		c.Assert(err, IsNil)
 		c.Assert(part.PartitionUUID(), Equals, "ubuntu-save-enc-partuuid")
 		saveActivated = true
