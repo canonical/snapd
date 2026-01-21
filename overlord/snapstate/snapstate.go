@@ -342,14 +342,14 @@ type installContext struct {
 // snapInstallTaskSet captures the task ranges involved in a snap installation.
 type snapInstallTaskSet struct {
 	beforeLocalSystemModificationsTasks []*state.Task
-	beforeReboot                        []*state.Task
-	postReboot                          []*state.Task
+	upToLinkSnapAndBeforeReboot         []*state.Task
+	afterLinkSnapAndPostReboot          []*state.Task
 }
 
 // snapInstallChoreographer orchestrates the construction of a task graph for
 // installing a snap. It provides methods that correspond to different stages of
-// the installation: before local system modifications, before reboot, and post
-// reboot.
+// the installation: before local system modifications, up to link-snap, and
+// after link-snap.
 type snapInstallChoreographer struct {
 	snapst   *SnapState
 	snapsup  *SnapSetup
@@ -543,7 +543,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 	return nil
 }
 
-func (sc *snapInstallChoreographer) BeforeReboot(st *state.State, s *taskChainSpan, ic installContext) error {
+func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State, s *taskChainSpan, ic installContext) error {
 	// mount
 	if !sc.revisionIsPresent() {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(
@@ -680,7 +680,7 @@ func (sc *snapInstallChoreographer) BeforeReboot(st *state.State, s *taskChainSp
 	return nil
 }
 
-func (sc *snapInstallChoreographer) PostReboot(st *state.State, s *taskChainSpan, ic installContext) error {
+func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) error {
 	if !sc.requiresKmodSetup() {
 		// Let tasks know if they have to do something about restarts
 		// No kernel modules, reboot after link snap
@@ -763,13 +763,13 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 		return snapInstallTaskSet{}, nil, err
 	}
 
-	beforeReboot := b.NewSpan()
-	if err := sc.BeforeReboot(st, &beforeReboot, ic); err != nil {
+	upToLinkSnapAndBeforeReboot := b.NewSpan()
+	if err := sc.UpToLinkSnapAndBeforeReboot(st, &upToLinkSnapAndBeforeReboot, ic); err != nil {
 		return snapInstallTaskSet{}, nil, err
 	}
 
-	postReboot := b.NewSpan()
-	if err := sc.PostReboot(st, &postReboot, ic); err != nil {
+	afterLinkSnapAndPostReboot := b.NewSpan()
+	if err := sc.AfterLinkSnapAndPostReboot(st, &afterLinkSnapAndPostReboot, ic); err != nil {
 		return snapInstallTaskSet{}, nil, err
 	}
 
@@ -781,8 +781,8 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 
 	return snapInstallTaskSet{
 		beforeLocalSystemModificationsTasks: beforeLocalSystemMods.Tasks(),
-		beforeReboot:                        beforeReboot.Tasks(),
-		postReboot:                          postReboot.Tasks(),
+		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot.Tasks(),
+		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot.Tasks(),
 	}, b.TaskSet(), nil
 }
 
