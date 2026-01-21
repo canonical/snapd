@@ -9,22 +9,20 @@ details: |
 # Disable for Fedora, openSUSE, Arch and Amazon Linux 2 as re-exec is not support there yet
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
+skip:
+    - if: |
+        [ "$SNAP_REEXEC" = "0" ]
+      reason: "This tests re-exec functionality and is skipped if re-exec is disabled"
+
 prepare: |
     echo "Installing test-snapd-sh"
     snap install test-snapd-sh
     echo "Breaking host snap-confine"
-    chmod 0755 /usr/lib/snapd/snap-confine
-
-restore: |
-    echo "Restoring host snap-confine"
-    chmod 4755 /usr/lib/snapd/snap-confine
+    mv /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-confine.bak
+    cp "$(which false)" /usr/lib/snapd/snap-confine
+    tests.cleanup defer mv /usr/lib/snapd/snap-confine.bak /usr/lib/snapd/snap-confine
 
 execute: |
-    if [ "${SNAP_REEXEC:-}" = "0" ]; then
-        echo "skipping test when SNAP_REEXEC is disabled"
-        exit 0
-    fi
-
     echo "Ensure we re-exec by default"
     # It is not possible to check by using journal-state tools because the
     # reexec "DEBUG: restarting into" line appears before the snapd state is
