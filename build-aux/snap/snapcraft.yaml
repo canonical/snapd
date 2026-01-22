@@ -290,7 +290,7 @@ parts:
     override-build: |
       # this should be passed through build environment, but we're already
       # anchoring dynamic linker env variables
-      GO_TOOLCHAIN_FIPS_CHANNEL="1.23-fips/stable"
+      GO_TOOLCHAIN_FIPS_CHANNEL="1.25-fips/stable"
 
       VERSION="$(craftctl get version)"
       if [ -f fips-build ] ; then
@@ -435,7 +435,13 @@ parts:
             # - goexperiment.opensslcrypto - enable openssl crypto backend
             # - snapdfips - enable additional FIPS support (enforce FIPS compliant TLS)
             bin/snap|lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
-              TAGS+=(goexperiment.opensslcrypto snapdfips)
+              TAGS+=(goexperiment.systemcrypto snapdfips)
+              ;;
+            *)
+              # catch all for all other binaries that are not using cryptographic routines
+              # directly, including statically built snap-exec, snap-update-ns etc., which cannot
+              # work in FIPS mode w/ openssl at all
+              TAGS+=(goexperiment.nosystemcrypto)
               ;;
           esac
         fi
