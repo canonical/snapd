@@ -1,0 +1,57 @@
+summary: Ensure that pidfd_open syscall is allowed by default seccomp profile
+
+details: |
+    The pidfd_open(2) system call allows obtaining a file descriptor that refers
+    to a process. This test verifies that the syscall is allowed by the default
+    seccomp profile for all snaps.
+
+systems:
+    # Exclude ubuntu-core systems as they don't have gcc
+    - -ubuntu-core-*
+    # Too old to support pidfd_open
+    - -ubuntu-16.04-*
+    - -ubuntu-18.04-*
+    - -centos-9-*
+    - -amazon-linux-2-*
+    - -amazon-linux-2023-*
+
+prepare: |
+    echo "Compile the test program on the host"
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    mkdir -p test-snapd-pidfd-open/bin
+    gcc -Wall -Wextra -Werror test-pidfd-open.c -o test-snapd-pidfd-open/bin/test-pidfd-open -static
+
+    echo "Create the snap package"
+    snap pack test-snapd-pidfd-open
+
+    echo "Install the test snap"
+    snap install --dangerous test-snapd-pidfd-open_1.0_*.snap
+
+restore: |
+    snap remove --purge test-snapd-pidfd-open || true
+    rm -f test-snapd-pidfd-open_1.0_*.snap
+
+execute: |
+    echo "Test that pidfd_open is allowed from within the snap"
+    # The test program will:
+    # - Return 0 and print "success" if pidfd_open works
+    # - Return 0 and print "not supported" if kernel doesn't support it
+    # - Return 1 if it's blocked by seccomp
+    output=$(snap run test-snapd-pidfd-open 2>&1)
+    echo "$output"
+
+    # Check that it's either successful or not supported by kernel,
+    # but not blocked by seccomp
+    if echo "$output" | grep -q "blocked"; then
+        echo "FAIL: pidfd_open was blocked by seccomp"
+        exit 1
+    fi
+
+    if echo "$output" | grep -qE "(success|not supported)"; then
+        echo "PASS: pidfd_open is allowed or not supported by kernel"
+        exit 0
+    fi
+
+    echo "FAIL: Unexpected output from test program"
+    exit 1
