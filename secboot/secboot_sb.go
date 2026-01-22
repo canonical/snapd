@@ -49,9 +49,7 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbActivateVolumeWithKey      = sb.ActivateVolumeWithKey
 	sbFindStorageContainer       = sb.FindStorageContainer
-	sbDeactivateVolume           = sb.DeactivateVolume
 	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 	sbRenameLUKS2ContainerKey    = sb.RenameLUKS2ContainerKey
 	sbNewLUKS2KeyDataReader      = sbNewLUKS2KeyDataReaderImpl
@@ -113,6 +111,7 @@ type ActivateState = sb.ActivateState
 
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error
 	State() *ActivateState
 }
 
@@ -124,12 +123,24 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
 }
 
+func (a *activateContextImpl) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return a.ActivateContext.DeactivateContainer(ctx, container, reason)
+}
+
 func (a *activateContextImpl) State() *ActivateState {
 	return a.ActivateContext.State()
 }
 
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
+	if err != nil {
+		return nil, err
+	}
+	return &activateContextImpl{ActivateContext: context}, nil
+}
+
+func NewSimpleActivateContext(ctx context.Context) (ActivateContext, error) {
+	context, err := sbNewActivateContext(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -374,14 +385,19 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	return unlockRes, nil
 }
 
-// ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
-func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
-	return sb.ActivateVolumeWithKey(volumeName, sourceDevicePath, key, (*sb.ActivateVolumeOptions)(options))
-}
+type StorageContainer = sb.StorageContainer
 
-// DeactivateVolume is a wrapper for secboot.DeactivateVolume
-func DeactivateVolume(volumeName string) error {
-	return sb.DeactivateVolume(volumeName)
+func UnlockEncryptedVolumeUsingKey(activation ActivateContext, devNode string, name string, key []byte) (StorageContainer, error) {
+	container, err := sbFindStorageContainer(context.Background(), devNode)
+	if err != nil {
+		return container, err
+	}
+
+	options := []sb.ActivateOption{
+		sbWithVolumeName(name),
+		sbWithExternalUnlockKey("key", key, sb.ExternalUnlockKeyFromStorageContainer),
+	}
+	return container, activation.ActivateContainer(context.Background(), container, options...)
 }
 
 // AddBootstrapKeyOnExistingDisk will add a new bootstrap key to on an

@@ -21,6 +21,7 @@
 package install_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -658,29 +659,23 @@ fi
 		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
 
-	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
+	defer install.MockSecbootUnlockEncryptedVolumeUsingKey(func(activation secboot.ActivateContext, devNode string, name string, key []byte) (secboot.StorageContainer, error) {
 		expectedKey, hasKey := keys[name]
 		c.Assert(hasKey, Equals, true)
-		c.Check(key, DeepEquals, secboot.DiskUnlockKey(expectedKey))
-		switch node {
+		c.Check(key, DeepEquals, expectedKey)
+		switch devNode {
 		case "/dev/mmcblk0p3":
 			c.Check(name, Equals, "ubuntu-save")
 		case "/dev/mmcblk0p4":
 			c.Check(name, Equals, "ubuntu-data")
 		default:
-			c.Errorf("Unexpected node %s", node)
+			c.Errorf("Unexpected node %s", devNode)
 		}
-		return nil
+		return nil, nil
 	})()
 
-	defer install.MockCryptsetupClose(func(name string) error {
-		switch name {
-		case "ubuntu-data":
-		case "ubuntu-save":
-		default:
-			c.Errorf("Unexpected name %s", name)
-		}
-		return nil
+	defer install.MockSecbootNewSimpleActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
+		return &simpleMockActivateContext{}, nil
 	})()
 
 	sys, err := install.Run(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
@@ -1110,12 +1105,12 @@ fi
 		runOpts.EncryptionType = device.EncryptionTypeLUKS
 	}
 
-	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
-		return nil
+	defer install.MockSecbootUnlockEncryptedVolumeUsingKey(func(activation secboot.ActivateContext, devNode string, name string, key []byte) (secboot.StorageContainer, error) {
+		return nil, nil
 	})()
 
-	defer install.MockCryptsetupClose(func(name string) error {
-		return nil
+	defer install.MockSecbootNewSimpleActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
+		return &simpleMockActivateContext{}, nil
 	})()
 
 	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, &install.KernelSnapInfo{}, "", runOpts, nil, timings.New(nil))
@@ -1525,12 +1520,12 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		partIdx++
 	}
 
-	defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
-		return nil
+	defer install.MockSecbootUnlockEncryptedVolumeUsingKey(func(activation secboot.ActivateContext, devNode string, name string, key []byte) (secboot.StorageContainer, error) {
+		return nil, nil
 	})()
 
-	defer install.MockCryptsetupClose(func(name string) error {
-		return nil
+	defer install.MockSecbootNewSimpleActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
+		return &simpleMockActivateContext{}, nil
 	})()
 
 	defer install.MockSecbootFormatEncryptedDevice(func(key []byte, encType device.EncryptionType, label, node string) error {

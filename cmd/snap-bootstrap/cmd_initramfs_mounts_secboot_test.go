@@ -22,6 +22,7 @@ package main_test
 
 import (
 	"context"
+	"errors"
 
 	sb "github.com/snapcore/secboot"
 
@@ -38,6 +39,10 @@ func (f *fakeActivateContext) State() *secboot.ActivateState {
 
 func (f *fakeActivateContext) ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
 	return nil
+}
+
+func (f *fakeActivateContext) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return errors.New("unexpected")
 }
 
 func addActivation(st *secboot.ActivateState, credName, status string) {
