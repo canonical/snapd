@@ -48,7 +48,7 @@ const (
 var (
 	timeNow = time.Now
 
-	deviceMgmtCycleChangeKind = swfeats.RegisterChangeKind("device-management-cycle")
+	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
 
 // MessageHandler processes request messages of a specific kind.
@@ -82,7 +82,7 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceivedTime time.Time `json:"received-time"`
+	ReceiveTime time.Time `json:"receive-time"`
 }
 
 // deviceMgmtState holds the persistent state for device management operations.
@@ -168,12 +168,12 @@ func (m *DeviceMgmtManager) Ensure() error {
 
 	// For now, only one device management change can be in flight at any given time.
 	for _, chg := range m.state.Changes() {
-		if chg.Kind() == deviceMgmtCycleChangeKind && !chg.Status().Ready() {
+		if chg.Kind() == deviceMgmtExchangeChangeKind && !chg.Status().Ready() {
 			return nil
 		}
 	}
 
-	chg := m.state.NewChange(deviceMgmtCycleChangeKind, "Process device management messages")
+	chg := m.state.NewChange(deviceMgmtExchangeChangeKind, "Process device management messages")
 
 	exchg := m.state.NewTask("exchange-mgmt-messages", "Exchange messages with the Store")
 	chg.AddTask(exchg)

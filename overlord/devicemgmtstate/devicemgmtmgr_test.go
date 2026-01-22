@@ -187,7 +187,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	changes := s.st.Changes()
 	c.Assert(changes, HasLen, 1)
 	chg := changes[0]
-	c.Check(chg.Kind(), Equals, "device-management-cycle")
+	c.Check(chg.Kind(), Equals, "device-management-exchange")
 	c.Check(chg.Summary(), Equals, "Process device management messages")
 
 	tasks := chg.Tasks()
@@ -215,7 +215,7 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	chg := s.st.NewChange("device-management-cycle", "Process device management messages")
+	chg := s.st.NewChange("device-management-exchange", "Process device management messages")
 	chg.SetStatus(state.DoingStatus)
 
 	s.st.Unlock()
