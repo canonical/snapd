@@ -127,6 +127,10 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
 func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any) (any, error) {
+	if err := view.CheckAllConstraintsAreUsed(requests, constraints); err != nil {
+		return nil, err
+	}
+
 	if len(requests) == 0 {
 		val, err := view.Get(bag, "", constraints)
 		if err != nil {

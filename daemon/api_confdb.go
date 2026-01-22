@@ -194,6 +194,8 @@ func toAPIError(err error) *apiError {
 			Kind:    client.ErrorKindConfigNoSuchOption,
 			Value:   err,
 		}
+	case errors.Is(err, &confdb.UnmatchedConstraintsError{}):
+		fallthrough
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())
 	default:
