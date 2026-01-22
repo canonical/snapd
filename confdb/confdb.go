@@ -202,9 +202,11 @@ type DatabagSchema interface {
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
 
-	// PruneByVisibility prunes all elements of the indicated visibility or
-	// higher from the schema along the given path and data. The path indicates
-	// where the data begins.
+	// PruneByVisibility prunes all elements of the indicated visibility from the schema.
+	// The path variable is the path to where the dataToBePruned is located except for where
+	// the path contains placeholders, in which case the path is also a path through the data.
+	// Essentially, the dataToBePruned should be of the same form as output from databag.Get
+	// with the same path in input.
 	PruneByVisibility(dataToBePruned any, vis Visibility, path []Accessor) (prunedData any, err error)
 }
 

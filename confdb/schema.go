@@ -214,7 +214,7 @@ func (s *aliasReference) NestedVisibility(vis Visibility) bool {
 
 func (v *aliasReference) PruneByVisibility(data any, vis Visibility, _ []Accessor) (any, error) {
 	// user-defined types cannot contain visibility fields so no need to call pruning on them
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		return nil, nil
 	}
 	return data, nil
@@ -327,7 +327,7 @@ func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *StorageSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
-	if data == nil || v.Visibility() >= vis {
+	if data == nil || v.Visibility() == vis {
 		return nil, nil
 	}
 	return v.topLevel.PruneByVisibility(data, vis, path)
@@ -912,7 +912,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 				}
 			}
 		}
-		if len(pruned) > 0 && v.Visibility() < vis && (v.keySchema == nil || v.keySchema.Visibility() < vis) {
+		if len(pruned) > 0 && v.Visibility() != vis && (v.keySchema == nil || v.keySchema.Visibility() != vis) {
 			return pruned, nil
 		}
 		return nil, nil
@@ -927,7 +927,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 		if err != nil {
 			return d, err
 		}
-		if v.Visibility() < vis && (v.keySchema == nil || v.keySchema.Visibility() < vis) {
+		if v.Visibility() != vis && (v.keySchema == nil || v.keySchema.Visibility() != vis) {
 			return d, err
 		}
 		return nil, nil
@@ -941,7 +941,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 		if err != nil {
 			return d, err
 		}
-		if v.Visibility() < vis {
+		if v.Visibility() != vis {
 			return d, err
 		}
 		return nil, nil
@@ -1180,7 +1180,7 @@ func (v *stringSchema) PruneByVisibility(data any, vis Visibility, path []Access
 	if !ok {
 		return nil, errors.New(`data provided must be a string`)
 	}
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		data = nil
 	}
 	return data, nil
@@ -1279,7 +1279,7 @@ func (v *intSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 	if !isNumber(data) {
 		return nil, errors.New(`data provided must be an int`)
 	}
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		data = nil
 	}
 	return data, nil
@@ -1374,7 +1374,7 @@ func (v *anySchema) Type() SchemaType {
 }
 
 func (v *anySchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		data = nil
 	}
 	return data, nil
@@ -1448,7 +1448,7 @@ func (v *numberSchema) PruneByVisibility(data any, vis Visibility, path []Access
 	if !isNumber(data) {
 		return nil, errors.New(`data provided must be a number`)
 	}
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		data = nil
 	}
 	return data, nil
@@ -1584,7 +1584,7 @@ func (v *booleanSchema) PruneByVisibility(data any, vis Visibility, path []Acces
 	if !ok {
 		return nil, errors.New(`data provided must be a bool`)
 	}
-	if v.visibility >= vis {
+	if v.visibility == vis {
 		data = nil
 	}
 	return data, nil
@@ -1707,7 +1707,7 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 		if err != nil {
 			return nil, err
 		}
-		if v.Visibility() < vis {
+		if v.Visibility() != vis {
 			return d, err
 		}
 		return nil, nil
@@ -1731,7 +1731,7 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 			newList = append(newList, d)
 		}
 	}
-	if len(newList) > 0 && v.Visibility() < vis {
+	if len(newList) > 0 && v.Visibility() != vis {
 		return newList, nil
 	}
 	return nil, nil
