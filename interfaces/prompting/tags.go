@@ -29,7 +29,7 @@ var (
 	apparmorInterfaceForMetadataTag = apparmor.InterfaceForMetadataTag
 )
 
-// InterfaceFromTagsets returns the interface associated with all of the given
+// interfaceFromTagsets returns the interface associated with all of the given
 // tagsets.
 //
 // Potential interfaces are identified by looking up whether a given tag is
@@ -43,7 +43,7 @@ var (
 //
 // If one interface is associated with tags in the tagsets but those tags are
 // not found in every tagset, then returns ErrNoCommonInterface.
-func InterfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
+func interfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
 	if len(tagsets) == 0 {
 		return "", prompting_errors.ErrNoInterfaceTags
 	}

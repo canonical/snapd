@@ -24,9 +24,13 @@ import (
 )
 
 var (
+	BuildListenerRequestKey = buildListenerRequestKey
+
 	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
 
 	InterfaceSpecificConstraintsPathPattern = InterfaceSpecificConstraints.pathPattern
+
+	InterfaceFromTagsets = interfaceFromTagsets
 
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
@@ -34,4 +38,8 @@ var (
 
 func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
 	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
+}
+
+func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
+	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
 }

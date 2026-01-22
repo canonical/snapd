@@ -37,13 +37,6 @@ import (
 )
 
 var (
-	// Allow mocking the listener for tests
-	listenerRegister = listener.Register
-	listenerClose    = (*listener.Listener).Close
-	listenerRun      = (*listener.Listener).Run
-	listenerReady    = (*listener.Listener).Ready
-	listenerReqs     = (*listener.Listener).Reqs
-
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
 )
 
@@ -64,6 +57,17 @@ type Manager interface {
 // verify that InterfacesRequestsManager implements Manager
 var _ Manager = (*InterfacesRequestsManager)(nil)
 
+type listenerBackend interface {
+	Close() error
+	Run() error
+	Ready() <-chan struct{}
+	Reqs() <-chan *prompting.Request
+}
+
+var listenerRegister = func() (listenerBackend, error) {
+	return listener.Register(prompting.NewListenerRequest)
+}
+
 type InterfacesRequestsManager struct {
 	tomb tomb.Tomb
 	// The lock should be held for writing when acting on the manager in a way
@@ -71,7 +75,7 @@ type InterfacesRequestsManager struct {
 	// or when removing those databases. The lock can be held for reading when
 	// acting on just one or the other, as each has an internal mutex as well.
 	lock     sync.RWMutex
-	listener *listener.Listener
+	listener listenerBackend
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
 
@@ -120,7 +124,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			listenerClose(listenerBackend)
+			listenerBackend.Close()
 		}
 	}()
 
@@ -168,7 +172,7 @@ func (m *InterfacesRequestsManager) run() error {
 		// returns, which only occurs when the manager tomb is dying. So we
 		// don't need to worry about the listener returning nil when we don't
 		// already expect to be exiting.
-		return listenerRun(m.listener)
+		return m.listener.Run()
 	})
 
 	defer func() {
@@ -205,7 +209,7 @@ run_loop:
 			m.lock.RUnlock()
 			// Close the ready channel to unblock method calls.
 			close(m.ready)
-		case req, ok := <-listenerReqs(m.listener):
+		case req, ok := <-m.listener.Reqs():
 			if !ok {
 				// Reqs() closed, so an error occurred in the listener. In
 				// production, the listener does not close itself on error, so
@@ -244,7 +248,7 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 		return nil
 	default:
 		// We haven't handled a ready signal yet, so return the real thing.
-		return listenerReady(m.listener)
+		return m.listener.Ready()
 	}
 }
 
@@ -317,7 +321,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 
 	var errs []error
 	if m.listener != nil {
-		errs = append(errs, listenerClose(m.listener))
+		errs = append(errs, m.listener.Close())
 	}
 	if m.prompts != nil {
 		errs = append(errs, m.prompts.Close())

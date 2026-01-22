@@ -30,24 +30,49 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockListenerRegister(f func() (*listener.Listener, error)) (restore func()) {
+type ListenerBackend = listenerBackend
+
+func MockListenerRegister(f func() (listenerBackend, error)) (restore func()) {
 	return testutil.Mock(&listenerRegister, f)
 }
 
-func MockListenerRun(f func(l *listener.Listener) error) (restore func()) {
-	return testutil.Mock(&listenerRun, f)
+type fakeListener struct {
+	readyChan chan struct{}
+	reqsChan  chan *prompting.Request
+	closeChan chan struct{}
 }
 
-func MockListenerReady(f func(l *listener.Listener) <-chan struct{}) (restore func()) {
-	return testutil.Mock(&listenerReady, f)
+func (l *fakeListener) Close() error {
+	select {
+	case <-l.closeChan:
+		return listener.ErrAlreadyClosed
+	default:
+		close(l.reqsChan)
+		close(l.closeChan)
+	}
+	select {
+	case <-l.readyChan:
+		// already closed
+	default:
+		close(l.readyChan)
+	}
+	return nil
 }
 
-func MockListenerReqs(f func(l *listener.Listener) <-chan *prompting.Request) (restore func()) {
-	return testutil.Mock(&listenerReqs, f)
+func (l *fakeListener) Run() error {
+	<-l.closeChan
+	// In production, listener.Run() does not return on error, and when
+	// the listener is closed, it returns nil. So it should always return
+	// nil in practice.
+	return nil
 }
 
-func MockListenerClose(f func(l *listener.Listener) error) (restore func()) {
-	return testutil.Mock(&listenerClose, f)
+func (l *fakeListener) Ready() <-chan struct{} {
+	return l.readyChan
+}
+
+func (l *fakeListener) Reqs() <-chan *prompting.Request {
+	return l.reqsChan
 }
 
 func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
@@ -59,45 +84,13 @@ func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, r
 
 	closeChan := make(chan struct{})
 
-	restoreRegister := MockListenerRegister(func() (*listener.Listener, error) {
-		return &listener.Listener{}, nil
+	restore = MockListenerRegister(func() (listenerBackend, error) {
+		return &fakeListener{
+			readyChan: readyChan,
+			reqsChan:  reqChan,
+			closeChan: closeChan,
+		}, nil
 	})
-	restoreRun := MockListenerRun(func(l *listener.Listener) error {
-		<-closeChan
-		// In production, listener.Run() does not return on error, and when
-		// the listener is closed, it returns nil. So it should always return
-		// nil in practice.
-		return nil
-	})
-	restoreReady := MockListenerReady(func(l *listener.Listener) <-chan struct{} {
-		return readyChan
-	})
-	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *prompting.Request {
-		return reqChan
-	})
-	restoreClose := MockListenerClose(func(l *listener.Listener) error {
-		select {
-		case <-closeChan:
-			return listener.ErrAlreadyClosed
-		default:
-			close(reqChan)
-			close(closeChan)
-		}
-		select {
-		case <-readyChan:
-			// already closed
-		default:
-			close(readyChan)
-		}
-		return nil
-	})
-	restore = func() {
-		restoreClose()
-		restoreReqs()
-		restoreReady()
-		restoreRun()
-		restoreRegister()
-	}
 	return readyChan, reqChan, restore
 }
 

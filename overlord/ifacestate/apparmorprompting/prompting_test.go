@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -93,7 +92,7 @@ func (s *apparmorpromptingSuite) TestNew(c *C) {
 
 func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 	registerFailure := fmt.Errorf("failed to register listener")
-	restore := apparmorprompting.MockListenerRegister(func() (*listener.Listener, error) {
+	restore := apparmorprompting.MockListenerRegister(func() (apparmorprompting.ListenerBackend, error) {
 		return nil, registerFailure
 	})
 	defer restore()
