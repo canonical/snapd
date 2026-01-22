@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -242,6 +243,25 @@ func fromSystemOption(t *state.Task) bool {
 	return false
 }
 
+func earlyCommitCommandLineAppendTransaction(t *state.Task, st *state.State) error {
+	tr := config.NewTransaction(st)
+	for _, param := range []string{"cmdline-append", "dangerous-cmdline-append"} {
+		if !t.Has(param) {
+			continue
+		}
+		var value string
+		if err := t.Get(param, &value); err != nil {
+			return err
+		}
+		option := fmt.Sprintf("system.kernel.%s", param)
+		if err := tr.Set("core", option, value); err != nil {
+			return err
+		}
+	}
+	tr.Commit()
+	return nil
+}
+
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
 	logger.Debugf("updating kernel command line")
 	devCtx, err := DeviceCtx(st, t, nil)
@@ -289,7 +309,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	return updated, nil
 }
 
-func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -315,6 +335,31 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// Find out if the update has been triggered by setting a system
 	// option that modifies the kernel command line.
 	isSysOption := fromSystemOption(t)
+	defer func() {
+		if retErr != nil || !isSysOption {
+			return
+		}
+		// This task is triggered by setting a system option, This is a
+		// special case where the kernel cmdline configuration is fetched
+		// from the task state instead of the system configuration options
+		// because the parent run-hook[configure] task (see configcore/kernel.go)
+		// does not commit the configuration transaction until after this task
+		// has finished successfully which leaves a window where other tasks
+		// might have an inconsistent view of the configuration state and might
+		// mistakenly overwrite the kernel cmdline with out-of-date values even
+		// when doing conflict detection or blocking on the task level because it
+		// will not take into consideration that the parent run-hook[configure]
+		// task has not committed the configuration transaction yet.
+		//
+		// Early committing here on success (given the task is triggered by
+		// setting a system option) solves this issue and keeps any conflict
+		// detection or blocking logic working as expected.
+		//
+		// TODO: Consider better alternative to double-commit approach below.
+		if err := earlyCommitCommandLineAppendTransaction(t, st); err != nil {
+			logger.Debugf("internal error: cannot early commit kernel command line configuration transaction: %v", err)
+		}
+	}()
 
 	// We use the current gadget kernel command line if the change comes
 	// from setting a system option.
