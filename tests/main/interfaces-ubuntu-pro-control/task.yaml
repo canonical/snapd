@@ -1,0 +1,47 @@
+summary: Ensure that the ubuntu-pro-control interface works
+
+details: |
+    Verify that a snap using the ubuntu-pro-control interface can access the
+    Ubuntu Pro desktop daemon, and that the interface is not connected by
+    default.
+
+systems:
+    - ubuntu-2*
+
+prepare: |
+    tests.pkgs install ubuntu-advantage-desktop-daemon
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-ubuntu-pro-control
+
+    # initially disconnected
+    snap interfaces -i ubuntu-pro-control | MATCH -- '- +test-snapd-ubuntu-pro-control:ubuntu-pro-control'
+
+    if [ "$(snap debug confinement)" = strict ]; then
+        if test-snapd-ubuntu-pro-control.manager-info attached 2> manager.error; then
+            echo "Expected permission error while interface is disconnected"
+            exit 1
+        fi
+        MATCH "Permission denied" < manager.error
+    fi
+
+    # connect and test usage
+    snap connect test-snapd-ubuntu-pro-control:ubuntu-pro-control
+
+    test-snapd-ubuntu-pro-control.manager-info attached | MATCH "boolean"
+    test-snapd-ubuntu-pro-control.manager-info daemon-version | MATCH "string"
+
+    test-snapd-ubuntu-pro-control.list-services | MATCH "com.canonical.UbuntuAdvantage.Manager"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    # disconnect and ensure failure
+    snap disconnect test-snapd-ubuntu-pro-control:ubuntu-pro-control
+
+    if test-snapd-ubuntu-pro-control.manager-info attached 2> manager.error; then
+        echo "Expected permission error while interface is disconnected"
+        exit 1
+    fi
+    MATCH "Permission denied" < manager.error
