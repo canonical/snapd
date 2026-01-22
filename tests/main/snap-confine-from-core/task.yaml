@@ -19,7 +19,7 @@ prepare: |
     snap install test-snapd-sh
     echo "Breaking host snap-confine"
     mv /usr/lib/snapd/snap-confine /usr/lib/snapd/snap-confine.bak
-    cp "$(which false)" /usr/lib/snapd/snap-confine
+    cp "$(type -P false)" /usr/lib/snapd/snap-confine
     tests.cleanup defer mv /usr/lib/snapd/snap-confine.bak /usr/lib/snapd/snap-confine
 
 execute: |
