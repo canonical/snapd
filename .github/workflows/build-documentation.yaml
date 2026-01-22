@@ -1,35 +1,57 @@
 # SPDX-FileCopyrightText: 2025 Canonical Ltd
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Build and Lint REST OpenAPI
+name: Build and Lint REST OpenAPI Documentation
 on:
   pull_request:
-    types: [labeled]
+
 jobs:
   build-documentation:
-    if: ${{ github.event.label.name == 'Update OpenAPI Documentation' }}
     runs-on: ubuntu-latest
     name: Lint and build
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check if changes occured in the API documentation
+        id: changed-api
+        run: |
+          # Use git diff to find the changed files between the base and head branches
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          CHANGED_FILES=$(git diff --name-only --diff-filter=MAR "${BASE_SHA}" "${HEAD_SHA}")
+
+          if [[ ${CHANGED_FILES} == *"docs/api/"* ]]; then
+            echo "API documentation changes detected."
+            echo "api_modified=true" >> $GITHUB_OUTPUT
+          else
+            echo "No API documentation changes detected. Exiting."
+            echo "api_modified=false" >> $GITHUB_OUTPUT
+          fi
       - name: Check Licensing/Copyright Compliance
+        if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://fsfe/reuse
         with:
-          args: lint ./docs/api
+          args: lint
       - name: Check API specification
+        if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://redocly/cli
         with:
           args: lint ./docs/api/openapi.yaml
       - name: Build generated documentation
+        if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://redocly/cli
         with:
           args: build-docs ./docs/api/openapi.yaml
       - name: Create dark mode version
+        if: steps.changed-api.outputs.api_modified == 'true'
         run: |
           sudo chown $USER ./docs/api/redoc-static.html
           python3 ./docs/api/tools/post-process.py ./docs/api/redoc-static.html ./docs/api/tools/dark-theme.css "</head>"
       - name: Store generated artifact
+        if: steps.changed-api.outputs.api_modified == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: rest-api-documentation
