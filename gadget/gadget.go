@@ -61,11 +61,12 @@ const (
 	// schemaEMMC identifies a schema for eMMC
 	schemaEMMC = "emmc"
 
-	SystemBoot     = "system-boot"
-	SystemData     = "system-data"
-	SystemSeed     = "system-seed"
-	SystemSeedNull = "system-seed-null"
-	SystemSave     = "system-save"
+	SystemBoot      = "system-boot"
+	SystemData      = "system-data"
+	SystemSeed      = "system-seed"
+	SystemSeedNull  = "system-seed-null"
+	SystemSave      = "system-save"
+	SystemBootState = "system-boot-state"
 
 	// extracted kernels for all uc systems
 	bootImage = "system-boot-image"
@@ -91,6 +92,9 @@ const (
 	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 	ubuntuSaveLabel = "ubuntu-save"
+
+	// GUID for system-boot-state partition (PARTITION_U_BOOT_ENVIRONMENT)
+	SystemBootStateGUID = "3DE21764-95BD-54BD-A5C3-4ABE786F38A8"
 
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
@@ -1367,6 +1371,12 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 			return err
 		}
 
+		// Check roles that require explicit offset before auto-computing offset
+		if vs.Role == SystemBootState && vs.Offset == nil {
+			return fmt.Errorf("invalid structure #%d (%q): invalid role %q: system-boot-state role requires explicit offset",
+				i, vs.Name, vs.Role)
+		}
+
 		// Set offset if it was not set (must be after setImplicitForVolumeStructure
 		// so roles are good). This is possible only if the previous structure had
 		// a well-defined end.
@@ -1850,12 +1860,37 @@ func validateRole(vs *VolumeStructure) error {
 		}
 	case SystemBoot, bootImage, bootSelect, seedBootSelect, seedBootImage, "":
 		// noop
+	case SystemBootState:
+		if err := validateSystemBootStateRole(vs); err != nil {
+			return err
+		}
 	case legacyBootImage, legacyBootSelect:
 		// noop
 		// legacy role names were added in 2.42 can be removed
 		// on snapd epoch bump
 	default:
 		return fmt.Errorf("unsupported role")
+	}
+	return nil
+}
+
+func validateSystemBootStateRole(vs *VolumeStructure) error {
+	// Note: offset is checked earlier during parsing, before auto-computation
+	// Constraint: min-size is not allowed (MinSize must equal Size or be zero)
+	if vs.MinSize != vs.Size {
+		return errors.New("system-boot-state role does not support min-size")
+	}
+	// Constraint: minimum 1MiB partition size
+	if vs.Size < quantity.SizeMiB {
+		return fmt.Errorf("system-boot-state partition must be at least 1 MiB, got %s", vs.Size.IECString())
+	}
+	// Constraint: must be raw (no filesystem)
+	if vs.Filesystem != "" && vs.Filesystem != "none" {
+		return errors.New("system-boot-state role must have no filesystem")
+	}
+	// Constraint: GUID must match the U-Boot environment partition type
+	if !strings.EqualFold(vs.Type, SystemBootStateGUID) {
+		return fmt.Errorf("system-boot-state role requires type %s, got %s", SystemBootStateGUID, vs.Type)
 	}
 	return nil
 }

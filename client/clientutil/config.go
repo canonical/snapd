@@ -20,6 +20,7 @@
 package clientutil
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -89,4 +90,53 @@ func ParseConfigValues(confValues []string, opts *ParseConfigOptions) (map[strin
 	}
 
 	return patchValues, keys, nil
+}
+
+type ConfdbOptions struct {
+	Typed bool
+}
+
+// ParseConfdbConstraints parses --with constraints used to filter snapctl/snap
+// get requests.
+func ParseConfdbConstraints(with []string, opts ConfdbOptions) (map[string]any, error) {
+	if len(with) == 0 {
+		return nil, nil
+	}
+
+	constraints := make(map[string]any, len(with))
+	for _, constraint := range with {
+		parts := strings.SplitN(constraint, "=", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
+		}
+
+		var cstrVal any
+		if err := json.Unmarshal([]byte(parts[1]), &cstrVal); err != nil {
+			var merr *json.SyntaxError
+			if !errors.As(err, &merr) {
+				// can only happen due to programmer error
+				return nil, fmt.Errorf("internal error: cannot unmarshal --with constraint: %v", err)
+			}
+
+			if opts.Typed {
+				return nil, fmt.Errorf("cannot unmarshal constraint as JSON as required by -t flag: %s", parts[1])
+			}
+
+			// fallback to interpreting the value as a string
+			cstrVal = parts[1]
+		}
+
+		// check if the constraint is valid JSON but of a type we don't accept
+		switch cstrVal.(type) {
+		case nil, []any, map[string]any:
+			if opts.Typed {
+				return nil, fmt.Errorf("--with constraints cannot take non-scalar JSON constraint: %s", parts[1])
+			}
+			cstrVal = parts[1]
+		}
+
+		constraints[parts[0]] = cstrVal
+	}
+
+	return constraints, nil
 }
