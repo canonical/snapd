@@ -294,10 +294,11 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -C data -k check
 endif
 
-
-debian/snapd.install: SYSTEMD_LIBDIR=$(shell pkg-config --variable=systemdutildir systemd)
+# The definition of SYSTEMD_GENERATOR_DIR must be the same as in configure.ac
+# for both the calculation and the fallback
+debian/snapd.install: SYSTEMD_GENERATOR_DIR=$(shell pkg-config --variable=systemdsystemgeneratordir systemd || echo usr/lib/systemd/system-generators)
 debian/snapd.install: debian/snapd.install.in
-	sed 's,@systemd-lib@,$(SYSTEMD_LIBDIR),g' $< >$@.tmp
+	sed 's,@systemd-lib@,$(SYSTEMD_GENERATOR_DIR),g' $< >$@.tmp
 	mv $@.tmp $@
 
 override_dh_install: debian/snapd.install
