@@ -34,7 +34,8 @@ jobs:
         if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://fsfe/reuse
         with:
-          args: lint
+          entrypoint: /bin/sh
+          args: -c "cd docs/api && reuse lint"
       - name: Check API specification
         if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://redocly/cli
@@ -44,7 +45,7 @@ jobs:
         if: steps.changed-api.outputs.api_modified == 'true'
         uses: docker://redocly/cli
         with:
-          args: build-docs ./docs/api/openapi.yaml
+          args: build-docs ./docs/api/openapi.yaml --output ./docs/api/redoc-static.html
       - name: Create dark mode version
         if: steps.changed-api.outputs.api_modified == 'true'
         run: |
