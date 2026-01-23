@@ -322,7 +322,7 @@ func (m *InterfaceManager) prepareAppSetInterfaces(st *state.State, appSet *inte
 	}
 
 	// For non-installed snaps, we just need to add the app set to the
-	// to the repo, to ensure auto-connect can find plugs/slots by the snap.
+	// repo, to ensure auto-connect can find plugs/slots by the snap.
 	if err := addImplicitInterfaces(st, appSet.Info()); err != nil {
 		return err
 	}
@@ -1597,7 +1597,7 @@ func batchConnectTasks(task *state.Task, snapsup *snapstate.SnapSetup, conns map
 		// to old style behaviour and inject our own setup-profiles task.
 		setupProfiles = st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 		setupProfiles.Set("snap-setup", snapsup)
-		logger.Noticef("INFO: new \"setup-profiles\" task not found, falling back on prior behaviour")
+		logger.Noticef("new \"setup-profiles\" task not found, falling back on prior behaviour")
 		injectSetupProfiles = true
 	}
 
