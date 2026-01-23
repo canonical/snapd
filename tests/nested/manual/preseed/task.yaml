@@ -112,11 +112,8 @@ execute: |
 
   remote.exec "snap debug seeding" | MATCH "preseeded:\s+true"
   remote.exec "snap debug seeding" | MATCH "seeded:\s+true"
-  # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
-  # break if the preseeding takes more than 60s and golang formats the 
-  # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  remote.exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+([0-9]+m)?[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "seed-completion:\s+([0-9]+m)?[0-9]+\.[0-9]+s"
 
   # there is no longer any seeded snaps in base or minimal cloud images
   # in noble, skip lxd checks for noble
