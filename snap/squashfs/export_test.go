@@ -20,6 +20,7 @@
 package squashfs
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"time"
@@ -30,6 +31,10 @@ import (
 var (
 	FromRaw                   = fromRaw
 	NewUnsquashfsStderrWriter = newUnsquashfsStderrWriter
+
+	SetupPipes                      = setupPipesImpl
+	CompIdToMksquashfsArgs          = compIdToMksquashfsArgs
+	SuperBlockFlagsToMksquashfsArgs = superBlockFlagsToMksquashfsArgs
 )
 
 const (
@@ -39,18 +44,6 @@ const (
 
 func (s stat) User() string  { return s.user }
 func (s stat) Group() string { return s.group }
-
-func ParseCompression(id uint16, mksqfsArgs []string) ([]string, error) {
-	return parseCompression(id, mksqfsArgs)
-}
-
-func ParseSuperblockFlags(flags uint16, mksqfsArgs []string) ([]string, error) {
-	return parseSuperblockFlags(flags, mksqfsArgs)
-}
-
-func SetupPipes(pipeNames ...string) (string, []string, error) {
-	return setupPipes(pipeNames...)
-}
 
 func MockLink(newLink func(string, string) error) (restore func()) {
 	oldLink := osLink
@@ -65,6 +58,30 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	snapdtoolCommandFromSystemSnap = f
 	return func() {
 		snapdtoolCommandFromSystemSnap = oldCommandFromSystemSnap
+	}
+}
+
+func MockOsutilRunWithContext(f func(ctx context.Context, cmd *exec.Cmd) error) (restore func()) {
+	oldOsutilRunWithContext := osutilRunWithContext
+	osutilRunWithContext = f
+	return func() {
+		osutilRunWithContext = oldOsutilRunWithContext
+	}
+}
+
+func MockOsutilRunManyWithContext(f func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error) (restore func()) {
+	oldOsutilRunManyWithContext := osutilRunManyWithContext
+	osutilRunManyWithContext = f
+	return func() {
+		osutilRunManyWithContext = oldOsutilRunManyWithContext
+	}
+}
+
+func MockSetupPipes(f func(pipeNames ...string) (string, []string, error)) (restore func()) {
+	oldSetupPipes := setupPipes
+	setupPipes = f
+	return func() {
+		setupPipes = oldSetupPipes
 	}
 }
 
