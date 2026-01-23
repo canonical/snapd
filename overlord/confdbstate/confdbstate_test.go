@@ -189,6 +189,41 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 	c.Assert(res, DeepEquals, map[string]any{"ssid": "foo"})
 }
 
+func (s *confdbTestSuite) TestGetViewUsedConstraints(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set(parsePath(c, "private"), map[string]string{"foo": "bar", "baz": "zab"})
+	c.Assert(err, IsNil)
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"placeholder": "foo"})
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, map[string]any{"private": map[string]any{"foo": "bar"}})
+}
+
+func (s *confdbTestSuite) TestGetViewUnusedConstraints(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set(parsePath(c, "private"), map[string]string{"foo": "bar", "baz": "zab"})
+	c.Assert(err, IsNil)
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"bla": "foo"})
+	c.Assert(err, FitsTypeOf, &confdb.UnmatchedConstraintsError{})
+	c.Assert(err, ErrorMatches, `.*no placeholder for constraint "bla".*`)
+	c.Check(res, IsNil)
+}
+
 func (s *confdbTestSuite) TestGetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1683,7 +1718,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
+	err := bag.Set(parsePath(c, "private"), map[string]string{"foo": "bar", "baz": "zab"})
 	c.Assert(err, IsNil)
 	err = bag.Set(parsePath(c, "wifi.ssids"), []string{"abc", "xyz"})
 	c.Assert(err, IsNil)
@@ -1691,7 +1726,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid", "ssids"}, map[string]any{"foo": "bar"})
+	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"private", "ssids"}, map[string]any{"placeholder": "foo"})
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1712,18 +1747,18 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	// check the load task carries request/filtering data
 	var requests []string
 	c.Assert(loadTask.Get("requests", &requests), IsNil)
-	c.Assert(requests, DeepEquals, []string{"ssid", "ssids"})
+	c.Assert(requests, DeepEquals, []string{"private", "ssids"})
 	var constraints map[string]string
 	c.Assert(loadTask.Get("constraints", &constraints), IsNil)
-	c.Assert(constraints, DeepEquals, map[string]string{"foo": "bar"})
+	c.Assert(constraints, DeepEquals, map[string]string{"placeholder": "foo"})
 
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
 	val := apiData["values"]
 	c.Assert(val, DeepEquals, map[string]any{
-		"ssid":  "foo",
-		"ssids": []any{"abc", "xyz"},
+		"private": map[string]any{"foo": "bar"},
+		"ssids":   []any{"abc", "xyz"},
 	})
 }
 

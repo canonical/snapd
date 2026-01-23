@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -516,9 +517,14 @@ func (s *confdbSuite) SetUpTest(c *C) {
 		"name":         "network",
 		"views": map[string]any{
 			"read-wifi": map[string]any{
+				"parameters": map[string]any{
+					"field1": map[string]any{},
+					"field2": map[string]any{},
+				},
 				"rules": []any{
 					map[string]any{"request": "ssid", "storage": "wifi.ssid", "access": "read"},
 					map[string]any{"request": "password", "storage": "wifi.psk", "access": "read"},
+					map[string]any{"request": "foo", "storage": "foo[.field1={field1}][.field2={field2}]", "access": "read"},
 				},
 			},
 			"write-wifi": map[string]any{
@@ -534,6 +540,7 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	body := []byte(`{
   "storage": {
     "schema": {
+      "foo": "any",
       "wifi": "any"
     }
   }
@@ -1171,7 +1178,7 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	err = tx.Set(parsePath(c, "foo"), map[string]string{"field1": "value1", "field2": "value2"})
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1182,9 +1189,14 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	expectedOutput := `{
+	"field1": "value1",
+	"field2": "value2"
+}
+`
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "my-ssid\n")
+	c.Check(string(stdout), Equals, expectedOutput)
 	c.Check(stderr, IsNil)
 	c.Check(gotConstraints, DeepEquals, map[string]any{"field1": "value1", "field2": "value2"})
 }
@@ -1242,13 +1254,6 @@ func (s *confdbSuite) TestWithNonConfdbRead(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetTypedConstraints(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	c.Assert(err, IsNil)
-	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
-	c.Assert(err, IsNil)
-	s.state.Unlock()
-
 	type testcase struct {
 		constraint string
 		expected   any
@@ -1256,37 +1261,37 @@ func (s *confdbSuite) TestConfdbGetTypedConstraints(c *C) {
 
 	tcs := []testcase{
 		{
-			constraint: `param="foo"`,
+			constraint: `field1="foo"`,
 			expected:   "foo",
 		},
 		{
-			constraint: `param=1.2`,
+			constraint: `field1=1.2`,
 			expected:   1.2,
 		},
 		{
-			constraint: `param=2.0`,
+			constraint: `field1=2.0`,
 			expected:   float64(2),
 		},
 		{
-			constraint: `param=true`,
+			constraint: `field1=true`,
 			expected:   true,
 		},
 		// the following would be invalid with strict typing (-t) but we fallback
 		// to interpreting them as strings
 		{
-			constraint: `param=bar`,
+			constraint: `field1=bar`,
 			expected:   "bar",
 		},
 		{
-			constraint: `param=null`,
+			constraint: `field1=null`,
 			expected:   "null",
 		},
 		{
-			constraint: `param=[1,2]`,
+			constraint: `field1=[1,2]`,
 			expected:   "[1,2]",
 		},
 		{
-			constraint: `param={"a":"b"}`,
+			constraint: `field1={"a":"b"}`,
 			expected:   `{"a":"b"}`,
 		},
 	}
@@ -1294,17 +1299,40 @@ func (s *confdbSuite) TestConfdbGetTypedConstraints(c *C) {
 	for i, tc := range tcs {
 		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
 
+		s.state.Lock()
+		tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+		c.Assert(err, IsNil)
+		err = tx.Set(parsePath(c, "foo"), map[string]any{"field1": tc.expected, "field2": "value2"})
+		c.Assert(err, IsNil)
+		s.state.Unlock()
+
 		var gotConstraints map[string]any
 		restore := ctlcmd.MockConfdbstateTransactionForGet(func(_ *hookstate.Context, _ *confdb.View, _ []string, constraints map[string]any) (*confdbstate.Transaction, error) {
 			gotConstraints = constraints
 			return tx, nil
 		})
 
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "--with", tc.constraint}, 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", tc.constraint}, 0)
+		var expectedOutput string
+		if reflect.TypeOf(tc.expected).Kind() == reflect.String {
+			// for string expected values, we need to quote them
+			expectedOutput = fmt.Sprintf(`{
+	"field1": %q,
+	"field2": "value2"
+}
+`, tc.expected)
+		} else {
+			expectedOutput = fmt.Sprintf(`{
+	"field1": %v,
+	"field2": "value2"
+}
+`, tc.expected)
+		}
+
 		c.Assert(err, IsNil, cmt)
-		c.Check(string(stdout), Equals, "my-ssid\n", cmt)
+		c.Check(string(stdout), Equals, expectedOutput, cmt)
 		c.Check(stderr, IsNil, cmt)
-		c.Check(gotConstraints, DeepEquals, map[string]any{"param": tc.expected}, cmt)
+		c.Check(gotConstraints, DeepEquals, map[string]any{"field1": tc.expected}, cmt)
 
 		restore()
 	}

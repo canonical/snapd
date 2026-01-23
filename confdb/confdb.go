@@ -124,6 +124,40 @@ func NewNoMatchError(view *View, operation string, requests []string) *NoMatchEr
 	}
 }
 
+type UnmatchedConstraintsError struct {
+	view        string
+	requests    []string
+	constraints []string
+}
+
+func (e *UnmatchedConstraintsError) Error() string {
+	var requestsStr string
+	if (len(e.requests) == 1 && e.requests[0] != "") || len(e.requests) > 1 {
+		requestsStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(e.requests))
+	}
+	var constraintsStr string
+	if len(e.constraints) > 1 {
+		constraintsStr = i18n.G("constraints ")
+	} else {
+		constraintsStr = i18n.G("constraint ")
+	}
+	constraintsStr += strutil.Quoted(e.constraints)
+	return fmt.Sprintf(i18n.G("cannot get%s %s: no placeholder for %s"), requestsStr, e.view, constraintsStr)
+}
+
+func (e *UnmatchedConstraintsError) Is(err error) bool {
+	_, ok := err.(*UnmatchedConstraintsError)
+	return ok
+}
+
+func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+	return &UnmatchedConstraintsError{
+		view:        view.ID(),
+		requests:    requests,
+		constraints: constraints,
+	}
+}
+
 type BadRequestError struct {
 	viewID    string
 	operation string
@@ -1649,6 +1683,58 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	}
 
 	return nil
+}
+
+// CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any constraints are unused across all the matching
+// rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
+func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]any) error {
+	if len(constraints) == 0 {
+		return nil
+	}
+	if len(requests) == 0 {
+		requests = []string{""}
+	}
+
+	constraintPlaceholders := make(map[string]struct{}, len(constraints))
+	for k := range constraints {
+		constraintPlaceholders[k] = struct{}{}
+	}
+
+	opts := ParseOptions{AllowPlaceholders: false}
+	for _, request := range requests {
+		accessors, err := ParsePathIntoAccessors(request, opts)
+		if err != nil {
+			return badRequestErrorFrom(v, "get", request, err.Error())
+		}
+
+		matches, err := v.matchGetRequest(accessors)
+		if err != nil {
+			return err
+		}
+
+		for _, match := range matches {
+			// check against storage path as field filters are specified
+			// only in storage path
+			for _, acc := range match.storagePath {
+				if acc.Type() == KeyPlaceholderType {
+					delete(constraintPlaceholders, acc.Name())
+					if len(constraintPlaceholders) == 0 {
+						return nil
+					}
+				}
+				for _, param := range acc.FieldFilters() {
+					delete(constraintPlaceholders, param)
+					if len(constraintPlaceholders) == 0 {
+						return nil
+					}
+				}
+			}
+		}
+	}
+
+	unusedConstraints := keys(constraintPlaceholders)
+	sort.Strings(unusedConstraints)
+	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 // Get returns the view value identified by the request after the constraints
