@@ -1647,12 +1647,35 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
+type UnconstrainedFilterError struct {
+	operation  string
+	request    string
+	parameters []string
+}
+
+func (e *UnconstrainedFilterError) Error() string {
+	var params string
+	if len(e.parameters) == 1 {
+		params = fmt.Sprintf("parameter %q", e.parameters[0])
+	} else {
+		params = "parameters " + strutil.Quoted(e.parameters)
+	}
+
+	return fmt.Sprintf(`cannot %s %q: filter %s must be constrained`, e.operation, e.request, params)
+}
+
+func (e *UnconstrainedFilterError) Is(err error) bool {
+	_, ok := err.(*UnconstrainedFilterError)
+	return ok
+}
+
 func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
 	if op != "get" && op != "set" {
 		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
 	}
 
 	for _, m := range matches {
+		var unconstrained []string
 		for _, acc := range m.storagePath {
 			if acc.FieldFilters() == nil {
 				continue
@@ -1662,7 +1685,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				pres, ok := v.params[param]
 				if !ok {
 					// we checked this at schema creation so this shouldn't happen
-					return fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+					return fmt.Errorf(`internal error: filter parameter %q must be declared in "parameters" stanza`, param)
 				}
 
 				if _, ok := constraints[param]; ok {
@@ -1676,8 +1699,16 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				case pres == requiredOnRead && op == "get":
 					fallthrough
 				case pres == requiredOnWrite && op == "set":
-					return fmt.Errorf(`unconstrained filter parameter %q is set as %s in "parameters" stanza`, param, pres)
+					unconstrained = append(unconstrained, param)
 				}
+			}
+		}
+
+		if len(unconstrained) != 0 {
+			return &UnconstrainedFilterError{
+				operation:  op,
+				request:    m.request,
+				parameters: unconstrained,
 			}
 		}
 	}
