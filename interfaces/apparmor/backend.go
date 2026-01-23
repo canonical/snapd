@@ -378,6 +378,45 @@ type profilePathsResults struct {
 	removed   []string
 }
 
+func (b *Backend) Prepare(appSet *interfaces.SnapAppSet) error {
+	snapName := appSet.InstanceName()
+	snapInfo := appSet.Info()
+
+	// core on classic is special
+	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+		}
+	}
+
+	// Deal with the "snapd" snap - we do the setup slightly differently
+	// here because this will run both on classic and on Ubuntu Core 18
+	// systems but /etc/apparmor.d is not writable on core18 systems
+	if snapInfo.Type() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+		}
+	}
+
+	// core on core devices is also special, the apparmor cache gets
+	// confused too easy, especially at rollbacks, so we delete the cache.
+	// See LP:#1460152 and
+	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
+	//
+	if (snapInfo.Type() == snap.TypeOS || snapInfo.Type() == snap.TypeSnapd) && !release.OnClassic {
+		if li, err := filepath.Glob(filepath.Join(apparmor_sandbox.SystemCacheDir, "*")); err == nil {
+			for _, p := range li {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
+					if err := os.Remove(p); err != nil {
+						logger.Noticef("cannot remove %q: %s", p, err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := appSet.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)

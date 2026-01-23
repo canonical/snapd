@@ -105,6 +105,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySecComp
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 func bpfSrcPath(srcName string) string {
 	return filepath.Join(dirs.SnapSeccompDir, srcName)
 }

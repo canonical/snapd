@@ -61,6 +61,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityPolkit
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup installs the polkit policy and rule files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.

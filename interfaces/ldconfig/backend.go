@@ -47,6 +47,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "ldconfig"
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup will make the ldconfig backend generate the needed
 // configuration files and re-create the ld cache.
 //
