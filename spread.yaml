@@ -502,6 +502,20 @@ backends:
                   storage: 25G
                   workers: 12
 
+    openstack-ext-dev:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
+        plan: shared.medium
+        storage: 30G
+        halt-timeout: 2h
+        wait-timeout: 10m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        volume-auto-delete: true
+        environment: *openstack-env
+        systems: *openstack-nested-systems
+
     openstack-validation:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
@@ -1686,6 +1700,7 @@ suites:
             - garden
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1765,6 +1780,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1826,6 +1842,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1898,6 +1915,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
