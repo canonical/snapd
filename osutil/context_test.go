@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os/exec"
 	"strings"
@@ -135,4 +136,99 @@ func (ctxSuite) TestRunSuccessfulFailure(c *check.C) {
 	cmd := exec.Command("not/something/you/can/run")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.ErrorMatches, `fork/exec \S+: no such file or directory`)
+}
+
+func (ctxSuite) TestRunMany(c *check.C) {
+	ctx := context.Background()
+
+	// Successful commands
+	cmds := []*exec.Cmd{
+		exec.Command("true"),
+		exec.Command("echo", "hello"),
+	}
+
+	// Successful tasks
+	taskRun := 0
+	tasks := []func() error{
+		func() error { taskRun++; return nil },
+		func() error { taskRun++; return nil },
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, tasks)
+	c.Assert(err, check.IsNil)
+	c.Check(taskRun, check.Equals, 2)
+}
+
+func (ctxSuite) TestRunManyCmdError(c *check.C) {
+	ctx := context.Background()
+
+	// One command will fail
+	cmds := []*exec.Cmd{
+		exec.Command("false"), // Returns exit status 1
+		exec.Command("sleep", "10"),
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*exit status 1")
+}
+
+func (ctxSuite) TestRunManyCmdCannotStart(c *check.C) {
+	ctx := context.Background()
+
+	// One command will fail
+	cmds := []*exec.Cmd{
+		exec.Command("/non/existing/command"),
+		exec.Command("sleep", "10"),
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, "fork/exec /non/existing/command: no such file or directory")
+}
+
+func (ctxSuite) TestRunManyTaskError(c *check.C) {
+	ctx := context.Background()
+
+	tasks := []func() error{
+		func() error { return errors.New("boom") },
+		func() error {
+			time.Sleep(10 * time.Second)
+			return nil
+		},
+	}
+
+	err := osutil.RunManyWithContext(ctx, nil, tasks)
+	c.Assert(err, check.ErrorMatches, "boom")
+}
+
+func (ctxSuite) TestRunManyCanceled(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cmds := []*exec.Cmd{
+		exec.Command("sleep", "10"),
+	}
+
+	tasks := []func() error{
+		func() error {
+			time.Sleep(10 * time.Second)
+			return nil
+		},
+	}
+
+	// Cancel the context shortly after starting
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	err := osutil.RunManyWithContext(ctx, cmds, tasks)
+	// errgroup.WithContext returns context.Canceled when the context is canceled
+	c.Assert(err, check.Equals, context.Canceled)
+}
+
+func (ctxSuite) TestRunManyEmpty(c *check.C) {
+	// Ensure it doesn't hang or crash with nil/empty inputs
+	err := osutil.RunManyWithContext(context.Background(), nil, nil)
+	c.Assert(err, check.IsNil)
 }
