@@ -175,7 +175,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.noticeMgr, o.runner, nil, nil)
 	if err != nil {
 		return nil, err
 	}
