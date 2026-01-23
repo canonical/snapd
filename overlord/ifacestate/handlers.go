@@ -634,7 +634,18 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 
-	return m.prepareAppSetInterfaces(st, appSet)
+	if err := m.prepareAppSetInterfaces(st, appSet); err != nil {
+		return err
+	}
+
+	securityBackends := m.repo.Backends()
+	for _, backend := range securityBackends {
+		if err := backend.Prepare(appSet); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // This function expects to be called with the state locked
