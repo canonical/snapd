@@ -71,12 +71,15 @@ runs:
         import sys
 
         def update_max(json_1, json_2):
+            # Given two json objects of JetStream2.0 results, take the max
+            # result (since these are performance tests) of each metric 
+            # and put the result in the first object.
             tests_1 = json_1['JetStream2.0']['tests']
             tests_2 = json_2['JetStream2.0']['tests']
-            for metric, data in tests_1.items():
-                score_1 = data['metrics']['Score']['current'][0]
+            for metric in tests_1.keys():
+                score_1 = tests_1[metric]['metrics']['Score']['current'][0]
                 score_2 = tests_2[metric]['metrics']['Score']['current'][0]
-                data['metrics']['Score']['current'][0] = max(score_1, score_2)
+                tests_1[metric]['metrics']['Score']['current'][0] = max(score_1, score_2)
             return json_1
 
         if len(sys.argv) != 3:
@@ -98,6 +101,8 @@ runs:
         cd JetStream
 
         for i in $(seq 1 30); do
+
+          sudo snap install firefox
 
           ./server.py &
           server_pid=$!
@@ -125,7 +130,6 @@ runs:
           kill "$(pgrep Xvfb)" || true
 
           sudo snap remove --purge firefox
-          sudo snap install firefox
 
         done
 
