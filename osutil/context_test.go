@@ -21,9 +21,11 @@ package osutil_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -135,4 +137,132 @@ func (ctxSuite) TestRunSuccessfulFailure(c *check.C) {
 	cmd := exec.Command("not/something/you/can/run")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.ErrorMatches, `fork/exec \S+: no such file or directory`)
+}
+
+func (ctxSuite) TestRunMany(c *check.C) {
+	ctx := context.Background()
+
+	// Successful commands
+	cmds := []*exec.Cmd{
+		exec.Command("true"),
+		exec.Command("echo", "hello"),
+	}
+
+	// Successful tasks
+	var taskRun uint32
+	tasks := []func(context.Context) error{
+		func(context.Context) error { atomic.AddUint32(&taskRun, 1); return nil },
+		func(context.Context) error { atomic.AddUint32(&taskRun, 1); return nil },
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, tasks)
+	c.Assert(err, check.IsNil)
+	atomic.LoadUint32(&taskRun)
+	c.Check(taskRun, check.Equals, uint32(2))
+	// ProcessState exists only if the process finished
+	c.Assert(cmds[0].ProcessState, check.NotNil)
+	c.Assert(cmds[1].ProcessState, check.NotNil)
+	c.Assert(cmds[0].ProcessState.Success(), check.Equals, true)
+	c.Assert(cmds[1].ProcessState.Success(), check.Equals, true)
+}
+
+func (ctxSuite) TestRunManyCmdError(c *check.C) {
+	ctx := context.Background()
+
+	// One command will fail
+	cmds := []*exec.Cmd{
+		exec.Command("false"), // Returns exit status 1
+		exec.Command("sleep", "10"),
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*exit status 1")
+	// ProcessState exists only if the process finished
+	c.Assert(cmds[0].ProcessState, check.NotNil)
+	c.Assert(cmds[1].ProcessState, check.NotNil)
+	c.Assert(cmds[0].ProcessState.Success(), check.Equals, false)
+	c.Assert(cmds[1].ProcessState.Success(), check.Equals, false)
+}
+
+func (ctxSuite) TestRunManyCmdCannotStart(c *check.C) {
+	ctx := context.Background()
+
+	// One command will fail
+	cmds := []*exec.Cmd{
+		exec.Command("/non/existing/command"),
+		exec.Command("sleep", "10"),
+	}
+
+	err := osutil.RunManyWithContext(ctx, cmds, nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, "fork/exec /non/existing/command: no such file or directory")
+	// First command never started
+	c.Assert(cmds[0].ProcessState, check.IsNil)
+	c.Assert(cmds[1].ProcessState, check.NotNil)
+	c.Assert(cmds[1].ProcessState.Success(), check.Equals, false)
+}
+
+func (ctxSuite) TestRunManyTaskError(c *check.C) {
+	ctx := context.Background()
+
+	var taskCancelled uint32
+	tasks := []func(context.Context) error{
+		func(context.Context) error { return errors.New("boom") },
+		func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				atomic.AddUint32(&taskCancelled, 1)
+			case <-time.After(10 * time.Second):
+				c.Error("cancel not received")
+			}
+			return nil
+		},
+	}
+
+	err := osutil.RunManyWithContext(ctx, nil, tasks)
+	c.Assert(err, check.ErrorMatches, "boom")
+	// Second go routine was cancelled
+	atomic.LoadUint32(&taskCancelled)
+	c.Assert(taskCancelled, check.Equals, uint32(1))
+}
+
+func (ctxSuite) TestRunManyCanceled(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cmds := []*exec.Cmd{
+		exec.Command("sleep", "10"),
+	}
+
+	var taskCancelled uint32
+	tasks := []func(context.Context) error{
+		func(context.Context) error {
+			select {
+			case <-ctx.Done():
+				atomic.AddUint32(&taskCancelled, 1)
+			case <-time.After(10 * time.Second):
+				c.Error("cancel not received")
+			}
+			return nil
+		},
+	}
+
+	// Cancel the context shortly after starting
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	err := osutil.RunManyWithContext(ctx, cmds, tasks)
+	// errgroup.WithContext returns context.Canceled when the context is canceled
+	c.Assert(err, check.Equals, context.Canceled)
+	// The go routine was cancelled
+	atomic.LoadUint32(&taskCancelled)
+	c.Assert(taskCancelled, check.Equals, uint32(1))
+}
+
+func (ctxSuite) TestRunManyEmpty(c *check.C) {
+	// Ensure it doesn't hang or crash with nil/empty inputs
+	err := osutil.RunManyWithContext(context.Background(), nil, nil)
+	c.Assert(err, check.IsNil)
 }

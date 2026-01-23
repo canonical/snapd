@@ -23,9 +23,12 @@ import (
 	"context"
 	"io"
 	"os/exec"
+
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // ContextWriter returns a discarding io.Writer which Write method
@@ -49,6 +52,7 @@ func (w ctxWriter) Write(p []byte) (n int, err error) {
 
 // RunWithContext runs the given command, but kills it if the context
 // becomes done before the command finishes.
+// TODO make this a variant of RunManyWithContext.
 func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -86,4 +90,46 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 		}
 	}
 	return err
+}
+
+// RunManyWithContext takes a context, a slice of commands, and a slice of
+// functions that accept a context as argument. It uses errgroup to manage the
+// lifecycle and error propagation of all tasks. It returns the first non-nil
+// error (if any) from the group. The go routines need to periodically look at
+// ctx.Done() to be cancellable.
+func RunManyWithContext(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+	// Create the group and a derived cancellable context
+	g, gCtx := errgroup.WithContext(ctx)
+
+	for _, cmd := range cmds {
+		c := cmd
+		g.Go(func() error {
+			if err := c.Start(); err != nil {
+				return err
+			}
+			// Create a channel to wait for the process result
+			waitDone := make(chan error, 1)
+			go func() {
+				waitDone <- c.Wait()
+			}()
+
+			// Wait for the context to cancel OR for the process to finish (waitDone)
+			select {
+			case <-gCtx.Done():
+				c.Process.Kill()
+				<-waitDone
+				return gCtx.Err()
+			case err := <-waitDone:
+				return err
+			}
+		})
+	}
+
+	for _, task := range tasks {
+		t := task
+		g.Go(func() error { return t(gCtx) })
+	}
+
+	// Return nil or the first error (if any) returned by the spawned go routines
+	return g.Wait()
 }
