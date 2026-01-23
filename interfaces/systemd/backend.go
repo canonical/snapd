@@ -57,6 +57,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySystemd
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup creates and starts systemd services specific to a given snap.
 //
 // This method should be called after changing plug, slots, connections between
