@@ -255,6 +255,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
+		t.finishUnmarshal()
 	}
 	for _, chg := range s.changes {
 		chg.state = s

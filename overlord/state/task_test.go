@@ -198,6 +198,41 @@ func (ts *taskSuite) TestTaskMarshalsWaitStatus(c *C) {
 	c.Assert(string(d), testutil.Contains, needle)
 }
 
+func (ts *taskSuite) TestTaskReady(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("stages", "...")
+
+	select {
+	case <-task.Ready():
+		c.Fatal("Task should not be ready")
+	default:
+	}
+
+	task.SetStatus(state.DoingStatus)
+	select {
+	case <-task.Ready():
+		c.Fatal("Task should not be ready")
+	default:
+	}
+
+	task.SetStatus(state.DoneStatus)
+	select {
+	case <-task.Ready():
+	default:
+		c.Fatal("Task should be ready")
+	}
+
+	task.SetStatus(state.ErrorStatus)
+	select {
+	case <-task.Ready():
+	default:
+		c.Fatal("Task should still be ready")
+	}
+}
+
 func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
 	st := state.New(nil)
 	st.Lock()
