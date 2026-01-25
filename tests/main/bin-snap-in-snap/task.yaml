@@ -1,0 +1,30 @@
+summary: snaps bundling /bin/snap from snapd.deb can do so
+
+details: |
+  The snap binary may be embedded in a snap for as long as the bases match.
+  The snap binary may be called with LD_PRELOAD=, or other dynamic linker
+  environment variables without ill effects.
+
+  Note that this contract does *not* extend to the snap binary from the snapd
+  snap. That version cannot be embedded in snap applications.
+
+systems:
+  # This test runs only on systems that are ABI-matching the core24 snap.  This
+  # test could be extended to include more bases later. This test cannot run
+  # on ubuntu core, because /usr/bin/snap is the "snapd snap" version which is
+  # linked differently.
+  - ubuntu-24.04-64
+
+
+prepare: |
+  cp "$(command -v snap)" test-snapd-sh-core24/bin
+  snap pack test-snapd-sh-core24
+  snap install --dangerous ./test-snapd-sh-core24_1.0_all.snap
+
+execute: |
+  # We are pre-loading libz simply because it's small and easy to get. The
+  # point is to show, that the copied snap executable does not crash in this
+  # configuration.
+  #
+  # shellcheck disable=SC2016
+  test-snapd-sh-core24.sh -c 'LD_PRELOAD=/lib/x86_64-linux-gnu/libz.so "$SNAP"/bin/snap' | MATCH 'Usage: snap <command> \[<options>...\]'
