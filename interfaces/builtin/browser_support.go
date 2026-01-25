@@ -84,6 +84,9 @@ owner @{HOME}/.local/share/jupyter/** rw,
 # miscellaneous accesses
 @{PROC}/vmstat r,
 
+#  Allow reading Linux PSI info
+@{PROC}/pressure/{memory,cpu,io} r,
+
 # Chromium content api sometimes queries about huge pages. Allow status of
 # hugepages and transparent_hugepage, but not the pages themselves.
 /sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
