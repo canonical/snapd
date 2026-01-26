@@ -19,17 +19,15 @@ environment:
     # fact all the test does is pipe the output to (go)jq
     PYTHONIOENCODING: utf-8
 
-prepare: |
-    if os.query is-ubuntu 20.04; then
-        tests.exec skip-test "Ubuntu 20.04 kernel doesn't support prompting" && exit 0
-    fi
-    if os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7 ; then
-        tests.exec skip-test "Ubuntu 22.04 kernel $(uname -r) doesn't support prompting" && exit 0
-    fi
-    if os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use; then
-        tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
-    fi
+skip:
+    - reason: Ubuntu 20.04 kernel doesn't support prompting
+      if: os.query is-ubuntu 20.04
+    - reason: Ubuntu 22.04 kernel doesn't support prompting
+      if: os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7
+    - reason: Ubuntu 22.04 AppArmor parser doesn't support prompting
+      if: os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use
 
+prepare: |
     tests.session prepare -u test
 
     snap remove --purge api-client || true
@@ -37,12 +35,9 @@ prepare: |
     snap set system experimental.user-daemons=true
 
 restore: |
-    tests.exec is-skipped && exit 0
     tests.session restore -u test
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     echo "Check kernel version"
     uname -a
     echo "Check kernel notification socket presence"
@@ -55,8 +50,6 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     "$TESTSTOOLS"/snaps-state install-local api-client
     echo "The snap-interfaces-requests-control plug on the api-client snap is initially disconnected"
     snap connections api-client | MATCH "snap-interfaces-requests-control +api-client:snap-interfaces-requests-control +- +-"

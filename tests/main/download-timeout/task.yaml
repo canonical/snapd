@@ -19,12 +19,12 @@ environment:
   SNAPD_DOWNLOAD_MEAS_WINDOW: 15s
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
-prepare: |
-  if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-      # TODO: Fix the issue
-      tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
-  fi
+skip:
+    - reason: This test fails when proxy is set for snapd
+      if: |
+        [ "${SNAPD_USE_PROXY:-}" = true ]
 
+prepare: |
   device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then
@@ -39,8 +39,6 @@ prepare: |
   systemctl restart snapd.{socket,service}
 
 restore: |
-  tests.exec is-skipped && exit 0
-
   device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then
@@ -60,8 +58,6 @@ restore: |
   systemctl restart snapd.{socket,service}
 
 execute: |
-  tests.exec is-skipped && exit 0
-
   device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then

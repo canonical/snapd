@@ -6,27 +6,23 @@ details: |
 
 systems: [ubuntu-1*-64, ubuntu-2*-64]
 
-prepare: |
-    if os.query is-arm; then
-        tests.exec skip-test "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64)" && exit 0
-    elif os.query is-ubuntu 25.10; then
-        tests.exec skip-test "there is no updates content for daily images in repo http://archive.ubuntu.com/ubuntu" && exit 0
-    fi
+skip:
+    - reason: there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64)
+      if: os.query is-arm
+    - reason: there is no updates content for daily images in repo http://archive.ubuntu.com/ubuntu
+      if: os.query is-ubuntu 25.10
 
+prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_purge_package snapd
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_install_build_snapd
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     . /etc/os-release
     # trusty has no UBUNTU_CODENAME in /etc/os-release and we need to cheat
     # because snapd was not part of the original 14.04 release so we get

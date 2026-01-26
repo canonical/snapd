@@ -7,6 +7,14 @@ details: |
 systems:
   - ubuntu-2*
 
+skip:
+    - reason: Ubuntu 20.04 kernels doesn't support prompting
+      if: os.query is-ubuntu 20.04
+    - reason: Ubuntu 22.04 kernel doesn't support prompting
+      if: os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7
+    - reason: Ubuntu 22.04 AppArmor parser doesn't support prompting
+      if: os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use
+
 prepare: |
     if os.query is-ubuntu 20.04; then
         tests.exec skip-test "Ubuntu 20.04 kernels doesn't support prompting" && exit 0
