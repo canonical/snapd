@@ -10971,7 +10971,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 	})
 
-	tasks := ts.Tasks()
+	tasks := ts.TaskSet().Tasks()
 	c.Assert(tasks, HasLen, 1)
 	c.Assert(tasks[0].Kind(), Equals, "pre-download-snap")
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
@@ -11648,7 +11648,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	// don't create a pre-download task if one exists w/ these statuses
 	for _, status := range []state.Status{state.DoStatus, state.DoingStatus} {
 		task.SetStatus(status)
-		ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
+		_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 
 		var busyErr *snapstate.TimedBusySnapError
 		c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -11657,7 +11657,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 			InstanceName:  "some-snap",
 			TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 		})
-		c.Assert(ts, IsNil)
 
 		// reset modified state to avoid conflicts
 		snapst.RefreshInhibitedTime = nil
@@ -11668,7 +11667,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	task.SetStatus(state.DoneStatus)
 	ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
-	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.TaskSet().Tasks(), HasLen, 1)
 }
 
 func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {

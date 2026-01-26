@@ -957,22 +957,22 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 
 	// Ensure that restart boundaries were set on 'link-snap' as a part of doInstall
 	// when NoRestartBoundaries is false
-	ts1, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{})
+	installTS, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 
-	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
-	c.Assert(linkSnap1, NotNil)
+	linkSnap := installTS.TaskSet().MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap, NotNil)
 
 	var boundary restart.RestartBoundaryDirection
-	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+	c.Check(linkSnap.Get("restart-boundary", &boundary), IsNil)
 
 	// Ensure that restart boundaries are not set when we provide NoRestartBoundaries=true
-	ts2, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{NoRestartBoundaries: true})
+	installTS, err = snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{NoRestartBoundaries: true})
 	c.Assert(err, IsNil)
 
-	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
-	c.Assert(linkSnap2, NotNil)
-	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
+	linkSnap = installTS.TaskSet().MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap, NotNil)
+	c.Check(linkSnap.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
