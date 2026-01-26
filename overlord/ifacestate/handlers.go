@@ -280,7 +280,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// exception that the snap being setup is always first. The affectedSnaps
 	// array may be shorter than the set of affected snaps in case any of the
 	// snaps cannot be found in the state.
-	reconnectedSnaps, err := m.reloadConnections(snapName)
+	affectedConnections, err := m.reloadConnections(snapName)
 	if err != nil {
 		return err
 	}
@@ -288,8 +288,27 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	for _, name := range reconnectedSnaps {
-		affectedSet[name] = true
+
+	snapsWithConnectedPlugs := make(map[string]bool)
+	snapsWithConnectedSlots := make(map[string]bool)
+	// Identify affected snaps on either side of the connection.
+	for _, connID := range affectedConnections {
+		connRef, err := interfaces.ParseConnRef(connID)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
+		}
+
+		affectedSet[connRef.PlugRef.Snap] = true
+		affectedSet[connRef.SlotRef.Snap] = true
+
+		// Snaps on the plug or slot side, other than the current one, are
+		// indirectly affected.
+		if connRef.PlugRef.Snap != snapName {
+			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
+		}
+		if connRef.SlotRef.Snap != snapName {
+			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
+		}
 	}
 
 	// Sort the set of affected names, ensuring that the snap being setup
@@ -313,6 +332,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
 	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
+		// We are being updated
 		Reason: interfaces.SnapSetupReasonOwnUpdate,
 	}
 
@@ -361,9 +381,18 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		if err != nil {
 			return err
 		}
-		// TODO: set SetupContext for snaps on the plug side of connections
-		// where the snap being setup is on the slot side (provider snap
-		// update).
+
+		// The snap is affected though a connection, set the context for the
+		// Setup() call, depending on which side of the connection it is.
+		if snapsWithConnectedPlugs[name] {
+			setupContexts[name] = interfaces.SetupContext{
+				Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate,
+			}
+		} else if snapsWithConnectedSlots[name] {
+			setupContexts[name] = interfaces.SetupContext{
+				Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate,
+			}
+		}
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
