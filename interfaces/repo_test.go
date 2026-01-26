@@ -678,7 +678,7 @@ plugs:
 	c.Assert(s.testRepo.Plugs("snap-b_other"), HasLen, 0)
 }
 
-// Tests for Repository.Plugs()
+// Tests for Repository.ConnectedPlugs()
 
 func (s *RepositorySuite) TestConnectedPlugs(c *C) {
 	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
