@@ -3534,7 +3534,7 @@ slots:
 	// producer snaps we introduce below.
 	secBackend := &ifacetest.TestSecurityBackend{
 		BackendName: "test",
-		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 			// Whenever this function is invoked to setup security for a snap
 			// we check the connection attributes that it would act upon.
 			// Because of how connection state is refreshed we never expect to
@@ -3543,6 +3543,8 @@ slots:
 			c.Assert(err, IsNil)
 			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-plug-attr"})
 			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-slot-attr"})
+			// Regenerate profiles due to manager initialization
+			c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			return nil
 		},
 	}
@@ -3711,7 +3713,7 @@ slots:
 	// producer snaps we introduce below.
 	secBackend := &ifacetest.TestSecurityBackend{
 		BackendName: "test",
-		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 			// Whenever this function is invoked to setup security for a snap
 			// we check the connection attributes that it would act upon.
 			// Those attributes should always match those of the snap version.
@@ -3728,6 +3730,8 @@ slots:
 				c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]any{})
 				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
+				// Regenerating all profiles.
+				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
@@ -3737,12 +3741,23 @@ slots:
 					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"read": []any{"/etc/foo"}})
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
+					if appSet.InstanceName() == "consumer" {
+						// called for consumer when updating consumer
+						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					} else {
+						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+					}
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
 					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo"})
 					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "slot-value"})
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz", "qux"}})
+					if appSet.InstanceName() == "producer" {
+						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					} else {
+						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+					}
 				}
 			}
 			return nil
@@ -4229,7 +4244,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 		Reason: interfaces.SnapSetupReasonOwnUpdate,
 	})
 	c.Check(s.secBackend.SetupCalls[1].SetupContext, DeepEquals, interfaces.SetupContext{
-		Reason: interfaces.SnapSetupReasonOther,
+		Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate,
 	})
 }
 
@@ -4304,7 +4319,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesSetupManyError(c *C) {
-	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 		return fmt.Errorf("fail")
 	}
 
@@ -10769,7 +10784,7 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurityFails(c *C) {
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
 
-	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 		return fmt.Errorf("setup-callback failed")
 	}
 
@@ -11253,10 +11268,28 @@ slots:
 	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "consumer"})
 	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "producer"})
 
+	initDone := false
 	secBackend := &ifacetest.TestSecurityBackend{
 		BackendName: "test",
-		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 			_, err := repo.SnapSpecification("test", appSet, opts)
+			if !initDone {
+				// Regenerating all security profiles
+				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+			} else {
+				name := appSet.InstanceName()
+				switch {
+				case refreshedSnap == name:
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+				case refreshedSnap == "consumer" && (name == "producer" || name == "producer2"):
+					// Both slot provider snaps are affected by an update of connected consumer
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+				case refreshedSnap == "producer" && name == "consumer":
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+				default:
+					c.Error("unexpected Setup() call")
+				}
+			}
 			return err
 		},
 	}
@@ -11274,6 +11307,7 @@ slots:
 	// Create the interface manager. This indirectly adds the snaps to the
 	// repository and reloads the connection.
 	s.manager(c)
+	initDone = true
 
 	// Reset considered connections
 	consideredConns = nil
@@ -11340,7 +11374,11 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 		TestSecurityBackend: ifacetest.TestSecurityBackend{
 			BackendName: "test",
 		},
-		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
+			confinement func(snapName string) interfaces.ConfinementOptions,
+			sctx func(snapName string) interfaces.SetupContext,
+			repo *interfaces.Repository, tm timings.Measurer,
+		) []error {
 			setupCalls++
 
 			// expecting 2 calls, first from manager startup, 2nd from handler
@@ -11348,6 +11386,7 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			for _, appSet := range appSets {
 				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName()))
 				c.Assert(err, IsNil)
+				c.Check(sctx(appSet.InstanceName()), Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {
@@ -11443,7 +11482,11 @@ func (s *interfaceManagerSuite) testDoRegenerateSecurityProfilesError(c *C, tc r
 		TestSecurityBackend: ifacetest.TestSecurityBackend{
 			BackendName: "test",
 		},
-		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
+			confinement func(snapName string) interfaces.ConfinementOptions,
+			sctx func(snapName string) interfaces.SetupContext,
+			repo *interfaces.Repository, tm timings.Measurer,
+		) []error {
 			setupCalls++
 			// first setup call happens during Startup(), which we do not want to disrupt
 			if setupCalls > 1 && tc.setupError != nil {

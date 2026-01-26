@@ -401,8 +401,8 @@ func isBroken(st *state.State, snapName string) (bool, error) {
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
 //
-// The return value is the list of affected snap names.
-func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) {
+// The return value is the list of affected snap names and their connection IDs.
+func (m *InterfaceManager) reloadConnections(snapName string) (connections []string, err error) {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return nil, err
@@ -431,7 +431,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 
 	connStateChanged := false
-	affected := make(map[string]bool)
+
+	var reloadedConnections []string
 ConnsLoop:
 	for connId, connState := range conns {
 		// Skip entries that just mark a connection as undesired. Those don't
@@ -535,8 +536,7 @@ ConnsLoop:
 		} else {
 			// If the connection succeeded update the connection state and keep
 			// track of the snaps that were affected.
-			affected[connRef.PlugRef.Snap] = true
-			affected[connRef.SlotRef.Snap] = true
+			reloadedConnections = append(reloadedConnections, connId)
 
 			if updateStaticAttrs {
 				connState.StaticPlugAttrs = staticPlugAttrs
@@ -549,11 +549,7 @@ ConnsLoop:
 		setConns(m.state, conns)
 	}
 
-	result := make([]string, 0, len(affected))
-	for name := range affected {
-		result = append(result, name)
-	}
-	return result, nil
+	return reloadedConnections, nil
 }
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
