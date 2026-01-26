@@ -207,7 +207,7 @@ type DatabagSchema interface {
 	// the path contains placeholders, in which case the path is also a path through the data.
 	// Essentially, the dataToBePruned should be of the same form as output from databag.Get
 	// with the same path in input.
-	PruneByVisibility(dataToBePruned any, vis Visibility, path []Accessor) (prunedData any, err error)
+	PruneByVisibility(path []Accessor, vis Visibility, dataToBePruned any) (prunedData any, err error)
 }
 
 type SchemaType uint
@@ -2962,6 +2962,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
-func (v JSONSchema) PruneByVisibility(data any, _ Visibility, _ []Accessor) (any, error) {
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ Visibility, data any) (any, error) {
 	return data, nil
 }

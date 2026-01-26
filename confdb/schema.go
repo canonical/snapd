@@ -134,7 +134,7 @@ func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 	return v.visibility == vis
 }
 
-func (v *userDefinedType) PruneByVisibility(data any, _ Visibility, _ []Accessor) (any, error) {
+func (v *userDefinedType) PruneByVisibility(_ []Accessor, _ Visibility, data any) (any, error) {
 	// visibilities are not allowed in user defined types so no point in pruning
 	return data, nil
 }
@@ -212,7 +212,7 @@ func (s *aliasReference) NestedVisibility(vis Visibility) bool {
 	return s.visibility == vis
 }
 
-func (v *aliasReference) PruneByVisibility(data any, vis Visibility, _ []Accessor) (any, error) {
+func (v *aliasReference) PruneByVisibility(_ []Accessor, vis Visibility, data any) (any, error) {
 	// user-defined types cannot contain visibility fields so no need to call pruning on them
 	if v.visibility == vis {
 		return nil, nil
@@ -326,11 +326,11 @@ func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
 	return s.topLevel.NestedVisibility(vis)
 }
 
-func (v *StorageSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *StorageSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if data == nil || v.Visibility() == vis {
 		return nil, nil
 	}
-	return v.topLevel.PruneByVisibility(data, vis, path)
+	return v.topLevel.PruneByVisibility(path, vis, data)
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -614,14 +614,14 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
-func (v *alternativesSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if data == nil {
 		return nil, nil
 	}
 
 	var lastErr error
 	for _, alt := range v.schemas {
-		d, err := alt.PruneByVisibility(data, vis, path)
+		d, err := alt.PruneByVisibility(path, vis, data)
 		if err != nil {
 			lastErr = err
 			continue
@@ -872,7 +872,7 @@ func (v *mapSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
-func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -894,7 +894,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 				if !ok {
 					return nil, fmt.Errorf("key %s not found in map schema", key)
 				}
-				d, err := valSchema.PruneByVisibility(value, vis, rest)
+				d, err := valSchema.PruneByVisibility(rest, vis, value)
 				if err != nil {
 					return nil, err
 				}
@@ -903,7 +903,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 				}
 			}
 			if v.valueSchema != nil {
-				d, err := v.valueSchema.PruneByVisibility(value, vis, rest)
+				d, err := v.valueSchema.PruneByVisibility(rest, vis, value)
 				if err != nil {
 					return nil, err
 				}
@@ -923,7 +923,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 	}
 
 	if v.valueSchema != nil {
-		d, err := v.valueSchema.PruneByVisibility(data, vis, path[1:])
+		d, err := v.valueSchema.PruneByVisibility(path[1:], vis, data)
 		if err != nil {
 			return d, err
 		}
@@ -937,7 +937,7 @@ func (v *mapSchema) PruneByVisibility(data any, vis Visibility, path []Accessor)
 		if !ok {
 			return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
 		}
-		d, err := valSchema.PruneByVisibility(data, vis, path[1:])
+		d, err := valSchema.PruneByVisibility(path[1:], vis, data)
 		if err != nil {
 			return d, err
 		}
@@ -1172,7 +1172,7 @@ func (v *stringSchema) Type() SchemaType {
 	return String
 }
 
-func (v *stringSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *stringSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "string" type`)
 	}
@@ -1272,7 +1272,7 @@ func (v *intSchema) Type() SchemaType {
 	return Int
 }
 
-func (v *intSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *intSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "int" type`)
 	}
@@ -1373,7 +1373,7 @@ func (v *anySchema) Type() SchemaType {
 	return Any
 }
 
-func (v *anySchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *anySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if v.visibility == vis {
 		data = nil
 	}
@@ -1441,7 +1441,7 @@ func isNumber(data any) bool {
 	return false
 }
 
-func (v *numberSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *numberSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "number" type`)
 	}
@@ -1576,7 +1576,7 @@ func (v *booleanSchema) Type() SchemaType {
 	return Bool
 }
 
-func (v *booleanSchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *booleanSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "bool" type`)
 	}
@@ -1692,7 +1692,7 @@ func (v *arraySchema) NestedVisibility(vis Visibility) bool {
 	return v.elementType.NestedVisibility(vis)
 }
 
-func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accessor) (any, error) {
+func (v *arraySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -1703,7 +1703,7 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 	if len(path) > 0 && path[0].Type() == ListIndexType {
 		// Since the path is not empty, the data begins further down,
 		// and we don't yet know its type so use data here rather than values
-		d, err := v.elementType.PruneByVisibility(data, vis, path[1:])
+		d, err := v.elementType.PruneByVisibility(path[1:], vis, data)
 		if err != nil {
 			return nil, err
 		}
@@ -1723,7 +1723,7 @@ func (v *arraySchema) PruneByVisibility(data any, vis Visibility, path []Accesso
 		rest = path[1:]
 	}
 	for _, value := range values {
-		d, err := v.elementType.PruneByVisibility(value, vis, rest)
+		d, err := v.elementType.PruneByVisibility(rest, vis, value)
 		if err != nil {
 			return nil, err
 		}
