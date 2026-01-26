@@ -619,3 +619,7 @@ type CustomInstallGoal struct {
 func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	return c.ToInstall(ctx, st, opts)
 }
+
+func (sts *snapInstallTaskSet) TaskSet() *state.TaskSet {
+	return sts.ts
+}

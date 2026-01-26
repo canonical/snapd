@@ -1593,8 +1593,8 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 }
 
 func doUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, bool, *UpdateTaskSets, error) {
-	var installTasksets []*state.TaskSet
-	var preDlTasksets []*state.TaskSet
+	var tss []*state.TaskSet
+	var predownloadTSS []*state.TaskSet
 
 	refreshAll := len(requested) == 0
 
@@ -1624,7 +1624,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		if err != nil {
 			return nil, false, nil, err
 		}
-		installTasksets = append(installTasksets, pruningAutoAliasesTs)
+		tss = append(tss, pruningAutoAliasesTs)
 	}
 
 	// wait for the auto-alias prune tasks as needed
@@ -1682,16 +1682,16 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
+		sts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
 			FromChange:          opts.FromChange,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
 		})
 		if err != nil {
-			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
+			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
 				// snap is busy and pre-download tasks were made for it
-				ts.JoinLane(st.NewLane())
-				preDlTasksets = append(preDlTasksets, ts)
+				sts.ts.JoinLane(st.NewLane())
+				predownloadTSS = append(predownloadTSS, sts.ts)
 				continue
 			}
 
@@ -1702,15 +1702,15 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			return nil, false, nil, err
 		}
 
-		ts.JoinLane(generateLane(st, opts))
+		sts.ts.JoinLane(generateLane(st, opts))
+		tss = append(tss, sts.ts)
 
-		scheduleUpdate(up.Setup.InstanceName(), ts)
-		installTasksets = append(installTasksets, ts)
+		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
 	// Make sure each of them are marked with default restart-boundaries to maintain the previous
 	// reboot-behaviour prior to new restart logic.
-	if err := arrangeSnapTaskSetsLinkageAndRestart(st, nil, installTasksets); err != nil {
+	if err := arrangeSnapTaskSetsLinkageAndRestart(st, nil, tss); err != nil {
 		return nil, false, nil, err
 	}
 
@@ -1719,7 +1719,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		if err != nil {
 			return nil, false, nil, err
 		}
-		installTasksets = append(installTasksets, addAutoAliasesTs)
+		tss = append(tss, addAutoAliasesTs)
 	}
 
 	for _, up := range alreadySatisfied {
@@ -1733,12 +1733,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
-		if len(installTasksets) != 0 {
-			switchTs.WaitAll(installTasksets[len(installTasksets)-1])
+		if len(tss) != 0 {
+			switchTs.WaitAll(tss[len(tss)-1])
 		}
 
 		switchTs.JoinLane(generateLane(st, opts))
-		installTasksets = append(installTasksets, switchTs)
+		tss = append(tss, switchTs)
 		reportUpdated[up.Setup.InstanceName()] = true
 	}
 
@@ -1748,8 +1748,8 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	}
 
 	updateTss := &UpdateTaskSets{
-		Refresh:     installTasksets,
-		PreDownload: preDlTasksets,
+		Refresh:     tss,
+		PreDownload: predownloadTSS,
 	}
 
 	return updated, needsRerefreshCheck, updateTss, nil
@@ -3639,7 +3639,11 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	installTS, err := doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	if err != nil {
+		return nil, err
+	}
+	return installTS.ts, nil
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -3687,7 +3691,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		newInfo := result.Info
 
 		// start by installing the new snap
-		tsInst, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
+		installTS, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
@@ -3697,7 +3701,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, tsInst)
+		all = append(all, installTS.ts)
 	}
 
 	// then transition the interface connections over
