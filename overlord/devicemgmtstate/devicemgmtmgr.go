@@ -25,13 +25,16 @@
 package devicemgmtstate
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/store"
@@ -75,8 +78,9 @@ type ResponseMessageSigner interface {
 type RequestMessage struct {
 	AccountID   string    `json:"account-id"`
 	AuthorityID string    `json:"authority-id"`
-	ID          string    `json:"message-id"`
-	Kind        string    `json:"message-kind"`
+	BaseID      string    `json:"base-id"`
+	SeqNum      int       `json:"seq-num"`
+	Kind        string    `json:"kind"`
 	Devices     []string  `json:"devices"`
 	ValidSince  time.Time `json:"valid-since"`
 	ValidUntil  time.Time `json:"valid-until"`
@@ -85,11 +89,20 @@ type RequestMessage struct {
 	ReceiveTime time.Time `json:"receive-time"`
 }
 
+// ID returns the full message identifier `BaseID[-SeqNum]`.
+func (msg *RequestMessage) ID() string {
+	if msg.SeqNum != 0 {
+		return fmt.Sprintf("%s-%d", msg.BaseID, msg.SeqNum)
+	}
+
+	return msg.BaseID
+}
+
 // deviceMgmtState holds the persistent state for device management operations.
 type deviceMgmtState struct {
-	// PendingMessages maps message IDs to messages being processed. A message
-	// stays here from receipt until its response is queued.
-	PendingMessages map[string]*RequestMessage `json:"pending-messages"`
+	// PendingRequests maps message IDs to request messages being processed.
+	// A message stays here from receipt until its response is queued.
+	PendingRequests map[string]*RequestMessage `json:"pending-requests"`
 
 	// LastReceivedToken is the token of the last message successfully stored locally,
 	// sent in the "after" field of the next exchange to acknowledge receipt
@@ -135,7 +148,7 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return &deviceMgmtState{
-				PendingMessages: make(map[string]*RequestMessage),
+				PendingRequests: make(map[string]*RequestMessage),
 				ReadyResponses:  make(map[string]store.Message),
 			}, nil
 		}
@@ -187,6 +200,21 @@ func (m *DeviceMgmtManager) Ensure() error {
 	return nil
 }
 
+// isRemoteManagementEnabled checks whether the remote management feature is enabled.
+// Caller must hold state lock.
+func (m *DeviceMgmtManager) isRemoteDeviceManagementEnabled() bool {
+	tr := config.NewTransaction(m.state)
+	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
+
+		// If the flag cannot be checked, assume disabled.
+		return false
+	}
+
+	return enabled
+}
+
 // shouldExchangeMessages checks whether a message exchange should happen now.
 // Caller must hold state lock.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
@@ -195,27 +223,88 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 		return false
 	}
 
-	tr := config.NewTransaction(m.state)
-	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
-	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
-
-		// If the flag cannot be checked, assume disabled.
-		enabled = false
-	}
-
 	// If disabled, still exchange to deliver responses for already-processed messages.
-	return enabled || len(ms.ReadyResponses) > 0
+	return m.isRemoteDeviceManagementEnabled() || len(ms.ReadyResponses) > 0
 }
 
 // doExchangeMessages exchanges messages with the store: sends queued response messages,
 // acknowledges receipt of persisted request messages, and fetches new request messages.
 func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	deviceCtx, err := snapstate.DevicePastSeeding(m.state, nil)
+	if err != nil {
+		return err
+	}
+	sto := snapstate.Store(m.state, deviceCtx)
+
+	limit := 0
+	if m.isRemoteDeviceManagementEnabled() {
+		limit = defaultExchangeLimit
+	}
+
+	messages := make([]store.Message, 0, len(ms.ReadyResponses))
+	for _, msg := range ms.ReadyResponses {
+		messages = append(messages, msg)
+	}
+
+	m.state.Unlock()
+	resp, err := sto.ExchangeMessages(
+		tomb.Context(context.Background()),
+		&store.MessageExchangeRequest{
+			After:    ms.LastReceivedToken,
+			Limit:    limit,
+			Messages: messages,
+		},
+	)
+	m.state.Lock()
+	if err != nil {
+		return err
+	}
+
+	m.updateStateFromExchange(ms, resp)
+	m.setState(ms)
+
 	return nil
 }
 
-// doDispatchMessages selects pending messages for processing & queues tasks for them.
+// updateStateFromExchange updates local state based on the message exchange response.
+// Caller must hold state lock.
+func (m *DeviceMgmtManager) updateStateFromExchange(ms *deviceMgmtState, resp *store.MessageExchangeResponse) {
+	for _, msg := range resp.Messages {
+		reqMsg, err := parseRequestMessage(msg.Message)
+		if err != nil {
+			// Malformed messages are acknowledged but not processed.
+			// There's no point retrying since if parsing fails once, it will fail again.
+			// Log and continue.
+			logger.Noticef("cannot parse request-message with token %s: %v", msg.Token, err)
+			continue
+		}
+
+		_, exists := ms.PendingRequests[reqMsg.ID()]
+		if !exists {
+			ms.PendingRequests[reqMsg.ID()] = reqMsg
+		}
+	}
+
+	if len(resp.Messages) > 0 {
+		token := resp.Messages[len(resp.Messages)-1].Token
+		ms.LastReceivedToken = token
+	} else {
+		ms.LastReceivedToken = ""
+	}
+
+	ms.ReadyResponses = make(map[string]store.Message)
+	ms.LastExchangeTime = timeNow()
+}
+
+// doDispatchMessages selects pending requests for processing and queues tasks for them.
 func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: implement this task, no-op for now.
 	return nil
@@ -238,4 +327,41 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: implement this task, no-op for now.
 	return nil
+}
+
+// parseRequestMessage decodes a store message body into a RequestMessage.
+func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
+	if msg.Format != "assertion" {
+		return nil, fmt.Errorf("unsupported format %s", msg.Format)
+	}
+
+	as, err := asserts.Decode([]byte(msg.Data))
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode assertion: %w", err)
+	}
+
+	reqAs, ok := as.(*asserts.RequestMessage)
+	if !ok {
+		return nil, fmt.Errorf(`assertion is %q, expected "request-message"`, as.Type().Name)
+	}
+
+	devices := reqAs.Devices()
+	deviceIDs := make([]string, len(devices))
+	for i, devID := range devices {
+		deviceIDs[i] = devID.String()
+	}
+
+	return &RequestMessage{
+		AccountID:   reqAs.AccountID(),
+		AuthorityID: reqAs.AuthorityID(),
+		BaseID:      reqAs.ID(),
+		SeqNum:      reqAs.SeqNum(),
+		Kind:        reqAs.Kind(),
+		Devices:     deviceIDs,
+		ValidSince:  reqAs.ValidSince(),
+		ValidUntil:  reqAs.ValidUntil(),
+		Body:        string(reqAs.Body()),
+
+		ReceiveTime: timeNow(),
+	}, nil
 }
