@@ -207,7 +207,7 @@ The CI tooling will check and enforce the order and required sections when a spr
 
 * Whenever reasonable, avoid spurious differences between the code in master and the new code.
 
-* If a refactoring affects the REST API implemented in ./daemon, the REST API documentation needs to be updated in the same PR. To trigger the CI for the REST API, the PR must have the "Update OpenAPI Documentation" label applied.
+* If a change affects the REST API implemented in ./daemon, the REST API documentation needs to be updated in the same PR. If the ./docs/api folder has changes, the OpenAPI workflow will trigger automatically.
 
 * Large mechanical refactoring and changes should be done as separate PRs. Try to separate behaviour changes and refactoring into different PRs and not mix the two.
 
