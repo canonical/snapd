@@ -5047,7 +5047,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	switch tasks[i].Kind() {
 	case "prepare-profiles":
 		newProfilesTasks = true
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Restore snap "%s" (%s) security profiles`, name, revno))
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
 		i++
 	case "setup-profiles":
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
@@ -5122,7 +5122,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	switch tasks[i].Kind() {
 	case "prepare-profiles":
 		newProfilesTasks = true
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Restore snap "%s" (%s) security profiles`, name, revno))
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
 		i++
 	case "setup-profiles":
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
