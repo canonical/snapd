@@ -135,7 +135,8 @@ func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *userDefinedType) PruneByVisibility(_ []Accessor, _ Visibility, data any) (any, error) {
-	// visibilities are not allowed in user defined types so no point in pruning
+	// Visibilities are not allowed in user defined types so no point in pruning.
+	// This code should never be reached.
 	return data, nil
 }
 
@@ -621,6 +622,8 @@ func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis Visibility, 
 
 	var lastErr error
 	for _, alt := range v.schemas {
+		// Lower-indexed alternatives are privileged over higher-indexed ones,
+		// so return the first match even though more matches may exist.
 		d, err := alt.PruneByVisibility(path, vis, data)
 		if err != nil {
 			lastErr = err
@@ -878,7 +881,15 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 	}
 
 	if len(path) == 0 || path[0].Type() == KeyPlaceholderType {
-		// We've arrived to where the data begins
+		// If the path is empty, then the data must be a map.
+		// If the next path element is a KeyPlaceholderType, then
+		// the data will also be a map to account for the multiple
+		// keys that could fill the placeholder. In that case, each
+		// value present in the data will not necessarily be of the
+		// same type as the entry's value schema. Ex: if the path is
+		// [KeyPlaceholderType, MapKeyType], then, assuming the
+		// value schema at path[1] to be boolSchema, the data should
+		// be of form map[string]bool
 		values, ok := (data).(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("data provided must be a map")
@@ -1696,43 +1707,49 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis Visibility, data an
 	if data == nil {
 		return nil, nil
 	}
-	if len(path) > 0 && path[0].Type() != IndexPlaceholderType && path[0].Type() != ListIndexType {
-		return nil, fmt.Errorf(`key %q cannot be used to index array`, path[0].Access())
-	}
-
-	if len(path) > 0 && path[0].Type() == ListIndexType {
-		// Since the path is not empty, the data begins further down,
-		// and we don't yet know its type so use data here rather than values
-		d, err := v.elementType.PruneByVisibility(path[1:], vis, data)
-		if err != nil {
-			return nil, err
+	if len(path) == 0 || path[0].Type() == IndexPlaceholderType {
+		// If the path is empty, then the data must be an array.
+		// If the next path element is an IndexPlaceholderType, then the data will
+		// also be an array to account for the multiple indices that could fill the
+		// placeholder. In that case, each value present in the data will not
+		// necessarily be of the same type as the elementType's value schema.
+		// Ex: if the path is [IndexPlaceholderType, MapKeyType], then, assuming the
+		// value schema at path[1] to be boolSchema, the data should be of form []bool
+		values, ok := data.([]any)
+		if !ok {
+			return nil, errors.New("data provided must be a list")
 		}
-		if v.Visibility() != vis {
-			return d, err
+
+		newList := make([]any, 0, len(values))
+		rest := []Accessor{}
+		if len(path) > 0 {
+			rest = path[1:]
+		}
+		for _, value := range values {
+			d, err := v.elementType.PruneByVisibility(rest, vis, value)
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				newList = append(newList, d)
+			}
+		}
+		if len(newList) > 0 && v.Visibility() != vis {
+			return newList, nil
 		}
 		return nil, nil
 	}
-	values, ok := data.([]any)
-	if !ok {
-		return nil, errors.New("data provided must be a list")
+	if path[0].Type() != ListIndexType {
+		return nil, fmt.Errorf(`key %q cannot be used to index array`, path[0].Access())
 	}
-
-	newList := make([]any, 0, len(values))
-	rest := []Accessor{}
-	if len(path) > 0 {
-		rest = path[1:]
+	// Since the path is not empty, the data begins further down,
+	// and we don't yet know its type so use data here rather than values
+	d, err := v.elementType.PruneByVisibility(path[1:], vis, data)
+	if err != nil {
+		return nil, err
 	}
-	for _, value := range values {
-		d, err := v.elementType.PruneByVisibility(rest, vis, value)
-		if err != nil {
-			return nil, err
-		}
-		if d != nil {
-			newList = append(newList, d)
-		}
-	}
-	if len(newList) > 0 && v.Visibility() != vis {
-		return newList, nil
+	if v.Visibility() != vis {
+		return d, err
 	}
 	return nil, nil
 }

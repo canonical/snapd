@@ -206,7 +206,8 @@ type DatabagSchema interface {
 	// The path variable is the path to where the dataToBePruned is located except for where
 	// the path contains placeholders, in which case the path is also a path through the data.
 	// Essentially, the dataToBePruned should be of the same form as output from databag.Get
-	// with the same path in input.
+	// with the same path in input. If all data has been pruned, pruneData will be nil.
+	// Only if the path/data does not match the schema does PruneByVisibility return an error.
 	PruneByVisibility(path []Accessor, vis Visibility, dataToBePruned any) (prunedData any, err error)
 }
 
