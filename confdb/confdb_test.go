@@ -57,7 +57,7 @@ func (f *failingSchema) PruneByVisibility(_ []confdb.Accessor, _ confdb.Visibili
 }
 
 func parsePath(c *C, path string) []confdb.Accessor {
-	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{AllowPlaceholders: true})
 	c.Assert(err, IsNil)
 	return accs
 }
