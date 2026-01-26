@@ -1581,13 +1581,11 @@ func findSetupProfilesTaskAfterAutoConnect(chg *state.Change) *state.Task {
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(task *state.Task, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
+func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
 	if len(conns) == 0 {
 		return nil, false, nil
 	}
 
-	st := task.State()
-	setupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change())
 	var injectSetupProfiles bool
 	if setupProfiles == nil {
 		// In old style setup, there will be one setup-profiles task before
@@ -1884,7 +1882,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autots, hasInterfaceHooks, err := batchConnectTasks(task, snapsup, newconns, connOpts)
+	existingSetupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change())
+	autots, hasInterfaceHooks, err := batchConnectTasks(st, existingSetupProfiles, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
@@ -1927,7 +1926,15 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if autots != nil && len(autots.Tasks()) > 0 {
-		snapstate.InjectTasks(task, autots)
+		if existingSetupProfiles == nil {
+			// Backward compatibility: old style setup where setup-profiles
+			// does not wait for auto-connect
+			snapstate.InjectTasks(task, autots)
+		} else {
+			// New style setup where setup-profiles waits for auto-connect, we must
+			// do this to avoid cycles in the wait graph.
+			snapstate.InjectConnectTasks(task, autots, existingSetupProfiles)
+		}
 
 		st.EnsureBefore(0)
 	}
