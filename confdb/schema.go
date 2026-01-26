@@ -1287,7 +1287,7 @@ func (v *intSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "int" type`)
 	}
-	if !isNumber(data) {
+	if _, ok := data.(float64); !ok {
 		return nil, errors.New(`data provided must be an int`)
 	}
 	if v.visibility == vis {
@@ -1440,23 +1440,11 @@ func (v *numberSchema) Type() SchemaType {
 	return Number
 }
 
-func isNumber(data any) bool {
-	switch data.(type) {
-	case
-		uint8, uint16, uint32, uint64, uint, uintptr,
-		int8, int16, int32, int64, int,
-		float32, float64,
-		complex64, complex128:
-		return true
-	}
-	return false
-}
-
 func (v *numberSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "number" type`)
 	}
-	if !isNumber(data) {
+	if _, ok := data.(float64); !ok {
 		return nil, errors.New(`data provided must be a number`)
 	}
 	if v.visibility == vis {
