@@ -12,7 +12,7 @@ systems:
 
 skip:
     - if: test -z "$(command -v plz-run)"
-      reason: The plz-run executable wasn't built earlier as when executing external backend
+      reason: The plz-run executable is missing
 
 prepare: |
     snap pack test-snapd-checkbox-support
