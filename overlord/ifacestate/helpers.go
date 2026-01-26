@@ -285,7 +285,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 			if backend.Name() == "" {
 				continue // Test backends have no name, skip them to simplify testing.
 			}
-			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, tm); len(errors) > 0 {
+			// Default setup context for regeneration
+			defaultSetupCtx := func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{
+					Reason: interfaces.SnapSetupReasonOther,
+				}
+			}
+			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, defaultSetupCtx, tm); len(errors) > 0 {
 				logger.Noticef("cannot regenerate %s profiles", backend.Name())
 				for _, err := range errors {
 					logger.Notice(err.Error())
@@ -579,7 +585,7 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
 	if len(appSets) != len(opts) {
 		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
 	}
@@ -597,6 +603,11 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	for _, backend := range m.repo.Backends() {
 		errs := interfaces.SetupMany(m.repo, backend, appSets, func(snapName string) interfaces.ConfinementOptions {
 			return confOpts[snapName]
+		}, func(snapName string) interfaces.SetupContext {
+			if ctx, ok := sctxs[snapName]; ok {
+				return ctx
+			}
+			return interfaces.SetupContext{}
 		}, tm)
 		if len(errs) > 0 {
 			// SetupMany processes all profiles and returns all encountered errors; report just the first one
@@ -608,7 +619,10 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, tm)
+	sctxs := map[string]interfaces.SetupContext{
+		appSet.InstanceName(): {Reason: interfaces.SnapSetupReasonOther},
+	}
+	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {

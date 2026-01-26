@@ -476,7 +476,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	prof, err := b.prepareProfiles(appSet, opts, repo)
 	if err != nil {
 		return err
@@ -525,7 +525,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // collects and returns them all.
 //
 // This method is useful mainly for regenerating profiles.
-func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, sctx func(snapName string) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
@@ -580,7 +580,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 		for _, set := range appSets {
 			instanceName := set.InstanceName()
 			opts := confinement(instanceName)
-			if err := b.Setup(set, opts, repo, tm); err != nil {
+			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))
 			}
 		}
