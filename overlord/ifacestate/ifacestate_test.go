@@ -4225,6 +4225,12 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
+	c.Check(s.secBackend.SetupCalls[0].SetupContext, DeepEquals, interfaces.SetupContext{
+		Reason: interfaces.SnapSetupReasonOwnUpdate,
+	})
+	c.Check(s.secBackend.SetupCalls[1].SetupContext, DeepEquals, interfaces.SetupContext{
+		Reason: interfaces.SnapSetupReasonOther,
+	})
 }
 
 func (s *interfaceManagerSuite) testDoSetupSnapSecurityReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
@@ -4335,7 +4341,8 @@ func (s *interfaceManagerSuite) TestSetupSecurityByBackendInvalidNumberOfSnaps(c
 	task := st.NewTask("foo", "")
 	appSets := []*interfaces.SnapAppSet{}
 	opts := []interfaces.ConfinementOptions{{}}
-	err := mgr.SetupSecurityByBackend(task, appSets, opts, nil)
+	sctxs := map[string]interfaces.SetupContext{}
+	err := mgr.SetupSecurityByBackend(task, appSets, opts, sctxs, nil)
 	c.Check(err, ErrorMatches, `internal error: setupSecurityByBackend received an unexpected number of snaps.*`)
 }
 

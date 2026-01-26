@@ -238,7 +238,10 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 	return nil
 }
 
-func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupProfilesForAppSet(
+	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	tm timings.Measurer,
+) error {
 	st := task.State()
 
 	snapInfo := appSet.Info()
@@ -304,10 +307,14 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	// cannot be found and compute the confinement options that apply to it.
 	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
 	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
+	setupContexts := make(map[string]interfaces.SetupContext, len(affectedSet))
 
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
+	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
+		Reason: interfaces.SnapSetupReasonOwnUpdate,
+	}
 
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
@@ -354,12 +361,15 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 		if err != nil {
 			return err
 		}
+		// TODO: set SetupContext for snaps on the plug side of connections
+		// where the snap being setup is on the slot side (provider snap
+		// update).
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
 	}
 
-	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, tm)
+	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
