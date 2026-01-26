@@ -248,10 +248,11 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		s.Append(copyData)
 	}
 
-	// security
-	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
-		i18n.G("Setup snap %q%s security profiles"), sc.snapsup.InstanceName(), sc.revisionString()))
-	s.Append(setupSecurity)
+	// Insert the profiles task that will restore profiles if needed.
+	prepareSecurity := st.NewTask("prepare-profiles", fmt.Sprintf(
+		i18n.G("Prepare snap %q%s for security profile setup"),
+		sc.snapsup.InstanceName(), sc.revisionString()))
+	s.Append(prepareSecurity)
 
 	// finalize (wrappers+current symlink)
 	//
@@ -475,6 +476,11 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	if postReboot {
 		s.UpdateEdgeIfUnset(autoConnect, MaybeRebootWaitEdge)
 	}
+
+	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
+		i18n.G("Setup snap %q%s security profiles"),
+		sc.snapsup.InstanceName(), sc.revisionString()))
+	s.Append(setupSecurity)
 
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(

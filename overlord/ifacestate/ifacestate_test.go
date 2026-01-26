@@ -601,7 +601,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 
 	// no connections and tasks created
 	before := s.state.TaskCount()
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, setupProfiles, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts, IsNil)
 	c.Check(hasInterfaceHooks, Equals, false)
@@ -615,7 +615,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	// connOpts for cref1 will default to AutoConnect: true
 	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
 
-	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(s.state, setupProfiles, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(hasInterfaceHooks, Equals, true)
 	for _, t := range ts.Tasks() {
@@ -688,7 +688,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksFallbackOldStyle(c *C) {
 
 	// no connections and tasks created
 	before := s.state.TaskCount()
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, nil, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts, IsNil)
 	c.Check(hasInterfaceHooks, Equals, false)
@@ -702,7 +702,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksFallbackOldStyle(c *C) {
 	// connOpts for cref1 will default to AutoConnect: true
 	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
 
-	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err = ifacestate.BatchConnectTasks(s.state, nil, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(hasInterfaceHooks, Equals, true)
 
@@ -782,7 +782,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
 	cref := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer2", Name: "slot"}}
 	conns[cref.ID()] = &cref
 
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, setupProfiles, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "connect")
@@ -827,7 +827,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooksFallbackOldStyle(c *
 	cref := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer2", Name: "slot"}}
 	conns[cref.ID()] = &cref
 
-	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(autoConnect, snapsup, conns, connOpts)
+	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, nil, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 2)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "connect")
