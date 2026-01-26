@@ -7,7 +7,7 @@ info:
   license:
     name: GPL-3.0
     url: https://www.gnu.org/licenses/gpl-3.0.txt
-  version: '0.1'
+  version: '1.0'
   description: |
         The REST API provides access to snapd's state and many of its key functions,
         as listed below.
@@ -100,7 +100,7 @@ components:
       $ref: './v2/components/errors/NoSerialAssertionError.yaml'
     NoSSHKeysError:
       $ref: './v2/components/errors/NoSSHKeysError.yaml'
-    NotFound:
+    NotFoundError:
       $ref: './v2/components/errors/NotFoundError.yaml'
     SnapNotInstalledError:
       $ref: './v2/components/errors/SnapNotInstalledError.yaml'
@@ -123,6 +123,8 @@ components:
       $ref: './v2/components/schemas/AssertionResult.yaml'
     Change:
       $ref: './v2/components/schemas/Change.yaml'
+    ConfdbControlAction:
+      $ref: './v2/components/schemas/ConfdbControlAction.yaml'
     Connection:
       $ref: './v2/components/schemas/Connection.yaml'
     ConnectionStatus:
@@ -251,6 +253,8 @@ paths:
     $ref: './v2/paths/changes-id.yaml'
   /v2/cohorts:
     $ref: './v2/paths/cohorts.yaml'
+  /v2/confdb:
+    $ref: './v2/paths/confdb-control.yaml'
   /v2/confdb/{account}/{confdb-schema}/{view}:
     $ref: './v2/paths/confdb.yaml'
   /v2/connections:
