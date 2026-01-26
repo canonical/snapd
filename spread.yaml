@@ -153,10 +153,11 @@ backends:
                   workers: 8
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64
-                  storage: 15G
+                  storage: 16G
                   workers: 8
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-2004-64
+                  storage: 16G
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
