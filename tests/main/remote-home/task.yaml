@@ -21,6 +21,7 @@ systems:
 
 environment:
   FS/nfs: nfs
+  FS/nfs_root_squash: nfs_root_squash
   FS/cifs: cifs
 
 prepare: |
@@ -54,7 +55,11 @@ prepare: |
       exit 1
     fi
 
+    NFS_OPTS=""
     case "$FS" in
+      nfs_root_squash)
+        NFS_OPTS=",root_squash"
+        ;&
       nfs)
         # Install nfs with some precautions to undo the side-effects if we are
         # really installing it and it was not pre-installed. If /proc/fs/nfsd
@@ -73,7 +78,7 @@ prepare: |
 
         # Export /var/home/test-remote over NFS.
         mkdir -p /etc/exports.d/
-        echo '/var/home/test-remote localhost(rw,no_subtree_check)' > /etc/exports.d/test.exports
+        echo "/var/home/test-remote localhost(rw,no_subtree_check$NFS_OPTS)" > /etc/exports.d/test.exports
         retry exportfs -r
 
         # Later on remove the exports file and reload exported filesystems.
@@ -126,7 +131,7 @@ prepare: |
     touch /var/home/test-remote/hello
     # Mount the remote filesystem at /home/test-remote.
     case "$FS" in
-      nfs)
+      nfs | nfs_root_squash)
         mount -t nfs localhost:/var/home/test-remote /home/test-remote
         ;;
       cifs)
@@ -217,7 +222,7 @@ execute: |
     test "$(snap changes | grep -c 'Regenerate security profiles')" = "1"
 
     case "$FS" in
-      nfs)
+      nfs | nfs_root_squash)
         # we can't snapshot/remove user data if it's in a remote mounted home so check
         # we detect it early and suggest a workaround
         snap remove test-snapd-sh 2>&1 | tr '\n' ' ' | tr -s ' ' | \
