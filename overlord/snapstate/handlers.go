@@ -5303,6 +5303,35 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
+// InjectConnectTasks injects tasks created by auto-connect into the change.
+// When setup-profiles already depends on auto-connect, we must avoid making
+// setup-profiles wait on the injected tasks, otherwise we can create a cycle
+// because some injected tasks already wait on setup-profiles.
+func InjectConnectTasks(mainTask *state.Task, extraTasks *state.TaskSet, setupProfiles *state.Task) {
+	lanes := mainTask.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	for _, l := range lanes {
+		extraTasks.JoinLane(l)
+	}
+
+	chg := mainTask.Change()
+	if chg != nil {
+		chg.AddAll(extraTasks)
+	}
+
+	ht := mainTask.HaltTasks()
+	for _, t := range ht {
+		if t == setupProfiles {
+			continue
+		}
+		t.WaitAll(extraTasks)
+	}
+
+	extraTasks.WaitFor(mainTask)
+}
+
 type dirMigrationOptions struct {
 	// UseHidden states whether the user has requested that the hidden data dir be used
 	UseHidden bool
