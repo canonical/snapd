@@ -1,0 +1,7 @@
+#!/bin/sh
+
+(
+date
+echo "=== provider"
+echo "connecting slot special-content basic"
+) >> "$SNAP_COMMON/hook.log"

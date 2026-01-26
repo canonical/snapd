@@ -1,0 +1,9 @@
+#!/bin/bash
+
+(
+    set -x
+    date
+    echo "=== disconnect content basic" 
+    find "$SNAP/connected-content-basic" -ls
+    find "$SNAP/connected-content-extra" -ls
+) >> "$SNAP_COMMON/hook.log" 2>&1

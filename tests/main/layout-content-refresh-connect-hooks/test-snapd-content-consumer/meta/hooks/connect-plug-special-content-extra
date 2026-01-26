@@ -1,0 +1,10 @@
+#!/bin/bash
+
+(
+    set -x
+    date
+    echo "=== connect content extra" 
+    find "$SNAP/connected-content-basic" -ls
+    find "$SNAP/connected-content-extra" -ls
+    cat "$SNAP/connected-content-extra/extra-content"
+) >> "$SNAP_COMMON/hook.log" 2>&1
