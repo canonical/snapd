@@ -248,3 +248,65 @@ check:
 .PHONY: clean
 clean:
 	rm -f $(go_binaries)
+
+# Check that production builds contain only the expected trusted account keys.
+# This verifies that test keys are not accidentally included in production builds.
+# builddir: the directory containing the built binaries (e.g., _build/bin)
+.PHONY: check-trusted-account-keys
+check-trusted-account-keys:
+	@echo "Checking trusted account keys in snapd and related binaries..."
+	@# Check snapd binary (2 keys expected)
+	@if [ -f "$(builddir)/snapd" ]; then \
+		count=$$(strings $(builddir)/snapd | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snapd, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$" || \
+			{ echo "ERROR: snapd store key not found"; exit 1; }; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$" || \
+			{ echo "ERROR: snapd store key 2 not found"; exit 1; }; \
+		echo "  snapd: OK (2 keys)"; \
+	fi
+	@# Check snap-bootstrap if it exists (Ubuntu 16.04+)
+	@if [ -f "$(builddir)/snap-bootstrap" ]; then \
+		count=$$(strings $(builddir)/snap-bootstrap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap-bootstrap, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$" || \
+			{ echo "ERROR: snap-bootstrap store key not found"; exit 1; }; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$" || \
+			{ echo "ERROR: snap-bootstrap store key 2 not found"; exit 1; }; \
+		echo "  snap-bootstrap: OK (2 keys)"; \
+	fi
+	@# Check snap-preseed if it exists (Ubuntu 16.04+)
+	@if [ -f "$(builddir)/snap-preseed" ]; then \
+		count=$$(strings $(builddir)/snap-preseed | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap-preseed, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$" || \
+			{ echo "ERROR: snap-preseed store key not found"; exit 1; }; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$" || \
+			{ echo "ERROR: snap-preseed store key 2 not found"; exit 1; }; \
+		echo "  snap-preseed: OK (2 keys)"; \
+	fi
+	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
+	@if [ -f "$(builddir)/snap-repair" ]; then \
+		count=$$(strings $(builddir)/snap-repair | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 3 ]; then \
+			echo "ERROR: Expected 3 public keys in snap-repair, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$" || \
+			{ echo "ERROR: snap-repair store key not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$" || \
+			{ echo "ERROR: snap-repair store key 2 not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t$$" || \
+			{ echo "ERROR: snap-repair repair-root key not found"; exit 1; }; \
+		echo "  snap-repair: OK (3 keys)"; \
+	fi
+	@echo "All trusted account key checks passed."
