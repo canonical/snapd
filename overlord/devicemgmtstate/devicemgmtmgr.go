@@ -117,6 +117,34 @@ type deviceMgmtState struct {
 	LastExchangeTime time.Time `json:"last-exchange-time"`
 }
 
+// updateFromExchange updates local state based on the message exchange response.
+func (ms *deviceMgmtState) updateFromExchange(resp *store.MessageExchangeResponse) {
+	for _, msg := range resp.Messages {
+		reqMsg, err := parseRequestMessage(msg.Message)
+		if err != nil {
+			// Malformed messages are acknowledged but not processed.
+			// There's no point retrying since if parsing fails once, it will fail again.
+			logger.Noticef("cannot parse request-message with token %s: %v", msg.Token, err)
+			continue
+		}
+
+		_, exists := ms.PendingRequests[reqMsg.ID()]
+		if !exists {
+			ms.PendingRequests[reqMsg.ID()] = reqMsg
+		}
+	}
+
+	if len(resp.Messages) > 0 {
+		token := resp.Messages[len(resp.Messages)-1].Token
+		ms.LastReceivedToken = token
+	} else {
+		ms.LastReceivedToken = ""
+	}
+
+	ms.ReadyResponses = make(map[string]store.Message)
+	ms.LastExchangeTime = timeNow()
+}
+
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
@@ -268,40 +296,10 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
-	m.updateStateFromExchange(ms, resp)
+	ms.updateFromExchange(resp)
 	m.setState(ms)
 
 	return nil
-}
-
-// updateStateFromExchange updates local state based on the message exchange response.
-// Caller must hold state lock.
-func (m *DeviceMgmtManager) updateStateFromExchange(ms *deviceMgmtState, resp *store.MessageExchangeResponse) {
-	for _, msg := range resp.Messages {
-		reqMsg, err := parseRequestMessage(msg.Message)
-		if err != nil {
-			// Malformed messages are acknowledged but not processed.
-			// There's no point retrying since if parsing fails once, it will fail again.
-			// Log and continue.
-			logger.Noticef("cannot parse request-message with token %s: %v", msg.Token, err)
-			continue
-		}
-
-		_, exists := ms.PendingRequests[reqMsg.ID()]
-		if !exists {
-			ms.PendingRequests[reqMsg.ID()] = reqMsg
-		}
-	}
-
-	if len(resp.Messages) > 0 {
-		token := resp.Messages[len(resp.Messages)-1].Token
-		ms.LastReceivedToken = token
-	} else {
-		ms.LastReceivedToken = ""
-	}
-
-	ms.ReadyResponses = make(map[string]store.Message)
-	ms.LastExchangeTime = timeNow()
 }
 
 // doDispatchMessages selects pending requests for processing and queues tasks for them.
