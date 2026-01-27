@@ -30,7 +30,7 @@ const umuSupportSummary = `allows UMU launcher to configure pressure-vessel cont
 
 const umuSupportBaseDeclarationPlugs = `
   umu-support:
-    allow-installation: true
+    allow-installation: false
     deny-auto-connection: true
 `
 
@@ -45,8 +45,6 @@ const umuSupportBaseDeclarationSlots = `
 const umuSupportConnectedPlugAppArmor = `
 # Allow basic operations needed by pressure-vessel
 capability sys_admin,
-capability sys_ptrace,
-capability setpcap,
 
 # Allow pressure-vessel to set up its Bubblewrap sandbox
 @{PROC}/sys/kernel/overflowuid r,
@@ -67,39 +65,12 @@ pivot_root,
 userns,
 
 # Allow Bubblewrap to create directories for bind mounts
-/run/host/ rwkl,
 /run/host/** rwkl,
 
 # Allow access to tmpfs for intermediate roots
-/tmp/ rwkl,
 /tmp/** rwkl,
 
-# Allow access to X11 and Wayland sockets
-owner /run/user/[0-9]*/wayland-* rw,
-owner /tmp/.X11-unix/X* rw,
-
-# Allow access to PulseAudio
-owner /run/user/[0-9]*/pulse/native rw,
-
-# Allow access to D-Bus
-owner /run/user/[0-9]*/bus rw,
-/run/dbus/system_bus_socket rw,
-
-# Allow access to systemd resolved socket
-/run/systemd/resolve/io.systemd.Resolve rw,
-
-# Allow access to NVIDIA information
-/sys/module/nvidia/version r,
-/var/lib/snapd/hostfs/usr/share/nvidia/** r,
-
-# Allow access to fonts directories
-owner /home/*/.cache/fontconfig/ rw,
-/var/cache/fontconfig/ r,
-/usr/share/fonts/ r,
-/usr/local/share/fonts/ r,
-
 # Allow access to icons directories
-/usr/share/icons/ r,
 owner /home/*/.local/share/icons/ rw,
 
 # Allow access to applications directories
@@ -107,54 +78,12 @@ owner /home/*/.local/share/applications/ rw,
 owner /home/*/.config/menus/ rw,
 owner /home/*/.local/share/desktop-directories/ rw,
 
-# Allow reading system files needed for container setup
-/etc/{group,passwd,hosts,host.conf,localtime,timezone} r,
-/etc/resolv.conf r,
-/etc/machine-id r,
-/etc/debian_chroot r,
-
-# Allow reading ld.so.cache and related files
-/etc/ld.so.cache r,
-/etc/ld.so.conf r,
-/etc/ld.so.conf.d/{,**} r,
-
 # Allow access to pressure-vessel directories
-/*/pressure-vessel/** mrw,
+/tmp/pressure-vessel/** mrw,
 /run/pressure-vessel/** mrw,
 
-# Allow bind mounts from various system directories
-/usr/ r,
-/etc/ r,
-/opt/ r,
-/srv/ r,
-/home/ r,
-/var/ r,
-/mnt/ r,
-/media/ r,
-/snap/ r,
-
-# Allow access to journal sockets (systemd)
-/run/systemd/journal/socket rw,
-/run/systemd/journal/stdout rw,
-
-# Specific directories needed for bwrap container setup
-/run/host/usr/ rwkl,
-/run/host/usr/lib/ rwkl,
-/run/host/usr/share/ rwkl,
-/run/host/usr/bin/ rwkl,
-/run/host/usr/sbin/ rwkl,
-/run/host/etc/ rwkl,
-/run/host/lib/ rwkl,
-/run/host/lib64/ rwkl,
-/run/host/var/ rwkl,
-
-# Additional AppArmor permissions for container operations
+# Avoid Heroic Games Launcher "EACCES: permission denied" error and bwrap: Can't mkdir parents for /run/host/usr: Permission denied
 allow file,
-allow network,
-allow unix,
-allow ptrace,
-allow signal,
-allow dbus,
 `
 
 const umuSupportConnectedPlugSecComp = `
@@ -179,8 +108,7 @@ type umuSupportInterface struct {
 func (iface *umuSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Similar approach to Steam Support but with more restricted permissions.
 	spec.AddSnippet(umuSupportConnectedPlugAppArmor)
-	
-	spec.SetUsesPtraceTrace()
+
 	return nil
 }
 
