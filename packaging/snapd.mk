@@ -81,6 +81,28 @@ endif
 # Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
 EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
+# sourcedir is the path to the source directory tree (where the go source files are).
+# This is used by prepare-build-tree to remove unnecessary code.
+# For Debian/dh-golang, this would be: sourcedir=_build/src/github.com/snapcore/snapd
+sourcedir ?= $(CURDIR)
+
+# Prepare the build tree by removing code that is not used in non-embedded builds.
+# This removes snap-bootstrap, snap-fde-keymgr, and secboot-related code that
+# is only needed for embedded systems and UC20+ builds.
+.PHONY: prepare-build-tree
+prepare-build-tree:
+	# exclude certain parts that won't be used by debian
+	find $(sourcedir)/cmd/snap-bootstrap -name "*.go" 2>/dev/null | xargs rm -f
+	find $(sourcedir)/cmd/snap-fde-keymgr -name "*.go" 2>/dev/null | xargs rm -f
+	find $(sourcedir)/gadget/install -name "*.go" -not -name "params.go" -not -name "install_dummy.go" -not -name "kernel.go" 2>/dev/null | xargs rm -f
+	# XXX: once dh-golang understands go build tags this would not be needed
+	find $(sourcedir)/secboot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go|.*_tpm(_test)?\.go|secboot_hooks.go|auth_requestor.go|keymgr/)' | xargs rm -f
+	# Rename plainkey files to indicate they are secboot variants
+	if [ -f $(sourcedir)/secboot/keys/plainkey.go ]; then mv $(sourcedir)/secboot/keys/plainkey.go $(sourcedir)/secboot/keys/plainkey_sb.go; fi
+	if [ -f $(sourcedir)/secboot/keys/plainkey_test.go ]; then mv $(sourcedir)/secboot/keys/plainkey_test.go $(sourcedir)/secboot/keys/plainkey_sb_test.go; fi
+	find $(sourcedir)/secboot/keys/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs rm -f
+	find $(sourcedir)/boot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs rm -f
+
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
