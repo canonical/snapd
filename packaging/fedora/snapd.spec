@@ -776,11 +776,6 @@ for file in $(find . -iname "*_test.go"); do
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
     echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 done
-
-# Install additional testdata
-install -d %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata/
-cp -pav cmd/snap/testdata/* %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata/
-echo "%%{gopath}/src/%%{import_path}/cmd/snap/testdata" >> unit-test-devel.file-list
 %endif
 
 %if 0%{?with_devel}
