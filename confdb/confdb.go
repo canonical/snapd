@@ -1654,8 +1654,11 @@ type UnconstrainedParamsError struct {
 
 func (e *UnconstrainedParamsError) Error() string {
 	var sb strings.Builder
-	var i int
-	for req, params := range e.unconstrained {
+	reqs := keys(e.unconstrained)
+	sort.Strings(reqs)
+
+	for i, req := range reqs {
+		params := e.unconstrained[req]
 		if i > 0 {
 			sb.WriteRune('\n')
 		}
@@ -1667,7 +1670,6 @@ func (e *UnconstrainedParamsError) Error() string {
 		paramStr += strutil.Quoted(params)
 
 		sb.WriteString(fmt.Sprintf(i18n.G("cannot %s %q: filter %s must be constrained"), e.operation, req, paramStr))
-		i++
 	}
 
 	return sb.String()

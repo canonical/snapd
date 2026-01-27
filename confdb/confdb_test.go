@@ -4627,7 +4627,7 @@ func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get "foo.baz": filter parameter "b" must be constrained`)
 
 	_, err = view.Get(bag, "xyz", nil)
-	c.Assert(err, ErrorMatches, `cannot get "xyz.a": filter parameter "a" must be constrained\n`+
+	c.Assert(err, ErrorMatches, "cannot get \"xyz.a\": filter parameter \"a\" must be constrained\n"+
 		`cannot get "xyz.b": filter parameter "b" must be constrained`)
 
 	_, err = view.Get(bag, "foo", map[string]any{"a": "a", "b": "b"})
