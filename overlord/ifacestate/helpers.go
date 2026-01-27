@@ -1599,12 +1599,3 @@ func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAp
 
 	return interfaces.NewSnapAppSet(info, compInfos)
 }
-
-func hasAppArmorBackend(backends []interfaces.SecurityBackend) bool {
-	for _, b := range backends {
-		if b.Name() == interfaces.SecurityAppArmor {
-			return true
-		}
-	}
-	return false
-}
