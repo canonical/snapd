@@ -14,6 +14,7 @@ environment:
 skip:
     - reason: This test needs test keys to be trusted
       if: |
+       # In this scenario, the keys from the snapd pkg are used
        [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-from-archive
 
 prepare: |
