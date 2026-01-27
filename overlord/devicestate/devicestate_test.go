@@ -645,22 +645,6 @@ func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
-	s.switchDevManagerToClassicWithModes(c)
-	s.setPCModelInState(c)
-
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
-	err := devicestate.EnsureBootOk(s.mgr)
-	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
-}
-
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 
@@ -700,13 +684,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
@@ -726,7 +703,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 
 	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
@@ -3175,4 +3151,38 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
 
 	c.Check(callA.called, Equals, 1)
 	c.Check(callB.called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return fmt.Errorf("MarkSuccessful did not work")
+	})()
+
+	called := 0
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, locktoutResetErr error) error {
+		c.Check(locktoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+		called++
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEInstall(c *C) {
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, locktoutResetErr error) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "install")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
 }

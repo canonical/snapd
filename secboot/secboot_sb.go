@@ -108,6 +108,63 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+func shouldAttemptRepairOnFailure(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorNone:
+				return false
+			case sb.KeyslotErrorIncorrectUserAuth:
+				return false
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			}
+		}
+	}
+	return true
+}
+
+func ShouldAttemptRepair(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		if activation.Status == sb.ActivationSucceededWithRecoveryKey || activation.Status == sb.ActivationFailed {
+			return shouldAttemptRepairOnFailure(a)
+		}
+	}
+
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			// No error
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			// Require reprovision:
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+
+			// Repair
+			case sb.KeyslotErrorIncompatibleRoleParams:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // ActivateStateHasDegradedErrors looks for any error that is not
 // ignorable and should be reported on an ActivateState.
 // This function assumes all activations have been unlocked using

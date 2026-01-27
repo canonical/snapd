@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -73,6 +74,8 @@ var (
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
 	secbootMarkSuccessful = secboot.MarkSuccessful
+
+	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
 )
 
 var (
@@ -87,6 +90,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeeded")
 	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertions")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureFDE")
 	swfeats.RegisterEnsure("DeviceManager", "ensureBootOk")
 	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestricted")
 	swfeats.RegisterEnsure("DeviceManager", "ensureInstalled")
@@ -157,6 +161,7 @@ type DeviceManager struct {
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
+	fdeRan               bool
 
 	seedTimings *timings.Timings
 	// this is used during early phases until seeding is under way
@@ -1223,6 +1228,34 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureFDE() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.SystemMode(SysAny) != "run" {
+		return nil
+	}
+
+	if !m.fdeRan {
+		// FIXME: we should rename to something like "reset lockout"
+		locktoutResetErr := secbootMarkSuccessful()
+
+		// TODO: with new APIs of lockout reset we will get so
+		// more status that we will need to react to and
+		// provide to the status API.
+
+		if err := fdestateAttemptAutoRepairIfNeeded(m.state, locktoutResetErr); err != nil {
+			return err
+		}
+
+		m.fdeRan = true
+	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFDE")
+
+	return nil
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1239,9 +1272,6 @@ func (m *DeviceManager) ensureBootOk() error {
 		}
 		if err == nil && deviceCtx.Model().KernelSnap() != nil {
 			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
 				return err
 			}
 		}
@@ -2026,9 +2056,18 @@ func (m *DeviceManager) Ensure() error {
 			errs = append(errs, err)
 		}
 
-		// XXX: This might trigger a reseal but it should not affect
-		// resealing tasks since it is run at most once during startup
-		// before TaskRunner.Ensure() is called.
+		// XXX: This might trigger a reseal (auto-repair) but
+		// it should not affect resealing tasks since it is
+		// run at most once during startup before
+		// TaskRunner.Ensure() is called.
+		if err := m.ensureFDE(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// XXX: This might trigger a reseal (removal of "try"
+		// entries in modeenv) but it should not affect
+		// resealing tasks since it is run at most once during
+		// startup before TaskRunner.Ensure() is called.
 		if err := m.ensureBootOk(); err != nil {
 			errs = append(errs, err)
 		}

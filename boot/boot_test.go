@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -5263,50 +5262,4 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulClassModes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m2.Base, Equals, "")
 	c.Check(m2.TryBase, Equals, "")
-}
-
-func (s *bootenv20Suite) TestMarkBootSuccessfulAutoRepair(c *C) {
-	m := &boot.Modeenv{
-		Mode:           "run",
-		CurrentKernels: []string{s.kern1.Filename()},
-	}
-	defer setupUC20Bootenv(
-		c,
-		s.bootloader,
-		&bootenv20Setup{
-			modeenv:    m,
-			kern:       s.kern1,
-			kernStatus: boot.DefaultStatus,
-		},
-	)()
-
-	data := map[string]any{
-		"ubuntu-data": map[string]any{
-			"unlock-key": "recovery",
-		},
-		"ubuntu-save": map[string]any{
-			"unlock-key": "run",
-		},
-	}
-	jsonData, err := json.Marshal(data)
-	c.Assert(err, IsNil)
-
-	err = os.MkdirAll(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap/unlocked.json"), jsonData, 0644)
-	c.Assert(err, IsNil)
-
-	resealCalls := 0
-	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
-		resealCalls++
-		c.Check(opts.Force, Equals, true)
-		c.Check(opts.EnsureProvisioned, Equals, true)
-		return nil
-	})()
-
-	dev := boottest.MockClassicWithModesDevice("", nil)
-
-	err = boot.MarkBootSuccessful(dev)
-	c.Assert(err, IsNil)
-	c.Check(resealCalls, Equals, 1)
 }

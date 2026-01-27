@@ -47,7 +47,7 @@ func loadActivateState() (*secboot.ActivateState, error) {
 
 type cachedActivateStateKey struct{}
 
-func getActivateState(st *state.State) (*secboot.ActivateState, error) {
+func GetActivateState(st *state.State) (*secboot.ActivateState, error) {
 	stateRaw := st.Cached(cachedActivateStateKey{})
 	if stateRaw != nil {
 		return stateRaw.(*secboot.ActivateState), nil
@@ -92,6 +92,9 @@ type FDESystemState struct {
 	// Status gives a summary on whether encrypted disks have been
 	// activated and whether any recovery key was used.
 	Status FDEStatus `json:"status"`
+
+	// AutoRepairResult is the start
+	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 }
 
 // SystemState returns a json serializable FDE state of the booted
@@ -99,7 +102,18 @@ type FDESystemState struct {
 func SystemState(st *state.State) (*FDESystemState, error) {
 	ret := &FDESystemState{}
 
-	s, err := getActivateState(st)
+	repairResult, err := getRepairAttemptResult(st)
+	if err != nil {
+		return nil, err
+	}
+	if repairResult == nil {
+		// FIXME: should there be a difference between "not attempted" and "not attempted yet"?
+		ret.AutoRepairResult = AutoRepairNotAttempted
+	} else {
+		ret.AutoRepairResult = repairResult.Result
+	}
+
+	s, err := GetActivateState(st)
 	if err == errNoActivateState {
 		// We are probably in a case where snap-bootstrap is
 		// new enough to have unlocked.json, but too old to provide
