@@ -28,9 +28,9 @@ restore: |
     systemctl restart snapd.service
 
 execute: |
-    if os.query is-ubuntu && not os.query is-trusty; then
-        # we expect the test to run on all Ubuntu images excluding 14.04
-        echo "the test expected to run on $SPREAD_SYSTEM"
+    if [[ ! -e /run/cloud-init/instance-data.json ]]; then
+        # we expect the test to run on all Ubuntu images excluding 14.04 (which is skipped if no instance data available)
+        echo "the test expected to have cloud-init instance data on $SPREAD_SYSTEM"
         exit 1
     fi
 
