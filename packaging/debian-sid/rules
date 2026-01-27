@@ -135,8 +135,6 @@ override_dh_auto_build:
 	$(file >cmd/VERSION,$(cmd__VERSION))
 	$(file >data/info,$(data__info))
 	# Build golang bits
-	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/testdata
-	cp -a cmd/snap/testdata/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/testdata/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
 	# Prepare the build tree by removing code not used for Debian builds
