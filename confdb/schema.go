@@ -616,8 +616,21 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// TODO incorporate constraints when evaluting paths from whence the data comes
+	// Now potentially an incorrect path is chosen if constraints are instrumental
+	// in selecting an alternative path.
 	if data == nil {
 		return nil, nil
+	}
+	if len(path) == 0 {
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal data: %w", err)
+		}
+		err = v.Validate(marshaled)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var lastErr error
@@ -879,6 +892,16 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 	if data == nil {
 		return nil, nil
 	}
+	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal data: %w", err)
+		}
+		err = v.Validate(marshaled)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if len(path) == 0 || path[0].Type() == KeyPlaceholderType {
 		// If the path is empty, then the data must be a map.
@@ -894,6 +917,28 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 		if !ok {
 			return nil, fmt.Errorf("data provided must be a map")
 		}
+
+		if len(path) > 1 && path[0].Type() == KeyPlaceholderType {
+			// The data in values will not have the expected form of this map's
+			// entry/value schemas. Here only validate the set of keys.
+			var missing bool
+			for _, required := range v.requiredCombs {
+				missing = false
+				for _, key := range required {
+					if _, ok := values[key]; !ok {
+						missing = true
+						break
+					}
+				}
+				if !missing {
+					break
+				}
+			}
+			if missing {
+				return nil, validationErrorf(`cannot find required combinations of keys`)
+			}
+		}
+
 		rest := []Accessor{}
 		if len(path) > 0 {
 			rest = path[1:]
@@ -1187,9 +1232,16 @@ func (v *stringSchema) PruneByVisibility(path []Accessor, vis Visibility, data a
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "string" type`)
 	}
-	_, ok := data.(string)
-	if !ok {
-		return nil, errors.New(`data provided must be a string`)
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
 	}
 	if v.visibility == vis {
 		data = nil
@@ -1287,8 +1339,16 @@ func (v *intSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "int" type`)
 	}
-	if _, ok := data.(float64); !ok {
-		return nil, errors.New(`data provided must be an int`)
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
 	}
 	if v.visibility == vis {
 		data = nil
@@ -1385,6 +1445,20 @@ func (v *anySchema) Type() SchemaType {
 }
 
 func (v *anySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "any" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
 	if v.visibility == vis {
 		data = nil
 	}
@@ -1444,8 +1518,16 @@ func (v *numberSchema) PruneByVisibility(path []Accessor, vis Visibility, data a
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "number" type`)
 	}
-	if _, ok := data.(float64); !ok {
-		return nil, errors.New(`data provided must be a number`)
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
 	}
 	if v.visibility == vis {
 		data = nil
@@ -1579,9 +1661,16 @@ func (v *booleanSchema) PruneByVisibility(path []Accessor, vis Visibility, data 
 	if len(path) > 0 {
 		return nil, errors.New(`cannot follow path beyond "bool" type`)
 	}
-	_, ok := data.(bool)
-	if !ok {
-		return nil, errors.New(`data provided must be a bool`)
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
 	}
 	if v.visibility == vis {
 		data = nil
@@ -1694,6 +1783,16 @@ func (v *arraySchema) NestedVisibility(vis Visibility) bool {
 func (v *arraySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
 	if data == nil {
 		return nil, nil
+	}
+	if len(path) == 0 {
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal data: %w", err)
+		}
+		err = v.Validate(marshaled)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(path) == 0 || path[0].Type() == IndexPlaceholderType {
 		// If the path is empty, then the data must be an array.
