@@ -12,9 +12,9 @@ skip:
     - reason: This test is only valid for google and openstack backends that provide cloud info
       if: |
         ! [[ "$SPREAD_BACKEND" =~ google ]] && ! [[ "$SPREAD_BACKEND" =~ openstack ]]
-    - reason: cloud-init instance data is required to execute the test
+    - reason: cloud-init instance data, required to execute the test, is not available for trusty
       if: |
-        [[ ! -e /run/cloud-init/instance-data.json ]]
+        [[ ! -e /run/cloud-init/instance-data.json ]] && os.query is-ubuntu && os.query is-trusty
 
 prepare: |
     cat <<EOF > /etc/systemd/system/snapd.service.d/http-debug.conf
