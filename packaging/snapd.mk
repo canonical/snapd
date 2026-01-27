@@ -101,7 +101,7 @@ prepare-build-tree:
 	# exclude certain parts that won't be used by debian
 	find $(sourcedir)/cmd/snap-bootstrap -name "*.go" 2>/dev/null | xargs rm -f
 	find $(sourcedir)/cmd/snap-fde-keymgr -name "*.go" 2>/dev/null | xargs rm -f
-	find $(sourcedir)/gadget/install -name "*.go" -not -name "params.go" -not -name "install_dummy.go" -not -name "kernel.go" 2>/dev/null | xargs rm -f
+	find $(sourcedir)/gadget/install -name "*.go" -not -name "params.go" -not -name "install_placeholder.go" -not -name "kernel.go" 2>/dev/null | xargs rm -f
 	# XXX: once dh-golang understands go build tags this would not be needed
 	find $(sourcedir)/secboot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go|.*_tpm(_test)?\.go|secboot_hooks.go|auth_requestor.go|keymgr/)' | xargs rm -f
 	# Rename plainkey files to indicate they are secboot variants
