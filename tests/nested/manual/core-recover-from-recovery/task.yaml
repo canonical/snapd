@@ -43,7 +43,34 @@ prepare: |
               "bad-key.esl" "dbx-update.auth"
     fi
 
+debug: |
+    cat initial-state.json || true
+    cat pre-repair-state.json || true
+    cat post-repair-state.json || true
+
 execute: |
+    api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+    }
+
+    wait_for_auto_repair_state() {
+      save_state="${1}"
+      expected="${2}"
+      # shellcheck disable=SC2034
+      for try in {0..120}; do
+        api_get_v2_system_info_storage_encrypted >"${save_state}"
+        gojq -r '.result."auto-repair-result"' <"${save_state}" >last-autorepair-result
+        if MATCH "${expected}" <last-autorepair-result; then
+          break
+        elif MATCH not-initialized <last-autorepair-result; then
+          sleep 1
+        else
+          break
+        fi
+      done
+      MATCH "${expected}" <last-autorepair-result
+    }
+
     # We will manually clear things
     export NESTED_KEEP_FIRMWARE_STATE=1
 
@@ -58,6 +85,11 @@ execute: |
 
     test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-run.json)" = run
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
+
+    api_get_v2_system_info_storage_encrypted >initial-state.json
+    gojq -r '.result.status' <initial-state.json | MATCH active
+
+    wait_for_auto_repair_state initial-state.json not-attempted
 
     remote.exec "sudo snap recovery --show-keys" >recovery.out
     tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
@@ -81,12 +113,13 @@ execute: |
     # We must have been able to unlock with the plain key
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-recovery.json)" = run
 
+    api_get_v2_system_info_storage_encrypted >pre-repair-state.json
+    gojq -r '.result.status' <pre-repair-state.json | MATCH recovery
+
     # FIXME: this is a bug we always had for cleared tpm
     if [ "${BREAK_DBX}" = true ]; then
       remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
-
-      # FIXME: we should have a way to detect when auto repair has been done
-      sleep 120
+      wait_for_auto_repair_state pre-repair-state.json success
     fi
 
     if [ "${CLEAR_TPM}" = true ]; then
@@ -103,3 +136,8 @@ execute: |
 
     test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-recovery.json)" = run
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run
+
+    api_get_v2_system_info_storage_encrypted >post-repair-state.json
+    gojq -r '.result.status' <post-repair-state.json | MATCH active
+
+    wait_for_auto_repair_state post-repair-state.json not-attempted

@@ -343,7 +343,7 @@ func GetCurrentBoot(t snap.Type, dev snap.Device) (snap.PlaceInfo, error) {
 // bootStateUpdate carries the state for an on-going boot state update.
 // At the end it can be used to commit it.
 type bootStateUpdate interface {
-	commit(markedSuccesful bool) error
+	commit() error
 }
 
 // MarkBootSuccessful marks the current boot as successful. This means
@@ -403,8 +403,7 @@ func MarkBootSuccessful(dev snap.Device) error {
 	}
 
 	if u != nil {
-		const markedSuccessful = true
-		if err := u.commit(markedSuccessful); err != nil {
+		if err := u.commit(); err != nil {
 			return fmt.Errorf(errPrefix, err)
 		}
 	}

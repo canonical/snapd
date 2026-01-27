@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -189,7 +188,7 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 }
 
 // commit will write out boot state persistently to disk.
-func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
+func (u20 *bootStateUpdate20) commit() error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
 	}
@@ -223,18 +222,6 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 			return err
 		}
 		resealOpts.ExpectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
-	}
-
-	if markedSuccessful {
-		autoRepair, err := isUnlockedWithRecoveryKey()
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-		} else if autoRepair {
-			resealOpts.Force = true
-			resealOpts.EnsureProvisioned = true
-		}
 	}
 
 	// next reseal using the modeenv values, we do this before any
