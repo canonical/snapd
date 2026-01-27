@@ -48,6 +48,8 @@ type (
 	TooSoonError = tooSoonError
 
 	Target = target
+
+	InstallContext = installContext
 )
 
 var ComponentSetupTask = componentSetupTask
@@ -118,7 +120,7 @@ var (
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshScheduleStr
-	DoInstall              = doInstall
+	DoInstallOrPreDownload = doInstallOrPreDownload
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
@@ -143,10 +145,6 @@ var (
 	ReRefreshSummary                     = reRefreshSummary
 
 	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
-)
-
-const (
-	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

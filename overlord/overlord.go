@@ -2,7 +2,7 @@
 //go:build !nomanagers
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/healthstate"
@@ -103,22 +104,24 @@ type Overlord struct {
 	startOfOperationTime time.Time
 
 	// managers
-	inited     bool
-	startedUp  bool
-	runner     *state.TaskRunner
-	restartMgr *restart.RestartManager
-	snapMgr    *snapstate.SnapManager
-	serviceMgr *servicestate.ServiceManager
-	assertMgr  *assertstate.AssertManager
-	ifaceMgr   *ifacestate.InterfaceManager
-	hookMgr    *hookstate.HookManager
-	deviceMgr  *devicestate.DeviceManager
-	clusterMgr *clusterstate.ClusterManager
-	cmdMgr     *cmdstate.CommandManager
-	shotMgr    *snapshotstate.SnapshotManager
-	fdeMgr     *fdestate.FDEManager
-	noticeMgr  *notices.NoticeManager
-	confdbMgr  *confdbstate.ConfdbManager
+	inited        bool
+	startedUp     bool
+	runner        *state.TaskRunner
+	restartMgr    *restart.RestartManager
+	snapMgr       *snapstate.SnapManager
+	serviceMgr    *servicestate.ServiceManager
+	assertMgr     *assertstate.AssertManager
+	ifaceMgr      *ifacestate.InterfaceManager
+	hookMgr       *hookstate.HookManager
+	deviceMgr     *devicestate.DeviceManager
+	clusterMgr    *clusterstate.ClusterManager
+	cmdMgr        *cmdstate.CommandManager
+	shotMgr       *snapshotstate.SnapshotManager
+	fdeMgr        *fdestate.FDEManager
+	noticeMgr     *notices.NoticeManager
+	confdbMgr     *confdbstate.ConfdbManager
+	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
+
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -205,6 +208,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	healthstate.Init(hookMgr)
 
+	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr))
+
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
 
@@ -246,6 +251,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.fdeMgr = x
 	case *confdbstate.ConfdbManager:
 		o.confdbMgr = x
+	case *devicemgmtstate.DeviceMgmtManager:
+		o.deviceMgmtMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -726,6 +733,11 @@ func (o *Overlord) NoticeManager() *notices.NoticeManager {
 // ConfdbManager returns the manager responsible for accesses to confdb.
 func (o *Overlord) ConfdbManager() *confdbstate.ConfdbManager {
 	return o.confdbMgr
+}
+
+// DeviceMgmtManager returns the manager responsible for device management.
+func (o *Overlord) DeviceMgmtManager() *devicemgmtstate.DeviceMgmtManager {
+	return o.deviceMgmtMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend

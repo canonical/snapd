@@ -13,7 +13,7 @@ systems: [-ubuntu-core-*]
 skip:
     - reason: "Account store credentials are not available"
       if: |
-        [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_USER_PASSWORD" ]]
+        [[ -z "$SPREAD_STORE_USER" || -z "$SPREAD_STORE_PASSWORD" ]]
 
 restore: |
     snap logout || true
