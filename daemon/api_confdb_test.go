@@ -268,7 +268,7 @@ func (s *confdbSuite) TestGetErrorHandling(c *C) {
 		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "unmatched constraints", err: &confdb.UnmatchedConstraintsError{}, status: 400},
-		{name: "unconstrained filter params", err: &confdb.UnconstrainedFilterError{}, status: 400},
+		{name: "unconstrained filter params", err: &confdb.UnconstrainedParamsError{}, status: 400},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
 		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]any) (string, error) {

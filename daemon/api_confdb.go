@@ -195,7 +195,7 @@ func toAPIError(err error) *apiError {
 			Value:   err,
 		}
 	case errors.Is(err, &confdb.BadRequestError{}),
-		errors.Is(err, &confdb.UnconstrainedFilterError{}),
+		errors.Is(err, &confdb.UnconstrainedParamsError{}),
 		errors.Is(err, &confdb.UnmatchedConstraintsError{}):
 		return BadRequest(err.Error())
 	default:
