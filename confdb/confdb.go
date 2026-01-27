@@ -170,14 +170,14 @@ func (e *BadRequestError) Error() string {
 	if e.request != "" {
 		reqStr = "\"" + e.request + "\""
 	} else {
-		reqStr = "empty path"
+		reqStr = i18n.G("empty path")
 	}
 
 	var causeSuffix string
 	if e.cause != "" {
 		causeSuffix = ": " + e.cause
 	}
-	return fmt.Sprintf("cannot %s %s through confdb view %s%s", e.operation, reqStr, e.viewID, causeSuffix)
+	return fmt.Sprintf(i18n.G("cannot %s %s through confdb view %s%s"), e.operation, reqStr, e.viewID, causeSuffix)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -1647,26 +1647,34 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
-type UnconstrainedFilterError struct {
+type UnconstrainedParamsError struct {
 	operation  string
 	request    string
 	parameters []string
 }
 
-func (e *UnconstrainedFilterError) Error() string {
+func (e *UnconstrainedParamsError) Error() string {
 	var params string
 	if len(e.parameters) == 1 {
-		params = fmt.Sprintf("parameter %q", e.parameters[0])
+		params = fmt.Sprintf(i18n.G("parameter %q"), e.parameters[0])
 	} else {
-		params = "parameters " + strutil.Quoted(e.parameters)
+		params = i18n.G("parameters ") + strutil.Quoted(e.parameters)
 	}
 
-	return fmt.Sprintf(`cannot %s %q: filter %s must be constrained`, e.operation, e.request, params)
+	return fmt.Sprintf(i18n.G(`cannot %s %q: filter %s must be constrained`), e.operation, e.request, params)
 }
 
-func (e *UnconstrainedFilterError) Is(err error) bool {
-	_, ok := err.(*UnconstrainedFilterError)
+func (e *UnconstrainedParamsError) Is(err error) bool {
+	_, ok := err.(*UnconstrainedParamsError)
 	return ok
+}
+
+func NewUnconstrainedParamsError(op, request string, params []string) error {
+	return &UnconstrainedParamsError{
+		operation:  op,
+		request:    request,
+		parameters: params,
+	}
 }
 
 func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
@@ -1705,11 +1713,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 		}
 
 		if len(unconstrained) != 0 {
-			return &UnconstrainedFilterError{
-				operation:  op,
-				request:    m.request,
-				parameters: unconstrained,
-			}
+			return NewUnconstrainedParamsError(op, m.request, unconstrained)
 		}
 	}
 
