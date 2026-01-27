@@ -1470,6 +1470,28 @@ var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error 
 	return nil
 }
 
+func canDiscardMountNamespace(oldInfo *snap.Info) (yesNo bool, noReason string) {
+	for _, app := range oldInfo.Apps {
+		// Theoretically it is safe to discard mount namespace of a snap even if
+		// the snap has services. There is an implicit assumption that should
+		// the snap change its base, the mount namespace is guaranteed to be
+		// discarded. In practice it means that snaps should not rely on the
+		// content of its mount namespace to be preserved across refreshes.
+		// However services marked as 'endure' are not stopped during refresh
+		// and could be occupying the mount namespace, and newly started from
+		// new revision of the snap will join it (unless the snap changes its
+		// base).
+		if app.IsService() && app.RefreshMode == "endure" {
+			// TODO: we could try to check whether the service is actually running
+			return false, fmt.Sprintf("service %q uses endure refresh-mode", app.Name)
+		}
+	}
+
+	// extend to support more checks?
+
+	return true, ""
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
@@ -1542,10 +1564,18 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		// next start of application we will not attempt to modify the mount
 		// namespace to match what the new revision of the snap desires (which
 		// sometimes is almost impossible), but instead the app starts with a
-		// clean slate.
-		logger.Debugf("discarding snap %q mount namespace", snapsup.InstanceName())
-		if err := m.backend.DiscardLockedSnapNamespace(snapsup.InstanceName()); err != nil {
-			return err
+		// clean slate. However, we first must check whether discarding the
+		// mount namespace would break run time assumptions of the snap's
+		// environment. Note, we're passing the old snap Info as this is what was
+		// essentially executing inside and affecting the mount namespace.
+		if can, reason := canDiscardMountNamespace(oldInfo); can {
+			logger.Debugf("discarding snap %q mount namespace", snapsup.InstanceName())
+			if err := m.backend.DiscardLockedSnapNamespace(snapsup.InstanceName()); err != nil {
+				return err
+			}
+		} else {
+			logger.Debugf("not discarding snap %q mount namespace: %v", snapsup.InstanceName(), reason)
+			t.Logf("not discarding snap mount namespace: %v", reason)
 		}
 	}
 

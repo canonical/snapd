@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -47,13 +48,13 @@ func (s *systemSecurebootSuite) SetUpTest(c *C) {
 		Interfaces: []string{"fwupd"},
 	})
 
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
 		panic("unexpected call")
 	}))
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdateCleanup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
 		panic("unexpected call")
 	}))
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBManagerStartup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBManagerStartup(func(st *state.State) error {
 		panic("unexpected call")
 	}))
 }
@@ -87,7 +88,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateStartup(c *C) {
 	s.daemon(c)
 
 	startupCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBManagerStartup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBManagerStartup(func(st *state.State) error {
 		startupCalls++
 		return nil
 	}))
@@ -108,7 +109,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBCleanup(c *C) {
 	s.daemon(c)
 
 	cleanupCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdateCleanup(func(st *state.State) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
 		cleanupCalls++
 		return nil
 	}))
@@ -125,13 +126,17 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBCleanup(c *C) {
 	c.Check(cleanupCalls, Equals, 1)
 }
 
-func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoData(c *C) {
+func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareNoDataForKind(
+	c *C,
+	kind fdestate.EFISecurebootKeyDatabase,
+) {
 	s.daemon(c)
 
-	body := strings.NewReader(`{
+	updateKindStr := kind.String()
+	body := strings.NewReader(fmt.Sprintf(`{
  "action": "efi-secureboot-update-db-prepare",
- "key-database": "DBX"
-}`)
+ "key-database": "%s"
+}`, updateKindStr))
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -140,6 +145,19 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoData(c *C) {
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Matches, "update payload not provided")
+}
+
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoDataPK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareNoDataForKind(c, fdestate.EFISecurebootPK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoDataKEK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareNoDataForKind(c, fdestate.EFISecurebootKEK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoDataDB(c *C) {
+	s.testEFISecurebootUpdateDBPrepareNoDataForKind(c, fdestate.EFISecurebootDB)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoDataDBX(c *C) {
+	s.testEFISecurebootUpdateDBPrepareNoDataForKind(c, fdestate.EFISecurebootDBX)
 }
 
 func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBogusDB(c *C) {
@@ -159,14 +177,18 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBogusDB(c *C) {
 	c.Check(rsp.Message, Equals, `invalid key database "FOO"`)
 }
 
-func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayload(c *C) {
+func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareBadPayloadForKind(
+	c *C,
+	kind fdestate.EFISecurebootKeyDatabase,
+) {
 	s.daemon(c)
 
-	body := strings.NewReader(`{
+	updateKindStr := kind.String()
+	body := strings.NewReader(fmt.Sprintf(`{
  "action": "efi-secureboot-update-db-prepare",
- "key-database": "DBX",
+ "key-database": "%s",
  "payload": "123"
-}`)
+}`, updateKindStr))
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -177,20 +199,37 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayload(c *C)
 	c.Check(rsp.Message, Matches, `cannot decode payload: illegal base64 .*`)
 }
 
-func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappy(c *C) {
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayloadPK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareBadPayloadForKind(c, fdestate.EFISecurebootPK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayloadKEK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareBadPayloadForKind(c, fdestate.EFISecurebootKEK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayloadDB(c *C) {
+	s.testEFISecurebootUpdateDBPrepareBadPayloadForKind(c, fdestate.EFISecurebootDB)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayloadDBX(c *C) {
+	s.testEFISecurebootUpdateDBPrepareBadPayloadForKind(c, fdestate.EFISecurebootDBX)
+}
+
+func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareHappyForKind(
+	c *C,
+	kind fdestate.EFISecurebootKeyDatabase,
+) {
 	s.daemon(c)
 
 	updatePrepareCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecureBootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
-		c.Check(db, Equals, fdestate.EFISecurebootDBX)
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+		c.Check(db, Equals, kind)
 		c.Check(payload, DeepEquals, []byte("payload"))
 		updatePrepareCalls++
 		return nil
 	}))
 
+	updateKindStr := kind.String()
 	body, err := json.Marshal(map[string]any{
 		"action":       "efi-secureboot-update-db-prepare",
-		"key-database": "DBX",
+		"key-database": updateKindStr,
 		"payload":      base64.StdEncoding.EncodeToString([]byte("payload")),
 	})
 	c.Assert(err, IsNil)
@@ -203,6 +242,19 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappy(c *C) {
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(updatePrepareCalls, Equals, 1)
+}
+
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyPK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootPK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyKEK(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootKEK)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDB(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDB)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDBX(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDBX)
 }
 
 func (s *systemSecurebootSuite) TestSecurebootRequestValidate(c *C) {

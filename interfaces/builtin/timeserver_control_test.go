@@ -89,6 +89,10 @@ func (s *TimeserverControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timedate1")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/timesync1")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "path=/org/freedesktop/network1")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "member=\"SetLinkNTP\"")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "member=\"RevertLinkNTP\"")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "member=\"GetLinkByName\"")
 }
 
 func (s *TimeserverControlInterfaceSuite) TestSecCompSpec(c *C) {

@@ -1,0 +1,167 @@
+summary: Verify XKB configurations are injected into kernel command line
+
+details: |
+  This checks that snapd detects XKB configurations and injects
+  a simplified version of it into the kernel command line.
+  
+  This kernel cmdline argument would then be consumed by
+  plymouth-set-keymap.service very early in boot to construct
+  a temporary XKB configuration that can be consumed by plymouth
+  before disks are unlocked so the the correct keyboard layout
+  can be detected when entring a recovery-key, passphrase or PIN
+  in a FDE system.
+
+systems:
+  # TODO:FDEM: test that nothing happens in 24.04
+  - ubuntu-26*
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  # store related setup
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      tests.exec skip-test "This test needs test keys to be trusted" && exit 0
+  fi
+
+  # TODO: this setup for hybrid tests is repeated in other tests
+  # check if it can be made into helper or extend setup_nested_hybrid_system.sh
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  version="$(nested_get_version)"
+
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$version/edge" pc
+
+  # Retrieve kernel
+  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
+  # the fakestore needs this assertion
+  snap ack pc-kernel-from-store.assert
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+
+  cat << EOF > ./prepare-rootfs.sh
+  rootfs="\$1"
+  # Setup initial keyboard layout
+  echo XKBLAYOUT=uk > \${rootfs}/etc/default/keyboard
+  echo XKBMODEL=pc105 >> \${rootfs}/etc/default/keyboard
+  echo XKBVARIANT=basic >> \${rootfs}/etc/default/keyboard
+  echo XKBOPTIONS=compat >> \${rootfs}/etc/default/keyboard
+  if [ ! -f "\${rootfs}/etc/vconsole.conf" ]; then
+    ln -s \${rootfs}/etc/default/keyboard \${rootfs}/etc/vconsole.conf
+  fi
+  EOF
+  export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
+
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
+
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
+  # system
+  # shellcheck disable=SC2086
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+     --model classic.model \
+     --store-dir "${STORE_DIR}" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel-repacked.snap \
+     --kernel-assertion pc-kernel-from-store.assert
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+execute: |
+  get_kcmdline() {
+    remote.exec "cat /proc/cmdline"
+  }
+
+  get_snapd_xkb() {
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-extra-snapd-fragments"."xkb"'
+  }
+
+  get_pending() {
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data."kcmdline-pending-extra-snapd-fragments"'
+  }
+  export -f get_pending
+
+  get_modeenv() {
+    remote.exec "sudo cat /var/lib/snapd/modeenv"
+  }
+
+  force_cmdline_update() {
+    remote.exec 'sudo snap unset system system.kernel.cmdline-append'
+  }
+
+  reboot() {
+    tests.nested vm stop
+    tests.nested vm start
+  }
+
+  # Fresh start, nothing applied yet
+  get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1$'
+
+  # Wait for snapd to pick up the current keyboard config
+  retry -n 100 bash -c 'get_pending | MATCH "^true$"'
+
+  # Pending snapd kcmdline args for XKB
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
+
+  # But not yet applied
+  get_modeenv | NOMATCH "uk"
+  get_kcmdline | NOMATCH "uk"
+
+  # Not even after reboot
+  reboot
+  get_pending | MATCH "^true$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
+  get_modeenv | NOMATCH "uk"
+  get_kcmdline | NOMATCH "uk"
+
+  # Force apply pending snapd args
+  force_cmdline_update
+  get_pending | MATCH "^false$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
+  get_modeenv | MATCH "uk,pc105,basic,compat"
+
+  # But not yet reflected in kcmdline because we didn't reboot yet
+  get_kcmdline | NOMATCH "uk"
+
+  # Let's reboot
+  reboot
+  get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="uk,pc105,basic,compat"$'
+
+  # Layout changes are detected realtime
+  remote.exec "sudo sed -i 's/XKBLAYOUT=uk/XKBLAYOUT=eg/g' /etc/default/keyboard"
+  retry -n 100 bash -c 'get_pending | MATCH "^true$"'
+  get_snapd_xkb | MATCH '^snapd\.xkb="eg,pc105,basic,compat"$'
+
+  # But as before, not applied immediately
+  get_modeenv | MATCH "uk,pc105,basic,compat"
+  get_modeenv | NOMATCH "eg"
+  get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="uk,pc105,basic,compat"$'
+  get_kcmdline | NOMATCH "eg"
+
+  # Force apply pending snapd args and reboot
+  force_cmdline_update
+  reboot
+  get_pending | MATCH "^false$"
+  get_snapd_xkb | MATCH '^snapd\.xkb="eg,pc105,basic,compat"$'
+  get_modeenv | MATCH "eg,pc105,basic,compat"
+  get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="eg,pc105,basic,compat"$'

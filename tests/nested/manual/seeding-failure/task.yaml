@@ -10,7 +10,12 @@ details: |
   service. This service fails the first time it runs, but succeeds the second
   time. This is achieved using the system-files interface.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+  # FIXME
+  - -ubuntu-26*
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-failed-seeding-pc-VERSION.json
@@ -75,7 +80,7 @@ prepare: |
 
 restore: |
     tests.exec is-skipped && exit 0
-    systemctl stop fakedevicesvc
+    systemctl stop fakedevicesvc || true
     "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
 execute: |

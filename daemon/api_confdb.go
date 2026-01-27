@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -73,21 +72,15 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	constraintsRaw := r.URL.Query().Get("constraints")
-	var constraints map[string]string
+	var constraints map[string]any
 	if constraintsRaw != "" {
-		cstrList := strutil.CommaSeparatedList(constraintsRaw)
-		if len(cstrList) == 0 {
-			return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
+		if err := json.Unmarshal([]byte(constraintsRaw), &constraints); err != nil || constraints == nil {
+			return BadRequest(`"constraints" must be a JSON object`)
 		}
 
-		constraints = make(map[string]string, len(cstrList))
-		for _, cstr := range cstrList {
-			parts := strings.Split(cstr, "=")
-			if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-				return BadRequest(`"constraints" must be comma-separated list of <placeholder>=<value> pairs`)
-			}
-
-			constraints[parts[0]] = parts[1]
+		err := validateConstraints(constraints)
+		if err != nil {
+			return BadRequest(err.Error())
 		}
 	}
 
@@ -103,6 +96,26 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chgID)
+}
+
+func validateConstraints(cstrs map[string]any) error {
+	for k, v := range cstrs {
+		var typeStr string
+		switch v.(type) {
+		case nil:
+			typeStr = "null"
+		case []any:
+			typeStr = "array"
+		case map[string]any:
+			typeStr = "map"
+		default:
+			continue
+		}
+
+		return fmt.Errorf("constraint value must be non-null scalar but parameter %q has %s constraint", k, typeStr)
+	}
+
+	return nil
 }
 
 func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -181,6 +194,8 @@ func toAPIError(err error) *apiError {
 			Kind:    client.ErrorKindConfigNoSuchOption,
 			Value:   err,
 		}
+	case errors.Is(err, &confdb.UnmatchedConstraintsError{}):
+		fallthrough
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())
 	default:

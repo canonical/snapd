@@ -2,7 +2,10 @@ summary: End-to-end test for install via muinstaller
 
 details: End-to-end test for install via muinstaller
 
-systems: [-ubuntu-1*, -ubuntu-20*]
+systems:
+  - ubuntu-22*
+  - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   # No partial gadget by default
@@ -20,6 +23,9 @@ environment:
 
   SEED_PARTITION: false
   SEED_PARTITION/seeded: true
+
+  PRESEED_ROOTFS: false
+  PRESEED_ROOTFS/preseed: true
 
   # Using partial case (TPM used, see above)
   PARTIAL_GADGET/partial: true
@@ -112,6 +118,10 @@ execute: |
   EOF
   fi
 
+  if [ "${PRESEED_ROOTFS}" = true ]; then
+      preseed_rootfs_args=--preseed-rootfs
+  fi
+
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
   # shellcheck disable=SC2086
@@ -122,6 +132,7 @@ execute: |
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel-from-store.assert \
+     ${preseed_rootfs_args-} \
      $kmods_arg \
      --disk disk.img
   rm -f disk.img
@@ -142,31 +153,41 @@ execute: |
       # Make sure it was loaded early
       remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
-      remote.exec lsmod | MATCH ip_tables
+      remote.exec lsmod | MATCH ahci
       # Check that the kernel-modules component can be removed
       remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
+
+  api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+  }
 
   # check encryption 
   remote.exec "sudo snap install test-snapd-tools"
   remote.exec "snap list" | MATCH "test-snapd-tools"
   if [ "$NESTED_ENABLE_TPM" = false ]; then
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | NOMATCH "storage-encrypted"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "inactive"
   else
       remote.exec "test-snapd-tools.cmd snapctl system-mode" | MATCH "storage-encrypted: managed"
+      api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
 
       remote.exec "sudo test -d /var/lib/snapd/device/fde"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
 
-      echo "Ensure recovery keys are available on classic FDE too"
-      # We check for the key twice (see LP#2036631)
-      #shellcheck disable=SC2034
-      for i in 1 2; do
-          remote.exec "sudo snap recovery --show-keys" > show-keys.out
-          MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
-      done
+      # 25.10+ systems are not permitted to use /v2/system-recovery-keys, it can only
+      # show the recovery key at the point where it gets created.
+      if os.query is_ubuntu_lt 25.10; then
+          echo "Ensure recovery keys are available on classic FDE too"
+          # We check for the key twice (see LP#2036631)
+          #shellcheck disable=SC2034
+          for i in 1 2; do
+              remote.exec "sudo snap recovery --show-keys" > show-keys.out
+              MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+          done
+      fi
 
       # check disk mappings
       # TODO: no ubuntu-save right now because:
@@ -182,9 +203,21 @@ execute: |
       # check that on an already provisioned system the API will give a
       # sensible reason why the system cannot be installed without further
       # action.
+      if os.query is_ubuntu_ge 25.10; then
+           # satisfy preinstall check need for locating boot images
+           remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+           remote.exec "sudo touch /cdrom/EFI/boot/bootx64.efi"
+           remote.exec "sudo touch /cdrom/EFI/boot/grubx64.efi"
+           remote.exec "sudo mkdir -p /cdrom/casper"
+           remote.exec "sudo touch /cdrom/casper/vmlinuz"
+      fi
       remote.exec "sudo snap debug api /v2/systems/classic" > system
       gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
-      gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+      if os.query is_ubuntu_ge 25.10; then
+          gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned"
+      else
+          gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+      fi
   fi
 
   if os.query is-ubuntu-ge 24.04; then
@@ -325,6 +358,10 @@ execute: |
       # make sure that our gpt partition is still there
       remote.exec 'test -e "/dev/disk/by-partlabel/BIOS\x20Boot"'
       remote.exec 'sudo fdisk -l /dev/vda' | MATCH '/dev/vda1\s+2048\s+4095\s+2048\s+1M\s+BIOS boot'
+  fi
+
+  if [ "${PRESEED_ROOTFS}" = true ]; then
+      remote.exec "snap debug seeding" | MATCH "^preseeded: +true"
   fi
 
   if [ "$SEED_PARTITION" = 'false' ]; then

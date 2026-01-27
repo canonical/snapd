@@ -153,10 +153,11 @@ backends:
                   workers: 8
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64
-                  storage: 15G
+                  storage: 16G
                   workers: 8
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-2004-64
+                  storage: 16G
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
@@ -196,6 +197,10 @@ backends:
                   storage: 20G
             - ubuntu-core-24-64:
                   image: ubuntu-2404-64
+                  workers: 8
+                  storage: 20G
+            - ubuntu-core-26-64:
+                  image: ubuntu-2510-64
                   workers: 8
                   storage: 20G
 
@@ -329,6 +334,10 @@ backends:
                   image: ubuntu-2404-64-virt-enabled
                   storage: 25G
                   workers: 14
+            - ubuntu-26.04-64:
+                  image: ubuntu-2604-64-virt-enabled
+                  storage: 25G
+                  workers: 14
 
     google-nested-arm:
         type: google
@@ -425,9 +434,6 @@ backends:
                 image: snapd-spread/arch-linux-64
                 workers: 6
 
-            - fedora-41-64:
-                image: snapd-spread/fedora-41-64
-                workers: 6
             - fedora-42-64:
                   image: snapd-spread/fedora-42-64
                   workers: 12
@@ -490,6 +496,10 @@ backends:
                   workers: 12
             - ubuntu-24.04-64:
                   image: snapd-spread/ubuntu-24.04-64
+                  storage: 25G
+                  workers: 12
+            - ubuntu-26.04-64:
+                  image: snapd-spread/ubuntu-26.04-64
                   storage: 25G
                   workers: 12
 
@@ -605,6 +615,9 @@ backends:
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
+            - ubuntu-26.04-64:
+                image: snapd-spread/ubuntu-26.04-64
+                workers: 8
 
     qemu-nested:
         memory: 4G
@@ -623,6 +636,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-24.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-26.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -735,6 +751,10 @@ backends:
                   image: ubuntu-24.04-64
                   username: root
                   password: root
+            - ubuntu-core-26-64:
+                  image: ubuntu-26.04-64
+                  username: root
+                  password: root
             - ubuntu-16.04-64:
                   username: root
                   password: root
@@ -766,9 +786,6 @@ backends:
                   username: root
                   password: root
             - opensuse-tumbleweed-selinux-64:
-                  username: root
-                  password: root
-            - fedora-41-64:
                   username: root
                   password: root
             - fedora-42-64:

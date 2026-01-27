@@ -56,7 +56,13 @@ execute: |
 
     echo "Refreshing test snap with daemon to newer version"
     # daemon is of type 'simple' and it gets restarted during the refresh
-    snap refresh --edge test-snapd-layout-change-with-daemon
-    # mount ns got discarded across refresh
+    if snap refresh --edge test-snapd-layout-change-with-daemon > err.log 2>&1 ; then
+        echo "ERROR: running snap refresh for test-snapd-layout-change-with-daemon did not fail as expected"
+        exit 1
+    fi
+    MATCH 'cannot update snap namespace: cannot create symlink .* existing file in the way' < err.log
+    # mount ns not discarded across refresh as the snap has a daemon service
+    # with 'endure' refresh mode
     new_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-layout-change-with-daemon.mnt)"
-    test "$new_inode" != "$old_inode"
+    # same captured namespace file
+    test "$new_inode" == "$old_inode"

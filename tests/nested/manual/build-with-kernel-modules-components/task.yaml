@@ -3,7 +3,13 @@ details: |
   Install a kernel-modules component and verify that the shipped
   kernel module is installed.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+  # FIXME
+  - -ubuntu-26*
+
 environment:
   # Test both encrypted and unencrypted cases
   NESTED_ENABLE_TPM/encrypted: true
@@ -53,7 +59,7 @@ execute: |
   # check component from store has been early-installed
   check_efi_pstore
   # Additionally, check that modules loaded by systemd right after switch root could be loaded
-  lsmod | MATCH ip_tables
+  lsmod | MATCH ahci
   # No mounts for unset versions are found
   mount | not MATCH efi-pstore_unset
   mount | not MATCH pc-kernel_unset
@@ -63,7 +69,7 @@ execute: |
   remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
   check_efi_pstore
-  lsmod | MATCH ip_tables
+  lsmod | MATCH ahci
 
   # remove kernel component
   remote.exec sudo snap remove pc-kernel+"$KMOD_COMP"

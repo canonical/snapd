@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	doIoctl = Ioctl
+	doIoctl  = Ioctl
+	osRemove = os.Remove
 
 	// TODO:GOVERSION: replace with binary.NativeEndian once we're at go 1.21+
 	nativeByteOrder = arch.Endian() // ioctl messages are native byte order
@@ -45,24 +46,62 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 		if !ok {
 			return 0, 0, fmt.Errorf("cannot register notify socket: no mutually supported protocol versions")
 		}
+		logger.Debugf("attempting to register with notify protocol version %d", protocolVersion)
 
 		if protocolVersion >= 5 {
 			// Attempt to register the listener ID before setting the filter
 			listenerID, err := registerListenerID(fd, protocolVersion)
 			if err != nil {
-				if errors.Is(err, unix.EINVAL) {
-					logger.Debugf("kernel returned EINVAL from APPARMOR_NOTIF_REGISTER with protocol version %d; marking version as unsupported and retrying", protocolVersion)
+				// listenerID is set to the listener ID which appeared on disk
+				// prior to this registration attempt, or 0 if no ID on disk.
+				if errors.Is(err, unix.EACCES) {
+					// XXX: This shouldn't happen, so Noticef instead of Debugf
+					if listenerID == 0 {
+						// Kernel should never return EACCES when we aren't
+						// trying to reclaim an existing listener, so assume
+						// it's a kernel bug with this protocol version.
+						logger.Noticef("kernel returned EACCES from APPARMOR_NOTIF_REGISTER with protocol version %d when attempting to re-register listener with ID 0, which should never occur; marking version as unsupported and retrying", protocolVersion)
+						unsupported[protocolVersion] = true
+						continue
+					}
+					logger.Noticef("kernel returned EACCES from APPARMOR_NOTIF_REGISTER with protocol version %d: policy denied access to listener; removing saved listener ID and retrying", protocolVersion)
+					if e := removeSavedListenerID(); e != nil {
+						logger.Noticef("cannot remove saved listener ID: %v", e)
+						// This shouldn't happen, but to avoid infinite loop,
+						// mark the protocol version as unsupported.
+						unsupported[protocolVersion] = true
+					}
+					continue
+				} else if errors.Is(err, unix.EPERM) {
+					// XXX: This shouldn't happen, so Noticef instead of Debugf
+					logger.Noticef("kernel returned EPERM from APPARMOR_NOTIF_REGISTER with protocol version %d: access denied for none policy reason; marking version as unsupported and retrying", protocolVersion)
+					unsupported[protocolVersion] = true
+					continue
+				} else if errors.Is(err, unix.EINVAL) {
+					logger.Debugf("kernel returned EINVAL from APPARMOR_NOTIF_REGISTER with protocol version %d: the request was invalid; marking version as unsupported and retrying", protocolVersion)
 					unsupported[protocolVersion] = true
 					continue
 				} else if errors.Is(err, unix.ENOENT) {
+					if listenerID == 0 {
+						// Kernel should never return ENOENT when we aren't
+						// trying to reclaim an existing listener, so assume
+						// it's a kernel bug with this protocol version.
+						logger.Noticef("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER with protocol version %d when attempting to re-register listener with ID 0, which should never occur; marking version as unsupported and retrying", protocolVersion)
+						unsupported[protocolVersion] = true
+						continue
+					}
 					// Listener probably timed out in the kernel, so remove the
 					// saved ID and retry registration
-					logger.Debug("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER (listener probably timed out); removing saved listener ID and retrying")
+					logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_REGISTER with protocol version %d: the requested notification listener does not exist (listener probably timed out); removing saved listener ID and retrying", protocolVersion)
 					if e := removeSavedListenerID(); e != nil {
 						logger.Noticef("cannot remove saved listener ID: %v", e)
+						// This shouldn't happen, but to avoid infinite loop,
+						// mark the protocol version as unsupported.
+						unsupported[protocolVersion] = true
 					}
 					continue
 				}
+				logger.Noticef("kernel returned error from APPARMOR_NOTIF_REGISTER: %v", err)
 				return 0, 0, err
 			}
 
@@ -80,6 +119,7 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 		// discarded, and the old listener and its filters are used.
 		if err := setFilterForListener(fd, protocolVersion); err != nil {
 			if errors.Is(err, unix.EPROTONOSUPPORT) {
+				logger.Debugf("SET_FILTER returned EPROTONOSUPPORT for protocol version %d", protocolVersion)
 				unsupported[protocolVersion] = true
 				// XXX: pendingCount may still be set, if the current protocol
 				// version supports registration but not setting filter. This
@@ -101,6 +141,9 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 // attempts to register the given file descriptor with it. If not, or if a
 // listener with the saved ID is not found, requests the new listener ID and
 // saves it to disk. Returns the ID of the listener.
+//
+// If an error occurs, returns the listener ID which was previously found on
+// disk, along with the error.
 func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64, err error) {
 	listenerID, ok := retrieveSavedListenerID()
 	if !ok {
@@ -120,13 +163,13 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	}
 	data, err := msg.MarshalBinary()
 	if err != nil {
-		return 0, err
+		return listenerID, err
 	}
 	ioctlBuf := IoctlRequestBuffer(data)
 	logger.Debugf("performing APPARMOR_NOTIF_REGISTER with listener ID set to %d", listenerID)
 	buf, err := doIoctl(fd, APPARMOR_NOTIF_REGISTER, ioctlBuf)
 	if err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	// Success, now get the listener ID and pending request count, which were
@@ -135,7 +178,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	// Otherwise, it should be the same ID that we passed to the kernel.
 	// Regardless, we want to save it to disk.
 	if err = msg.UnmarshalBinary(buf); err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	// Now save the listener ID to disk so we can retrieve it later. It may be
@@ -144,7 +187,7 @@ func registerListenerID(fd uintptr, version ProtocolVersion) (listenerID uint64,
 	// filter. This way the caller of this function doesn't have to worry about
 	// the listener ID file.
 	if err = saveListenerID(msg.KernelListenerID); err != nil {
-		return 0, err
+		return listenerID, err
 	}
 
 	return msg.KernelListenerID, nil
@@ -184,7 +227,7 @@ func saveListenerID(id uint64) error {
 
 // removeSavedListenerID removes the file which stores the listener ID on disk.
 func removeSavedListenerID() error {
-	return os.Remove(listenerIDFilepath())
+	return osRemove(listenerIDFilepath())
 }
 
 // resendRequests tells the kernel to resend all pending requests previously
@@ -207,10 +250,12 @@ func resendRequests(fd uintptr, version ProtocolVersion, listenerID uint64) (pen
 	ioctlBuf := IoctlRequestBuffer(data)
 	buf, err := doIoctl(fd, APPARMOR_NOTIF_RESEND, ioctlBuf)
 	if err != nil {
+		logger.Noticef("kernel returned error from APPARMOR_NOTIF_RESEND with protocol version %d: %v", version, err)
 		return 0, err
 	}
 	// Success, now extract the pending request count.
 	if err = msg.UnmarshalBinary(buf); err != nil {
+		logger.Noticef("cannot unmarshal kernel response to APPARMOR_NOTIF_RESEND with protocol version %d: %v", version, err)
 		return 0, err
 	}
 	return int(msg.Pending), nil

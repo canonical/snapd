@@ -2,7 +2,6 @@ package snapstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -25,13 +24,4 @@ var PolicyFor func(snap.Type, *asserts.Model) Policy = policyForUnset
 
 func policyForUnset(snap.Type, *asserts.Model) Policy {
 	panic("PolicyFor unset!")
-}
-
-func inUseFor(deviceCtx DeviceContext) func(snap.Type) (boot.InUseFunc, error) {
-	if deviceCtx == nil {
-		return nil
-	}
-	return func(typ snap.Type) (boot.InUseFunc, error) {
-		return boot.InUse(typ, deviceCtx)
-	}
 }

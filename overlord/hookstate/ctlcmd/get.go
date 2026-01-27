@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -48,10 +49,11 @@ type getCommand struct {
 	baseCommand
 
 	// these two options are mutually exclusive
-	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
-	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
-	View          bool `long:"view" description:"return confdb values from the view declared in the plug"`
-	Previous      bool `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
+	ForceSlotSide bool     `long:"slot" description:"return attribute values from the slot side of the connection"`
+	ForcePlugSide bool     `long:"plug" description:"return attribute values from the plug side of the connection"`
+	View          bool     `long:"view" description:"return confdb values from the view declared in the plug"`
+	Previous      bool     `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
+	With          []string `long:"with" value-name:"<param>=<constraint>" description:"parameter constraints for filtering confdb queries"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
@@ -110,6 +112,11 @@ that invoked the hook.
 
 The --default flag can be used to provide a default value to be returned if no
 value is stored.
+
+The --with flag can be used to provide constraints in the form of 
+<param>=<constraint> pairs. Constraints are parsed as JSON values. If they
+cannot be interpreted as non-null JSON scalars, snapctl defaults to 
+interpreting values as strings unless -t is also provided.
 `)
 
 func init() {
@@ -198,6 +205,10 @@ func (c *getCommand) Execute(args []string) error {
 
 	if c.Default != "" && !c.View {
 		return fmt.Errorf(`cannot use --default with non-confdb read (missing --view)`)
+	}
+
+	if len(c.With) > 0 && !c.View {
+		return fmt.Errorf(`cannot use --with with non-confdb read (missing --view)`)
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
@@ -430,8 +441,13 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	// TODO: support constraints in snapctl
-	tx, err := confdbstateTransactionForGet(ctx, view, requests, nil)
+	opts := clientutil.ConfdbOptions{Typed: c.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(c.With, opts)
+	if err != nil {
+		return err
+	}
+
+	tx, err := confdbstateTransactionForGet(ctx, view, requests, constraints)
 	if err != nil {
 		return err
 	}
@@ -441,8 +457,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		bag = tx.Previous()
 	}
 
-	// TODO: support constraints in snapctl
-	res, err := confdbstate.GetViaView(bag, view, requests, nil)
+	res, err := confdbstate.GetViaView(bag, view, requests, constraints)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

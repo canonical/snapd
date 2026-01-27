@@ -443,7 +443,7 @@ func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstat
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
 }
 
-func MockConfdbstateLoadConfdbAsync(f func(*state.State, *confdb.View, []string, map[string]string) (string, error)) (restore func()) {
+func MockConfdbstateLoadConfdbAsync(f func(*state.State, *confdb.View, []string, map[string]any) (string, error)) (restore func()) {
 	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
 }
 
@@ -453,4 +453,8 @@ func ValidateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiErr
 
 func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []any, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
 	return testutil.Mock(&devicestateSignConfdbControl, f)
+}
+
+func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
+	return testutil.Mock(&devicestateInstallPreseed, f)
 }

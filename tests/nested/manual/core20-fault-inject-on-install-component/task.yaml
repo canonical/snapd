@@ -4,7 +4,12 @@ details: |
     The test checks that if a fault is injected during the installation of a kernel component,
     then the change continues an is completed with a predictable outcome.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+  # FIXME
+  - -ubuntu-26*
 
 environment: 
     TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components

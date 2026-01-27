@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -347,14 +348,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		label = "classic"
 	}
 
-	recoveryKeyID := ""
+	var rkey *keys.RecoveryKey = nil
 	if opts.hasRecoveryKey {
-		recoveryKeyID = "7"
-		restore = devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
-			c.Check(keyID, Equals, "7")
-			return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7'}, nil
-		})
-		s.AddCleanup(restore)
+		rkey = &keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7'}
 	}
 
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
@@ -570,7 +566,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			})
 			s.AddCleanup(restore)
 		}
-		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, recoveryKeyID, opts.volumesAuth, checkContext)
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, rkey, opts.volumesAuth, checkContext)
 		s.AddCleanup(restore)
 
 		// Write expected boot assets needed when creating bootchain
@@ -1233,4 +1229,22 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAu
 		snap.TypeKernel: "2.67",
 	}
 	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallPreseedConflictWithOngoingChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install-step-preseed", "Preseeding...")
+	chg.AddTask(s.state.NewTask("install-preseed", "Preseed task"))
+
+	_, err := devicestate.InstallPreseed(s.state, "20191119", c.MkDir())
+	c.Assert(err, NotNil, Commentf("expected an error when preseeding with concurrent change"))
+
+	var conflictErr *snapstate.ChangeConflictError
+	c.Assert(errors.As(err, &conflictErr), Equals, true)
+
+	c.Check(conflictErr.Message, Matches, "installation preseeding in progress, no other installation steps allowed until it is done")
+	c.Check(conflictErr.ChangeKind, Equals, "install-step-preseed")
+	c.Check(conflictErr.ChangeID, Equals, chg.ID())
 }

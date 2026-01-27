@@ -852,6 +852,76 @@ func (s *apparmorSuite) TestMetadataTagsSupported(c *C) {
 	restore()
 }
 
+func (s *apparmorSuite) TestMetadataTagsSupportedByKernel(c *C) {
+	for _, testCase := range []struct {
+		kernelFeatures  []string
+		expectedSupport bool
+	}{
+		{
+			kernelFeatures:  []string{"policy:notify:user:file"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:tags"},
+			expectedSupport: true,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:file", "policy:notify:user:tags"},
+			expectedSupport: true,
+		},
+	} {
+		restore := apparmor.MockFeatures(testCase.kernelFeatures, nil, nil, nil)
+
+		result := apparmor.MetadataTagsSupportedByKernel()
+		c.Check(result, Equals, testCase.expectedSupport)
+
+		restore()
+	}
+
+	// If any error occurs, metadata tagging is not supported
+	kernelFeatures := []string{"policy:notify:user:tags"}
+
+	restore := apparmor.MockFeatures(kernelFeatures, fmt.Errorf("kernel error"), nil, nil)
+	result := apparmor.MetadataTagsSupportedByKernel()
+	c.Check(result, Equals, false)
+	restore()
+}
+
+func (s *apparmorSuite) TestMetadataTagsSupportedByParser(c *C) {
+	for _, testCase := range []struct {
+		parserFeatures  []string
+		expectedSupport bool
+	}{
+		{
+			parserFeatures:  []string{"prompt"},
+			expectedSupport: false,
+		},
+		{
+			parserFeatures:  []string{"tags"},
+			expectedSupport: true,
+		},
+		{
+			parserFeatures:  []string{"prompt", "tags"},
+			expectedSupport: true,
+		},
+	} {
+		restore := apparmor.MockFeatures(nil, nil, testCase.parserFeatures, nil)
+
+		result := apparmor.MetadataTagsSupportedByParser()
+		c.Check(result, Equals, testCase.expectedSupport)
+
+		restore()
+	}
+
+	// If any error occurs, metadata tagging is not supported
+	parserFeatures := []string{"tags"}
+
+	restore := apparmor.MockFeatures(nil, nil, parserFeatures, fmt.Errorf("parser error"))
+	result := apparmor.MetadataTagsSupportedByParser()
+	c.Check(result, Equals, false)
+	restore()
+}
+
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
 	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
 

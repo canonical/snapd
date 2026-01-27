@@ -1,3 +1,16 @@
+ubuntu-core-initramfs (72+2.73+g162.22d6f1c+25.10) questing; urgency=medium
+
+  * Change dependency from libteec1 to libteec2
+  * Update to snapd version 2.73+g162.22d6f1c
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Thu, 15 Jan 2026 11:09:44 -0500
+
+ubuntu-core-initramfs (72+2.73+g132.524048f+25.10) questing; urgency=medium
+
+  * Update to snapd version 2.73+g132.524048f
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Fri, 09 Jan 2026 08:08:22 -0500
+
 ubuntu-core-initramfs (72+2.73+g76.6a5ca6a+25.10) questing; urgency=medium
 
   * Update to snapd version 2.73+g76.6a5ca6a

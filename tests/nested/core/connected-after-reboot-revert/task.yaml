@@ -6,7 +6,12 @@ details: |
   update, we still have connections to the base snap. This could happen in
   the past if one of the updated snaps was snapd.
 
-systems: [ubuntu-*]
+systems:
+  - ubuntu-1*
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  # FIXME: bluez is not available on 26
 
 execute: |
   echo "Build kernel with failing post-refresh hook"

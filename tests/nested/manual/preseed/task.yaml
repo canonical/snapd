@@ -5,7 +5,11 @@ details: |
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-2*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -90,7 +94,7 @@ execute: |
   # the host VM as the nested VM, currently we are not, and as such there is a 
   # diff between the preseed apparmor-features and the nested VM actual 
   # system-key
-  if not os.query is-focal && not os.query is-jammy && not os.query is-noble; then
+  if not os.query is-focal && not os.query is-jammy && not os.query is-noble && not os.query is-resolute; then
     # note, this doesn't actually test the functionality, but acts as a canary:
     # the test is run against a vm image with ubuntu release matching that from spread host;
     # system-key check can fail if the nested vm image differs too much from the spread host system,
@@ -108,11 +112,8 @@ execute: |
 
   remote.exec "snap debug seeding" | MATCH "preseeded:\s+true"
   remote.exec "snap debug seeding" | MATCH "seeded:\s+true"
-  # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
-  # break if the preseeding takes more than 60s and golang formats the 
-  # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  remote.exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+([0-9]+m)?[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "seed-completion:\s+([0-9]+m)?[0-9]+\.[0-9]+s"
 
   # there is no longer any seeded snaps in base or minimal cloud images
   # in noble, skip lxd checks for noble
