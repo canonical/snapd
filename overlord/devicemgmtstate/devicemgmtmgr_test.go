@@ -288,8 +288,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 		c.Check(req.Limit, Equals, devicemgmtstate.DefaultExchangeLimit)
 		c.Check(req.Messages, HasLen, 0)
 
-		ago := time.Now().Add(-1 * time.Hour)
-		tomorrow := ago.Add(24 * time.Hour)
+		oneHourAgo := time.Now().Add(-1 * time.Hour)
+		tomorrow := oneHourAgo.Add(24 * time.Hour)
 
 		body := []byte(`{"action": "get", "account": "my-brand", "view": "network/access-wifi"}`)
 		as, err := s.storeStack.Sign(
@@ -300,9 +300,9 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 				"message-id":   "someId",
 				"message-kind": "confdb",
 				"devices":      []any{"serial-1.my-model.my-brand"},
-				"valid-since":  ago.UTC().Format(time.RFC3339),
+				"valid-since":  oneHourAgo.UTC().Format(time.RFC3339),
 				"valid-until":  tomorrow.UTC().Format(time.RFC3339),
-				"timestamp":    ago.UTC().Format(time.RFC3339),
+				"timestamp":    oneHourAgo.UTC().Format(time.RFC3339),
 			},
 			body, "",
 		)
@@ -324,7 +324,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
-	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
 
 	s.st.Unlock()
 	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
@@ -371,7 +371,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	}
 	s.mgr.SetState(ms)
 
-	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
 
 	s.st.Unlock()
 	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
@@ -407,7 +407,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
-	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
 
 	s.st.Unlock()
 	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
@@ -436,7 +436,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
 		return nil, fmt.Errorf("call not expected")
 	})
 
-	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
 
 	s.st.Unlock()
 	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
@@ -458,7 +458,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
-	t := s.st.NewTask("exchange-messages", "test exchange-messages task")
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
 
 	s.st.Unlock()
 	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})

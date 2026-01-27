@@ -359,7 +359,6 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 		ValidSince:  reqAs.ValidSince(),
 		ValidUntil:  reqAs.ValidUntil(),
 		Body:        string(reqAs.Body()),
-
 		ReceiveTime: timeNow(),
 	}, nil
 }
