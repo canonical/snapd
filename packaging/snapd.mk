@@ -84,7 +84,7 @@ EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
-all: $(go_binaries) 
+all: $(go_binaries)
 
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
@@ -185,7 +185,7 @@ install:: | $(DESTDIR)$(snap_mount_dir)
 install::
 	install -m 755 -d $(DESTDIR)$(snap_mount_dir)/bin
 
-# Install misc directories: 
+# Install misc directories:
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
@@ -225,4 +225,4 @@ check:
 
 .PHONY: clean
 clean:
-	rm -f $(go_binaries) 
+	rm -f $(go_binaries)
