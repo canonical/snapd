@@ -778,9 +778,9 @@ for file in $(find . -iname "*_test.go"); do
 done
 
 # Install additional testdata
-install -d %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
-cp -pav cmd/snap/test-data/* %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
-echo "%%{gopath}/src/%%{import_path}/cmd/snap/test-data" >> unit-test-devel.file-list
+install -d %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata/
+cp -pav cmd/snap/testdata/* %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata/
+echo "%%{gopath}/src/%%{import_path}/cmd/snap/testdata" >> unit-test-devel.file-list
 %endif
 
 %if 0%{?with_devel}
