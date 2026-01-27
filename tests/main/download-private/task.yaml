@@ -11,6 +11,13 @@ details: |
 # no ubuntu-core: we don't have expect available nor can we install snapcraft
 systems: [ubuntu-1*-64, ubuntu-2*-64]
 
+skip:
+    - reason: "Account store credentials are not available"
+      if: |
+        [ -z "$SPREAD_STORE_USER" ] || [ -z "$SPREAD_STORE_PASSWORD" ]
+    - reason: "Core is not supported"
+      if: os.query is-core
+
 prepare: |
     echo "Install snapcraft from latest/candidate"
     snap install snapcraft --channel=latest/candidate --classic

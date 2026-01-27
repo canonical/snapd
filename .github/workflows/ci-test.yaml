@@ -539,6 +539,7 @@ jobs:
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     if: contains(needs.read-systems.outputs.fundamental-systems, 'systems')
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -578,6 +579,7 @@ jobs:
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -612,6 +614,7 @@ jobs:
     # on the fundamental systems job's success before running this job.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -638,6 +641,7 @@ jobs:
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
     if: contains(needs.read-systems.outputs.nested-systems, 'systems')
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
