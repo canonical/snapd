@@ -322,6 +322,21 @@ func (r *Repository) Plugs(snapName string) []*snap.PlugInfo {
 	return result
 }
 
+// ConnectedPlugs returns the plugs which are connected.
+func (r *Repository) ConnectedPlugs(snapName string) []*snap.PlugInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*snap.PlugInfo
+	for _, plugInfo := range r.plugs[snapName] {
+		if len(r.plugSlots[plugInfo]) > 0 {
+			result = append(result, plugInfo)
+		}
+	}
+	sort.Sort(byPlugSnapAndName(result))
+	return result
+}
+
 // Plug returns the specified plug from the named snap.
 func (r *Repository) Plug(snapName, plugName string) *snap.PlugInfo {
 	r.m.Lock()
