@@ -339,25 +339,14 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 		USE_ALT_SNAP_MOUNT_DIR=true
 
 %check
+# Verify that statically linked binaries are indeed static
+%make_build -f %{indigo_srcdir}/packaging/snapd.mk SNAPD_DEFINES_DIR=%{_builddir} check-static-binaries
 
-static_pie=
 if [ -e build-with-static-pie ]; then
-    static_pie=1
-fi
-
-# These binaries execute inside the mount namespace thus they must be built statically
-pushd %{buildroot}/%{_libexecdir}/snapd/
 for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-    ldd $binary 2>&1 | grep 'statically linked\|not a dynamic executable'
+    file %{buildroot}/%{_libexecdir}/snapd/$binary | grep -F pie
 done
-
-if [ -n "$static_pie" ]; then
-    for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-        file $binary | grep -F pie
-    done
 fi
-
-popd
 
 export CFLAGS="$RPM_OPT_FLAGS -fpie"
 export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
