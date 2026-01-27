@@ -4599,6 +4599,14 @@ func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
 					"request": "foo.baz",
 					"storage": "foo[.a={a}].bar[.b={b}]",
 				},
+				map[string]any{
+					"request": "xyz.a",
+					"storage": "xyz.a[.a={a}]",
+				},
+				map[string]any{
+					"request": "xyz.b",
+					"storage": "xyz.b[.b={b}]",
+				},
 			},
 		},
 	}
@@ -4617,6 +4625,10 @@ func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
 
 	_, err = view.Get(bag, "foo", map[string]any{"a": "a"})
 	c.Assert(err, ErrorMatches, `cannot get "foo.baz": filter parameter "b" must be constrained`)
+
+	_, err = view.Get(bag, "xyz", nil)
+	c.Assert(err, ErrorMatches, `cannot get "xyz.a": filter parameter "a" must be constrained\n`+
+		`cannot get "xyz.b": filter parameter "b" must be constrained`)
 
 	_, err = view.Get(bag, "foo", map[string]any{"a": "a", "b": "b"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})

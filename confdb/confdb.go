@@ -1648,20 +1648,29 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 }
 
 type UnconstrainedParamsError struct {
-	operation  string
-	request    string
-	parameters []string
+	operation     string
+	unconstrained map[string][]string
 }
 
 func (e *UnconstrainedParamsError) Error() string {
-	var params string
-	if len(e.parameters) == 1 {
-		params = fmt.Sprintf(i18n.G("parameter %q"), e.parameters[0])
-	} else {
-		params = i18n.G("parameters ") + strutil.Quoted(e.parameters)
+	var sb strings.Builder
+	var i int
+	for req, params := range e.unconstrained {
+		if i > 0 {
+			sb.WriteRune('\n')
+		}
+
+		paramStr := i18n.G("parameter ")
+		if len(params) > 1 {
+			paramStr = i18n.G("parameters ")
+		}
+		paramStr += strutil.Quoted(params)
+
+		sb.WriteString(fmt.Sprintf(i18n.G("cannot %s %q: filter %s must be constrained"), e.operation, req, paramStr))
+		i++
 	}
 
-	return fmt.Sprintf(i18n.G(`cannot %s %q: filter %s must be constrained`), e.operation, e.request, params)
+	return sb.String()
 }
 
 func (e *UnconstrainedParamsError) Is(err error) bool {
@@ -1669,11 +1678,10 @@ func (e *UnconstrainedParamsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnconstrainedParamsError(op, request string, params []string) error {
+func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
 	return &UnconstrainedParamsError{
-		operation:  op,
-		request:    request,
-		parameters: params,
+		operation:     op,
+		unconstrained: unconstrained,
 	}
 }
 
@@ -1682,8 +1690,8 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
 	}
 
+	unconstrainedReqs := make(map[string][]string)
 	for _, m := range matches {
-		var unconstrained []string
 		for _, acc := range m.storagePath {
 			if acc.FieldFilters() == nil {
 				continue
@@ -1707,16 +1715,17 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				case pres == requiredOnRead && op == "get":
 					fallthrough
 				case pres == requiredOnWrite && op == "set":
-					unconstrained = append(unconstrained, param)
+					params := unconstrainedReqs[m.request]
+					params = append(params, param)
+					unconstrainedReqs[m.request] = params
 				}
 			}
 		}
-
-		if len(unconstrained) != 0 {
-			return NewUnconstrainedParamsError(op, m.request, unconstrained)
-		}
 	}
 
+	if len(unconstrainedReqs) != 0 {
+		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+	}
 	return nil
 }
 
