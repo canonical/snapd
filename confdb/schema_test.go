@@ -173,6 +173,7 @@ func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": map contains unexpected key "bar"`)
 }
+
 func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -889,7 +890,6 @@ func (*schemaSuite) TestAliasReferenceDoesntRequireConstraints(c *C) {
 
 	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
-
 }
 
 func (*schemaSuite) TestMapInAliasRequiresConstraints(c *C) {
