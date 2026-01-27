@@ -44,6 +44,10 @@ prepare: |
     fi
 
 execute: |
+    api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+    }
+
     # We will manually clear things
     export NESTED_KEEP_FIRMWARE_STATE=1
 
@@ -54,6 +58,10 @@ execute: |
 
     test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-run.json)" = run
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
+
+    api_get_v2_system_info_storage_encrypted >initial-state.json
+    gojq -r '.result.status' <initial-state.json | MATCH active
+    gojq -r '.result.auto-repair-result.result' <initial-state.json | MATCH not-attempted
 
     remote.exec "sudo snap recovery --show-keys" >recovery.out
     tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
@@ -77,12 +85,16 @@ execute: |
     # We must have been able to unlock with the plain key
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-recovery.json)" = run
 
+    api_get_v2_system_info_storage_encrypted | gojq -r '.result.status' | MATCH recovery
+
     # FIXME: this is a bug we always had for cleared tpm
     if [ "${BREAK_DBX}" = true ]; then
       remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
 
       # FIXME: we should have a way to detect when auto repair has been done
       sleep 120
+
+      api_get_v2_system_info_storage_encrypted | gojq -r '.result.auto-repair-result.result' | MATCH success
     fi
 
     if [ "${CLEAR_TPM}" = true ]; then
@@ -99,3 +111,7 @@ execute: |
 
     test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-recovery.json)" = run
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run
+
+    api_get_v2_system_info_storage_encrypted >post-repair-state.json
+    gojq -r '.result.status' <post-repair-state.json | MATCH active
+    gojq -r '.result.auto-repair-result.result' <post-repair-state.json | MATCH not-attempted

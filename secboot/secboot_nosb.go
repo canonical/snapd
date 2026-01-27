@@ -218,6 +218,10 @@ func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
 	return 0
 }
 
+func ShouldAttemptRepair(a *ActivateState) bool {
+	return false
+}
+
 type ActivateContext interface {
 	State() *ActivateState
 }

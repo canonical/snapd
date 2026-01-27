@@ -641,22 +641,6 @@ func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
-	s.switchDevManagerToClassicWithModes(c)
-	s.setPCModelInState(c)
-
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
-	err := devicestate.EnsureBootOk(s.mgr)
-	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
-}
-
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 
@@ -696,13 +680,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
@@ -722,7 +699,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 
 	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)

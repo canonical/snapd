@@ -48,8 +48,7 @@ func (bp *coreBootParticipant) SetNextBoot(bootCtx NextBootContext) (rebootInfo 
 	}
 
 	if u != nil {
-		const markedSuccessful = false
-		if err := u.commit(markedSuccessful); err != nil {
+		if err := u.commit(); err != nil {
 			return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
 		}
 	}
