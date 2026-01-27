@@ -138,6 +138,24 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
+# Check that critical binaries are statically linked.
+# These binaries execute inside mount namespaces and cannot depend on external libraries.
+# builddir: the directory containing the built binaries (e.g., _build/bin)
+.PHONY: check-static-binaries
+check-static-binaries:
+	@echo "Checking that critical binaries are statically linked..."
+	@for binary in snap-exec snap-update-ns snapctl; do \
+		if [ -f "$(builddir)/$$binary" ]; then \
+			if ldd "$(builddir)/$$binary" >/dev/null 2>&1; then \
+				echo "ERROR: $$binary is dynamically linked, must be static"; \
+				ldd "$(builddir)/$$binary"; \
+				exit 1; \
+			fi; \
+			echo "  $$binary: OK (static)"; \
+		fi; \
+	done
+	@echo "All static binary checks passed."
+
 # XXX see the note about build ID in rule for building 'snap'
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.

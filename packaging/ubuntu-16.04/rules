@@ -235,9 +235,7 @@ endif
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
-	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
-	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
-	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
+	$(MAKE) -f packaging/snapd.mk check-static-binaries builddir=_build/bin
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
