@@ -297,10 +297,6 @@ slots:
 	s.consumerPlug = s.consumer.Info().Plugs["plug"]
 	s.producer = ifacetest.MockInfoAndAppSet(c, producerYaml4, nil, nil)
 	s.producerSlot = s.producer.Info().Slots["slot"]
-	s.AddCleanup(ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
-		// pretend the snapd.apparmor.service is enabled
-		return false
-	}))
 
 	s.BaseTest.AddCleanup(ifacestate.MockCreateInterfacesRequestsManager(fakeCreateInterfacesRequestsManager))
 	s.BaseTest.AddCleanup(ifacestate.MockInterfacesRequestsManagerStop(fakeInterfacesRequestsManagerStop))
