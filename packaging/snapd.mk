@@ -95,7 +95,9 @@ sourcedir ?= $(CURDIR)
 
 # Prepare the build tree by removing code that is not used in non-embedded builds.
 # This removes snap-bootstrap, snap-fde-keymgr, and secboot-related code that
-# is only needed for embedded systems and UC20+ builds.
+# is only needed for embedded systems and UC20+ builds. This could be somewhat
+# avoided if we had all the dependencies in Debian OR if dh-golang supported
+# build tags properly.
 .PHONY: prepare-build-tree
 prepare-build-tree:
 	# exclude certain parts that won't be used by debian
