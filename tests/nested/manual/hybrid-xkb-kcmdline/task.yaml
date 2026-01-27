@@ -30,10 +30,6 @@ skip:
         [ "$TRUST_TEST_KEYS" = "false" ]
 
 prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      tests.exec skip-test "This test needs test keys to be trusted" && exit 0
-  fi
-
   # TODO: this setup for hybrid tests is repeated in other tests
   # check if it can be made into helper or extend setup_nested_hybrid_system.sh
 

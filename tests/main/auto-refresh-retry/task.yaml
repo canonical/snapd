@@ -9,6 +9,7 @@ systems: [-ubuntu-14.04-*]
 skip:
     - reason: This test fails when proxy is set for snapd
       if: |
+        # TODO: Fix the issue
         [ "${SNAPD_USE_PROXY:-}" = true ]
 
 restore: |
