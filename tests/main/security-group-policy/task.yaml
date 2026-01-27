@@ -29,7 +29,6 @@ skip:
 
 prepare: |
     LIBEXEC_DIR="$(os.paths libexec-dir)"
-    vers="$("$LIBEXEC_DIR"/snapd/snap-confine --version | cut -f2 -d' ' | sed -e 's/\+.*//')"
 
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)

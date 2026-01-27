@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
-        # we expect the test to run on all Ubuntu images excluding 14.04 (which is skipped if no instance data available)
+        # we expect the test to run on all cloud images provided by google and openstack
         echo "the test expected to have cloud-init instance data on $SPREAD_SYSTEM"
         exit 1
     fi

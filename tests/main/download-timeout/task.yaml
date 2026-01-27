@@ -28,8 +28,6 @@ skip:
       if: not os.query is-pc-amd64
 
 prepare: |
-  device="$(ip route show default | awk '{print $5}')"
-
   cp "$OVERRIDES_FILE" "$OVERRIDES_FILE".bak
   sed "s/Environment=/Environment=SNAPD_MIN_DOWNLOAD_SPEED=${SNAPD_MIN_DOWNLOAD_SPEED} SNAPD_DOWNLOAD_MEAS_WINDOW=${SNAPD_DOWNLOAD_MEAS_WINDOW} /" -i "$OVERRIDES_FILE"
 
