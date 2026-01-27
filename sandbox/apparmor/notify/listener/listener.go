@@ -485,10 +485,9 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		if !isFinalPendingReq {
-			continue
+		if isFinalPendingReq {
+			l.ensureReady()
 		}
-		l.ensureReady()
 	}
 	return nil
 }
