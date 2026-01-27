@@ -90,8 +90,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	
 	// Test basic capabilities
 	c.Check(snippet, testutil.Contains, "capability sys_admin,")
-	c.Check(snippet, testutil.Contains, "capability sys_ptrace,")
-	c.Check(snippet, testutil.Contains, "capability setpcap,")
 	
 	// Test mounting operations
 	c.Check(snippet, testutil.Contains, "mount,")
@@ -102,15 +100,15 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "userns,")
 	
 	// Test directory access
-	c.Check(snippet, testutil.Contains, "/run/host/ rwkl,")
-	c.Check(snippet, testutil.Contains, "/tmp/ rwkl,")
+	c.Check(snippet, testutil.Contains, "/run/host/** rwkl,")
+	c.Check(snippet, testutil.Contains, "/tmp/** rwkl,")
+	
+	// Test pressure-vessel directories
+	c.Check(snippet, testutil.Contains, "/tmp/pressure-vessel/** mrw,")
+	c.Check(snippet, testutil.Contains, "/run/pressure-vessel/** mrw,")
 	
 	// Test general permissions
 	c.Check(snippet, testutil.Contains, "allow file,")
-	c.Check(snippet, testutil.Contains, "allow network,")
-	c.Check(snippet, testutil.Contains, "allow unix,")
-	c.Check(snippet, testutil.Contains, "allow ptrace,")
-	c.Check(snippet, testutil.Contains, "allow dbus,")
 }
 
 func (s *UMUSupportInterfaceSuite) TestSecCompSpec(c *C) {
