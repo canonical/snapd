@@ -214,8 +214,6 @@ endif
 	# ensure auto-generated version is also in the build-tree
 	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
-	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/testdata
-	cp -a cmd/snap/testdata/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/testdata/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
 	# this is the main go build
