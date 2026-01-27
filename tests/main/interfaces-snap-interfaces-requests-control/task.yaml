@@ -22,7 +22,7 @@ environment:
 skip:
     - reason: Ubuntu 20.04 kernel doesn't support prompting
       if: os.query is-ubuntu 20.04
-    - reason: Ubuntu 22.04 kernel doesn't support prompting
+    - reason: Ubuntu 22.04 kernel <6.7 doesn't support prompting
       if: os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7
     - reason: Ubuntu 22.04 AppArmor parser doesn't support prompting
       if: os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use
