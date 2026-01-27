@@ -104,6 +104,8 @@ owner /home/*/.local/share/icons/ rw,
 
 # Allow access to applications directories
 owner /home/*/.local/share/applications/ rw,
+owner /home/*/.config/menus/ rw,
+owner /home/*/.local/share/desktop-directories/ rw,
 
 # Allow reading system files needed for container setup
 /etc/{group,passwd,hosts,host.conf,localtime,timezone} r,
