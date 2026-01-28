@@ -111,9 +111,9 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 			c.Check(appSets[1].Info().SnapName(), Equals, "other-snap")
 			c.Assert(sctx, NotNil)
 			c.Check(sctx(appSets[0].Info().SnapName()),
-				Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 			c.Check(sctx(appSets[1].Info().SnapName()),
-				Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 			setupManyCalls++
 			return nil
 		},
@@ -212,4 +212,85 @@ func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
 	}, s.tm)
 	c.Check(errs, HasLen, 2)
 	c.Check(setupCalls, Equals, 2)
+}
+
+func (s *HelpersSuite) TestApplyDelayedNotImplemented(c *C) {
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			panic("unexpected call")
+		},
+	}
+
+	err := interfaces.ApplyDelayedEffects(s.repo, backend, s.snap1, nil, s.tm)
+	c.Check(err, IsNil)
+
+	err = interfaces.ApplyDelayedEffects(s.repo, backend, s.snap1, []interfaces.DelayedSideEffect{
+		{"eff-1", "some eff"},
+	}, s.tm)
+	c.Check(err, ErrorMatches, "internal error: calling apply delayed effects for unsupported backend \"fake\"")
+}
+
+func (s *HelpersSuite) TestApplyDelayedHappy(c *C) {
+	var applyDelayedCalls [][]interfaces.DelayedSideEffect
+
+	backend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, eff []interfaces.DelayedSideEffect) error {
+			applyDelayedCalls = append(applyDelayedCalls, eff)
+			return nil
+		},
+	}
+
+	err := interfaces.ApplyDelayedEffects(s.repo, backend, s.snap1, nil, s.tm)
+	c.Check(err, IsNil)
+	c.Check(applyDelayedCalls, HasLen, 0)
+	err = interfaces.ApplyDelayedEffects(s.repo, backend, s.snap1, []interfaces.DelayedSideEffect{
+		{"eff-1", "eff 1"},
+		{"eff-2", "eff 2"},
+	}, s.tm)
+	c.Check(err, IsNil)
+	c.Check(applyDelayedCalls, DeepEquals, [][]interfaces.DelayedSideEffect{{
+		{"eff-1", "eff 1"},
+		{"eff-2", "eff 2"},
+	}})
+}
+
+func (s *HelpersSuite) TestApplyDelayedErrs(c *C) {
+	var applyDelayedCalls [][]interfaces.DelayedSideEffect
+
+	backend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, eff []interfaces.DelayedSideEffect) error {
+			applyDelayedCalls = append(applyDelayedCalls, eff)
+			for _, w := range eff {
+				if w.ID == "eff-2" {
+					return fmt.Errorf("mock error")
+				}
+			}
+			return nil
+		},
+	}
+
+	err := interfaces.ApplyDelayedEffects(s.repo, backend, s.snap1, []interfaces.DelayedSideEffect{
+		{"eff-1", "eff 1"},
+		{"eff-2", "eff 2"},
+	}, s.tm)
+	c.Check(err, ErrorMatches, "mock error")
+	c.Check(applyDelayedCalls, DeepEquals, [][]interfaces.DelayedSideEffect{{
+		{"eff-1", "eff 1"},
+		{"eff-2", "eff 2"},
+	}})
 }

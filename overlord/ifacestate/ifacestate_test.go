@@ -3654,7 +3654,7 @@ slots:
 			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-plug-attr"})
 			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-slot-attr"})
 			// Regenerate profiles due to manager initialization
-			c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+			c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			return nil
 		},
 	}
@@ -3841,7 +3841,7 @@ slots:
 				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 				// Regenerating all profiles.
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
@@ -3853,9 +3853,9 @@ slots:
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 					if appSet.InstanceName() == "consumer" {
 						// called for consumer when updating consumer
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 					}
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
@@ -3864,9 +3864,9 @@ slots:
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz", "qux"}})
 					if appSet.InstanceName() == "producer" {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 					}
 				}
 			}
@@ -11389,17 +11389,17 @@ slots:
 			_, err := repo.SnapSpecification("test", appSet, opts)
 			if !initDone {
 				// Regenerating all security profiles
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			} else {
 				name := appSet.InstanceName()
 				switch {
 				case refreshedSnap == name:
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && (name == "producer" || name == "producer2"):
 					// Both slot provider snaps are affected by an update of connected consumer
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 				case refreshedSnap == "producer" && name == "consumer":
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 				default:
 					c.Error("unexpected Setup() call")
 				}
@@ -11552,17 +11552,17 @@ plugs:
 			_, err := repo.SnapSpecification("test", appSet, opts)
 			if !initDone {
 				// Regenerating all security profiles
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			} else {
 				name := appSet.InstanceName()
 				switch {
 				case refreshedSnap == name:
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && name == "producer2":
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 				case (refreshedSnap == "consumer" && name == "producer") || (refreshedSnap == "producer" && name == "consumer"):
 					// producer and consumer are cyclically connected, each using plugs and slots of the other
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonCyclicallyConnectedUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonCyclicallyConnectedUpdate})
 				default:
 					c.Error("unexpected Setup() call")
 				}
@@ -11667,7 +11667,7 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			for _, appSet := range appSets {
 				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName()))
 				c.Assert(err, IsNil)
-				c.Check(sctx(appSet.InstanceName()), Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx(appSet.InstanceName()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {
