@@ -493,16 +493,16 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 }
 
 func (l *Listener) parseRequest(class notify.MediationClass, buf []byte) (*Request, error) {
-	var parseErr error
+	var err error
 	var msg notify.MsgNotificationGeneric
 	switch class {
 	case notify.AA_CLASS_FILE:
-		msg, parseErr = parseMsgNotificationFile(buf)
+		msg, err = parseMsgNotificationFile(buf)
 	default:
-		parseErr = fmt.Errorf("unsupported mediation class: %v", class)
+		err = fmt.Errorf("unsupported mediation class: %v", class)
 	}
-	if parseErr != nil {
-		return nil, parseErr
+	if err != nil {
+		return nil, err
 	}
 
 	return l.newRequest(msg)
