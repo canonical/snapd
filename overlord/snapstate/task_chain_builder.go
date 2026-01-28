@@ -156,6 +156,11 @@ func (s *taskChainSpan) AppendTSWithoutData(ts *state.TaskSet) {
 		}
 	}
 
+	// the ordering here is important. we want users of the span's output to be
+	// able to assume that the first and last task of the slice are the head and
+	// tail of the chain, respectively. to ensure this, we manually order the
+	// tasks from the task set when adding them to our internal record of the
+	// tasks in this span.
 	order := heads
 	order = append(order, remainder...)
 	order = append(order, tails...)
