@@ -12,15 +12,15 @@ details: |
 
 systems: [ubuntu-core-*-64]
 
-prepare: |
-    # Core image that were created using spread will have a fake "gpio-pin".
-    # Other (e.g. official) images will not have that and there we can't use
-    # this test.
-    if ! snap interfaces|grep -q gpio-pin; then
-        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
-        exit 0
-    fi
+skip:
+    - reason: This tests needs a fake 'gpio-pin' interface
+      if: |
+        # Core image that were created using spread will have a fake "gpio-pin".
+        # Other (e.g. official) images will not have that and there we can't use
+        # this test.
+        not snap interfaces | grep -q gpio-pin
 
+prepare: |
     echo "Create/enable fake gpio"
     tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.snapd.interface.gpio-100.service\\n[Service]\\nType=notify"
 
@@ -31,26 +31,10 @@ prepare: |
     snap connect gpio-consumer:gpio :gpio-pin
 
 restore: |
-    # Core image that were created using spread will have a fake "gpio-pin".
-    # Other (e.g. official) images will not have that and there we can't use
-    # this test.
-    if ! snap interfaces|grep -q gpio-pin; then
-        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
-        exit 0
-    fi
-
     tests.systemd stop-unit --remove fake-gpio
     umount /sys/class/gpio || true
 
 execute: |
-    # Core image that were created using spread will have a fake "gpio-pin".
-    # Other (e.g. official) images will not have that and there we can't use
-    # this test.
-    if ! snap interfaces|grep -q gpio-pin; then
-        echo "SKIP: this tests needs a fake 'gpio-pin' interface"
-        exit 0
-    fi
-
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Started|Finished snap.snapd.interface.gpio-100.service"
     "$TESTSTOOLS"/journal-state match-log -n 60 --wait 1 "$expected"

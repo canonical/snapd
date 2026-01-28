@@ -6,7 +6,7 @@ details: |
 
     This test verifies the different functionalities provided by such tool.
 
-backends: [google, qemu]
+backends: [google, qemu, openstack]
 
 prepare: |
     snap install test-snapd-tools

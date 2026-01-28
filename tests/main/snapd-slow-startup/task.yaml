@@ -8,7 +8,7 @@ details: |
     Internally, snapd will calculate the expected startup time based on the
     number of snaps and adjust systemd's timeout to match it.
 
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-22.04-64]
 
 restore: |
     # extra cleanup in case something in this test went wrong
@@ -20,12 +20,6 @@ debug: |
     cat /etc/systemd/system/snapd.service.d/* || true
 
 execute: |
-    systemd_ver="$(systemctl --version|head -1|cut -d ' ' -f2)"
-    if [ "${systemd_ver}" -lt 236 ]; then
-       echo "systemd ${systemd_ver} too old, no EXTEND_TIMEOUT_USEC support"
-       exit 0
-    fi
-
     # have 6 extra snaps installed, makes 8 with core and snapd snap
     snap pack "$TESTSLIB"/snaps/basic
     snap set system experimental.parallel-instances=true

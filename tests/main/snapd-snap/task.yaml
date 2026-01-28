@@ -48,7 +48,6 @@ skip:
     - reason: Snapcraft fails to snap snapd when the proxy is set
       if: |
         [ "${SNAPD_USE_PROXY:-}" = true ]
-       
 
 prepare: |
     # shellcheck source=tests/lib/systems.sh

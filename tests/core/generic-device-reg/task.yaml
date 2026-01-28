@@ -10,12 +10,12 @@ details: |
 #            which we don't have currently
 systems: [ubuntu-core-18*]
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -31,11 +31,6 @@ prepare: |
     systemctl start snapd.service snapd.socket
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
      #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -55,11 +50,6 @@ restore: |
     wait_for_first_boot_change
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
