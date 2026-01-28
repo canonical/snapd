@@ -88,13 +88,6 @@ mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-re
 # Permission for bwrap temporary files
 /bindfile* rw,
 
-# Essential system mounts
-mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
-mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
-mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
-mount options=(rw, rbind) /oldroot/etc/resolv.conf -> /newroot/etc/resolv.conf,
-mount options=(rw, rbind) /oldroot/etc/machine-id -> /newroot/etc/machine-id,
-
 # Mounting temporary files
 mount options=(rw, rbind) /bindfile* -> /newroot/**,
 
@@ -104,30 +97,18 @@ mount options=(rw, rbind) /bindfile* -> /newroot/**,
 /run/media/ r,
 
 # Broad execution permissions for container binaries
-/usr/** ixr,
-deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
+/usr/bin/steam-runtime-launcher-interface-* ixr,
+/usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
 
-# System tools
-/run/host/usr/sbin/ldconfig* ixr,
-/run/host/usr/bin/localedef ixr,
-
-# To prevent this error from happening in the Heroic Games Launcher. >>> Error: EACCES: permission denied, open '/var/lib/snapd/hostfs/etc/os-release' <<<
+# This is to prevent errors in Heroic involving EACCES.
 /var/lib/snapd/hostfs/** r,
-
-# Allow access to tmpfs
-/tmp/** rwkl,
+/usr/bin/df ixr,
 
 # Allow access to icons and shortcuts directories
-owner /home/*/.local/share/icons/ rw,
-owner /home/*/.local/share/applications/ rw,
-owner /home/*/.config/menus/ rw,
-owner /home/*/.local/share/desktop-directories/ rw,
-
-# Allow access to pressure-vessel directories
-/*/pressure-vessel/** mrw,
-
-# Ldconfig cache
-/var/cache/ldconfig/** rw,
+owner /home/*/.config/menus/{,**} rw,
+owner /home/*/.local/share/applications/{,**} rw,
+owner /home/*/.local/share/desktop-directories/{,**} rw,
+owner /home/*/.local/share/icons/{,**} rw,
 `
 
 const umuSupportConnectedPlugSecComp = `

@@ -100,15 +100,23 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "userns,")
 	
 	// Test directory access
-	c.Check(snippet, testutil.Contains, "/run/host/** rwkl,")
-	c.Check(snippet, testutil.Contains, "/tmp/** rwkl,")
+	c.Check(snippet, testutil.Contains, "/newroot/** rwkl,")
 	
-	// Test pressure-vessel directories
-	c.Check(snippet, testutil.Contains, "/tmp/pressure-vessel/** mrw,")
-	c.Check(snippet, testutil.Contains, "/run/pressure-vessel/** mrw,")
+	// Test host filesystem access
+	c.Check(snippet, testutil.Contains, "/oldroot/usr/** r,")
+	c.Check(snippet, testutil.Contains, "/run/host/ r,")
 	
-	// Test general permissions
-	c.Check(snippet, testutil.Contains, "allow file,")
+	// Test pressure-vessel executables
+	c.Check(snippet, testutil.Contains, "/usr/bin/steam-runtime-launcher-interface-* ixr,")
+	
+	// Test desktop integration
+	c.Check(snippet, testutil.Contains, "/home/*/.config/menus/{,**} rw,")
+	c.Check(snippet, testutil.Contains, "/home/*/.local/share/applications/{,**} rw,")
+	c.Check(snippet, testutil.Contains, "/home/*/.local/share/desktop-directories/{,**} rw,")
+	c.Check(snippet, testutil.Contains, "/home/*/.local/share/icons/{,**} rw,")
+	
+	// Test snapd hostfs access
+	c.Check(snippet, testutil.Contains, "/var/lib/snapd/hostfs/** r,")
 }
 
 func (s *UMUSupportInterfaceSuite) TestSecCompSpec(c *C) {
