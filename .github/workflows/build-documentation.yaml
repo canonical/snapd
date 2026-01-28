@@ -6,9 +6,9 @@ on:
   pull_request:
 
 jobs:
-  build-documentation:
+  check-api:
     runs-on: ubuntu-latest
-    name: Lint and build
+    name: Check if changes have occurred in the API documentation
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -19,29 +19,30 @@ jobs:
         uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
         with:
           files: docs/api/**
+  build-documentation:
+    needs: check-api
+    if: check-api.steps.changed-api.outputs.any_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Build REST API Documentation
+    steps:
       - name: Check Licensing/Copyright Compliance
-        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://fsfe/reuse
         with:
           entrypoint: /bin/sh
           args: -c "cd docs/api && reuse lint"
       - name: Check API specification
-        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://redocly/cli
         with:
           args: lint ./docs/api/openapi.yaml
       - name: Build generated documentation
-        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://redocly/cli
         with:
           args: build-docs ./docs/api/openapi.yaml --output ./docs/api/redoc-static.html
       - name: Create dark mode version
-        if: steps.changed-api.outputs.any_changed == 'true'
         run: |
           sudo chown $USER ./docs/api/redoc-static.html
           python3 ./docs/api/tools/post-process.py ./docs/api/redoc-static.html ./docs/api/tools/dark-theme.css "</head>"
       - name: Store generated artifact
-        if: steps.changed-api.outputs.any_changed == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: rest-api-documentation
