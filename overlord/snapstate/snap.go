@@ -451,7 +451,7 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	for _, t := range sc.componentTSS.linkTasks {
 		s.Append(t)
 		if postReboot {
-			s.UpdateEdgeIfUnset(t, MaybeRebootWaitEdge)
+			s.UpdateEdge(t, MaybeRebootWaitEdge)
 		}
 	}
 
@@ -470,6 +470,9 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	autoConnect.Set("finish-restart", postReboot)
 	s.Append(autoConnect)
 	if postReboot {
+		// note: we must use UpdateEdgeIfUnset here since this edge should track
+		// the first task after the reboot. if we had any components to link, we
+		// might have already set the edge
 		s.UpdateEdgeIfUnset(autoConnect, MaybeRebootWaitEdge)
 	}
 
