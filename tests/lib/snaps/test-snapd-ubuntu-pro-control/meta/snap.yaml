@@ -1,0 +1,13 @@
+name: test-snapd-ubuntu-pro-control
+version: 1.0
+architectures: [all]
+base: core24
+confinement: strict
+
+apps:
+  manager-info:
+    command: bin/manager-info
+    plugs: [ubuntu-pro-control]
+  list-services:
+    command: bin/list-services
+    plugs: [ubuntu-pro-control]
