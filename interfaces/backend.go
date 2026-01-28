@@ -20,6 +20,8 @@
 package interfaces
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -102,7 +104,26 @@ const (
 	// Setup called for a snap as a result of an update of another snap
 	// which has a plug connected to one of our slots.
 	SnapSetupReasonConnectedPlugConsumerUpdate
+	// Setup called for a snap as a result of an update of another snap with
+	// which we have a cyclical connection, i.e. the other snap is connected to
+	// our slots, while we are connected to theirs.
+	SnapSetupReasonCyclicallyConnectedUpdate
 )
+
+func (s SnapSetupCallReason) String() string {
+	switch s {
+	case SnapSetupReasonOther:
+		return "other"
+	case SnapSetupReasonConnectedSlotProviderUpdate:
+		return "connected-slot-provider-update"
+	case SnapSetupReasonConnectedPlugConsumerUpdate:
+		return "connected-plug-consumer-update"
+	case SnapSetupReasonCyclicallyConnectedUpdate:
+		return "connected-cyclically-connect-update"
+	default:
+		return fmt.Sprintf("other: (%d)", s)
+	}
+}
 
 // SetupContext conveys information on the context in which a call to Setup()
 // was made.
