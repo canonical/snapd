@@ -16,7 +16,7 @@
  *
  */
 
-package certsstate
+package certstate
 
 import (
 	"crypto/sha256"

@@ -16,7 +16,7 @@
  *
  */
 
-package certsstate_test
+package certstate_test
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/certsstate"
+	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -95,14 +95,14 @@ func makeTestCertPEM(commonName string) ([]byte, *x509.Certificate, error) {
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
-	c.Check(certsstate.IsBlocked(certsstate.Certificate{
+	c.Check(certstate.IsBlocked(certstate.Certificate{
 		Name:     "blocked-cert",
 		RealPath: "blocked-cert.crt",
 	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, true)
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
-	c.Check(certsstate.IsBlocked(certsstate.Certificate{
+	c.Check(certstate.IsBlocked(certstate.Certificate{
 		Name:     "not-blocked-cert",
 		RealPath: "not-blocked-cert.crt",
 	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, false)
@@ -110,7 +110,7 @@ func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
 
 func (s *certsTestSuite) TestIsBlockedReturnsTrueOnMissingSuffix(c *C) {
 	// RealPath must end with .crt, otherwise it returns true
-	c.Check(certsstate.IsBlocked(certsstate.Certificate{
+	c.Check(certstate.IsBlocked(certstate.Certificate{
 		Name:     "not-blocked-cert",
 		RealPath: "not-blocked-cert",
 	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, true)
@@ -120,7 +120,7 @@ func (s *certsTestSuite) TestParseCertificateDataSimpleHappy(c *C) {
 	bytes, _, err := makeTestCertPEM("Test Certificate Root CA")
 	c.Assert(err, IsNil)
 
-	cert, err := certsstate.ParseCertificateData(bytes)
+	cert, err := certstate.ParseCertificateData(bytes)
 	c.Assert(err, IsNil)
 	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
@@ -132,14 +132,14 @@ func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C)
 	nonCert := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("junk")})
 	data := append(append([]byte{}, nonCert...), certPEM...)
 
-	cert, err := certsstate.ParseCertificateData(data)
+	cert, err := certstate.ParseCertificateData(data)
 	c.Assert(err, IsNil)
 	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
 func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
 	data := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("junk")})
-	cert, err := certsstate.ParseCertificateData(data)
+	cert, err := certstate.ParseCertificateData(data)
 	c.Check(cert, IsNil)
 	c.Check(err, ErrorMatches, ".*no certificate PEM block found.*")
 }
@@ -160,7 +160,7 @@ func (s *certsTestSuite) TestParseCertificatesSimpleHappy(c *C) {
 	// this one should be ignored as it does not have .crt suffix
 	c.Assert(os.WriteFile(""+certsDir+"/cert3.pem", cert3, 0o644), IsNil)
 
-	certs, err := certsstate.ParseCertificates(certsDir)
+	certs, err := certstate.ParseCertificates(certsDir)
 	c.Assert(err, IsNil)
 	c.Assert(len(certs), Equals, 2)
 	c.Assert(certs[0].Name, Equals, "cert1")
@@ -178,7 +178,7 @@ func (s *certsTestSuite) TestParseCertificatesResolvesSymlinks(c *C) {
 	c.Assert(os.WriteFile(real, certPEM, 0o644), IsNil)
 	c.Assert(os.Symlink("real.crt", link), IsNil)
 
-	certs, err := certsstate.ParseCertificates(dir)
+	certs, err := certstate.ParseCertificates(dir)
 	c.Assert(err, IsNil)
 	c.Assert(len(certs), Equals, 2)
 
@@ -205,7 +205,7 @@ func (s *certsTestSuite) TestParseCertificatesDigestIncludesFullChain(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(dir, "chain1.crt"), chain1, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dir, "chain2.crt"), chain2, 0o644), IsNil)
 
-	certs, err := certsstate.ParseCertificates(dir)
+	certs, err := certstate.ParseCertificates(dir)
 	c.Assert(err, IsNil)
 	c.Assert(certs, HasLen, 2)
 
@@ -215,7 +215,7 @@ func (s *certsTestSuite) TestParseCertificatesDigestIncludesFullChain(c *C) {
 }
 
 func (s *certsTestSuite) TestReadDigestsMissingDir(c *C) {
-	digests, err := certsstate.ReadDigests(filepath.Join(c.MkDir(), "does-not-exist"))
+	digests, err := certstate.ReadDigests(filepath.Join(c.MkDir(), "does-not-exist"))
 	c.Assert(err, IsNil)
 	c.Check(digests, HasLen, 0)
 }
@@ -226,7 +226,7 @@ func (s *certsTestSuite) TestReadDigestsTrimsCrtExtension(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(dir, "def"), []byte("x"), 0o644), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(dir, "subdir"), 0o755), IsNil)
 
-	digests, err := certsstate.ReadDigests(dir)
+	digests, err := certstate.ReadDigests(dir)
 	c.Assert(err, IsNil)
 	c.Check(digests, DeepEquals, []string{"abc", "def"})
 }
@@ -250,12 +250,12 @@ func (s *certsTestSuite) TestGenerateCACertificatesDeduplicatesAndBlocks(c *C) {
 	// duplicate certificate content under a different name
 	c.Assert(os.WriteFile(filepath.Join(extraDir, "dup.crt"), cert1, 0o644), IsNil)
 
-	base, err := certsstate.ParseCertificates(baseDir)
+	base, err := certstate.ParseCertificates(baseDir)
 	c.Assert(err, IsNil)
-	extras, err := certsstate.ParseCertificates(extraDir)
+	extras, err := certstate.ParseCertificates(extraDir)
 	c.Assert(err, IsNil)
 
-	err = certsstate.GenerateCACertificates(base, extras, []string{"b"}, outDir)
+	err = certstate.GenerateCACertificates(base, extras, []string{"b"}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -287,12 +287,12 @@ func (s *certsTestSuite) TestGenerateCACertificatesDoesNotDeduplicateDifferentCh
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "chain1.crt"), chain1, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(extraDir, "chain2.crt"), chain2, 0o644), IsNil)
 
-	base, err := certsstate.ParseCertificates(baseDir)
+	base, err := certstate.ParseCertificates(baseDir)
 	c.Assert(err, IsNil)
-	extras, err := certsstate.ParseCertificates(extraDir)
+	extras, err := certstate.ParseCertificates(extraDir)
 	c.Assert(err, IsNil)
 
-	err = certsstate.GenerateCACertificates(base, extras, nil, outDir)
+	err = certstate.GenerateCACertificates(base, extras, nil, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -322,7 +322,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	old := []byte("old-ca-bundle")
 	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), old, 0o644), IsNil)
 
-	err = certsstate.GenerateCertificateDatabase(s.state)
+	err = certstate.GenerateCertificateDatabase(s.state)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))

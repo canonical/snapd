@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/certsstate"
+	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -2014,7 +2014,7 @@ func (m *DeviceManager) ensureCaCertificateDatabase() error {
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
 	logger.Noticef("No CA certificate database found, generating it now")
-	return certsstate.GenerateCertificateDatabase(st)
+	return certstate.GenerateCertificateDatabase(st)
 }
 
 type ensureError struct {

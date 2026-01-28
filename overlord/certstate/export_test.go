@@ -16,7 +16,7 @@
  *
  */
 
-package certsstate
+package certstate
 
 type Certificate = certificate
 
