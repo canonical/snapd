@@ -24,9 +24,13 @@ import (
 )
 
 var (
+	BuildListenerRequestKey = buildListenerRequestKey
+
 	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
 
 	InterfaceSpecificConstraintsPathPattern = InterfaceSpecificConstraints.pathPattern
+
+	InterfaceFromTagsets = interfaceFromTagsets
 
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
