@@ -11357,6 +11357,173 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesForMultiConnectedPlugConsumer
 	c.Check(consideredConns, DeepEquals, []string{"consumer:plug producer2:slot", "consumer:plug producer:slot"})
 }
 
+func (s *interfaceManagerSuite) testDoSetupProfilesForCyclicallyConenctedSnap(c *C, refreshedSnap string) (consideredConns []string) {
+	// We have a cyclic connection between the producer and consumer, spiced up
+	// with producer2 carrying a single connection
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		// cyclic connection between consumer and producer
+		"consumer:plug producer:slot": map[string]any{
+			"interface": "test",
+		},
+		"producer:plug-cyclic consumer:slot-cyclic": map[string]any{
+			"interface": "test",
+		},
+
+		"consumer:plug producer2:slot": map[string]any{
+			"interface": "test",
+		},
+	})
+	s.state.Unlock()
+
+	// Add a pair of snap versions for producer and consumer snaps
+	const consumerV1Yaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+slots:
+ slot-cyclic:
+  interface: test
+`
+	const producerV1Yaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+plugs:
+ plug-cyclic:
+  interface: test
+`
+
+	const producer2Yaml = `
+name: producer2
+version: 1
+slots:
+ slot:
+  interface: test
+`
+	const consumerV2Yaml = `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: test
+slots:
+ slot-cyclic:
+  interface: test
+`
+	const producerV2Yaml = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: test
+plugs:
+ plug-cyclic:
+  interface: test
+`
+	s.mockSnap(c, producerV1Yaml)
+	s.mockSnap(c, producer2Yaml)
+	s.mockSnap(c, consumerV1Yaml)
+	snaptest.MockSnapInstance(c, "", consumerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "consumer"})
+	snaptest.MockSnapInstance(c, "", producerV2Yaml, &snap.SideInfo{Revision: snap.R(2), RealName: "producer"})
+
+	initDone := false
+	secBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "test",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			_, err := repo.SnapSpecification("test", appSet, opts)
+			if !initDone {
+				// Regenerating all security profiles
+				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+			} else {
+				name := appSet.InstanceName()
+				switch {
+				case refreshedSnap == name:
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+				case refreshedSnap == "consumer" && name == "producer2":
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+				case (refreshedSnap == "consumer" && name == "producer") || (refreshedSnap == "producer" && name == "consumer"):
+					// producer and consumer are cyclically connected, each using plugs and slots of the other
+					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonCyclicallyConnectedUpdate})
+				default:
+					c.Error("unexpected Setup() call")
+				}
+			}
+			return err
+		},
+	}
+
+	s.mockSecBackend(secBackend)
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			// Remember which connections were considered
+			consideredConns = append(consideredConns, plug.Ref().String()+" "+slot.Ref().String())
+			return nil
+		},
+	})
+
+	// Create the interface manager. This indirectly adds the snaps to the
+	// repository and reloads the connection.
+	s.manager(c)
+	initDone = true
+
+	// Reset considered connections
+	consideredConns = nil
+
+	// Alter the state to introduce new revision of refreshed snap
+	s.state.Lock()
+	snapstate.Set(s.state, refreshedSnap, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: refreshedSnap},
+			{Revision: snap.R(2), RealName: refreshedSnap},
+		}),
+		Current:  snap.R(2),
+		SnapType: string("app"),
+	})
+	s.state.Unlock()
+
+	// Setup profiles for refreshed snap v2
+	s.state.Lock()
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: refreshedSnap, Revision: snap.R(2)}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Spin the wheels to run the tasks we added.
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Logf("change failure: %v", change.Err())
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	sort.Strings(consideredConns)
+	return consideredConns
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesForCyclicallyConnectedProducerRefresh(c *C) {
+	consideredConns := s.testDoSetupProfilesForCyclicallyConenctedSnap(c, "producer")
+	// all slots are considered, also producer2:slot
+	c.Check(consideredConns, DeepEquals, []string{
+		"consumer:plug producer2:slot", "consumer:plug producer:slot", "producer:plug-cyclic consumer:slot-cyclic",
+	})
+}
+
+func (s *interfaceManagerSuite) TestDoSetupProfilesForCyclicallyConnectedConsumerRefresh(c *C) {
+	consideredConns := s.testDoSetupProfilesForCyclicallyConenctedSnap(c, "consumer")
+	// all slots are considered
+	c.Check(consideredConns, DeepEquals, []string{
+		"consumer:plug producer2:slot", "consumer:plug producer:slot", "producer:plug-cyclic consumer:slot-cyclic",
+	})
+}
+
 func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 	s.state.Lock()
 	s.state.Set("conns", map[string]any{
