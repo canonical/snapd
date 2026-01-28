@@ -10,6 +10,12 @@ systems:
   - -ubuntu-core-22-*
   - -ubuntu-core-24-*
 
+skip:
+    - reason: No uinput support, cannot run test
+      if: |
+        # some systems (like s390x) do not have support for this
+        [ ! -e /sys/devices/virtual/misc/uinput ] && ! modprobe uinput
+
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg
@@ -26,12 +32,6 @@ environment:
     OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
 
 prepare: |
-    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        if ! modprobe uinput; then
-            echo "no uinput support, cannot run test"
-            exit 0
-        fi
-    fi
     # create nvidia devices if they don't exist
     if [ ! -e /dev/nvidia0 ]; then
         mknod /dev/nvidia0 c 195 0
@@ -80,12 +80,6 @@ restore: |
     fi
 
 execute: |
-    # some systems (like s390x) do not have support for this
-    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        echo "no uinput support, cannot run test"
-        exit 0
-    fi
-
     tags_are_sticky=0
     systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
     if [ "$systemd_ver" -ge 247 ]; then

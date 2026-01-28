@@ -4,14 +4,16 @@ details: |
     This test verifies that profiles are properly generated and loaded for
     a set of apps and hooks.
 
+skip:
+    - reason: The systems has "partial" debug confinement
+      if: |
+        [ "$(snap debug confinement)" = none ]
+
+
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic-hooks
 
 execute: |
-    if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
-    fi
-
     seccomp_profile_directory="/var/lib/snapd/seccomp/bpf"
 
     echo "Security profiles are generated and loaded for apps"

@@ -8,24 +8,18 @@ details: |
     The test verifies that the 'xdg-open' program is not supported in Ubuntu Core
     systems
 
+skip:
+    - reason: The system has not systemd or dbus session
+      if: not tests.session has-session-systemd-and-dbus
+
 prepare: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     tests.session -u test prepare
 
 restore: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     tests.session -u test restore
     rm -f output.txt
 
 execute: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
-
     # /usr/bin/xdg-open is a proxy that talks to snap userd
     not tests.session -u test exec /usr/bin/xdg-open https://snapcraft.io 2> output.txt
     MATCH "not supported on Ubuntu Core" < output.txt

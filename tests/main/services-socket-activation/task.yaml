@@ -8,14 +8,16 @@ environment:
     CONFINEMENT/strict: strict
     CONFINEMENT/classic: classic
 
+skip:
+    - reason: Cannot install classic snaps on core
+      if: |
+        [ "$CONFINEMENT" = classic ] && os.query is-core
+
 prepare: |
     case "$CONFINEMENT" in
         classic)
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-            if os.query is-core; then
-               # cannot install classic snaps on core
-               exit 0
-            elif [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+            if [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
                 # although classic snaps do not work out of the box on fedora,
                 # we still want to verify if the basics do work if the user
                 # symlinks /snap to $SNAP_MOUNT_DIR themselves
@@ -33,15 +35,6 @@ restore: |
     systemctl daemon-reload
 
 execute: |
-    case "$CONFINEMENT" in
-        classic)
-            if os.query is-core; then
-               # cannot install classic snaps on core
-               exit 0
-            fi
-            ;;
-    esac
-
     [ -f /etc/systemd/system/snap.socket-activation.sleep-daemon.sock.socket ]
     [ -S /var/snap/socket-activation/common/socket ]
 
