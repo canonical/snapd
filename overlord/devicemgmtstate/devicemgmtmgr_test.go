@@ -480,7 +480,7 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 				Format: "json",
 				Data:   `{"some": "data"}`,
 			},
-			expectedErr: "unsupported format json",
+			expectedErr: `cannot process assertion: unsupported format "json"`,
 		},
 		{
 			name: "invalid assertion data",
@@ -488,7 +488,7 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 				Format: "assertion",
 				Data:   "not-an-assertion",
 			},
-			expectedErr: "cannot decode assertion: assertion content/signature separator not found",
+			expectedErr: `cannot decode assertion: assertion content/signature separator not found`,
 		},
 		{
 			name: "wrong assertion type",
@@ -496,7 +496,7 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 				Format: "assertion",
 				Data:   string(asserts.Encode(s.storeStack.TrustedKey)),
 			},
-			expectedErr: `assertion is "account-key", expected "request-message"`,
+			expectedErr: `cannot process assertion: expected "request-message" but got \"account-key\"`,
 		},
 	}
 

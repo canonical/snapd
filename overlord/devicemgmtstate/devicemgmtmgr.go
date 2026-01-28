@@ -25,7 +25,6 @@
 package devicemgmtstate
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -117,9 +116,10 @@ type deviceMgmtState struct {
 	LastExchangeTime time.Time `json:"last-exchange-time"`
 }
 
-// updateFromExchange updates local state based on the message exchange response.
-func (ms *deviceMgmtState) updateFromExchange(resp *store.MessageExchangeResponse) {
-	for _, msg := range resp.Messages {
+// enqueueRequests queues incoming request messages for processing
+// and updates polling state accordingly.
+func (ms *deviceMgmtState) enqueueRequests(pollResp *store.MessageExchangeResponse) {
+	for _, msg := range pollResp.Messages {
 		reqMsg, err := parseRequestMessage(msg.Message)
 		if err != nil {
 			// Malformed messages are acknowledged but not processed.
@@ -134,8 +134,8 @@ func (ms *deviceMgmtState) updateFromExchange(resp *store.MessageExchangeRespons
 		}
 	}
 
-	if len(resp.Messages) > 0 {
-		token := resp.Messages[len(resp.Messages)-1].Token
+	if len(pollResp.Messages) > 0 {
+		token := pollResp.Messages[len(pollResp.Messages)-1].Token
 		ms.LastReceivedToken = token
 	} else {
 		ms.LastReceivedToken = ""
@@ -283,17 +283,17 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	}
 
 	m.state.Unlock()
-	resp, err := sto.ExchangeMessages(tomb.Context(nil), &store.MessageExchangeRequest{
-			After:    ms.LastReceivedToken,
-			Limit:    limit,
-			Messages: messages,
+	pollResp, err := sto.ExchangeMessages(tomb.Context(nil), &store.MessageExchangeRequest{
+		After:    ms.LastReceivedToken,
+		Limit:    limit,
+		Messages: messages,
 	})
 	m.state.Lock()
 	if err != nil {
 		return err
 	}
 
-	ms.updateFromExchange(resp)
+	ms.enqueueRequests(pollResp)
 	m.setState(ms)
 
 	return nil
@@ -327,7 +327,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 // parseRequestMessage decodes a store message body into a RequestMessage.
 func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 	if msg.Format != "assertion" {
-		return nil, fmt.Errorf("unsupported format %s", msg.Format)
+		return nil, fmt.Errorf("cannot process assertion: unsupported format %q", msg.Format)
 	}
 
 	as, err := asserts.Decode([]byte(msg.Data))
@@ -337,7 +337,7 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 
 	reqAs, ok := as.(*asserts.RequestMessage)
 	if !ok {
-		return nil, fmt.Errorf(`cannot process assertion: expected "request-message" but got %s`, as.Type().Name)
+		return nil, fmt.Errorf(`cannot process assertion: expected "request-message" but got %q`, as.Type().Name)
 	}
 
 	devices := reqAs.Devices()
