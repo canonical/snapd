@@ -19,19 +19,15 @@ environment:
   SNAPD_DOWNLOAD_MEAS_WINDOW: 15s
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
+skip:
+    - reason: This test fails when proxy is set for snapd
+      if: |
+        # TODO: Fix the issue
+        [ "${SNAPD_USE_PROXY:-}" = true ]
+    - reason: tc fail to add a device in arm architecture with error -> "Cannot find device"
+      if: not os.query is-pc-amd64
+
 prepare: |
-  if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-      # TODO: Fix the issue
-      tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
-  fi
-
-  device="$(ip route show default | awk '{print $5}')"
-
-  if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
-      exit
-  fi
-
   cp "$OVERRIDES_FILE" "$OVERRIDES_FILE".bak
   sed "s/Environment=/Environment=SNAPD_MIN_DOWNLOAD_SPEED=${SNAPD_MIN_DOWNLOAD_SPEED} SNAPD_DOWNLOAD_MEAS_WINDOW=${SNAPD_DOWNLOAD_MEAS_WINDOW} /" -i "$OVERRIDES_FILE"
 
@@ -39,14 +35,8 @@ prepare: |
   systemctl restart snapd.{socket,service}
 
 restore: |
-  tests.exec is-skipped && exit 0
-
   device="$(ip route show default | awk '{print $5}')"
 
-  if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
-      exit
-  fi
   # We need to skip this step in 23+ because it fails with error:
   # Error: Qdisc not classful. We have an error talking to the kernel
   # The test works well even after skipping this
@@ -60,14 +50,7 @@ restore: |
   systemctl restart snapd.{socket,service}
 
 execute: |
-  tests.exec is-skipped && exit 0
-
   device="$(ip route show default | awk '{print $5}')"
-
-  if not os.query is-pc-amd64; then
-      echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
-      exit
-  fi
 
   tc qdisc add dev "$device" ingress
   tc filter add dev "$device" root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1

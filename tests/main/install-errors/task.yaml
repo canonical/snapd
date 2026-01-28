@@ -13,17 +13,16 @@ environment:
     SNAP_REEXEC/noreexec: 0
     SNAP_REEXEC/withreexec: 1
 
-prepare: |
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-        tests.exec skip-test "No need to test when the snapd pkg is from the repository and reexec is disabled" && exit 0
-    fi
+skip:
+    - reason: No need to test when the snapd pkg is from the repository and reexec is disabled
+      if: |
+        [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
 
+prepare: |
     echo "Given a snap with a failing command is installed"
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Install unexisting snap prints error"
     if snap install unexisting.canonical; then
         echo "Installing unexisting snap should fail"
