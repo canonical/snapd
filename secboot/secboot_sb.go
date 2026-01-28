@@ -82,7 +82,6 @@ func init() {
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
-type ActivateVolumeOptions sb.ActivateVolumeOptions
 
 const platformTpm2 = "tpm2"
 const platformTpm2Legacy = "tpm2-legacy"
@@ -109,6 +108,7 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+// ActivateContext is a sub set interface of ActivateContext from secboot
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
 	DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error
@@ -131,6 +131,9 @@ func (a *activateContextImpl) State() *ActivateState {
 	return a.ActivateContext.State()
 }
 
+// NewActivateContext creates a activate context with some default options:
+//  * an auth requestor
+//  * 3 passphrase/pin tries
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
 	if err != nil {
@@ -139,6 +142,7 @@ func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return &activateContextImpl{ActivateContext: context}, nil
 }
 
+// NewSimpleActivateContext creates a activate context with no default options.
 func NewSimpleActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil)
 	if err != nil {
@@ -387,6 +391,9 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 
 type StorageContainer = sb.StorageContainer
 
+// UnlockEncryptedVolumeUsingKey unlocks a volume using raw keyslot
+// key. This is typically used to lock a fresh encrypted volume with
+// only a bootstrap key.
 func UnlockEncryptedVolumeUsingKey(activation ActivateContext, devNode string, name string, key []byte) (StorageContainer, error) {
 	container, err := sbFindStorageContainer(context.Background(), devNode)
 	if err != nil {

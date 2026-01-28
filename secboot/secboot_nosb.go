@@ -98,9 +98,6 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 type ActivationContext struct {
 }
 
-type ActivateVolumeOptions struct {
-}
-
 func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
 	return errBuildWithoutSecboot
 }
