@@ -9,21 +9,19 @@ details: |
 # ubuntu-14.04 does not have systemd-run
 systems: [-ubuntu-14.04-*]
 
+skip:
+    - reason: python3 is not available
+      if: not command -v python3
+    - reason: Cannot run when there is another http proxy
+      if: |
+         [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
+         [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
+
 restore: |
     snap set core proxy.https=
     systemctl stop tinyproxy || true
 
 execute: |
-    if ! command -v python3; then
-       echo "SKIP: need python3"
-       exit 0
-    fi
-    if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
-       [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]; then
-       echo "SKIP: cannot run when there is another http proxy"
-       exit 0
-    fi
-
     systemd-run --service-type=notify --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
     tests.systemd wait-for-service -n 30 --state active tinyproxy
 
