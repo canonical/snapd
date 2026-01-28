@@ -195,8 +195,6 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
 	$(MAKE) -f packaging/snapd.mk check-trusted-account-keys builddir=$(CURDIR)/_build/bin \
 		SNAPD_DEFINES_DIR=$(CURDIR)
-endif
-ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
 endif
