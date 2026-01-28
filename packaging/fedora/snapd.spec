@@ -576,6 +576,7 @@ with_alt_snap_mount_dir = 1
 with_apparmor = 1
 with_testkeys = %{with_test_keys}
 with_vendor = %{with_bundled}
+with_static_pie = 0
 # follow what %%gobuild does
 EXTRA_GO_BUILD_FLAGS = -v -x -compiler gc
 EXTRA_GO_LDFLAGS = -linkmode external -extldflags '%__global_ldflags'
