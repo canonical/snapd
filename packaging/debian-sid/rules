@@ -150,7 +150,8 @@ override_dh_auto_build: snapd.defines.mk
 	# go.mod file
 	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
+	GO111MODULE=off $(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snap \
+		SNAPD_DEFINES_DIR=$(CURDIR) builddir=$(CURDIR)/_build/bin
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
