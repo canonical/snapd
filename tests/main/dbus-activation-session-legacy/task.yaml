@@ -7,6 +7,9 @@ details: |
     snap that provides an activatable D-Bus service, and verifying that the
     service is activated when a method call is made.
 
+# ubuntu-core: systemd-run is not available
+systems: [-ubuntu-core-*]
+
 prepare: |
     snap set system experimental.user-daemons=true
 
@@ -16,11 +19,6 @@ restore: |
     snap unset system experimental.user-daemons
 
 execute: |
-    # This filters out Ubuntu 14.04 and Ubuntu Core respectively
-    if [ "$(command -v systemd-run)" == "" ]; then
-        exit 0
-    fi
-
     cat << EOF > run-session-bus.sh
     #!/bin/sh
     cd $(pwd)

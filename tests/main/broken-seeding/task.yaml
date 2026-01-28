@@ -12,12 +12,12 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     snap pack "$TESTSLIB/snaps/basic18"
     snap download "--$CORE_CHANNEL" core
 
@@ -48,20 +48,10 @@ prepare: |
     cp ./basic18_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     rm -rf "$SEED_DIR"
     systemctl start snapd.socket snapd.service
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Start the daemon with an empty state"
     systemctl start snapd.service
 

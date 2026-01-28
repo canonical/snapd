@@ -10,19 +10,15 @@ systems: [-ubuntu-14.04*]
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
   
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     # Ensure that "core" is installed as it is a pre-requisite of the base but

@@ -8,11 +8,6 @@ debug: |
     grep -n '' snap-*.out || true
 
 execute: |
-    # TODO: remove this check once snapd 2.65 is released
-    if tests.info is-snapd-from-archive; then
-        exit 0
-    fi
-
     snap debug execution snap > snap-default.out
     SNAP_REEXEC=0 snap debug execution snap > snap-no-reexec.out
     SNAP_REEXEC=1 snap debug execution snap > snap-yes-reexec.out

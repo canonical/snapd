@@ -24,6 +24,11 @@ environment:
     MODULE: minix
     MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
 
+skip:
+    - reason: minix module not available in the system
+      if: |
+        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]
+
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
     snap install --edge test-snapd-kernel-module-consumer
@@ -49,11 +54,6 @@ debug: |
     ls -R /lib/modules/"$(uname -r)"/kernel/fs
 
 execute: |
-    if ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]; then
-        echo "$MODULE module not available in the system"
-        exit 0
-    fi
-
     echo "The plug is disconnected by default"
     snap interfaces -i kernel-module-control | MATCH '^- +test-snapd-kernel-module-consumer:kernel-module-control'
 
