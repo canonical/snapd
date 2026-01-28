@@ -3161,6 +3161,14 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
+
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
+		return nil, err
+	}
+
 	ts, snapshotSize, err := removeTasks(st, name, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
@@ -3184,10 +3192,6 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
-	if flags == nil {
-		flags = &RemoveFlags{}
-	}
-
 	var snapst SnapState
 	err = Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3466,11 +3470,37 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 	return state.NewTaskSet(tasks...), nil
 }
 
+func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
+	nfsMount, err := osutil.SnapDirsUnderNFSMounts()
+	if err != nil {
+		logger.Noticef("cannot check if any snap dirs are under remote mouts: %v", err)
+		return nil
+	}
+
+	if !nfsMount {
+		return nil
+	}
+
+	if !flags.Purge {
+		return fmt.Errorf("cannot snapshot user data directories in NFS mounts: use --purge to skip taking a snapshot")
+	}
+
+	st.AddWarning("May not be able to remove user data under NFS mounted snap directory", nil)
+	return nil
+}
+
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
-	names = strutil.Deduplicate(names)
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
 
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
+		return nil, nil, err
+	}
+
+	names = strutil.Deduplicate(names)
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}
