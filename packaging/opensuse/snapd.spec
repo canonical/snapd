@@ -253,6 +253,7 @@ with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_d
 with_apparmor = %{with apparmor}
 with_testkeys = %{!?with_testkeys:0}%{?with_testkeys:1}
 with_static_pie = $build_with_static_pie
+with_vendor = 1
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
