@@ -218,6 +218,7 @@ with_alt_snap_mount_dir = 0
 with_apparmor = 1
 with_testkeys = $(if $(findstring testkeys,$(DEB_BUILD_OPTIONS)),1,0)
 with_static_pie = 0
+with_vendor = 1
 endef
 
 snapd.defines.mk:
