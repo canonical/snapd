@@ -269,6 +269,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.h \
 	snap-confine/mount-support-nvidia.c \
 	snap-confine/mount-support-nvidia.h \
+	snap-confine/mount-support-wsl2-gpu.c \
+	snap-confine/mount-support-wsl2-gpu.h \
 	snap-confine/mount-support.c \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \

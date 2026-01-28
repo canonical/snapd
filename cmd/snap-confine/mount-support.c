@@ -49,6 +49,7 @@
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
+#include "mount-support-wsl2-gpu.h"
 
 #define MAX_BUF 1000
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
@@ -728,6 +729,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
     // pre-pivot filesystem.
     if (config->distro == SC_DISTRO_CLASSIC) {
         sc_mount_nvidia_driver(scratch_dir, config->base_snap_name);
+        sc_mount_wsl2_gpu_driver(scratch_dir);
     }
     // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     //                    pivot_root

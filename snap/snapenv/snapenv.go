@@ -185,7 +185,7 @@ func buildLibPath() string {
 			logger.Noticef("while reading %q: %v", path, err)
 		}
 	}
-	snapLibPath := "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32"
+	snapLibPath := "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl"
 	// If we have libPaths, Nvidia libraries are provided by snaps and we
 	// do not use the gl/gl32 folders used if libs are provided by debian
 	// packages.
