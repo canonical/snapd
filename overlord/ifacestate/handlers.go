@@ -384,15 +384,18 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// The snap is affected though a connection, set the context for the
 		// Setup() call, depending on which side of the connection it is.
-		if snapsWithConnectedPlugs[name] {
-			setupContexts[name] = interfaces.SetupContext{
-				Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate,
-			}
-		} else if snapsWithConnectedSlots[name] {
-			setupContexts[name] = interfaces.SetupContext{
-				Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate,
-			}
+		sctx := interfaces.SetupContext{}
+		switch {
+		case snapsWithConnectedPlugs[name] && snapsWithConnectedSlots[name]:
+			// Same snap appears on both the plug side and slot side,
+			// indicating a cyclic connection
+			sctx.Reason = interfaces.SnapSetupReasonCyclicallyConnectedUpdate
+		case snapsWithConnectedPlugs[name]:
+			sctx.Reason = interfaces.SnapSetupReasonConnectedSlotProviderUpdate
+		case snapsWithConnectedSlots[name]:
+			sctx.Reason = interfaces.SnapSetupReasonConnectedPlugConsumerUpdate
 		}
+		setupContexts[name] = sctx
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
