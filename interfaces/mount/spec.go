@@ -323,12 +323,13 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 
 // Implementation of methods required by interfaces.Specification
 
+type mountConnectedPlugDefiner interface {
+	MountConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records mount-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		MountConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(mountConnectedPlugDefiner); ok {
 		return iface.MountConnectedPlug(spec, plug, slot)
 	}
 	return nil

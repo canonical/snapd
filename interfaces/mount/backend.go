@@ -58,6 +58,15 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityMount
 }
 
+func isMountInterfaceWithDeferredConsumerUpdate(iface interfaces.Interface) bool {
+	if iface == nil {
+		return false
+	}
+
+	_, ok := iface.(mountConnectedPlugDefiner)
+	return ok && interfaces.SupportsDeferredPlugUpdating(iface)
+}
+
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
@@ -82,6 +91,44 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
+	logger.Debugf(">>>>>> update mount namespace of snapd %q", snapName)
+
+	// TODO:deferred-mount-ns-update: there's an issue here that we're operating
+	// on an output containing snippets from all connected interfaces, but we
+	// have no way of knowing whether any of the connections supports deferred
+	// updates?
+	if sctx.CanDefer && sctx.Reason == interfaces.SnapSetupReasonConnectedSlotProviderUpdate {
+		// deferring is supported in the context of this call, and we're called
+		// as a result of an update of a snap we're connected to
+
+		// TODO:deferred-mount-ns-update: determine whether all or just any
+		// of the interfaces support deferred update
+		hasIfacesWithDeferredUpdate := false
+		for _, plug := range repo.ConnectedPlugs(snapName) {
+			hasIfacesWithDeferredUpdate = isMountInterfaceWithDeferredConsumerUpdate(repo.Interface(plug.Interface))
+			if hasIfacesWithDeferredUpdate {
+				logger.Debugf("connected plug %q interface %s supports deferred updates", plug.String(), plug.Interface)
+				break
+			}
+		}
+
+		if hasIfacesWithDeferredUpdate {
+			logger.Debugf("deferring update of mount namespaces for snap %q", appSet.InstanceName())
+			if sctx.EnqueueDeferredWork != nil {
+				sctx.EnqueueDeferredWork("mount namespace update")
+			}
+			return nil
+		}
+	}
+
+	return b.updateOrDiscard(snapName, snapInfo)
+}
+
+// updateOrDiscard attempts to update the mount namespace for a snap, and if
+// that fails, tries to discard the namespace (unless the snap has enduring daemons).
+func (b *Backend) updateOrDiscard(snapName string, snapInfo *snap.Info) error {
+	logger.Debugf("update discard or mount ns for snap %v", snapInfo.InstanceName())
+
 	if err := UpdateSnapNamespace(snapName); err != nil {
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
@@ -165,4 +212,15 @@ func (b *Backend) SandboxFeatures() []string {
 
 	features := append(commonFeatures, cgroupv1Features...)
 	return features
+}
+
+var _ interfaces.DeferredConsumerUpdatingBackend = (*Backend)(nil)
+
+func (b *Backend) SetupDeferred(appSet *interfaces.SnapAppSet, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
+	snapInfo := appSet.Info()
+	logger.Debugf("setup delayed for %v", snapName)
+	// Assuming all non-deferred work was done in Setup(), perform only the
+	// remaining work, specifically update or discard the mount namespace
+	return b.updateOrDiscard(snapName, snapInfo)
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func Test(t *testing.T) {
@@ -46,6 +47,7 @@ type backendSuite struct {
 	ifacetest.BackendSuite
 
 	iface2 *ifacetest.TestInterface
+	iface3 *ifacetest.TestDeferredConsumerUpdatingInterface
 }
 
 var _ = Suite(&backendSuite{})
@@ -62,6 +64,14 @@ func (s *backendSuite) SetUpTest(c *C) {
 	// add second iface so that we actually test combining snippets
 	s.iface2 = &ifacetest.TestInterface{InterfaceName: "iface2"}
 	c.Assert(s.Repo.AddInterface(s.iface2), IsNil)
+
+	s.iface3 = &ifacetest.TestDeferredConsumerUpdatingInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "iface3",
+		},
+		DeferredConsumerUpdate: true,
+	}
+	c.Assert(s.Repo.AddInterface(s.iface3), IsNil)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -420,4 +430,310 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
+}
+
+const mockProducerSnapYaml = `name: producer
+version: 1
+slots:
+    iface-slot:
+        interface: iface3
+`
+
+const mockSystemSnapYaml = `name: system
+version: 1
+slots:
+    system-slot:
+        interface: iface2
+`
+
+const mockConsumerSnapYaml = `name: consumer
+version: 1
+plugs:
+    iface-plug:
+        interface: iface3
+
+    system-iface-plug:
+        interface: iface2
+`
+
+func (s *backendSuite) TestSetupDefersIfDuringOtherUpdateAndConnectedOnPlugSideAndSupported(c *C) {
+	// SetupContext indicates deferring work is possible:
+	// - no work is deferred for the producer snap (not supported anyway)
+	// - however, some work was deferred for the consumer snap
+	producerAppSet := s.AddSnap(c, "producer", mockProducerSnapYaml, 0)
+	systemAppSet := s.AddSnap(c, "system", mockSystemSnapYaml, 0)
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	// consumer:iface-plug producer:iface-slot
+	cr := interfaces.NewConnRef(consumerAppSet.Info().Plugs["iface-plug"],
+		producerAppSet.Info().Slots["iface-slot"])
+	_, err := s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// consumer:system-iface-plug system:system-slot
+	cr = interfaces.NewConnRef(consumerAppSet.Info().Plugs["system-iface-plug"],
+		systemAppSet.Info().Slots["system-slot"])
+	_, err = s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	fsEntryIface3Plug := osutil.MountEntry{Name: "/src-plug", Dir: "/dst-plug", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntryIface3Slot := osutil.MountEntry{Name: "/src-slot", Dir: "/dst-slot", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntryIfaceSystemPlug := osutil.MountEntry{Name: "/src-system", Dir: "/dst-system", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.iface3.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Plug)
+	}
+	s.iface3.MountConnectedSlotCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Slot)
+	}
+	s.iface2.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIfaceSystemPlug)
+	}
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "producer.mnt"), []byte(""), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate, CanDefer: true,
+		EnqueueDeferredWork: func(reason string) {
+			panic("unexpected call")
+		},
+	}
+	err = s.Backend.Setup(producerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// we have both fstab entry and a call to update the mount ns
+	expected := fmt.Sprintf("%s\n", fsEntryIface3Slot)
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.producer.fstab"), testutil.FileEquals, expected)
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "producer"},
+	})
+	cmdUpdNs.ForgetCalls()
+
+	consumerDeferred := ""
+	sctx = interfaces.SetupContext{
+		Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate, CanDefer: true,
+		EnqueueDeferredWork: func(reason string) {
+			consumerDeferred = reason
+		},
+	}
+
+	err = s.Backend.Setup(consumerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// we only have an entry in fstab
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FileMatches,
+		fmt.Sprintf("%s\n", fsEntryIfaceSystemPlug))
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FileMatches,
+		fmt.Sprintf("%s\n", fsEntryIface3Plug))
+	// we were notified of the deferred work
+	c.Check(consumerDeferred, Equals, "mount namespace update")
+	// no calls to snap-update-ns
+	c.Check(cmdUpdNs.Calls(), HasLen, 0)
+
+	// now do the deferred setup
+	err = s.Backend.(interfaces.DeferredConsumerUpdatingBackend).SetupDeferred(consumerAppSet, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+}
+
+func (s *backendSuite) TestSetupNotDeferredIfConnectedOnPlugAndOwnUpdateAndSupported(c *C) {
+	// SetupContext indicates deferring work is possible, the snap is connected
+	// on the plug side, but it's running in the context of its own update
+	producerAppSet := s.AddSnap(c, "producer", mockProducerSnapYaml, 0)
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	// consumer:iface-plug producer:iface-slot
+	cr := interfaces.NewConnRef(consumerAppSet.Info().Plugs["iface-plug"],
+		producerAppSet.Info().Slots["iface-slot"])
+	_, err := s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	fsEntryIface3Plug := osutil.MountEntry{Name: "/src-plug", Dir: "/dst-plug", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.iface3.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Plug)
+	}
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	sctx := interfaces.SetupContext{
+		// our own update
+		Reason: interfaces.SnapSetupReasonOwnUpdate,
+		// can defer
+		CanDefer: true,
+		EnqueueDeferredWork: func(reason string) {
+			panic("unexpected call")
+		},
+	}
+
+	err = s.Backend.Setup(consumerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// we only have an entry in fstab
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FileMatches,
+		fmt.Sprintf("%s\n", fsEntryIface3Plug))
+	// snap-update-ns called
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+}
+
+func (s *backendSuite) TestSetupNotDeferredIfConnectedOnSlotAndSupported(c *C) {
+	// SetupContext indicates deferring work is possible, and Setup() is
+	// called as a result of updating another snap connected to one of our
+	// slots
+	producerAppSet := s.AddSnap(c, "producer", mockProducerSnapYaml, 0)
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	// consumer:iface-plug producer:iface-slot
+	cr := interfaces.NewConnRef(consumerAppSet.Info().Plugs["iface-plug"],
+		producerAppSet.Info().Slots["iface-slot"])
+	_, err := s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	fsEntryIface3Plug := osutil.MountEntry{Name: "/src-plug", Dir: "/dst-plug", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.iface3.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Plug)
+	}
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "producer.mnt"), []byte(""), 0644), IsNil)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	sctx := interfaces.SetupContext{
+		// our own update
+		Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate,
+		// can defer
+		CanDefer: true,
+		EnqueueDeferredWork: func(reason string) {
+			panic("unexpected call")
+		},
+	}
+
+	err = s.Backend.Setup(producerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// file was removed by Setup()
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.producer.fstab"), testutil.FileAbsent)
+	// snap-update-ns called
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "producer"},
+	})
+}
+
+func (s *backendSuite) TestSetupNotDeferredWhenNotPossible(c *C) {
+	// deferring is not possible, as indicated in SetupContext
+	producerAppSet := s.AddSnap(c, "producer", mockProducerSnapYaml, 0)
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	// consumer:iface-plug producer:iface-slot
+	cr := interfaces.NewConnRef(consumerAppSet.Info().Plugs["iface-plug"],
+		producerAppSet.Info().Slots["iface-slot"])
+	_, err := s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	fsEntryIface3Plug := osutil.MountEntry{Name: "/src-plug", Dir: "/dst-plug", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.iface3.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Plug)
+	}
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	sctx := interfaces.SetupContext{
+		Reason:   interfaces.SnapSetupReasonConnectedSlotProviderUpdate,
+		CanDefer: false,
+		EnqueueDeferredWork: func(reason string) {
+			panic("unexpected call")
+		},
+	}
+
+	err = s.Backend.Setup(consumerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// we only have an entry in fstab
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FilePresent)
+	// snap-update-ns was called
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+}
+
+func (s *backendSuite) TestSetupNotDeferredNoSupportedByInterface(c *C) {
+	const mockNonDeferrableProducerSnapYaml = `name: producer
+version: 1
+slots:
+    iface-slot:
+        interface: iface
+`
+	const mockNonDeferrableConsumerSnapYaml = `name: consumer
+version: 1
+plugs:
+    iface-plug:
+        interface: iface
+`
+
+	// deferring is not possible, but not supported by the connected interface
+	producerAppSet := s.AddSnap(c, "producer", mockNonDeferrableProducerSnapYaml, 0)
+	consumerAppSet := s.AddSnap(c, "consumer", mockNonDeferrableConsumerSnapYaml, 0)
+
+	// consumer:iface-plug producer:iface-slot
+	cr := interfaces.NewConnRef(consumerAppSet.Info().Plugs["iface-plug"],
+		producerAppSet.Info().Slots["iface-slot"])
+	_, err := s.Repo.Connect(cr, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	fsEntryIface3Plug := osutil.MountEntry{Name: "/src-plug", Dir: "/dst-plug", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.Iface.MountConnectedPlugCallback = func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddMountEntry(fsEntryIface3Plug)
+	}
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	sctx := interfaces.SetupContext{
+		Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate,
+		// yes we can
+		CanDefer: true,
+		EnqueueDeferredWork: func(reason string) {
+			panic("unexpected call")
+		},
+	}
+
+	err = s.Backend.Setup(consumerAppSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// we only have an entry in fstab
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FilePresent)
+	// snap-update-ns was called
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
 }
