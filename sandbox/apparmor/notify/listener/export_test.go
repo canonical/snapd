@@ -35,7 +35,6 @@ import (
 
 var (
 	ReadyTimeout = readyTimeout
-	BuildKey     = buildKey
 )
 
 func ExitOnError() (restore func()) {
@@ -188,10 +187,6 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 		return ret, err
 	})
 	return ioctlDoneRW, restore
-}
-
-func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
-	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
 }
 
 func MockTimeAfterFunc(f func(d time.Duration, callback func()) timeutil.Timer) (restore func()) {
