@@ -57,3 +57,26 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 	}
 	return errors
 }
+
+// TODO:deferred-mount-ns-update: consistent naming, Deferred -> Delayed or vice versa
+func SetupDeferred(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet, tm timings.Measurer) []error {
+	var errors []error
+
+	deferredUpdatingBackend, ok := backend.(DeferredConsumerUpdatingBackend)
+	if !ok {
+		return nil
+	}
+
+	for _, set := range appSets {
+		snapInfo := set.Info()
+
+		// Refresh security of this snap and backend
+		timings.Run(tm, "deferred-setup-security-backend", fmt.Sprintf("delayed setup security backend %q update for snap %q", backend.Name(), snapInfo.InstanceName()),
+			func(nesttm timings.Measurer) {
+				if err := deferredUpdatingBackend.SetupDeferred(set, nesttm); err != nil {
+					errors = append(errors, err)
+				}
+			})
+	}
+	return errors
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -212,4 +213,65 @@ func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
 	}, s.tm)
 	c.Check(errs, HasLen, 2)
 	c.Check(setupCalls, Equals, 2)
+}
+
+func (s *HelpersSuite) TestSetupDeferredNotImplemented(c *C) {
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			panic("unexpected call")
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 0)
+}
+
+func (s *HelpersSuite) TestSetupDeferredHappy(c *C) {
+	var deferredCalls []string
+
+	backend := &ifacetest.TestSecurityBackendSetupDeferred{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		SetupDeferredCallback: func(appSet *interfaces.SnapAppSet) error {
+			deferredCalls = append(deferredCalls, appSet.InstanceName())
+			return nil
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 0)
+	c.Check(deferredCalls, DeepEquals, []string{"some-snap", "other-snap"})
+}
+
+func (s *HelpersSuite) TestSetupDeferredErrs(c *C) {
+	var deferredCalls []string
+
+	backend := &ifacetest.TestSecurityBackendSetupDeferred{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		SetupDeferredCallback: func(appSet *interfaces.SnapAppSet) error {
+			name := appSet.InstanceName()
+			deferredCalls = append(deferredCalls, appSet.InstanceName())
+			if name == "other-snap" {
+				return fmt.Errorf("mock error")
+			}
+			return nil
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 1)
+	c.Check(strutil.JoinErrors(errs...), ErrorMatches, "mock error")
+	c.Check(deferredCalls, DeepEquals, []string{"some-snap", "other-snap"})
 }

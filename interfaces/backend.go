@@ -187,3 +187,10 @@ type SecurityBackendDiscardingLate interface {
 	// step of the remove change.
 	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
 }
+
+// DeferredConsumerUpdatingBackend is an interface which is implemented by
+// a backend that supports deferring some part of a setup if a given snap is
+// present on the consumer (plug) side of an interface connection.
+type DeferredConsumerUpdatingBackend interface {
+	SetupDeferred(appSets *SnapAppSet, tm timings.Measurer) error
+}

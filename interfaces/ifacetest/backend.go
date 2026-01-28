@@ -158,3 +158,25 @@ func (b *TestSecurityBackendReinitializable) Reinitialize() error {
 	}
 	return b.ReinitializeCallback()
 }
+
+// TestSecurityBackendSetupDeferred implements SetupDeferred on top of
+// TestSecurityBackend.
+type TestSecurityBackendSetupDeferred struct {
+	TestSecurityBackend
+
+	SetupDeferredCalls int
+
+	SetupDeferredCallback func(appSet *interfaces.SnapAppSet) error
+}
+
+var (
+	_ interfaces.DeferredConsumerUpdatingBackend = (*TestSecurityBackendSetupDeferred)(nil)
+)
+
+func (b *TestSecurityBackendSetupDeferred) SetupDeferred(appSet *interfaces.SnapAppSet, tm timings.Measurer) error {
+	b.SetupDeferredCalls++
+	if b.SetupDeferredCallback == nil {
+		return nil
+	}
+	return b.SetupDeferredCallback(appSet)
+}
