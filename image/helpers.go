@@ -57,7 +57,7 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, comps []CompI
 	}
 
 	// cross checks
-	verifiedRev, err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, expectedProv, size, &info.SideInfo, model, db)
+	verifiedRev, err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, expectedProv, size, &info.SideInfo, nil, model, db)
 	if err != nil {
 		return nil, err
 	}

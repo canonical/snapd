@@ -104,6 +104,13 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 	return sn
 }
 
+func makeSnapIntegrityData(c *C, snapPath string, rootHash string) {
+	fileName := snapPath + ".dmverity_" + rootHash
+	file, err := os.Create(fileName)
+	c.Assert(err, IsNil)
+	defer file.Close()
+}
+
 type SquashfsTestSuite struct {
 	testutil.BaseTest
 
@@ -313,6 +320,217 @@ func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
 	didNothing, err := sn.Install(targetPath, c.MkDir(), nil)
 	c.Assert(err, IsNil)
 	c.Check(didNothing, Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestInstallSeedWithVerityData(c *C) {
+	defer noLink()()
+
+	rootHash := "a"
+
+	systemSnapsDir := filepath.Join(dirs.SnapSeedDir, "systems", "20200521", "snaps")
+	c.Assert(os.MkdirAll(systemSnapsDir, 0755), IsNil)
+	snapf := makeSnapInDir(c, systemSnapsDir, "name: test2", "")
+
+	verityFile, err := os.Create(filepath.Join(systemSnapsDir, "foo.snap.dmverity_"+rootHash))
+	c.Assert(err, IsNil)
+	defer verityFile.Close()
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	_, err = os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	targetVerityPath := filepath.Join(filepath.Dir(targetPath), "target.snap.dmverity_"+rootHash)
+	_, err = os.Lstat(targetVerityPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	opts := &snap.InstallOptions{
+		IntegrityRootHash: rootHash,
+	}
+
+	didNothing, err := snapf.Install(targetPath, c.MkDir(), opts)
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	c.Check(osutil.IsSymlink(targetPath), Equals, true)
+	c.Check(osutil.IsSymlink(targetVerityPath), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataNoCp(c *C) {
+	// mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+	// mock link but still link
+	linked := 0
+	r := squashfs.MockLink(func(a, b string) error {
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
+	sn := makeSnap(c, "name: test", "")
+
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	didNothing, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, true)
+	c.Check(linked, Equals, 2)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataOnOverlayfs(c *C) {
+	cmd := testutil.MockCommand(c, "cp", "")
+	defer cmd.Restore()
+
+	// mock link but still link
+	linked := 0
+	r := squashfs.MockLink(func(a, b string) error {
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
+	// pretend we are on overlayfs
+	restore := squashfs.MockIsRootWritableOverlay(func() (string, error) {
+		return "/upper", nil
+	})
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapSeedDir, 0755), IsNil)
+	sn := makeSnapInDir(c, dirs.SnapSeedDir, "name: test2", "")
+
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	_, err := os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	didNothing, err := sn.Install(targetPath, c.MkDir(), &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	// symlink in place
+	c.Check(osutil.IsSymlink(targetPath), Equals, true)
+	c.Check(osutil.IsSymlink(targetVerityPath), Equals, true)
+	// no link / no cp
+	c.Check(linked, Equals, 0)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataNotCopyTwice(c *C) {
+	// first, disable os.Link
+	defer noLink()()
+
+	// then, mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
+	sn := makeSnap(c, "name: test2", "")
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	didNothing, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, true)
+	c.Check(cmd.Calls(), HasLen, 2)
+
+	didNothing, err = sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, true)
+	c.Check(cmd.Calls(), HasLen, 2) // and not 4 \o/
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyError(c *C) {
+	// first, disable os.Link
+	defer noLink()()
+
+	// then, mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", "echo error; exit 1;")
+	defer cmd.Restore()
+
+	sn := makeSnap(c, "name: test2", "")
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	mountDir := c.MkDir()
+	_, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, ErrorMatches, `failed to copy all: "error" \(1\)`)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteLinkedSnapOnVerityLinkError(c *C) {
+	// mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
+	// mock link but still link
+	linked := 0
+	r := squashfs.MockLink(func(a, b string) error {
+		// fail link for verity
+		if strings.Contains(b, "dmverity") {
+			return errors.New("some error")
+		}
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
+	sn := makeSnap(c, "name: test", "")
+
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	didNothing, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, ErrorMatches, "some error")
+	c.Assert(didNothing, Equals, false)
+	c.Check(linked, Equals, 1)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, false)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteCopiedSnapOnVerityCopyError(c *C) {
+	// first, disable os.Link
+	defer noLink()()
+
+	// then, mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+[[ "$3" == *"dmverity"* ]] && { echo error; exit 1; }
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
+	sn := makeSnap(c, "name: test2", "")
+	rootHash := "aaa"
+	makeSnapIntegrityData(c, sn.Path(), rootHash)
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	mountDir := c.MkDir()
+	_, err := sn.Install(targetPath, mountDir, &snap.InstallOptions{IntegrityRootHash: rootHash})
+	c.Assert(err, ErrorMatches, `failed to copy all: "error" \(1\)`)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
+	c.Check(osutil.FileExists(targetVerityPath), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {
