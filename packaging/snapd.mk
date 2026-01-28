@@ -25,7 +25,9 @@ vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir un
 #   with_apparmor: set to 1 to build snapd with apparmor support
 #   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
 #   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
-vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir
+#   with_vendor: set to 1 to build snapd using the vendor directory for dependencies
+#   with_static_pie: set to 1 to build static binaries in PIE mode if
+vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir with_vendor with_static_pie
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
