@@ -112,9 +112,9 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 			c.Check(appSets[1].Info().SnapName(), Equals, "other-snap")
 			c.Assert(sctx, NotNil)
 			c.Check(sctx(appSets[0].Info().SnapName()),
-				Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 			c.Check(sctx(appSets[1].Info().SnapName()),
-				Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 			setupManyCalls++
 			return nil
 		},

@@ -129,6 +129,12 @@ func (s SnapSetupCallReason) String() string {
 // was made.
 type SetupContext struct {
 	Reason SnapSetupCallReason
+	// CanDefer is set to true when the backend may queue deferred work.
+	CanDefer bool
+	// EnqueueDeferredWork is a callback the backend may call to indicate
+	// enqueued deferred work. The parameter is purely informative describes the
+	// kind of work the backend decided to defer for later.
+	EnqueueDeferredWork func(whatWork string)
 }
 
 // SecurityBackend abstracts interactions between the interface system and the
