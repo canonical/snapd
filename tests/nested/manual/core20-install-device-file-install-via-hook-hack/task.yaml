@@ -40,12 +40,12 @@ environment:
     # a model with grade higher than dangerous when building the image
     NESTED_CORE_CHANNEL: ""
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     # setup the fakestore, but don't use it for our snapd here on the host VM, so
     # tear down the staging_store immediately afterwards so that only the SAS is 
     # running and our snapd is not pointed at it, ubuntu-image is the only thing 
@@ -112,22 +112,12 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     # stop fake device svc
     systemctl stop fakedevicesvc
 
     "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     # wait for the initialize device task to be done
     retry -n 200 --wait 3 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
