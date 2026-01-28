@@ -25,6 +25,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -148,15 +149,15 @@ func (ctxSuite) TestRunMany(c *check.C) {
 	}
 
 	// Successful tasks
-	taskRun := 0
+	var taskRun atomic.Uint32
 	tasks := []func() error{
-		func() error { taskRun++; return nil },
-		func() error { taskRun++; return nil },
+		func() error { taskRun.Add(1); return nil },
+		func() error { taskRun.Add(1); return nil },
 	}
 
 	err := osutil.RunManyWithContext(ctx, cmds, tasks)
 	c.Assert(err, check.IsNil)
-	c.Check(taskRun, check.Equals, 2)
+	c.Check(taskRun.Load(), check.Equals, uint32(2))
 }
 
 func (ctxSuite) TestRunManyCmdError(c *check.C) {
