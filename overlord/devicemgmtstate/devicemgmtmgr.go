@@ -283,14 +283,11 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	}
 
 	m.state.Unlock()
-	resp, err := sto.ExchangeMessages(
-		tomb.Context(context.Background()),
-		&store.MessageExchangeRequest{
+	resp, err := sto.ExchangeMessages(tomb.Context(nil), &store.MessageExchangeRequest{
 			After:    ms.LastReceivedToken,
 			Limit:    limit,
 			Messages: messages,
-		},
-	)
+	})
 	m.state.Lock()
 	if err != nil {
 		return err
@@ -340,7 +337,7 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 
 	reqAs, ok := as.(*asserts.RequestMessage)
 	if !ok {
-		return nil, fmt.Errorf(`assertion is %q, expected "request-message"`, as.Type().Name)
+		return nil, fmt.Errorf(`cannot process assertion: expected "request-message" but got %s`, as.Type().Name)
 	}
 
 	devices := reqAs.Devices()
