@@ -29,19 +29,20 @@ prepare: |
     fi
 
 restore: |
+    rm -rf "/home/test/static-unit-tests"
     if not os.query is-trusty; then
         tests.session -u test restore
     fi
-    rm -rf /tmp/static-unit-tests
 
 execute: |
-    mkdir -p /tmp/static-unit-tests/src/github.com/snapcore
-    cp -ar "$PROJECT_PATH" /tmp/static-unit-tests/src/github.com/snapcore
-    chown -R test:12345 /tmp/static-unit-tests
+    testdir="/home/test/static-unit-tests/src/github.com/snapcore"
+    mkdir -p "$testdir"
+    cp -ar "$PROJECT_PATH" "$testdir"
+    chown -R test:12345 "/home/test/static-unit-tests"
 
     # remove leftovers
-    rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
-    rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
+    rm -rf "$testdir"/snapd/vendor/*/
+    rm -rf "$testdir"/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
     # The format of code produced by "gofmt" drifts over time. Perform checks
     # only on a fixed version to avoid hair-pulling annoyance every six months.
@@ -73,7 +74,7 @@ execute: |
 
     if not os.query is-trusty; then
         if [ "$VARIANT" = "static" ] ; then
-            tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+            tests.session -u test exec sh -c "cd $testdir/snapd && \
                 PATH=$PATH \
                 GOPATH=/tmp/static-unit-tests \
                 $PROXY_PARAM \
@@ -82,7 +83,7 @@ execute: |
                 IGNORE_MISSING=1 \
                 ./run-checks --static"
         else
-            tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+            tests.session -u test exec sh -c "cd $testdir/snapd && \
                 PATH=$PATH \
                 GOPATH=/tmp/static-unit-tests \
                 $PROXY_PARAM \
@@ -94,7 +95,7 @@ execute: |
     else
         # on 14.04 we need to use a fork of libseccomp-golang
         sed -i 's|\"github.com/seccomp/libseccomp-golang\"|\"github.com/mvo5/libseccomp-golang\"|' \
-            /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/snap-seccomp/*.go
+            "$testdir"/snapd/cmd/snap-seccomp/*.go
 
         if [ "$VARIANT" = "clang" ]; then
             # clang is more picky about duplicate values in switch statements,
@@ -110,7 +111,7 @@ execute: |
 
         if [ "$VARIANT" = "static" ] ; then
             # 14.04 only
-            su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+            su -l -c "cd $testdir/snapd && \
                 PATH=$PATH \
                 GOPATH=/tmp/static-unit-tests \
                 $PROXY_PARAM \
@@ -119,7 +120,7 @@ execute: |
                 IGNORE_MISSING=1 \
                 ./run-checks --static" test
         else
-            su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+            su -l -c "cd $testdir/snapd && \
                 PATH=$PATH \
                 GOPATH=/tmp/static-unit-tests \
                 $PROXY_PARAM \
