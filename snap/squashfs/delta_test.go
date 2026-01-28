@@ -570,8 +570,8 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 }
 
 func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
-	// Create a mock delta file: gzip (1), timestamp 5000, and some dummy
-	// xdelta3 data following the 32-byte header.
+	// Create a mock delta file: gzip (1), timestamp 5000, and some random
+	// data (instead of the xdelta3 stream) following the 32-byte header.
 	deltaPath := s.createDeltaFile(c, "writer.delta", 5000, 1, 0x0040)
 	expectedData := []byte("this-is-the-raw-xdelta3-payload")
 
