@@ -142,5 +142,6 @@ func RunManyWithContext(ctx context.Context, cmds []*exec.Cmd, tasks []func() er
 		})
 	}
 
+	// Return nil or the first error (if any) returned by the spawned go routines
 	return g.Wait()
 }
