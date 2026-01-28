@@ -13,12 +13,12 @@ systems: [-ubuntu-core-*]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 
-prepare: |
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-from-archive; then
-        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+       [ "$TRUST_TEST_KEYS" = "false" ] || tests.info is-snapd-from-archive
 
+prepare: |
     snap pack "$TESTSLIB/snaps/basic"
     snap pack "$TESTSLIB/snaps/test-snapd-service"
     snap download "--$CORE_CHANNEL" core
@@ -51,14 +51,10 @@ prepare: |
     cp ./test-snapd-service_1.0_all.snap "$SEED_DIR/snaps/test-snapd-service.snap"
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     rm -rf "$SEED_DIR"
     systemctl start snapd.socket snapd.service
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Start the daemon with an empty state, this will make it import "
     echo "assertions from the $SEED_DIR/assertions subdirectory and "
     echo "install the seed snaps."
