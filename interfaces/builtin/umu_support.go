@@ -76,7 +76,7 @@ mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-re
 /oldroot/usr/** r,
 /oldroot/etc/** r,
 
-# More restrictive host access
+# Restrictive host access
 /run/host/ r,
 /run/host/usr/ r,
 /run/host/etc/ r,
@@ -97,6 +97,11 @@ mount options=(rw, rbind) /oldroot/etc/machine-id -> /newroot/etc/machine-id,
 
 # Mounting temporary files
 mount options=(rw, rbind) /bindfile* -> /newroot/**,
+
+# Permission to read mount paths.
+/media/ r,
+/mnt/ r,
+/run/media/ r,
 
 # Broad execution permissions for container binaries
 /usr/** ixr,
