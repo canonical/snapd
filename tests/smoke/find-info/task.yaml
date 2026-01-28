@@ -6,8 +6,6 @@ details: |
   display detailed information about it by using the "snap info" command.
 
 execute: |
-  tests.exec is-skipped && exit 0
-  
   echo "Ensure 'snap find' works"
   snap find test-snapd-tools | MATCH ^test-snapd-tools
 

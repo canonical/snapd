@@ -34,12 +34,11 @@ environment:
     BASE_CORE_STRICT_SNAP: test-snapd-sh
     BASE_NON_CORE_STRICT_SNAP: test-snapd-sh-core18
 
-prepare: |
-    # Core snap is not modified for classic re-exec any more in this scenario
-    if tests.info is-snapd-from-archive; then
-        tests.exec skip-test "Core snap is not modified for classic re-exec any more in this scenario" && exit 0
-    fi
+skip:
+    - reason: Core snap is not modified for classic re-exec any more in this scenario
+      if: tests.info is-snapd-from-archive
 
+prepare: |
     CURRENT_SNAPD_SNAP="$(ls "$SNAPD_WORK_DIR"/snapd_snap/snapd_*.snap)"
     cp "$CURRENT_SNAPD_SNAP" "$PWD/snapd-from-branch.snap"
 
@@ -69,8 +68,6 @@ prepare: |
     rm -r "$snapddir"
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     if [ "$SNAP_TO_USE_FIRST" = "core" ]; then
 
         # first install our core snap because we don't have the snapd snap on 

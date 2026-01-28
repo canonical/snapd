@@ -6,11 +6,11 @@ details: |
 
 systems: [-ubuntu-core-*]
 
-prepare: |
-    if tests.info is-snapd-from-archive; then
-        tests.exec skip-test "This test is skipped when the snapd pkg isn't built from local" && exit 0
-    fi
+skip:
+    - reason: This test is skipped when the snapd pkg isn't built from local
+      if: tests.info is-snapd-from-archive
 
+prepare: |
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
 
     # note: no need to unset these since this spread test purges snapd totally
@@ -68,8 +68,6 @@ prepare: |
     fi
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     if [ -e pkg-removed ]; then
@@ -78,13 +76,9 @@ restore: |
     fi
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket|slice)'
 
     #shellcheck source=tests/lib/pkgdb.sh

@@ -17,21 +17,18 @@ environment:
     SNAP_REEXEC/no_reexec: 0
     SNAP_REEXEC/with_reexec: 1
 
-prepare: |
-    LIBEXEC_DIR="$(os.paths libexec-dir)"
-    vers="$("$LIBEXEC_DIR"/snapd/snap-confine --version | cut -f2 -d' ' | sed -e 's/\+.*//')"
-
-    if os.query is-ubuntu && [ "$SPREAD_VARIANT" = "no_reexec" ]; then
+skip:
+    - reason: This test needs a test build of snapd, got native version instead
+      if: |
         # Ubuntu is the only distribution where snapd comes preinstalled, so
         # unless we are doing SRU validation or installing from a private PPA
         # (as part of the release process) the no-reexec variant would actually
         # try to exercise this feature using the native package, which may be
         # too old to have it in the first place
-        if [ "$SRU_VALIDATION" != "1" ] && [ -z "$PPA_SOURCE_LINE" ] && [ -z "$PPA_VALIDATION_NAME" ]; then
-            tests.exec skip-test "This test needs a test build of snapd, got native version $vers instead"
-        fi
-    fi
-    tests.exec is-skipped && exit 0
+        os.query is-ubuntu && [ "$SPREAD_VARIANT" = "no_reexec" ] && [ "$SRU_VALIDATION" != "1" ] && [ -z "$PPA_SOURCE_LINE" ] && [ -z "$PPA_VALIDATION_NAME" ]
+
+prepare: |
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
@@ -67,7 +64,6 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.exec is-skipped && exit 0
     tests.session -u test restore
 
 debug: |
@@ -76,7 +72,6 @@ debug: |
     getcap "$LIBEXEC_DIR"/snapd/snap-confine || true
 
 execute: |
-    tests.exec is-skipped && exit 0
     tests.session -u test exec sh -c "test-snapd-sh-core24.sh -c 'true' 2>&1" | \
         MATCH 'user is not a member of group'
 

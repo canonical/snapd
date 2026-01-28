@@ -15,16 +15,12 @@ prepare: |
     fi
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     rm -f /home/test/foo
     # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sandbox
     snap remove --purge test-snapd-hello-multi-arch
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     if [ "$(snap debug confinement)" != "strict" ]; then
         if os.query is-ubuntu; then
             echo "all ubuntu systems must have strict confinement"
