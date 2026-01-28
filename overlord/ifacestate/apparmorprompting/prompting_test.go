@@ -40,8 +40,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,14 +65,14 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
 }
 
-func requestWithReplyChan(req *listener.Request) (*listener.Request, chan notify.AppArmorPermission) {
-	replyChan := make(chan notify.AppArmorPermission, 1)
+func requestWithReplyChan(req *prompting.Request) (*prompting.Request, chan []string) {
+	replyChan := make(chan []string, 1)
 	injectReplyChan(req, replyChan)
 	return req, replyChan
 }
 
-func injectReplyChan(req *listener.Request, replyChan chan notify.AppArmorPermission) *listener.Request {
-	req.Reply = func(allowedPerms notify.AppArmorPermission) error {
+func injectReplyChan(req *prompting.Request, replyChan chan []string) *prompting.Request {
+	req.Reply = func(allowedPerms []string) error {
 		replyChan <- allowedPerms
 		return nil
 	}
@@ -123,7 +121,7 @@ func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 	checkListenerClosed(c, reqChan)
 }
 
-func checkListenerClosed(c *C, reqChan <-chan *listener.Request) {
+func checkListenerClosed(c *C, reqChan <-chan *prompting.Request) {
 	select {
 	case _, ok := <-reqChan:
 		// reqChan was already closed
@@ -207,130 +205,7 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
-func (s *apparmorpromptingSuite) TestHandleListenerRequestInterfaceSelection(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
-	defer restore()
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	mgr, err := apparmorprompting.New(s.st)
-	c.Assert(err, IsNil)
-
-	// Close readyChan so we can add rules
-	close(readyChan)
-
-	clientActivity := true
-	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Check(prompts, HasLen, 0)
-
-	// Explicitly set "home" interface based on tags
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "home", nil
-	})
-	req := &listener.Request{
-		// Most fields don't matter here
-		ID:         1,
-		Label:      "snap1",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 1)
-	c.Check(prompts[0].Interface, Equals, "home")
-	restore()
-
-	// Explicitly set "camera" interface based on tags
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "camera", nil
-	})
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         2,
-		Label:      "snap2",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 2)
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	restore()
-
-	// Return ErrNoInterfaceTags and check that the manager defaults to "home" or "camera"
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "", prompting_errors.ErrNoInterfaceTags
-	})
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         3,
-		Label:      "snap3",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_EXEC,
-		Path:       "/home/test/foo",
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 3, Commentf("%+v", prompts[0]))
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	c.Check(prompts[2].Interface, Equals, "home")
-	req = &listener.Request{
-		// Most fields don't matter here
-		ID:         4,
-		Label:      "snap4",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_WRITE,
-		Path:       "/dev/video1",
-	}
-	reqChan <- req
-	time.Sleep(10 * time.Millisecond)
-	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
-	c.Check(err, IsNil)
-	c.Assert(prompts, HasLen, 4, Commentf("%+v", prompts[0]))
-	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "camera")
-	c.Check(prompts[2].Interface, Equals, "home")
-	c.Check(prompts[3].Interface, Equals, "camera")
-	restore()
-
-	// Explicitly set some other interface based on tags.
-	// Currently only "home" and "camera" are supported, so we expect a later
-	// error in order to see that the given interface was used when mapping
-	// permissions.
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "foo", nil
-	})
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		// Most fields don't matter here
-		ID:         5,
-		Label:      "snap5",
-		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_OPEN,
-	})
-	reqChan <- req
-	allowedPermissions, err := waitForReply(replyChan)
-	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, Equals, nil)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while parsing AppArmor permissions: cannot map the given interface to list of available permissions: foo`)
-	})
-	restore()
-
-	c.Assert(mgr.Stop(), IsNil)
-}
-
-func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
+func (s *apparmorpromptingSuite) TestHandleRequestDenyRoot(c *C) {
 	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
@@ -338,20 +213,20 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 	c.Assert(err, IsNil)
 
 	// Send request for root
-	req, replyChan := requestWithReplyChan(&listener.Request{
+	req, replyChan := requestWithReplyChan(&prompting.Request{
 		// Most fields don't matter here
-		SubjectUID: 0,
+		UID: 0,
 	})
 	reqChan <- req
 	// Should get immediate denial
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, Equals, nil)
+	c.Check(allowedPermissions, HasLen, 0)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
+func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 	readyChan, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
@@ -369,51 +244,18 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
-	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "", fmt.Errorf("something went wrong")
-	})
-	// Send request with invalid tags
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		// Most fields don't matter here
-		SubjectUID: s.defaultUser,
-	})
-	reqChan <- req
-	allowedPermissions, err := waitForReply(replyChan)
-	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, Equals, nil)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while selecting interface from metadata tags: something went wrong`)
-	})
-	restore()
-
-	// Send request with invalid permissions
-	req, replyChan = requestWithReplyChan(&listener.Request{
-		// Most fields don't matter here
-		SubjectUID: s.defaultUser,
-		Permission: notify.FilePermission(0),
-	})
-	reqChan <- req
-	allowedPermissions, err = waitForReply(replyChan)
-	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, Equals, nil)
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains,
-			` error while parsing AppArmor permissions: cannot get abstract permissions from empty AppArmor permissions: "none"`)
-	})
-
 	// Fill the requestprompts backend until we hit its outstanding prompt
 	// count limit
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
-		req := &listener.Request{
-			PID:        1234,
-			Cgroup:     "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-			Label:      "snap.firefox.firefox",
-			SubjectUID: s.defaultUser,
-			Path:       fmt.Sprintf("/home/test/%d", i),
-			Class:      notify.AA_CLASS_FILE,
-			Permission: notify.AA_MAY_APPEND,
+		req := &prompting.Request{
+			PID:           1234,
+			Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+			AppArmorLabel: "snap.firefox.firefox",
+			UID:           s.defaultUser,
+			Path:          fmt.Sprintf("/home/test/%d", i),
+			Interface:     "home",
+			Permissions:   []string{"write"},
 		}
 		reqChan <- req
 	}
@@ -428,19 +270,19 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 		logbuf.Reset()
 	})
 
-	req, replyChan = requestWithReplyChan(&listener.Request{
-		PID:        1234,
-		Cgroup:     "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-		Label:      "snap.firefox.firefox",
-		SubjectUID: s.defaultUser,
-		Path:       fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
-		Class:      notify.AA_CLASS_FILE,
-		Permission: notify.AA_MAY_APPEND,
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		PID:           1234,
+		Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+		AppArmorLabel: "snap.firefox.firefox",
+		UID:           s.defaultUser,
+		Path:          fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
+		Interface:     "home",
+		Permissions:   []string{"write"},
 	})
 	reqChan <- req
-	allowedPermissions, err = waitForReply(replyChan)
+	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, DeepEquals, notify.FilePermission(0))
+	c.Check(allowedPermissions, DeepEquals, []string{})
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains,
 			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
@@ -459,7 +301,7 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
 	close(readyChan)
 
-	req, replyChan := requestWithReplyChan(&listener.Request{})
+	req, replyChan := requestWithReplyChan(&prompting.Request{})
 	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
 
 	// Reply to the request
@@ -475,15 +317,13 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	// Simulate the listener receiving the response
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-
-	aaPerms, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-	c.Check(err, IsNil)
-	c.Check(allowedPermissions, Equals, aaPerms)
+	expectedPerms := []string{"read"}
+	c.Check(allowedPermissions, DeepEquals, expectedPerms)
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Request, mgr *apparmorprompting.InterfacesRequestsManager, req *listener.Request, shouldMerge bool) (*listener.Request, *requestprompts.Prompt) {
+func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.Request, mgr *apparmorprompting.InterfacesRequestsManager, req *prompting.Request, shouldMerge bool) (*prompting.Request, *requestprompts.Prompt) {
 	clientActivity := false
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
@@ -536,8 +376,8 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 		break
 	}
 	c.Assert(prompt, NotNil)
-	expectedSnap := req.Label
-	labelComponents := strings.Split(req.Label, ".")
+	expectedSnap := req.AppArmorLabel
+	labelComponents := strings.Split(req.AppArmorLabel, ".")
 	if len(labelComponents) == 3 {
 		expectedSnap = labelComponents[1]
 	}
@@ -545,7 +385,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	c.Check(prompt.Snap, Equals, expectedSnap)
 	c.Check(prompt.PID, Equals, req.PID)
 	c.Check(prompt.Cgroup, Equals, req.Cgroup)
-	c.Check(prompt.Interface, Equals, "home") // assumes InterfaceFromTagsets returns "home" or ErrNoInterfaceTags
+	c.Check(prompt.Interface, Equals, "home")
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
@@ -559,36 +399,36 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 
 // fillInPartialRequest fills in any blank fields from the given request
 // with default non-empty values.
-func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
+func (s *apparmorpromptingSuite) fillInPartialRequest(req *prompting.Request) {
 	if req.PID == 0 {
 		req.PID = 1234
 	}
 	if req.Cgroup == "" {
 		req.Cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"
 	}
-	if req.Label == "" {
-		req.Label = "snap.firefox.firefox"
+	if req.AppArmorLabel == "" {
+		req.AppArmorLabel = "snap.firefox.firefox"
 	}
-	if req.SubjectUID == uint32(0) {
-		req.SubjectUID = s.defaultUser
+	if req.UID == uint32(0) {
+		req.UID = s.defaultUser
 	}
 	if req.Path == "" {
 		req.Path = "/home/test/foo"
 	}
-	if req.Class == notify.MediationClass(0) {
-		req.Class = notify.AA_CLASS_FILE
+	if req.Interface == "" {
+		req.Interface = "home"
 	}
-	if req.Permission == nil {
-		req.Permission = notify.AA_MAY_READ
+	if req.Permissions == nil {
+		req.Permissions = []string{"read"}
 	}
 }
 
 var errNoReply = errors.New("no reply received")
 
-func waitForReply(replyChan chan notify.AppArmorPermission) (notify.AppArmorPermission, error) {
+func waitForReply(replyChan chan []string) ([]string, error) {
 	select {
-	case resp := <-replyChan:
-		return resp, nil
+	case allowedPerms := <-replyChan:
+		return allowedPerms, nil
 	case <-time.After(100 * time.Millisecond):
 		return nil, errNoReply
 	}
@@ -604,7 +444,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
 	close(readyChan)
 
-	_, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
+	_, prompt := s.simulateRequest(c, reqChan, mgr, &prompting.Request{}, false)
 
 	// Wrong user ID
 	clientActivity := true
@@ -693,8 +533,8 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -713,8 +553,7 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	// Check that kernel received a reply
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read", "write"})
-	c.Assert(err, IsNil)
+	expectedPermissions := []string{"read", "write"}
 	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
@@ -761,8 +600,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	// Do NOT add rule to match write permission
 
 	// Create request for read and write
-	partialReq := &listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	partialReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
@@ -793,8 +632,8 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	// Add no rule for write permissions
 
 	// Create request for read and write
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -813,7 +652,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	// Check that kernel received a reply
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	c.Check(allowedPermissions, DeepEquals, notify.FilePermission(0))
+	c.Check(allowedPermissions, DeepEquals, []string{})
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -845,8 +684,8 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Assert(err, IsNil)
 
 	// Create request for read and write
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	s.fillInPartialRequest(req)
 	whenSent := time.Now()
@@ -870,8 +709,7 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	// Check that kernel received a reply
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"write"})
-	c.Assert(err, IsNil)
+	expectedPermissions := []string{"write"}
 	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	c.Assert(mgr.Stop(), IsNil)
@@ -888,20 +726,20 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq, readReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ,
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
 	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &listener.Request{
-		Permission: notify.AA_MAY_WRITE,
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq := &listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	rwReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
@@ -917,8 +755,7 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	// Check that kernel received a reply
 	allowedPermissions, err := waitForReply(readReplyChan)
 	c.Assert(err, IsNil)
-	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-	c.Assert(err, IsNil)
+	expectedPermissions := []string{"read"}
 	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	// Check that read request prompt was satisfied
@@ -964,20 +801,20 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq, readReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ,
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
 	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &listener.Request{
-		Permission: notify.AA_MAY_WRITE,
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq, rwReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
@@ -991,10 +828,10 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 	c.Assert(err, IsNil)
 
 	// Check that kernel received replies for read and rw
-	for _, replyChan := range []chan notify.AppArmorPermission{readReplyChan, rwReplyChan} {
+	for _, replyChan := range []chan []string{readReplyChan, rwReplyChan} {
 		allowedPermissions, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		c.Check(allowedPermissions, DeepEquals, notify.FilePermission(0))
+		c.Check(allowedPermissions, DeepEquals, []string{})
 	}
 
 	// Check that read and rw prompts were satisfied
@@ -1037,20 +874,20 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	close(readyChan)
 
 	// Add read request
-	readReq, readReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ,
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
 	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
 	// Add request for write
-	writeReq := &listener.Request{
-		Permission: notify.AA_MAY_WRITE,
+	writeReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	_, writePrompt := s.simulateRequest(c, reqChan, mgr, writeReq, false)
 
 	// Add request for read and write
-	rwReq, rwReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	_, rwPrompt := s.simulateRequest(c, reqChan, mgr, rwReq, false)
 
@@ -1067,11 +904,11 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	// Check that rw prompt was also satisfied
 	c.Check(satisfiedPromptIDs, DeepEquals, []prompting.IDType{rwPrompt.ID})
 
-	// Check that kernel received two replies
-	for _, replyChan := range []chan notify.AppArmorPermission{readReplyChan, rwReplyChan} {
+	// Check that kernel received replies for read and rw
+	for _, replyChan := range []chan []string{readReplyChan, rwReplyChan} {
 		allowedPermissions, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		c.Check(allowedPermissions, DeepEquals, notify.FilePermission(0))
+		c.Check(allowedPermissions, DeepEquals, []string{})
 	}
 
 	// Check that read and rw prompts no longer exist
@@ -1135,8 +972,8 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	close(readyChan)
 
 	// Add read request
-	readReq, readReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ,
+	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
 	})
 	_, readPrompt := s.simulateRequest(c, reqChan, mgr, readReq, false)
 
@@ -1153,15 +990,12 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	// Check that kernel received reply
 	allowedPermissions, err := waitForReply(readReplyChan)
 	c.Assert(err, IsNil)
-	var expectedPermission notify.AppArmorPermission
 	switch outcome {
 	case prompting.OutcomeAllow:
-		expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-		c.Assert(err, IsNil)
+		c.Check(allowedPermissions, DeepEquals, []string{"read"})
 	case prompting.OutcomeDeny:
-		expectedPermission = notify.FilePermission(0)
+		c.Check(allowedPermissions, DeepEquals, []string{})
 	}
-	c.Check(allowedPermissions, DeepEquals, expectedPermission)
 
 	// Check that no other prompts were satisfied
 	c.Check(satisfiedPromptIDs, HasLen, 0)
@@ -1183,41 +1017,35 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	whenSent = time.Now()
 
 	// Add request for write
-	writeReq, writeReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_WRITE,
+	writeReq, writeReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"write"},
 	})
 	s.fillInPartialRequest(writeReq)
 	reqChan <- writeReq
 
 	// Add request for read and write
-	rwReq, rwReplyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read", "write"},
 	})
 	s.fillInPartialRequest(rwReq)
 	reqChan <- rwReq
 
 	// Check that kernel received replies
 	for _, pair := range []struct {
-		req       *listener.Request
-		replyChan chan notify.AppArmorPermission
+		req       *prompting.Request
+		replyChan chan []string
 	}{
 		{writeReq, writeReplyChan},
 		{rwReq, rwReplyChan},
 	} {
 		allowedPermissions, err := waitForReply(pair.replyChan)
 		c.Assert(err, IsNil)
-		var expectedPermission notify.AppArmorPermission
 		switch outcome {
 		case prompting.OutcomeAllow:
-			// Round-trip to abstract permissions and back to get full permission mask
-			abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions("home", pair.req.Permission)
-			c.Assert(err, IsNil)
-			expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", abstractPermissions)
-			c.Assert(err, IsNil)
+			c.Check(allowedPermissions, DeepEquals, pair.req.Permissions)
 		case prompting.OutcomeDeny:
-			expectedPermission = notify.FilePermission(0)
+			c.Check(allowedPermissions, DeepEquals, []string{})
 		}
-		c.Check(allowedPermissions, DeepEquals, expectedPermission)
 	}
 
 	// Check that no notices were recorded
@@ -1240,14 +1068,14 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	close(readyChan)
 
 	// Create request for read and write
-	partialReq := &listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	partialReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
 	// Create identical request, it should merge
-	identicalReq := &listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	identicalReq := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, identicalReq, true)
 
@@ -1261,15 +1089,15 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 
 	// Create identical request again, it should merge even though some
 	// permissions have been satisfied
-	identicalReqAgain := &listener.Request{
-		Permission: notify.AA_MAY_READ | notify.AA_MAY_WRITE,
+	identicalReqAgain := &prompting.Request{
+		Permissions: []string{"read", "write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, identicalReqAgain, true)
 
 	// Now new requests for just write access will have identical outstanding
 	// permissions, but not identical original permissions, so should not merge
-	readReq := &listener.Request{
-		Permission: notify.AA_MAY_WRITE,
+	readReq := &prompting.Request{
+		Permissions: []string{"write"},
 	}
 	s.simulateRequest(c, reqChan, mgr, readReq, false)
 
@@ -1445,8 +1273,8 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	close(readyChan)
 
 	// Add read request
-	req, replyChan := requestWithReplyChan(&listener.Request{
-		Permission: notify.AA_MAY_READ,
+	req, replyChan := requestWithReplyChan(&prompting.Request{
+		Permissions: []string{"read"},
 	})
 	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
 
@@ -1499,8 +1327,7 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	// Check that a reply has been received
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
-	expectedPermissions, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
-	c.Assert(err, IsNil)
+	expectedPermissions := []string{"read"}
 	c.Check(allowedPermissions, DeepEquals, expectedPermissions)
 
 	// Remove the rule

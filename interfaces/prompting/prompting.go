@@ -23,12 +23,116 @@ package prompting
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
+
+var (
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+)
+
+// Request holds information about the content of a prompting request, as well
+// as a means to send a reply to the originator of that request.
+type Request struct {
+	// Key is a namespaced ID which uniquely identifies this request. If a
+	// request is re-received (indicated by a key matching one which was
+	// previously received), then the content of the request must be identical
+	// to that which was previously received.
+	Key string
+	// UID is the user ID of the subject which triggered the request.
+	UID uint32
+	// PID is the process ID of the process which triggered the request.
+	PID int32
+	// Cgroup is the cgroup path of the process which triggered the request.
+	Cgroup string
+	// AppArmorLabel is the AppArmor security label of the process which
+	// triggered the request. E.g. snap.libreoffice.writer
+	AppArmorLabel string
+	// Interface is the snapd interface associated with this request.
+	Interface string
+	// Permissions is the abstract permissions being requested.
+	Permissions []string
+	// Path is the path associated with this request.
+	// TODO: eventually decouple the concept of paths from Requests, Constraints,
+	// and the rules backend, so interfaces without paths can be handled more
+	// ergonomically.
+	Path string
+	// Reply causes a reply to be sent back to the originator of this request.
+	Reply func(allowedPermissions []string) error
+}
+
+// NewListenerRequest parses the given [notify.MsgNotificationGeneric] into a
+// [Request]. The request contains a reply closure which can be called by the
+// manager or prompts backend. That reply closure, when called, converts its
+// given abstract permissions to AppArmor permissions and uses the given
+// `sendResponse` function to actually send the resulting response back to the
+// kernel.
+func NewListenerRequest(msg notify.MsgNotificationGeneric, sendResponse listener.SendResponseFunc) (*Request, error) {
+	pid := msg.PID()
+	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
+	path := msg.Name()
+	tagsets := msg.DeniedMetadataTagsets()
+	iface, err := interfaceFromTagsets(tagsets)
+	if err != nil {
+		if !errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
+			// There was either more than one interface associated with tags, or
+			// none which applied to all requested permissions.
+			return nil, fmt.Errorf("cannot select interface from metadata tags: %w", err)
+		}
+		// There were no tags registered with a snapd interface, so we
+		// look at the path to decide whether it's "home" or "camera".
+		// XXX: this is a temporary workaround until metadata tags are
+		// supported by the AppArmor parser and kernel.
+		if builtin.DetectCameraFromPath(path) {
+			iface = "camera"
+		} else {
+			iface = "home"
+		}
+	}
+	id := msg.ID()
+	key := buildListenerRequestKey(iface, id)
+	aaAllowed, aaRequested, err := msg.AllowedDeniedPermissions()
+	if err != nil {
+		return nil, err
+	}
+	requestedPerms, err := AbstractPermissionsFromAppArmorPermissions(iface, aaRequested)
+	if err != nil {
+		return nil, err
+	}
+	reply := func(allowedPermissions []string) error {
+		userAllowed, err := AbstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
+		if err != nil {
+			return err
+		}
+		return sendResponse(id, aaAllowed, aaRequested, userAllowed)
+	}
+	return &Request{
+		Key:           key,
+		UID:           msg.SubjectUID(),
+		PID:           pid,
+		Cgroup:        cgroup,
+		AppArmorLabel: msg.ProcessLabel(),
+		Interface:     iface,
+		Permissions:   requestedPerms,
+		Path:          path,
+		Reply:         reply,
+	}, nil
+}
+
+func buildListenerRequestKey(iface string, id uint64) string {
+	return fmt.Sprintf("kernel:%s:%016X", iface, id)
+}
 
 // Metadata stores information about the origin or applicability of a prompt or
 // rule.
@@ -247,4 +351,14 @@ func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) 
 		return expiration, prompting_errors.NewInvalidLifespanError(string(lifespan), supportedLifespans)
 	}
 	return expiration, nil
+}
+
+// MockCgroupProcessPathInTrackingCgroup allows tests which build [Request]s
+// to mock cgroup identification.
+func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupProcessPathInTrackingCgroup
+	cgroupProcessPathInTrackingCgroup = f
+	return func() {
+		cgroupProcessPathInTrackingCgroup = old
+	}
 }
