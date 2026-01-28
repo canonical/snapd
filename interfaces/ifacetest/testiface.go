@@ -177,6 +177,14 @@ type TestConflictingConnectionInterface struct {
 	ConflictingConnectedInterfaces []string
 }
 
+// TestDeferredConsumerUpdatingInterface is used to test deferred consumer
+// updates, which needs interfaces implementing DeferredConsumerUpdating.
+type TestDeferredConsumerUpdatingInterface struct {
+	TestInterface
+
+	DeferredConsumerUpdate bool
+}
+
 // String() returns the same value as Name().
 func (t *TestInterface) String() string {
 	return t.Name()
@@ -638,3 +646,11 @@ func (t *TestSymlinksInterface) TrackedDirectories() []string {
 func (t *TestConflictingConnectionInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return t.ConflictingConnectedInterfaces
 }
+
+// Support for deferring consumer updates.
+
+func (t *TestDeferredConsumerUpdatingInterface) SupportsDeferredConsumerUpdate() bool {
+	return t.DeferredConsumerUpdate
+}
+
+var _ interfaces.DeferredConsumerUpdating = (*TestDeferredConsumerUpdatingInterface)(nil)
