@@ -402,7 +402,7 @@ func isBroken(st *state.State, snapName string) (bool, error) {
 // affecting a given snap.
 //
 // The return value is the list of affected snap names and their connection IDs.
-func (m *InterfaceManager) reloadConnections(snapName string) (connections []string, err error) {
+func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, err error) {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return nil, err
