@@ -14,17 +14,12 @@ environment:
     STORE_TYPE/remote: ${REMOTE_STORE}
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$STORE_TYPE" = "fake" ]; then
-        if os.query is-core; then
-            exit
-        fi
-        if [ "$TRUST_TEST_KEYS" = "false" ]; then
-            echo "This test needs test keys to be trusted"
-            exit
-        fi
-    fi
+skip:
+    - reason: This test needs test keys to be trusted using fakestore
+      if: |
+        [ "$STORE_TYPE" = "fake" ] && ( os.query is-core || [ "$TRUST_TEST_KEYS" = "false" ] )
 
+prepare: |
     echo "Given a snap is installed"
     snap install test-snapd-tools
 
@@ -36,28 +31,9 @@ prepare: |
     fi
 
 restore: |
-    if [ "$STORE_TYPE" = "fake" ]; then
-        if os.query is-core; then
-            exit
-        fi
-        if [ "$TRUST_TEST_KEYS" = "false" ]; then
-            echo "This test needs test keys to be trusted"
-            exit
-        fi
-        "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    fi
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
-    if [ "$STORE_TYPE" = "fake" ]; then
-        if os.query is-core; then
-            exit
-        fi
-        if [ "$TRUST_TEST_KEYS" = "false" ]; then
-            echo "This test needs test keys to be trusted"
-            exit
-        fi
-    fi
-
     echo "Revert without snap name shows error"
     if snap revert; then
         echo "Reverting without snap name should fail"

@@ -7,6 +7,12 @@ details: |
 # only 20.04+, we want lxd images that come with snaps preinstalled.
 systems: [ubuntu-2*]
 
+skip:
+    - reason: No run lxd test when there are not .deb files built
+      if: |
+        # "$GOHOME"/snapd_*.deb is used in the lxd container
+        [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]
+
 restore: |
     lxd.lxc stop ubuntu --force || true
     lxd.lxc delete ubuntu || true
