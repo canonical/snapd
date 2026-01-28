@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -11889,6 +11890,139 @@ func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C)
 	// startup asserts the runtime failure state
 	err = s.snapmgr.StartUp()
 	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+}
+
+func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {
+	expectedTaskKinds := []string{
+		//snapmgr
+		"link-snap",
+		"unlink-snap",
+		"unlink-current-snap",
+		"prepare-kernel-modules-components",
+		// fdemgr
+		"efi-secureboot-db-update-prepare",
+		"efi-secureboot-db-update",
+		"fde-add-platform-keys",
+		// devicemgr
+		"set-model",
+		"create-recovery-system",
+		"remove-recovery-system",
+		"finalize-recovery-system",
+		"update-managed-boot-config",
+		"update-gadget-cmdline",
+		"update-gadget-assets",
+	}
+	registeredTaskKinds := snapstate.ResealingTaskKinds()
+	sort.Strings(expectedTaskKinds)
+	sort.Strings(registeredTaskKinds)
+	c.Assert(registeredTaskKinds, DeepEquals, expectedTaskKinds)
+}
+
+type mockBootParticipant struct{ isTrivial bool }
+
+func (bp *mockBootParticipant) IsTrivial() bool { return bp.isTrivial }
+func (bp *mockBootParticipant) SetNextBoot(boot.NextBootContext) (boot.RebootInfo, error) {
+	return boot.RebootInfo{}, errors.New("internal error: unexpecteds")
+}
+
+func (s *snapmgrTestSuite) TestResealingTaskBlocked(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockResealingTask := st.NewTask("update-gadget-cmdline", "Some task we know is unconditionally a resealing task")
+	mockNonResealingTask := st.NewTask("mock-non-resealing-task", "Pretend this is not a resealing task")
+
+	type testcase struct {
+		kind           string
+		expectNoReseal bool
+
+		withTrivialBootParticipant bool
+		withCoreBootParticipant    bool
+		withSnapSetup              bool
+		withoutDeviceCtx           bool
+	}
+
+	tcs := []testcase{
+		// snapmgr
+		{kind: "link-snap", withSnapSetup: true, withCoreBootParticipant: true},
+		{kind: "link-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
+		{kind: "link-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
+		{kind: "link-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
+		{kind: "unlink-snap", withSnapSetup: true, withCoreBootParticipant: true},
+		{kind: "unlink-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
+		{kind: "unlink-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
+		{kind: "unlink-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
+		{kind: "unlink-current-snap", withSnapSetup: true, withCoreBootParticipant: true},
+		{kind: "unlink-current-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
+		{kind: "unlink-current-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
+		{kind: "prepare-kernel-modules-components"},
+		// fdemgr
+		{kind: "efi-secureboot-db-update-prepare"},
+		{kind: "efi-secureboot-db-update"},
+		{kind: "fde-add-platform-keys"},
+		// devicemgr
+		{kind: "set-model"},
+		{kind: "create-recovery-system"},
+		{kind: "remove-recovery-system"},
+		{kind: "finalize-recovery-system"},
+		{kind: "update-managed-boot-config"},
+		{kind: "update-gadget-cmdline"},
+		{kind: "update-gadget-assets"},
+	}
+
+	var testedTaskKinds []string
+
+	for i, tc := range tcs {
+		cmt := Commentf("tcs[%d] failed, task kind %q", i, tc.kind)
+
+		if !strutil.ListContains(testedTaskKinds, tc.kind) {
+			testedTaskKinds = append(testedTaskKinds, tc.kind)
+		}
+
+		resealingTask := st.NewTask(tc.kind, "Resealing task being tested")
+
+		si := &snap.SideInfo{RealName: "some-snap"}
+		if tc.withSnapSetup {
+			snapsup := &snapstate.SnapSetup{SideInfo: si}
+			resealingTask.Set("snap-setup", snapsup)
+		}
+
+		if tc.withoutDeviceCtx {
+			restore := snapstatetest.MockDeviceContext(nil)
+			defer restore()
+		} else {
+			restore := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{})
+			defer restore()
+		}
+
+		restore := snapstate.MockBootParticipant(func(s snap.PlaceInfo, t snap.Type, dev snap.Device) boot.BootParticipant {
+			switch {
+			case tc.withTrivialBootParticipant:
+				c.Assert(s.SnapName(), Equals, "some-snap", cmt)
+				return &mockBootParticipant{isTrivial: true}
+			case tc.withCoreBootParticipant:
+				c.Assert(s.SnapName(), Equals, "some-snap", cmt)
+				return &mockBootParticipant{isTrivial: false}
+			default:
+				panic("internal error: unexpected")
+			}
+		})
+		defer restore()
+
+		// no other resealing tasks are running, No blocking.
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, nil), Equals, false, cmt)
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, []*state.Task{mockNonResealingTask}), Equals, false, cmt)
+
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, []*state.Task{mockResealingTask}), Equals, !tc.expectNoReseal, cmt)
+	}
+
+	// Make sure all registered resealing tasks are tested.
+	registeredTaskKinds := snapstate.ResealingTaskKinds()
+	sort.Strings(registeredTaskKinds)
+	sort.Strings(testedTaskKinds)
+	c.Assert(testedTaskKinds, DeepEquals, registeredTaskKinds, Commentf("Tested task kinds do not match registered task kinds"))
 }
 
 func (s *refreshSuite) TestSetMaxInhibitionDays(c *C) {

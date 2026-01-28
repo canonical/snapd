@@ -97,6 +97,15 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
+
+	// XXX: Ignore blocking if deviceCtx.ForRemodeling() for subset of tasks?
+	snapstate.RegisterResealingTaskKind("set-model")
+	snapstate.RegisterResealingTaskKind("create-recovery-system")
+	snapstate.RegisterResealingTaskKind("remove-recovery-system")
+	snapstate.RegisterResealingTaskKind("finalize-recovery-system")
+	snapstate.RegisterResealingTaskKind("update-managed-boot-config")
+	snapstate.RegisterResealingTaskKind("update-gadget-cmdline")
+	snapstate.RegisterResealingTaskKind("update-gadget-assets")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration
@@ -2018,6 +2027,9 @@ func (m *DeviceManager) Ensure() error {
 			errs = append(errs, err)
 		}
 
+		// XXX: This might trigger a reseal but it should not affect
+		// resealing tasks since it is run at most once during startup
+		// before TaskRunner.Ensure() is called.
 		if err := m.ensureBootOk(); err != nil {
 			errs = append(errs, err)
 		}
@@ -2030,6 +2042,9 @@ func (m *DeviceManager) Ensure() error {
 			errs = append(errs, err)
 		}
 
+		// XXX: This might trigger a reseal but it should not affect
+		// resealing tasks since it is run at most once during startup
+		// before TaskRunner.Ensure() is called.
 		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}

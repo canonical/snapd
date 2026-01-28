@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -152,7 +153,22 @@ func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 }
 
 // helpers
-var InstallSize = installSize
+var (
+	InstallSize          = installSize
+	ResealingTaskBlocked = resealingTaskBlocked
+)
+
+func MockBootParticipant(f func(s snap.PlaceInfo, t snap.Type, dev snap.Device) boot.BootParticipant) (restore func()) {
+	return testutil.Mock(&bootParticipant, f)
+}
+
+func ResealingTaskKinds() []string {
+	kinds := make([]string, 0, len(resealingTaskKindCheckers))
+	for kind := range resealingTaskKindCheckers {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
 
 // aliases v2
 var (

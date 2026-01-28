@@ -67,6 +67,11 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
 	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
+
+	RegisterResealingTaskKind("prepare-kernel-modules-components")
+	RegisterResealingTaskCheckerForKind("link-snap", isLinkTaskResealing)
+	RegisterResealingTaskCheckerForKind("unlink-snap", isLinkTaskResealing)
+	RegisterResealingTaskCheckerForKind("unlink-current-snap", isLinkTaskResealing)
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -912,6 +917,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// control serialisation
 	runner.AddBlocked(m.otherPrereqRunning)
 	runner.AddBlocked(affectsRunningHooks)
+
+	// block resealing tasks from running concurrently
+	runner.AddBlocked(resealingTaskBlocked)
 
 	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
