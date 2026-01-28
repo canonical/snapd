@@ -41,17 +41,17 @@ type certificate struct {
 	Digest   string
 }
 
-// parseCertificateData only returns the first certificate found in a PEM file that may
-// contain multiple certificates. If a .crt file contains a certificate
-// chain (multiple certificates in sequence), only the first one will
-// be used for digest calculation. This could lead to different certificates
-// being treated as identical if they share the same first certificate
-// but have different chains.
-func parseCertificateData(certData []byte) (*x509.Certificate, error) {
+// parseCertificateChainData parses certificate data and returns the first certificate,
+// plus the full chain DER blobs (all CERTIFICATE PEM blocks, in order).
+//
+// For DER input, it returns a single-certificate chain.
+func parseCertificateChainData(certData []byte) (*x509.Certificate, [][]byte, error) {
 	// Many distro-provided *.crt files are PEM-encoded, while x509.ParseCertificate
 	// expects DER.
 	if block, _ := pem.Decode(certData); block != nil {
 		rest := certData
+		var chainDER [][]byte
+		var first *x509.Certificate
 		for {
 			block, next := pem.Decode(rest)
 			if block == nil {
@@ -61,12 +61,44 @@ func parseCertificateData(certData []byte) (*x509.Certificate, error) {
 			if block.Type != "CERTIFICATE" {
 				continue
 			}
-			return x509.ParseCertificate(block.Bytes)
+
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return nil, nil, err
+			}
+			if first == nil {
+				first = cert
+			}
+			chainDER = append(chainDER, cert.Raw)
 		}
-		return nil, fmt.Errorf("no certificate PEM block found")
+		if first == nil {
+			return nil, nil, fmt.Errorf("no certificate PEM block found")
+		}
+		return first, chainDER, nil
 	}
 
-	return x509.ParseCertificate(certData)
+	cert, err := x509.ParseCertificate(certData)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cert, [][]byte{cert.Raw}, nil
+}
+
+// parseCertificateData returns the first certificate found.
+//
+// Note: a .crt file may contain a certificate chain (multiple certificates in sequence).
+func parseCertificateData(certData []byte) (*x509.Certificate, error) {
+	cert, _, err := parseCertificateChainData(certData)
+	return cert, err
+}
+
+func chainDigestHex(chainDER [][]byte) string {
+	h := sha256.New224()
+	for _, der := range chainDER {
+		// Hash the DER bytes as-is (in file order).
+		_, _ = h.Write(der)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func trimCrtExtension(name string) string {
@@ -129,7 +161,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			continue
 		}
 
-		cert, err := parseCertificateData(certData)
+		_, chainDER, err := parseCertificateChainData(certData)
 		if err != nil {
 			logger.Noticef("Failed to parse certificate %q: %v", certRealPath, err)
 			continue
@@ -140,7 +172,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			Name:     trimCrtExtension(caFile.Name()),
 			Path:     filepath.Join(certsPath, caFile.Name()),
 			RealPath: certRealPath,
-			Digest:   fmt.Sprintf("%x", sha256.Sum224(cert.Raw)),
+			Digest:   chainDigestHex(chainDER),
 		}
 		certsObjects = append(certsObjects, certObject)
 	}
@@ -225,18 +257,6 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	return nil
 }
 
-func undoGenerateCertificateDatabase() error {
-	// restore the backup of the ca-certificates.crt
-	caCertificateDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".bak"
-
-	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot restore backup of ca-certificates.crt: %v", err)
-	}
-
-	return nil
-}
-
 func GenerateCertificateDatabase(t *state.State) error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
@@ -255,7 +275,7 @@ func GenerateCertificateDatabase(t *state.State) error {
 	var err error
 	defer func() {
 		if err != nil {
-			if restoreErr := undoGenerateCertificateDatabase(); restoreErr != nil {
+			if restoreErr := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); restoreErr != nil && !os.IsNotExist(restoreErr) {
 				logger.Noticef("cannot restore backup of ca-certificates: %v", restoreErr)
 			}
 		}

@@ -190,6 +190,30 @@ func (s *certsTestSuite) TestParseCertificatesResolvesSymlinks(c *C) {
 	c.Check(certs[1].RealPath, Equals, real)
 }
 
+func (s *certsTestSuite) TestParseCertificatesDigestIncludesFullChain(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+	cPEM, _, err := makeTestCertPEM("C")
+	c.Assert(err, IsNil)
+
+	chain1 := append(append([]byte{}, aPEM...), bPEM...)
+	chain2 := append(append([]byte{}, aPEM...), cPEM...)
+
+	dir := c.MkDir()
+	c.Assert(os.WriteFile(filepath.Join(dir, "chain1.crt"), chain1, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir, "chain2.crt"), chain2, 0o644), IsNil)
+
+	certs, err := certsstate.ParseCertificates(dir)
+	c.Assert(err, IsNil)
+	c.Assert(certs, HasLen, 2)
+
+	// Both chains share the same first certificate, but differ after it.
+	// The digest must include the full chain so the resulting digests differ.
+	c.Check(certs[0].Digest, Not(Equals), certs[1].Digest)
+}
+
 func (s *certsTestSuite) TestReadDigestsMissingDir(c *C) {
 	digests, err := certsstate.ReadDigests(filepath.Join(c.MkDir(), "does-not-exist"))
 	c.Assert(err, IsNil)
@@ -243,6 +267,43 @@ func (s *certsTestSuite) TestGenerateCACertificatesDeduplicatesAndBlocks(c *C) {
 
 	// ensure the duplicate (same digest) is only included once
 	c.Check(bytes.Count(out, []byte("BEGIN CERTIFICATE")), Equals, 2)
+}
+
+func (s *certsTestSuite) TestGenerateCACertificatesDoesNotDeduplicateDifferentChains(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+	cPEM, _, err := makeTestCertPEM("C")
+	c.Assert(err, IsNil)
+
+	chain1 := append(append([]byte{}, aPEM...), bPEM...)
+	chain2 := append(append([]byte{}, aPEM...), cPEM...)
+
+	baseDir := c.MkDir()
+	extraDir := c.MkDir()
+	outDir := c.MkDir()
+
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "chain1.crt"), chain1, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(extraDir, "chain2.crt"), chain2, 0o644), IsNil)
+
+	base, err := certsstate.ParseCertificates(baseDir)
+	c.Assert(err, IsNil)
+	extras, err := certsstate.ParseCertificates(extraDir)
+	c.Assert(err, IsNil)
+
+	err = certsstate.GenerateCACertificates(base, extras, nil, outDir)
+	c.Assert(err, IsNil)
+
+	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+
+	// Both chains must be present (B and C certs appear).
+	c.Check(bytes.Contains(out, bPEM), Equals, true)
+	c.Check(bytes.Contains(out, cPEM), Equals, true)
+
+	// Two chains with 2 certificates each.
+	c.Check(bytes.Count(out, []byte("BEGIN CERTIFICATE")), Equals, 4)
 }
 
 func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c *C) {

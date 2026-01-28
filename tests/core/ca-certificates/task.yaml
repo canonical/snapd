@@ -4,10 +4,9 @@ details: |
     Check that snapd correctly generates the ca-certificates database
     upon first run, the change should be scheduled after seeding.
 
-environment:
-    CA_CERTIFICATES_DB: /var/lib/snapd/pki/v1/merged/ca-certificates.crt
-
 execute: |
+    CA_CERTIFICATES_DB=/var/lib/snapd/pki/v1/merged/ca-certificates.crt
+    
     # We want to verify that the ca-certificates database is created
     # after seeding, and that the contents match the ca-certificate file
     # created by the system.
@@ -18,7 +17,6 @@ execute: |
     
     # Verify the contents match, unfortunately the order of certificates
     # in the database may differ so we do a manual comparison.
-    SYSTEM_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
     TMP_SYSTEM_CA_CERTS="$(mktemp)"
     TMP_SNAPD_CA_CERTS="$(mktemp)"
     trap 'rm -f "$TMP_SYSTEM_CA_CERTS" "$TMP_SNAPD_CA_CERTS"' EXIT
@@ -47,6 +45,7 @@ execute: |
         done | sort -u
     }
 
+    SYSTEM_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
     bundle_digests "$SYSTEM_CA_CERTS" >"$TMP_SYSTEM_CA_CERTS"
     bundle_digests "$CA_CERTIFICATES_DB" >"$TMP_SNAPD_CA_CERTS"
 
