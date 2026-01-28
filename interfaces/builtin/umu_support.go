@@ -64,26 +64,65 @@ pivot_root,
 # Allow access to user namespaces
 userns,
 
-# Allow Bubblewrap to create directories for bind mounts
-/run/host/** rwkl,
+# Permission for the new root
+/newroot/** rwkl,
 
-# Allow access to tmpfs for intermediate roots
+# Specific pressure-vessel assemblies
+mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,
+mount options=(rw, rbind) /oldroot/etc/ -> /newroot/run/host/etc/,
+mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-release,
+
+# Permission to read from the host
+/oldroot/usr/** r,
+/oldroot/etc/** r,
+
+# More restrictive host access
+/run/host/ r,
+/run/host/usr/ r,
+/run/host/etc/ r,
+/run/host/lib{,32,64}/ r,
+/run/host/usr/lib{,32,64}/ r,
+/run/host/lib{,32,64}/** mr,
+/run/host/usr/lib{,32,64}/** mr,
+
+# Permission for bwrap temporary files
+/bindfile* rw,
+
+# Essential system mounts
+mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
+mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
+mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
+mount options=(rw, rbind) /oldroot/etc/resolv.conf -> /newroot/etc/resolv.conf,
+mount options=(rw, rbind) /oldroot/etc/machine-id -> /newroot/etc/machine-id,
+
+# Mounting temporary files
+mount options=(rw, rbind) /bindfile* -> /newroot/**,
+
+# Broad execution permissions for container binaries
+/usr/** ixr,
+deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
+
+# System tools
+/run/host/usr/sbin/ldconfig* ixr,
+/run/host/usr/bin/localedef ixr,
+
+# To prevent this error from happening in the Heroic Games Launcher. >>> Error: EACCES: permission denied, open '/var/lib/snapd/hostfs/etc/os-release' <<<
+/var/lib/snapd/hostfs/** r,
+
+# Allow access to tmpfs
 /tmp/** rwkl,
 
-# Allow access to icons directories
+# Allow access to icons and shortcuts directories
 owner /home/*/.local/share/icons/ rw,
-
-# Allow access to applications directories
 owner /home/*/.local/share/applications/ rw,
 owner /home/*/.config/menus/ rw,
 owner /home/*/.local/share/desktop-directories/ rw,
 
 # Allow access to pressure-vessel directories
-/tmp/pressure-vessel/** mrw,
-/run/pressure-vessel/** mrw,
+/*/pressure-vessel/** mrw,
 
-# Avoid Heroic Games Launcher "EACCES: permission denied" error and bwrap: Can't mkdir parents for /run/host/usr: Permission denied
-allow file,
+# Ldconfig cache
+/var/cache/ldconfig/** rw,
 `
 
 const umuSupportConnectedPlugSecComp = `
