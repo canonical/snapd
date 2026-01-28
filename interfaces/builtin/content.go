@@ -351,6 +351,15 @@ func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plu
 	return nil
 }
 
+var _ interfaces.DeferredConsumerUpdating = (*contentInterface)(nil)
+
+// SupportsDeferredConsumerUpdate returns true for the content interface, indicating
+// that the supporting security backends may want to defer some part of an update until
+// the slot side snap has been fully updated.
+func (iface *contentInterface) SupportsDeferredConsumerUpdate() bool {
+	return true
+}
+
 func init() {
 	registerIface(&contentInterface{})
 }
