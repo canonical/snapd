@@ -78,6 +78,7 @@ var (
 	createRecoverySystemChangeKind              = swfeats.RegisterChangeKind("create-recovery-system")
 	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
 	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
+	installStepTargetPreseedChangeKind          = swfeats.RegisterChangeKind("install-step-preseed")
 )
 
 // findModel returns the device model assertion.
@@ -2360,4 +2361,47 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	chg.AddTask(setupStorageEncryptionTask)
 
 	return chg, nil
+}
+
+// InstallPreseed creates a change that will preseed the installed system for
+// the given label and chroot directory.
+func InstallPreseed(st *state.State, label string, chroot string) (*state.Change, error) {
+	if chroot == "" {
+		return nil, fmt.Errorf("cannot preseed installed system without a target root")
+	}
+
+	if !osutil.IsDirectory(chroot) {
+		return nil, fmt.Errorf("target root must be a directory")
+	}
+
+	if err := checkInstallChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	chg := st.NewChange(installStepTargetPreseedChangeKind, fmt.Sprintf("Preseed installed system in %q", chroot))
+	preseedRunTask := st.NewTask("install-preseed", fmt.Sprintf("Preseed installed system in %q", chroot))
+	preseedRunTask.Set("target-root", chroot)
+	preseedRunTask.Set("system-label", label)
+	chg.AddTask(preseedRunTask)
+
+	return chg, nil
+}
+
+func checkInstallChangeConflict(st *state.State) error {
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		// TODO: handle "install-setup-storage-encryption", "install-finish"
+		switch chg.Kind() {
+		case "install-step-preseed":
+			return &snapstate.ChangeConflictError{
+				Message:    "installation preseeding in progress, no other installation steps allowed until it is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
+		}
+	}
+	return nil
 }

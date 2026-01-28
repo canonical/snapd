@@ -1234,7 +1234,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
-	c.Assert(err, check.ErrorMatches, "channel name has too many components: a/b/c/d")
+	c.Assert(err, check.ErrorMatches, "cannot parse channel: channel name has too many components: a/b/c/d")
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -2754,21 +2754,20 @@ func (s *SnapOpSuite) TestRefreshOnePoweringOff(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
-	var in, out string
+	var out string
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{"action": "refresh", "channel": out, "transaction": string(client.TransactionPerSnap)})
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
 	})
 
-	for in, out = range map[string]string{
-		"/foo":            "foo/stable",
-		"/stable":         "latest/stable",
-		"///foo/stable//": "foo/stable",
+	for malformed, msg := range map[string]string{
+		"/foo":            "invalid risk in channel name",
+		"/stable":         "invalid track in channel name",
+		"///foo/stable//": "channel name has too many components",
 	} {
 		s.stderr.Reset()
-		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
-		c.Assert(err, check.ErrorMatches, "snap \"one\" not found")
-		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will be an error later.`)
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + malformed, "one"})
+		c.Assert(err, check.ErrorMatches, "cannot parse channel: "+msg+": "+malformed)
 	}
 }
 
@@ -2781,7 +2780,7 @@ func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
 func (s *SnapOpSuite) TestRefreshOneChanErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "--channel=foo", "one"})
-	c.Assert(err, check.ErrorMatches, `Please specify a single channel`)
+	c.Assert(err, check.ErrorMatches, `please specify a single channel`)
 }
 
 func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
@@ -3008,12 +3007,12 @@ func (s *SnapOpSuite) TestInstallConfinedAsClassic(c *check.C) {
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
-	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
+	c.Assert(err, check.ErrorMatches, "please specify a single channel")
 }
 
 func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--edge", "--beta", "some-snap"})
-	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
+	c.Assert(err, check.ErrorMatches, "please specify a single channel")
 }
 
 func (s *SnapOpSuite) TestNotInstalledError(c *check.C) {

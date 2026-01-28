@@ -45,11 +45,11 @@ var (
 	AddEFISecurebootDBUpdateChange          = addEFISecurebootDBUpdateChange
 	UpdateExternalOperation                 = updateExternalOperation
 
-	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
-	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
+	NotifySecurebootUpdatePrepareDoneOK = notifySecurebootUpdatePrepareDoneOK
+	SecurebootUpdatePreparedOKChan      = securebootUpdatePreparedOKChan
 
-	DbxUpdateAffectedSnaps       = dbxUpdateAffectedSnaps
-	AddPlatformKeysAffectedSnaps = addPlatformKeysAffectedSnaps
+	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
 	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
@@ -163,4 +163,8 @@ func (o *changeAuthOptions) New() string {
 
 func VolumesAuthOptionsKey() volumesAuthOptionsKey {
 	return volumesAuthOptionsKey{}
+}
+
+func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, error)) (restore func()) {
+	return testutil.Mock(&bootLoadDiskUnlockState, f)
 }

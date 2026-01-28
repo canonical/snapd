@@ -7,6 +7,10 @@ on:
         description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
+      dockerfile:
+        description: 'The name of the dockerfile in tests/lib/packaging'
+        required: true
+        type: string
       image-name:
         description: 'The name of the docker image to build'
         required: true
@@ -46,7 +50,7 @@ jobs:
         context: .
         push: false
         load: true
-        file: tests/lib/packaging/opensuse.dockerfile
+        file: tests/lib/packaging/${{ inputs.dockerfile }}
         tags: ${{ inputs.image-name }}-base:latest
         build-args: |
           IMAGE=${{ inputs.image-name }}

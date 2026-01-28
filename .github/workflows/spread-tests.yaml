@@ -65,6 +65,8 @@ jobs:
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
       GH_TOKEN: ${{ github.token }}
+      SPREAD_STORE_USER: ${{ secrets.SPREAD_STORE_USER }}
+      SPREAD_STORE_PASSWORD: ${{ secrets.SPREAD_STORE_PASSWORD }}
 
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:

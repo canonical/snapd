@@ -14,7 +14,9 @@ details: |
   snap or drivers tree. We reuse the drivers tree that was originally created
   when the kernel was installed.
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-VERSION.json

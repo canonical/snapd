@@ -1,0 +1,10 @@
+#!/bin/sh
+
+KEY="some-random-key-value"
+HASH="some-random-hash-value"
+
+# Get the request-id that was set by snapd
+REQUEST_ID=$(snapctl get registration.request-id)
+
+# Set the registration body
+snapctl set registration.body="{\"hardware-id-key\": \"$KEY\", \"hardware-id-key-sha384\": \"$HASH\", \"request-id-signature\": \"$REQUEST_ID\"}"

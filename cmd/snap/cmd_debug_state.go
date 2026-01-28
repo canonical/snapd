@@ -149,7 +149,7 @@ func (c *cmdDebugState) writeDotOutput(st *state.State, changeID string) error {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
 		}
-		fmt.Fprintf(Stdout, "  %s [label=%q];\n", t.ID(), t.Kind())
+		fmt.Fprintf(Stdout, "  %s [label=\"%v\\n%v\"];\n", t.ID(), t.Kind(), strings.ReplaceAll(t.Summary(), `"`, `\"`))
 		for _, wt := range t.WaitTasks() {
 			if c.NoHoldState && wt.Status() == state.HoldStatus {
 				continue

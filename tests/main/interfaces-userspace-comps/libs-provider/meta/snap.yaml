@@ -1,0 +1,29 @@
+name: libs-provider
+version: 1.0
+base: core24
+slots:
+  cuda-driver-libs:
+    compatibility: cuda-(9..12)-ubuntu-2404
+    library-source:
+      - $SNAP/libs
+      - $SNAP_COMPONENT(comp1)/libs
+      - $SNAP_COMPONENT(comp2)/libs
+  egl-driver-libs:
+    priority: 15
+    compatibility: egl-1-5-ubuntu-2404
+    icd-source:
+      - $SNAP/egl.d
+      - $SNAP_COMPONENT(comp0)/egl.d
+      - $SNAP_COMPONENT(comp1)/egl.d
+      - $SNAP_COMPONENT(comp2)/egl.d
+    library-source:
+      - $SNAP/libs
+      - $SNAP_COMPONENT(comp1)/libs
+      - $SNAP_COMPONENT(comp2)/libs
+components:
+  comp0:
+    type: standard
+  comp1:
+    type: standard
+  comp2:
+    type: standard

@@ -12,11 +12,12 @@ systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*]
 environment:
     USERNAME: home-sweet-home
 
-prepare: |
-    if [[ "$SNAP_REEXEC" = "0" ]]  || tests.info is-snapd-from-archive; then
-        tests.exec skip-test "No need to test when either the snapd pkg is from the repository or reexec is disabled" && exit 0
-    fi
+skip:
+    - reason: No need to test when either the snapd pkg is from the repository or reexec is disabled
+      if: |
+        [[ "$SNAP_REEXEC" = "0" ]]  || tests.info is-snapd-from-archive
 
+prepare: |
     # Create a new user in a non-standard location
     mkdir -p /remote/users
     useradd -b /remote/users -m -U "$USERNAME"
@@ -32,8 +33,6 @@ prepare: |
     rm -rf "${unpackdir}"
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
@@ -44,8 +43,6 @@ restore: |
     distro_install_build_snapd
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
     for f in /var/lib/snapd/apparmor/snap-confine/*; do
@@ -54,8 +51,6 @@ debug: |
     done
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
     TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"
     # Ubuntu release on development doesn't have updates

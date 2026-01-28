@@ -510,6 +510,7 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
         SC_SNAPD_EXPORT "/system_*_egl-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_gbm-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_cuda-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_nvidia-video-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_opengl-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_opengles-driver-libs.library-source",
         SC_SNAPD_EXPORT "/system_*_vulkan-driver-libs.library-source",
@@ -560,14 +561,25 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
                 continue;
             }
 
+            // Skip if source does not exist or is not a directory
+            struct stat stat_buf;
+            int res = lstat(path, &stat_buf);
+            if (res == -1) {
+                debug("%s does not exist, skipping", path);
+                continue;
+            }
+            if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
+                debug("%s is not a directory, skipping", path);
+                continue;
+            }
+
             size_t path_start = 0;
             path_start = sizeof SC_SNAP_DIR - 1;
             sc_must_snprintf(dest_path, sizeof dest_path, "%s" SC_LIBGPU_DIR "%s", rootfs_dir, &path[path_start]);
 
             // If the path exists that implies that it has been mounted already
             // and that this is a repeated entry.
-            struct stat stat_buf;
-            int res = stat(dest_path, &stat_buf);
+            res = stat(dest_path, &stat_buf);
             if (res == 0) {
                 debug("%s is already mounted, skipping", dest_path);
                 continue;

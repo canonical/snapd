@@ -10,4 +10,4 @@ execute: |
         echo "Expected failure when --beta --edge is given at the same time"
         exit 1
     fi
-    MATCH "Please specify a single channel" < err.msg
+    MATCH "please specify a single channel" < err.msg

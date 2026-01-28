@@ -16,10 +16,12 @@ execute: |
     snap debug execution snap > snap-default.out
     SNAP_REEXEC=0 snap debug execution snap > snap-no-reexec.out
     SNAP_REEXEC=1 snap debug execution snap > snap-yes-reexec.out
+    SNAP_REEXEC=force snap debug execution snap > snap-force-reexec.out
 
     # this may fail when apparmor isn't found at all
     (snap debug execution apparmor || true) > snap-apparmor-default.out
     (SNAP_REEXEC=0 snap debug execution apparmor || true) > snap-apparmor-no-reexec.out
+    (SNAP_REEXEC=force snap debug execution apparmor || true) > snap-apparmor-force-reexec.out
 
     snap debug execution internal-tool snap-update-ns > snap-uns-default.out
 
@@ -29,6 +31,7 @@ execute: |
             MATCH 'distro-supports-reexec: false' < snap-default.out
             MATCH 'is-reexec-enabled: true' < snap-default.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
+            MATCH 'is-reexec-forced: false' < snap-default.out
             if os.query is-core16; then
                 # snap is part of the core snap
                 MATCH 'is-reexecd: false' < snap-default.out
@@ -43,6 +46,7 @@ execute: |
             MATCH 'distro-supports-reexec: false' < snap-yes-reexec.out
             MATCH 'is-reexec-enabled: true' < snap-yes-reexec.out
             MATCH 'is-reexec-explicitly-enabled: true' < snap-yes-reexec.out
+            MATCH 'is-reexec-forced: false' < snap-yes-reexec.out
             MATCH 'is-reexecd: true' < snap-yes-reexec.out
             if os.query is-core16; then
                 MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
@@ -94,10 +98,20 @@ execute: |
             MATCH 'is-reexecd: false' < snap-no-reexec.out
             MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
 
+            echo "Checking forced reexec"
+            # when using native package it reexecs as instructed, when using the
+            # snapd snap we already reexec by default as our mock test version is always higher
+            MATCH 'is-reexec-enabled: true' < snap-force-reexec.out
+            MATCH 'is-reexec-forced: true' < snap-force-reexec.out
+
             echo "Checking AppArmor"
             if [ "$SNAP_REEXEC" = 0 ]; then
                 MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'internal: false' < snap-apparmor-default.out            
+                MATCH 'internal: false' < snap-apparmor-default.out
+
+                # when forced to reexec, we're using vendored apparmor
+                MATCH 'internal: true' < snap-apparmor-force-reexec.out
+                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
                 MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
@@ -111,6 +125,16 @@ execute: |
             else
                 MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-no-reexec.out
                 MATCH 'internal: false' < snap-apparmor-no-reexec.out
+            fi
+
+            echo "Checking AppArmor (forced reexec)"
+            if [ "$SNAP_REEXEC" = 0 ]; then
+                # with native package and when forced to reexec, we're using vendored apparmor
+                MATCH 'internal: true' < snap-apparmor-force-reexec.out
+                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
+            else
+                # but when using the snapd snap there's no difference
+                MATCH 'internal: true' < snap-apparmor-force-reexec.out
             fi
 
             if [ "$SNAP_REEXEC" = 0 ]; then
@@ -143,16 +167,22 @@ execute: |
                     # no /snap -> /var/lib/snapd/snap symlink by default
                     MATCH 'is-reexecd: false' < snap-yes-reexec.out
                     MATCH 'self-exe: /usr/bin/snap' < snap-yes-reexec.out
+
+                    MATCH 'is-reexecd: false' < snap-force-reexec.out
                     ;;
                 opensuse-*)
                     # snap mount dir is /snap
                     MATCH 'is-reexecd: true' < snap-yes-reexec.out
                     MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+
+                    MATCH 'is-reexecd: true' < snap-force-reexec.out
                     ;;
                 amazon-linux-*)
                     # has /snap -> /var/lib/snapd symlink
                     MATCH 'is-reexecd: true' < snap-yes-reexec.out
                     MATCH 'self-exe: /var/lib/snapd/snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+
+                    MATCH 'is-reexecd: true' < snap-force-reexec.out
                     ;;
                 *)
                     echo "unexpected distro $SPREAD_SYSTEM"
@@ -162,12 +192,30 @@ execute: |
 
             echo "Checking AppArmor"
             case "$SPREAD_SYSTEM" in
-                fedora-*|centos-*|amazon-linux-*)
+                fedora-*|centos-*)
                     MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-default.out
+                    MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-force-reexec.out
+                    ;;
+                amazon-linux-*)
+                    # there's no AppArmor installed in the system
+                    MATCH 'apparmor-parser: error:file does not exist' < snap-apparmor-default.out
+                    # but there is /snap -> /var/lib/snapd/snap symlink, so
+                    # internal apparmor utilities are available, when reexec is
+                    # forced
+                    MATCH 'internal: true' < snap-apparmor-force-reexec.out
                     ;;
                 *)
+                    # arch and opensuse have AppArmor installed
                     MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
-                    ;;
+                    case "$SPREAD_SYSTEM" in
+                        opensuse-*)
+                            MATCH 'internal: true' < snap-apparmor-force-reexec.out
+                            ;;
+                        *)
+                            # arch has no /snap -> /var/lib/snapd/snap symlink
+                            MATCH 'internal: false' < snap-apparmor-force-reexec.out
+                            ;;
+                    esac
             esac
             MATCH 'internal: false' < snap-apparmor-default.out
 

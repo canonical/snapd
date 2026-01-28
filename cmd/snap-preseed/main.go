@@ -49,6 +49,8 @@ first-boot startup time`
 type options struct {
 	Reset               bool   `long:"reset"`
 	ResetChroot         bool   `long:"reset-chroot" hidden:"1"`
+	Hybrid              bool   `long:"hybrid"`
+	SystemLabel         string `long:"system-label"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
 	SysfsOverlay        string `long:"sysfs-overlay"`
@@ -63,6 +65,8 @@ var (
 	preseedCore20               = preseed.Core20
 	preseedClassic              = preseed.Classic
 	preseedClassicReset         = preseed.ClassicReset
+	preseedHybrid               = preseed.Hybrid
+	preseedHybridReset          = preseed.HybridReset
 	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
 	opts options
@@ -121,6 +125,20 @@ func run(parser *flags.Parser, args []string) (err error) {
 		if chrootDir == "/" {
 			return fmt.Errorf("cannot run snap-preseed against /")
 		}
+	}
+
+	if opts.SystemLabel != "" && !opts.Hybrid {
+		return fmt.Errorf("cannot use --system-label without --hybrid")
+	}
+
+	if opts.Hybrid {
+		if opts.SystemLabel == "" {
+			return fmt.Errorf("cannot use --hybrid without --system-label")
+		}
+		if opts.Reset {
+			return preseedHybridReset(chrootDir, opts.SystemLabel)
+		}
+		return preseedHybrid(chrootDir, opts.SystemLabel)
 	}
 
 	if probeCore20ImageDir(chrootDir) {

@@ -1,0 +1,59 @@
+type: model
+authority-id: test-snapd
+revision: 2
+series: 16
+brand-id: test-snapd
+model: my-model
+architecture: amd64
+base: core26
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: latest/stable
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
+    type: app
+  -
+    default-channel: latest/stable
+    name: test-snapd-tools-core26
+    type: app
+  -
+    default-channel: 26/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 26/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/edge
+    id: cUqM61hRuZAJYmIS898Ux66VY61gBbZf
+    name: core26
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+  -
+    default-channel: latest/stable
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    type: core
+timestamp: 2024-04-24T00:00:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCaWayOwAA5HgQADlCmuxJ1WnufdMfdpK7pb+oX+v0idr2YEwpvBuhDieAfHPH
+vMYWR+pWwx+E5tniYZKWjuZxA/r0UtjqoQUDNIyyWDvzswOFOb7Stnnm0PmojH3qGu1o3nU7vMAJ
++4uAEcBDwiCSwRoVzg9y0g/PdNrdARA7A3IpUmN8601NCxi6Q/HftTY0g5GMVvqpsDuG/yhdjgfu
+RsbDNAyLyhWYbaYPg/6+wfE2k4yLshUfpgF2iaYLU1o+LtjxclPrOfKHd/lsNjMgHNS4Iz+t5EEy
+zb1li4hgHX6zH75JcJL9FbBpORPHJp5ujJZtokdZtzowyakyTCyHcNT5qbh13U+OLefqo5D4hZ7r
+mh3Dc84qRPSebXZi4DzIPYyIL896Fm06XZ0P6gldcrV0wC3BZLhESkBtkyhSCvM0NLeCKLdJ8VPM
+eFn3eaJKCr01LOgiJbWn+bhXJ/Qj9Cfn4evnrxTYgXuOvu8PyVXhuzDtNCT7QifEoaQRcVdn/zqL
+KqrMHKPVCcFKbpZ7DnESonJEmDEjb3uapMMBj00gD3oVDMqOHo+b9KVUS4ts25Jux3qmpF8fZQ21
+GKJ3l+4krcbt9rDU2u8Ibg0qxkZonhEOwIEjmCA34xeX+3TFTIyuU0yp//FleXEwHKjYst9KddPT
+PKjBKqLqY18ZBcIITf76QDN9iKx6

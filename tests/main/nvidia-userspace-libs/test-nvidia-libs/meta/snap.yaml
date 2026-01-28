@@ -13,5 +13,9 @@ apps:
     command: test
     plugs:
     - opengl
+  test-lib:
+    command: test-lib
+    plugs:
+    - opengl
 environment:
   LD_LIBRARY_PATH: ${SNAP_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}

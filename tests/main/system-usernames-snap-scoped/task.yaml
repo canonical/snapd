@@ -94,7 +94,7 @@ execute: |
 
     echo "Try to install a snap which is not entitled to use the user(s) under test"
     OUT=$(snap install "$UNAPPROVED_SNAP_NAME" 2>&1 || true)
-    echo "$OUT" | MATCH "snap \"$UNAPPROVED_SNAP_NAME\" is not allowed to use the system user \"(${TESTED_USERS// /|})\""
+    echo "$OUT" | tr '\n' ' ' | tr -s ' ' | MATCH "snap \"$UNAPPROVED_SNAP_NAME\" is not allowed to use the system user \"(${TESTED_USERS// /|})\""
 
     # Make sure no user(s) nor group(s) under test are created
     for user in $TESTED_USERS

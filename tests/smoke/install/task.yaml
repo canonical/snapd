@@ -10,8 +10,6 @@ details: |
     snaps: core, core18, core20 and core22.
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log
     # required! in autopkgtest no suite restore is run at all
@@ -21,16 +19,12 @@ restore: |
     done
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     if test -e stderr.log; then
         echo "content of stderr.log"
         cat stderr.log
     fi
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 

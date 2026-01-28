@@ -758,6 +758,23 @@ func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineInvalid(c *C) 
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
+func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineForDaemonOk(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  daemon: simple
+`))
+	c.Assert(err, IsNil)
+
+	app, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
+	c.Assert(err, IsNil)
+	c.Assert(app.Name, Equals, "app")
+	c.Assert(newl, Equals, "Exec=/usr/bin/false")
+}
+
 func (s *sanitizeDesktopFileSuite) TestDetectAppAndRewriteExecLineOk(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap

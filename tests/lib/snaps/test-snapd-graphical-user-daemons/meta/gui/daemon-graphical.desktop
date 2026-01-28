@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=Foo
+Exec=test-snapd-graphical-user-daemons.daemon-graphical
+Type=Application

@@ -31,7 +31,7 @@
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "fedora",
         "backend": "openstack",
-        "systems": "fedora-41-64 fedora-42-64",
+        "systems": "fedora-42-64",
         "alternative-backend": "openstack",
         "tasks": "tests/...",
         "rules": "main"

@@ -15,21 +15,15 @@ environment:
     SERVICE_NAME: "test-service"
 
 prepare: |
-    tests.exec is-skipped && exit 0
-
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
     make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     systemctl stop "$SERVICE_NAME"
     rm -f "$READABLE_FILE"
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Given a buildable snap in a known directory"
     echo "When try is executed on that directory"
     snap try "$TESTSLIB"/snaps/test-snapd-tools

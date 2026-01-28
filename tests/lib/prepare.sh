@@ -535,9 +535,9 @@ prepare_classic() {
         # of a fixed one and close to stable in order to detect defects
         # earlier
         if snap list core ; then
-            snap refresh --"$CORE_CHANNEL" core
+            snap refresh --"${CORE_CHANNEL:-edge}" core
         else
-            snap install --"$CORE_CHANNEL" core
+            snap install --"${CORE_CHANNEL:-edge}" core
         fi
 
         snap list | grep core
@@ -1171,6 +1171,7 @@ uc24_build_initramfs_kernel_snap() {
     # Check that manifest is generated
     stat manifest-initramfs.yaml-"$kernelver"
     initrd_f=initrd.img-"$kernelver"
+    rm -rf initrd
     unmkinitramfs "$initrd_f" initrd
 
     if [ -d ./extra-initrd ]; then
@@ -1369,6 +1370,8 @@ setup_reflash_magic() {
         core_name="core22"
     elif is_test_target_core 24; then
         core_name="core24"
+    elif is_test_target_core 26; then
+        core_name="core26"
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1378,7 +1381,7 @@ setup_reflash_magic() {
     journalctl -u snapd
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
-    snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    snap install "--channel=${CORE_CHANNEL:-edge}" "$core_name"
     # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
@@ -1430,7 +1433,13 @@ setup_reflash_magic() {
         else
             cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
         fi
-        
+    elif is_test_target_core 26; then
+        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-26-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-26-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1516,6 +1525,8 @@ EOF
             BRANCH=22
         elif is_test_target_core 24; then
             BRANCH=24
+        elif is_test_target_core 26; then
+            BRANCH=26
         fi
         snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
         # make sure we have the snap
@@ -1601,6 +1612,8 @@ EOF
             BASE=core22
         elif is_test_target_core 24; then
             BASE=core24
+        elif is_test_target_core 26; then
+            BASE=core26
         fi
         snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
 
@@ -1654,7 +1667,7 @@ EOF
                     $EXTRA_FUNDAMENTAL \
                     --snap "${extra_snap[0]}" \
                     --output-dir "$IMAGE_HOME"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22,24}.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22,24,26}.{snap,assert}
 
     if os.query is-arm; then
         LOOP_PARTITION=1

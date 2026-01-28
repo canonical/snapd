@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Foo
+Exec=test-snapd-graphical-user-daemons.normal-with-desktop-nodisplay
+Type=Application
+NoDisplay=true

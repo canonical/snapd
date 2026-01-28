@@ -80,6 +80,7 @@ func (s *GbmDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.testRoot = c.MkDir()
+	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0755)
 	dirs.SetRootDir(s.testRoot)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 

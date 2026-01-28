@@ -446,6 +446,95 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeHybridWithKmods(
 		filepath.Join(dirs.SnapMountDir, "pc-kernel/111"), kMods, isCore)
 }
 
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeIdempotent(c *C) {
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(c.MkDir())
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
+	kMntPoint := filepath.Join(dirs.SnapMountDir, "pc-kernel/111")
+	kMntPoint = filepath.Join(dirs.GlobalRootDir, kMntPoint)
+
+	dataMntPoint := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2")
+	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		c.Check(source, Equals, "/dev/node2")
+		c.Check(fstype, Equals, "ext4")
+		c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
+		return nil
+	})
+	defer restore()
+
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		return nil
+	})
+	defer restore()
+
+	m := mockOnDiskStructureSystemData()
+	obs := &mockWriteObserver{
+		c:            c,
+		observeErr:   nil,
+		expectedRole: m.Role(),
+	}
+
+	treesDir := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
+	modsSubDir := "pc-kernel/111/lib/modules/6.8.0-31-generic"
+	modsDir := filepath.Join(treesDir, modsSubDir)
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	someFile := filepath.Join(modsDir, "modules.alias")
+	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
+
+	kMods := []install.KernelModulesComponentInfo{{
+		Name:       "kmod1",
+		Revision:   snap.R(3),
+		MountPoint: filepath.Join(dirs.SnapMountDir, "pc-kernel/components/mnt/kmod1/3"),
+	}}
+	kInfo := &install.KernelSnapInfo{
+		Name:             "pc-kernel",
+		Revision:         snap.R(111),
+		MountPoint:       kMntPoint,
+		NeedsDriversTree: true,
+		IsCore:           false,
+		ModulesComps:     kMods,
+	}
+
+	var calls int
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		calls++
+		c.Check(kMntPts, Equals,
+			kernel.MountPoints{
+				Current: kMntPoint,
+				Target:  filepath.Join(dirs.SnapMountDir, "/pc-kernel/111")})
+		c.Check(destDir, Equals, filepath.Join(dataMntPoint,
+			"var/lib/snapd/kernel/pc-kernel/111"))
+		c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
+			{
+				LinkName: "kmod1",
+				MountPoints: kernel.MountPoints{
+					Current: kMods[0].MountPoint,
+					Target: filepath.Join(dirs.SnapMountDir,
+						"/pc-kernel/components/mnt/kmod1/3"),
+				},
+			},
+		})
+		return nil
+	})
+	defer restore()
+
+	err := install.WriteFilesystemContent(m, kInfo, "/dev/node2", obs)
+	c.Assert(err, IsNil)
+	err = install.WriteFilesystemContent(m, kInfo, "/dev/node2", obs)
+	c.Assert(err, IsNil)
+	c.Assert(calls, Equals, 2)
+
+	cpi := snap.MinimalSnapContainerPlaceInfo("pc-kernel", snap.R(111))
+	checkInstallMountUnit(c, dataMntPoint, cpi)
+	for _, comp := range kMods {
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.Name,
+			comp.Revision, "pc-kernel")
+		checkInstallMountUnit(c, dataMntPoint, cpi)
+	}
+}
+
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir(dirs.GlobalRootDir)

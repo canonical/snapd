@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	SystemSnapSupportsReExec = systemSnapSupportsReExec
-	ExeAndRoot               = exeAndRoot
+	CandidateVersionNewer = candidateVersionNewer
+	ExeAndRoot            = exeAndRoot
 )
 
 func MockCoreSnapdPaths(newCoreSnap, newSnapdSnap string) func() {

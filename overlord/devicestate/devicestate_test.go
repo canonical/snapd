@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -363,6 +365,36 @@ func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc-20",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrSuite) setHybridModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   snaptest.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   snaptest.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
 		Serial: "serialserialserial",
 	})
 }
@@ -2215,6 +2247,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	s.state.Unlock()
 	devicestate.SetBootOkRan(s.mgr, false)
 	devicestate.SetSystemMode(s.mgr, "run")
+	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
@@ -2335,6 +2368,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	s.state.Unlock()
 	devicestate.SetBootOkRan(s.mgr, false)
 	devicestate.SetSystemMode(s.mgr, "run")
+	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
@@ -2375,6 +2409,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	s.state.Unlock()
 	devicestate.SetBootOkRan(s.mgr, false)
 	devicestate.SetSystemMode(s.mgr, "run")
+	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
 	// mock the factory reset marker of a system that isn't encrypted
 	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
@@ -2529,6 +2564,88 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
 	// Mock a user that would be expired, but expect it not to be removed
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
 	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
+	// Mock Resolute hybrid system.
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "26.04",
+	})
+	defer restore()
+	s.setHybridModelInState(c)
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	mockConf := keyboard.XKBConfig{
+		Model:    "pc105",
+		Variants: nil,
+		Layouts:  []string{"uk"},
+		Options:  nil,
+	}
+
+	called := 0
+	restore = devicestate.MockKeyboardCurrentXKBConfig(func() (*keyboard.XKBConfig, error) {
+		called++
+		return &mockConf, nil
+	})
+	defer restore()
+
+	var ensureCallback func(config *keyboard.XKBConfig)
+	restore = devicestate.MockKeyboardNewXKBConfigListener(func(ctx context.Context, cb func(config *keyboard.XKBConfig)) (*keyboard.XKBConfigListener, error) {
+		ensureCallback = cb
+		return nil, nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(logbuf.String(), Equals, "")
+
+	for i := 0; i < 10; i++ {
+		err := devicestate.EnsureEarlyBootXKBConfigUpdated(s.mgr)
+		c.Assert(err, IsNil)
+	}
+
+	// Ensure method only runs once to initialize the XKB
+	// config and setup the XKB listener.
+	c.Assert(called, Equals, 1)
+
+	s.state.Lock()
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `snapd.xkb="uk,pc105,,"`})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
+	s.state.Unlock()
+	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="uk,pc105,,")`)
+	logbuf.Reset()
+
+	mockConf.Model = "pc104"
+	mockConf.Layouts = []string{"us"}
+	ensureCallback(&mockConf)
+	s.state.Lock()
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `snapd.xkb="us,pc104,,"`})
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
+	s.state.Unlock()
+	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="us,pc104,,")`)
+	logbuf.Reset()
+
+	// Run one more time with args unchanged, nothing should be logged
+	ensureCallback(&mockConf)
+	s.state.Lock()
+	checkExtraSnapdFragments(c, s.state, map[string]string{"xkb": `snapd.xkb="us,pc104,,"`})
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
+	s.state.Unlock()
+	c.Check(logbuf.String(), Equals, "")
+	logbuf.Reset()
+
+	// Double check that initialization ran once.
+	c.Assert(called, Equals, 1)
 }
 
 func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
@@ -2765,6 +2882,8 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
 	s.cacheDeviceCore20Seed(c)
 	s.state.Set("seeded", true)
 	s.state.Unlock()
+
+	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
 	err := s.mgr.Ensure()
 	c.Check(err, IsNil)

@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -1186,13 +1187,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 
-		recoveryKeyID := encryptSetupData.RecoveryKeyID()
-		if recoveryKeyID != "" {
-			rkey, err := fdestateGetRecoveryKey(st, recoveryKeyID)
-			if err != nil {
-				return err
-			}
-			if err := addPreInstallRecoveryKey(bootstrappedContainersForRole[gadget.SystemData], bootstrappedContainersForRole[gadget.SystemSave], rkey); err != nil {
+		rkey := encryptSetupData.RecoveryKey()
+		if rkey != nil {
+			if err := addPreInstallRecoveryKey(bootstrappedContainersForRole[gadget.SystemData], bootstrappedContainersForRole[gadget.SystemSave], *rkey); err != nil {
 				return err
 			}
 		}
@@ -1252,6 +1249,47 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
 	if err := bootMakeRunnableStandalone(systemAndSnaps.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doInstallPreseed(t *state.Task, _ *tomb.Tomb) error {
+	var err error
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var targetRoot string
+	var systemLabel string
+	if err := t.Get("target-root", &targetRoot); err != nil {
+		return err
+	}
+
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+
+	timings.Run(perfTimings, "preseed-target", "Preseed target system", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+
+		var toolPath string
+		toolPath, err = snapdtool.InternalToolPath("snap-preseed")
+		if err != nil {
+			return
+		}
+
+		cmd := exec.Command(toolPath, "--hybrid", "--system-label", systemLabel, targetRoot)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+	})
+	if err != nil {
+		return fmt.Errorf("cannot preseed target at %v with system %q: %v", targetRoot, systemLabel, err)
 	}
 
 	return nil
@@ -1535,20 +1573,27 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 		return keys.RecoveryKey{}, fmt.Errorf("storage encryption setup step was not called")
 	}
 
-	// XXX: just let it panic?
 	encryptSetupData, ok := cached.(*install.EncryptionSetupData)
 	if !ok {
 		return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
 	}
 
-	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	_, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+	// Immediately use the recovery key ID to remove the
+	// recovery key from the recovery key store.
+	rkey, err = fdestateGetRecoveryKey(st, keyID)
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
 
-	// attach key-id to encryption setup data so it can be used
-	// in the install finish step.
-	encryptSetupData.SetRecoveryKeyID(keyID)
+	// Attach the recovery key to encryption setup data so it
+	// can be used in the install finish step.
+	// The encryption setup data is stored in-memory so it is
+	// fine to attach secrets there.
+	encryptSetupData.SetRecoveryKey(&rkey)
 	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
 
 	return rkey, err

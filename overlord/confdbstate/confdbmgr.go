@@ -148,7 +148,7 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal error: cannot get view: %w", err)
 	}
 
-	var cstrs map[string]string
+	var cstrs map[string]any
 	err = t.Get("constraints", &cstrs)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf(`internal error: cannot get "constraints" from task: %w`, err)
@@ -157,7 +157,7 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 	return readViewIntoChange(t.Change(), tx, view, requests, cstrs)
 }
 
-func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]string) error {
+func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]any) error {
 	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

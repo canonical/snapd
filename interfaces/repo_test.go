@@ -678,6 +678,93 @@ plugs:
 	c.Assert(s.testRepo.Plugs("snap-b_other"), HasLen, 0)
 }
 
+// Tests for Repository.ConnectedPlugs()
+
+func (s *RepositorySuite) TestConnectedPlugs(c *C) {
+	snaps := addPlugsSlotsFromInstances(c, s.testRepo, []instanceNameAndYaml{
+		{Name: "snap-a", Yaml: `
+name: snap-a
+version: 0
+plugs:
+    name-a: interface
+    name-b: interface
+    name-c: interface
+`},
+		{Name: "snap-a_instance", Yaml: `
+name: snap-a
+version: 0
+plugs:
+    name-a: interface
+    name-b: interface
+    name-c: interface
+`},
+		{Name: "snap-slots", Yaml: `
+name: snap-slots
+version: 0
+slots:
+    name-a: interface
+    name-b: interface
+    name-c: interface
+`},
+		{Name: "snap-other-slots_instance", Yaml: `
+name: snap-other-slots
+version: 0
+slots:
+    name-a: interface
+    name-b: interface
+    name-c: interface
+plugs:
+    plug-name-a: interface
+`},
+	})
+	c.Assert(snaps, HasLen, 4)
+
+	mustParse := func(connref string) *ConnRef {
+		cr, err := interfaces.ParseConnRef(connref)
+		c.Assert(err, IsNil)
+		return cr
+	}
+	_, err := s.testRepo.Connect(
+		mustParse("snap-a:name-a snap-slots:name-b"),
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	_, err = s.testRepo.Connect(
+		mustParse("snap-a_instance:name-b snap-slots:name-c"),
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	_, err = s.testRepo.Connect(
+		mustParse("snap-a_instance:name-c snap-other-slots_instance:name-a"),
+		nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.Connections("snap-a")
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	conns, err = s.testRepo.Connections("snap-a_instance")
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 2)
+
+	c.Check(s.testRepo.ConnectedPlugs("snap-slots"), HasLen, 0)
+	// snap has plugs but not connected
+	c.Check(s.testRepo.Plugs("snap-other-slots_instance"), HasLen, 1)
+	c.Check(s.testRepo.ConnectedPlugs("snap-other-slots_instance"), HasLen, 0)
+	// this snap has one connected plug
+	c.Check(s.testRepo.ConnectedPlugs("snap-a"), DeepEquals, []*snap.PlugInfo{
+		snaps[0].Info().Plugs["name-a"],
+	})
+	// this one has two
+	c.Check(s.testRepo.ConnectedPlugs("snap-a_instance"), DeepEquals, []*snap.PlugInfo{
+		snaps[1].Info().Plugs["name-b"],
+		snaps[1].Info().Plugs["name-c"],
+	})
+
+	// non existent snaps
+	c.Assert(s.testRepo.ConnectedPlugs("snap-x"), HasLen, 0)
+	c.Assert(s.testRepo.ConnectedPlugs("snap-b_other"), HasLen, 0)
+}
+
 // Tests for Repository.AllSlots()
 
 func (s *RepositorySuite) TestAllSlots(c *C) {

@@ -76,8 +76,6 @@ backends:
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
 
-            - fedora-41-64:
-                image: snapd-spread/fedora-41-64
             - fedora-42-64:
                 image: snapd-spread/fedora-42-64
             - opensuse-15.6-64:

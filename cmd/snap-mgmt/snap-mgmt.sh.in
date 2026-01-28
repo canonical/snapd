@@ -244,7 +244,9 @@ purge() {
     rm -rf /var/lib/snapd/apparmor/*
     rm -rf /var/lib/snapd/inhibit/*
     rm -rf /var/lib/snapd/cgroup/*
+    rm -rf /var/lib/snapd/desktop/*
     rm -f /var/lib/snapd/state.json
+    rm -f /var/lib/snapd/state.lock
     rm -f /var/lib/snapd/system-key
 
     echo "Removing snapd catalog cache"

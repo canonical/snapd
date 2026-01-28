@@ -7001,7 +7001,7 @@ func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 		ProposedSerial: "12000",
 	}
 
-	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), pDBhv)
+	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), pDBhv, nil)
 	defer r()
 
 	// run the whole device registration process
@@ -7142,7 +7142,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	err = os.WriteFile(fname, extraCerts, 0644)
 	c.Assert(err, IsNil)
 
-	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil)
+	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil, nil)
 	defer r()
 
 	// set registration config on gadget
@@ -7468,11 +7468,6 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
-
-	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
-		return []byte(`"some-profile"`), nil
-	})
-	defer restore()
 
 	restore = fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {

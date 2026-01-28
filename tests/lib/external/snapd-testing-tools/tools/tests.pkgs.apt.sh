@@ -10,7 +10,7 @@ remap_one() {
             fi
             ;;
         printer-driver-cups-pdf)
-            if os.query is-debian || os.query is-trusty; then
+            if ! os.query is-debian sid && os.query is-debian || os.query is-trusty; then
                 echo "cups-pdf"
             else
                 echo "$1"

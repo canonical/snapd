@@ -511,7 +511,7 @@ func newWitnessDatabag(bag confdb.Databag) *witnessDatabag {
 	return &witnessDatabag{bag: bag}
 }
 
-func (s *witnessDatabag) Get(path []confdb.Accessor, _ map[string]string) (any, error) {
+func (s *witnessDatabag) Get(path []confdb.Accessor, _ map[string]any) (any, error) {
 	s.getPath = confdb.JoinAccessors(path)
 	return s.bag.Get(path, nil)
 }
@@ -535,6 +535,211 @@ func (s *witnessDatabag) getLastPaths() (get, set string) {
 	get, set = s.getPath, s.setPath
 	s.getPath, s.setPath = "", ""
 	return get, set
+}
+
+func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
+	for _, t := range []struct {
+		testName         string
+		params           map[string]any
+		rules            []any
+		requests         []string
+		constraints      map[string]any
+		expectedErr      error
+		expectedErrorMsg string
+	}{
+		{
+			testName: "empty request: constraint for key placeholder",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}"},
+			},
+			requests:    nil,
+			constraints: map[string]any{"bar": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: invalid request path",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo"},
+			},
+			requests:         []string{"123badPath"},
+			constraints:      map[string]any{"bar": "value"},
+			expectedErr:      &confdb.BadRequestError{},
+			expectedErrorMsg: `.*invalid subkey "123badPath".*`,
+		},
+		{
+			testName: "single request: no matching rule",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo"},
+			},
+			requests:         []string{"bar"},
+			constraints:      map[string]any{"baz": "value"},
+			expectedErr:      &confdb.NoMatchError{},
+			expectedErrorMsg: `.*no matching rule.*`,
+		},
+		{
+			testName: "single request: no constraints",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]any{},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint but no placeholders",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.bar"},
+			},
+			requests:         []string{"foo"},
+			constraints:      map[string]any{"bar": "value"},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
+			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
+		},
+		{
+			testName: "single request: constraint for key placeholder in unmatched suffix",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}.{baz}"},
+			},
+			requests:    []string{"foo.abc"},
+			constraints: map[string]any{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for key placeholder in matched path",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.{bar}.{baz}"},
+			},
+			requests:         []string{"foo.abc"},
+			constraints:      map[string]any{"bar": "value"},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
+			expectedErrorMsg: `.*no placeholder for constraint "bar".*`,
+		},
+		{
+			testName: "single request: constraint for key placeholder with different storage and request path lengths",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "{bar}"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]any{"bar": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for index placeholder",
+			params:   map[string]any{},
+			rules: []any{
+				map[string]any{"storage": "foo.bar[{baz}]"},
+			},
+			requests:         []string{"foo"},
+			constraints:      map[string]any{"baz": "1"},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
+			expectedErrorMsg: `.*no placeholder for constraint "baz".*`,
+		},
+		{
+			testName: "single request: constraint for field filter of key placeholder in unmatched suffix",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]any{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for field filter of key placeholder in matched path",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+			},
+			requests:    []string{"foo.abc"},
+			constraints: map[string]any{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for field filter of index placeholder in unmatched suffix",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
+			},
+			requests:    []string{"foo"},
+			constraints: map[string]any{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "single request: constraint for field filter of index placeholder in matched path",
+			params: map[string]any{
+				"baz": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.abc[{bar}]", "storage": "foo.abc[{bar}][.field={baz}]"},
+			},
+			requests:    []string{"foo.abc[1]"},
+			constraints: map[string]any{"baz": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "multiple requests: constraints for multiple matching rules' placeholders",
+			params: map[string]any{
+				"baz": map[string]any{},
+				"uvw": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+				map[string]any{"request": "foo.foo.{ggg}", "storage": "foo.foo.{ggg}"},
+				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
+			},
+			requests:    []string{"foo", "xyz.xyz"},
+			constraints: map[string]any{"bar": "value", "uvw": "value", "ggg": "value"},
+			expectedErr: nil,
+		},
+		{
+			testName: "multiple requests: constraint for no matching placeholder",
+			params: map[string]any{
+				"baz": map[string]any{},
+				"uvw": map[string]any{},
+			},
+			rules: []any{
+				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
+				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
+			},
+			requests:         []string{"foo", "xyz"},
+			constraints:      map[string]any{"ggg": "value", "hhh": "value"},
+			expectedErr:      &confdb.UnmatchedConstraintsError{},
+			expectedErrorMsg: `.*no placeholder for constraints "ggg", "hhh".*`,
+		},
+	} {
+		cmt := Commentf("sub-test %q failed", t.testName)
+
+		schema, err := confdb.NewSchema("acc", "foo", map[string]any{
+			"my-view": map[string]any{
+				"parameters": t.params,
+				"rules":      t.rules,
+			},
+		}, confdb.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		view := schema.View("my-view")
+		err = view.CheckAllConstraintsAreUsed(t.requests, t.constraints)
+		if t.expectedErr == nil {
+			c.Assert(err, IsNil, cmt)
+		} else {
+			c.Assert(err, testutil.ErrorIs, t.expectedErr, cmt)
+			c.Assert(err, ErrorMatches, t.expectedErrorMsg, cmt)
+		}
+	}
 }
 
 func (s *viewSuite) TestViewAssertionWithPlaceholder(c *C) {
@@ -3091,7 +3296,7 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 
 	type testcase struct {
 		requests    []string
-		constraints map[string]string
+		constraints map[string]any
 		ephemeral   bool
 		err         string
 	}
@@ -3132,12 +3337,12 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 		},
 		{
 			requests:    []string{"foo.bar"},
-			constraints: map[string]string{"nested": "baz"},
+			constraints: map[string]any{"nested": "baz"},
 			ephemeral:   false,
 		},
 		{
 			requests:    []string{"foo.bar"},
-			constraints: map[string]string{"nested": "eph"},
+			constraints: map[string]any{"nested": "eph"},
 			ephemeral:   true,
 		},
 	}
@@ -3904,7 +4109,7 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "", map[string]string{"status": "disabled"})
+	val, err := view.Get(bag, "", map[string]any{"status": "disabled"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"snaps": map[string]any{
@@ -3920,7 +4125,7 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	})
 
 	// several constraints are ANDed
-	val, err = view.Get(bag, "snaps", map[string]string{"status": "disabled", "version": "2"})
+	val, err = view.Get(bag, "snaps", map[string]any{"status": "disabled", "version": "2"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"snap-b": map[string]any{
@@ -3974,7 +4179,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "users", map[string]string{"age": "21"})
+	val, err := view.Get(bag, "users", map[string]any{"age": "21"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		map[string]any{
@@ -3994,7 +4199,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 			},
 		})
 
-	val, err = view.Get(bag, "pet-kinds", map[string]string{"toy": "ball"})
+	val, err = view.Get(bag, "pet-kinds", map[string]any{"toy": "ball"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		map[string]any{
@@ -4024,7 +4229,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	bag := confdb.NewJSONDatabag()
 
 	view := schema.View("foo")
-	_, err = view.Get(bag, "", map[string]string{"field": "baz"})
+	_, err = view.Get(bag, "", map[string]any{"field": "baz"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	err = view.Set(bag, "foo", map[string]any{
@@ -4034,7 +4239,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	c.Assert(err, IsNil)
 
 	// pruning top level map
-	val, err := view.Get(bag, "foo", map[string]string{"field": "not-there"})
+	val, err := view.Get(bag, "foo", map[string]any{"field": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
@@ -4042,7 +4247,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	c.Assert(err, IsNil)
 
 	// pruning several nested levels down
-	val, err = view.Get(bag, "a", map[string]string{"field": "not-there"})
+	val, err = view.Get(bag, "a", map[string]any{"field": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
@@ -4069,7 +4274,7 @@ func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	val, err := view.Get(bag, "foo", map[string]string{"field": "a"})
+	val, err := view.Get(bag, "foo", map[string]any{"field": "a"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{map[string]any{"baz": "a"}})
 }
@@ -4077,7 +4282,6 @@ func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 func (*viewSuite) TestListFiltering(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
-
 			"parameters": map[string]any{
 				"path": map[string]any{},
 			},
@@ -4109,7 +4313,7 @@ func (*viewSuite) TestListFiltering(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "vm", map[string]string{"path": "dirty_bytes"})
+	val, err := view.Get(bag, "vm", map[string]any{"path": "dirty_bytes"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		[]any{
@@ -4119,15 +4323,15 @@ func (*viewSuite) TestListFiltering(c *C) {
 			},
 		})
 
-	val, err = view.Get(bag, "vm-value", map[string]string{"path": "dirty_bytes"})
+	val, err = view.Get(bag, "vm-value", map[string]any{"path": "dirty_bytes"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{"10"})
 
-	val, err = view.Get(bag, "vm[0]", map[string]string{"path": "not-there"})
+	val, err = view.Get(bag, "vm[0]", map[string]any{"path": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
-	val, err = view.Get(bag, "vm", map[string]string{"path": "not-there"})
+	val, err = view.Get(bag, "vm", map[string]any{"path": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
@@ -4151,9 +4355,107 @@ func (*viewSuite) TestFieldFilteringNotString(c *C) {
 	c.Assert(err, IsNil)
 
 	// can't unmarshal the boolean as string so considered as not matching
-	val, err := view.Get(bag, "foo", map[string]string{"bar": "true"})
+	val, err := view.Get(bag, "foo", map[string]any{"bar": "true"})
 	c.Check(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, IsNil)
+}
+
+func (*viewSuite) TestTypedFilteringConstraints(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{
+				"num":  map[string]any{},
+				"str":  map[string]any{},
+				"bool": map[string]any{},
+			},
+			"rules": []any{
+				map[string]any{"request": "bar.{baz}", "storage": "bar.{baz}[.num={num}][.str={str}][.bool={bool}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = bag.Set(parsePath(c, "bar"), map[string]any{
+		"a": map[string]any{
+			"num":  99,
+			"str":  "foo",
+			"bool": false,
+		},
+		"b": map[string]any{
+			"num":  1,
+			"str":  "bar",
+			"bool": false,
+		},
+		"c": map[string]any{
+			"num":  1,
+			"str":  "foo",
+			"bool": true,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		constraint map[string]any
+		result     any
+	}
+
+	tcs := []testcase{
+		{
+			constraint: map[string]any{"num": float64(99)},
+			result: map[string]any{
+				"a": map[string]any{
+					"num":  float64(99),
+					"str":  "foo",
+					"bool": false,
+				},
+			},
+		},
+		{
+			constraint: map[string]any{"str": "bar"},
+			result: map[string]any{
+				"b": map[string]any{
+					"num":  float64(1),
+					"str":  "bar",
+					"bool": false,
+				},
+			},
+		},
+		{
+			constraint: map[string]any{"bool": true},
+			result: map[string]any{
+				"c": map[string]any{
+					"num":  float64(1),
+					"str":  "foo",
+					"bool": true,
+				},
+			},
+		},
+		// check we don't confuse these with the non-string versions of the same value
+		{
+			constraint: map[string]any{"bool": "true"},
+		},
+		{
+			constraint: map[string]any{"num": "1"},
+		},
+		{
+			constraint: map[string]any{"num": "1.0"},
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+		val, err := view.Get(bag, "bar", tc.constraint)
+
+		if tc.result == nil {
+			c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+		} else {
+			c.Assert(err, IsNil, cmt)
+			c.Assert(val, DeepEquals, tc.result, cmt)
+		}
+	}
 }
 
 func (s *viewSuite) TestConfdbSchemaParameters(c *C) {
@@ -4306,13 +4608,13 @@ func (s *viewSuite) TestConfdbGetFilterCheck(c *C) {
 
 	bag := confdb.NewJSONDatabag()
 	view := schema.View("foo")
-	_, err = view.Get(bag, "foo", map[string]string{"b": "b"})
+	_, err = view.Get(bag, "foo", map[string]any{"b": "b"})
 	c.Assert(err, ErrorMatches, `unconstrained filter parameter "a" is set as required-on-read in "parameters" stanza`)
 
-	_, err = view.Get(bag, "foo", map[string]string{"a": "a"})
+	_, err = view.Get(bag, "foo", map[string]any{"a": "a"})
 	c.Assert(err, ErrorMatches, `unconstrained filter parameter "b" is set as required in "parameters" stanza`)
 
-	_, err = view.Get(bag, "foo", map[string]string{"a": "a", "b": "b"})
+	_, err = view.Get(bag, "foo", map[string]any{"a": "a", "b": "b"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
@@ -4344,19 +4646,19 @@ func (s *viewSuite) TestFilteringSubkey(c *C) {
 		"b": map[string]any{"baz": "b"},
 	})
 
-	val, err = view.Get(bag, "foo", map[string]string{"bar": "b"})
+	val, err = view.Get(bag, "foo", map[string]any{"bar": "b"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"b": map[string]any{"baz": "b"},
 	})
 
-	val, err = view.Get(bag, "foo", map[string]string{"bar": "a"})
+	val, err = view.Get(bag, "foo", map[string]any{"bar": "a"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"a": map[string]any{"baz": "a"},
 	})
 
-	_, err = view.Get(bag, "foo", map[string]string{"bar": "c"})
+	_, err = view.Get(bag, "foo", map[string]any{"bar": "c"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
@@ -4386,7 +4688,7 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	val, err := view.Get(bag, "foo", map[string]string{"baz": "c"})
+	val, err := view.Get(bag, "foo", map[string]any{"baz": "c"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"a": map[string]any{
@@ -4397,7 +4699,7 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 		},
 	})
 
-	_, err = view.Get(bag, "foo", map[string]string{"baz": "e"})
+	_, err = view.Get(bag, "foo", map[string]any{"baz": "e"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	err = view.Unset(bag, "foo")
@@ -4413,7 +4715,7 @@ func (s *viewSuite) TestFilterNestedSubkey(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	_, err = view.Get(bag, "foo", map[string]string{"baz": "c", "bar": "b"})
+	_, err = view.Get(bag, "foo", map[string]any{"baz": "c", "bar": "b"})
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 

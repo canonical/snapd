@@ -52,6 +52,14 @@ func MockPreseedClassicReset(f func(dir string) error) (restore func()) {
 	return r
 }
 
+func MockPreseedHybrid(f func(dir, label string) error) (restore func()) {
+	return testutil.Mock(&preseedHybrid, f)
+}
+
+func MockPreseedHybridReset(f func(dir, label string) error) (restore func()) {
+	return testutil.Mock(&preseedHybridReset, f)
+}
+
 func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
 	r := testutil.Backup(&preseedResetPreseededChroot)
 	preseedResetPreseededChroot = f

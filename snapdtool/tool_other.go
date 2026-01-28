@@ -70,3 +70,10 @@ func IsReexecEnabled() bool {
 func IsReexecExplicitlyEnabled() bool {
 	return false
 }
+
+// IsReexecForced returns true if reexec is explicitly forced.
+//
+// On this OS this is a stub and always returns false.
+func IsReexecForced() bool {
+	return false
+}

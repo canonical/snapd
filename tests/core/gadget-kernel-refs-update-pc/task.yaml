@@ -23,17 +23,17 @@ environment:
     # uploading a large snap makes OOM kill snapd
     SNAPD_NO_MEMORY_LIMIT: 1
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
-    fi
-    if os.query is-arm; then
-        tests.exec skip-test "Test not supported on arm architecture" && exit 0
-    fi
-    if os.query is-core18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-        tests.exec skip-test "The kernel snap used for openstack cannot be refreshed with Canonical model" && exit 0
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: Test not supported on arm architecture
+      if: os.query is-arm
+    - reason: The kernel snap used for openstack cannot be refreshed with Canonical model
+      if: |
+        os.query is-core18 && [[ "$SPREAD_BACKEND" =~ openstack ]]
 
+prepare: |
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
     readlink /snap/pc/current > pc-revision.txt
@@ -98,8 +98,6 @@ prepare: |
     systemctl restart snapd
     
 restore: |
-    tests.exec is-skipped && exit 0
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     # XXX: ideally we would restore the kernel/gadget here but the kernel
     #      restore requires a reboot :/
@@ -109,8 +107,6 @@ restore: |
     systemctl restart snapd
     
 execute: |
-    tests.exec is-skipped && exit 0
-
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first install the gadget that knows about the kernel
         # (but no edition bump so this will install fine)

@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -59,6 +60,10 @@ If the first argument passed into get is a confdb identifier matching the
 format <account-id>/<schema>/<view>, get will use the confdb API. In this
 case, the command returns the data retrieved from the requested view paths.
 Use --default to provide a default value to be used if no value is stored.
+Use --with to provide constraints in the form of param=constraint pairs.
+Constraints are parsed as JSON values. If they cannot be interpreted as
+non-null JSON scalars, snap defaults to interpreting values as strings 
+unless -t is also provided.
 `)
 
 type cmdGet struct {
@@ -68,10 +73,11 @@ type cmdGet struct {
 		Keys []string
 	} `positional-args:"yes"`
 
-	Typed    bool   `short:"t"`
-	Document bool   `short:"d"`
-	List     bool   `short:"l"`
-	Default  string `long:"default" unquote:"false"`
+	Typed    bool     `short:"t"`
+	Document bool     `short:"d"`
+	List     bool     `short:"l"`
+	Default  string   `long:"default" unquote:"false"`
+	With     []string `long:"with" value-name:"<param>=<constraint>"`
 }
 
 func init() {
@@ -93,6 +99,8 @@ func init() {
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"default": i18n.G("A strictly typed default value to be used when none is found"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"with": i18n.G("Parameter constraints for filtering confdb queries"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -274,6 +282,10 @@ func (x *cmdGet) Execute(args []string) error {
 			return fmt.Errorf(`cannot use --default in non-confdb read`)
 		}
 
+		if len(x.With) > 0 {
+			return fmt.Errorf(`cannot use --with in non-confdb read`)
+		}
+
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
 
@@ -306,7 +318,13 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
+	opts := clientutil.ConfdbOptions{Typed: x.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(x.With, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys, constraints)
 	if err != nil {
 		return nil, err
 	}

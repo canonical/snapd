@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2024 Canonical Ltd
+ * Copyright (C) 2018-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,6 +79,8 @@ const (
 	ContentCompatLabel
 	// Clustering enables experimental clustering support.
 	Clustering
+	// RemoteDeviceManagement enables experimental remote management of the device through the Store.
+	RemoteDeviceManagement
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -129,6 +131,8 @@ var featureNames = map[SnapdFeature]string{
 	AppArmorPrompting:  "apparmor-prompting",
 	ContentCompatLabel: "content-compatibility-label",
 	Clustering:         "clustering",
+
+	RemoteDeviceManagement: "remote-device-management",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

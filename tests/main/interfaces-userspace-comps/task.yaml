@@ -1,0 +1,108 @@
+summary: Test for interfaces exposing libraries from components on classic userspace
+
+details: Test for interfaces exposing libraries from components on classic userspace
+
+systems: [ubuntu-24*]
+
+environment:
+  PROVIDER_SNAP: libs-provider
+  COMP1: comp1
+  COMP2: comp2
+  LIBS1_PATH: $COMP1/libs
+  LIBS2_PATH: $COMP2/libs
+
+prepare: |
+  snap pack "$PROVIDER_SNAP"
+
+  gcc square.c -o libsquare.so -fPIC -shared
+  gcc multiply.c -o libmultiply.so -fPIC -shared
+  gcc user.c -lsquare -lmultiply -L. -o user
+
+  mkdir -p "$LIBS1_PATH"
+  cp libsquare.so "$LIBS1_PATH"
+  snap pack "$COMP1"
+
+  mkdir -p "$LIBS2_PATH"
+  cp libmultiply.so "$LIBS2_PATH"
+  snap pack "$COMP2"
+
+execute: |
+  LDCONF_PATH=/etc/ld.so.conf.d/snap.system.conf
+  COMPS_MNT=/snap/$PROVIDER_SNAP/components/mnt
+  COMP_MNT1=$COMPS_MNT/$COMP1
+  COMP_MNT2=$COMPS_MNT/$COMP2
+  egl_cfg1=/etc/glvnd/egl_vendor.d/17_snap_libs-provider+comp1_egl-driver-libs_egl.d-vendor.json
+  egl_cfg2=/etc/glvnd/egl_vendor.d/18_snap_libs-provider+comp2_egl-driver-libs_egl.d-vendor.json
+  export_egl=/var/lib/snapd/export/system_libs-provider_egl-driver-libs_egl-driver-libs.library-source
+  export_cuda=/var/lib/snapd/export/system_libs-provider_cuda-driver-libs_cuda-driver-libs.library-source
+
+  check_config_ok() {
+      local version=$1
+      # Check library sharing
+      MATCH "$COMP_MNT1"/"$version"/libs < "$LDCONF_PATH"
+      MATCH "$COMP_MNT2"/"$version"/libs < "$LDCONF_PATH"
+      ldd user | MATCH "$COMP_MNT1"/"$version"/libs/libsquare.so
+      ldd user | MATCH "$COMP_MNT2"/"$version"/libs/libmultiply.so
+      ./user 2 | MATCH 8
+      # Export files for snap-confine should exist
+      for export_f in "$export_egl" "$export_cuda"; do
+          MATCH "$COMP_MNT1"/"$version"/libs < "$export_f"
+          MATCH "$COMP_MNT2"/"$version"/libs < "$export_f"
+      done
+      # Check symlinks to EGL vendor configuration files
+      test "$(readlink "$egl_cfg1")" = "$COMP_MNT1"/"$version"/egl.d/vendor.json
+      test "$(readlink "$egl_cfg2")" = "$COMP_MNT2"/"$version"/egl.d/vendor.json
+  }
+
+  check_no_config() {
+      # $LDCONF_PATH does not exist if both components are removed, but double
+      # checking in case there is another snap sharing libraries in the system.
+      if [ -f "$LDCONF_PATH" ]; then
+          not MATCH "$COMP_MNT1" < "$LDCONF_PATH"
+          not MATCH "$COMP_MNT2" < "$LDCONF_PATH"
+      fi
+      not stat "$export_egl"
+      not stat "$export_cuda"
+      not stat "$egl_cfg1"
+      not stat "$egl_cfg2"
+  }
+
+  # Install, connect, check
+  snap install --dangerous "$PROVIDER_SNAP"_1.0_all.snap
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  snap connect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+  snap install --dangerous "$PROVIDER_SNAP"+"$COMP1"_1.0.comp "$PROVIDER_SNAP"+"$COMP2"_1.0.comp
+  check_config_ok x1
+
+  # Now remove comp1
+  snap remove "$PROVIDER_SNAP"+"$COMP1"
+  not MATCH "$COMP_MNT1"/x1/libs < "$LDCONF_PATH"
+  MATCH "$COMP_MNT2"/x1/libs < "$LDCONF_PATH"
+  not stat "$egl_cfg1"
+  test "$(readlink "$egl_cfg2")" = "$COMP_MNT2"/x1/egl.d/vendor.json
+  # and comp2
+  snap remove "$PROVIDER_SNAP"+"$COMP2"
+  not MATCH "$COMP_MNT2"/x1/libs < "$LDCONF_PATH"
+  not stat "$egl_cfg2"
+
+  # Reinstall in one change
+  snap install --dangerous "$PROVIDER_SNAP"_1.0_all.snap "$PROVIDER_SNAP"+"$COMP1"_1.0.comp "$PROVIDER_SNAP"+"$COMP2"_1.0.comp
+  check_config_ok x1
+
+  # Disconnect interfaces
+  snap disconnect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  snap disconnect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+  check_no_config
+
+  # Re-connect, recheck
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  snap connect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+  check_config_ok x1
+
+  # Reinstall components, recheck
+  snap install --dangerous "$PROVIDER_SNAP"+"$COMP1"_1.0.comp "$PROVIDER_SNAP"+"$COMP2"_1.0.comp
+  check_config_ok x2
+
+  # Clean up
+  snap remove "$PROVIDER_SNAP"
+  check_no_config

@@ -1,0 +1,8 @@
+#!/bin/bash -ex
+
+rev=$(readlink /snap/test-nvidia-libs/current)
+snap_lib_dir=/var/lib/snapd/lib/system/gpu/test-nvidia-interfaces/"$rev"/usr/lib
+snap_x86_dir="$snap_lib_dir"/x86_64-linux-gnu
+
+# SNAP_LIBRARY_PATH is properly set
+echo "$SNAP_LIBRARY_PATH" | grep "$snap_x86_dir"

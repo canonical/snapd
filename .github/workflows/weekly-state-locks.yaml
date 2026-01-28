@@ -9,6 +9,7 @@ jobs:
   run-spread-tests:
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: ${{ matrix.group }}

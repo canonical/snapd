@@ -664,6 +664,28 @@ pkg_dependencies_ubuntu_classic(){
                 squashfs-tools
                 "
             ;;
+        debian-sid*)
+            echo "
+                debhelper
+                autopkgtest
+                bpftool
+                cryptsetup-bin
+                debootstrap
+                eatmydata
+                evolution-data-server
+                fwupd
+                gcc-multilib
+                libc6-dev-i386
+                linux-libc-dev
+                lsof
+                net-tools
+                packagekit
+                sbuild
+                schroot
+                strace
+                systemd-timesyncd
+                "
+            ;;
         debian-*)
             echo "
                 autopkgtest

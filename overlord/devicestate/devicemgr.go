@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -95,6 +96,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystem")
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
+	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration
@@ -167,6 +169,8 @@ type DeviceManager struct {
 
 	ensureTriedRecoverySystemRan bool
 
+	ensureEarlyBootLocaleConfigUpdatedRan bool
+
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
 	cloudInitEnabledInactiveAttemptStart *time.Time
@@ -178,11 +182,14 @@ type DeviceManager struct {
 	noRegister                   bool
 
 	preseed            bool
+	preseedHybrid      bool
 	preseedSystemLabel string
 
 	ntpSyncedOrTimedOut bool
 
 	onInit []StateDeviceInitialized
+
+	xkbConfigListener *keyboard.XKBConfigListener
 }
 
 // Manager returns a new device manager.
@@ -190,11 +197,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	delayedCrossMgrInit()
 
 	m := &DeviceManager{
-		state:    s,
-		hookMgr:  hookManager,
-		newStore: newStore,
-		reg:      make(chan struct{}),
-		preseed:  snapdenv.Preseeding(),
+		state:         s,
+		hookMgr:       hookManager,
+		newStore:      newStore,
+		reg:           make(chan struct{}),
+		preseed:       snapdenv.Preseeding(),
+		preseedHybrid: snapdenv.PreseedingHybrid(),
 	}
 	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
@@ -212,7 +220,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// cache system label for preseeding of core20; note, this will fail on
 		// core16/core18 (they are not supported by preseeding) as core20 system
 		// label is expected.
-		if !release.OnClassic {
+		if !release.OnClassic || m.preseedHybrid {
 			var err error
 			m.preseedSystemLabel, err = systemForPreseeding()
 			if err != nil {
@@ -232,6 +240,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
 	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-serial-request$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -271,6 +280,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// TODO: use better task names that are close to our usual pattern
 	runner.AddHandler("install-finish", m.doInstallFinish, nil)
 	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
+	runner.AddHandler("install-preseed", m.doInstallPreseed, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
@@ -388,6 +398,12 @@ func (m *DeviceManager) StartUp() error {
 	}
 
 	return nil
+}
+
+func (m *DeviceManager) Stop() {
+	if m.xkbConfigListener != nil {
+		m.xkbConfigListener.Close()
+	}
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
@@ -910,7 +926,7 @@ func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err erro
 		return m.seedLabel, m.seedMode, nil
 	}
 	if m.preseed {
-		if !release.OnClassic {
+		if !release.OnClassic || m.preseedHybrid {
 			seedMode = "run"
 			seedLabel = m.systemForPreseeding()
 		}
@@ -1842,6 +1858,119 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	return nil
 }
 
+var (
+	keyboardCurrentXKBConfig     = keyboard.CurrentXKBConfig
+	keyboardNewXKBConfigListener = keyboard.NewXKBConfigListener
+)
+
+func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensureEarlyBootLocaleConfigUpdatedRan {
+		return nil
+	}
+
+	mode := m.SystemMode(SysHasModeenv)
+	if mode != "run" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureEarlyBootXKBConfigUpdated")
+
+	m.ensureEarlyBootLocaleConfigUpdatedRan = true
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+	// Only setup early boot XKB configs for hybrid systems
+	// with versions 25.10 or higher for FDE.
+	supported, err := install.CheckHybridQuestingRelease(deviceCtx.Model())
+	if err != nil {
+		return err
+	}
+	if !supported {
+		return nil
+	}
+
+	// Initialize config, It is fine to run this even if the config
+	// was initilized in a previous snapd startup because no change
+	// will be triggered unless the kernel command line arguments are
+	// updated, otherwise it is a no-op.
+	config, err := keyboardCurrentXKBConfig()
+	if err != nil {
+		return err
+	}
+	if err := m.updateEarlyBootXKBConfig(config); err != nil {
+		return fmt.Errorf("cannot update early boot locale config: %w", err)
+	}
+
+	// Setup XKB config listener to detect system keyboard layout
+	// changes and reflect it into the XKB early boot configs.
+	cb := func(config *keyboard.XKBConfig) {
+		m.state.Lock()
+		defer m.state.Unlock()
+		if err := m.updateEarlyBootXKBConfig(config); err != nil {
+			m.state.Warnf("cannot update early boot locale config: %v", err)
+			return
+		}
+	}
+	listener, err := keyboardNewXKBConfigListener(context.Background(), cb)
+	if err != nil {
+		return err
+	}
+	m.xkbConfigListener = listener
+	return nil
+}
+
+// updateEarlyBootXKBConfig adds an extra snapd kernel cmdline
+// fragment with a simplified XKB configuration embedded into it
+// based on the current system XKB config.
+//
+// This kernel cmdline argument would then be consumed by
+// plymouth-set-keymap.service very early in boot to construct
+// a temporary XKB configuration that can be consumed by plymouth
+// before disks are unlocked so the the correct keyboard layout
+// can be detected when entring a recovery-key, passphrase or PIN
+// in a FDE system.
+//
+// This workaround is needed because we cannot updated the initrd
+// to set the updated XKB configs for plymouth because it is
+// embedded in the signed UKI.
+//
+// TODO:FDEM: Trigger immediate kernel cmdline update change
+// if args are updated or if there are previous pending changes
+// which can be detected if "kcmdline-pending-extra-snapd-fragments"
+// is set. This requires proper blocking logic for all resealing
+// tasks to be implemented first.
+// Currently, The extra snapd args are only applied lazily when
+// some task updates the kernel command line (e.g. snap set
+// system system.kernel.cmdline-append).
+func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) error {
+	fragment := config.KernelCommandLineFragment()
+	updated, err := setExtraSnapdKernelCommandLineFragment(m.state, extraSnapdKernelCommandLineFragmentXKB, fragment)
+	if err != nil {
+		return err
+	}
+
+	if updated {
+		logger.Noticef("Extra snapd kernel cmdline fragment is updated (%s)", fragment)
+		logger.Noticef("Change will take effect in the next kernel cmdline update")
+	}
+
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1918,6 +2047,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureExpiredUsersRemoved(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureEarlyBootXKBConfigUpdated(); err != nil {
 			errs = append(errs, err)
 		}
 	}

@@ -11,16 +11,21 @@ environment:
     EXPECT_TOKENS/tokens: true
     EXPECT_TOKENS/files: false
 
+skip:
+    - reason: Tokens require UC 24.04
+      if: |
+        os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]
+
 prepare: |
-    if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
-        tests.exec skip-test "Tokens require UC 24.04" && exit 0
-    fi
     tests.nested build-image core
     tests.nested create-vm core
 
-execute: |
-    tests.exec is-skipped && exit 0
+debug: |
+    if [ -e unlocked.json ]; then
+      cat unlocked.json
+    fi
 
+execute: |
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
 
@@ -97,6 +102,15 @@ execute: |
     runrecover_handle=$(gojq -r '.data.fde."keyslot-roles"."run+recover"."tpm2-pcr-policy-revocation-counter"' <state.json)
     run_handle=$(gojq -r '.data.fde."keyslot-roles"."run"."tpm2-pcr-policy-revocation-counter"' <state.json)
     recover_handle=$(gojq -r '.data.fde."keyslot-roles".recover."tpm2-pcr-policy-revocation-counter"' <state.json)
+
+    if os.query is-ubuntu-ge 24.04 && [ "${EXPECT_TOKENS}" = "true" ]; then
+        data_disk=$(remote.exec "realpath /dev/disk/snapd/ubuntu-data-luks")
+        save_disk=$(remote.exec "realpath /dev/disk/snapd/ubuntu-save-luks")
+
+        remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked.json
+        test "$(gojq -r '."state"."activations"."'"${data_disk}"'"."status"' <unlocked.json)" = platform-key
+        test "$(gojq -r '."state"."activations"."'"${save_disk}"'"."status"' <unlocked.json)" = platform-key
+    fi
 
     # Revocation counter handles are expected in a specific range
     # This range is defined in secboot/secboot.go (PCRPolicyCounterHandleRange)

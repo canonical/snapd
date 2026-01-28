@@ -756,12 +756,11 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
-		var instFlags int
-		if opts.Flags.SkipConfigure {
-			instFlags |= skipConfigure
-		}
-
-		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
+		ts, err := doInstallOrPreDownload(st, &t.snapst, &snapsup, compsups, installContext{
+			FromChange:    opts.FromChange,
+			DeviceCtx:     opts.DeviceCtx,
+			SkipConfigure: opts.Flags.SkipConfigure,
+		})
 		if err != nil {
 			return nil, nil, err
 		}

@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
@@ -64,10 +65,10 @@ type EncryptionSetupData struct {
 	parts map[string]partEncryptionData
 	// optional volume authentication options
 	volumesAuth *device.VolumesAuthOptions
-	// optional recovery key id. if set, it indicates that the
+	// optional recovery key. if not nil, it indicates that the
 	// corresponding recovery key should be used for all relevant
 	// volumes during installation.
-	recoveryKeyID string
+	rkey *keys.RecoveryKey
 	// optional preinstall check context that includes the check result that
 	// reflects the outcome of the most recent check and contains information
 	// required for optimum PCR configuration and reseal post install
@@ -88,12 +89,12 @@ func (esd *EncryptionSetupData) VolumesAuth() *device.VolumesAuthOptions {
 	return esd.volumesAuth
 }
 
-func (esd *EncryptionSetupData) SetRecoveryKeyID(keyID string) {
-	esd.recoveryKeyID = keyID
+func (esd *EncryptionSetupData) SetRecoveryKey(rkey *keys.RecoveryKey) {
+	esd.rkey = rkey
 }
 
-func (esd *EncryptionSetupData) RecoveryKeyID() string {
-	return esd.recoveryKeyID
+func (esd *EncryptionSetupData) RecoveryKey() *keys.RecoveryKey {
+	return esd.rkey
 }
 
 func (esd *EncryptionSetupData) PreinstallCheckContext() *secboot.PreinstallCheckContext {
@@ -111,14 +112,14 @@ type MockEncryptedDeviceAndRole struct {
 // packages.
 func MockEncryptionSetupData(
 	labelToEncDevice map[string]*MockEncryptedDeviceAndRole,
-	recoveryKeyID string,
+	rkey *keys.RecoveryKey,
 	volumesAuth *device.VolumesAuthOptions,
 	checkContext *secboot.PreinstallCheckContext,
 ) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
 		parts:                  map[string]partEncryptionData{},
 		volumesAuth:            volumesAuth,
-		recoveryKeyID:          recoveryKeyID,
+		rkey:                   rkey,
 		preinstallCheckContext: checkContext,
 	}
 	for label, encryptData := range labelToEncDevice {

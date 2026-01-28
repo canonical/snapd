@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // states for partition state
@@ -50,12 +51,15 @@ type PartitionState struct {
 type DiskUnlockState struct {
 	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
 	// partition.
-	UbuntuData PartitionState `json:"ubuntu-data,omitempty"`
+	UbuntuData PartitionState `json:"ubuntu-data"`
 	// UbuntuBoot is the state of the ubuntu-boot partition.
-	UbuntuBoot PartitionState `json:"ubuntu-boot,omitempty"`
+	UbuntuBoot PartitionState `json:"ubuntu-boot"`
 	// UbuntuSave is the state of the ubuntu-save (or ubuntu-save-enc)
 	// partition.
-	UbuntuSave PartitionState `json:"ubuntu-save,omitempty"`
+	UbuntuSave PartitionState `json:"ubuntu-save"`
+	// State is the state coming from the secboot activation API
+	// This state might be nil if an older snap-bootstrap unlocked the disks
+	State *secboot.ActivateState `json:"state,omitempty"`
 }
 
 // WriteTo writes the DiskUnlockState into a json file for given name

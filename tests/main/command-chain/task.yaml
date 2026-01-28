@@ -15,11 +15,12 @@ environment:
     BREADCRUMB: /var/snap/command-chain/current/breadcrumb
     ENVDUMP: /var/snap/command-chain/current/env
 
-prepare: |
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-        tests.exec skip-test "No need to test when the snapd pkg is from the repository and reexec is disabled" && exit 0
-    fi
+skip:
+    - reason: No need to test when the snapd pkg is from the repository and reexec is disabled
+      if: |
+       [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
 
+prepare: |
     echo "Build command chain snap"
     snap pack command-chain
     snap install --dangerous command-chain_1.0_all.snap
@@ -32,8 +33,6 @@ prepare: |
     fi
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Test that command-chain runs for hooks"
     [ "$(cat "$BREADCRUMB")" = "chain1 chain2 configure" ]
     MATCH '^CHAIN_1_RAN=1$' < "$ENVDUMP"

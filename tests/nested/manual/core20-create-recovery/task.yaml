@@ -4,7 +4,11 @@ details: |
     Checks the system is back in run mode when it is used a recovery system 
     with typical and alternative recovery system labels.
 
-systems: [ubuntu-2*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
     NESTED_ENABLE_TPM: true

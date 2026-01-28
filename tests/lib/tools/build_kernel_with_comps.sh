@@ -40,11 +40,12 @@ EOF
     # Replace _ or - with [_-], as it can be any of these
     glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
     module_path=$(find kernel -name "${glob_mod_name}.ko*")
-    cp "$module_path" "$comp_ko_dir"
+    mapfile -t module_path <<< "$module_path"
+    cp --update=none "${module_path[@]}" "$comp_ko_dir"
     snap pack --filename="${kernel_name}+${comp_name}".comp "$comp_name"
 
     # Create kernel without the kernel module
-    rm "$module_path"
+    rm "${module_path[@]}"
     # depmod wants a lib subdir
     mkdir -p kernel/lib
     ln -s ../modules kernel/lib/modules

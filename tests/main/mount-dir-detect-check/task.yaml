@@ -7,11 +7,11 @@ details: |
 systems:
   - -ubuntu-core-*
 
-prepare: |
-  if tests.info is-snapd-from-archive ; then
-       tests.exec skip-test "snapd deb from archive has no mount detection" && exit 0
-  fi
+skip:
+    - reason: snapd deb from archive has no mount detection
+      if: tests.info is-snapd-from-archive
 
+prepare: |
   tests.systemd stop-unit snapd.service
   echo "Ensure all snaps are gone"
   snapd.tool exec snap-mgmt --purge
@@ -56,8 +56,6 @@ prepare: |
   test "$(snap list | wc -l)" = "0"
 
 execute: |
-  tests.exec is-skipped && exit 0
-
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
   baddir="$(cat mock-mount-dir)"
 

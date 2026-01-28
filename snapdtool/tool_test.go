@@ -168,7 +168,9 @@ func (s *toolSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 
 func (s *toolSuite) TestSystemSnapSupportsReExecNoInfo(c *C) {
 	// there's no snapd/info in a just-created tmpdir :-p
-	c.Check(snapdtool.SystemSnapSupportsReExec(c.MkDir()), Equals, false)
+	ok, err := snapdtool.CandidateVersionNewer(c.MkDir())
+	c.Check(ok, Equals, false)
+	c.Check(err, ErrorMatches, "cannot open snapd info file .*")
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExecBadInfo(c *C) {
@@ -176,7 +178,9 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadInfo(c *C) {
 	p := s.snapdPath + "/usr/lib/snapd/info"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 
-	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
+	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
+	c.Check(ok, Equals, false)
+	c.Check(err, ErrorMatches, "error reading snapd info file .*")
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExecBadInfoContent(c *C) {
@@ -185,14 +189,18 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadInfoContent(c *C) {
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 	c.Assert(os.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
 
-	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
+	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
+	c.Check(ok, Equals, false)
+	c.Check(err, ErrorMatches, "cannot find version in snapd info file .*")
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExecBadVersion(c *C) {
 	// can't understand snapd/info if all its version is gibberish
 	s.fakeCoreVersion(c, s.snapdPath, "0:")
 
-	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
+	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
+	c.Check(ok, Equals, false)
+	c.Check(err, ErrorMatches, "cannot version compare .*")
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
@@ -200,14 +208,18 @@ func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 	defer snapdtool.MockVersion("2")()
 	s.fakeCoreVersion(c, s.snapdPath, "0")
 
-	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
+	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
+	c.Check(ok, Equals, false)
+	c.Check(err, IsNil)
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExec(c *C) {
 	defer snapdtool.MockVersion("2")()
 	s.fakeCoreVersion(c, s.snapdPath, "9999")
 
-	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, true)
+	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
+	c.Check(ok, Equals, true)
+	c.Check(err, IsNil)
 }
 
 func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
@@ -504,6 +516,38 @@ func (s *toolSuite) TestExecInSnapdOrCoreSnapOnUnsupportedDistroAltLibexecdir(c 
 	s.testExecInSnapdOrCoreSnapOnUnsupportedDistro(c, dirs.AltDistroLibexecDir)
 }
 
+func (s *toolSuite) TestExecInSnapdOrCoreForced(c *C) {
+	dirs.SetRootDir(s.fakeroot)
+	s.snapdPath = filepath.Join(dirs.SnapMountDir, "/snapd/42")
+	s.corePath = filepath.Join(dirs.SnapMountDir, "/core/21")
+	defer snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath)()
+
+	// set up desired libexecdir
+	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
+
+	// snapd snap version is lower than ours, normally this would not reexec
+	defer snapdtool.MockVersion("999")()
+
+	// reexec does not happen, because version is lower
+	snapdtool.ExecInSnapdOrCoreSnap()
+	c.Check(s.execCalled, Equals, 0)
+
+	// even if explicitly enabled in environment
+	os.Setenv("SNAP_REEXEC", "1")
+	defer os.Unsetenv("SNAP_REEXEC")
+
+	snapdtool.ExecInSnapdOrCoreSnap()
+	c.Check(s.execCalled, Equals, 0)
+
+	// unless we force it
+	os.Setenv("SNAP_REEXEC", "force")
+	defer os.Unsetenv("SNAP_REEXEC")
+
+	// in which case we do reexec
+	c.Check(snapdtool.ExecInSnapdOrCoreSnap, PanicMatches, `>exec of "[^"]+/potato" in tests<`)
+	c.Check(s.execCalled, Equals, 1)
+}
+
 func (s *toolSuite) TestIsReexecd(c *C) {
 	mockedSelfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	restore := snapdtool.MockSelfExe(mockedSelfExe)
@@ -547,6 +591,10 @@ func (s *toolSuite) TestInReexecEnabled(c *C) {
 	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
 	// explicitly enabled
 	os.Setenv("SNAP_REEXEC", "1")
+	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
+
+	// cannot be parsed as bool, but defaults to true
+	os.Setenv("SNAP_REEXEC", "force")
 	c.Assert(snapdtool.IsReexecEnabled(), Equals, true)
 }
 

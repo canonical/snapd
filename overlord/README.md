@@ -25,7 +25,7 @@ Time-consuming and user-initiated operations, usually initiated from the API pro
 
 `state.Change` and `state.Task` instances use the working state to remain persistent, and they can carry input parameters, and their own state, accessible with `Get` and `Set` methods.
 
- The goals of the `state.Change` mechanisms are such that operations should survive restarts and reboots and that, on error, snapd should try to bring back the external state to a previous good state if possible.
+The goals of the `state.Change` mechanisms are such that operations should survive restarts and reboots and that, on error, snapd should try to bring back the external state to a previous good state if possible.
 
 `state.TaskRunner`
 -------------------
@@ -71,6 +71,18 @@ If slow operations need to be performed, the required `Unlock/Lock` should happe
 If the `State` lock is released and reacquired in a handler, the code needs to consider that other code could have manipulated some relevant working state. There may be also cases where it’s neither possible nor desirable to hold the `State` lock for the entirety of a state manipulation, such as when a manipulation spans multiple subsystems, and so spans multiple tasks. For all such cases, and to simplify reasoning, snapd offers other coordination mechanisms with differing granularity to the `State` lock.
 
 See also the comment in `overlord/snapstate/handlers.go` about state locking.
+
+`Task` lanes
+------------
+By default, when any `Task` in a `Change` fails, the entire `Change` is aborted. Lanes allow dividing `Task`s within a single `Change` into independent failure domains.
+
+This is particularly useful when a `Change` processes multiple independent operations where partial failure is acceptable. For example, when auto-refreshing multiple snaps in one `Change`, assigning each snap's `Task`s to a separate lane ensures that if one snap fails to refresh, the others can still complete successfully.
+
+To assign a `Task` to a lane, use `Task.JoinLane()` where the lane number is obtained from `State.NewLane()`. A `Task` can be in multiple lanes by calling `JoinLane` multiple times. `Task`s not explicitly assigned to any lane are considered to be in lane 0.
+
+When a `Task` in a lane fails, `Change.AbortLanes` aborts all `Task`s exclusively in that lane and any `Task`s waiting on them. However, `Task`s that belong to multiple lanes survive if at least one of their other lanes is healthy i.e., all of that lane's `Task`s are in Do, Doing, or Done status.
+
+Aborted `Task`s transition based on their current status: `Task`s not yet started (`DoStatus`) are held and never run, `Task`s in progress (`DoingStatus`) are signaled to stop and are later undone, and completed `Task`s (`DoneStatus`) are undone.
 
 Testing `Task` handling logic
 ------------------------------

@@ -1,0 +1,16 @@
+summary: Ensure that XDG_RUNTIME_DIR is created
+
+details: |
+    Ensure that the XDG_RUNTIME_DIR is created when a snap is launched.
+
+prepare: |
+    echo Testing XDG_RUNTIME_DIR
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-runtime-dir
+    rm -f /run/user/0/snap.test-snapd-xdg-runtime-dir
+
+execute: |
+    test ! -e /run/user/0/snap.test-snapd-xdg-runtime-dir
+    snap run test-snapd-xdg-runtime-dir
+    test -d /run/user/0/snap.test-snapd-xdg-runtime-dir
+    # re-run the test to ensure that it doesn't fail if the folder already exists
+    snap run test-snapd-xdg-runtime-dir

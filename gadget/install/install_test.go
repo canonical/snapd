@@ -1448,7 +1448,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, "", nil, nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil)
 	}
 	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, nil, timings.New(nil))
 	c.Assert(err, IsNil)
@@ -1684,7 +1684,7 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, "", nil, nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil)
 	}
 
 	// 10 million mocks later ...

@@ -72,29 +72,29 @@ func DistroSupportsReExec() bool {
 	return true
 }
 
-// systemSnapSupportsReExec returns true if the given core/snapd snap should be used as re-exec target.
+// candidateVersionNewer returns true if the given core/snapd snap is newer than
+// currently running one and should be used as re-exec target.
 //
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
-func systemSnapSupportsReExec(coreOrSnapdPath string) bool {
+func candidateVersionNewer(coreOrSnapdPath string) (bool, error) {
 	infoDir := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir))
 	ver, _, err := SnapdVersionFromInfoFile(infoDir)
 	if err != nil {
 		logger.Noticef("%v", err)
-		return false
+		return false, err
 	}
 
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver)
 	if err != nil {
-		logger.Debugf("cannot version compare %q and %q: %v", Version, ver, err)
-		return false
+		return false, fmt.Errorf("cannot version compare %q and %q: %v", Version, ver, err)
 	}
 	if res > 0 {
-		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q)", coreOrSnapdPath, ver, Version)
-		return false
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, Version, filepath.Join(infoDir, "info"))
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 // InternalToolPath returns the path of an internal snapd tool. The tool
@@ -175,6 +175,11 @@ func pathInSnapdSnap(relativeExePath string) string {
 	return filepath.Join(dirs.DefaultDistroLibexecDir, rest)
 }
 
+// IsReexecForced returns true if reexec is explicitly forced.
+func IsReexecForced() bool {
+	return os.Getenv(reExecKey) == "force"
+}
+
 // ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
 // the snapd/core snap.
 func ExecInSnapdOrCoreSnap() {
@@ -229,9 +234,20 @@ func ExecInSnapdOrCoreSnap() {
 		}
 	}
 
-	// If the core snap doesn't support re-exec or run-from-core then don't do it.
-	if !systemSnapSupportsReExec(coreOrSnapdPath) {
+	// Check whether the target version is newer and so it makes sense to use it
+	// as a target for reexec.
+	newer, err := candidateVersionNewer(coreOrSnapdPath)
+	if err != nil {
+		logger.Debugf("%v", err)
 		return
+	}
+
+	if !newer {
+		if IsReexecForced() {
+			logger.Debug("reexec forced through environment")
+		} else {
+			return
+		}
 	}
 
 	logger.Debugf("restarting into %q", full)

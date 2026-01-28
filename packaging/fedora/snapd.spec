@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.73
+Version:        2.74
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1008,6 +1008,111 @@ fi
 %endif
 
 %changelog
+* Tue Jan 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.74
+ - FDE: use new activation API from secboot
+ - FDE: use activation API also with non keydata keys
+ - FDE: ignore internal recovery key expiration during install
+ - FDE: support adding/removing PINs post-installation
+ - FDE: support changing PINs post-installation
+ - FDE: support adding a recovery key post-installation
+ - FDE: provide activation status via new endpoint v2/system-
+   info/storage-encrypted
+ - FDE: support sealing and resealing using the preinstall check
+   result
+ - FDE: disable passphrase support during install
+ - FDE: add keyboard configuration helpers
+ - FDE: lazily inject keyboard layout configuration in kernel cmdline
+ - FDE: enable pin tries and limits PIN entry attempts to 3
+ - FDE: extend secureboot endpoint to accept DB, KEK, and PK
+ - FDE: simplify /v2/system-volumes keyslots handling by allowing
+   name-only entries, implicitly expanding to all system containers
+ - FDE: support extra non-system key slot names to support agents
+   such as Landscape to set dedicated recovery keys
+ - FDE: initialize fde state after device state
+ - FDE: use device node to find the storage container and keys
+ - FDE: provide user visible name for disk based on ID_MODEL
+ - FDE: update secboot in snapd with latest additions and fixes
+ - core-initrd: add systemd service for setting plymouth keyboard
+   layout and X11 keyboard layouts
+ - core-initrd: set plymouth cleartext toggle option
+ - core-initrd: fix plymouth missing font issue
+ - core-initrd: update dependency from libteec1 to libteec2
+ - core-initrd: add new dlopened libs
+ - LP: #2116949 Preseeding: add support for preseeding of hybrid
+   systems via the installer API$
+ - Preseeding: check whether a path is a mountpoint before remounting
+ - Confdb: support tagging paths as secret in storage schemas
+ - Confdb: support filtering on placeholder sub-keys
+ - Confdb: support filtering in API and confdbstate
+ - Confdb: support field filtering on reads
+ - Confdb: support "parameters" stanza and check filters against them
+ - Confdb: add support for '--with' contraints
+ - Confdb: parsing fixes and error handling improvements
+ - Assertions: restrict serials to new format in confdb-control
+ - Assertions: add verify signature function
+ - Remote device management: modify request-message assertion to
+   expose its time constraints for remote device management
+ - Remote device management: support polling of store messages
+ - Remote device management: add signing of response messages with
+   device key
+ - Prompting: enable notify protocol v5 and test prompt restoration
+   after snapd restart
+ - snap: change malformed '--channel=' warning to error
+ - snap: add 'snap report-issue' command to get the available contact
+   details for the specified snap
+ - snap: add 'snap version --verbose' flag to include information on
+   snap binaries origin
+ - snap: create the XDG_RUNTIME_DIR folder
+ - LP: #2068493 snap: add support for 'snap refresh --tracking'
+ - snapctl: add '--tracking' flag to 'snapctl refresh'
+ - Reexec: include the info filepath in the version compare debug log
+ - Reexec: add support for forcing reexec into and older snapd snap
+   by setting SNAP_REEXEC=force in the environment
+ - snap-confine: correct error message related to snap-confine group
+   policy validation
+ - snap-confine: ensure we only mount existing directories
+ - LP: #2134364 snap-confine: handle potential race when creating
+   /tmp/snap-private-tmp when lacking systemd-tmpfiles support
+ - snap-confine: filter plus characters from security tags
+ - Desktop: use desktop file IDs as desktop IDs
+ - Desktop: store the common ID in the desktop file
+ - Desktop: allow graphical daemons to show icons in the dock
+ - Desktop: change user daemons with desktop plug defined to depend
+   on graphical-session.target
+ - dm-verity for essential snaps: made change to prerequisite struct
+ - Cross-distro: modify SELinux profile to allow connecting to squid
+   proxy
+ - Cross-distro: add support for migrating snap mount directory
+ - Packaging: drop ubuntu-14.04 packaging
+ - Packaging: drop ubuntu-{14.04,16.04} transitional binary packages
+ - Packaging: remove desktop files and state lock file during snapd
+   purge
+ - Packaging: fix inhibition hint file being left behind on failed
+   unlink-current-snap
+ - Disallow timeouts < 1us in systemd units
+ - Add snap-store to the user-daemons support overrides
+ - Support for SuccessExitStatus= generation for systemd daemon
+ - Make standby output more verbose
+ - Add prepare-serial-request hook
+ - Try to discard snap mount namespaces when no processes are running
+   during snap updates
+ - Improve handling of snap downloads cache by introducing periodic
+   cleanup with more aggressive policy
+ - Interfaces: mediatek-accel | create new interface
+ - Interfaces: nvidia-video-driver-libs | create new interface
+ - Interfaces: *-driver-libs | accept component paths
+ - Interfaces: desktop-legacy, unity7 | remove workaround for slash
+   filtering in ibus address
+ - Interfaces: fwupd | allow writing reboot notification in /run
+ - Interfaces: add 'install' coreutil to base AppArmor template
+ - Interfaces: u2f-devices | add apparmor permissions to allow the
+   use of the libfido2 library in snaps
+ - Interfaces: u2f-devices | add support for Thetis security key
+ - Interfaces: add AppArmor workaround for mmap MAP_HUGETLB
+ - Interfaces: timeserver-control | manage per-link ntp settings via
+   systemd-networkd
+
 * Fri Nov 21 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.73
  - FDE: do not save incomplete FDE state when resealing was skipped

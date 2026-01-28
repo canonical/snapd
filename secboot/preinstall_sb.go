@@ -79,7 +79,7 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	//  - referenced in the DriverOrder UEFI variable
 	//  - loaded from PCI device option ROMs (e.g. network card PXE ROMs)
 	//TODO:FDEM: remove once secboot provides an action to apply this configuration
-	checkFlags := sb_preinstall.PermitVARSuppliedDrivers
+	checkFlags := sb_preinstall.PermitAddonDrivers
 	if systemd.IsVirtualMachine() {
 		// when running in Virtual Machine, allow it
 		checkFlags |= sb_preinstall.PermitVirtualMachine
@@ -146,6 +146,21 @@ func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
 	return checkResult.save(filename)
 }
 
+// LoadCheckResult reads and returns the preinstall check result.
+func LoadCheckResult(filename string) (*PreinstallCheckResult, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	checkResult := &PreinstallCheckResult{}
+	if err := json.Unmarshal(data, checkResult); err != nil {
+		return nil, fmt.Errorf("cannot deserialize preinstall check result: %v", err)
+	}
+
+	return checkResult, nil
+}
+
 // CheckResult retrieves the preinstall check result from the preinstall
 // check context. On success, it returns the preinstall check result required
 // post install for optimum PCR configuration and resealing. On failure, it
@@ -177,7 +192,8 @@ func (cr *PreinstallCheckResult) save(filename string) error {
 	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)
 }
 
-// MarshalJSON implements the json.Marshaler interface for PreinstallCheckResult.
+// MarshalJSON implements the json.Marshaler interface for
+// PreinstallCheckResult.
 func (cr *PreinstallCheckResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		PreinstallCheckResultJSON{
@@ -185,6 +201,19 @@ func (cr *PreinstallCheckResult) MarshalJSON() ([]byte, error) {
 			PCRProfileOpts: cr.sbPCRProfileOpts,
 		},
 	)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for
+// PreinstallCheckResult.
+func (cr *PreinstallCheckResult) UnmarshalJSON(data []byte) error {
+	var aux PreinstallCheckResultJSON
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	cr.sbCheckResult = aux.Result
+	cr.sbPCRProfileOpts = aux.PCRProfileOpts
+	return nil
 }
 
 // unwrapPreinstallCheckError converts a single or compound preinstall check
