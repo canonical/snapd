@@ -59,6 +59,16 @@ var (
 	secbootListContainerUnlockKeyNames   = secboot.ListContainerUnlockKeyNames
 )
 
+func init() {
+	// TODO:FDEM: Enforce that tasks are registered to be allowed to do resealing.
+	// This could be achieved by some token mechanism that is passed from the task
+	// down the call stack to the bottom-most reseal method that can only be acquired
+	// by registering the task as a resealing task similar to swfeats.RegisterChangeKind.
+	snapstate.RegisterResealingTaskKind("efi-secureboot-db-update-prepare")
+	snapstate.RegisterResealingTaskKind("efi-secureboot-db-update")
+	snapstate.RegisterResealingTaskKind("fde-add-platform-keys")
+}
+
 var ErrNotInitialized = errors.New("fde state was not initialized")
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -144,7 +154,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		if isFDETask(t) {
 			for _, tRunning := range running {
 				if isFDETask(tRunning) {
-					// prevent two fde operations from running in parallel
+					// prevent two fde operations affecting keyslots from
+					// running in parallel
 					return true
 				}
 			}

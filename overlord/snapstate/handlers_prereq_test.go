@@ -1053,7 +1053,8 @@ func (s *prereqSuite) TestDoPrereqSkipDuringRemodel(c *C) {
 	s.state.Lock()
 
 	restore := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
-		Remodeling: true,
+		DeviceModel: MakeModel20("gadget", nil),
+		Remodeling:  true,
 	})
 	defer restore()
 
