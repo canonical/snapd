@@ -34,6 +34,7 @@ import (
 
 var (
 	ReadyTimeout = readyTimeout
+	BuildKey     = buildKey
 )
 
 func ExitOnError() (restore func()) {
