@@ -134,9 +134,12 @@ func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 	return v.visibility == vis
 }
 
-func (v *userDefinedType) PruneByVisibility(_ []Accessor, _ Visibility, data any) (any, error) {
-	// Visibilities are not allowed in user defined types so no point in pruning.
-	// This code should never be reached.
+func (v *userDefinedType) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// Visibilities are not allowed in user defined types so only call pruning to validate data
+	_, err := v.DatabagSchema.PruneByVisibility(path, vis, data)
+	if err != nil {
+		return nil, err
+	}
 	return data, nil
 }
 
@@ -213,8 +216,13 @@ func (s *aliasReference) NestedVisibility(vis Visibility) bool {
 	return s.visibility == vis
 }
 
-func (v *aliasReference) PruneByVisibility(_ []Accessor, vis Visibility, data any) (any, error) {
-	// user-defined types cannot contain visibility fields so no need to call pruning on them
+func (v *aliasReference) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// user-defined types cannot contain visibility fields so no need to use pruned data;
+	// only call pruning to validate the data
+	_, err := v.alias.PruneByVisibility(path, vis, data)
+	if err != nil {
+		return nil, err
+	}
 	if v.visibility == vis {
 		return nil, nil
 	}
@@ -616,21 +624,13 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
-	// TODO incorporate constraints when evaluting paths from whence the data comes
+	// TODO incorporate constraints when evaluting paths from whence the data comes.
 	// Now potentially an incorrect path is chosen if constraints are instrumental
-	// in selecting an alternative path.
+	// in selecting an alternative path. Note the data is potentially incomplete,
+	// and simply applying constraints will not work since the constrained data
+	// may not be present.
 	if data == nil {
 		return nil, nil
-	}
-	if len(path) == 0 {
-		marshaled, err := json.Marshal(data)
-		if err != nil {
-			return nil, fmt.Errorf("cannot marshal data: %w", err)
-		}
-		err = v.Validate(marshaled)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	var lastErr error
@@ -675,9 +675,7 @@ type mapSchema struct {
 	visibility Visibility
 }
 
-// Validate that raw is a valid map and meets the constraints set by the
-// confdb storage schema.
-func (v *mapSchema) Validate(raw []byte) error {
+func validateMapSchema(v *mapSchema, raw []byte, validateNestedSchemas bool) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
@@ -721,6 +719,10 @@ func (v *mapSchema) Validate(raw []byte) error {
 
 	if missing {
 		return validationErrorf(`cannot find required combinations of keys`)
+	}
+
+	if !validateNestedSchemas {
+		return nil
 	}
 
 	if v.entrySchemas != nil {
@@ -770,6 +772,12 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	return nil
+}
+
+// Validate that raw is a valid map and meets the constraints set by the
+// confdb storage schema.
+func (v *mapSchema) Validate(raw []byte) error {
+	return validateMapSchema(v, raw, true)
 }
 
 func validMapKeys(v map[string]json.RawMessage) error {
@@ -897,7 +905,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any)
 		if err != nil {
 			return nil, fmt.Errorf("cannot marshal data: %w", err)
 		}
-		err = v.Validate(marshaled)
+		err = validateMapSchema(v, marshaled, false)
 		if err != nil {
 			return nil, err
 		}
@@ -1701,7 +1709,7 @@ type arraySchema struct {
 	visibility Visibility
 }
 
-func (v *arraySchema) Validate(raw []byte) error {
+func validateArraySchema(v *arraySchema, raw []byte, validateElementTypes bool) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
@@ -1715,13 +1723,15 @@ func (v *arraySchema) Validate(raw []byte) error {
 		return validationErrorf(`cannot accept null value for "array" type`)
 	}
 
-	for e, val := range *array {
-		if err := v.elementType.Validate([]byte(val)); err != nil {
-			var vErr *ValidationError
-			if errors.As(err, &vErr) {
-				vErr.Path = append([]any{e}, vErr.Path...)
+	if validateElementTypes {
+		for e, val := range *array {
+			if err := v.elementType.Validate([]byte(val)); err != nil {
+				var vErr *ValidationError
+				if errors.As(err, &vErr) {
+					vErr.Path = append([]any{e}, vErr.Path...)
+				}
+				return err
 			}
-			return err
 		}
 	}
 
@@ -1738,6 +1748,10 @@ func (v *arraySchema) Validate(raw []byte) error {
 	}
 
 	return nil
+}
+
+func (v *arraySchema) Validate(raw []byte) error {
+	return validateArraySchema(v, raw, true)
 }
 
 // SchemaAt returns the array schema the path is empty. Otherwise, it calls SchemaAt
@@ -1789,7 +1803,7 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis Visibility, data an
 		if err != nil {
 			return nil, fmt.Errorf("cannot marshal data: %w", err)
 		}
-		err = v.Validate(marshaled)
+		err = validateArraySchema(v, marshaled, false)
 		if err != nil {
 			return nil, err
 		}
