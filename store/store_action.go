@@ -604,8 +604,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if s.useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
-		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
+		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormats)
+		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormats)
 	}
 	if opts.RefreshManaged {
 		reqOptions.addHeader("Snap-Refresh-Managed", "true")
