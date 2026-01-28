@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Assertions
+    - OpenAccess
+    - Synchronous
+  summary: Get the current serial assertion
+  description: |-
+    Retrieves the current serial assertion for the system. The serial assertion
+    is a statement used to bind a device identity to it's public key, provided by the store.
+  externalDocs:
+    description: Read more about serial assertions on the Ubuntu Core documentation.
+    url: https://documentation.ubuntu.com/core/reference/assertions/serial/
+  operationId: getSerialAssertion
+  security: []
+  responses:
+    200:
+      description: The raw serial assertion text.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: |
+              type: serial
+              authority-id: generic
+              brand-id: generic
+              model: generic-classic
+              serial: 46923e6d-5d45-420d-905a-99a9e92493b4
+              device-key:
+                AcbBTQRWhcGAARAA...
+                ...AEQEAAQ==
+              device-key-sha3-384: PznqOqWAx4_f8tFafGI2...
+              timestamp: 2025-07-17T03:11:33.518427Z
+              sign-key-sha3-384: wrfougkz3Huq2T_Kklfnu...
+              ...bX5JkJG5cunW0h/
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Assertions
+    - Asynchronous
+    - AuthenticationRequired
+  summary: Perform an action on the serial assertion
+  description: |-
+    Performs an asynchronous action on the current serial assertion by sending a
+    JSON command. The only supported action is `forget`, which causes the
+    system to unregister its current serial and prepare for a new one.
+  externalDocs:
+    description: Read more about offline remodeling on the Ubuntu Core documentation.
+    url: https://documentation.ubuntu.com/core/explanation/remodelling/index.html#heading--offline
+  operationId: setSerialAssertion
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: A JSON object specifying the action to perform on the serial.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            action:
+              type: string
+              description: The action to perform on the serial assertion.
+              enum:
+                - forget
+            no-registration-until-reboot:
+              type: boolean
+              description: If true, delays device registration until the next reboot.
+              default: false
+          required:
+            - action
+          example:
+            action: "forget"
+            no-registration-until-reboot": true
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

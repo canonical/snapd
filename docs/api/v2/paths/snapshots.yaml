@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Snapshots
+    - Synchronous
+  summary: Get a list of snapshots
+  description: |-
+    Retrieves a list containing metadata for all snapshot sets stored on the system.
+  operationId: listSnapshots
+  security: []
+  responses:
+    200:
+      description: A synchronous response containing a list of snapshot sets.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: array
+                items:
+                  $ref: '../components/schemas/SnapshotSet.yaml'
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Snapshots
+  summary: Manipulate or import a snapshot
+  description: |-
+    Performs an action on a snapshot set, such as restoring, checking, forgetting, or importing from a data stream.
+  operationId: manageSnapshots
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The action to perform. Can be a JSON object for manipulation or a binary stream for import.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          description: Used for snapshot manipulation actions.
+          required:
+            - action
+            - set
+          properties:
+            action:
+              type: string
+              enum:
+                - restore
+                - check
+                - forget
+            set:
+              type: integer
+              description: The ID of the snapshot set to operate on.
+            snaps:
+              type: array
+              description: An array of snap names to restrict the action to.
+              items:
+                type: string
+            users:
+              type: array
+              description: An array of user names to restrict the action to (disallowed for 'forget').
+              items:
+                type: string
+      application/x.snapd.snapshot:
+        schema:
+          type: string
+          format: binary
+          description: A tar archive of an exported snapshot, used only to import a snapshot with the 'import' action.
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

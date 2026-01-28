@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents a set of snapshots, typically created at the same time.
+properties:
+  id:
+    type: integer
+    description: The unique identifier for this snapshot set.
+    example: 1
+  snapshots:
+    type: array
+    description: A list of individual snapshots included in this set.
+    items:
+      $ref: './Snapshot.yaml'

@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Notices
+    - OpenAccess
+    - Synchronous
+  summary: Retrieve system notices
+  description: |-
+    Retrieves notices for the current user and any public notices, with optional
+    filtering.
+  operationId: getNotices
+  security: []    # TODO Not fully described in machine-readable format, normally OpenAccess unless certain parameters are used
+  parameters:
+    - name: types
+      in: query
+      description: |-
+        If types is specified, only return notices with types matching the given
+        types. The types parameter can include multiple types, notices matching
+        any of the types are returned.
+      schema:
+        type: array
+        items:
+          $ref: '../components/schemas/NoticeType.yaml'
+    - name: keys
+      in: query
+      description: If specified, only return notices with one of the given keys.
+      schema:
+        type: array
+        items:
+          type: string
+          example: '-'
+    - name: after
+      in: query
+      description: |-
+        If specified, only return notices with a 'last-repeated' field greater
+        than the specified time, in RFC3339 UTC format.
+      schema:
+        type: string
+        format: date-time
+        example: 2025-09-08T17:29:40.829324752Z
+    - name: timeout
+      in: query
+      description: |-
+        If there are notices matching the filter which have already been
+        recorded, these notices are returned immediately. Otherwise, if timeout
+        is specified, wait up to the given duration for any new notices matching
+        the filter to be recorded. This allows the user to use long-polling to
+        be notified immediately when a new notice is recorded.
+      schema:
+        type: string
+        example: 7m30s
+    - name: user-id
+      in: query
+      description: |-
+        Admin only.
+        Instead of returning notices associated with the user who initiated the
+        API request, return notices associated with the given UID. Public
+        notices are still returned, as before. Cannot be used with the 'users'
+        parameter.
+      schema:
+        type: integer
+        example: 1000
+    - name: users
+      in: query
+      description: |-
+        Admin only.
+        Value must be 'all'. Return notices associated with all users, instead
+        of just the user which initiated the API request. Cannot be used with
+        the 'user-id' parameter.
+      schema:
+        type: string
+        enum:
+          - all
+  responses:
+    200:
+      description: |-
+        A synchronous response containing a list of notices matching the filter
+        criteria.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: array
+                items:
+                  $ref: '../components/schemas/Notice.yaml'
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - Notices
+    - OpenAccess
+    - Synchronous
+  summary: Create a notice
+  description: |-
+    Create a notice. Currently, this can only be used to create notices of type
+    'snap-run-inhibit'. Only the 'snap' command is allowed to create notices of
+    that type.
+  operationId: postNotices
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+            - key
+            - type
+          properties:
+            action:
+              type: string
+              description: The action to perform.
+              enum: 
+                - add
+            key:
+              type: string
+              description: The key of the notice to add.
+            type:
+              type: string
+              description: The type of the notice to add.
+              enum:
+                - snap-run-inhibit
+  responses:
+    200:
+      description: A synchronous response indicating success.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum: 
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: object
+                description: |-
+                  The result object contains information about the response to
+                  the request.
+                properties:
+                  id:
+                    type: string
+                    description: |-
+                      The ID of the newly-created notice.
+                    example: '74'
+
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - OpenAccess
+    - Store
+    - Synchronous
+  summary: Find snaps in the store
+  description: |-
+    Finds snaps or components in the store that match the search criteria and
+    are compatible with the host system. In order for the user to be authorized
+    to use this route, they must be logged in via 'snap-login', hence being
+    tagged as both OpenAccess and AuthenticationRequired. PeerAuth is not listed
+    here as sudo is not required to interact with the route.
+  operationId: findSnaps
+  security: []
+  parameters:
+    - name: q
+      in: query
+      description: |-
+        Search for packages that match the given string. Spaces between words
+        are treated as logical AND operators. This is a weighted broad search,
+        meant as the main interface to searching for packages.
+      schema:
+        type: string
+    - name: name
+      in: query
+      description: |-
+        An exact name to search for. Supports '*' as a wildcard at the end.
+        Cannot be used together with q. This is meant for things like
+        auto-completion. 
+      schema:
+        type: string
+    - name: scope
+      in: query
+      description: |-
+        If set to 'wide', broadens the search to include non-stable packages.
+      schema:
+        type: string
+        enum:
+          - wide
+    - name: section
+      in: query
+      description: |-
+        The name of a store section to search within.
+        Use GET /v2/sections to get the names of the sections.
+      schema:
+        type: string
+    - name: select
+      in: query
+      description: |-
+        Alter the collection searched.
+        refresh - search refreshable snaps. Cannot be used with q, nor name.
+        private - search private snaps (by default, find only searches public snaps).
+        Cannot be used with name, only q (for now at least).
+      schema:
+        type: string
+        enum:
+          - refresh
+          - private
+    - name: common-id
+      in: query
+      description: |-
+        Search for packages using the common-id attribute.
+        This is often the application name used by other packaging formats.
+      schema:
+        type: string
+        example: org.videolan.vlc
+  responses:
+    200:
+      description: A list of snaps from the store that match the search criteria.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/Snap.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

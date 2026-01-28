@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: apiKey
+in: header
+name: X-PEER-CREDENTIALS
+
+description: |-
+  **Unix Socket Peer Authentication**
+
+  Authentication is not handled via traditional HTTP headers or tokens. Instead, it is managed at the operating system level using Unix domain socket peer credentials (e.g., `SO_PEERCRED` on Linux).
+
+  **How It Works:**
+
+  1.  The API server listens on a local Unix domain socket.
+  2.  When a client connects to this socket, the server can ask the operating system kernel for the client process's credentials.
+  3.  The kernel securely provides the client's User ID (UID), Group ID (GID), and Process ID (PID).
+
+  Authorization decisions are then based on this trusted, kernel-provided UID. For example, access may be restricted to only the `root` user (UID 0).

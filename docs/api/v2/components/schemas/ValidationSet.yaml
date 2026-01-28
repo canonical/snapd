@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  account-id:
+    type: string
+    description: Identifier for the developer account.
+  name:
+    type: string
+    description: Name of the validation set.
+  mode:
+    type: string
+    description: Mode of validation the system will use.
+    enum:
+      - monitor
+      - enforce
+  pinned-at:
+    type: integer
+    description: The sequence number the set is pinned at (0 if not pinned).
+  sequence:
+    type: integer
+    description: The current sequence of the validation set assertion.
+  valid:
+    type: boolean
+    description: Reports whether the set is valid for currently installed snaps.

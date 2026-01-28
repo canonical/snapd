@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: |-
+  Details about a single service activator. Note that uppercase field names
+  exist to maintain backward compatibility with the non-conformant previous
+  implementation, and are thus not documented here.
+required:
+  - name
+  - type
+  - active
+  - enabled
+properties:
+  active:
+    type: boolean
+    description: Whether the activator is active or not.
+  enabled:
+    type: boolean
+    description: Whether the activator is enabled or not.
+  name:
+    type: string
+    description: The name of the activator.
+  type:
+    type: string
+    description: The type of the activator.
+    enum:
+      - dbus
+      - socket
+      - timer

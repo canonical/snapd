@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Defines a quota group for one or more snaps.
+required:
+  - group-name
+properties:
+  group-name:
+    type: string
+    description: The name of the quota group.
+    example: logmem
+  subgroups:
+    type: array
+    items:
+      type: string
+    description: lists any subgroups this quota group contains.
+  parent:
+    type: string
+    description: Contains the parent quota group name, if this group is a subgroup.
+  snaps:
+    type: array
+    items:
+      type: string
+    description: Lists any snaps that belong to this quota group.
+  services:
+    type: string
+    description: Only for a subgroup, lists specific services belonging to a snap in the parent group.
+  constraints:
+    type: object
+    description: The types and values of limits defined for this quota group.
+    properties:
+      memory:
+        type: integer
+        format: int64
+        description: Memory usage limit in bytes.
+        example: 32768
+      cpu:
+        type: string
+        description: Includes percentage as a limit.
+      cpu-set:
+        type: string
+        description: Per-cpu limits, with cpus listing included cores.
+      threads:
+        type: integer
+        description: Maximum number of threads for this quota group.
+        example: 2
+      journal:
+        type: object
+        description: Number of messages logged per time period.
+        properties:
+          size:
+            type: integer
+            format: int64
+          rate-count:
+            type: integer
+          rate-period:
+            type: integer
+  current:
+    type: object
+    description: Contains the current usage of memory and task quotas
+    additionalProperties: true

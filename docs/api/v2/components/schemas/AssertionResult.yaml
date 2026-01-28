@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  result:
+    type: array
+    description: A list of assertion results.
+    items:
+      type: object
+      properties:
+        headers:
+          type: object
+          description: A key-value map of the assertion headers.
+          additionalProperties:
+            type: string
+  status:
+    type: string
+    example: OK
+  status-code:
+    type: integer
+    example: 200
+  type:
+    type: string
+    example: sync
+example:
+  result:
+    - headers:
+        account-id: canonical
+        authority-id: canonical
+        display-name: Canonical
+        sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+        timestamp: '2016-04-01T00:00:00.0Z'
+        type: account
+        username: canonical
+        validation: certified
+    - headers:
+        account-id: generic
+        authority-id: canonical
+        display-name: Generic
+        sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+        timestamp: '2017-07-27T00:00:00.0Z'
+        type: account
+        username: generic
+        validation: certified
+  status: OK
+  status-code: 200
+  type: sync

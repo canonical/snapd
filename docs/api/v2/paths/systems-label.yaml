@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: label
+    in: path
+    required: true
+    description: The label of the recovery system.
+    schema:
+      type: string
+get:
+  tags:
+    - AuthenticationRequired # Originally tagged as root auth
+    - Systems
+    - Synchronous
+  summary: Get details for a specific recovery system
+  description: Retrieves detailed information for a single recovery system, including storage encryption status and available actions.
+  operationId: getSystemDetails
+  security:
+    - PeerAuth: []
+  responses:
+    '200':
+      description: Detailed information about the recovery system.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/SystemDetails.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+post:
+  tags:
+    - AuthenticationRequired # Originally tagged as root auth
+    - Systems
+  summary: Perform an action on a specific recovery system
+  description: Perform an action on the recovery system identified by its label. The required parameters in the request body depend on the specified action.
+  operationId: performLabeledSystemAction
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/SystemActionDo.yaml'
+            - $ref: '../components/schemas/SystemActionReboot.yaml'
+            - $ref: '../components/schemas/SystemActionInstall.yaml'
+            - $ref: '../components/schemas/SystemActionRemove.yaml'
+            - $ref: '../components/schemas/SystemActionCheckPassphrase.yaml'
+            - $ref: '../components/schemas/SystemActionCheckPin.yaml'
+            - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
+  responses:
+    '200':
+      description: The action was successfully initiated (for synchronous actions).
+    '202':
+      description: The asynchronous action (e.g., install, remove) was accepted and is in progress.
+      $ref: '../components/responses/Accepted.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'

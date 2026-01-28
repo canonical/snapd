@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Interfaces
+    - OpenAccess
+    - Synchronous
+  summary: Get available interfaces
+  description: |-
+    Retrieves the available interfaces and their associated metadata.
+  operationId: getInterfaces
+  security: []
+  parameters:
+    - name: select
+      in: query
+      description: |-
+        Set to 'all' to retrieve all interfaces, or 'connected' to only return
+        connected interfaces (if this parameter is omitted then the call returns
+        the legacy format that should be no longer used).
+      schema:
+        type: string
+        enum:
+          - all
+          - connected
+    - name: slots
+      in: query
+      description: If set to true, slot information will be returned.
+      schema:
+        type: boolean
+    - name: plugs
+      in: query
+      description: If set to true, plug information will be returned.
+      schema:
+        type: boolean
+    - name: doc
+      in: query
+      description: If set to true, interface documentation will be returned.
+      schema:
+        type: boolean
+    - name: names
+      in: query
+      description: |-
+        Interfaces that match the list of comma-separated names will be returned.
+        The parameter matches against the name of the interface, not the name of
+        snaps, plugs, or slots.
+      schema:
+        type: string
+        example: content
+  responses:
+    200:
+      description: |-   # TODO Investigate whether discriminator can be used to map input parameter to oneOf result
+        For non-legacy calls, returns an array of interface information.
+        For legacy calls, returns an array of interface objects.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                example: 200
+              status:
+                type: string
+                example: OK
+              type:
+                type: string
+                example: sync
+              result:
+                oneOf:
+                  - $ref: '../components/schemas/LegacyInterfaceObject.yaml'
+                  - $ref: '../components/schemas/ModernInterfaceObject.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Interfaces
+  summary: Issue an action to the interface system
+  description: |-
+    Used to connect and disconnect interfaces. Issues a command to the interface
+    system to operate on the specified plug and slot.
+  operationId: postInterfaces
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: Parameters for the interface action.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            action:
+              type: string
+              description: Action to perform.
+              enum:
+                - connect
+                - disconnect
+            forget:
+              type: boolean
+              description: |
+                Used with the 'disconnect' action. Ensures the system does not
+                reestablish the connection going forward.
+            slots:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '../components/schemas/Slot.yaml'
+            plugs:
+              type: array
+              minItems: 1
+              maxItems: 1
+              items:
+                $ref: '../components/schemas/Plug.yaml'
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+

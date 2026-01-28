@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Snapshots
+    - Synchronous
+  summary: Export a snapshot set
+  description: |-
+    Retrieves a snapshot set as a downloadable tar archive (`.tgz`).
+    The response body is a binary stream.
+  operationId: exportSnapshot
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: set-id
+      in: path
+      required: true
+      description: The ID of the snapshot set to export.
+      schema:
+        type: integer
+        example: 2
+  responses:
+    200:
+      description: A gzipped tar archive (.tgz) of the exported snapshot set.
+      content:
+        application/gzip:
+          schema:
+            type: string
+            format: binary
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

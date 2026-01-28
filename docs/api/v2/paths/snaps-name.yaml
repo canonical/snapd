@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: name
+    in: path
+    required: true
+    description: The name of the snap.
+    schema:
+      type: string
+
+get:
+  tags:
+    - OpenAccess
+    - Snaps
+    - Synchronous
+  summary: Get details for an installed snap
+  description: |-
+    Retrieves details for a specific snap installed on the system.
+  operationId: getInstalledSnapByName
+  security: []
+  responses:
+    200:
+      description: Details for the specified snap.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/InstalledSnap.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Snaps
+  summary: Manage a specific snap
+  description: |-
+    Perform an action (install, refresh, remove, etc.) on a single, specific snap.
+  operationId: manageSnapByName
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The action and options for the snap.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+          properties:
+            action:
+              type: string
+              enum:
+                - install
+                - refresh
+                - remove
+                - revert
+                - enable
+                - disable
+                - switch
+                - hold
+                - unhold
+            channel:
+              type: string
+              description: The channel to use for the action.
+              example: beta
+            revision:
+              type: string
+              description: A specific revision to install or revert to.
+            classic:
+              type: boolean
+            devmode:
+              type: boolean
+            purge:
+              type: boolean
+              description: If true, don't save a snapshot of data on removal.
+            terminate:
+              type: boolean
+              description: If true, kill running processes before removal.
+            components:
+              type: array
+              items:
+                type: string
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

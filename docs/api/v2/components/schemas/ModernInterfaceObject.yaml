@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: array
+description: Modernized interface object.
+items:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the interface.
+    summary:
+      type: string
+      description: |-
+        The summary providing information regarding the interface.
+    doc-url:
+      type: string
+      format: url
+      description: |-
+        The url to the interfaces documentation.
+    plugs:
+      type: array
+      description: |-
+        A list of plugs on the system matching the search criteria.
+      items:
+        $ref: './Plug.yaml'
+    slots:
+      type: array
+      description: |-
+        A list of slots on the system matching the search criteria.
+      items:
+        $ref: './Slot.yaml'
+

@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: A collection of relevant links for the snap.
+properties:
+  contact:
+    type: array
+    items:
+      type: string
+      format: uri
+    example:
+      - mailto:user@canonical.com
+      - https://discourse.example.com/c/support
+  website:
+    type: array
+    items:
+      type: string
+      format: uri
+      example: https://canonical.com
+additionalProperties:
+  type: array
+  description: Allows for other link collections like 'issues', 'docs', etc.
+  items:
+    type: string
+    format: uri
+    example: 'https://github.com/user/repo/issues'

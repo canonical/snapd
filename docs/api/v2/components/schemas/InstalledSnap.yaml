@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents a snap package that is installed on the system.
+allOf:
+  - $ref: './Snap.yaml'
+  - type: object
+    properties:
+      apps:
+        type: array
+        description: A list of applications provided by the snap.
+        items:
+          $ref: './App.yaml'
+      status:
+        type: string
+        description: The current status of the snap revision.
+        enum:
+          - active
+          - installed
+      install-date:
+        type: string
+        format: RFC3339
+        description: The date and time when this snap revision was installed.
+      installed-size:
+        type: integer
+        format: int64
+        description: The disk space used by the snap in bytes.
+      devmode:
+        type: boolean
+        description: True if the snap is currently installed in development mode.
+      trymode:
+        type: boolean
+        description: True if the snap was installed in try mode.
+      jailmode:
+        type: boolean
+        description: True if the snap is currently installed in jail mode.
+      tracking-channel:
+        type: string
+        description: The channel that updates will be installed from.
+        example: stable
+      refresh-inhibit:
+        type: object
+        description: Indicates that the snap refresh is currently inhibited.
+        properties:
+          proceed-time:
+            type: string
+            format: RFC3339
+            description: The time after which a refresh will be forced.
+      refresh-failures:
+        type: object
+        description: Information about failed auto-refresh attempts.
+        properties:
+          revision:
+            type: integer
+          failure-count:
+            type: integer
+          last-failure-time:
+            type: string
+            format: RFC3339
+          last-failure-severity:
+            type: string
+            enum: [after-reboot]
+      components:
+        type: array
+        description: A list of installed and available components for this snap.
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+            version:
+              type: string
+            summary:
+              type: string
+            description:
+              type: string
+            revision:
+              type: string
+            install-date:
+              type: string
+              format: RFC3339
+            installed-size:
+              type: integer
+              format: int64

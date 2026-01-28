@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  Bad Request. The request could not be processed due to a client-side error.
+  This can be due to malformed syntax or providing an entity that does not exist.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum: 
+            - 400
+        status:
+          type: string
+          enum:
+            - Bad Request
+        type:
+          type: string
+          enum:
+            - error
+        result:
+          oneOf:
+            - $ref: '../errors/ConfdbError.yaml'
+            - $ref: '../errors/MalformedRequestError.yaml'
+            - $ref: '../errors/NoSSHKeysError.yaml'
+            - $ref: '../errors/UserNotFoundError.yaml'
+            - $ref: '../errors/SnapNotInstalledError.yaml'
