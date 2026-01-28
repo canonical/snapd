@@ -590,7 +590,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		case received := <-sendChan:
 			// all good
 			c.Check(received, DeepEquals, desiredBuf)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Errorf("failed to receive response in time")
 		}
 	}
@@ -620,14 +620,14 @@ func checkListenerReadyWithTimeout(c *C, l *listener.Listener, ready bool, timeo
 		select {
 		case <-l.Ready():
 			// all good
-		case <-time.NewTimer(timeout).C:
+		case <-time.After(timeout):
 			c.Error("listener not ready")
 		}
 	} else {
 		select {
 		case <-l.Ready():
 			c.Error("listener unexpectedly ready")
-		case <-time.NewTimer(timeout).C:
+		case <-time.After(timeout):
 			// all good
 		}
 	}
@@ -699,7 +699,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
@@ -718,7 +718,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -795,7 +795,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
@@ -822,7 +822,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -898,7 +898,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -932,7 +932,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -980,7 +980,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		select {
 		case recvChan <- buf:
 			// all good
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive buffer")
 		}
 	}()
@@ -990,7 +990,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		c.Fatalf("should not have received request before Run() called")
 	case <-t.Dying():
 		c.Fatalf("tomb encountered an error before Run() called: %v", t.Err())
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 	}
 
 	t.Go(l.Run)
@@ -1001,7 +1001,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		c.Assert(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", t.Err())
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request before timer expired")
 	}
 }
@@ -1054,7 +1054,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 			c.Assert(req.Path, DeepEquals, path)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, t.Err())
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request %d before timer expired", i)
 		}
 	}
@@ -1124,13 +1124,12 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	_, err = unix.Write(kernelSocket, recvBuf)
 	c.Check(err, IsNil)
 
-	requestTimer := time.NewTimer(time.Second)
 	select {
 	case req := <-l.Reqs():
 		c.Check(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Errorf("listener encountered unexpected error: %v", t.Err())
-	case <-requestTimer.C:
+	case <-time.After(time.Second):
 		c.Errorf("timed out waiting for listener to send request")
 	}
 }
@@ -1218,7 +1217,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1281,7 +1280,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1364,7 +1363,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1389,7 +1388,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	select {
 	case <-l.Reqs():
 		// all good
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		c.Fatalf("reqs failed to close once listener closed")
 	}
 
@@ -1553,7 +1552,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Error("done waiting for expected error", testCase.err)
 		case <-t.Dying():
 		}
@@ -1662,19 +1661,18 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 		select {
 		case recvChan <- buf:
 			// all good
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
 		}
 
 		// Check that we don't receive a request
 		select {
-		case req := <-l.Reqs():
-			if req != nil {
-				c.Fatalf("unexpectedly received request %d", req.ID)
-			} else {
+		case req, ok := <-l.Reqs():
+			if !ok {
 				c.Fatal("l.Reqs() unexpectedly closed")
 			}
-		case <-time.NewTimer(50 * time.Millisecond).C:
+			c.Fatalf("unexpectedly received request %d", req.ID)
+		case <-time.After(50 * time.Millisecond):
 			// all good
 		}
 
@@ -1685,7 +1683,7 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 		select {
 		case received := <-sendChan:
 			c.Check(received, DeepEquals, desiredBuf)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive response in time")
 		}
 
@@ -1712,19 +1710,18 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	select {
 	case recvChan <- buf:
 		// all good
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
 	}
 
 	// Check that we don't receive a request
 	select {
-	case req := <-l.Reqs():
-		if req != nil {
-			c.Fatalf("unexpectedly received request %d", req.ID)
-		} else {
+	case req, ok := <-l.Reqs():
+		if !ok {
 			c.Fatal("l.Reqs() unexpectedly closed")
 		}
-	case <-time.NewTimer(50 * time.Millisecond).C:
+		c.Fatalf("unexpectedly received request %d", req.ID)
+	case <-time.After(50 * time.Millisecond):
 		// all good
 	}
 
@@ -1735,7 +1732,7 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	select {
 	case received := <-sendChan:
 		c.Check(received, DeepEquals, desiredBuf)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive response in time")
 	}
 
@@ -1747,13 +1744,12 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 
 	// Check that we don't receive a request
 	select {
-	case req := <-l.Reqs():
-		if req != nil {
-			c.Fatalf("unexpectedly received request %d", req.ID)
-		} else {
+	case req, ok := <-l.Reqs():
+		if !ok {
 			c.Fatal("l.Reqs() unexpectedly closed")
 		}
-	case <-time.NewTimer(50 * time.Millisecond).C:
+		c.Fatalf("unexpectedly received request %d", req.ID)
+	case <-time.After(50 * time.Millisecond):
 		// all good
 	}
 
@@ -1768,18 +1764,17 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	select {
 	case recvChan <- buf:
 		// all good
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
 	}
 
 	select {
-	case req := <-l.Reqs():
-		if req != nil {
-			c.Check(req.ID, Equals, msg.KernelNotificationID)
-		} else {
+	case req, ok := <-l.Reqs():
+		if !ok {
 			c.Errorf("l.Reqs() unexpectedly closed")
 		}
-	case <-time.NewTimer(time.Second).C:
+		c.Check(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.After(time.Second):
 		c.Errorf("timed out waiting to receive request %x", msg.KernelNotificationID)
 	}
 
@@ -1841,7 +1836,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	select {
 	case err := <-returnChan:
 		c.Fatalf("received unexpected return before listener closed: %v", err)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		// no errors yet
 	}
 
@@ -1852,7 +1847,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		case err := <-returnChan:
 			// Run returns nil if the listener was deliberately closed.
 			c.Check(err, IsNil)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive error from listener.Run")
 		}
 	}
