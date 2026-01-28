@@ -57,3 +57,24 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 	}
 	return errors
 }
+
+// ApplyDelayedEffects delayed side effects of a previous call to backend's Setup().
+func ApplyDelayedEffects(repo *Repository, backend SecurityBackend, appSet *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error {
+	if len(effects) == 0 {
+		return nil
+	}
+
+	delayedEffectsBackend, ok := backend.(DelayedSideEffectsBackend)
+	if !ok {
+		return fmt.Errorf("internal error: calling apply delayed effects for unsupported backend %q", backend.Name())
+	}
+
+	// Refresh security of this snap and backend
+	var err error
+	timings.Run(tm, "delayed-setup-security-backend",
+		fmt.Sprintf("delayed setup security backend %q effects for snap %q", backend.Name(), appSet.InstanceName()),
+		func(nesttm timings.Measurer) {
+			err = delayedEffectsBackend.ApplyDelayedEffects(appSet, effects, nesttm)
+		})
+	return err
+}

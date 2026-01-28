@@ -177,6 +177,14 @@ type TestConflictingConnectionInterface struct {
 	ConflictingConnectedInterfaces []string
 }
 
+// TestDelayedEffectApplyingInterface is used to test interfaces supporting
+// delayed side effects.
+type TestDelayedEffectApplyingInterface struct {
+	TestInterface
+
+	SupportsDelayedEffectCallback func(backend interfaces.SecuritySystem, id interfaces.DelayedEffect) bool
+}
+
 // String() returns the same value as Name().
 func (t *TestInterface) String() string {
 	return t.Name()
@@ -638,3 +646,16 @@ func (t *TestSymlinksInterface) TrackedDirectories() []string {
 func (t *TestConflictingConnectionInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return t.ConflictingConnectedInterfaces
 }
+
+// Support for delaying side effects.
+
+func (t *TestDelayedEffectApplyingInterface) SupportsDelayedEffect(
+	backend interfaces.SecuritySystem, effect interfaces.DelayedEffect,
+) bool {
+	if t.SupportsDelayedEffectCallback == nil {
+		panic("SupportsDelayedEffectCallback not set up")
+	}
+	return t.SupportsDelayedEffectCallback(backend, effect)
+}
+
+var _ interfaces.DelayedEffectApplicable = (*TestDelayedEffectApplyingInterface)(nil)
