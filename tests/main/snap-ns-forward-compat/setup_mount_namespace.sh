@@ -51,7 +51,11 @@ setup_mount_namespace() {
 
     echo "Do pivot_root"
     cd "$MOUNT_TMPDIR"
-    pivot_root . "var/lib/snapd/hostfs"
+    if os.query is-debian sid; then
+        busybox pivot_root . "var/lib/snapd/hostfs"
+    else
+        pivot_root . "var/lib/snapd/hostfs"
+    fi
     # Clear bash cache of executable paths, because in some distros (like arch)
     # the mount command is normally found in /usr/sbin/mount, whereas after the
     # pivot_root we'll be using the one from the core snap, which is in
