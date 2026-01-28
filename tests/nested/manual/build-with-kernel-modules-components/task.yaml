@@ -59,7 +59,7 @@ execute: |
   # check component from store has been early-installed
   check_efi_pstore
   # Additionally, check that modules loaded by systemd right after switch root could be loaded
-  lsmod | MATCH ahci
+  remote.exec lsmod | MATCH ahci
   # No mounts for unset versions are found
   mount | not MATCH efi-pstore_unset
   mount | not MATCH pc-kernel_unset
@@ -69,7 +69,7 @@ execute: |
   remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
   check_efi_pstore
-  lsmod | MATCH ahci
+  remote.exec lsmod | MATCH ahci
 
   # remove kernel component
   remote.exec sudo snap remove pc-kernel+"$KMOD_COMP"
