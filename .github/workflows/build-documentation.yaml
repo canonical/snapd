@@ -14,45 +14,34 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Check if changes occured in the API documentation
+      - name: Check if changes occurred in the API documentation
         id: changed-api
-        run: |
-          # Use git diff to find the changed files between the base and head branches
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          
-          CHANGED_FILES=$(git diff --name-only --diff-filter=MAR "${BASE_SHA}" "${HEAD_SHA}")
-
-          if [[ ${CHANGED_FILES} == *"docs/api/"* ]]; then
-            echo "API documentation changes detected."
-            echo "api_modified=true" >> $GITHUB_OUTPUT
-          else
-            echo "No API documentation changes detected. Exiting."
-            echo "api_modified=false" >> $GITHUB_OUTPUT
-          fi
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+        with:
+          files: docs/api/**
       - name: Check Licensing/Copyright Compliance
-        if: steps.changed-api.outputs.api_modified == 'true'
+        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://fsfe/reuse
         with:
           entrypoint: /bin/sh
           args: -c "cd docs/api && reuse lint"
       - name: Check API specification
-        if: steps.changed-api.outputs.api_modified == 'true'
+        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://redocly/cli
         with:
           args: lint ./docs/api/openapi.yaml
       - name: Build generated documentation
-        if: steps.changed-api.outputs.api_modified == 'true'
+        if: steps.changed-api.outputs.any_changed == 'true'
         uses: docker://redocly/cli
         with:
           args: build-docs ./docs/api/openapi.yaml --output ./docs/api/redoc-static.html
       - name: Create dark mode version
-        if: steps.changed-api.outputs.api_modified == 'true'
+        if: steps.changed-api.outputs.any_changed == 'true'
         run: |
           sudo chown $USER ./docs/api/redoc-static.html
           python3 ./docs/api/tools/post-process.py ./docs/api/redoc-static.html ./docs/api/tools/dark-theme.css "</head>"
       - name: Store generated artifact
-        if: steps.changed-api.outputs.api_modified == 'true'
+        if: steps.changed-api.outputs.any_changed == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: rest-api-documentation
