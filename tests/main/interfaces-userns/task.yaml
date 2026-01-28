@@ -14,6 +14,10 @@ environment:
     # This is used to abbreviate some of the paths below.
     P: /var/snap/test-snapd-userns/common
 
+skip:
+    - reason: system either doesn't support unprivileged userns or it is disabled
+      if: not sysctl kernel.unprivileged_userns_clone
+
 prepare: |
     echo "Install a helper snap (for confinement testing)"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-userns
@@ -31,12 +35,6 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    # ensure that the system supports unprivileged userns and it is enabled
-    if ! sysctl kernel.unprivileged_userns_clone; then
-      echo "Skipping testing of unprivileged userns since it is not supported by the kernel"
-      exit 0
-    fi
-
     echo "Enable the use of unprivileged user namespaces by default"
     orig_userns_clone=$(sysctl -n kernel.unprivileged_userns_clone)
     sysctl -w kernel.unprivileged_userns_clone=1
