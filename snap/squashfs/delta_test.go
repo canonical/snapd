@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -292,6 +294,10 @@ func (s *DeltaTestSuite) createMockSnap(c *C, name string, timestamp uint32, com
 	binary.LittleEndian.PutUint16(data[20:22], compression)
 	// flags @ offset 24 (2 bytes)
 	binary.LittleEndian.PutUint16(data[24:26], flags)
+	// major @ offset 30 (2 bytes)
+	binary.LittleEndian.PutUint16(data[28:30], 4)
+	// minor @ offset 32 (2 bytes)
+	binary.LittleEndian.PutUint16(data[30:32], 0)
 
 	err := os.WriteFile(path, data, 0644)
 	c.Assert(err, IsNil)
@@ -445,7 +451,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetReadError(c *C) {
 	c.Assert(err, IsNil)
 
 	err = squashfs.GenerateDelta(src, dst, "out.delta", squashfs.SnapXdelta3Format)
-	c.Assert(err, ErrorMatches, "cannot read target flags: EOF")
+	c.Assert(err, ErrorMatches, "while reading target: EOF")
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputFileError(c *C) {
@@ -457,6 +463,27 @@ func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputFileError(c *C) {
 
 	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "create delta file: .* no such file or directory")
+}
+
+func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputUnsuportedSquashfsVersion(c *C) {
+	src := s.createMockSnap(c, "source.snap", 1000, 1, 0)
+
+	dst := filepath.Join(dirs.GlobalRootDir, "target.snap")
+	// SquashFS superblock is at least 96 bytes. We need up to offset 26.
+	data := make([]byte, 100)
+	// major @ offset 30 (2 bytes)
+	binary.LittleEndian.PutUint16(data[28:30], 4)
+	// minor @ offset 32 (2 bytes)
+	binary.LittleEndian.PutUint16(data[30:32], 1)
+
+	err := os.WriteFile(dst, data, 0644)
+	c.Assert(err, IsNil)
+
+	// Use a path that is impossible to create (directory doesn't exist)
+	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
+
+	err = squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	c.Assert(err, ErrorMatches, "unexpected squashfs version 4.1")
 }
 
 func (s *DeltaTestSuite) TestApplyDeltaPlainSuccess(c *C) {
@@ -529,11 +556,77 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 
 			// 3. Check Xdelta3 args
 			c.Check(cmds[2].Path, Equals, xdelta3Path)
+			c.Check(len(cmds[2].Args), Equals, 6)
 			c.Check(cmds[2].Args[0:3], DeepEquals, []string{xdelta3Path, "-d", "-f"})
+			c.Check(cmds[2].Args[4], Matches, `/tmp/snap-delta-.*/src`)
+			c.Check(cmds[2].Args[5], Matches, `/tmp/snap-delta-.*/delta`)
+			fmt.Println(cmds[2].Args)
 
 			return nil
 		})()
 
+	err = squashfs.ApplyDelta(sourceSnap, deltaPath, "target.snap")
+	c.Assert(err, IsNil)
+}
+
+func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
+	// Create a mock delta file: gzip (1), timestamp 5000, and some dummy
+	// xdelta3 data following the 32-byte header.
+	deltaPath := s.createDeltaFile(c, "writer.delta", 5000, 1, 0x0040)
+	expectedData := []byte("this-is-the-raw-xdelta3-payload")
+
+	f, err := os.OpenFile(deltaPath, os.O_APPEND|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	_, err = f.Write(expectedData)
+	f.Close()
+	c.Assert(err, IsNil)
+
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	err = os.WriteFile(sourceSnap, []byte("source"), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock the command creation to avoid needing real binaries.
+	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
+		return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+	})()
+
+	// Mock RunManyWithContext to manually trigger the deltaWriter task.
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, cmds []*exec.Cmd, tasks []func() error) error {
+			// Ensure deltaWriter task exists (it should be the only task in applyXdelta3Delta).
+			c.Assert(tasks, HasLen, 1)
+
+			// We need to simulate the consumer (xdelta3) reading from the pipe
+			// so the deltaWriter doesn't block forever on the FIFO write.
+			// The deltaPipe path is found in the arguments of the xdelta3 command (cmds[2]).
+			c.Assert(len(cmds), Equals, 3)
+			c.Assert(cmds[2].Path, Equals, "/usr/bin/xdelta3")
+			c.Assert(len(cmds[2].Args), Equals, 6)
+			c.Assert(cmds[2].Args[0:3], DeepEquals, []string{"/usr/bin/xdelta3", "-d", "-f"})
+			deltaPipePath := cmds[2].Args[5]
+
+			// Start a reader in the background to capture what the deltaWriter sends.
+			readResult := make(chan []byte)
+			go func() {
+				r, _ := os.Open(deltaPipePath)
+				defer r.Close()
+				data, _ := io.ReadAll(r)
+				readResult <- data
+			}()
+
+			// Run the deltaWriter routine provided by applyXdelta3Delta.
+			err := tasks[0]()
+			c.Assert(err, IsNil)
+
+			// Validate that the data read from the pipe matches the payload
+			// (skipping the 32-byte header).
+			pipeData := <-readResult
+			c.Check(string(pipeData), Equals, string(expectedData))
+
+			return nil
+		})()
+
+	// Execute
 	err = squashfs.ApplyDelta(sourceSnap, deltaPath, "target.snap")
 	c.Assert(err, IsNil)
 }
@@ -612,4 +705,15 @@ func (s *DeltaTestSuite) TestApplyDeltaInvalidFlagsInHeader(c *C) {
 	err := squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches,
 		"bad flags from delta header: this does not look like Squashfs 4\\+ superblock flags")
+}
+
+func (s *DeltaTestSuite) TestGenerateDeltaTargetUnsupportedCompressionOptions(c *C) {
+	src := s.createMockSnap(c, "source.snap", 1000, 1, 0)
+	// Create a target snap with the flagCompressorOptions bit set (0x0400)
+	dst := s.createMockSnap(c, "target_with_opts.snap", 2000, 1, 0x0400)
+
+	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
+
+	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	c.Assert(err, ErrorMatches, "compression options section present in target, which is unsupported")
 }

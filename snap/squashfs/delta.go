@@ -105,8 +105,12 @@ const (
 // squashfs format constants
 const (
 	// Offsets in squashfs file
-	modificationTimeOffset = 8
-	superblockFlagsOffset  = 24
+	sqModificationTimeOffset = 8
+	sqCompressionIdOffset    = 20
+	sqSuperblockFlagsOffset  = 24
+	sqMajorVersionOffset     = 28
+	sqMinorVersionOffset     = 30
+	sqRootInodeRefOffset     = 32
 	// SquashFS Superblock Flags
 	flagCheck             uint16 = 0x0004
 	flagNoFragments       uint16 = 0x0010
@@ -162,17 +166,29 @@ type SnapDeltaHeader struct {
 // from a squashfs superblock and writes that in the corresponding delta header
 // fields.
 func (h *SnapDeltaHeader) fillDeltaHeaderFromSnap(f *os.File) error {
-	buf := make([]byte, 26) // Read enough for all fields
-	if _, err := f.ReadAt(buf, modificationTimeOffset); err != nil {
-		return err
+	buf := make([]byte, sqRootInodeRefOffset) // Read enough for all fields
+	// ReadAt will return error too if read bytes < len(buf)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		return fmt.Errorf("while reading target: %w", err)
 	}
 
-	// Timestamp @ offset 8 (u32): 8 -> 0
-	h.Timestamp = binary.LittleEndian.Uint32(buf[0:4])
-	// Compression @ offset 20 (u16): 20 -> 12
-	h.Compression = binary.LittleEndian.Uint16(buf[12:14])
-	// Flags @ offset 24 (u16): 24 -> 16
-	h.Flags = binary.LittleEndian.Uint16(buf[16:18])
+	// Timestamp @ offset 8 (u32)
+	h.Timestamp = binary.LittleEndian.Uint32(buf[sqModificationTimeOffset : sqModificationTimeOffset+4])
+	// Compression @ offset 20 (u16)
+	h.Compression = binary.LittleEndian.Uint16(buf[sqCompressionIdOffset : sqCompressionIdOffset+2])
+	// Flags @ offset 24 (u16)
+	h.Flags = binary.LittleEndian.Uint16(buf[sqSuperblockFlagsOffset : sqSuperblockFlagsOffset+2])
+	if h.Flags&flagCompressorOptions != 0 {
+		return fmt.Errorf("compression options section present in target, which is unsupported")
+	}
+	// Major/minor @ offset 28, (2*u16)
+	// We expect squashfs 4.0 format
+	major := binary.LittleEndian.Uint16(buf[sqMajorVersionOffset : sqMajorVersionOffset+2])
+	minor := binary.LittleEndian.Uint16(buf[sqMinorVersionOffset : sqMinorVersionOffset+2])
+	if major != 4 || minor != 0 {
+		return fmt.Errorf("unexpected squashfs version %d.%d", major, minor)
+	}
+
 	return nil
 }
 
@@ -262,16 +278,6 @@ func generateSnapDelta(ctx context.Context, sourceSnap, targetSnap, delta string
 		return fmt.Errorf("cannot open target: %w", err)
 	}
 	defer targetFile.Close()
-
-	// Read superblock flags
-	var flagsBuf [2]byte
-	if _, err := targetFile.ReadAt(flagsBuf[:], superblockFlagsOffset); err != nil {
-		return fmt.Errorf("cannot read target flags: %w", err)
-	}
-	if binary.LittleEndian.Uint16(flagsBuf[:])&flagCompressorOptions != 0 {
-		logger.Noticef("custom compression options present in target, falling back to plain xdelta3")
-		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
-	}
 
 	// Build delta header, using the target header. Note that currently the
 	// only supported delta tool is DeltaToolXdelta3.
@@ -370,13 +376,8 @@ func applySnapDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFil
 	}
 	mksqfsArgs = append(mksqfsArgs, "-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10))
 
-	// run delta apply for given deta tool
-	switch hdr.DeltaTool {
-	case DeltaToolXdelta3:
-		return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs)
-	default:
-		return fmt.Errorf("unsupported delta tool 0x%X", hdr.DeltaTool)
-	}
+	// run delta apply for given deta tool - DeltaToolXdelta3 is the only supported one atm
+	return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs)
 }
 
 // generatePlainXdelta3Delta generates a delta between compressed snaps
@@ -412,7 +413,34 @@ func applyPlainXdelta3Delta(ctx context.Context, sourceSnap, delta, targetSnap s
 // not read from stdin.
 //
 // The output of xdelta3 is sent to deltaFile, which is an open file where we
-// already stored the snap delta header.
+// already stored the snap delta header. This diagram summarizes this:
+//
+//	+-----------------+             +-----------------+
+//	|   sourceSnap    |             |   targetSnap    |
+//	+-------+---------+             +-------+---------+
+//	        |                               |
+//	        v                               v
+//	+-----------------+             +-----------------+
+//	|   unsquashfs    |             |   unsquashfs    |
+//	| (pseudo-format) |             | (pseudo-format) |
+//	+-------+---------+             +-------+---------+
+//	        |                               |
+//	        | [named pipe: src-pipe]        | [named pipe: trgt-pipe]
+//	        |                               |
+//	        +--------------+ +--------------+
+//	                       | |
+//	                       v v
+//	            +-------------------------+
+//	            |         xdelta3         |
+//	            |    (calculate delta)    |
+//	            +------------+------------+
+//	                         |
+//	                         | (stdout)
+//	                         v
+//	            +-------------------------+
+//	            |       deltaFile         |
+//	            | (Appended after header) |
+//	            +-------------------------+
 func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, targetSnap string) error {
 	// Setup named pipes
 	tempDir, pipes, err := setupPipes("src-pipe", "trgt-pipe")
@@ -461,7 +489,34 @@ func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, t
 // as we have to remove the snap delta header that is stored before the xdelta3
 // data in deltaFile. We can use a regular pipe to stream data between xdelta3
 // and mksquashfs, as the former can write to stdout and the latter can read
-// the pseudo-file from stdin.
+// the pseudo-file from stdin. This diagram summarizes this:
+//
+//	+-----------------+
+//	|   sourceSnap    | (SquashFS file)
+//	+-------+---------+
+//	        |
+//	        v
+//	+-----------------+      [named pipe: srcPipe]      +-----------------+
+//	|   unsquashfs    | ------------------------------> |                 |
+//	| (pseudo-format) |                                 |     xdelta3     |
+//	+-----------------+                                 |  (apply delta)  |
+//	                                                    |                 |
+//	+-----------------+      [named pipe: deltaPipe]    |                 |
+//	|  deltaWriter    | ------------------------------> |                 |
+//	|  (goroutine)    | (raw xdelta3 data)              +--------+--------+
+//	+-------+---------+                                          |
+//	        ^                                                    | (stdout pipe)
+//	        |                                                    |
+//	+-------+---------+                                          v
+//	|    deltaFile    |                                 +-----------------+
+//	| (Seek past 32b) |                                 |   mksquashfs    |
+//	+-----------------+                                 | (rebuild snap)  |
+//	                                                    +--------+--------+
+//	                                                             |
+//	                                                             v
+//	                                                    +-----------------+
+//	                                                    |   targetSnap    |
+//	                                                    +-----------------+
 func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, mksqfsHdrArgs []string) error {
 	// setup pipes to apply delta
 	tempDir, pipes, err := setupPipes("src", "delta")
