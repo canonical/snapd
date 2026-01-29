@@ -246,7 +246,7 @@ owner @{HOME}/.config/kdeglobals r,
 
 # lxqt theming support
 # Note: Subfolders are ignored to avoid providing access to files that involve more than just simple LXQt configurations.
-owner @{HOME}/.config/lxqt/*.conf r,
+owner @{HOME}/.config/lxqt/* r,
 
 # kvantum theming support
 owner @{HOME}/.config/Kvantum/** r,
