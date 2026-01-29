@@ -623,3 +623,21 @@ func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts
 func (sts *snapInstallTaskSet) TaskSet() *state.TaskSet {
 	return sts.ts
 }
+
+type SnapInstallTaskSet = snapInstallTaskSet
+
+func NewSnapInstallTaskSetForTest(
+	snapsup *SnapSetup,
+	ts *state.TaskSet,
+	beforeLocalSystemModificationsTasks, upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
+) SnapInstallTaskSet {
+	return SnapInstallTaskSet{
+		ts:                                  ts,
+		snapsup:                             snapsup,
+		beforeLocalSystemModificationsTasks: beforeLocalSystemModificationsTasks,
+		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
+		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
+	}
+}
+
+var ArrangeInstallTasksForSingleReboot = arrangeInstallTasksForSingleReboot
