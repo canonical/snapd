@@ -6,7 +6,7 @@ details: |
 
 # this is a UC20+ specific test
 # TODO this currently fails on ubuntu-20.04-64 timing out
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64, ubuntu-26.04-64]
 
 environment:
     # nested test so that we can test encryted installs eventually
@@ -108,8 +108,16 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
   rm -rf classic-seed
 
-
   # do some light checking that the system is valid
+  if os.query is_ubuntu_ge 25.10; then
+      # satisfy preinstall check need for locating boot images
+      mkdir -p /cdrom/EFI/boot/
+      touch /cdrom/EFI/boot/bootx64.efi
+      touch /cdrom/EFI/boot/grubx64.efi
+      mkdir -p /cdrom/casper
+      touch /cdrom/casper/vmlinuz
+  fi
+
   snap debug api /v2/systems | gojq '.result.systems[0].label' | MATCH "$LABEL"
   snap debug api "/v2/systems/$LABEL" > system
   gojq '.result.model.distribution' system | MATCH "ubuntu"
