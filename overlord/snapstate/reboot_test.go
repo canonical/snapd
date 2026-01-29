@@ -353,7 +353,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsUC16NoSplits(c *C) {
 		{name: "core20", type_: snap.TypeBase},
 		{name: "my-app", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// core, kernel should have individual restart boundaries
@@ -383,7 +383,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssential(c *C) {
 		{name: "my-kernel", type_: snap.TypeKernel},
 		{name: "my-app", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Snapd should have no restart boundaries
@@ -418,7 +418,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 		{name: "core20", type_: snap.TypeBase},
 		{name: "my-kernel", type_: snap.TypeKernel},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Expect restart boundaries on both
@@ -492,7 +492,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 		{name: "core20", type_: snap.TypeBase},
 		{name: "brand-gadget", type_: snap.TypeGadget},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Expect restart boundaries on both
@@ -566,7 +566,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 		{name: "brand-gadget", type_: snap.TypeGadget},
 		{name: "my-kernel", type_: snap.TypeKernel},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Expect restart boundaries on both
@@ -641,7 +641,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 		{name: "brand-gadget", type_: snap.TypeGadget},
 		{name: "my-kernel", type_: snap.TypeKernel},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	linkSnapBase := tss[0].MaybeEdge(snapstate.MaybeRebootEdge)
@@ -730,7 +730,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapd(c *C) {
 		{name: "snapd", type_: snap.TypeSnapd},
 		{name: "core20", type_: snap.TypeBase},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Do not expect any restart boundaries to be set on snapd
@@ -759,7 +759,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBootBaseAndOtherBases(c *C) 
 		{name: "core18", type_: snap.TypeBase},
 		{name: "my-app", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Only the boot-base should have restart boundary.
@@ -801,7 +801,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBaseAndWithout(c 
 		{name: "snap-base-app", base: "snap-base", type_: snap.TypeApp},
 		{name: "snap-other-app", base: "other-base", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// No restart boundaries
@@ -835,7 +835,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBootBaseAndWithou
 		{name: "snap-core20-app", base: "snap-core20", type_: snap.TypeApp},
 		{name: "snap-other-app", base: "other-base", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// Restart boundaries is set for core20 as the boot-base
@@ -873,7 +873,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsAll(c *C) {
 		{name: "core", type_: snap.TypeOS},
 		{name: "my-app", type_: snap.TypeApp},
 	})
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
 
 	// snapd has no restart boundaries set
@@ -904,6 +904,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsFailsSplit(c *C) {
 	stss := []snapstate.SnapInstallTaskSet{
 		snapstate.NewSnapInstallTaskSetForTest(nil, nil, nil, nil, nil),
 	}
-	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, nil, stss)
+	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, ErrorMatches, `internal error: snap install task set has empty slices`)
 }
