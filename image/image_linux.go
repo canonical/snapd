@@ -890,10 +890,9 @@ func (s *imageSeeder) finish() error {
 
 	// run validation-set checks, this is also done by store but
 	// we double-check for the seed.
-	if s.customizations.Validation != "ignore" {
-		if err := s.w.CheckValidationSets(); err != nil {
-			return err
-		}
+	modelEnforcedOnly := s.customizations.Validation == "ignore"
+	if err := s.w.CheckValidationSets(modelEnforcedOnly); err != nil {
+		return err
 	}
 
 	copySnap := func(name, src, dst string) error {
