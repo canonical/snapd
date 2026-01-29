@@ -33,6 +33,12 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
+  verify_module_loaded() {
+    if [ "$(remote.exec modinfo --field=filename "${1}")" != "(builtin)" ]; then
+      remote.exec lsmod | MATCH "${1}"
+    fi
+  }
+
   check_efi_pstore() {
       # Compare times to check that drivers tree was created on
       # installation, not on seeding
@@ -51,7 +57,7 @@ execute: |
       # module comes from a component
       remote.exec modinfo -F filename efi_pstore | MATCH updates/"$KMOD_COMP"/kmod/efi-pstore.ko
       # module should have been loaded (pulled by systemd-pstore.service)
-      remote.exec lsmod | MATCH efi_pstore
+      verify_module_loaded efi_pstore
       # Make sure it was loaded early
       remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
   }
@@ -59,17 +65,23 @@ execute: |
   # check component from store has been early-installed
   check_efi_pstore
   # Additionally, check that modules loaded by systemd right after switch root could be loaded
-  remote.exec lsmod | MATCH ahci
+  # Please only verify modules from kmod_setup in
+  # https://github.com/systemd/systemd/blob/main/src/core/kmod-setup.c
+  verify_module_loaded autofs4
+  verify_module_loaded dmi_sysfs
   # No mounts for unset versions are found
-  mount | not MATCH efi-pstore_unset
-  mount | not MATCH pc-kernel_unset
+  remote.exec mount | not MATCH efi-pstore_unset
+  remote.exec mount | not MATCH pc-kernel_unset
 
   # reboot and check again
   boot_id=$(tests.nested boot-id)
   remote.exec sudo reboot || true
   tests.nested wait-for reboot "$boot_id"
   check_efi_pstore
-  remote.exec lsmod | MATCH ahci
+  # Please only verify modules from kmod_setup in
+  # https://github.com/systemd/systemd/blob/main/src/core/kmod-setup.c
+  verify_module_loaded autofs4
+  verify_module_loaded dmi_sysfs
 
   # remove kernel component
   remote.exec sudo snap remove pc-kernel+"$KMOD_COMP"
