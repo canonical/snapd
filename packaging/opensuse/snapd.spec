@@ -615,6 +615,7 @@ fi
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.mounts.target
 %{_unitdir}/snapd.mounts-pre.target
+%{_unitdir}/snapd.system-services-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 
