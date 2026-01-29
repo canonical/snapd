@@ -75,7 +75,7 @@ post:
             - action
           example:
             action: "forget"
-            no-registration-until-reboot": true
+            no-registration-until-reboot: true
   responses:
     202:
       $ref: '../components/responses/Accepted.yaml'
