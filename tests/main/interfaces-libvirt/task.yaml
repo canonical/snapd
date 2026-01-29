@@ -16,7 +16,7 @@ details: |
 systems: [ubuntu-2*]
 
 skip:
-    - reason: he snap test-snapd-libvirt-consumer is just available for amd64
+    - reason: The snap test-snapd-libvirt-consumer is just available for amd64
       if: not os.query is-pc-amd64
 
 prepare: |

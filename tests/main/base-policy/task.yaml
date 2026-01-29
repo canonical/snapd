@@ -15,7 +15,7 @@ details: |
     rely on unit tests to ensure that base snaps don't have core-only rules).
 
 skip:
-    - reason: The system has not strict confinement
+    - reason: The system does not have strict confinement
       if: |
         [ "$(snap debug confinement)" != strict ]
 
