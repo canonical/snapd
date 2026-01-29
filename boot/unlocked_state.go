@@ -95,14 +95,3 @@ func LoadDiskUnlockState(name string) (*DiskUnlockState, error) {
 
 	return ret, nil
 }
-
-// IsUnlockedWithRecoveryKey tells whether a recovery key has been
-// typed to unlock a disk during boot.
-func IsUnlockedWithRecoveryKey() (bool, error) {
-	state, err := LoadDiskUnlockState(UnlockedStateFileName)
-	if err != nil {
-		return false, err
-	}
-
-	return state.UbuntuData.UnlockKey == "recovery" || state.UbuntuSave.UnlockKey == "recovery", nil
-}

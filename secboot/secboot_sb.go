@@ -111,6 +111,95 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+func shouldAttemptRepairOnFailure(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorNone:
+				return false
+			case sb.KeyslotErrorIncorrectUserAuth:
+				return false
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			}
+		}
+	}
+	return true
+}
+
+func ShouldAttemptRepair(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		if activation.Status == sb.ActivationSucceededWithRecoveryKey || activation.Status == sb.ActivationFailed {
+			return shouldAttemptRepairOnFailure(a)
+		}
+	}
+
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			// No error
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			// Require reprovision:
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+
+			// Repair
+			case sb.KeyslotErrorIncompatibleRoleParams:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// ActivateStateHasDegradedErrors looks for any error that is not
+// ignorable and should be reported on an ActivateState.
+// This function assumes all activations have been unlocked using
+// platform key. The caller should call this function only in this
+// case.
+func ActivateStateHasDegradedErrors(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			case sb.KeyslotErrorInvalidKeyData:
+				// FIXME: specs this is degraded. But we
+				// have this case where we use external
+				// key data files. Maybe secboot should
+				// provide a different error code.
+
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return true
+			case sb.KeyslotErrorPlatformFailure:
+				return true
+			case sb.KeyslotErrorUnknown:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
 	State() *ActivateState

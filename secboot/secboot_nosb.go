@@ -206,12 +206,20 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 type ActivateState struct {
 }
 
+func ActivateStateHasDegradedErrors(a *ActivateState) bool {
+	return false
+}
+
 func (*ActivateState) TotalActivatedContainers() uint {
 	return 0
 }
 
 func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
 	return 0
+}
+
+func ShouldAttemptRepair(a *ActivateState) bool {
+	return false
 }
 
 type ActivateContext interface {

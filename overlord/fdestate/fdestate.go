@@ -22,7 +22,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io/fs"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -43,6 +43,7 @@ var (
 	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
 	secbootGetPCRHandle           = secboot.GetPCRHandle
+	secbootProvisionTPM           = secboot.ProvisionTPM
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -857,14 +858,15 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		}
 	}
 
-	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	activateState, err := SystemState(st)
+	if err != nil {
 		return nil, err
 	}
-	if unlockedWithRecoveryKey {
+	if activateState.Status != FDEStatusActive && activateState.Status != FDEStatusDegraded {
 		// Primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
-		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
+		// We need to allow degraded state, as this function might be part of fixing.
+		return nil, fmt.Errorf("cannot replace platform keys if FDE is not active (current state: %v)", activateState.Status)
 	}
 
 	// Note: Checking that there are no ongoing conflicting changes and that the
@@ -945,4 +947,154 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	ts.AddTask(renameTemporaryKeys)
 
 	return ts, nil
+}
+
+type AutoRepairResult string
+
+const (
+	AutoRepairNotAttempted            AutoRepairResult = "not-attempted"
+	AutoRepairFailedPlatformInit      AutoRepairResult = "failed-platform-init"
+	AutoRepairFailedKeyslots          AutoRepairResult = "failed-keyslots"
+	AutoRepairFailedEncryptionSupport AutoRepairResult = "failed-encryption-support"
+	AutoRepairSuccess                 AutoRepairResult = "success"
+)
+
+type repairState struct {
+	Result AutoRepairResult `json:"result"`
+}
+
+type repairStateForBoot struct {
+	BootID string       `json:"boot-id"`
+	State  *repairState `json:"state"`
+}
+
+const fdeRepairStateKey = "fde-repair-state"
+
+func SetRepairAttemptResult(st *state.State, rs *repairState) error {
+	bootId, err := osutil.BootID()
+	if err != nil {
+		return err
+	}
+	st.Set(fdeRepairStateKey, &repairStateForBoot{
+		BootID: bootId,
+		State:  rs,
+	})
+	return nil
+}
+
+func GetRepairAttemptResult(st *state.State) (*repairState, error) {
+	var rs repairStateForBoot
+	if err := st.Get(fdeRepairStateKey, &rs); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	bootId, err := osutil.BootID()
+	if err != nil {
+		return nil, err
+	}
+
+	if rs.BootID != bootId {
+		st.Set(fdeRepairStateKey, nil)
+		return nil, nil
+	}
+
+	return rs.State, nil
+}
+
+func AutoRepair(st *state.State) (AutoRepairResult, error) {
+	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil {
+		return AutoRepairNotAttempted, err
+	}
+
+	switch method {
+	case device.SealingMethodFDESetupHook:
+	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		// FIXME: re-run platform checks (post install checks?)
+		// Then maybe return AutoRepairFailedEncryptionSupport
+
+		lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
+		if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
+			logger.Noticef("WARNING: could not repair platform: %v", err)
+			return AutoRepairFailedPlatformInit, nil
+		}
+	default:
+		return AutoRepairNotAttempted, fmt.Errorf("unknown key sealing method: %q", method)
+	}
+
+	mgr := fdeMgr(st)
+	wrapped := &unlockedStateManager{
+		FDEManager: mgr,
+		unlocker:   st.Unlocker(),
+	}
+	err = boot.WithBootChains(func(bc boot.BootChains) error {
+		params := boot.ResealKeyForBootChainsParams{
+			BootChains: bc,
+			Options:    boot.ResealKeyToModeenvOptions{Force: true},
+		}
+		return backendResealKeyForBootChains(wrapped, method, dirs.GlobalRootDir, &params)
+	}, method)
+
+	if err != nil {
+		logger.Noticef("WARNING: could not auto repair keyslots: %v", err)
+		return AutoRepairFailedKeyslots, nil
+	}
+
+	return AutoRepairSuccess, nil
+}
+
+func AttemptAutoRepairIfNeeded(st *state.State, locktoutResetErr error) error {
+	if locktoutResetErr != nil {
+		// FIXME: we need to either try repair in some cases and save the
+		// error for the status API
+		return locktoutResetErr
+	}
+
+	previousResult, err := GetRepairAttemptResult(st)
+	if err != nil {
+		return err
+	}
+	if previousResult != nil {
+		return nil
+	}
+
+	s, err := GetActivateState(st)
+
+	if err == errNoActivateState {
+		logger.Noticef("WARNING: the system booted with an old initrd without using activation API")
+		unlockedState, err := bootLoadDiskUnlockState("unlocked.json")
+		if err != nil {
+			// errNoActivateState means the file must exist
+			return err
+		}
+		if unlockedState.UbuntuData.UnlockKey != "recovery" && unlockedState.UbuntuSave.UnlockKey != "recovery" {
+			SetRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+			return nil
+		}
+	} else if os.IsNotExist(err) {
+		logger.Noticef("WARNING: the system booted with an old initrd without unlocked status reporting")
+		SetRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+		return nil
+	} else if err != nil {
+		logger.Noticef("WARNING: error while getting activation state: %v", err)
+		SetRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+		return nil
+	} else {
+		if !secboot.ShouldAttemptRepair(s) {
+			SetRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+			return nil
+		}
+	}
+
+	result, err := AutoRepair(st)
+	if err != nil {
+		return err
+	}
+	SetRepairAttemptResult(st, &repairState{Result: result})
+
+	return nil
 }
