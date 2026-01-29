@@ -812,11 +812,11 @@ defaults:
 EOF
             local GADGET_EXTRA_CMDLINE=""
             if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
-                # add snapd debug and log to serial console for extra
-                # visibility what happens when a machine fails to boot
-                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
-            elif os.query is-arm; then
-                GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
+                if os.query is-arm; then
+                    GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
+                else
+                    GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+                fi
             fi
 
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
