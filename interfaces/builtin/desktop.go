@@ -244,6 +244,13 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 # kde theming support
 owner @{HOME}/.config/kdeglobals r,
 
+# lxqt theming support
+# Note: Subfolders are ignored to avoid providing access to files that involve more than just simple LXQt configurations.
+owner @{HOME}/.config/lxqt/*.conf r,
+
+# kvantum theming support
+owner @{HOME}/.config/Kvantum/** r,
+
 /usr/share/icons/                          r,
 /usr/share/icons/**                        r,
 /usr/share/icons/*/index.theme             rk,
