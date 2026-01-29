@@ -430,3 +430,27 @@ func ValidateDBusBusName(busName string) error {
 	}
 	return nil
 }
+
+// DeferredConsumerUpdating is implemented by interfaces for which some, backend
+// specific, setup work related to the plug side of an established connection
+// can be deferred until a given operation completes.
+//
+// For instance, an update of the content consumer mount namespace may be
+// deferred in such manner.
+type DeferredConsumerUpdating interface {
+	// SupportsDeferredConsumerUpdate returns true when an interface indicates
+	// that the security backend update pertaining to the plug side of the
+	// connection can be run in a deferred manner.
+	SupportsDeferredConsumerUpdate() bool
+}
+
+func SupportsDeferredPlugUpdating(iface Interface) bool {
+	deferredIface, ok := iface.(DeferredConsumerUpdating)
+	return ok && deferredIface.SupportsDeferredConsumerUpdate()
+}
+
+// DeferredProducerUpdating is similar to DeferredConsumerUpdating, but relates
+// to the slot side of an established connection.
+type DeferredProducerUpdating interface {
+	SupportsDeferredProducerUpdate() bool
+}

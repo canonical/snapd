@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -84,26 +85,42 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 		return interfaces.ConfinementOptions{}
 	}
 
+	setupContext := func(snapName string) interfaces.SetupContext {
+		if snapName == "some-snap" {
+			return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate}
+		}
+		return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate}
+	}
+
 	setupCalls := 0
 	setupManyCalls := 0
 
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake",
-			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 				setupCalls++
 				return nil
 			},
 		},
-		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
+			confinement func(snapName string) interfaces.ConfinementOptions,
+			sctx func(snapName string) interfaces.SetupContext,
+			repo *interfaces.Repository, tm timings.Measurer,
+		) []error {
 			c.Assert(appSets, HasLen, 2)
 			c.Check(appSets[0].Info().SnapName(), Equals, "some-snap")
 			c.Check(appSets[1].Info().SnapName(), Equals, "other-snap")
+			c.Assert(sctx, NotNil)
+			c.Check(sctx(appSets[0].Info().SnapName()),
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+			c.Check(sctx(appSets[1].Info().SnapName()),
+				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 			setupManyCalls++
 			return nil
 		},
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, s.tm)
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, setupContext, s.tm)
 	c.Check(errs, HasLen, 0)
 	c.Check(setupManyCalls, Equals, 1)
 	c.Check(setupCalls, Equals, 0)
@@ -111,25 +128,35 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 
 func (s *HelpersSuite) TestSetupManyRunsSetupIfSetupManyNotImplemented(c *C) {
 	setupCalls := 0
-	confinementOptsCalls := 0
+	var confinementOptsCalls []string
+	var setupContextCalls []string
 
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "fake",
-		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 			setupCalls++
 			return nil
 		},
 	}
 
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
-		confinementOptsCalls++
+		confinementOptsCalls = append(confinementOptsCalls, snapName)
 		return interfaces.ConfinementOptions{}
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, s.tm)
+	setupContext := func(snapName string) interfaces.SetupContext {
+		setupContextCalls = append(setupContextCalls, snapName)
+		return interfaces.SetupContext{
+			Reason: interfaces.SnapSetupReasonOther,
+		}
+	}
+
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2},
+		confinementOpts, setupContext, s.tm)
 	c.Check(errs, HasLen, 0)
 	c.Check(setupCalls, Equals, 2)
-	c.Check(confinementOptsCalls, Equals, 2)
+	c.Check(confinementOptsCalls, DeepEquals, []string{"some-snap", "other-snap"})
+	c.Check(setupContextCalls, DeepEquals, []string{"some-snap", "other-snap"})
 }
 
 func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
@@ -143,19 +170,25 @@ func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{
 			BackendName: "fake",
-			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 				setupCalls++
 				return nil
 			},
 		},
-		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
+			confinement func(snapName string) interfaces.ConfinementOptions,
+			sctx func(snapName string) interfaces.SetupContext,
+			repo *interfaces.Repository, tm timings.Measurer,
+		) []error {
 			c.Check(appSets, HasLen, 2)
 			setupManyCalls++
 			return []error{fmt.Errorf("error1"), fmt.Errorf("error2")}
 		},
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, s.tm)
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName string) interfaces.SetupContext {
+		return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	}, s.tm)
 	c.Check(errs, HasLen, 2)
 	c.Check(setupManyCalls, Equals, 1)
 	c.Check(setupCalls, Equals, 0)
@@ -169,13 +202,76 @@ func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
 	setupCalls := 0
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "fake",
-		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
 			setupCalls++
 			return fmt.Errorf("error %d", setupCalls)
 		},
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, s.tm)
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName string) interfaces.SetupContext {
+		return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	}, s.tm)
 	c.Check(errs, HasLen, 2)
 	c.Check(setupCalls, Equals, 2)
+}
+
+func (s *HelpersSuite) TestSetupDeferredNotImplemented(c *C) {
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			panic("unexpected call")
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 0)
+}
+
+func (s *HelpersSuite) TestSetupDeferredHappy(c *C) {
+	var deferredCalls []string
+
+	backend := &ifacetest.TestSecurityBackendSetupDeferred{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		SetupDeferredCallback: func(appSet *interfaces.SnapAppSet) error {
+			deferredCalls = append(deferredCalls, appSet.InstanceName())
+			return nil
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 0)
+	c.Check(deferredCalls, DeepEquals, []string{"some-snap", "other-snap"})
+}
+
+func (s *HelpersSuite) TestSetupDeferredErrs(c *C) {
+	var deferredCalls []string
+
+	backend := &ifacetest.TestSecurityBackendSetupDeferred{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				panic("unexpected call")
+			},
+		},
+
+		SetupDeferredCallback: func(appSet *interfaces.SnapAppSet) error {
+			name := appSet.InstanceName()
+			deferredCalls = append(deferredCalls, appSet.InstanceName())
+			if name == "other-snap" {
+				return fmt.Errorf("mock error")
+			}
+			return nil
+		},
+	}
+
+	errs := interfaces.SetupDeferred(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, s.tm)
+	c.Check(errs, HasLen, 1)
+	c.Check(strutil.JoinErrors(errs...), ErrorMatches, "mock error")
+	c.Check(deferredCalls, DeepEquals, []string{"some-snap", "other-snap"})
 }

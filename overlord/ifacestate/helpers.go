@@ -285,7 +285,15 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 			if backend.Name() == "" {
 				continue // Test backends have no name, skip them to simplify testing.
 			}
-			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, tm); len(errors) > 0 {
+			// Default setup context for regeneration
+			defaultSetupCtx := func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{
+					Reason: interfaces.SnapSetupReasonOther,
+					// not running in task context, nothing can be deferred
+					CanDefer: false,
+				}
+			}
+			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, defaultSetupCtx, tm); len(errors) > 0 {
 				logger.Noticef("cannot regenerate %s profiles", backend.Name())
 				for _, err := range errors {
 					logger.Notice(err.Error())
@@ -395,8 +403,8 @@ func isBroken(st *state.State, snapName string) (bool, error) {
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
 //
-// The return value is the list of affected snap names.
-func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) {
+// The return value is the list of affected snap names and their connection IDs.
+func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, err error) {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return nil, err
@@ -425,7 +433,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 
 	connStateChanged := false
-	affected := make(map[string]bool)
+
+	var reloadedConnections []string
 ConnsLoop:
 	for connId, connState := range conns {
 		// Skip entries that just mark a connection as undesired. Those don't
@@ -529,8 +538,7 @@ ConnsLoop:
 		} else {
 			// If the connection succeeded update the connection state and keep
 			// track of the snaps that were affected.
-			affected[connRef.PlugRef.Snap] = true
-			affected[connRef.SlotRef.Snap] = true
+			reloadedConnections = append(reloadedConnections, connId)
 
 			if updateStaticAttrs {
 				connState.StaticPlugAttrs = staticPlugAttrs
@@ -543,11 +551,7 @@ ConnsLoop:
 		setConns(m.state, conns)
 	}
 
-	result := make([]string, 0, len(affected))
-	for name := range affected {
-		result = append(result, name)
-	}
-	return result, nil
+	return reloadedConnections, nil
 }
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
@@ -579,7 +583,7 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
 	if len(appSets) != len(opts) {
 		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
 	}
@@ -595,8 +599,14 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	// Setup all affected snaps, start with the most important security
 	// backend and run it for all snaps. See LP: 1802581
 	for _, backend := range m.repo.Backends() {
+		logger.Debugf("setup %v for snaps: %v", backend.Name(), appSets)
 		errs := interfaces.SetupMany(m.repo, backend, appSets, func(snapName string) interfaces.ConfinementOptions {
 			return confOpts[snapName]
+		}, func(snapName string) interfaces.SetupContext {
+			if ctx, ok := sctxs[snapName]; ok {
+				return ctx
+			}
+			return interfaces.SetupContext{}
 		}, tm)
 		if len(errs) > 0 {
 			// SetupMany processes all profiles and returns all encountered errors; report just the first one
@@ -607,8 +617,12 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	return nil
 }
 
+// TODO:deferred-mount-ns-update: pass SetupContext
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, tm)
+	sctxs := map[string]interfaces.SetupContext{
+		appSet.InstanceName(): {Reason: interfaces.SnapSetupReasonOther, CanDefer: false},
+	}
+	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {

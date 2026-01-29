@@ -51,7 +51,7 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // configuration files and re-create the ld cache.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

@@ -194,7 +194,7 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	_, err = s.Repo.Connect(connRef2, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	checkSymlink(c, "/snap/somesnap1/1/target.so", "/usr/lib/foo/bar.so")
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo/bar2.so")
@@ -202,7 +202,7 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	// Now disconnect the first slot and set-up backends again
 	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
-	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around
 	c.Check(filepath.Join(controlledDir, "bar.so"), testutil.LFileAbsent)
@@ -251,7 +251,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	_, slotInfo1 := s.mockSlot(c, someProvider1, "some-driver-libs")
 	_, slotInfo2 := s.mockSlot(c, otherProvider, "other-driver-libs")
 
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	// Connect them
 	connRef1 := interfaces.NewConnRef(plugInfos[0], slotInfo1)
@@ -261,7 +261,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	_, err = s.Repo.Connect(connRef2, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	checkSymlink(c, "/snap/somesnap/1/target.so", "/usr/lib/foo/bar.so")
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo2/bar2.so")
@@ -269,7 +269,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	// Now disconnect the first slot and set-up backends again
 	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
-	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.LFileAbsent)
@@ -303,7 +303,7 @@ func (s *backendSuite) TestUnregisteredDirectory(c *C) {
 	_, err := s.Repo.Connect(connRef1, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), ErrorMatches,
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), ErrorMatches,
 		`internal error: .*/usr/lib/foo2 not in any registered symlinks directory`)
 
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo2/bar2.so"), testutil.LFileAbsent)
