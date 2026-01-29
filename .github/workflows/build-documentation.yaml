@@ -8,7 +8,9 @@ on:
 jobs:
   check-api:
     runs-on: ubuntu-latest
-    name: Check if changes have occurred in the API documentation
+    name: Check REST API documentation changes
+    outputs:
+      api_changed: ${{ steps.changed-api.outputs.any_changed }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -19,11 +21,12 @@ jobs:
         uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
         with:
           files: docs/api/**
+
   build-documentation:
     needs: check-api
-    if: check-api.steps.changed-api.outputs.any_changed == 'true'
+    if: needs.check-api.outputs.api_changed == 'true'
     runs-on: ubuntu-latest
-    name: Build REST API Documentation
+    name: Build REST API documentation
     steps:
       - name: Check Licensing/Copyright Compliance
         uses: docker://fsfe/reuse
