@@ -81,7 +81,7 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 	select {
 	case msg := <-callbackChan:
 		c.Assert(msg, Equals, "called")
-	case <-time.NewTimer(time.Minute).C:
+	case <-time.After(time.Minute):
 		// Goroutine may not start immediately, so allow some grace period
 		c.Fatal("callback did not complete")
 	}
@@ -108,7 +108,7 @@ func (s *testtimeSuite) TestAfterFunc(c *C) {
 	select {
 	case msg := <-callbackChan:
 		c.Assert(msg, Equals, "called")
-	case <-time.NewTimer(time.Minute).C:
+	case <-time.After(time.Minute):
 		// Goroutine may not start immediately, so allow some grace period
 		c.Fatal("callback did not complete")
 	}

@@ -1053,7 +1053,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 			c.Errorf("received unexpected listener request with ID %d", req.ID)
 		case repl := <-replyChan:
 			c.Errorf("received unexpected reply: %v", repl)
-		case <-time.NewTimer(10 * time.Millisecond).C:
+		case <-time.After(10 * time.Millisecond):
 			// all good
 		}
 
@@ -1068,12 +1068,12 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <-chan *listener.Request, replyChan <-chan notify.AppArmorPermission) (req *listener.Request, allowedPermission notify.AppArmorPermission, err error) {
 	select {
 	case req = <-listenerReqChan:
-	case <-time.NewTimer(10 * time.Second).C:
+	case <-time.After(10 * time.Second):
 		err = fmt.Errorf("failed to receive request over channel")
 	}
 	select {
 	case allowedPermission = <-replyChan:
-	case <-time.NewTimer(10 * time.Second).C:
+	case <-time.After(10 * time.Second):
 		err = fmt.Errorf("failed to receive reply over channel")
 	}
 	return req, allowedPermission, err
@@ -2197,7 +2197,7 @@ func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.
 	case info := <-noticeChan:
 		c.Assert(info.promptID, Equals, expectedID)
 		c.Assert(info.data, DeepEquals, expectedData)
-	case <-time.NewTimer(10 * time.Second).C:
+	case <-time.After(10 * time.Second):
 		c.Fatal("no notices")
 	}
 }
@@ -2213,7 +2213,7 @@ func checkCurrentNoticesMultiple(c *C, noticeChan chan noticeInfo, expectedIDs [
 		case info := <-noticeChan:
 			seen[info.promptID] += 1
 			c.Assert(info.data, DeepEquals, expectedData)
-		case <-time.NewTimer(10 * time.Second).C:
+		case <-time.After(10 * time.Second):
 			c.Fatal("no notices")
 		}
 	}
@@ -2226,7 +2226,7 @@ func waitForReply(c *C, replyChan chan notify.FilePermission) {
 		// Allow all permissions mapping to "read" for the "home" interface,
 		// which are read|getattr|getattr.
 		c.Assert(allowedPermission, Equals, notify.AA_MAY_READ|notify.AA_MAY_OPEN|notify.AA_MAY_GETATTR)
-	case <-time.NewTimer(10 * time.Second).C:
+	case <-time.After(10 * time.Second):
 		c.Fatalf("timed out waiting for reply")
 	}
 }
