@@ -2348,6 +2348,8 @@ func deferredWork(deferTask *state.Task) (deferredWork map[string]string, err er
 	return deferredWork, err
 }
 
+var deferredUpdatesTimeout = time.Second / 2
+
 func (m *InterfaceManager) doDeferredConsumerUpdate(task *state.Task, _ *tomb.Tomb) error {
 	//  Single catch all task handler for all deferred consumer updates.
 	//  Identify which snaps are affected and create new 'update' task for
@@ -2362,6 +2364,19 @@ func (m *InterfaceManager) doDeferredConsumerUpdate(task *state.Task, _ *tomb.To
 	defer st.Unlock()
 
 	logger.Debugf("deferred update coordination")
+
+	for _, tsk := range task.Change().LaneTasks(task.Lanes()...) {
+		switch {
+		case tsk.ID() == task.ID():
+			continue
+		case tsk.Status().Ready():
+			continue
+		case tsk.Kind() == "check-refrefresh":
+			continue
+		default:
+			return &state.Retry{After: deferredUpdatesTimeout, Reason: "pending refreshes"}
+		}
+	}
 
 	deferred, err := deferredWork(task)
 	if err != nil {
