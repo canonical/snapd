@@ -114,7 +114,7 @@ func checkListenerClosed(c *C, reqChan <-chan *listener.Request) {
 	case _, ok := <-reqChan:
 		// reqChan was already closed
 		c.Check(ok, Equals, false)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("listener was not closed")
 	}
 }
@@ -574,7 +574,7 @@ func waitForReply(replyChan chan apparmorprompting.RequestResponse) (*apparmorpr
 	select {
 	case resp := <-replyChan:
 		return &resp, nil
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		return nil, errNoReply
 	}
 }
@@ -1530,7 +1530,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c 
 	select {
 	case <-handleStarted:
 		c.Errorf("HandleReadying started before ready was signalled")
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		// all good
 	}
 
@@ -1541,7 +1541,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c 
 	select {
 	case <-handleStarted:
 		// all good
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Errorf("HandleReadying failed to start after ready was signalled")
 	}
 
@@ -1549,7 +1549,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c 
 	select {
 	case <-mgr.Ready():
 		c.Errorf("manager is ready before HandleReadying returned")
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		// all good
 	}
 
@@ -1560,7 +1560,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c 
 	select {
 	case <-mgr.Ready():
 		// all good
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Errorf("manager failed to become ready after HandleReadying returned")
 	}
 
@@ -1623,7 +1623,7 @@ func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorpromp
 	// Wait for function to start
 	<-startChan
 	// Wait another few milliseconds
-	<-time.NewTimer(10 * time.Millisecond).C
+	<-time.After(10 * time.Millisecond)
 	// Record the current time before readying
 	now := time.Now()
 	close(readyChan)

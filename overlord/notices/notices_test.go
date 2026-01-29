@@ -148,7 +148,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	select {
 	case waited = <-waitChan:
 		// all good
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatal("failed to receive notice from WaitNotice")
 	}
 	c.Check(waited, HasLen, 1)
