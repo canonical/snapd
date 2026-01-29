@@ -182,6 +182,7 @@ getpgid
 getpgrp
 getpid
 getppid
+pidfd_open
 getpriority
 getrandom
 getresgid
