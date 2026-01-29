@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -147,6 +148,17 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			return err
 		}
 		for i, ps := range pvol.LaidOutStructure {
+			// ubuntu-image uses the "part{}" nomenclature
+			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
+
+			// Handle system-boot-state partition (raw partition for U-Boot env)
+			if ps.Role() == gadget.SystemBootState {
+				if err := writeBootStatePartition(dst); err != nil {
+					return err
+				}
+				continue
+			}
+
 			if !ps.HasFilesystem() {
 				continue
 			}
@@ -154,8 +166,6 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			if err != nil {
 				return err
 			}
-			// ubuntu-image uses the "part{}" nomenclature
-			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
 			if ps.Role() == gadget.SystemSeed {
@@ -171,6 +181,24 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+// writeBootStatePartition creates the initial redundant U-Boot environment for a system-boot-state
+// partition. The output is a raw file containing two environment copies, each
+// DefaultRedundantEnvSize bytes.
+func writeBootStatePartition(dst string) error {
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+
+	// Create the environment image file (already saved by CreateRedundant)
+	envFile := filepath.Join(dst, "ubuntu-boot-state.img")
+	_, err := ubootenv.CreateRedundant(envFile, ubootenv.DefaultRedundantEnvSize)
+	if err != nil {
+		return fmt.Errorf("cannot create boot state environment: %v", err)
 	}
 
 	return nil

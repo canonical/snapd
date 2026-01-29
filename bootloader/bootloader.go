@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
@@ -439,6 +440,49 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	return nil
 }
 
+// ubootKernelAssets is the list of kernel assets to extract for U-Boot bootloaders.
+var ubootKernelAssets = []string{"kernel.img", "initrd.img", "dtbs/*"}
+
+// ubootName is the bootloader name for U-Boot implementations.
+const ubootName = "uboot"
+
+// envGetter is the interface for getting environment variables.
+type envGetter interface {
+	Get(string) string
+}
+
+// envSetter is the interface for setting environment variables and saving.
+type envSetter interface {
+	envGetter
+	Set(string, string)
+	Save() error
+}
+
+// getBootVarsFromEnv retrieves boot variables from a U-Boot environment.
+func getBootVarsFromEnv(env envGetter, names ...string) map[string]string {
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		out[name] = env.Get(name)
+	}
+	return out
+}
+
+// setBootVarsInEnv sets boot variables in a U-Boot environment, saving only if changed.
+func setBootVarsInEnv(env envSetter, values map[string]string) error {
+	dirty := false
+	for k, v := range values {
+		if env.Get(k) == v {
+			continue
+		}
+		env.Set(k, v)
+		dirty = true
+	}
+	if dirty {
+		return env.Save()
+	}
+	return nil
+}
+
 // ForGadget returns a bootloader matching a given gadget by inspecting the
 // contents of gadget directory or an error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
@@ -453,10 +497,34 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
 		// do we have a marker file?
 		if osutil.FileExists(markerConf) {
+			// For U-Boot, check if the gadget has a system-boot-state
+			// partition, which means we should use ubootpart instead
+			if bl.Name() == ubootName && gadgetHasSystemBootState(gadgetDir) {
+				return newUbootPart(rootDir, opts), nil
+			}
 			return bl, nil
 		}
 	}
 	return nil, ErrBootloader
+}
+
+// gadgetHasSystemBootState checks if the gadget has a partition with the system-boot-state role.
+func gadgetHasSystemBootState(gadgetDir string) bool {
+	gadgetYamlPath := filepath.Join(gadgetDir, "meta", "gadget.yaml")
+	if !osutil.FileExists(gadgetYamlPath) {
+		// Also try without meta/ prefix for unpacked gadgets
+		gadgetYamlPath = filepath.Join(gadgetDir, "gadget.yaml")
+		if !osutil.FileExists(gadgetYamlPath) {
+			return false
+		}
+	}
+
+	ginfo, err := gadget.ReadInfo(gadgetDir, nil)
+	if err != nil {
+		return false
+	}
+
+	return ginfo.HasRole(gadget.SystemBootState)
 }
 
 // BootFile represents each file in the chains of trusted assets and

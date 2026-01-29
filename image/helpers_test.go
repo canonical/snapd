@@ -118,6 +118,63 @@ func (t treeLines) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 
+var validGadgetYamlWithBootState = `
+volumes:
+  pi:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-boot-state
+        role: system-boot-state
+        type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+        offset: 1M
+        size: 1M
+      - name: ubuntu-seed
+        role: system-seed
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+      - name: ubuntu-boot
+        role: system-boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+        content:
+         - source: boot.scr
+           target: boot.scr
+      - name: ubuntu-data
+        role: system-data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+`
+
+func (s *imageSuite) TestWriteResolvedContentWithBootState(c *check.C) {
+	prepareImageDir := c.MkDir()
+
+	gadgetRoot := c.MkDir()
+	snaptest.PopulateDir(gadgetRoot, [][]string{
+		{"meta/snap.yaml", packageGadget},
+		{"meta/gadget.yaml", validGadgetYamlWithBootState},
+		{"boot.scr", "content of boot.scr"},
+	})
+	kernelRoot := c.MkDir()
+
+	model := s.makeUC20Model(nil)
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	c.Assert(err, check.IsNil)
+
+	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
+	c.Assert(err, check.IsNil)
+
+	// Check that system-boot-state partition created the environment file
+	envFile := filepath.Join(prepareImageDir, "resolved-content/pi/part0/ubuntu-boot-state.img")
+	c.Assert(envFile, check.Not(check.Equals), "")
+	fi, err := os.Stat(envFile)
+	c.Assert(err, check.IsNil)
+	// Should be 2 * DefaultRedundantEnvSize (2 * 8KB = 16KB)
+	c.Check(fi.Size(), check.Equals, int64(16384))
+}
+
 func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string) {
 	// on uc20 there is a "system-seed" under the <PrepareImageDir>
 	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
