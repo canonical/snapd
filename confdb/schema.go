@@ -134,6 +134,15 @@ func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 	return v.visibility == vis
 }
 
+func (v *userDefinedType) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// Visibilities are not allowed in user defined types so only call pruning to validate data
+	_, err := v.DatabagSchema.PruneByVisibility(path, vis, data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // aliasReference represents a reference to a user-defined type in the schema.
 type aliasReference struct {
 	alias *userDefinedType
@@ -205,6 +214,19 @@ func (s *aliasReference) Visibility() Visibility {
 
 func (s *aliasReference) NestedVisibility(vis Visibility) bool {
 	return s.visibility == vis
+}
+
+func (v *aliasReference) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// user-defined types cannot contain visibility fields so no need to use pruned data;
+	// only call pruning to validate the data
+	_, err := v.alias.PruneByVisibility(path, vis, data)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		return nil, nil
+	}
+	return data, nil
 }
 
 // scalarSchema holds the data and behaviours common to all types.
@@ -311,6 +333,13 @@ func (s *StorageSchema) Visibility() Visibility {
 
 func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
 	return s.topLevel.NestedVisibility(vis)
+}
+
+func (v *StorageSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if data == nil || v.Visibility() == vis {
+		return nil, nil
+	}
+	return v.topLevel.PruneByVisibility(path, vis, data)
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -594,6 +623,34 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
+func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	// TODO incorporate constraints when evaluting paths from whence the data comes.
+	// Now potentially an incorrect path is chosen if constraints are instrumental
+	// in selecting an alternative path. Note the data is potentially incomplete,
+	// and simply applying constraints will not work since the constrained data
+	// may not be present.
+	if data == nil {
+		return nil, nil
+	}
+
+	var lastErr error
+	for _, alt := range v.schemas {
+		// Lower-indexed alternatives are privileged over higher-indexed ones,
+		// so return the first match even though more matches may exist.
+		d, err := alt.PruneByVisibility(path, vis, data)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		// Because the visibility of an alternativesSchema is determined by its
+		// set of alternatives, no need to check visibility here. If the schema
+		// is private, then d will already be nil.
+		return d, nil
+	}
+	// The path/data does not match
+	return nil, fmt.Errorf("cannot prune alternatives: %w", lastErr)
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
@@ -618,9 +675,7 @@ type mapSchema struct {
 	visibility Visibility
 }
 
-// Validate that raw is a valid map and meets the constraints set by the
-// confdb storage schema.
-func (v *mapSchema) Validate(raw []byte) error {
+func validateMapSchema(v *mapSchema, raw []byte, validateNestedSchemas bool) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
@@ -664,6 +719,10 @@ func (v *mapSchema) Validate(raw []byte) error {
 
 	if missing {
 		return validationErrorf(`cannot find required combinations of keys`)
+	}
+
+	if !validateNestedSchemas {
+		return nil
 	}
 
 	if v.entrySchemas != nil {
@@ -713,6 +772,12 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	return nil
+}
+
+// Validate that raw is a valid map and meets the constraints set by the
+// confdb storage schema.
+func (v *mapSchema) Validate(raw []byte) error {
+	return validateMapSchema(v, raw, true)
 }
 
 func validMapKeys(v map[string]json.RawMessage) error {
@@ -829,6 +894,125 @@ func (v *mapSchema) NestedVisibility(vis Visibility) bool {
 	}
 
 	return false
+}
+
+func (v *mapSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if data == nil {
+		return nil, nil
+	}
+	if len(path) == 0 || (len(path) == 1 && path[0].Type() == KeyPlaceholderType) {
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal data: %w", err)
+		}
+		err = validateMapSchema(v, marshaled, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(path) == 0 || path[0].Type() == KeyPlaceholderType {
+		// If the path is empty, then the data must be a map.
+		// If the next path element is a KeyPlaceholderType, then
+		// the data will also be a map to account for the multiple
+		// keys that could fill the placeholder. In that case, each
+		// value present in the data will not necessarily be of the
+		// same type as the entry's value schema. Ex: if the path is
+		// [KeyPlaceholderType, MapKeyType], then, assuming the
+		// value schema at path[1] to be boolSchema, the data should
+		// be of form map[string]bool
+		values, ok := (data).(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("data provided must be a map")
+		}
+
+		if len(path) > 1 && path[0].Type() == KeyPlaceholderType {
+			// The data in values will not have the expected form of this map's
+			// entry/value schemas. Here only validate the set of keys.
+			var missing bool
+			for _, required := range v.requiredCombs {
+				missing = false
+				for _, key := range required {
+					if _, ok := values[key]; !ok {
+						missing = true
+						break
+					}
+				}
+				if !missing {
+					break
+				}
+			}
+			if missing {
+				return nil, validationErrorf(`cannot find required combinations of keys`)
+			}
+		}
+
+		rest := []Accessor{}
+		if len(path) > 0 {
+			rest = path[1:]
+		}
+		pruned := make(map[string]any, len(values))
+		for key, value := range values {
+			if v.entrySchemas != nil {
+				valSchema, ok := v.entrySchemas[key]
+				if !ok {
+					return nil, fmt.Errorf("key %s not found in map schema", key)
+				}
+				d, err := valSchema.PruneByVisibility(rest, vis, value)
+				if err != nil {
+					return nil, err
+				}
+				if d != nil {
+					pruned[key] = d
+				}
+			}
+			if v.valueSchema != nil {
+				d, err := v.valueSchema.PruneByVisibility(rest, vis, value)
+				if err != nil {
+					return nil, err
+				}
+				if d != nil {
+					pruned[key] = d
+				}
+			}
+		}
+		if len(pruned) > 0 && v.Visibility() != vis && (v.keySchema == nil || v.keySchema.Visibility() != vis) {
+			return pruned, nil
+		}
+		return nil, nil
+	}
+	key := path[0]
+	if key.Type() != MapKeyType {
+		return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
+	}
+
+	if v.valueSchema != nil {
+		d, err := v.valueSchema.PruneByVisibility(path[1:], vis, data)
+		if err != nil {
+			return d, err
+		}
+		if v.Visibility() != vis && (v.keySchema == nil || v.keySchema.Visibility() != vis) {
+			return d, err
+		}
+		return nil, nil
+	}
+	if v.entrySchemas != nil {
+		valSchema, ok := v.entrySchemas[key.Name()]
+		if !ok {
+			return nil, fmt.Errorf(`cannot use %q as key in map`, key.Access())
+		}
+		d, err := valSchema.PruneByVisibility(path[1:], vis, data)
+		if err != nil {
+			return d, err
+		}
+		if v.Visibility() != vis {
+			return d, err
+		}
+		return nil, nil
+	}
+
+	// This should be unreachable
+	return nil, fmt.Errorf("internal error: reached end of PruneByVisibility in mapSchema")
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1052,6 +1236,27 @@ func (v *stringSchema) Type() SchemaType {
 	return String
 }
 
+func (v *stringSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "string" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		data = nil
+	}
+	return data, nil
+}
+
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	if err := v.scalarSchema.parseConstraints(constraints); err != nil {
 		return err
@@ -1136,6 +1341,27 @@ func (v *intSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 // Type returns the Int schema type.
 func (v *intSchema) Type() SchemaType {
 	return Int
+}
+
+func (v *intSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "int" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		data = nil
+	}
+	return data, nil
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1226,6 +1452,27 @@ func (v *anySchema) Type() SchemaType {
 	return Any
 }
 
+func (v *anySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "any" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		data = nil
+	}
+	return data, nil
+}
+
 func (v *anySchema) expectsConstraints() bool { return false }
 
 type numberSchema struct {
@@ -1273,6 +1520,27 @@ func (v *numberSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 // Type returns the Number schema type.
 func (v *numberSchema) Type() SchemaType {
 	return Number
+}
+
+func (v *numberSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "number" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		data = nil
+	}
+	return data, nil
 }
 
 func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
@@ -1397,6 +1665,27 @@ func (v *booleanSchema) Type() SchemaType {
 	return Bool
 }
 
+func (v *booleanSchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if len(path) > 0 {
+		return nil, errors.New(`cannot follow path beyond "bool" type`)
+	}
+	if data == nil {
+		return nil, nil
+	}
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal data: %w", err)
+	}
+	err = v.Validate(marshaled)
+	if err != nil {
+		return nil, err
+	}
+	if v.visibility == vis {
+		data = nil
+	}
+	return data, nil
+}
+
 func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	return v.scalarSchema.parseConstraints(constraints)
 }
@@ -1420,7 +1709,7 @@ type arraySchema struct {
 	visibility Visibility
 }
 
-func (v *arraySchema) Validate(raw []byte) error {
+func validateArraySchema(v *arraySchema, raw []byte, validateElementTypes bool) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
@@ -1434,13 +1723,15 @@ func (v *arraySchema) Validate(raw []byte) error {
 		return validationErrorf(`cannot accept null value for "array" type`)
 	}
 
-	for e, val := range *array {
-		if err := v.elementType.Validate([]byte(val)); err != nil {
-			var vErr *ValidationError
-			if errors.As(err, &vErr) {
-				vErr.Path = append([]any{e}, vErr.Path...)
+	if validateElementTypes {
+		for e, val := range *array {
+			if err := v.elementType.Validate([]byte(val)); err != nil {
+				var vErr *ValidationError
+				if errors.As(err, &vErr) {
+					vErr.Path = append([]any{e}, vErr.Path...)
+				}
+				return err
 			}
-			return err
 		}
 	}
 
@@ -1457,6 +1748,10 @@ func (v *arraySchema) Validate(raw []byte) error {
 	}
 
 	return nil
+}
+
+func (v *arraySchema) Validate(raw []byte) error {
+	return validateArraySchema(v, raw, true)
 }
 
 // SchemaAt returns the array schema the path is empty. Otherwise, it calls SchemaAt
@@ -1497,6 +1792,67 @@ func (v *arraySchema) NestedVisibility(vis Visibility) bool {
 		return true
 	}
 	return v.elementType.NestedVisibility(vis)
+}
+
+func (v *arraySchema) PruneByVisibility(path []Accessor, vis Visibility, data any) (any, error) {
+	if data == nil {
+		return nil, nil
+	}
+	if len(path) == 0 {
+		marshaled, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal data: %w", err)
+		}
+		err = validateArraySchema(v, marshaled, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(path) == 0 || path[0].Type() == IndexPlaceholderType {
+		// If the path is empty, then the data must be an array.
+		// If the next path element is an IndexPlaceholderType, then the data will
+		// also be an array to account for the multiple indices that could fill the
+		// placeholder. In that case, each value present in the data will not
+		// necessarily be of the same type as the elementType's value schema.
+		// Ex: if the path is [IndexPlaceholderType, MapKeyType], then, assuming the
+		// value schema at path[1] to be boolSchema, the data should be of form []bool
+		values, ok := data.([]any)
+		if !ok {
+			return nil, errors.New("data provided must be a list")
+		}
+
+		newList := make([]any, 0, len(values))
+		rest := []Accessor{}
+		if len(path) > 0 {
+			rest = path[1:]
+		}
+		for _, value := range values {
+			d, err := v.elementType.PruneByVisibility(rest, vis, value)
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				newList = append(newList, d)
+			}
+		}
+		if len(newList) > 0 && v.Visibility() != vis {
+			return newList, nil
+		}
+		return nil, nil
+	}
+	if path[0].Type() != ListIndexType {
+		return nil, fmt.Errorf(`key %q cannot be used to index array`, path[0].Access())
+	}
+	// Since the path is not empty, the data begins further down,
+	// and we don't yet know its type so use data here rather than values
+	d, err := v.elementType.PruneByVisibility(path[1:], vis, data)
+	if err != nil {
+		return nil, err
+	}
+	if v.Visibility() != vis {
+		return d, err
+	}
+	return nil, nil
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {

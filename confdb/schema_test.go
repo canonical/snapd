@@ -2989,3 +2989,1122 @@ func (*schemaSuite) TestUserTypeReferenceSecret(c *C) {
 	c.Assert(barSchema, HasLen, 1)
 	c.Assert(barSchema[0].Visibility(), Equals, confdb.DefaultVisibility)
 }
+
+func (s *schemaSuite) TestPruneAllSecret(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "string"
+	},
+	"visibility": "secret"
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, "bar")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneAllDefault(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "string"
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.DefaultVisibility, "bar")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneNilData(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "string"
+	},
+	"visibility": "secret"
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, nil)
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneMapPlaceholder(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "bool",
+					"visibility": "secret"
+				},
+				"eph": "string"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.{n}"), confdb.SecretVisibility, map[string]any{
+		"bar": "a",
+		"baz": false,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{"bar": "a"})
+}
+
+func (s *schemaSuite) TestPruneMapPlaceholderRequiredKeys(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"best": "string"
+					}
+				},
+				"baz": {
+					"schema": {
+						"best": "bool"
+					},
+					"visibility": "secret"
+				},
+				"eph": {
+					"schema": {
+						"best": "string"
+					}
+				}
+			},
+  			"required": [["baz", "eph"]]
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.{n}.best"), confdb.SecretVisibility, map[string]any{
+		"bar": "a",
+		"baz": false,
+	})
+	c.Assert(err, ErrorMatches, `cannot accept top level element: cannot find required combinations of keys`)
+
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.{n}.best"), confdb.SecretVisibility, map[string]any{
+		"baz": false,
+		"eph": "a",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{"eph": "a"})
+}
+
+func (*schemaSuite) TestPruneVisibilityMapSecretValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": {
+				"type": "string",
+				"visibility": "secret"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{"bar": "a", "baz": "b"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneMapPlaceholderNotEndOfPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": {
+							"type": "string",
+							"visibility": "secret"
+						}
+					}
+				},
+				"baz": {
+					"schema": {
+						"best": "string"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	var data any = map[string]any{"baz": "data"}
+	prunedData, err := schema.PruneByVisibility(parsePath(c, "foo.{n}.best"), confdb.SecretVisibility, data)
+	c.Assert(err, IsNil)
+	c.Assert(prunedData, DeepEquals, data)
+
+	prunedData, err = schema.PruneByVisibility(parsePath(c, "foo.{n}.eph"), confdb.SecretVisibility, map[string]any{"bar": "data"})
+	c.Assert(err, IsNil)
+	c.Assert(prunedData, IsNil)
+}
+
+func (s *schemaSuite) TestPruneMapPlaceholderDataWrongDataType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.{n}"), confdb.SecretVisibility, true)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: expected map type but value was bool`)
+}
+
+func (s *schemaSuite) TestPruneMapDataWrongType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "bool",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, true)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: expected map type but value was bool`)
+}
+
+func (s *schemaSuite) TestPruneMapDataWrongPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "bool",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[0]"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, `cannot use "\[0\]" as key in map`)
+}
+
+func (s *schemaSuite) TestPruneMapKeyNotFound(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "bool",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.eph"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, `cannot use "eph" as key in map`)
+}
+
+func (s *schemaSuite) TestPruneMapDataKeyNotFound(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": "string",
+				"baz": {
+					"type": "bool",
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{"eph": "a"})
+	c.Assert(err, ErrorMatches, `cannot accept top level element: map contains unexpected key "eph"`)
+}
+
+func (*schemaSuite) TestPruneVisibilityMapSecretValuesNested(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "string",
+						"visibility": "secret"
+					},
+					"baz": "string"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{
+		"a": map[string]any{"bar": "a-secret", "baz": "a-no-secret"},
+		"b": map[string]any{"bar": "b-secret", "baz": "b-no-secret"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{
+		"a": map[string]any{"baz": "a-no-secret"},
+		"b": map[string]any{"baz": "b-no-secret"},
+	})
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.a.bar"), confdb.SecretVisibility, "a-secret")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilityMapSecretPlaceholders(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"a": {
+					"schema": {
+						"bar": "string"
+					}
+				},
+				"b": {
+					"schema": {
+						"bar": "string"
+					},
+					"visibility": "secret"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	path := parsePath(c, "foo.{elem}.bar")
+	databag := confdb.NewJSONDatabag()
+	databag.Set(parsePath(c, "foo"), map[string]any{
+		"a": map[string]any{"bar": "a-data"},
+		"b": map[string]any{"bar": "b-data"},
+	})
+	data, err := databag.Get(path, nil)
+	c.Assert(err, IsNil)
+	data, err = schema.PruneByVisibility(path, confdb.SecretVisibility, data)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{
+		"a": "a-data",
+	})
+}
+
+func (s *schemaSuite) TestPruneMapValueSchemaSecretValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "string",
+						"visibility": "secret"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.{n}.bar"), confdb.SecretVisibility, map[string]any{
+		"a": "a-data",
+		"b": "b-data",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneMapValueSchemaSecretMap(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "string"
+					}
+				}
+			},
+			"visibility": "secret"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.a.bar"), confdb.SecretVisibility, "a-data")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneMapValueSchemaErrors(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": "bool"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	var data any = map[string]any{"bar": "data"}
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, data)
+	c.Assert(err, ErrorMatches, `.*expected bool type but value was string`)
+}
+
+func (s *schemaSuite) TestPruneMapValueSchemaErrorsLongPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": "string",
+			"values": "bool"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, "data")
+	c.Assert(err, ErrorMatches, `cannot accept top level element: expected bool type but value was string`)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilitySecretMapKeys(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": {
+				"type": "string",
+				"visibility": "secret"
+			},
+			"values": "bool"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{
+		"bar": false,
+		"baz": true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneArrayWrongDataTypeError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: expected array type but value was bool`)
+}
+
+func (s *schemaSuite) TestPruneArrayWrongPathError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, `key "bar" cannot be used to index array`)
+}
+
+func (s *schemaSuite) TestPruneArrayValueError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": "string"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, []any{true, false})
+	c.Assert(err, ErrorMatches, `.*expected map type but value was bool`)
+}
+
+func (s *schemaSuite) TestPruneArrayReturnErrorInValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": "string"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo[0].bar"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, "cannot accept top level element: expected string type but value was bool")
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneSecretArrayPathToValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": "string"
+				}
+			},
+			"visibility": "secret"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo[0].bar"), confdb.SecretVisibility, "data")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilitySecretArray(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string"
+			},
+			"visibility": "secret"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, []any{"bar", "baz"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilityArrayWithSecretElements(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string",
+				"visibility": "secret"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, []any{"bar", "baz"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilityArrayElements(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"schema": {
+							"baz": {
+								"type": "string",
+								"visibility": "secret"
+							},
+							"eph": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo[1].bar"), confdb.SecretVisibility, map[string]any{
+		"baz": "b",
+		"eph": "y",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{"eph": "y"})
+}
+
+func (*schemaSuite) TestPruneVisibilityArrayPathToSecretElement(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"schema": {
+							"baz": "string"
+						},
+						"visibility": "secret"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	var initialData any = []any{
+		map[string]any{"baz": "a"},
+		map[string]any{"baz": "b"},
+		map[string]any{"baz": "c"},
+	}
+	prunedData, err := schema.PruneByVisibility(parsePath(c, "foo[{n}].bar"), confdb.SecretVisibility+1, initialData)
+	c.Assert(err, IsNil)
+	c.Assert(prunedData, DeepEquals, initialData)
+
+	prunedData, err = schema.PruneByVisibility(parsePath(c, "foo[{n}].bar"), confdb.SecretVisibility, initialData)
+	c.Assert(err, IsNil)
+	c.Assert(prunedData, IsNil)
+}
+
+func (*schemaSuite) TestPruneAllAlternatives(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": "string"
+			},
+			"visibility": "secret"
+		},
+		{
+			"type": "array",
+			"values": {
+				"type": "string"
+			},
+			"visibility": "secret"
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, []any{"a", "b"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{"bar": "a"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneIdenticalAlternativesExceptForValidate(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"type": "string",
+					"pattern": "^data-[0-9]+$",
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"type": "string"
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, "data-10")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, "data-10b")
+	c.Assert(err, IsNil)
+	c.Assert(data, Equals, "data-10b")
+}
+
+func (*schemaSuite) TestPruneVisibilityIdenticalFullPathAlternativesSecretFirst(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"type": "string"
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilityIdenticalFullPathAlternativesNotSecretFirst(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"type": "string"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, Equals, "a")
+}
+
+func (*schemaSuite) TestPruneVisibilitySimilarBeginningAlternatives(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string"
+					},
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": "string"
+					}
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar.eph"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, Equals, "a")
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.bar.baz"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilityAlternativesUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"schema": {
+				"best": "string"
+			}
+		}
+	},
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"type": "${my-type}",
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": "string"
+					}
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar.eph"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, Equals, "a")
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, map[string]any{"eph": "a"})
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{"eph": "a"})
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.bar.best"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+
+	data, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, map[string]any{"best": "a"})
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneVisibilitySimilarBeginningShortPathAlternatives(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string"
+					},
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": "string"
+					}
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	var data any = map[string]any{"bar": map[string]any{"eph": "a"}}
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, data)
+
+	pruned, err = schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{
+		"bar": map[string]any{"baz": "a"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(pruned, IsNil)
+}
+
+func (s *schemaSuite) TestPruneAlternativesDataError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": [
+				{
+					"schema": {
+						"baz": "bool"
+					}
+				},
+				{
+					"schema": {
+						"eph": "string"
+					}
+				}
+				]
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{"bar": true})
+	c.Assert(err, ErrorMatches, `.*expected map type but value was bool`)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneAlternativesPathDataError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": [
+				{
+					"schema": {
+						"baz": {
+							"schema": {
+								"foobar": "string"
+							}
+						}
+					}
+				},
+				{
+					"schema": {
+						"eph": "string"
+					}
+				}
+				]
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar.baz"), confdb.SecretVisibility, true)
+	c.Assert(err, ErrorMatches, `cannot prune alternatives: cannot use "baz" as key in map`)
+	c.Assert(data, IsNil)
+}
+
+func (s *schemaSuite) TestPruneNestedAlternatives(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+			{
+				"type": "bool"
+			},
+			{
+				"schema": {
+					"bar": [
+						{
+							"type": "string",
+							"visibility": "secret"
+						},
+						{
+							"type": "bool",
+							"visibility": "secret"
+						}
+					]
+				}
+			}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, true)
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+}
+
+func (*schemaSuite) TestPruneSecretAllTypesShortPath(c *C) {
+	values := map[string]any{
+		"number":                    float64(1),
+		"int":                       float64(2),
+		"bool":                      true,
+		"string":                    "a",
+		"any":                       "b",
+		`array", "values": "string`: []any{"a", "b"},
+	}
+	for _, typ := range []string{"number", "int", "bool", "string", "any", `array", "values": "string`} {
+		cmt := Commentf("secret pruning unsuccessful for type %q", typ)
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"type": "%s",
+					"visibility": "secret"
+				},
+				"baz": "bool"
+			}
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+		data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, map[string]any{
+			"bar": values[typ],
+			"baz": true,
+		})
+		c.Assert(err, IsNil, cmt)
+		c.Assert(data, DeepEquals, map[string]any{"baz": true}, cmt)
+	}
+}
+
+func (*schemaSuite) TestPruneSecretAllTypes(c *C) {
+	values := map[string]any{
+		"number":                    float64(1),
+		"int":                       float64(2),
+		"bool":                      true,
+		"string":                    "a",
+		"any":                       "b",
+		`array", "values": "string`: []any{"a", "b"},
+	}
+	for _, typ := range []string{"number", "int", "bool", "string", "any", `array", "values": "string`} {
+		cmt := Commentf("secret pruning unsuccessful for type %q", typ)
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "%s",
+			"visibility": "secret"
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+		data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, values[typ])
+		c.Assert(err, IsNil, cmt)
+		c.Assert(data, IsNil, cmt)
+	}
+}
+
+func (*schemaSuite) TestPruneSecretSimpleTypesWrongPath(c *C) {
+	values := map[string]any{
+		"number": float64(1),
+		"int":    float64(2),
+		"bool":   true,
+		"string": "a",
+		"any":    "b",
+	}
+	for _, typ := range []string{"number", "int", "bool", "string", "any"} {
+		cmt := Commentf("secret pruning unsuccessful for type %q", typ)
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "%s",
+			"visibility": "secret"
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+		data, err := schema.PruneByVisibility(parsePath(c, "foo.bar"), confdb.SecretVisibility, values[typ])
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot follow path beyond "%s" type`, typ), cmt)
+		c.Assert(data, IsNil, cmt)
+	}
+}
+
+func (*schemaSuite) TestPruneSecretSimpleTypesWrongData(c *C) {
+	values := map[string]any{
+		"number": "a",
+		"int":    true,
+		"bool":   1,
+		"string": 1,
+	}
+	for _, typ := range []string{"number", "int", "bool", "string"} {
+		cmt := Commentf("secret pruning unsuccessful for type %q", typ)
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "%s",
+			"visibility": "secret"
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+		data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, values[typ])
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept top level element: expected %s type but value was .*`, typ), cmt)
+		c.Assert(data, IsNil, cmt)
+	}
+}
+
+func (*schemaSuite) TestPruneVisibilityUserType(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"type": "string"
+		}
+	},
+	"schema": {
+		"foo": {
+			"type": "${my-type}",
+			"visibility": "secret"
+		},
+		"bar": {
+			"type": "${my-type}"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data, err := schema.PruneByVisibility(parsePath(c, "foo"), confdb.SecretVisibility, "a")
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+
+	data, err = schema.PruneByVisibility(parsePath(c, "bar"), confdb.SecretVisibility, "b")
+	c.Assert(err, IsNil)
+	c.Assert(data, Equals, "b")
+}

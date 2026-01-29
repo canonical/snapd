@@ -235,6 +235,14 @@ type DatabagSchema interface {
 
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
+
+	// PruneByVisibility prunes all elements of the indicated visibility from the schema.
+	// The path variable is the path to where the dataToBePruned is located except for where
+	// the path contains placeholders, in which case the path is also a path through the data.
+	// Essentially, the dataToBePruned should be of the same form as output from databag.Get
+	// with the same path in input. If all data has been pruned, pruneData will be nil.
+	// Only if the path/data does not match the schema does PruneByVisibility return an error.
+	PruneByVisibility(path []Accessor, vis Visibility, dataToBePruned any) (prunedData any, err error)
 }
 
 type SchemaType uint
@@ -3091,3 +3099,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ Visibility, data any) (any, error) {
+	return data, nil
+}
