@@ -8,7 +8,7 @@ details: |
 systems: [ubuntu-2*]
 
 skip:
-    - reason: No run lxd test when there are not .deb files built
+    - reason: Requires snapd .deb files built for testing
       if: |
         # "$GOHOME"/snapd_*.deb is used in the lxd container
         [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]

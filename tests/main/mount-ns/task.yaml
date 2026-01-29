@@ -46,7 +46,7 @@ details: |
 
 # The test is sensitive to backend type, which designates the used image.
 # Backends are enabled one-by-one along with the matching data set.
-backends: [openstack]
+backends: [google]
 
 # Temporary, exclude on ubuntu-16.04-64 until mount ns changes on 16.04 are understood/fixed
 systems: [ubuntu-18.04-64]
@@ -71,15 +71,6 @@ priority: 1001
 environment:
     MACHINE_STATE/inherit: inherit
     MACHINE_STATE/reboot: reboot
-
-skip:
-    - reason: this test cannot operate on bash 4.3.x
-      if: |
-        # TODO: when https://github.com/snapcore/spread/pull/85 is merged
-        # and released this test can be allowed to run on bash 4.3. Without
-        # the workaround for a bug in bash REBOOT causes the spread test to
-        # fail instead of asking spread to reboot the machine.
-        [ "$MACHINE_STATE" = reboot ] && "$TESTSTOOLS"/version-compare --strict "$(echo "$BASH_VERSION" | cut -d. -f 1-2)" -eq 4.3
 
 prepare: |
     # The package qemu-utils creates a tmpfs on /run/qemu on Ubuntu 18.04
