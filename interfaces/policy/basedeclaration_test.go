@@ -1105,6 +1105,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"xilinx-dma":                       true,
 		"snap-fde-control":                 true,
 		"firmware-updater-support":         true,
+		"devlxd":                           true,
 	}
 
 	for _, iface := range all {
@@ -1431,6 +1432,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"confdb":                           true,
 		"snap-fde-control":                 true,
 		"firmware-updater-support":         true,
+		"devlxd":                           true,
 	}
 
 	for _, iface := range all {
