@@ -66,6 +66,7 @@ $(CLOUD_INIT_USER_DATA_TEMPLATE)
 # Disable upgrades that can lock apt
 - sed -i 's/^Prompt=.*$/Prompt=never/' /etc/update-manager/release-upgrades
 - systemctl disable --now apt-daily{,-upgrade}.{timer,service}
+- systemctl disable --now unattended-upgrades.service
 endef
 
 # This is somewhat dense so let's break it down into steps:
