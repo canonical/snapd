@@ -417,8 +417,24 @@ func UseTokens(model *asserts.Model) bool {
 			}
 		}
 
-		// Later we can start to enable tokens on UC24+
-		return false
+		baseName := model.BaseSnap().Name
+		switch {
+		case baseName == "core":
+			fallthrough
+		case baseName == "core18":
+			fallthrough
+		case baseName == "core20":
+			fallthrough
+		case baseName == "core22":
+			fallthrough
+		case baseName == "core24":
+			return false
+		case baseName[:4] == "core":
+			return true
+		default:
+			logger.Noticef("WARNING: unknown base %s. Guessing cryptsetup support", baseName)
+			return cryptsetupSupportsTokenReplace()
+		}
 	}
 }
 
