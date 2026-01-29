@@ -23,24 +23,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-// only useful for procuring a buggy behavior in the tests
-var enforcedSingleRebootForGadgetKernelBase = false
-
-func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
-	osutil.MustBeTestBinary("mocking can be done only in tests")
-
-	old := enforcedSingleRebootForGadgetKernelBase
-	enforcedSingleRebootForGadgetKernelBase = val
-	return func() {
-		enforcedSingleRebootForGadgetKernelBase = old
-	}
-}
 
 // essentialSnapsRestartOrder describes the essential snaps that
 // need restart boundaries in order.
@@ -420,7 +406,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// so it will be undone in the event of failures.
 	if ts := byTypeTss[snap.TypeGadget]; ts != nil {
 		const transactional = true
-		split := !enforcedSingleRebootForGadgetKernelBase // keep this to be able to induce a buggy change
+		const split = true
 		if err := chainEssentialTs(ts, snap.TypeGadget, transactional, split); err != nil {
 			return err
 		}
