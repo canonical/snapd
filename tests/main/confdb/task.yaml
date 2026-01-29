@@ -115,15 +115,15 @@ execute: |
   #    {"to": "192.168.5.0/24", "via": "192.168.5.1", "type": "local", ...}
   #  ]
   #}
-  snap set developer1/network/wifi-setup -t routes="$(cat original | gojq .routes)"
+  snap set developer1/network/wifi-setup -t routes="$(gojq .routes original)"
 
   # filter the routes for "type = local"
-  cat original | gojq '.routes |= map(select(.type == "local"))' > expected
+  gojq '.routes |= map(select(.type == "local"))' original > expected
   snap get developer1/network/wifi-setup -d routes --with type=local > got
   diff <(gojq . expected) <(gojq . got)
 
   # composing filters works by ANDing the constraints
-  cat original | gojq '.routes |= map(select(.to == "default" and .type == "local"))' > expected
+  gojq '.routes |= map(select(.to == "default" and .type == "local"))' original > expected
   snap get developer1/network/wifi-setup -d routes --with to=default --with type=local > got
   diff <(gojq . expected) <(gojq . got)
 
@@ -131,11 +131,11 @@ execute: |
   snap get developer1/network/wifi-setup -d routes --with to=non-existent 2>&1 | MATCH "error: cannot get \"routes\" through developer1/network/wifi-setup: no data"
 
   # filtering with typed constraints (bool and number)
-  cat original | gojq '.routes |= map(select(."on-link" == true))' > expected
+  gojq '.routes |= map(select(."on-link" == true))' original > expected
   snap get developer1/network/wifi-setup -d routes --with on-link=true > got
   diff <(gojq . expected) <(gojq . got)
 
-  cat original | gojq '.routes |= map(select(.metric == 200))' > expected
+  gojq '.routes |= map(select(.metric == 200))' original > expected
   snap get developer1/network/wifi-setup -d routes --with metric=200 > got
   diff <(gojq . expected) <(gojq . got)
 
@@ -144,6 +144,6 @@ execute: |
   snap get developer1/network/wifi-setup -l private --with placeholder="my-company" | tail -n1 | MATCH "private.my-company  foo"
 
   # snapctl also supports --with
-  cat original | gojq '.routes |= map(select(.type == "local"))' > expected
+  gojq '.routes |= map(select(.type == "local"))' original > expected
   snap run --shell waiting-custodian.sh -c 'snapctl get --view -d :wifi-setup routes --with type=local' > got
   diff <(gojq . expected) <(gojq . got)
