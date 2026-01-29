@@ -50,6 +50,9 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 	dirs.SetRootDir("")
 	s.AddCleanup(apparmor.MockFeatures(nil, nil, nil, nil))
+	// Mock available system resources for --jobs=2 argument.
+	s.AddCleanup(apparmor.MockRuntimeNumCPU(func() int { return 4 }))
+	s.AddCleanup(apparmor.MockTotalMemory(func() (uint64, error) { return 4090 * 1024 * 1024, nil }))
 }
 
 // Tests for LoadProfiles()
@@ -64,7 +67,7 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "2", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -78,7 +81,7 @@ func (s *appArmorSuite) TestLoadProfilesMany(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "2", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
 	})
 }
 
@@ -104,7 +107,7 @@ func (s *appArmorSuite) TestLoadProfilesReportsErrors(c *C) {
 apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "2", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -121,7 +124,7 @@ apparmor_parser output:
 parser error
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "2", "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -137,7 +140,7 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "2", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -329,19 +332,45 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
 
 func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 	var cpus int
+	var totalRam uint64
+
 	restore := apparmor.MockRuntimeNumCPU(func() int {
 		return cpus
 	})
 	defer restore()
 
-	cpus = 10
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j8")
+	restore = apparmor.MockTotalMemory(func() (uint64, error) {
+		return totalRam, nil
+	})
+	defer restore()
 
+	// Pretend we have 10CPUs and matching 10GB of RAM.
+	cpus = 10
+	totalRam = 10 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 8)
+
+	// Now we only have 2CPUs.
+	// One is set aside for other system tasks.
 	cpus = 2
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
 
 	cpus = 1
-	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
+
+	// Pretend we have 10CPUs but only 1GB of RAM.
+	cpus = 10
+	totalRam = 1 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 1)
+
+	// Now we have 4GB of RAM
+	totalRam = 4 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 4)
+
+	// Now we have 9GB of RAM.
+	// Note that we have enough memory for 9 concurrent jobs but we set two
+	// CPUs aside for other system tasks.
+	totalRam = 9 * (1 << 30)
+	c.Check(apparmor.NumberOfJobs(), Equals, 8)
 }
 
 func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {

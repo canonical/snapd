@@ -178,7 +178,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
 		{"apparmor_parser", "--policy-features", filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi/3.0"),
 			"--replace", "--write-cache",
-			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), profile}})
+			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--jobs", "1", profile}})
 
 	// test error case
 	parserCmd = testutil.MockCommand(c, "apparmor_parser", "echo mocked parser failed > /dev/stderr; exit 1")
