@@ -21,6 +21,8 @@
 package install
 
 import (
+	"context"
+
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -38,18 +40,10 @@ func MockSecbootFormatEncryptedDevice(f func(key []byte, encType device.Encrypti
 
 }
 
-func MockCryptsetupOpen(f func(key secboot.DiskUnlockKey, node, name string) error) func() {
-	old := cryptsetupOpen
-	cryptsetupOpen = f
-	return func() {
-		cryptsetupOpen = old
-	}
+func MockSecbootNewSimpleActivateContext(f func(ctx context.Context) (secboot.ActivateContext, error)) (restore func()) {
+	return testutil.Mock(&secbootNewSimpleActivateContext, f)
 }
 
-func MockCryptsetupClose(f func(name string) error) func() {
-	old := cryptsetupClose
-	cryptsetupClose = f
-	return func() {
-		cryptsetupClose = old
-	}
+func MockSecbootUnlockEncryptedVolumeUsingKey(f func(activation secboot.ActivateContext, devNode string, name string, key []byte) (secboot.StorageContainer, error)) (restore func()) {
+	return testutil.Mock(&secbootUnlockEncryptedVolumeUsingKey, f)
 }

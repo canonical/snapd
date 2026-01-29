@@ -160,15 +160,6 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 	}
 }
 
-func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
-	options *sb.ActivateVolumeOptions) error) (restore func()) {
-	old := sbActivateVolumeWithKey
-	sbActivateVolumeWithKey = f
-	return func() {
-		sbActivateVolumeWithKey = old
-	}
-}
-
 func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb_tpm2.Connection, pcrIndex int) error) (restore func()) {
 	old := sbMeasureSnapSystemEpochToTPM
 	sbMeasureSnapSystemEpochToTPM = f
@@ -215,14 +206,6 @@ func MockFDEHasRevealKey(f func() bool) (restore func()) {
 	fdeHasRevealKey = f
 	return func() {
 		fdeHasRevealKey = old
-	}
-}
-
-func MockSbDeactivateVolume(f func(volumeName string) error) (restore func()) {
-	old := sbDeactivateVolume
-	sbDeactivateVolume = f
-	return func() {
-		sbDeactivateVolume = old
 	}
 }
 
