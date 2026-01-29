@@ -238,7 +238,10 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 	return nil
 }
 
-func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupProfilesForAppSet(
+	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	tm timings.Measurer,
+) error {
 	st := task.State()
 
 	snapInfo := appSet.Info()
@@ -277,7 +280,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	// exception that the snap being setup is always first. The affectedSnaps
 	// array may be shorter than the set of affected snaps in case any of the
 	// snaps cannot be found in the state.
-	reconnectedSnaps, err := m.reloadConnections(snapName)
+	affectedConnections, err := m.reloadConnections(snapName)
 	if err != nil {
 		return err
 	}
@@ -285,8 +288,27 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	for _, name := range reconnectedSnaps {
-		affectedSet[name] = true
+
+	snapsWithConnectedPlugs := make(map[string]bool)
+	snapsWithConnectedSlots := make(map[string]bool)
+	// Identify affected snaps on either side of the connection.
+	for _, connID := range affectedConnections {
+		connRef, err := interfaces.ParseConnRef(connID)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
+		}
+
+		affectedSet[connRef.PlugRef.Snap] = true
+		affectedSet[connRef.SlotRef.Snap] = true
+
+		// Snaps on the plug or slot side, other than the current one, are
+		// indirectly affected.
+		if connRef.PlugRef.Snap != snapName {
+			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
+		}
+		if connRef.SlotRef.Snap != snapName {
+			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
+		}
 	}
 
 	// Sort the set of affected names, ensuring that the snap being setup
@@ -304,10 +326,15 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 	// cannot be found and compute the confinement options that apply to it.
 	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
 	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
+	setupContexts := make(map[string]interfaces.SetupContext, len(affectedSet))
 
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
+	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
+		// We are being updated
+		Reason: interfaces.SnapSetupReasonOwnUpdate,
+	}
 
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
@@ -355,11 +382,26 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 			return err
 		}
 
+		// The snap is affected though a connection, set the context for the
+		// Setup() call, depending on which side of the connection it is.
+		sctx := interfaces.SetupContext{}
+		switch {
+		case snapsWithConnectedPlugs[name] && snapsWithConnectedSlots[name]:
+			// Same snap appears on both the plug side and slot side,
+			// indicating a cyclic connection
+			sctx.Reason = interfaces.SnapSetupReasonCyclicallyConnectedUpdate
+		case snapsWithConnectedPlugs[name]:
+			sctx.Reason = interfaces.SnapSetupReasonConnectedSlotProviderUpdate
+		case snapsWithConnectedSlots[name]:
+			sctx.Reason = interfaces.SnapSetupReasonConnectedPlugConsumerUpdate
+		}
+		setupContexts[name] = sctx
+
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
 	}
 
-	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, tm)
+	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
