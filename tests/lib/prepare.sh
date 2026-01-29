@@ -1542,7 +1542,14 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
+        case "${BRANCH}/${GADGET_CHANNEL}" in
+            26/beta)
+                snap download --basename=pc --channel="26/edge" pc
+                ;;
+            *)
+                snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
+                ;;
+        esac
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         # TODO: it would be desirable when we need to do in-depth debugging of
@@ -1637,12 +1644,25 @@ EOF
             # We setup the ntp server in case it is defined in the current env
             # This is not needed in classic systems because the images already have ntp configured
             if [ -n "${NTP_SERVER:-}" ]; then
-                TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
-                if [ -z "$TARGET_TIME_CONF" ]; then
-                    echo "File timesyncd.conf not found in core image"
-                    exit 1
+                if [ -e /etc/systemd/timesyncd.conf ]; then
+                    TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
+                    if [ -z "$TARGET_TIME_CONF" ]; then
+                        echo "File timesyncd.conf not found in core image"
+                        exit 1
+                    fi
+                    cp /etc/systemd/timesyncd.conf "$TARGET_TIME_CONF"
                 fi
-                cp /etc/systemd/timesyncd.conf "$TARGET_TIME_CONF"
+                if [ -e "${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
+                    # This part should be removed when https://github.com/canonical/core-base/pull/392 is merged
+                    mkdir -p "${BASE}-snap/etc/chrony"
+                    echo "d /etc/chrony" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"
+                    echo "/writable/system-data/etc/chrony /etc/chrony none bind,x-initrd.mount 0 0" >>"${BASE}-snap/etc/fstab"
+                    # end of the part to remove
+
+                    echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"
+                    mkdir -p "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d"
+                    echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
+                fi
             fi
 
             snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
@@ -1999,7 +2019,15 @@ cache_snaps(){
     # Download each of the snaps we want to pre-cache. Note that `snap download`
     # a quick no-op if the file is complete.
     for snap_name in "$@"; do
-        snap download "$snap_name"
+        declare -a opts
+        case "$snap_name" in
+            # Cannot have a non devel snaps for core26 base yet, which
+            # means cannot be promoted. Which means it has to be edge.
+            test-snapd-sh-core26)
+                opts=(--edge)
+                ;;
+        esac
+        snap download "$snap_name" "${opts[@]}"
 
         # Copy all of the snaps back to the spool directory. From there we
         # will reuse them during subsequent `snap install` operations.

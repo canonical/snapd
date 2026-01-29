@@ -92,6 +92,15 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "ubuntu-core-26",
+        "backend": "openstack",
+        "alternative-backend": "google-core",
+        "systems": "ubuntu-core-26-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-arm64",
         "backend": "openstack-arm",
         "alternative-backend": "google-arm",
