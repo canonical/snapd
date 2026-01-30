@@ -97,7 +97,6 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
-	swfeats.RegisterEnsure("DeviceManager", "ensureCaCertificateDatabase")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration
