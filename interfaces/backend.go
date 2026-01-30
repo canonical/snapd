@@ -20,6 +20,8 @@
 package interfaces
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -90,6 +92,45 @@ type SecurityBackendOptions struct {
 	SnapdSnapInfo *snap.Info
 }
 
+type SnapSetupCallReason int
+
+const (
+	SnapSetupReasonOther SnapSetupCallReason = iota
+	// Setup called as a result of the snap's own update.
+	SnapSetupReasonOwnUpdate
+	// Setup called for a snap as a result of an update of another snap
+	// which has a slot to which we are connected.
+	SnapSetupReasonConnectedSlotProviderUpdate
+	// Setup called for a snap as a result of an update of another snap
+	// which has a plug connected to one of our slots.
+	SnapSetupReasonConnectedPlugConsumerUpdate
+	// Setup called for a snap as a result of an update of another snap with
+	// which we have a cyclical connection, i.e. the other snap is connected to
+	// our slots, while we are connected to theirs.
+	SnapSetupReasonCyclicallyConnectedUpdate
+)
+
+func (s SnapSetupCallReason) String() string {
+	switch s {
+	case SnapSetupReasonOther:
+		return "other"
+	case SnapSetupReasonConnectedSlotProviderUpdate:
+		return "connected-slot-provider-update"
+	case SnapSetupReasonConnectedPlugConsumerUpdate:
+		return "connected-plug-consumer-update"
+	case SnapSetupReasonCyclicallyConnectedUpdate:
+		return "connected-cyclically-connect-update"
+	default:
+		return fmt.Sprintf("other: (%d)", s)
+	}
+}
+
+// SetupContext conveys information on the context in which a call to Setup()
+// was made.
+type SetupContext struct {
+	Reason SnapSetupCallReason
+}
+
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
@@ -108,7 +149,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Setup(appSet *SnapAppSet, opts ConfinementOptions, repo *Repository, tm timings.Measurer) error
+	Setup(appSet *SnapAppSet, opts ConfinementOptions, sctx SetupContext, repo *Repository, tm timings.Measurer) error
 
 	// Remove removes and unloads security artefacts of a given snap.
 	//
@@ -134,7 +175,7 @@ type ReinitializableSecurityBackend interface {
 type SecurityBackendSetupMany interface {
 	// SetupMany creates and loads apparmor profiles of multiple snaps. It tries to process all snaps and doesn't interrupt processing
 	// on errors of individual snaps.
-	SetupMany(appSets []*SnapAppSet, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
+	SetupMany(appSets []*SnapAppSet, confinement func(snapName string) ConfinementOptions, sctx func(snapName string) SetupContext, repo *Repository, tm timings.Measurer) []error
 }
 
 // SecurityBackendDiscardingLate interface may be implemented by backends that
