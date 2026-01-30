@@ -80,8 +80,6 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "CertManager", "func", "ensureCaCertificateDatabase")
-
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
 	logger.Noticef("No CA certificate database found, generating it now")
