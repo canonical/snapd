@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -11916,13 +11915,6 @@ func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {
 	sort.Strings(expectedTaskKinds)
 	sort.Strings(registeredTaskKinds)
 	c.Assert(registeredTaskKinds, DeepEquals, expectedTaskKinds)
-}
-
-type mockBootParticipant struct{ isTrivial bool }
-
-func (bp *mockBootParticipant) IsTrivial() bool { return bp.isTrivial }
-func (bp *mockBootParticipant) SetNextBoot(boot.NextBootContext) (boot.RebootInfo, error) {
-	return boot.RebootInfo{}, errors.New("internal error: unexpecteds")
 }
 
 func (s *snapmgrTestSuite) TestResealingTaskBlocked(c *C) {
