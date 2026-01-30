@@ -322,7 +322,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	old := []byte("old-ca-bundle")
 	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), old, 0o644), IsNil)
 
-	err = certstate.GenerateCertificateDatabase(s.state)
+	err = certstate.GenerateCertificateDatabase()
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))

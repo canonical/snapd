@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -257,7 +256,7 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	return nil
 }
 
-func GenerateCertificateDatabase(t *state.State) error {
+func GenerateCertificateDatabase() error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)
