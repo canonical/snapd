@@ -17,12 +17,11 @@ systems: [ubuntu-core-2*]
 environment:
   SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
 
-prepare: |
-  if not os.query is-pc-amd64; then
-    echo "Skipping non-grub device test"
-    exit 0
-  fi
+skip:
+    - reason: This is a non-grub device
+      if: not os.query is-pc-amd64
 
+prepare: |
   echo "Create copy of gadget snap with cgroup_disable=memory set in cmdline.extra"
   PC_REV=$(snap list pc | tail -n +2 | awk '{print $3}')
   sudo cp "/var/lib/snapd/snaps/pc_$PC_REV.snap" pc-gadget.snap
@@ -54,10 +53,6 @@ restore: |
   systemctl restart snapd
 
 execute: |
-  if not os.query is-pc-amd64; then
-    echo "Skipping non-grub device test"
-    exit 0
-  fi
   case "$SPREAD_REBOOT" in 
     0)
       # ensure memory cgroups is enabled to start

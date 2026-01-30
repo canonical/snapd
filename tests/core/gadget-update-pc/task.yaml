@@ -11,18 +11,14 @@ environment:
     PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     START_REVISION: 1000
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: This test needs a host using 'pc' gadget snap
+      if: not snap list pc
+
 prepare: |
-    # external backends do not enable test keys
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    if not snap list pc; then
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 1
-    fi
-
     # Set the retain count to 4 to ensure we keep the current gadget snap
     # intact and can roll back to it. This is easier to get right than to
     # manually fiddle with re-installing it.
@@ -107,17 +103,6 @@ prepare: |
     fi
 
 restore: |
-    # external backends do not enable test keys
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    if not snap list pc; then
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 1
-    fi
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
     # Restore the state of the gadget snap.
@@ -129,17 +114,6 @@ restore: |
     snap unset core refresh.retain
 
 execute: |
-    # external backends do not enable test keys
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    if not snap list pc; then
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 1
-    fi
-
     # XXX: the test hardcodes a bunch of locations
     # - 'BIOS Boot' and 'EFI System' are modified during the update
     # - 'EFI System' is mounted at /boot/efi

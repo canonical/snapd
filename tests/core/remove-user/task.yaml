@@ -13,28 +13,20 @@ environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo
 
-prepare: |
-    # Note: make this test work with the user already created in the device
-    if [ "$(snap managed)" = "true" ]; then
-        # Leave a file indicating the device was initially managed
-        touch managed.device
+skip:
+    - reason: This device is initially managed
+      if: |
+        # Note: make this test work with the user already created in the device
+        [ "$(snap managed)" = "true" ]
 
-        exit 0
-    fi
+prepare: |
     snap create-user --sudoer "$USER_EMAIL"
 
 restore: |
-    if [ -e managed.device ]; then
-        exit 0
-    fi
     userdel --extrausers -r "$USER_NAME" || true
     rm -rf "/etc/sudoers.d/create-user-$USER_NAME"
 
 execute: |
-    if [ -e managed.device ]; then
-        exit 0
-    fi
-
     echo "precondition check: user in passwd"
     id "$USER_NAME"
     echo "precondition check: has sudoer file"
