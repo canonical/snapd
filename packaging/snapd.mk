@@ -43,8 +43,8 @@ import_path = github.com/snapcore/snapd
 # Trusted account keys that should be present in production builds.
 # These are used by check-trusted-account-keys target to verify that
 # test keys are not accidentally included in production builds.
-SNAPD_STORE_KEY_1 = -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
-SNAPD_STORE_KEY_2 = d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa
+SNAPD_STORE_ROOT_KEY = -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+SNAPD_STORE_GENERIC_MODELS_KEY = d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa
 SNAPD_REPAIR_ROOT_KEY = nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t
 
 
@@ -291,10 +291,10 @@ check-trusted-account-keys:
 			echo "ERROR: Expected 2 public keys in snapd, found $$count"; \
 			exit 1; \
 		fi; \
-		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_1)$$" || \
-			{ echo "ERROR: snapd store key 1 not found"; exit 1; }; \
-		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_2)$$" || \
-			{ echo "ERROR: snapd store key 2 not found"; exit 1; }; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snapd store root key not found"; exit 1; }; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snapd store generic models key not found"; exit 1; }; \
 		echo "  snapd: OK (2 keys)"; \
 	fi
 	@# Check snap-bootstrap if it exists (Ubuntu 16.04+)
@@ -304,10 +304,10 @@ check-trusted-account-keys:
 			echo "ERROR: Expected 2 public keys in snap-bootstrap, found $$count"; \
 			exit 1; \
 		fi; \
-		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_1)$$" || \
-			{ echo "ERROR: snap-bootstrap store key 1 not found"; exit 1; }; \
-		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_2)$$" || \
-			{ echo "ERROR: snap-bootstrap store key 2 not found"; exit 1; }; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-bootstrap store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-bootstrap store generic models key not found"; exit 1; }; \
 		echo "  snap-bootstrap: OK (2 keys)"; \
 	fi
 	@# Check snap-preseed if it exists (Ubuntu 16.04+)
@@ -317,10 +317,10 @@ check-trusted-account-keys:
 			echo "ERROR: Expected 2 public keys in snap-preseed, found $$count"; \
 			exit 1; \
 		fi; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_1)$$" || \
-			{ echo "ERROR: snap-preseed store key 1 not found"; exit 1; }; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_2)$$" || \
-			{ echo "ERROR: snap-preseed store key 2 not found"; exit 1; }; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-preseed store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-preseed store generic models key not found"; exit 1; }; \
 		echo "  snap-preseed: OK (2 keys)"; \
 	fi
 	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
@@ -330,10 +330,10 @@ check-trusted-account-keys:
 			echo "ERROR: Expected 3 public keys in snap-repair, found $$count"; \
 			exit 1; \
 		fi; \
-		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_1)$$" || \
-			{ echo "ERROR: snap-repair store key 1 not found"; exit 1; }; \
-		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_KEY_2)$$" || \
-			{ echo "ERROR: snap-repair store key 2 not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-repair store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-repair store generic models key not found"; exit 1; }; \
 		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_REPAIR_ROOT_KEY)$$" || \
 			{ echo "ERROR: snap-repair repair-root key not found"; exit 1; }; \
 		echo "  snap-repair: OK (3 keys)"; \
