@@ -36,12 +36,12 @@ environment:
   # a model with grade higher than dangerous when building the image
   NESTED_CORE_CHANNEL: ""
 
-prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
   # set the expiration of the assert to 60 minutes, and replace the version
   # with the version we are testing
   VERSION="$(tests.nested show version)"
@@ -114,21 +114,11 @@ prepare: |
   tests.nested create-vm core
 
 restore: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
-
   systemctl stop fakedevicesvc
 
   "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
-
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
