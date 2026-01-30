@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionCheckPassphrase
+description: Payload to check the quality of a given passphrase.
+required:
+  - action
+  - passphrase
+properties:
+  action:
+    type: string
+    enum:
+      - check-passphrase
+  passphrase:
+    type: string
+    format: password
+    description: The passphrase to validate.

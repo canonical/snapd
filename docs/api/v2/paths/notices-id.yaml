@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Notices
+    - OpenAccess
+    - Synchronous
+  summary: Retrieve a specific system notice
+  description: |-
+    Retrieves a single notice by its unique ID.
+  operationId: getNoticeByID
+  security: []
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: The unique ID of the notice to retrieve.
+      schema:
+        type: string
+        example: '74'
+  responses:
+    200:
+      description: |-
+        A synchronous response containing the details of the requested notice.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                   - sync
+              result:
+                $ref: '../components/schemas/Notice.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

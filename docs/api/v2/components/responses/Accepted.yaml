@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: The asynchronous request was accepted and is being processed.
+content:
+  application/json:
+    schema:
+      type: object
+      description: The response for an accepted asynchronous operation.
+      properties:
+        type:
+          type: string
+          enum:
+            - async
+        status-code:
+          type: integer
+          enum:
+            - 202
+        status:
+          type: string
+          enum: 
+            - Accepted
+        change:
+          type: string
+          description: The ID of the background change that was initiated. This is a string because JSON only uses floats.
+          example: '61'
+        result:
+          type: object
+          nullable: true
+          description: For an accepted async operation, this is always null as the result is not yet available.
+          example: null

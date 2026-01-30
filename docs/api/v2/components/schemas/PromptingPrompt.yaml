@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - id
+  - timestamp
+  - snap
+  - interface
+  - constraints
+properties:
+  id:
+    type: string
+    description: Unique prompt identifier.
+  timestamp:
+    type: string
+    format: date-time
+    description: Timestamp at which the prompt was created or last modified (RFC3339Nano format).
+  snap:
+    type: string
+    description: The name of the snap whose action triggered the prompt.
+  interface:
+    type: string
+    description: The interface associated with the prompt.
+    enum:
+      - home
+      - camera
+  constraints:
+    oneOf:    # TODO look into mapping interface name to oneOf instances
+      - $ref: ./PromptingPromptConstraintsCamera.yaml
+      - $ref: ./PromptingPromptConstraintsHome.yaml

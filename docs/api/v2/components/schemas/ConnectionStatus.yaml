@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The overall connection status of plugs and slots on the system.
+properties:
+  established:
+    type: array
+    description: A list of connections that are currently established.
+    items:
+      $ref: './Connection.yaml'
+  undesired:
+    type: array
+    description: A list of connections that have been manually disconnected.
+    items:
+      $ref: './Connection.yaml'
+  plugs:
+    type: array
+    description: A list of all available plugs.
+    items:
+      $ref: './Plug.yaml'
+  slots:
+    type: array
+    description: A list of all available slots.
+    items:
+      $ref: './Slot.yaml'
