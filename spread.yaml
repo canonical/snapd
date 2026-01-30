@@ -609,9 +609,6 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.04-64:
-                image: snapd-spread/ubuntu-25.04-64
-                workers: 8
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
