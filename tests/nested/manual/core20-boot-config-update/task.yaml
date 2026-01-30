@@ -15,12 +15,12 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
-prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs a build of snapd with testing features enabled"
-      exit
-  fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
   build_snapd_snap .
@@ -71,11 +71,6 @@ debug: |
   cat boot-chains-after.json || true
 
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs a build of snapd with testing features enabled"
-      exit
-  fi
-
   remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(gojq -r '.["reseal-count"]' < boot-chains-before.json )"

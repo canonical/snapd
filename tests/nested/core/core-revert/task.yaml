@@ -15,6 +15,11 @@ kill-timeout: 30m
 environment:
     IMAGE_FILE: $SNAPD_WORK_DIR/images/ubuntu-core-new.img
 
+skip:
+    - reason: This test needs to start from beta/candidate/stable channel
+      if: |
+        [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]
+
 debug: |
     systemctl stop nested-vm || true
     if [ -f "$IMAGE_FILE" ]; then
@@ -33,11 +38,6 @@ debug: |
     fi
 
 execute: |
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]; then
-        echo "This test need to start from beta/candidate/stable channel"
-        exit 0
-    fi
-
     echo "Refresh the core snap to $NESTED_CORE_REFRESH_CHANNEL channel"
     remote.exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
     remote.exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
