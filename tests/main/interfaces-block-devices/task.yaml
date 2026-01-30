@@ -10,7 +10,7 @@ prepare: |
     # device is if the host is using btrfs, or an alias such as /dev/root
     if lsblk -f -o label,fstype | MATCH "ubuntu-data.*crypto_LUKS"; then
         # This is the case when tpm is enabled in the system
-        # Now /var/snap in on an ubuntu-data volume made available through device
+        # Now /var/snap is on an ubuntu-data volume made available through device
         # mapper and will show up as disk, so it is required to find the parent partition
         maybe_partition_dev=/dev/"$(lsblk -f -o label,fstype,name --raw | awk '/ubuntu-data.*crypto_LUKS/  { print $3 }')"
     else
