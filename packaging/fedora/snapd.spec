@@ -72,10 +72,10 @@
 # only required to use snapd in user namespaces when the host system uses
 # cgroup-v1 hierarchy. Since no actively supported Fedora release uses cgroup
 # v1, those capabilities are omitted.
-%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=p
+%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin,cap_sys_resource=p
 %if 0%{?amzn2} == 1
 # However on AMZN2 we still have cgroup-v1, so setgid and setuid are needed.
-%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_setuid,cap_setgid,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=p
+%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_setuid,cap_setgid,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin,cap_sys_resource=p
 %endif
 
 # Until we have a way to add more extldflags to gobuild macro...
