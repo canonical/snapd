@@ -6,27 +6,22 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+skip:
+    - reason: This test needs systemd and dbus sessions to run
+      if: |
+        ! tests.session has-session-systemd-and-dbus
+
 prepare: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     snap remove --purge api-client || true
     tests.session -u test prepare
     tests.session -u test exec systemctl --user \
       set-environment XDG_DATA_DIRS=/usr/share:/var/lib/snapd/desktop
 
 restore: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     tests.session -u test restore
     rm -f ~test/snap/test-app/current/launch-data.txt
 
 execute: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
-
     "$TESTSTOOLS"/snaps-state install-local api-client
     tests.cleanup defer snap remove --purge api-client
 
