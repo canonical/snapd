@@ -1107,6 +1107,14 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	for _, match := range matches {
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
+			if errors.Is(err, &NoDataError{}) {
+				// match has no corresponding data in value, so treat it as removing value.
+				expandedMatches = append(expandedMatches, expandedMatch{
+					storagePath: match.storagePath,
+					value:       nil,
+				})
+				continue
+			}
 			return badRequestErrorFrom(v, "set", request, err.Error())
 		}
 
@@ -1375,7 +1383,9 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
+				// matched a path that doesn't have a corresponding data in this value
+				// so flag that so we can interpret that as an Unset
+				return nil, &NoDataError{}
 			}
 
 		case IndexPlaceholderType:
