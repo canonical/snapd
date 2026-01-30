@@ -7,6 +7,11 @@ details: |
 # the test snaps have a core24 base
 systems: [ -ubuntu-16.04 ]
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 prepare: |
   snap set system experimental.confdb=true
   snap set system experimental.parallel-instances=true
@@ -16,11 +21,6 @@ restore: |
   snap unset system experimental.parallel-instances
 
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-    echo "This test needs test keys to be trusted"
-    exit
-  fi
-
   snap ack "$TESTSLIB/assertions/developer1-network.confdb"
   "$TESTSTOOLS"/snaps-state install-local test-custodian-snap
   snap connect test-custodian-snap:manage-wifi

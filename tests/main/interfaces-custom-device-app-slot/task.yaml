@@ -14,12 +14,12 @@ systems:
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     # Install core snap to avoid installing it using the fake store
     if not snap list core; then
       snap install core
@@ -76,18 +76,9 @@ prepare: |
     snap ack "${BLOB_DIR}"/asserts/*.snap-declaration
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = false ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = false ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Install the device-app snap"
     snap install device-app
 
