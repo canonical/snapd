@@ -51,7 +51,7 @@ func (s *confdbSuite) TestFailAbortsConfdbTransaction(c *C) {
 	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"fail", "don't like changes"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"fail", "don't like changes"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -72,7 +72,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.setConfdbFlag(false, c)
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0, nil)
 	c.Assert(err, ErrorMatches, i18n.G(`"confdb" feature flag is disabled: set 'experimental.confdb' to true`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -81,7 +81,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.setConfdbFlag(true, c)
 	s.state.Unlock()
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail"}, 0, nil)
 	c.Assert(err, ErrorMatches, i18n.G("the required argument `:<rejection-reason>` was not provided"))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -91,7 +91,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.mockContext, err = hookstate.NewContext(nil, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0, nil)
 	c.Assert(err, ErrorMatches, i18n.G(`cannot use "snapctl fail" outside of a "change-view" hook`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -105,7 +105,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.mockContext, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0, nil)
 	c.Assert(err, ErrorMatches, i18n.G(`cannot use "snapctl fail" outside of a "change-view" hook`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -114,7 +114,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.mockContext, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0, nil)
 	// this shouldn't happen but check we handle it well anyway
 	c.Assert(err, ErrorMatches, i18n.G("internal error: cannot get confdb transaction to fail: no state entry for key \"tx-task\""))
 	c.Check(stdout, IsNil)

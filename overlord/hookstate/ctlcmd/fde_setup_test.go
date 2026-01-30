@@ -84,7 +84,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0, nil)
 	c.Check(err, ErrorMatches, `unknown fde-setup-request op "invalid-and-unknown"`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -100,13 +100,13 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 	c.Assert(err, IsNil)
 
 	// check "fde-setup-request" error
-	stdout, stderr, err := ctlcmd.Run(context, []string{"fde-setup-request"}, 0)
+	stdout, stderr, err := ctlcmd.Run(context, []string{"fde-setup-request"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot use fde-setup-request outside of the fde-setup hook`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
 	// check "fde-setup-result" error
-	stdout, stderr, err = ctlcmd.Run(context, []string{"fde-setup-result"}, 0)
+	stdout, stderr, err = ctlcmd.Run(context, []string{"fde-setup-result"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot use fde-setup-result outside of the fde-setup hook`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -120,7 +120,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, `{"op":"features"}`+"\n")
 	c.Check(string(stderr), Equals, "")
@@ -137,7 +137,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	s.mockContext.Set("fde-setup-request", fdeSetup)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0, nil)
 	c.Assert(err, IsNil)
 
 	// the encryption key should be base64 encoded
@@ -154,7 +154,7 @@ func (s *fdeSetupSuite) TestFdeSetupResult(c *C) {
 	s.mockContext.Set("stdin", mockStdin)
 	s.mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-result"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-result"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")

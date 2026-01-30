@@ -52,13 +52,17 @@ type SnapCtlOptions struct {
 // but instead use a real stdin stream
 type SnapCtlPostData struct {
 	SnapCtlOptions
-
+	Features map[string]string `json:"features,omitempty"`
 	Stdin []byte `json:"stdin,omitempty"`
 }
 
 type snapctlOutput struct {
 	Stdout string `json:"stdout"`
 	Stderr string `json:"stderr"`
+}
+
+var supportedFeatures = []string{
+	// "async",
 }
 
 // protect against too much data via stdin
@@ -88,8 +92,14 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}
 
+	header := map[string]string{}
+
+	if len(supportedFeatures) > 0 {
+		header["X-Snapctl-Features"] = fmt.Sprintf("%v", supportedFeatures)
+	}
+
 	var output snapctlOutput
-	_, err = client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output)
+	_, err = client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(b), &output)
 	if err != nil {
 		return nil, nil, err
 	}
