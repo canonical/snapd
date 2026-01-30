@@ -431,7 +431,7 @@ func isLinkTaskResealing(t *state.Task) bool {
 		return false
 	}
 	switch snapsup.Type {
-	case snap.TypeKernel, snap.TypeGadget, snap.TypeBase, snap.TypeOS:
+	case snap.TypeKernel, snap.TypeGadget, snap.TypeBase:
 		return true
 	}
 	return false
