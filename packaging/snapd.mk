@@ -40,7 +40,7 @@ $(foreach var,$(vars),$(if $(value $(var)),,$(error $(var) is empty or unset, ch
 # Import path of snapd.
 import_path = github.com/snapcore/snapd
 
-# Trusted account keys that should be present in production builds.
+# Trusted account keys that must be present in production builds.
 # These are used by check-trusted-account-keys target to verify that
 # test keys are not accidentally included in production builds.
 SNAPD_STORE_ROOT_KEY = -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
