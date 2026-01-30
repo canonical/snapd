@@ -23,6 +23,10 @@ details: |
 # Expand as needed.
 systems: [ubuntu-18.04-64, ubuntu-2*]
 
+skip:
+    - reason: The snap test-snapd-portal-client is just available for amd64
+      if: not os.query is-pc-amd64
+
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
@@ -45,11 +49,6 @@ debug: |
     ps -ef | grep xdg || true
 
 execute: |
-    if not os.query is-pc-amd64; then
-        echo "The snap test-snapd-portal-client is just available for amd64"
-        exit
-    fi
-
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 
