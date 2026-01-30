@@ -69,6 +69,7 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
 
 	RegisterResealingTaskKind("prepare-kernel-modules-components")
+	// TODO: consider registering these on classic only if the system is an hybrid system
 	RegisterResealingTaskCheckerForKind("link-snap", isLinkTaskResealing)
 	RegisterResealingTaskCheckerForKind("unlink-snap", isLinkTaskResealing)
 	RegisterResealingTaskCheckerForKind("unlink-current-snap", isLinkTaskResealing)
