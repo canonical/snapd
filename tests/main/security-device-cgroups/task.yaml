@@ -161,3 +161,15 @@ execute: |
     else
         udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
     fi
+
+    # In the unlikely case of low value of RLIMIT_MEMLOCK, snap-confine can
+    # increase the value automatically. Here we explicitly pass a small value
+    # to observe that we can construct everything from scratch just fine. Note
+    # that this requires us to have at least one device tagged to the snap,
+    # otherwise snap-confine will not run the relevant logic.
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+    prlimit --memlock=65536 env SNAP_CONFINE_DEBUG=1 test-snapd-sh-core24.sh -c 'true'
+    # Remove observable state of the previous command.
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-core24-sh_sh
+    snapd.tool exec snap-discard-ns test-snapd-sh-core24
