@@ -1091,6 +1091,9 @@ debug-each: |
 
         remote.exec "sudo journalctl --no-pager -u snapd" || true
 
+        remote.exec "sudo cat /run/cloud-init/cloud-init-generator.log" || true
+        remote.exec "sudo cat /run/cloud-init/ds-identify.log" || true
+
         exit
     fi
 
