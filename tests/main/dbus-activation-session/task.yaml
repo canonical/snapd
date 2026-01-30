@@ -9,7 +9,7 @@ details: |
 skip:
     - reason: System does not have a systemd managed D-Bus system bus
       if: |
-        ! tests.session has-system-systemd-and-dbus
+        ! tests.session has-session-systemd-and-dbus
 
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
