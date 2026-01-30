@@ -26,12 +26,12 @@ systems:
 # qemu instead of trying to fake it with a dm device.
 #  - ubuntu-core-24-64
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     echo "Install dmsetup"
     snap install --devmode --edge dmsetup
 
@@ -73,19 +73,11 @@ prepare: |
     udevadm settle
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     dmsetup -v --noudevsync --noudevrules  remove dm-ram0
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -b | tail -100
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     echo "The auto-mount magic has given us the assertion"
     retry -n 5 sh -c 'snap known account-key | MATCH "name: test-store"'

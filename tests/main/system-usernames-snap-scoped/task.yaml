@@ -28,12 +28,12 @@ environment:
     APPROVED_SNAP_NAME/azuredeviceupdate: deviceupdate-agent
     TESTED_USERS/azuredeviceupdate: snap_aziotdu
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     snap debug can-manage-refreshes | MATCH false
 
     # install test snap dependencies before switching to fake store
@@ -71,11 +71,6 @@ prepare: |
     "$TESTSTOOLS"/store-state make-snap-installable "$STORE_DIR" "${snap_path}" "$APPROVED_SNAP_ID"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     for user in $TESTED_USERS
     do
         userdel -f "$user" || userdel -f --extrausers "$user" || true
@@ -87,11 +82,6 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Try to install a snap which is not entitled to use the user(s) under test"
     OUT=$(snap install "$UNAPPROVED_SNAP_NAME" 2>&1 || true)
     echo "$OUT" | tr '\n' ' ' | tr -s ' ' | MATCH "snap \"$UNAPPROVED_SNAP_NAME\" is not allowed to use the system user \"(${TESTED_USERS// /|})\""

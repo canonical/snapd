@@ -9,12 +9,6 @@ details: |
 
 systems: [-ubuntu-core-*, -debian-*, -ubuntu-14.04-*, -fedora-*, -arch-*, -amazon-*, -centos-*]
 
-restore: |
-    if [ "$REMOTE_STORE" = staging ]; then
-        echo "skip upgrade tests while talking to the staging store"
-        exit 0
-    fi
-
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"

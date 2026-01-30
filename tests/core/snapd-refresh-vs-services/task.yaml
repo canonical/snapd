@@ -41,6 +41,11 @@ environment:
   SNAPD_2_49_2_ARM64: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11584.snap
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
+skip:
+    - reason: Test designed for amd64 and arm architectures
+      if: |
+        ! os.query is-pc-amd64 && ! os.query is-arm
+
 prepare: |
   # save the current version of snapd for later
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
@@ -55,21 +60,6 @@ prepare: |
   tests.cleanup defer snap unset system refresh.retain
 
 execute: |
-  # check if snapd 2.49.2 is the current latest/stable release as it simplifies
-  # some of the logic below
-  if snap info snapd | gojq --yaml-input -r '.channels."latest/stable"'  | grep -q -Po '2.49.2\s+'; then
-    # skip the stable variant of the test
-    if [ "${SNAPD_VERSION_UNDER_TEST}" = "stable" ]; then
-      echo "Skipping duplicated test case"
-      exit 0
-    fi
-  fi
-
-  if ! os.query is-pc-amd64 && ! os.query is-arm; then
-    echo "architecture not supported for this variant"
-    exit 0
-  fi
-
   echo "Ensure that the system is fully seeded"
   snap changes | MATCH "Done.*Initialize system state"
 
