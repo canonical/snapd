@@ -4053,7 +4053,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Do", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 2:
@@ -4065,7 +4066,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Doing", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 3:
@@ -4077,7 +4079,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 4:
@@ -4089,7 +4092,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 5:
@@ -4101,15 +4105,31 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "process-delayed-snap-backend-effects", "summary": "Process side effects of snap \"foo\"", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 6:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "process-delayed-backend-effects", "summary": "Process side effects", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "process-delayed-snap-backend-effects", "summary": "Process side effects of snap \"foo\"", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 7:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one"] }}}`)
 
-		case 7:
+		case 8:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 
@@ -4131,8 +4151,9 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 		"Download (one base)",
 		"Download (one)",
 		"Auto-connect plugs slots of (one)",
+		"Process side effects of snap \"foo\"",
 		"Monitor for re-refresh",
 	})
 	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 8)
+	c.Check(n, check.Equals, 9)
 }
