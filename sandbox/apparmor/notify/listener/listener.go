@@ -448,53 +448,30 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
-		var msg notify.MsgNotificationGeneric
-		// What kind of operation notification did we get?
-		switch omsg.Class {
-		case notify.AA_CLASS_FILE:
-			msg, err = parseMsgNotificationFile(first)
-		default:
-			return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
-		}
+		// Handle whether the message was resent prior to attempting to parse
+		// it into a Request or send it to the manager. This way, API calls
+		// won't block unnecessarily and any potential ready timeout message
+		// will report the correct pending count. If this is the final pending
+		// request, then we want to signal readiness only if we find it to be
+		// malformed or after the request has been received, to make sure the
+		// manager handles the request (if valid) prior to observing the
+		// listener readiness.
+		isFinalPendingReq := l.handlePotentialResentMessage(omsg.Resent())
+
+		req, err := l.parseRequest(omsg.Class, first)
 		if err != nil {
-			return err
-		}
-
-		// Build request
-		req, err := l.newRequest(msg)
-		if err != nil {
-			return err
-		}
-
-		// Keep track of whether this is the final pending request so that if
-		// so, after the request has been received by the manager, the listener
-		// can signal ready.
-		isFinalPendingReq := false
-
-		// Before forwarding the request, check if it is resent. The kernel is
-		// guaranteed to resend all previously-pending messages before it sends
-		// any new messages, so if it's NOT resent, then we know the kernel is
-		// done sending pending messages. Regardless, all requests are forwarded
-		// over the reqs channel.
-		if msg.Resent() {
-			// Message was previously sent, see if it was the last one we're
-			// waiting for. Also ensure the pending count is decremented before
-			// waiting for the request to be received, so the pending count in
-			// case of a timeout is reported correctly. If the listener is
-			// already ready, this check will will return false.
-			isFinalPendingReq = l.decrementPendingCheckFinal()
-		} else {
-			// It is not resent, so there are no more resent messages, and we
-			// should ensure that we're ready.
-			if l.readyTimer.Stop() {
-				// Timer was active so we weren't yet ready. Ready up now.
-				if pendingCount := l.signalReady(); pendingCount != 0 {
-					logger.Noticef("received non-resent message when pending count was %d", pendingCount)
-				}
+			// Auto-deny it now, else the triggering application will just hang
+			// until the message times out in the kernel.
+			l.denyMalformedRequest(&omsg)
+			if isFinalPendingReq {
+				// In practice, snapd should always be able to parse a message
+				// with a RESENT flag set unless the list of classes/interfaces/permissions
+				// supported by snapd changed across a restart.
+				l.ensureReady()
 			}
+			return err
 		}
 
-		// Try to send request to manager, or wait for listener to be closed
 		select {
 		case l.reqs <- req:
 			// request received
@@ -508,17 +485,27 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return ErrClosed
 		}
 
-		if !isFinalPendingReq {
-			continue
-		}
-		// This is the final pending request we were waiting for.
-		if l.readyTimer.Stop() {
-			// We stopped the timer before it fired, so we can signal
-			// ready. Otherwise, the timer already signalled for us.
-			l.signalReady()
+		if isFinalPendingReq {
+			l.ensureReady()
 		}
 	}
 	return nil
+}
+
+func (l *Listener) parseRequest(class notify.MediationClass, buf []byte) (*Request, error) {
+	var err error
+	var msg notify.MsgNotificationGeneric
+	switch class {
+	case notify.AA_CLASS_FILE:
+		msg, err = parseMsgNotificationFile(buf)
+	default:
+		err = fmt.Errorf("unsupported mediation class: %v", class)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return l.newRequest(msg)
 }
 
 func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
@@ -531,14 +518,14 @@ func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
 }
 
 func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, error) {
-	aaAllowed, aaDenied, err := msg.AllowedDeniedPermissions()
-	if err != nil {
-		return nil, err
-	}
 	pid := msg.PID()
 	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
+	aaAllowed, aaDenied, err := msg.AllowedDeniedPermissions()
+	if err != nil {
+		return nil, err
 	}
 	return &Request{
 		ID:         msg.ID(),
@@ -557,6 +544,33 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	}, nil
 }
 
+func buildKey(iface string, id uint64) string {
+	return fmt.Sprintf("kernel:%s:%016X", iface, id)
+}
+
+func (l *Listener) denyMalformedRequest(msg *notify.MsgNotificationOp) {
+	resp := msg.BuildDenyResponse()
+	encodeAndSendResponse(l, resp)
+}
+
+// handlePotentialResentMessage handles whether the message has been received
+// with the RESENT flag set or not. If so, then decrement the pending count and
+// return true if this is the final pending request. If not resent, then ensure
+// that the listener has signalled readiness.
+//
+// The kernel is guaranteed to resend all previously-pending messages before it
+// sends any new messages, so if it's NOT resent, then we know the kernel is
+// done sending pending messages, and we should ready immediately.
+func (l *Listener) handlePotentialResentMessage(resent bool) (isFinalPendingReq bool) {
+	if resent {
+		return l.decrementPendingCheckFinal()
+	}
+	if pendingCount := l.ensureReady(); pendingCount != 0 {
+		logger.Noticef("received non-resent message when pending count was %d", pendingCount)
+	}
+	return false
+}
+
 // decrementPendingCheckFinal decrements the pending count if it's not already
 // 0, and returns whether this was the final pending request.
 //
@@ -573,6 +587,21 @@ func (l *Listener) decrementPendingCheckFinal() (isFinal bool) {
 		return true
 	}
 	return false
+}
+
+// ensureReady signals readiness if the listener hasn't already readied, and
+// returns the number of pending requests yet to be re-received. If already
+// ready, returns 0.
+//
+// If the ready timer timeout callback races with this function call, then it
+// is possible for this function to return before the listener has signalled
+// ready.
+func (l *Listener) ensureReady() (pendingCount int) {
+	if !l.readyTimer.Stop() {
+		// Timer already fired, so readiness already signalled.
+		return 0
+	}
+	return l.signalReady()
 }
 
 // signalReady is responsible for closing the ready channel and ensuring that
