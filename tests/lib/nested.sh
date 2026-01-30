@@ -1515,7 +1515,13 @@ nested_start_core_vm_unit() {
                 remote.exec "cloud-init status" || ret=$?
                 if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
                     echo "cloud-init finished with error $ret"
-                    exit 1
+                    # FIXME: remove core26 case.
+                    # See https://github.com/canonical/cloud-init/issues/6699
+                    if nested_is_core_26_system; then
+                        echo "Ignoring error on core26 for now"
+                    else
+                        exit 1
+                    fi
                 fi
             fi
         fi
