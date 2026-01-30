@@ -7,6 +7,12 @@ details: |
 # we just need a single system to verify this
 systems: [ubuntu-22.04-64]
 
+skip:
+    - reason: Requires snapd .deb files built for testing
+      if: |
+        # "$GOHOME"/snapd_*.deb is used in the lxd container
+        [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]
+
 restore: |
     lxc delete --force my-ubuntu
     snap remove --purge lxd

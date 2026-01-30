@@ -4,14 +4,16 @@ details: |
     Check that a strictly confined snap can access paths available to it
     but accesses to paths out of its confinement are denied.
 
+skip:
+    - reason: The confinement is partial
+      if: |
+        [ "$(snap debug confinement)" = partial ]
+
 prepare: |
     echo "Given a basic snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
-    if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
-    fi
     echo "Then an unconfined action should succeed"
     test-snapd-sh.sh -c 'touch /dev/shm/snap.test-snapd-sh.foo'
     test -f /dev/shm/snap.test-snapd-sh.foo

@@ -10,6 +10,10 @@ environment:
     CONFINEMENT/classic: classic
     CONFINEMENT/strict: strict
 
+skip:
+    - reason: Unsupported confinement variant
+      if: not snap debug sandbox-features --required "confinement-options:$CONFINEMENT"
+
 prepare: |
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v1/meta/snap.yaml.in >test-snapd-refresh.v1/meta/snap.yaml
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v2/meta/snap.yaml.in >test-snapd-refresh.v2/meta/snap.yaml
@@ -32,10 +36,6 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
-        echo "SKIP: unsupported confinement variant"
-        exit 0
-    fi
     # Install v1 and see that it runs as expected.
     case "$CONFINEMENT" in
         classic)

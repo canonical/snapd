@@ -28,31 +28,21 @@ environment:
     STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     mkdir -p "$ROOT"
     chown test:test "$ROOT"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    
     "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
     
     rm -rf "$ROOT"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     install_snap_to_fakestore() {
         local SNAP_NAME="$1"
         local SNAP_REVISION="$2"
