@@ -98,7 +98,6 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
 
-	// XXX: Ignore blocking if deviceCtx.ForRemodeling() for subset of tasks?
 	snapstate.RegisterResealingTaskKind("set-model")
 	snapstate.RegisterResealingTaskKind("create-recovery-system")
 	snapstate.RegisterResealingTaskKind("remove-recovery-system")

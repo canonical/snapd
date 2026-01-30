@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -392,7 +392,7 @@ func RegisterResealingTaskKind(kind string) {
 	resealingTaskKindCheckers[kind] = func(t *state.Task) bool { return true }
 }
 
-// RegisterResealingTaskKind marks a task kind as conditionally causing a reseal.
+// RegisterResealingTaskCheckerForKind marks a task kind as conditionally causing a reseal.
 func RegisterResealingTaskCheckerForKind(kind string, checker func(t *state.Task) bool) {
 	if _, exists := resealingTaskKindCheckers[kind]; exists {
 		logger.Panicf("internal error: resealing task kind %q is already registered", kind)
@@ -413,8 +413,6 @@ func resealingTaskBlocked(t *state.Task, running []*state.Task) (block bool) {
 		return false
 	}
 
-	// XXX: Ignore blocking if !deviceCtx.IsCoreBoot() or !deviceCtx.HasModeenv()?
-
 	// Simple symmetric blocking of resealing tasks, No resealing
 	// task can run if another resealing task is running.
 	for _, tRunning := range running {
@@ -426,17 +424,15 @@ func resealingTaskBlocked(t *state.Task, running []*state.Task) (block bool) {
 	return false
 }
 
-var bootParticipant = boot.Participant
-
 func isLinkTaskResealing(t *state.Task) bool {
-	deviceCtx, err := DeviceCtx(t.State(), t, nil)
-	if err != nil {
-		return false
-	}
 	snapsup, err := TaskSnapSetup(t)
 	if err != nil {
 		logger.Debugf("internal error: cannot obtain snap setup: %v", err)
 		return false
 	}
-	return !bootParticipant(snapsup.placeInfo(), snapsup.Type, deviceCtx).IsTrivial()
+	switch snapsup.Type {
+	case snap.TypeKernel, snap.TypeGadget, snap.TypeBase, snap.TypeOS:
+		return true
+	}
+	return false
 }

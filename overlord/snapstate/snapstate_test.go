@@ -11937,26 +11937,32 @@ func (s *snapmgrTestSuite) TestResealingTaskBlocked(c *C) {
 		kind           string
 		expectNoReseal bool
 
-		withTrivialBootParticipant bool
-		withCoreBootParticipant    bool
-		withSnapSetup              bool
-		withoutDeviceCtx           bool
+		withSnapType snap.Type
 	}
 
 	tcs := []testcase{
 		// snapmgr
-		{kind: "link-snap", withSnapSetup: true, withCoreBootParticipant: true},
-		{kind: "link-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
-		{kind: "link-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
-		{kind: "link-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
-		{kind: "unlink-snap", withSnapSetup: true, withCoreBootParticipant: true},
-		{kind: "unlink-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
-		{kind: "unlink-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
-		{kind: "unlink-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
-		{kind: "unlink-current-snap", withSnapSetup: true, withCoreBootParticipant: true},
-		{kind: "unlink-current-snap", withSnapSetup: true, withCoreBootParticipant: true, withoutDeviceCtx: true, expectNoReseal: true},
-		{kind: "unlink-current-snap", withSnapSetup: true, withTrivialBootParticipant: true, expectNoReseal: true},
-		{kind: "unlink-current-snap", withCoreBootParticipant: true, expectNoReseal: true}, // without snap setup
+		{kind: "link-snap", withSnapType: snap.TypeKernel},
+		{kind: "link-snap", withSnapType: snap.TypeGadget},
+		{kind: "link-snap", withSnapType: snap.TypeBase},
+		{kind: "link-snap", withSnapType: snap.TypeOS},
+		{kind: "link-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "link-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "link-snap", expectNoReseal: true},
+		{kind: "unlink-snap", withSnapType: snap.TypeKernel},
+		{kind: "unlink-snap", withSnapType: snap.TypeGadget},
+		{kind: "unlink-snap", withSnapType: snap.TypeBase},
+		{kind: "unlink-snap", withSnapType: snap.TypeOS},
+		{kind: "unlink-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "unlink-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "unlink-snap", expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeKernel},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeGadget},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeBase},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeOS},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "unlink-current-snap", expectNoReseal: true},
 		{kind: "prepare-kernel-modules-components"},
 		// fdemgr
 		{kind: "efi-secureboot-db-update-prepare"},
@@ -11983,33 +11989,11 @@ func (s *snapmgrTestSuite) TestResealingTaskBlocked(c *C) {
 
 		resealingTask := st.NewTask(tc.kind, "Resealing task being tested")
 
-		si := &snap.SideInfo{RealName: "some-snap"}
-		if tc.withSnapSetup {
-			snapsup := &snapstate.SnapSetup{SideInfo: si}
+		if tc.withSnapType != "" {
+			si := &snap.SideInfo{RealName: "some-snap"}
+			snapsup := &snapstate.SnapSetup{SideInfo: si, Type: tc.withSnapType}
 			resealingTask.Set("snap-setup", snapsup)
 		}
-
-		if tc.withoutDeviceCtx {
-			restore := snapstatetest.MockDeviceContext(nil)
-			defer restore()
-		} else {
-			restore := snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{})
-			defer restore()
-		}
-
-		restore := snapstate.MockBootParticipant(func(s snap.PlaceInfo, t snap.Type, dev snap.Device) boot.BootParticipant {
-			switch {
-			case tc.withTrivialBootParticipant:
-				c.Assert(s.SnapName(), Equals, "some-snap", cmt)
-				return &mockBootParticipant{isTrivial: true}
-			case tc.withCoreBootParticipant:
-				c.Assert(s.SnapName(), Equals, "some-snap", cmt)
-				return &mockBootParticipant{isTrivial: false}
-			default:
-				panic("internal error: unexpected")
-			}
-		})
-		defer restore()
 
 		// no other resealing tasks are running, No blocking.
 		c.Check(snapstate.ResealingTaskBlocked(resealingTask, nil), Equals, false, cmt)
