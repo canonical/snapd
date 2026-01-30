@@ -19,36 +19,25 @@ environment:
     STORE_ADDR: localhost:11028
     STORE_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: Cannot run with staging store
+      if: |
+        [ "$REMOTE_STORE" = "staging" ]
 
+prepare: |
     "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
     mkdir "$ROOT"
     chown -R test:test "$ROOT"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
     rm -rf "$ROOT"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    if [ "$REMOTE_STORE" = "staging" ]; then
-        echo "SKIP: cannot run with staging store yet"
-        exit 0
-    fi
-
     # get the model assertion
     gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-20-dangerous.json > "$ROOT/model.assertion"
     
