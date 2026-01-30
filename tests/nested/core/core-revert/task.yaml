@@ -16,7 +16,7 @@ environment:
     IMAGE_FILE: $SNAPD_WORK_DIR/images/ubuntu-core-new.img
 
 skip:
-    - reason: This test need to start from beta/candidate/stable channel
+    - reason: This test needs to start from beta/candidate/stable channel
       if: |
         [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]
 
