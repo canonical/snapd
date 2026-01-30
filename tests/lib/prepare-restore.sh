@@ -567,8 +567,8 @@ prepare_project() {
     retry -n 10 go mod vendor
 
     # We are testing snapd snap on top of snapd from the archive
-    # of the tested distribution. Download snapd as they exist
-    # in the archive for further use.
+    # of the tested distribution. Download snapd and snap-confine
+    # as they exist in the archive for further use.
     # On 14.04 we only ever use snapd from the archive
     if tests.info is-snapd-from-archive; then
         case "$SPREAD_SYSTEM" in
@@ -579,10 +579,15 @@ prepare_project() {
                 ;;
             ubuntu-14.04-*)
                 # directly call apt-get, tests.pkgs only knows about 'apt'
-                ( cd "${GOHOME}" && apt-get download snapd )
+                ( cd "${GOHOME}" && apt-get download snapd snap-confine )
                 ;;
             *)
-                ( cd "${GOHOME}" && tests.pkgs download snapd)
+                if os.query is-ubuntu-lt 26.04; then
+                    ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+                else
+                    # In Ubuntu 26.04+, the snap-confine transitional package was removed.
+                    ( cd "${GOHOME}" && tests.pkgs download snapd)
+                fi
                 ;;
         esac
     elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
