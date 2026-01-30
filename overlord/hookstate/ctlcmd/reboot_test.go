@@ -72,7 +72,7 @@ func (s *rebootSuite) TestBadHook(c *C) {
 	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	_, _, err = ctlcmd.Run(ctx, []string{"reboot", "--halt"}, 0)
+	_, _, err = ctlcmd.Run(ctx, []string{"reboot", "--halt"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot use reboot command outside of gadget install-device hook`)
 }
 
@@ -95,7 +95,7 @@ func (s *rebootSuite) TestBadArgs(c *C) {
 	}
 
 	for i, t := range table {
-		_, _, err := ctlcmd.Run(s.mockContext, t.args, 0)
+		_, _, err := ctlcmd.Run(s.mockContext, t.args, 0, nil)
 		c.Check(err, ErrorMatches, t.err, Commentf("%d", i))
 	}
 }
@@ -107,7 +107,7 @@ func (s *rebootSuite) TestRegularRunHalt(c *C) {
 	chg.AddTask(s.restartTask)
 	s.state.Unlock()
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--halt"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--halt"}, 0, nil)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -126,7 +126,7 @@ func (s *rebootSuite) TestRegularRunPoweroff(c *C) {
 	chg.AddTask(s.restartTask)
 	s.state.Unlock()
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--poweroff"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"reboot", "--poweroff"}, 0, nil)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

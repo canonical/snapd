@@ -151,7 +151,7 @@ func (f ForbiddenCommandError) Error() string {
 var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "refresh", "model", "version"}
 
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, args []string, uid uint32, features map[string]string) (stdout, stderr []byte, err error) {
 	if len(args) == 0 {
 		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
 	}

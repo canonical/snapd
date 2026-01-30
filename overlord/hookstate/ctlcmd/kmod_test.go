@@ -91,9 +91,9 @@ func (s *kmodSuite) injectSnapWithProperPlug(c *C) {
 }
 
 func (s *kmodSuite) TestMissingContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"kmod", "insert", "module1"}, 0)
+	_, _, err := ctlcmd.Run(nil, []string{"kmod", "insert", "module1"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "kmod"\) from outside of a snap`)
-	_, _, err = ctlcmd.Run(nil, []string{"kmod", "remove", "module1"}, 0)
+	_, _, err = ctlcmd.Run(nil, []string{"kmod", "remove", "module1"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "kmod"\) from outside of a snap`)
 }
 
@@ -225,7 +225,7 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 	} {
 		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "insert", "moderr", "o1=v1", "o2=v2"}, 0)
+		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "insert", "moderr", "o1=v1", "o2=v2"}, 0, nil)
 		c.Check(err, ErrorMatches, td.expectedError)
 	}
 }
@@ -243,7 +243,7 @@ func (s *kmodSuite) TestInsertHappy(c *C) {
 	defer restore()
 
 	_, _, err := ctlcmd.Run(s.mockContext,
-		[]string{"kmod", "insert", "module2", "opt1=v1", "opt2=v2"}, 0)
+		[]string{"kmod", "insert", "module2", "opt1=v1", "opt2=v2"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(loadModuleCalls, Equals, 1)
 }
@@ -285,7 +285,7 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 	} {
 		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "remove", "moderr"}, 0)
+		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "remove", "moderr"}, 0, nil)
 		c.Check(err, ErrorMatches, td.expectedError)
 	}
 }
@@ -302,7 +302,7 @@ func (s *kmodSuite) TestRemoveHappy(c *C) {
 	defer restore()
 
 	_, _, err := ctlcmd.Run(s.mockContext,
-		[]string{"kmod", "remove", "module2"}, 0)
+		[]string{"kmod", "remove", "module2"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(unloadModuleCalls, Equals, 1)
 }

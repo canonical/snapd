@@ -154,7 +154,7 @@ func (s *getSuite) TestGetTests(c *C) {
 
 		state.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
+		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -219,7 +219,7 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		tr2.Set("test-snap", test.setPath, test.setValue)
 		mockContext.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0)
+		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args), 0, nil)
 		c.Assert(err, IsNil)
 		c.Assert(string(stderr), Equals, "")
 		c.Check(string(stdout), Equals, test.stdout)
@@ -254,22 +254,22 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 	mockHandler := hooktest.NewMockHandler()
 	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
 	c.Assert(err, IsNil)
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "test-key1"}, 1000)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "test-key1"}, 1000, nil)
 	c.Assert(err, IsNil)
 	c.Assert(string(stdout), Equals, "test-value1\n")
 	c.Assert(string(stderr), Equals, "")
 }
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0)
+	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "get"\) from outside of a snap`)
 }
 
 func (s *setSuite) TestNull(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"}, 0, nil)
 	c.Check(err, IsNil)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`}, 0)
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`}, 0, nil)
 	c.Check(err, IsNil)
 
 	// Notify the context that we're done. This should save the config.
@@ -400,7 +400,7 @@ func (s *getAttrSuite) TestPlugHookTests(c *C) {
 	for _, test := range getPlugAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args), 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, strings.Fields(test.args), 0, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -441,7 +441,7 @@ func (s *getAttrSuite) TestSlotHookTests(c *C) {
 	for _, test := range getSlotAttributesTests {
 		c.Logf("Test: %s", test.args)
 
-		stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args), 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, strings.Fields(test.args), 0, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -634,7 +634,7 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "my-ssid\n")
 	c.Check(stderr, IsNil)
@@ -658,7 +658,7 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "password"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "ssid", "password"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, `{
 	"password": "secret",
@@ -687,7 +687,7 @@ func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, `{
 	"password": "secret",
@@ -719,7 +719,7 @@ func (s *confdbSuite) TestConfdbGetInvalid(c *C) {
 	}
 
 	for _, tc := range tcs {
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"get", "--view"}, tc.args...), 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"get", "--view"}, tc.args...), 0, nil)
 		c.Assert(err, ErrorMatches, tc.err)
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
@@ -776,12 +776,12 @@ slots:
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":my-plug"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":my-plug"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot use --view with non-confdb plug :my-plug")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":my-plug", "ssid=my-ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":my-plug", "ssid=my-ssid"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot use --view with non-confdb plug :my-plug")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -817,12 +817,12 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"read-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find view \"write-wifi\" in confdb schema %s/network", s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -854,13 +854,13 @@ func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	s.state.Unlock()
 
 	// current transaction has uncommitted write "bar"
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(stderr, IsNil)
 
 	// but --previous show "foo"
-	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
@@ -874,7 +874,7 @@ func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	s.state.Unlock()
 
 	// --previous in observe-view hook refers to pre-commit databag
-	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
@@ -912,7 +912,7 @@ func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":other", "ssid"}, 0, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot load confdb %[1]s/other: ongoing transaction for %[1]s/network`, s.devAccID))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -924,7 +924,7 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 	s.state.Unlock()
 
 	for _, cmd := range []string{"get", "set", "unset"} {
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{cmd, "--view", ":read-wifi"}, 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{cmd, "--view", ":read-wifi"}, 0, nil)
 		c.Assert(err, ErrorMatches, i18n.G(`"confdb" feature flag is disabled: set 'experimental.confdb' to true`))
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
@@ -989,13 +989,13 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":other", "foo"}, 0)
+		stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":other", "foo"}, 0, nil)
 		c.Assert(err.Error(), Equals, tc.err)
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
 	}
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--previous", ":other", "foo"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--previous", ":other", "foo"}, 0, nil)
 	c.Assert(err.Error(), Equals, "cannot use --previous without --view")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -1022,24 +1022,24 @@ func (s *confdbSuite) TestConfdbAccessUnconnectedPlug(c *C) {
 
 	s.state.Unlock()
 	defer s.state.Lock()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :read-wifi")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :write-wifi")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0)
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :write-wifi")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
 
 func (s *confdbSuite) TestConfdbDefaultMultipleKeys(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "foo", ":write-wifi", "ssid", "password"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "foo", ":write-wifi", "ssid", "password"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot use --default with more than one confdb request")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -1055,7 +1055,7 @@ func (s *confdbSuite) TestDefaultNonConfdbRead(c *C) {
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "--default", "foo", "key"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "--default", "foo", "key"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot use --default with non-confdb read \(missing --view\)`)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -1076,7 +1076,7 @@ func (s *confdbSuite) TestConfdbDefaultIfNoData(c *C) {
 
 	s.state.Unlock()
 	defer s.state.Lock()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", ":read-wifi", "password"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", ":read-wifi", "password"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), DeepEquals, "bar\n")
 	c.Check(stderr, IsNil)
@@ -1097,7 +1097,7 @@ func (s *confdbSuite) TestConfdbDefaultNoFallbackIfTyped(c *C) {
 
 	s.state.Unlock()
 	defer s.state.Lock()
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", "-t", ":read-wifi", "password"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", "-t", ":read-wifi", "password"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot unmarshal default value as strictly typed")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -1167,7 +1167,7 @@ func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("testcase %d", i+1)
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"get", "--view", ":read-wifi", "ssid"}, tc.flags...), 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"get", "--view", ":read-wifi", "ssid"}, tc.flags...), 0, nil)
 		c.Assert(err, IsNil, cmt)
 		c.Check(string(stdout), DeepEquals, tc.output, cmt)
 		c.Check(stderr, IsNil, cmt)
@@ -1189,7 +1189,7 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 	})
 	defer restore()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", "field1=value1", "--with", "field2=value2"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", "field1=value1", "--with", "field2=value2"}, 0, nil)
 	expectedOutput := `{
 	"field1": "value1",
 	"field2": "value2"
@@ -1243,13 +1243,13 @@ func (s *confdbSuite) TestConfdbGetWithStrictConstraintsInvalid(c *C) {
 	}
 
 	for _, tc := range tcs {
-		_, _, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "-t", ":read-wifi", "ssid", "--with", tc.constraint}, 0)
+		_, _, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "-t", ":read-wifi", "ssid", "--with", tc.constraint}, 0, nil)
 		c.Assert(err, ErrorMatches, tc.err)
 	}
 }
 
 func (s *confdbSuite) TestWithNonConfdbRead(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"get", ":read-wifi", "ssid", "--with", "field=value"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"get", ":read-wifi", "ssid", "--with", "field=value"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot use --with with non-confdb read \(missing --view\)`)
 }
 
@@ -1312,7 +1312,7 @@ func (s *confdbSuite) TestConfdbGetTypedConstraints(c *C) {
 			return tx, nil
 		})
 
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", tc.constraint}, 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi", "foo", "--with", tc.constraint}, 0, nil)
 		var expectedOutput string
 		if reflect.TypeOf(tc.expected).Kind() == reflect.String {
 			// for string expected values, we need to quote them
