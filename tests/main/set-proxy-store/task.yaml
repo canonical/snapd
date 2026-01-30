@@ -13,12 +13,12 @@ environment:
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     echo "Given a snap is installed"
     snap install "$SNAP_NAME"
 
@@ -44,10 +44,6 @@ prepare: |
     "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$SNAP_NAME"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     systemctl start snapd.socket
 
     snap set core proxy.store=
@@ -55,11 +51,6 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Configure to use the fakestore through store assertion and proxy.store"
     snap set core proxy.store=fake
 

@@ -9,21 +9,18 @@ details: |
 # Skip debian-sid as pivot_root binary is not anymore within util-linux
 systems: [-*-32, -debian-sid-*]
 
+skip:
+    - reason: Unshare command doesn't support saving the namespace
+      if: |
+        # Check if `unshare --mount=<file>` is supported
+        unshare --mount=/something true 2>&1 | grep "option '--mount' doesn't allow an argument"
+
 prepare: |
     echo "Install test snap"
     mkdir testsnap/import
     "$TESTSTOOLS"/snaps-state install-local testsnap
 
 execute: |
-    echo "Checking if the unshare command supports saving the namespace"
-    unshare --mount=/something true 2> error.log || true
-    tests.cleanup defer rm error.log
-    if grep "option '--mount' doesn't allow an argument" error.log; then
-        echo "unshare --mount=<file> is not supported, skipping test"
-        exit 0
-    fi
-
-
     echo "Creating a mount namespace whose root is a tmpfs"
     mkdir -p /run/snapd/ns/
     mount -o bind --make-private /run/snapd/ns/ /run/snapd/ns/

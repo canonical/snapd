@@ -18,19 +18,17 @@ environment:
     SERVICE/ssh_oneline: ssh
     GADGET_FILE/ssh_oneline: gadget-ssh-oneline.yaml
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: The service to test does not exist in the core18 system
+      if: |
+        [ "$SERVICE" = "rsyslog" ] && os.query is-core18
+
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-
-    if [ "$SERVICE" = "rsyslog" ] && os.query is-core18; then
-        echo "The service to test does not exist in the core18 system, skipping..."
-        touch "${SERVICE}.skip"
-        exit
-    fi
 
     SUFFIX="$(get_test_snap_suffix)"
 
@@ -95,15 +93,6 @@ prepare: |
     snap install --edge "test-snapd-with-default-configure${SUFFIX}"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    if [ -f "${SERVICE}.skip" ]; then
-        echo "The service to test does not exist in the system, skipping..."
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -157,14 +146,6 @@ restore: |
     rm -rf "/var/snap/test-snapd-with-configure${SUFFIX}"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    if [ -f "${SERVICE}.skip" ]; then
-        echo "The service to test does not exist in the system, skipping..."
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 

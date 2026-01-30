@@ -9,12 +9,11 @@ details: |
 
 systems: [ubuntu-2*]
 
-execute: |
-    if not os.query is-pc-amd64; then
-        echo "test designed for amd64 architecture, exiting..."
-        exit
-    fi
+skip:
+    - reason: This test is just designed for amd64 architecture
+      if: not os.query is-pc-amd64
 
+execute: |
     echo "download snapd 2.45.1"
     wget -q https://launchpad.net/ubuntu/+source/snapd/2.45.1/+build/19499801/+files/snapd_2.45.1_amd64.deb
     apt install -y --allow-downgrades ./snapd_2.45*_amd64.deb

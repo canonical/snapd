@@ -13,15 +13,15 @@ environment:
     # uploading large snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
 
+skip:
+    - reason: SNAP_REEXEC is disabled in the system
+      if: |
+        [ "${SNAP_REEXEC:-}" = "0" ]
+
 restore: |
     rm -f /tmp/snapd_*.snap
 
 execute: |
-    if [ "${SNAP_REEXEC:-}" = "0" ]; then
-        echo "skipping test when SNAP_REEXEC is disabled"
-        exit 0
-    fi
-
     echo "Create modified snapd snap"
     #shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
