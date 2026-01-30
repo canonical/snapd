@@ -31,7 +31,7 @@ prepare: |
     systemctl start snapd.service snapd.socket
 
 restore: |
-     #shellcheck source=tests/lib/core-config.sh
+    #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
     systemctl stop snapd.service snapd.socket

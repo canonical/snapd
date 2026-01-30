@@ -5,9 +5,9 @@ details: |
     a set of apps and hooks.
 
 skip:
-    - reason: The systems has "partial" debug confinement
+    - reason: The system has "partial" debug confinement
       if: |
-        [ "$(snap debug confinement)" = none ]
+        [ "$(snap debug confinement)" = partial ]
 
 
 prepare: |

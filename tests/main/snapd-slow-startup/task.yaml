@@ -8,7 +8,7 @@ details: |
     Internally, snapd will calculate the expected startup time based on the
     number of snaps and adjust systemd's timeout to match it.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 restore: |
     # extra cleanup in case something in this test went wrong

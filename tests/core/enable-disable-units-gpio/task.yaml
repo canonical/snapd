@@ -15,9 +15,8 @@ systems: [ubuntu-core-*-64]
 skip:
     - reason: This tests needs a fake 'gpio-pin' interface
       if: |
-        # Core image that were created using spread will have a fake "gpio-pin".
-        # Other (e.g. official) images will not have that and there we can't use
-        # this test.
+        # Core images created using spread have a fake "gpio-pin" interface.
+        # Official images do not. Only run the test if the interface is present
         not snap interfaces | grep -q gpio-pin
 
 prepare: |
