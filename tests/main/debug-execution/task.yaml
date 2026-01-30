@@ -4,6 +4,12 @@ details: |
     This test checks that the command `snap debug execution` shows right
     outputs, but also verifies their correctness on the target systems
 
+skip:
+    - reason: Snapd is from the archive and `debug execution`command could not be supported
+      if: |
+        # TODO: remove this check once snapd 2.65 is released (debian-12 missing)
+        tests.info is-snapd-from-archive
+
 debug: |
     grep -n '' snap-*.out || true
 
