@@ -81,6 +81,8 @@ const (
 	Clustering
 	// RemoteDeviceManagement enables experimental remote management of the device through the Store.
 	RemoteDeviceManagement
+	// SeedRefresh enables experimental seed creation during model snap refresh.
+	SeedRefresh
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -133,6 +135,8 @@ var featureNames = map[SnapdFeature]string{
 	Clustering:         "clustering",
 
 	RemoteDeviceManagement: "remote-device-management",
+
+	SeedRefresh: "seed-refresh",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
