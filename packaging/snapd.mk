@@ -297,6 +297,19 @@ check-trusted-account-keys:
 			{ echo "ERROR: snapd store generic models key not found"; exit 1; }; \
 		echo "  snapd: OK (2 keys)"; \
 	fi
+	@# Check snap binary (2 keys expected)
+	@if [ -f "$(builddir)/snap" ]; then \
+		count=$$(strings $(builddir)/snap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap store root key not found"; exit 1; }; \
+		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap store generic models key not found"; exit 1; }; \
+		echo "  snap: OK (2 keys)"; \
+	fi
 	@# Check snap-bootstrap if it exists (Ubuntu 16.04+)
 	@if [ -f "$(builddir)/snap-bootstrap" ]; then \
 		count=$$(strings $(builddir)/snap-bootstrap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
