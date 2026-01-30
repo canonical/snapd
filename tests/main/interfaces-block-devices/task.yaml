@@ -12,7 +12,7 @@ prepare: |
         # This is the case when tpm is enabled in the system
         # Now /var/snap in on an ubuntu-data volume made available through device
         # mapper and will show up as disk, so it is required to find the parent partition
-        maybe_partition_dev=/dev/"$(lsblk -f -o label,fstype,name --raw | grep -E "ubuntu-data.*crypto_LUKS" | awk '{ print $3 }')"
+        maybe_partition_dev=/dev/"$(lsblk -f -o label,fstype,name --raw | awk '/ubuntu-data.*crypto_LUKS/  { print $3 }')"
     else
         maybe_partition_dev="$(df --output=source /var/snap | tail -n -1)"
     fi
