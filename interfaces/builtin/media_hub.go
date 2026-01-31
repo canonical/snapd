@@ -64,12 +64,12 @@ dbus (send)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=session
-    name="core.ubuntu.media.Service",
+    name="com.lomiri.MediaHub.Service",
 
 # Allow communications with unconfined processes
 dbus (receive, send)
     bus=session
-    path=/com/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHubService{,/**}
     interface=org.freedesktop.DBus{,.*}
     peer=(label=unconfined),
 
@@ -81,20 +81,20 @@ dbus (receive)
 
 dbus (receive, send)
     bus=session
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=unconfined),
 
 # Allow sending/receiving mpris signals for session path
 dbus (receive, send)
     bus=session
-    path=/core/ubuntu/media/Service/sessions/**
+    path=/com/lomiri/MediaHub/Service/sessions/**
     interface="org.mpris.MediaPlayer2{,.Player,.TrackList}"
     peer=(label=unconfined),
 
 # Allow sending properties signals for session path
 dbus (send)
     bus=session
-    path=/core/ubuntu/media/Service/sessions/**
+    path=/com/lomiri/MediaHub/Service/sessions/**
     interface="org.freedesktop.DBus.Properties"
     peer=(label=unconfined),
 `
@@ -104,22 +104,22 @@ const mediaHubConnectedSlotAppArmor = `
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow client to introspect our DBus api
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/core/ubuntu/media/Service
+    path=/com/lomiri/MediaHub/Service
     member="Introspect"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to manage Player sessions
 dbus (receive)
     bus=session
-    interface="core.ubuntu.media.Service{,.*}"
-    path=/core/ubuntu/media/Service
+    interface="com.lomiri.MediaHub.Service{,.*}"
+    path=/com/lomiri/MediaHub/Service
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -132,22 +132,22 @@ const mediaHubConnectedPlugAppArmor = `
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow client to introspect our DBus api
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/core/ubuntu/media/Service
+    path=/com/lomiri/MediaHub/Service
     member="Introspect"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to manage Player sessions
 dbus (send)
     bus=session
-    interface="core.ubuntu.media.Service{,.*}"
-    path=/core/ubuntu/media/Service
+    interface="com.lomiri.MediaHub.Service{,.*}"
+    path=/com/lomiri/MediaHub/Service
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 

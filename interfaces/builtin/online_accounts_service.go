@@ -55,6 +55,10 @@ dbus (send)
 dbus (bind)
 	bus=session
 	name="com.ubuntu.OnlineAccounts.Manager",
+
+dbus (bind)
+	bus=session
+	name="com.lomiri.OnlineAccounts.Manager",
 `
 
 const onlineAccountsServiceConnectedSlotAppArmor = `
@@ -63,6 +67,12 @@ dbus (receive, send)
 	bus=session
 	path=/com/ubuntu/OnlineAccounts{,/**}
 	interface=com.ubuntu.OnlineAccounts.Manager
+	peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (receive, send)
+	bus=session
+	path=/com/lomiri/OnlineAccounts{,/**}
+	interface=com.lomiri.OnlineAccounts.Manager
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -80,11 +90,24 @@ dbus (receive, send)
     path=/com/ubuntu/OnlineAccounts{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
 
+dbus (receive, send)
+    bus=session
+    interface=com.lomiri.OnlineAccounts.Manager
+    path=/com/lomiri/OnlineAccounts{,/**}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
 # Allow clients to introspect the service
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     path=/com/ubuntu/OnlineAccounts
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/lomiri/OnlineAccounts
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
