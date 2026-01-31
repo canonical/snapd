@@ -35,6 +35,7 @@ const tpmConnectedPlugAppArmor = `
 
 /dev/tpm[0-9]* rw,
 /dev/tpmrm[0-9]* rw,
+/sys/class/tpm/tpm[0-9]*/ppi/request rw,
 `
 
 var tpmConnectedPlugUDev = []string{
