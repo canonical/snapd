@@ -44,7 +44,7 @@ execute: |
     # parallel-installs: global snap directories are remapped to $SNAP_NAME
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt
-    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32$' < snap-vars.txt
+    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl$' < snap-vars.txt
     # XXX: probably not something we ought to test
     # egrep -q '^SNAP_REEXEC=0$' snap-vars.txt
     MATCH '^SNAP_REVISION=x1$'                                            < snap-vars.txt

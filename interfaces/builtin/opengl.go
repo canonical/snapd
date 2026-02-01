@@ -44,6 +44,8 @@ const openglConnectedPlugAppArmor = `
 # specific gl libs
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
+/var/lib/snapd/lib/wsl/ r,
+/var/lib/snapd/lib/wsl/** rm,
 
 # libdrm data files
 /usr/share/libdrm/amdgpu.ids r,
