@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	sysd "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func serviceName(snapName, distinctServiceSuffix string) string {
@@ -69,6 +70,11 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
+
+	if err := ensureSnapServiceOverrides(spec.(*Specification), appSet); err != nil {
+		return err
+	}
+
 	content := deriveContent(spec.(*Specification), appSet)
 	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
@@ -179,6 +185,35 @@ func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[strin
 		}
 	}
 	return content
+}
+
+func ensureSnapServiceOverrides(spec *Specification, appSet *interfaces.SnapAppSet) error {
+	overrides := make(map[string][]wrappers.SnapServiceOverride)
+	for name, override := range spec.snapServiceOverrides {
+		svcOverride := wrappers.SnapServiceOverride{
+			Name:    name,
+			Content: override.content,
+		}
+		overrides[override.plugOrSlot] = append(overrides[override.plugOrSlot], svcOverride)
+	}
+
+	svcOverrides := make(map[*snap.AppInfo][]wrappers.SnapServiceOverride)
+	for _, svc := range appSet.Info().Services() {
+		for _, plug := range svc.Plugs {
+			if plugOverrides, ok := overrides[plug.Name]; ok {
+				svcOverrides[svc] = append(svcOverrides[svc], plugOverrides...)
+			}
+		}
+		for _, slot := range svc.Slots {
+			if sloteOverrides, ok := overrides[slot.Name]; ok {
+				svcOverrides[svc] = append(svcOverrides[svc], sloteOverrides...)
+			}
+		}
+	}
+	opts := &wrappers.EnsureSnapServiceOverridesOptions{
+		Prefix: "70-snap.interface.",
+	}
+	return wrappers.EnsureSnapServiceOverrides(svcOverrides, opts, &noopReporter{})
 }
 
 func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]osutil.FileState) error {
