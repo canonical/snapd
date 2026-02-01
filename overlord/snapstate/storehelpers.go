@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -48,6 +49,10 @@ var EnforceLocalValidationSets func(*state.State, map[string][]string, map[strin
 // EnforceValidationSets allows to hook enforcing validation sets without
 // fetching them. It's hooked from assertstate.
 var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error
+
+// ValidatedIntegrityData allows to hook fetching integrity data for snap-revisions that
+// have been already validated by inclusion in the assertion database. It's hooked from assertstate.
+var ValidatedIntegrityData func(*state.State, string, int) (*integrity.IntegrityDataParams, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
