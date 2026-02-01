@@ -285,7 +285,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed,NotificationReplied}
+    member={ActivationToken,ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label="{plasmashell,unconfined}"),
 
 # KDE Plasma's Inhibited property indicating "do not disturb" mode
