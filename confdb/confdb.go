@@ -1383,8 +1383,8 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				// matched a path that doesn't have a corresponding data in this value
-				// so flag that so we can interpret that as an Unset
+				// matched a write path that doesn't have corresponding data in the value
+				// so signal that scenario, such that Set() can interpret it as unsetting the path
 				return nil, &NoDataError{}
 			}
 
