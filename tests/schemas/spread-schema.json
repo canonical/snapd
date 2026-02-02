@@ -598,6 +598,18 @@
           "type": "string",
           "description": "SSH password"
         },
+        "reserve-key": {
+          "type": "string",
+          "description": "Key for reserving the device (e.g., lp:<KEY_NAME> or gh:<KEY_NAME>)"
+        },
+        "ssh-rsa-key": {
+          "type": "string",
+          "description": "SSH RSA private key for authentication"
+        },
+        "ssh-key-pass": {
+          "type": "string",
+          "description": "Passphrase for the SSH private key"
+        },
         "manual": {
           "type": "boolean",
           "description": "Manually triggered system"
