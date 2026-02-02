@@ -7,8 +7,6 @@ systems:
   - -ubuntu-1*
   - -ubuntu-20*
   - -ubuntu-22*
-  # FIXME
-  - -ubuntu-26*
 
 environment:
   # Test both encrypted and unencrypted cases
