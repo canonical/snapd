@@ -125,14 +125,13 @@ func (s SnapSetupCallReason) String() string {
 	}
 }
 
-// DelayedSideEffect captures an delayed side effect introduced by backend
+// DelayedSideEffect captures a delayed side effect introduced by backend
 // Setup(). It is normally created by security backends and enqueued for later
 // processing in the task runner.
 type DelayedSideEffect struct {
-	// ID is a backend specific, e.g. could indicate the kind of effect to apply
-	// to do.
+	// ID is backend specific, e.g. could indicate the kind of effect to apply,
 	ID DelayedEffect `json:"id"`
-	// Description is purely informative
+	// Description is purely informative,
 	Description string `json:"description"`
 	// TODO add Any any to capture anything the backend want to pass around?
 }
@@ -150,7 +149,7 @@ func (d *DelayedSideEffect) String() string {
 type SetupContext struct {
 	Reason SnapSetupCallReason
 	// CanDelayEffects is set to true when the backend may delay effects in a
-	// given execution conext. In such case, the DelayEffect callback is
+	// given execution context. In such case, the DelayEffect callback is
 	// provided.
 	CanDelayEffects bool
 	// DelayEffect is a callback the backend may call to delay a given effect.
