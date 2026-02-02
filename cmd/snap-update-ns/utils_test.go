@@ -768,6 +768,8 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		c.Assert(plan, testutil.DeepContains, chg)
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		return nil
 	})
 	defer restore()
 
@@ -811,6 +813,8 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 			recoveryPlan = append(recoveryPlan, chg)
 		}
 		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		return nil
 	})
 	defer restore()
 
@@ -840,7 +844,9 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 
 	// Mock the act of performing changes and just fail on any request.
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
-		return nil, errTesting
+		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		return errTesting
 	})
 	defer restore()
 
@@ -867,11 +873,13 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// recovery path and will have to return a fatal error.
 	i := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
 		i++
 		if i > 0 {
-			return nil, fmt.Errorf("failure-%d", i)
+			return fmt.Errorf("failure-%d", i)
 		}
-		return nil, nil
+		return nil
 	})
 	defer restore()
 

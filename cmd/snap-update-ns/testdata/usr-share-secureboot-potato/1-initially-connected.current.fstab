@@ -2,10 +2,6 @@
 # created at / during construction of the mount namespace, before
 # snap-update-ns is even invoked.
 tmpfs / tmpfs x-snapd.origin=rootfs 0 0
-# This is the result of a content interface connection, all of
-# test-snapd-content at revision x1 is shared to test-snapd-layout at
-# revision x2, to directory $SNAP/attached-content.
-/snap/test-snapd-content/x1 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0
 # This is a writable mimic created on /usr/share/secureboot, so that the
 # subdirectory "potato" can be created inside. There's nothing special about
 # the path. It was used as there are relatvely few elements that need to be
@@ -17,6 +13,10 @@ tmpfs /usr/share/secureboot tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share
 # unmounted. The real source is somewhat more complicated and cannot be
 # expressed with the limited syntax of fstab mount entries.
 /usr/share/secureboot/updates /usr/share/secureboot/updates none rbind,x-snapd.synthetic,x-snapd.needed-by=/usr/share/secureboot/potato,x-snapd.detach 0 0
+# This is the result of a content interface connection, all of
+# test-snapd-content at revision x1 is shared to test-snapd-layout at
+# revision x2, to directory $SNAP/attached-content.
+/snap/test-snapd-content/x1 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0
 # This is the layout entry replicating the attached content. This is the root
 # of all evil, as the very popular behavior used by nearly all the snaps relies
 # on an implementation detail that was never envisioned to work this way.
