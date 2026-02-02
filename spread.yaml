@@ -555,8 +555,8 @@ backends:
     openstack-arm-ext:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
-        plan: shared.medium.arm64
-        halt-timeout: 2h
+        plan: shared.large.arm64
+        halt-timeout: 3h
         wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
