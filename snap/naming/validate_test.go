@@ -579,7 +579,7 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 		arch    string
 		err     string
 	}{
-		// We do not test the explicit "success" case as that is done in architecture-specific
+		// We do not test the explicit "success" and failure cases as those are done in architecture-specific
 		// files
 		{
 			// Different architecture ignored with no error
@@ -595,10 +595,6 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 			assumes: []string{"isa-riscv64..rva23"},
 			arch:    "riscv64",
 			err:     "isa-riscv64..rva23: must be in the format isa-<arch>-<isa_val>",
-		}, {
-			// Skip ISA validation when currentArchitecture is empty
-			assumes: []string{"isa-badarch-badisa"},
-			arch:    "",
 		},
 	}
 
