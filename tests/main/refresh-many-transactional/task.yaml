@@ -11,12 +11,12 @@ systems: [-ubuntu-core-*, -ubuntu-14.04*]
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     echo "Given snaps installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
         snap install $snap
@@ -26,20 +26,10 @@ prepare: |
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Precondition check for the fake store"
     snap refresh 2>&1 | MATCH "All snaps up to date."
 

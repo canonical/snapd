@@ -158,3 +158,25 @@ func (b *TestSecurityBackendReinitializable) Reinitialize() error {
 	}
 	return b.ReinitializeCallback()
 }
+
+// TestSecurityBackendDelayedEffects implements DelayedSideEffectsBackend on top
+// of TestSecurityBackend.
+type TestSecurityBackendDelayedEffects struct {
+	TestSecurityBackend
+
+	ApplyDelayedEffectsCalls int
+
+	ApplyDelayedEffectsCallback func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error
+}
+
+var (
+	_ interfaces.DelayedSideEffectsBackend = (*TestSecurityBackendDelayedEffects)(nil)
+)
+
+func (b *TestSecurityBackendDelayedEffects) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect, tm timings.Measurer) error {
+	b.ApplyDelayedEffectsCalls++
+	if b.ApplyDelayedEffectsCallback == nil {
+		return nil
+	}
+	return b.ApplyDelayedEffectsCallback(appSet, effs)
+}

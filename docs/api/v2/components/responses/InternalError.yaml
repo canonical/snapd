@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  An internal error occurred on the server. This is a generic response for server-side issues.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum:
+            - 500
+        status:
+          type: string
+          enum:
+            - Internal Server Error
+        type:
+          type: string
+          enum: 
+            - error
+        result:
+          $ref: '../errors/InternalServerError.yaml'

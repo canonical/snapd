@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Interfaces
+    - OpenAccess
+    - Synchronous
+  summary: Get all interface connections
+  description: |-
+    Retrieves the connection status of all plugs and slots on the system.
+  operationId: getConnections
+  security: []
+  parameters:
+    - name: snap
+      in: query
+      description: Limit results to a given snap name.
+      schema:
+        type: string
+    - name: select
+      in: query
+      description: |-
+        When set to 'all', unconnected slots and plugs are included. When unset or empty, the
+        results include only those plugs and slots that are connected.
+      schema:
+        type: string
+        enum:
+          - ''
+          - all
+    - name: interface
+      in: query
+      description: Limit results to a specific interface name.
+      schema:
+        type: string
+  responses:
+    200:
+      description: A synchronous response containing the connection status of plugs and slots.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                $ref: '../components/schemas/ConnectionStatus.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

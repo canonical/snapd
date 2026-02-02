@@ -125,10 +125,38 @@ func (s SnapSetupCallReason) String() string {
 	}
 }
 
+// DelayedSideEffect captures an delayed side effect introduced by backend
+// Setup(). It is normally created by security backends and enqueued for later
+// processing in the task runner.
+type DelayedSideEffect struct {
+	// ID is a backend specific, e.g. could indicate the kind of effect to apply
+	// to do.
+	ID DelayedEffect `json:"id"`
+	// Description is purely informative
+	Description string `json:"description"`
+	// TODO add Any any to capture anything the backend want to pass around?
+}
+
+func (d *DelayedSideEffect) String() string {
+	desc := d.Description
+	if desc == "" {
+		desc = "<none>"
+	}
+	return fmt.Sprintf("%s(%s)", d.ID, desc)
+}
+
 // SetupContext conveys information on the context in which a call to Setup()
 // was made.
 type SetupContext struct {
 	Reason SnapSetupCallReason
+	// CanDelayEffects is set to true when the backend may delay effects in a
+	// given execution conext. In such case, the DelayEffect callback is
+	// provided.
+	CanDelayEffects bool
+	// DelayEffect is a callback the backend may call to delay a given effect.
+	// The callback is only provided if the backend implements
+	// DelayedSideEffectsBackend.
+	DelayEffect func(backend SecurityBackend, item DelayedSideEffect)
 }
 
 // SecurityBackend abstracts interactions between the interface system and the
@@ -186,4 +214,18 @@ type SecurityBackendDiscardingLate interface {
 	// RemoveLate removes the security profiles of a snap at the very last
 	// step of the remove change.
 	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
+}
+
+// DelayedEffect wraps a delayed side effect ID;
+type DelayedEffect string
+
+// DelayedSideEffectsBackend is an interface which is implemented by a backend
+// that supports delaying some side effects of their Setup().
+type DelayedSideEffectsBackend interface {
+	ApplyDelayedEffects(appSets *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
+}
+
+func SupportsDelayingEffects(backend SecurityBackend) bool {
+	_, ok := backend.(DelayedSideEffectsBackend)
+	return ok
 }

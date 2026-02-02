@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Metadata for a single snap's snapshot.
+properties:
+  id:
+    type: integer
+    description: The ID of the snapshot.
+    example: 2
+  set:
+    type: integer
+    description: The ID of the set this snapshot belongs to.
+    example: 1
+  time:
+    type: string
+    format: date-time
+    description: The creation timestamp of the snapshot (RFC3339 UTC format).
+    example: 2025-08-18T14:30:38.226662804-02:30
+  snap:
+    type: string
+    description: The name of the snap that was snapshotted.
+    example: libreoffice
+  snap-id:
+    type: string
+    description: The unique store ID of the snap.
+    example: CpUkI0qPIIBVRsjy49adNq4D6Ra72y4v
+  revision:
+    type: string
+    description: The revision of the snap at the time of the snapshot.
+    example: '355'
+  version:
+    type: string
+    description: The version of the snap at the time of the a snapshot.
+    example: 25.2.5.2
+  size:
+    type: integer
+    format: int64
+    description: The size of the snapshot data in bytes.
+    example: 1286593
+  auto:
+    type: boolean
+    description: True if the snapshot was created automatically.
+  epoch:
+    type: object
+    externalDocs:
+      description: To learn more about snap epochs, consult the Snapcraft documentation
+      url: https://documentation.ubuntu.com/snapcraft/stable/how-to/crafting/manage-data-compatibility/
+    properties:
+      read:
+        type: array
+        items:
+          type: integer
+      write:
+        type: array
+        items:
+          type: integer
+  sha3-384:
+    type: object
+    description: |-
+      A map of archive components to their SHA3-384 checksums. There is a top level archive for system wide data,
+      and a per-user archive as well.
+    additionalProperties:
+      type: string
+    example:
+      archive.tgz: "fb8e887e47b1e8763d82ee5ddc8da8ad4601824d3154381a5d3b5bbe4125ded31fcc7b701a8318fbe3ea21213f333c8b"
+      user/$USER.tgz: "00cd2cf11d3c5731129dd11f8f82b0f13e807f6d839fd79afe052e301e43ee32ecdd217059cae0c400ff9c49e6dbaff6"
+  summary:
+    type: string
+    description: A user-provided summary or description of the snapshot (often empty).

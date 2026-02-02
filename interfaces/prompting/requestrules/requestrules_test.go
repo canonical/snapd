@@ -997,7 +997,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 			c.Skip("xattrs are not supported on this system")
 		}
 		c.Assert(err, IsNil)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatal("timed out waiting for first user ID")
 	}
 
@@ -1008,7 +1008,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 			c.Assert(retrievedID, NotNil)
 			c.Assert(retrievedID, Not(Equals), prompting.IDType(0))
 			c.Assert(retrievedID, Equals, firstID)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("timed out waiting for %dth ID", i)
 		}
 	}

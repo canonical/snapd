@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Information about the publisher of the snap.
+properties:
+  display-name:
+    type: string
+    description: |-
+      The user name associated with the account.
+  id:
+    type: string
+    description: |-
+      The developer ID associated with the account.
+  username:
+    type: string
+  validation:
+    type: string
+    enum:
+      - verified
+      - starred
+      - unproven

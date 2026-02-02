@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - Validation Sets
+  summary: Get all enabled validation sets
+  description: |-
+    Retrieves a list of all enabled validation sets on the system.
+  externalDocs:
+    description: |-
+      Read more about validation sets on the Canonical Snapcraft documentation.
+    url: https://snapcraft.io/docs/validation-sets
+  operationId: listValidationSets
+  security:
+    - PeerAuth: []
+  responses:
+    200:
+      description: A list of validation sets.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/ValidationSet.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

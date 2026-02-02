@@ -8,6 +8,11 @@ details: |
     works for both the main architecture, and for the 32-bit sub-architecture if
     the CPU supports one.
 
+skip:
+    - reason: No sandboxing in the system
+      if: |
+        [ "$(snap debug confinement)" != "strict" ] && not os.query is-ubuntu
+
 prepare: |
     if tests.session has-session-systemd-and-dbus; then
         tests.session -u test prepare
@@ -26,8 +31,6 @@ execute: |
             echo "all ubuntu systems must have strict confinement"
             exit 1
         fi
-        echo "SKIP: no sandboxing"
-        exit 0
     fi
 
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sandbox

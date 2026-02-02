@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The complete response object for a successful find operation.
+properties:
+  type:
+    type: string
+    enum:
+      - sync
+  status-code:
+    type: integer
+    enum:
+      - 200
+  status:
+    type: string
+    enum:
+      - OK
+  result:
+    type: array
+    description: An array of snap details matching the query.
+    items:
+      $ref: './Snap.yaml'
+  sources:
+    type: array
+    description: Indicates the source of the find results.
+    items:
+      type: string
+      example: store
+  suggested-currency:
+    type: string
+    description: The suggested currency for any pricing information.
+    example: USD
