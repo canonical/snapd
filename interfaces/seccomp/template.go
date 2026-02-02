@@ -182,6 +182,12 @@ getpgid
 getpgrp
 getpid
 getppid
+# Note that pidfd_open semantics differs from the traditional pid handling.
+# Any process can open the pid of any other process in its pid namespace. What
+# is further controlled depends on the relationship between the two processes
+# and the capabilities of the calling process. Because of this, we allow
+# pidfd_open unconditionally here and rely on the kernel to enforce proper
+# access control.
 pidfd_open
 getpriority
 getrandom
