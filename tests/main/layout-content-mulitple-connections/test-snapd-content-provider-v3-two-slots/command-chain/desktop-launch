@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "hello from content provider V3 dual"
+
+exec "$@"
