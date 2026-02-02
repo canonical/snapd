@@ -725,6 +725,20 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	activateState := &secboot.ActivateState{}
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState := boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+
 	var ts *state.TaskSet
 	var err error
 	if defaultKeyslots {
@@ -844,6 +858,20 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	activateState := &secboot.ActivateState{}
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState := boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+
 	// unsupported auth mode
 	_, err := fdestate.ReplacePlatformKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
 	c.Assert(err, ErrorMatches, `cannot use authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
@@ -883,14 +911,38 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported type "recovery", expected "platform"`)
 
 	// recovery mode
-	unlockState := boot.DiskUnlockState{
-		UbuntuData: boot.PartitionState{UnlockKey: "recovery"},
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+		},
+	}
+	unlockState = boot.DiskUnlockState{
+		State: activateState,
 	}
 	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+	s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
+
 	_, err = fdestate.ReplacePlatformKey(s.st, nil, nil)
-	c.Assert(err, ErrorMatches, "system was unlocked with a recovery key during boot: reboot required")
+	c.Assert(err, ErrorMatches, `cannot replace platform keys if FDE is not active \(current state: recovery\)`)
 	// cleanup
 	c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil)
+
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState = boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+	s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
 
 	// change conflict with fde changes
 	chg := s.st.NewChange("fde-change-passphrase", "")
@@ -961,6 +1013,20 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyConflictSnaps(c *C) {
 
 	s.st.Set("seeded", true)
 
+	activateState := &secboot.ActivateState{}
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState := boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+
 	// mock change in progress
 	ts, err := fdestate.ReplacePlatformKey(s.st, nil, nil)
 	c.Assert(err, IsNil)
@@ -1028,6 +1094,20 @@ func (s *fdeMgrSuite) TestReplacePlatformKeySecbootPlatforms(c *C) {
 	defer s.st.Unlock()
 
 	s.st.Set("seeded", true)
+
+	activateState := &secboot.ActivateState{}
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState := boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
 
 	for _, platform := range sb.ListRegisteredKeyDataPlatforms() {
 		defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {

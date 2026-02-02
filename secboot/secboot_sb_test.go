@@ -5728,3 +5728,38 @@ func (s *secbootSuite) TestValidatePIN(c *C) {
 	c.Assert(secboot.ValidatePIN(""), ErrorMatches, "invalid PIN: zero length")
 	c.Assert(secboot.ValidatePIN("bad"), ErrorMatches, "invalid PIN: unexpected character")
 }
+
+func (s *secbootSuite) TestActivateStateDegraded(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+				"b": sb.KeyslotErrorIncompatibleRoleParams,
+				"c": sb.KeyslotErrorIncorrectUserAuth,
+			},
+		},
+	}
+
+	c.Check(secboot.ActivateStateHasDegradedErrors(state), Equals, false)
+
+	state.Activations["b"] = &sb.ContainerActivateState{
+		Status: sb.ActivationSucceededWithPlatformKey,
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		//FIXME: enable this once we can discriminate the no
+		// key data case.
+		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidPrimaryKey,
+		sb.KeyslotErrorPlatformFailure,
+		sb.KeyslotErrorUnknown,
+	} {
+		state.Activations["b"].KeyslotErrors = map[string]sb.KeyslotErrorType{
+			"a": failure,
+		}
+
+		c.Check(secboot.ActivateStateHasDegradedErrors(state), Equals, true)
+	}
+}

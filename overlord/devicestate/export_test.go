@@ -730,3 +730,7 @@ func MockFdestateGetKeyslots(f func(st *state.State, keyslotRefs []fdestate.Keys
 func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error)) (restore func()) {
 	return testutil.Mock(&snapstateGadgetInfo, f)
 }
+
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
+	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
