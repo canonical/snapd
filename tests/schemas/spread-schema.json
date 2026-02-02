@@ -28,7 +28,8 @@
           { "$ref": "#/definitions/googleBackend" },
           { "$ref": "#/definitions/openstackBackend" },
           { "$ref": "#/definitions/qemuBackend" },
-          { "$ref": "#/definitions/adhocBackend" }
+          { "$ref": "#/definitions/adhocBackend" },
+          { "$ref": "#/definitions/testflingerBackend" }
         ]
       }
     },
@@ -206,6 +207,27 @@
         }
       ]
     },
+    "backendSystemsTestflinger": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigTestflinger" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesTestflinger"
+          }
+        }
+      ]
+    },
     "googleBackend": {
       "type": "object",
       "properties": {
@@ -359,6 +381,18 @@
       },
       "additionalProperties": false
     },
+    "testflingerBackend": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsTestflinger"
+        }
+      },
+      "additionalProperties": false
+    },
     "systemConfigGoogle": {
       "type": "object",
       "patternProperties": {
@@ -391,6 +425,15 @@
       "patternProperties": {
         "^[a-zA-Z0-9_.-]+$": {
           "$ref": "#/definitions/systemPropertiesAdhoc"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigTestflinger": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesTestflinger"
         }
       },
       "additionalProperties": false
@@ -523,6 +566,37 @@
           "type": "integer",
           "description": "Number of parallel workers",
           "minimum": 1
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesTestflinger": {
+      "type": "object",
+      "properties": {
+        "queue": {
+          "type": "string",
+          "description": "Testflinger queue to submit jobs to"
+        },
+        "image": {
+          "type": "string",
+          "description": "Image URL or identifier for the test device"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
         },
         "manual": {
           "type": "boolean",
