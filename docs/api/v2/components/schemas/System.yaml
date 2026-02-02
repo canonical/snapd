@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  actions:
+    type: array
+    items:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+            - install
+            - recover
+            - factory-reset
+            - run
+        title:
+          type: string
+          enum:
+            - Reinstall
+            - Recover
+            - Factory Reset
+            - Run normally
+  brand:
+    type: object
+    properties:
+      display-name:
+        type: string
+        example: Canonical
+      id:
+        type: string
+        example: canonical
+      username:
+        type: string
+        example: canonical
+      validation:
+        type: string
+        enum:
+          - starred
+          - unproven
+          - verified
+  current:
+    type: boolean
+  default-recovery-system:
+    type: boolean
+  label:
+    type: string
+    example: '20240603'
+  model:
+    type: object
+    properties:
+      brand-id:
+        type: string
+        example: canonical
+      display-name:
+        type: string
+        example: ubuntu-core-24-amd64
+      model:
+        type: string
+        example: ubuntu-core-24-amd64

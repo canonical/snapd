@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Details about the applicability of the existing rule to requests.
+required:
+  - path-pattern
+  - permissions
+properties:
+  path-pattern:
+    type: string
+    description: Path glob matching filepaths for which the rule applies.
+  permissions:
+    type: object
+    description: |-
+      A map linking the permission name to it's respective information.
+    additionalProperties:
+      $ref: './PromptingPermissionRuleEntry.yaml'

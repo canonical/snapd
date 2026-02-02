@@ -28,12 +28,12 @@ environment:
   NESTED_ENABLE_SECURE_BOOT/install: false
   NESTED_ENABLE_TPM/install: false
 
-prepare: |
-    if [ "${TRUST_TEST_KEYS}" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     # although nested_start_core_vm_unit usually installs this, the fake store
     # will already have been set up, so we need to install it here
     snap install test-snapd-swtpm --edge

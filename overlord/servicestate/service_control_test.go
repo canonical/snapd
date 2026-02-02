@@ -84,6 +84,7 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()

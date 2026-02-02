@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Quotas
+    - Synchronous
+  summary: Get all quota groups
+  description: |-
+    Retrieves a list of all quota groups and their constraints.
+  operationId: getQuotaGroups
+  security: []
+  responses:
+    200:
+      description: A list of quota groups.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/QuotaGroup.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Quotas
+  summary: Manage quota groups
+  description: |-
+    Create, modify, or remove a quota group.
+  operationId: manageQuotaGroups
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+            - quota-group
+          properties:
+            action:
+              type: string
+              enum:
+                - ensure
+                - remove
+            quota-group:
+              $ref: "../components/schemas/QuotaGroup.yaml"
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'

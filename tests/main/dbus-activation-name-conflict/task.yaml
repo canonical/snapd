@@ -11,6 +11,11 @@ systems:
   # TODO: dbus issue
   - -ubuntu-core-22-*
 
+skip:
+    - reason: System does not have a systemd managed D-Bus system bus
+      if: |
+        ! tests.session has-system-systemd-and-dbus
+
 prepare: |
     snap set system experimental.user-daemons=true
 
@@ -18,11 +23,6 @@ restore: |
     snap unset system experimental.user-daemons
 
 execute: |
-    if ! tests.session has-system-systemd-and-dbus; then
-        echo "System does not have a systemd managed D-Bus system bus"
-        exit 0
-    fi
-
     echo "Install a snap that provides the io.snapcraft.SnapDbusService session service"
     snap install --edge test-snapd-dbus-service
     test -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service

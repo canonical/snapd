@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
@@ -76,6 +77,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	}
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {

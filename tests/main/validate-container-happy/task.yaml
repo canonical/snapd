@@ -10,10 +10,7 @@ details: |
 environment:
     SNAP: test-snapd-validate-container-happy
 
-prepare: |
-
 execute: |
-
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
 
     # We shouldn't use relative symlinks in Github as they cannot be packed correctly.

@@ -1,0 +1,123 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Assertions
+    - OpenAccess
+    - Synchronous
+  summary: Get the active model assertion
+  description: |-
+    Retrieves the active model assertion for the system.
+    The model assertion describes a snap-based device.
+  externalDocs:
+    description: |-
+      Read more about model assertions on the Ubuntu Core documentation.
+    url: https://documentation.ubuntu.com/core/reference/assertions/model/
+  operationId: getModelAssertion
+  security: []
+  responses:
+    200:
+      description: The raw model assertion text.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: |
+              type: model
+              authority-id: generic
+              series:16
+              brand-id: generic
+              model: generic-classic
+              classic: true
+              timestamp: 2017-07-27T00:00:00.0Z
+              sign-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa
+              AcLBXAQAAQ[...]
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Assertions
+    - Asynchronous
+    - AuthenticationRequired
+  summary: Replace the model assertion
+  description: |-
+    Replaces the current model assertion, potentially triggering a remodel of
+    the system.
+
+    The endpoint accepts two different content types depending on the use case:
+    - `application/json`: For a standard (online) remodel where the system will
+    fetch required snaps from the store.
+    - `multipart/form-data`: For an offline remodel, where the new model
+    assertion and all required snaps and other files are provided directly in
+    the request.
+  externalDocs:
+    description: Read more about offline remodeling on the Ubuntu Core documentation.
+    url: https://documentation.ubuntu.com/core/explanation/remodelling/index.html#heading--offline
+  operationId: setModelAssertion
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: |-
+      The new model assertion and, for offline remodels, any required files
+      (snaps, etc.).
+    required: true
+    content:
+      application/json:
+        schema:
+          description: |-
+            Used for online remodeling. The request body is a JSON object
+            containing the new model assertion.
+          type: object
+          required:
+            - assertion
+          properties:
+            assertion:
+              type: string
+              description: A string containing the full, signed model assertion.
+              example: |
+                type: model
+                authority-id: generic
+                series: 16
+                brand-id: generic
+                model: generic-classic
+                classic: true
+                timestamp: 2025-10-03T10:40:00.0Z
+                sign-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa
+                AcLBXAQAAQ[...]
+        examples:
+          remodelRequest:
+            summary: A typical JSON request to set a new model.
+            value:
+              assertion: "type: model\nauthority-id: generic\nseries: 16\nbrand-id: generic\nmodel: generic-classic\nclassic: true\ntimestamp: 2025-10-03T10:40:00.0Z\nsign-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa\nAcLBXAQAAQ[...]"
+
+      multipart/form-data:
+        schema:
+          description: |-
+            Used for offline remodeling to sideload the assertion and all
+            required files (e.g., snaps) in a single request, avoiding the need to
+            download them from the store.
+          type: object
+          properties:
+            assertion:
+              type: string
+              description: The new model assertion text.
+          # Allows for uploading one or more snap files. The form part name
+          # should be the filename of the snap.
+          additionalProperties:
+            type: string
+            format: binary
+            description: Snap files or other assets required by the new model.
+        encoding:
+          assertion:
+            contentType: text/plain
+          # This applies the content type to all properties defined under
+          # additionalProperties.
+          '*':
+            contentType: application/octet-stream
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

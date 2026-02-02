@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  message:
+    type: string
+    example: cannot decode request body into an alias action

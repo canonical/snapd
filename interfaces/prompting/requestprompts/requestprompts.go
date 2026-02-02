@@ -179,7 +179,9 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermis
 	return nil
 }
 
-var sendReply = (*listener.Request).Reply
+var sendReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
+	return req.Reply(allowedPermission)
+}
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,

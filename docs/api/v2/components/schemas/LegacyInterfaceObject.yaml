@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The legacy interface object.
+properties:
+  plugs:
+    type: array
+    description: |-
+      A list of plugs on the system matching the search criteria.
+    items:
+      $ref: './Plug.yaml'
+
+  slots:
+    type: array
+    description: |-
+      A list of slots on the system matching the search criteria.
+    items:
+      $ref: './Slot.yaml'

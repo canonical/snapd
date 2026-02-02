@@ -1,0 +1,116 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Detailed information about the snapd server's configuration and environment.
+properties:
+  architecture:
+    type: string
+    enum:
+      - amd64
+      - arm64
+      - armhf
+      - ppc64el
+      - riscv64
+      - s390x
+  build-id:
+    type: string
+    description: A unique identifier for the specific build of snapd.
+    example: 3672763544646f6c...
+  confinement:
+    type: string
+    description: The level of confinement the system supports. Partial indicates that Apparmor is disabled and Seccomp is enabled.
+    enum: 
+      - partial
+      - strict
+  features:
+    type: object
+    description: A map of snapd feature names to their support and enabled status.
+    additionalProperties:
+      type: object
+      properties:
+        supported:
+          type: boolean
+        unsupported-reason:
+          type: string
+          description: If a feature is not supported, the property should contain an explanation as to why.
+        enabled:
+          type: boolean
+  kernel-version:
+    type: string
+    description: The version string of the running Linux kernel.
+    example: 6.14.0-29-generic
+  locations:
+    type: object
+    properties:
+      snap-bin-dir:
+        type: string
+        enum:
+          - /snap/bin
+          - /var/lib/snapd/snap/bin
+      snap-mount-dir:
+        type: string
+        description: The prefix of 'snap-bin-dir'.
+        enum:
+          - /snap
+          - /var/lib/snapd/snap
+  managed:
+    type: boolean
+    description: True if the system is managed by an external authority.
+  on-classic:
+    type: boolean
+    description: True if not running on a fully snap managed system (e.g., Ubuntu Core).
+  os-release:
+    type: object
+    properties:
+      id:
+        type: string
+        example: ubuntu
+      variant-id:
+        type: string
+        enum:
+          - desktop
+      version-id:
+        type: string
+        example: '24.04'
+  refresh:
+    type: object
+    properties:
+      timer:
+        $ref: ./TimerString.yaml
+      last:
+        type: string
+        format: date-time
+        description: The timestamp of the last refresh (RFC3339 format).
+        example: 2025-09-11T13:18:00-02:30
+      next:
+        type: string
+        format: date-time
+        description: The timestamp of the next scheduled refresh (RFC3339 format).
+        example: 2025-09-11T22:37:00-02:30
+  sandbox-features:
+    type: object
+    description: Information about features supported by various components of the sandbox.
+    additionalProperties:
+      type: array
+      items:
+        type: string
+  series:
+    type: string
+    description: |-
+      The OS series the system is based on. This is always 16, and has not been used to-date.
+      Introduced as a way to declare incompatible changes in the schema.
+    enum:
+      - '16'
+  system-mode:
+    type: string
+    description: The current operational mode of the system.
+    enum:
+      - install
+      - factory-reset
+      - recover
+      - run
+  version:
+    type: string
+    description: The detailed version of snapd.
+    example: '2.72'

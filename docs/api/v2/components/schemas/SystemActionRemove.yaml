@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionRemove
+description: Payload to remove a specified recovery system.
+required:
+  - action
+properties:
+  action:
+    type: string
+    enum:
+      - remove

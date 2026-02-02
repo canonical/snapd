@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Starts one or more services.
+allOf:
+  - $ref: './AppActionBase.yaml'
+  - type: object
+    required:
+      - action
+    properties:
+      action:
+        type: string
+        enum:
+          - start
+      enable:
+        type: boolean
+        description: Arranges to have the service start at system boot.
+        default: false
+example:
+  action: start
+  names: [lxd]
+  enable: true

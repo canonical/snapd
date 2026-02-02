@@ -217,8 +217,8 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, appSets, opts, tm)
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, appSets, opts, sctxs, tm)
 }
 
 func MockIsSnapVerified(new func(st *state.State, snapID string) bool) (restore func()) {

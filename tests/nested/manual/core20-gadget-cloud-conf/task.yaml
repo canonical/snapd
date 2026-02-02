@@ -49,12 +49,12 @@ environment:
   # a model with grade higher than dangerous when building the image
   NESTED_CORE_CHANNEL: ""
 
-prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
   # setup the fakestore, but don't use it for our snapd here on the host VM, so
   # tear down the staging_store immediately afterwards so that only the SAS is 
   # running and our snapd is not pointed at it, ubuntu-image is the only thing 
@@ -108,11 +108,6 @@ prepare: |
   tests.nested create-vm core
 
 restore: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
-
   # stop fake device svc
   systemctl stop fakedevicesvc
 
@@ -122,11 +117,6 @@ debug: |
   systemctl status fakedevicesvc || true
 
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
-
   echo "The initial cloud-init user was created"
   remote.exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
