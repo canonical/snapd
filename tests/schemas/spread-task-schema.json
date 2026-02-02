@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/snapcore/snapd/spread-task-schema.json",
+  "title": "Spread Task Configuration Schema",
+  "description": "Schema for Spread testing framework task configuration file (task.yaml)",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of the test"
+    },
+    "details": {
+      "type": "string",
+      "description": "Detailed description of what the test does"
+    },
+    "systems": {
+      "type": "array",
+      "description": "Systems to run this test on (supports negation with -prefix, and wildcards)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "backends": {
+      "type": "array",
+      "description": "Backends to run this test on (supports negation with -prefix)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Environment variables for this test",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" }
+        ]
+      }
+    },
+    "prepare": {
+      "type": "string",
+      "description": "Script to run before the test"
+    },
+    "restore": {
+      "type": "string",
+      "description": "Script to run after the test (even if it fails)"
+    },
+    "execute": {
+      "type": "string",
+      "description": "Main test script"
+    },
+    "debug": {
+      "type": "string",
+      "description": "Script to run for debugging when the test fails"
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Task priority (higher runs first)",
+      "minimum": 0
+    },
+    "manual": {
+      "type": "boolean",
+      "description": "Task requires manual triggering"
+    },
+    "kill-timeout": {
+      "type": "string",
+      "description": "Maximum time to wait before killing the task",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "warn-timeout": {
+      "type": "string",
+      "description": "Time after which a warning is issued if task hasn't completed",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "skip": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "description": "Reason for skipping"
+            },
+            "if": {
+              "type": "string",
+              "description": "Shell condition to evaluate for skipping"
+            }
+          },
+          "required": ["reason"],
+          "additionalProperties": false
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "description": "Reason for skipping"
+              },
+              "if": {
+                "type": "string",
+                "description": "Shell condition to evaluate for skipping"
+              }
+            },
+            "required": ["reason"],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "description": "Conditions for skipping this test"
+    }
+  },
+  "required": ["summary", "execute"],
+  "additionalProperties": false
+}
