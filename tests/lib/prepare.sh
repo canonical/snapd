@@ -854,15 +854,25 @@ repack_core_snap_with_tweaks() {
     UNPACK_DIR="$(mktemp -d /tmp/core-unpack.XXXXXXXX)"
     unsquashfs -no-progress -f -d "$UNPACK_DIR" "$CORESNAP"
 
-    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
-    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
+    # determine destination directory for systemd configuration files
+    # core26+ uses /usr/share/factory/writable/system-data/etc/
+    # core24 and earlier use /etc/
+    local DEST_ETC
+    if [ -e "$UNPACK_DIR/usr/share/factory/writable" ]; then
+        DEST_ETC="$UNPACK_DIR/usr/share/factory/writable/system-data/etc"
+    else
+        DEST_ETC="$UNPACK_DIR/etc"
+    fi
+
+    mkdir -p "$DEST_ETC"/systemd/journald.conf.d
+    cat <<EOF > "$DEST_ETC"/systemd/journald.conf.d/to-console.conf
 [Journal]
 ForwardToConsole=yes
 TTYPath=/dev/ttyS0
 MaxLevelConsole=debug
 EOF
-    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
-cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
+    mkdir -p "$DEST_ETC"/systemd/system/snapd.service.d
+cat <<EOF > "$DEST_ETC"/systemd/system/snapd.service.d/logging.conf
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
 StandardOutput=journal+console
@@ -870,7 +880,7 @@ StandardError=journal+console
 EOF
 
     if [ "${NESTED_REPACK_FOR_FAKESTORE-}" = "true" ]; then
-        cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/store.conf
+        cat <<EOF > "$DEST_ETC"/systemd/system/snapd.service.d/store.conf
 [Service]
 Environment=SNAPPY_FORCE_API_URL=http://10.0.2.2:11028
 EOF
