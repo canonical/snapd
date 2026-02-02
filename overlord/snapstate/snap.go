@@ -228,8 +228,8 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 
 	// kernel command line from gadget is for core boot systems only
 	if ic.DeviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeGadget {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
+		// check whether there are other changes that need to run exclusively
+		if err := CheckChangeConflictExclusiveKinds(st, ic.FromChange); err != nil {
 			return nil, err
 		}
 		cmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(
@@ -505,8 +505,8 @@ func (sc *snapInstallChoreographer) addAutoConnectThroughHooks(
 	}
 
 	if deviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeSnapd {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
+		// check whether there are other changes that need to run exclusively
+		if err := CheckChangeConflictExclusiveKinds(st, ic.FromChange); err != nil {
 			return err
 		}
 		// only run for core devices and the snapd snap, run late enough
