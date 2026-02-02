@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -51,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -106,8 +106,8 @@ type Config struct {
 	DetailFields []string
 	InfoFields   []string
 	// search v2 fields
-	FindFields  []string
-	DeltaFormat string
+	FindFields   []string
+	DeltaFormats string
 
 	// CachePolicy defines the cache policy for downloaded snaps
 	CachePolicy CachePolicy
@@ -153,7 +153,7 @@ type Store struct {
 	detailFields []string
 	infoFields   []string
 	findFields   []string
-	deltaFormat  string
+	deltaFormats string
 
 	auth Authorizer
 	// reused http client
@@ -174,8 +174,6 @@ type Store struct {
 	xdeltaCheckLock sync.Mutex
 	// whether we should use deltas or not
 	shouldUseDeltas *bool
-	// which xdelta3 we picked when we checked the deltas
-	xdelta3CmdFunc func(args ...string) *exec.Cmd
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
@@ -355,9 +353,6 @@ type categoryResults struct {
 	Categories []CategoryDetails `json:"categories"`
 }
 
-// The default delta format if not configured.
-var defaultSupportedDeltaFormat = "xdelta3"
-
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	if cfg == nil {
@@ -389,9 +384,9 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		series = release.Series
 	}
 
-	deltaFormat := cfg.DeltaFormat
-	if deltaFormat == "" {
-		deltaFormat = defaultSupportedDeltaFormat
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == "" {
+		deltaFormats = squashfs.SupportedDeltaFormats()
 	}
 
 	userAgent := snapdenv.UserAgent()
@@ -407,7 +402,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields:         infoFields,
 		findFields:         findFields,
 		dauthCtx:           dauthCtx,
-		deltaFormat:        deltaFormat,
+		deltaFormats:       deltaFormats,
 		proxy:              cfg.Proxy,
 		proxyConnectHeader: proxyConnectHeader,
 		userAgent:          userAgent,
