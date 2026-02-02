@@ -76,7 +76,7 @@ func (s *krbInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/var/lib/snapd/hostfs/tmp/krb5cc* rk,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/var/lib/snapd/hostfs/tmp/krb5cc* rkw,")
 }
 
 func (s *krbInterfaceSuite) TestInterfaces(c *C) {

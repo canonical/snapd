@@ -4,9 +4,8 @@ details: |
     Snap_run overwrites the Kerberos cache via the environment.
     Check that that is working as expected.
 
-    Also ensure that the snap can read a ticket in the cache
-    if and only if the kerberos-ticket interface is connected,
-    and can never write to it.
+    Also ensure that the snap can read/write a ticket in the cache
+    if and only if the kerberos-ticket interface is connected.
 
 environment:
     TICKET: /tmp/krb5cc_test #Must initiate with /tmp/krb5cc_
@@ -33,9 +32,9 @@ execute: |
     snap connect kerberos-tickets-consumer:kerberos-tickets
 
     if snap debug sandbox-features --required apparmor:kernel:file; then
-        echo "Then the snap command can rean read the Kerberos ticket, but not write to it"
+        echo "Then the snap command can rean read/write the Kerberos ticket"
         kerberos-tickets-consumer | MATCH "$TICKET_CONTENTS"
-        kerberos-tickets-consumer | MATCH "cannot write to ticket"
+        kerberos-tickets-consumer | MATCH "appended contents"
 
         echo "When the plug is disconnected"
         snap disconnect kerberos-tickets-consumer:kerberos-tickets
