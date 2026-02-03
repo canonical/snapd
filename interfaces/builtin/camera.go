@@ -35,7 +35,7 @@ const cameraBaseDeclarationSlots = `
 
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
-###PROMPT### /dev/video[0-9]* rw,
+###PROMPT### /dev/video[0-9]* rwk,
 
 # VideoCore cameras (shared device with VideoCore/EGL)
 ###PROMPT### /dev/vchiq rw,
