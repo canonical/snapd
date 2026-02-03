@@ -132,7 +132,8 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 	}
 
 	if len(requests) == 0 {
-		val, err := view.Get(bag, "", constraints)
+		// TODO pass real user ID
+		val, err := view.Get(bag, "", constraints, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +143,8 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		value, err := view.Get(bag, request, constraints)
+		// TODO pass real user ID
+		value, err := view.Get(bag, request, constraints, 0)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
