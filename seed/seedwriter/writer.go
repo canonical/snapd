@@ -1544,7 +1544,7 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
 		if !w.opts.EnforceValidation && vs.Mode == asserts.ModelValidationSetModeEnforced {
-			return nil, fmt.Errorf("model requires validation-set %q to be enforced, but --validation is set to ignore", vs.Name)
+			return nil, fmt.Errorf("model requires validation-set %q to be enforced, but validation is set to ignore", vs.Name)
 		}
 
 		atSeq, err := w.finalValidationSetAtSequence(vs)

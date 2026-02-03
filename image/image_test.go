@@ -4738,7 +4738,7 @@ func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaEvenWithIgnoredVali
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, ErrorMatches, `model requires validation-set "base-set" to be enforced, but --validation is set to ignore`)
+	c.Assert(err, ErrorMatches, `model requires validation-set "base-set" to be enforced, but validation is set to ignore`)
 
 	// ensure download actions were invoked with the validation-sets
 	// described in the model.
