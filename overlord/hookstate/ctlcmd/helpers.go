@@ -146,6 +146,9 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 		return err
 	}
 
+	// TODO:deferred-mount-ns-update this needs fixing, assumes that we can just
+	// add tasks at the end
+
 	if change.Kind() != "seed" {
 		// Note: Multiple snaps could be installed in single transaction mode
 		// where all snap tasksets are in a single lane.

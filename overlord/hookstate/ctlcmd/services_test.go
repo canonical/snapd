@@ -710,6 +710,7 @@ var (
 		"cleanup",
 		"run-hook[configure]",
 		"run-hook[check-health]",
+		"deferred-consumer-update",
 	}
 )
 
@@ -1095,8 +1096,8 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 
 	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
-		// assumes configure task is last
-		task := tsTasks[len(tsTasks)-1]
+		// assumes configure task is second to last
+		task := tsTasks[len(tsTasks)-2]
 		c.Assert(task.Kind(), Equals, "run-hook")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
