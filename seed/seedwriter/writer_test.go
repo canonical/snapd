@@ -117,7 +117,8 @@ func (s *writerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.opts = &seedwriter.Options{
-		SeedDir: seedDir,
+		SeedDir:           seedDir,
+		EnforceValidation: true,
 	}
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
@@ -4373,7 +4374,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
-	err = w.CheckValidationSets(false)
+	err = w.CheckValidationSets()
 	c.Assert(err, NotNil)
 	valErr := err.(*snapasserts.ValidationSetsValidationError)
 	c.Check(valErr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
@@ -4476,7 +4477,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
-	err = w.CheckValidationSets(false)
+	err = w.CheckValidationSets()
 	c.Assert(err, IsNil)
 
 	err = w.SeedSnaps(func(name, src, dst string) error {
@@ -4585,7 +4586,7 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
-	err = w.CheckValidationSets(false)
+	err = w.CheckValidationSets()
 	c.Assert(err, IsNil)
 
 	err = w.SeedSnaps(func(name, src, dst string) error {
@@ -4655,7 +4656,7 @@ func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.CheckValidationSets(false)
+	err = w.CheckValidationSets()
 	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete`)
 }
 
@@ -5000,7 +5001,7 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
-	err = w.CheckValidationSets(false)
+	err = w.CheckValidationSets()
 	c.Assert(err, IsNil)
 
 	err = w.SeedSnaps(func(name, src, dst string) error {
