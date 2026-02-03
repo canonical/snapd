@@ -1477,7 +1477,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		expectedErr            string
 		oldKeyFiles            bool
 		buildProfileErr        string
-		dbxUpdate              []byte
+		dbxUpdates             [][]byte
 		revoke                 bool
 		noDmaProtection        bool
 		// Preinstall check was used to determine for encryption availability at install time
@@ -1490,11 +1490,11 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true, hasCheckResult: true},
 		// happy case with check result available on disk and DBX update
-		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdate: []byte("dbx-update")},
+		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdates: [][]byte{[]byte("dbx-update")}},
 		// happy case with key files
 		{tpmEnabled: true, keyDataInFile: true, usePrimaryKeyFile: true, resealCalls: 1},
 		// happy case with DBX update
-		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
+		{tpmEnabled: true, resealCalls: 1, dbxUpdates: [][]byte{[]byte("dbx-update")}},
 		// happy case, old keys
 		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, oldKeyFiles: true},
 		// happy case, revoke (new keys)
@@ -1540,10 +1540,10 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 
 		modelParams := []*secboot.SealKeyModelParams{
 			{
-				EFILoadChains:         []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
-				KernelCmdlines:        []string{"cmdline"},
-				Model:                 &asserts.Model{},
-				EFISignatureDbxUpdate: tc.dbxUpdate,
+				EFILoadChains:          []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
+				KernelCmdlines:         []string{"cmdline"},
+				Model:                  &asserts.Model{},
+				EFISignatureDbxUpdates: tc.dbxUpdates,
 			},
 		}
 
@@ -1589,12 +1589,11 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			)
 		}
 
-		var dbUpdateOption sb_efi.PCRProfileOption = sb_efi.WithSignatureDBUpdates()
-		if len(tc.dbxUpdate) > 0 {
-			dbUpdateOption = sb_efi.WithSignatureDBUpdates([]*sb_efi.SignatureDBUpdate{
-				{Name: sb_efi.Dbx, Data: tc.dbxUpdate},
-			}...)
+		var dbxUpdates []*sb_efi.SignatureDBUpdate
+		for _, u := range tc.dbxUpdates {
+			dbxUpdates = append(dbxUpdates, &sb_efi.SignatureDBUpdate{Name: sb_efi.Dbx, Data: u})
 		}
+		var dbUpdateOption sb_efi.PCRProfileOption = sb_efi.WithSignatureDBUpdates(dbxUpdates...)
 
 		// add dbUpdateOption (applicable to both preinstall check based and legacy PCR configuration)
 		expectedOptions = append(

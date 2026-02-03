@@ -48,7 +48,7 @@ func (s *systemSecurebootSuite) SetUpTest(c *C) {
 		Interfaces: []string{"fwupd"},
 	})
 
-	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payloads [][]byte) error {
 		panic("unexpected call")
 	}))
 	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
@@ -219,9 +219,9 @@ func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareHappyForKind(
 	s.daemon(c)
 
 	updatePrepareCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payloads [][]byte) error {
 		c.Check(db, Equals, kind)
-		c.Check(payload, DeepEquals, []byte("payload"))
+		c.Check(payloads, DeepEquals, [][]byte{[]byte("payload")})
 		updatePrepareCalls++
 		return nil
 	}))

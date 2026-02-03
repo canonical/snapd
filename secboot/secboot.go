@@ -113,7 +113,7 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 	// TODO:FDEM: move this somewhere else?
 	// The content of an update to EFI DBX
-	EFISignatureDbxUpdate []byte
+	EFISignatureDbxUpdates [][]byte
 }
 
 type TPMProvisionMode int
