@@ -1069,7 +1069,8 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
+// Set sets the named view to a specified non-nil value. Matches that cannot
+// extract their data from the provided value will be considered as being unset.
 func (v *View) Set(databag Databag, request string, value any) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
