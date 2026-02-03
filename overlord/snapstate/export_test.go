@@ -53,6 +53,7 @@ type (
 )
 
 var ComponentSetupTask = componentSetupTask
+var RemoveComponentTasks = removeComponentTasks
 
 const (
 	None         = none

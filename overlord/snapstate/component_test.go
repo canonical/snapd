@@ -23,9 +23,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -225,4 +228,77 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestComponentRemoveEnforcedValidationSet(c *C) {
+	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
+
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.R(33)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const snapYaml = `name: mysnap
+version: 1
+components:
+  mycomp:
+    type: standard
+`
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	s.mockComponentInfos(c, snapName, []string{compName},
+		[]snap.Revision{compRev})
+	
+	snapSt := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi,
+					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})}),
+		Current: snapRev,
+	}
+	compSt := snapSt.CurrentComponentState(cref)
+
+	snaptest.MockSnap(c, snapYaml, ssi)
+	snapstate.Set(s.state, snapName, snapSt)
+
+	headers := map[string]interface{}{
+        "series":       "16",
+        "account-id":   "developer",
+        "name":         "my-set",
+        "sequence":     "1",
+        "snaps": []interface{}{
+            map[string]interface{}{
+                "name": snapName,
+                "presence": "required",
+            },
+        },
+    }
+
+	validSet, err := s.MockValidationSet(c, headers, nil)
+    c.Assert(err, IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+    c.Assert(err, IsNil)
+    info.SideInfo = *ssi
+
+	// Set up enforced validation set mocking
+	snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vss := snapasserts.NewValidationSets()
+        
+        err := vss.Add(validSet)
+        if err != nil {
+            return nil, err
+        }
+        
+        return vss, nil
+	})
+
+	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, "")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot remove component %q as it is required by an enforcing validation set", csi.Component.ComponentName))
 }
