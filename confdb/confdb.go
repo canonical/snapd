@@ -1069,7 +1069,8 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
+// Set sets the named view to a specified non-nil value. Matches that cannot
+// extract their data from the provided value will be considered as being unset.
 func (v *View) Set(databag Databag, request string, value any) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
@@ -1107,6 +1108,14 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	for _, match := range matches {
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
+			if errors.Is(err, &NoDataError{}) {
+				// match has no corresponding data in value, so treat it as removing value.
+				expandedMatches = append(expandedMatches, expandedMatch{
+					storagePath: match.storagePath,
+					value:       nil,
+				})
+				continue
+			}
 			return badRequestErrorFrom(v, "set", request, err.Error())
 		}
 
@@ -1375,7 +1384,9 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
+				// matched a write path that doesn't have corresponding data in the value
+				// so signal that scenario, such that Set() can interpret it as unsetting the path
+				return nil, &NoDataError{}
 			}
 
 		case IndexPlaceholderType:

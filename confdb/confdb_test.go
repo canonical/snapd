@@ -1821,23 +1821,112 @@ func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "a.b", "storage": "a.b"},
+				map[string]any{
+					"request": "a", "storage": "a", "content": []any{
+						map[string]any{"request": "foo", "storage": "foo"},
+						map[string]any{"request": "bar", "storage": "bar"},
+					},
+				},
 				map[string]any{"request": "b[{n}]", "storage": "b[{n}]"},
+				map[string]any{"request": "c.foo", "storage": "c.foo"},
+				map[string]any{"request": "c.bar", "storage": "c.bar"},
 			},
 		},
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
+
 	view := schema.View("foo")
-	c.Assert(view, NotNil)
+	resetData := func(cmt CommentInterface) {
+		for _, req := range []string{"a", "c"} {
+			err := view.Set(databag, req, map[string]any{
+				"foo": "abc",
+				"bar": "xyz",
+			})
+			c.Assert(err, IsNil, cmt)
+		}
+		err = view.Set(databag, "b", []any{"a"})
+		c.Assert(err, IsNil, cmt)
+	}
 
-	err = view.Set(databag, "a", "foo")
-	c.Assert(err, ErrorMatches, `cannot set "a" through confdb view acc/confdb/foo: expected map for unmatched request parts but got string`)
+	type testcase struct {
+		request string
+		value   any
+		err     string
+	}
 
-	err = view.Set(databag, "a", map[string]any{"c": "foo"})
-	c.Assert(err, ErrorMatches, `cannot set "a" through confdb view acc/confdb/foo: cannot use unmatched part "b" as key in map\[c:foo\]`)
+	tcs := []testcase{
+		{
+			request: "a",
+			value: map[string]any{
+				"foo": "cba",
+			},
+		},
+		{
+			request: "a",
+			value: map[string]any{
+				"bar": "zyx",
+			},
+		},
+		{
+			// this has no value for "a.foo" or "a.bar" but it still succeeds because
+			// it matches "a" so it can set the whole object
+			request: "a",
+			value: map[string]any{
+				"baz": "abc",
+			},
+		},
+		{
+			request: "a",
+			value: map[string]any{
+				"foo": "cba",
+				"baz": "nope",
+			},
+		},
+		{
+			request: "a",
+			value:   "foo",
+			err:     `*expected map for unmatched request parts but got string`,
+		},
+		{
+			request: "b",
+			value:   "foo",
+			err:     `*expected list for unmatched request parts but got string`,
+		},
+		{
+			request: "c",
+			value: map[string]any{
+				"foo": "cba",
+			},
+		},
+		{
+			request: "c",
+			value: map[string]any{
+				"foo": "cba",
+				"baz": "other",
+			},
+			// unlike the testcase that sets "a", this one fails because there's no rule
+			// that uses "baz" and there's no rule for the  top-level object.
+			err: `*value contains unused data: map\[baz:other\]`,
+		},
+	}
 
-	err = view.Set(databag, "b", "foo")
-	c.Assert(err, ErrorMatches, `cannot set "b" through confdb view acc/confdb/foo: expected list for unmatched request parts but got string`)
+	// paths that were matched but have no corresponding value in the data are unset
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+		resetData(cmt)
+
+		err = view.Set(databag, tc.request, tc.value)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err, cmt)
+			continue
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+
+		value, err := view.Get(databag, tc.request, nil)
+		c.Assert(err, IsNil, cmt)
+		c.Assert(value, DeepEquals, tc.value, cmt)
+	}
 }
 
 func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
@@ -2494,7 +2583,7 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 				"a": map[string]any{"notbaz": 1},
 				"b": map[string]any{"notbaz": 1},
 			},
-			err: `cannot use unmatched part "baz" as key in map\[notbaz:1\]`,
+			err: `*no data`,
 		},
 	}
 
