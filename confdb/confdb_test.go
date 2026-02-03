@@ -52,9 +52,12 @@ func (f *failingSchema) Ephemeral() bool                         { return false 
 func (f *failingSchema) NestedEphemeral() bool                   { return false }
 func (f *failingSchema) Visibility() confdb.Visibility           { return confdb.DefaultVisibility }
 func (f *failingSchema) NestedVisibility(confdb.Visibility) bool { return false }
+func (f *failingSchema) PruneByVisibility(_ []confdb.Accessor, _ int, _ []confdb.Visibility, data []byte) ([]byte, error) {
+	return data, nil
+}
 
 func parsePath(c *C, path string) []confdb.Accessor {
-	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{AllowPlaceholders: true})
 	c.Assert(err, IsNil)
 	return accs
 }

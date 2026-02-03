@@ -194,6 +194,27 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
+type UnAuthorizedAccessError struct {
+	viewID    string
+	operation string
+	request   string
+}
+
+func (e *UnAuthorizedAccessError) Is(err error) bool {
+	_, ok := err.(*UnAuthorizedAccessError)
+	return ok
+}
+
+func (e *UnAuthorizedAccessError) Error() string {
+	var reqStr string
+	if e.request != "" {
+		reqStr = "\"" + e.request + "\""
+	} else {
+		reqStr = "empty path"
+	}
+	return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+}
+
 // Databag controls access to the confdb data storage.
 type Databag interface {
 	Get(path []Accessor, constraints map[string]any) (any, error)
@@ -235,6 +256,15 @@ type DatabagSchema interface {
 
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
+
+	// PruneByVisibility prunes away any data in input that has a visibility in the visToPrune array in input.
+	// It will only prune along the path, and once it reaches the end, it will prune everything that's left.
+	// It will return error if:
+	// - the data does not conform to the schema
+	// - NoDataError - if the data contains nulls or does not contain data indicated by the path
+	// - UnAuthorizedAccessError - if the path contains a schema with a visibility contained in the input array
+	//     or if the end of the path contains an empty container due to its contents being pruned away
+	PruneByVisibility(path []Accessor, index int, visToPrune []Visibility, data []byte) (prunedData []byte, err error)
 }
 
 type SchemaType uint
@@ -3109,3 +3139,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ int, _ []Visibility, data []byte) ([]byte, error) {
+	return data, nil
+}
