@@ -3244,19 +3244,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSomeConnected
 	// Add a producer snap with a "slot" slot of the "test" interface.
 	producer := s.mockSnap(c, producerYaml)
 
-	// producerAppSet, err := interfaces.NewSnapAppSet(producer, nil)
-	// c.Assert(err, IsNil)
-
-	// consumer2AppSet, err := interfaces.NewSnapAppSet(consumer2, nil)
-	// c.Assert(err, IsNil)
-
-	// repo := mgr.Repository()
-	// err = repo.AddAppSet(consumer2AppSet)
-	// c.Assert(err, IsNil)
-
-	// err = repo.AddAppSet(producerAppSet)
-	// c.Assert(err, IsNil)
-
+	// Mock connections in state
 	s.state.Lock()
 	s.state.Set("conns", map[string]any{
 		// one connection is already present
