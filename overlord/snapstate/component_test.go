@@ -22,8 +22,10 @@ package snapstate_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -248,12 +250,12 @@ components:
     type: standard
 `
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "some-snap-id"}
+		SnapID: "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"}
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	s.mockComponentInfos(c, snapName, []string{compName},
 		[]snap.Revision{compRev})
-	
+
 	snapSt := &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -268,37 +270,45 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	headers := map[string]interface{}{
-        "series":       "16",
-        "account-id":   "developer",
-        "name":         "my-set",
-        "sequence":     "1",
-        "snaps": []interface{}{
-            map[string]interface{}{
-                "name": snapName,
-                "presence": "required",
-            },
-        },
-    }
+		"series":     "16",
+		"account-id": "developer",
+		"name":       "my-set",
+		"sequence":   "1",
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     snapName,
+				"id":       ssi.SnapID,
+				"presence": "required",
+			},
+		},
+	}
 
-	validSet, err := s.MockValidationSet(c, headers, nil)
-    c.Assert(err, IsNil)
+	privKey, _ := assertstest.GenerateKey(1024)
+	signingDB := assertstest.NewSigningDB("developer", privKey)
+	assertion, err := signingDB.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	validSet := assertion.(*asserts.ValidationSet)
 
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-    c.Assert(err, IsNil)
-    info.SideInfo = *ssi
+	c.Assert(err, IsNil)
+	info.SideInfo = *ssi
 
 	// Set up enforced validation set mocking
 	snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vss := snapasserts.NewValidationSets()
-        
-        err := vss.Add(validSet)
-        if err != nil {
-            return nil, err
-        }
-        
-        return vss, nil
+
+		err := vss.Add(validSet)
+		if err != nil {
+			return nil, err
+		}
+
+		return vss, nil
 	})
 
 	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, "")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot remove component %q as it is required by an enforcing validation set", csi.Component.ComponentName))
+
+	expectedMsg := fmt.Sprintf("cannot remove component %q as it is required by an enforcing validation set", csi.Component.SnapName+"+"+csi.Component.ComponentName)
+	c.Assert(err.Error(), Equals, expectedMsg)
 }
