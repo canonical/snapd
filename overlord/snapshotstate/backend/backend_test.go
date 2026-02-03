@@ -628,7 +628,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	defer z.Close()
 
 	var tarArgs []string
-	restore := backend.MockTarAsUser(func(username string, args ...string) *exec.Cmd {
+	restore := backend.MockTarAsUser(func(ctx context.Context, username string, args ...string) *exec.Cmd {
 		// We care only about the exclusion arguments in this test
 		tarArgs = nil
 		for _, arg := range args {
@@ -926,19 +926,17 @@ func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+	c.Check(backend.TarAsUser(context.Background(), "test", "--bar"), check.DeepEquals, &exec.Cmd{
 		Path: "/sbin/runuser",
 		Args: []string{"/sbin/runuser", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd := backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	c.Check(logbuf.String(), check.Equals, "")
 }
 
@@ -949,20 +947,19 @@ func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	cmd := backend.TarAsUser("test", "--bar")
+	cmd := backend.TarAsUser(context.Background(), "test", "--bar")
 	c.Check(cmd, check.DeepEquals, &exec.Cmd{
 		Path: "/usr/bin/sudo",
 		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+
+	cmd = backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	c.Check(logbuf.String(), check.Equals, "")
 }
 
@@ -973,19 +970,17 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd := backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
+	cmd = backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
+
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
