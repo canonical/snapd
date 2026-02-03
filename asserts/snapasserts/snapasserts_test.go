@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -136,12 +137,12 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "", size, si, nil, nil, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(checkedRev, DeepEquals, snapRev)
 
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, nil, s.localDB)
 	c.Check(err, IsNil)
 }
 
@@ -167,41 +168,132 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 	}
 
 	// different size
-	_, err = snapasserts.CrossCheck("foo", digest, "", size+1, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo", digest, "", size+1, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size+1, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size+1, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo_instance" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
 
 	// mismatched revision vs what we got from store original info
 	_, err = snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
-	}, nil, s.localDB)
+	}, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
 	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
-	}, nil, s.localDB)
+	}, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
 
 	// mismatched snap id vs what we got from store original info
 	_, err = snapasserts.CrossCheck("foo", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
-	}, nil, s.localDB)
+	}, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
 	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
-	}, nil, s.localDB)
+	}, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo_instance" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
 
 	// changed name
-	_, err = snapasserts.CrossCheck("baz", digest, "", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("baz", digest, "", size, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install "baz", snap "baz" is undergoing a rename to "foo"`)
-	_, err = snapasserts.CrossCheck("baz_instance", digest, "", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("baz_instance", digest, "", size, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install "baz_instance", snap "baz" is undergoing a rename to "foo"`)
+}
 
+func (s *snapassertsSuite) TestCrossCheckErrorsMissingIntegrityData(c *C) {
+	digest := makeDigest(12)
+	size := uint64(len(fakeSnap(12)))
+	hexSHA256 := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
+	headers := map[string]any{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "12",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+		"integrity": []any{
+			map[string]any{
+				"type":            "dm-verity",
+				"version":         "1",
+				"hash-algorithm":  "sha256",
+				"data-block-size": "4096",
+				"hash-block-size": "4096",
+				"digest":          hexSHA256,
+				"salt":            hexSHA256,
+			},
+		},
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(12),
+	}
+
+	_, err = snapasserts.CrossCheck("foo", digest, "", size, si, nil, nil, s.localDB)
+	c.Check(err, ErrorMatches, `snap "foo" does not have integrity data available according to assertions \(metadata is broken or tampered\)`)
+}
+
+func (s *snapassertsSuite) TestCrossCheckErrorsInvalidIntegrityData(c *C) {
+	digest := makeDigest(12)
+	size := uint64(len(fakeSnap(12)))
+	hexSHA256 := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
+	headers := map[string]any{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "12",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+		"integrity": []any{
+			map[string]any{
+				"type":            "dm-verity",
+				"version":         "1",
+				"hash-algorithm":  "sha256",
+				"data-block-size": "4096",
+				"hash-block-size": "4096",
+				"digest":          hexSHA256,
+				"salt":            hexSHA256,
+			},
+		},
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		SnapID:   "snap-id-1",
+		Revision: snap.R(12),
+	}
+
+	tests := []struct {
+		digest  string
+		hashalg string
+		comment string
+	}{
+		{hexSHA256, "foo", "should throw error when hash algorithm is not matching the one from the assertion"},
+		{"foo", "sha256", "should throw error when digest is not matching the one from the assertion"},
+	}
+
+	for _, tc := range tests {
+		id := &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Digest:  tc.digest,
+				HashAlg: tc.hashalg,
+			},
+		}
+
+		_, err = snapasserts.CrossCheck("foo", digest, "", size, si, id, nil, s.localDB)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" does not have expected integrity data according to assertions \(metadata is broken or tampered\): %s / %s != %s / %s`, tc.digest, tc.hashalg, hexSHA256, "sha256"), Commentf(tc.comment))
+	}
 }
 
 func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
@@ -239,9 +331,9 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 		Revision: snap.R(12),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo", digest, "", size, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install snap "foo_instance" with a revoked snap declaration`)
 }
 
@@ -394,11 +486,11 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, s.localDB)
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, nil, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(checkedRev, DeepEquals, snapRev)
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, nil, s.localDB)
 	c.Check(err, IsNil)
 }
 
@@ -474,11 +566,11 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, model, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(checkedRev, Equals, snapRev)
 	// and a snap instance name
-	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, model, s.localDB)
+	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, model, s.localDB)
 	c.Check(err, IsNil)
 }
 
@@ -553,7 +645,7 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapUnhappy(c *C) {
 		Revision: snap.R(42),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
+	_, err = snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, model, s.localDB)
 	c.Check(err, ErrorMatches, `snap "foo" revision assertion with provenance "prov1" is not signed by an authority authorized on this device: .*`)
 }
 
@@ -578,7 +670,7 @@ func (s *snapassertsSuite) TestCrossCheckSpuriousProvenanceUnhappy(c *C) {
 		Revision: snap.R(12),
 	}
 
-	_, err = snapasserts.CrossCheck("foo", digest, "prov", size, si, nil, s.localDB)
+	_, err = snapasserts.CrossCheck("foo", digest, "prov", size, si, nil, nil, s.localDB)
 	c.Check(err, ErrorMatches, `.*cannot find pre-populated snap-revision assertion for "foo": .*provenance: prov`)
 }
 

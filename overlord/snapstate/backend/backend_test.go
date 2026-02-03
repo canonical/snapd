@@ -20,12 +20,14 @@
 package backend_test
 
 import (
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
@@ -41,6 +43,21 @@ func makeTestSnap(c *C, snapYamlContent string) string {
 		files = append(files, []string{app.Command, ""})
 	}
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
+}
+
+func makeTestSnapAndIntegrityData(c *C, snapYamlContent string, digest string) string {
+	snapFilePath := makeTestSnap(c, snapYamlContent)
+
+	verityFilePath := integrity.DmVerityHashFileName(snapFilePath, digest)
+
+	verityFile, err := os.Create(verityFilePath)
+	c.Assert(err, IsNil)
+	defer verityFile.Close()
+
+	_, err = verityFile.Write([]byte("some verity data"))
+	c.Assert(err, IsNil)
+
+	return snapFilePath
 }
 
 type backendSuite struct {

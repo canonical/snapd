@@ -124,22 +124,15 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
+func (s *emulation) MountUnitConfiguration(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
 	// We don't build the options in exactly the same way as in the systemd
 	// type because these options will be written in a unit that is used in
 	// a host different to where this is running (the one used while
 	// creating the preseeding tarball). Here we assume that the final
 	// target is not a container.
-	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime:                 Persistent,
-		Description:              description,
-		What:                     what,
-		Where:                    where,
-		Fstype:                   fstype,
-		Options:                  mountUnitOptions,
-		PreventRestartIfModified: flags.PreventRestartIfModified,
-	})
+	options := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
+
+	return fstype, options, RegularMountUnit
 }
 
 func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
