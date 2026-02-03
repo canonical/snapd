@@ -680,8 +680,19 @@ func InstallOne(ctx context.Context, st *state.State, goal InstallGoal, opts Opt
 
 	// this case is unexpected since InstallWithGoal verifies that we are
 	// operating on exactly one target
-	if len(infos) != 1 || len(tasksets) != 1 {
-		return nil, nil, errors.New("internal error: expected exactly one snap and task set")
+	tasksetsCount := 1
+	if !opts.Flags.NoDelayedSideEffects {
+		tasksetsCount++
+	}
+
+	if len(infos) != 1 || len(tasksets) != tasksetsCount {
+		return nil, nil, fmt.Errorf("internal error: expected exactly one snap and %d task set(s)", tasksetsCount)
+	}
+
+	if !opts.Flags.NoDelayedSideEffects {
+		// we're called in a context of a single snap installation, which
+		// means that the side effects can be incorporated into the 'snap' taskset
+		tasksets[0].AddAll(tasksets[1])
 	}
 
 	return infos[0], tasksets[0], nil
@@ -741,6 +752,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 	tasksets := make([]*state.TaskSet, 0, len(targets))
 	infos := make([]*snap.Info, 0, len(targets))
+	snapLanes := make(map[int]bool)
 	for _, t := range targets {
 		if t.setup.SnapPath != "" && t.setup.DownloadInfo != nil {
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
@@ -766,11 +778,15 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
-		installTS.ts.JoinLane(generateLane(st, opts))
+		lane := generateLane(st, opts)
+		installTS.ts.JoinLane(lane)
+		snapLanes[lane] = true
 
 		tasksets = append(tasksets, installTS.ts)
 		infos = append(infos, t.info)
 	}
+
+	tasksets = setupDelayedSecurityBackendEffects(st, tasksets, keys(snapLanes), &opts.Flags)
 
 	return infos, tasksets, nil
 }

@@ -1119,6 +1119,12 @@ func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
 func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c *C) {
 	s.addRefreshableSnap("foo", "bar")
 
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// only one snap is updated
+		c.Check(lanes, HasLen, 1)
+		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
+	}))
+
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		if si.RealName == "foo" {
 			return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
@@ -1221,6 +1227,12 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	s.state.Unlock()
 
 	setStoreAccess(s.state, nil)
+
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// only one snap is updated
+		c.Check(lanes, HasLen, 1)
+		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
+	}))
 
 	err = af.Ensure()
 	c.Check(err, IsNil)
@@ -1596,6 +1608,12 @@ func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *
 }
 
 func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// only one snap is updated
+		c.Check(lanes, HasLen, 1)
+		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
+	}))
+
 	si := &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "foo-id",
