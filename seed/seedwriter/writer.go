@@ -61,6 +61,10 @@ type Options struct {
 	// required to end in .snap or .comp, respectively.
 	IgnoreOptionFileExtentions bool
 
+	// EnforceValidation if set, will enforce validation sets, but if
+	// any are enforced by the model, then image writing will fail.
+	EnforceValidation bool
+
 	// Assertions to inject into the built image
 	ExtraAssertions []asserts.Assertion
 }
@@ -1535,12 +1539,12 @@ func (w *Writer) resolveValidationSetAssertion(seq *asserts.AtSequence) (asserts
 	return seq.Resolve(w.db.Find)
 }
 
-func (w *Writer) validationSetAsserts(modelEnforcedOnly bool) (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
 	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
-		if modelEnforcedOnly && vs.Mode != asserts.ModelValidationSetModeEnforced {
-			continue
+		if !w.opts.EnforceValidation && vs.Mode == asserts.ModelValidationSetModeEnforced {
+			return nil, fmt.Errorf("model requires validation-set %q to be enforced, but --validation is set to ignore", vs.Name)
 		}
 
 		atSeq, err := w.finalValidationSetAtSequence(vs)
@@ -1556,8 +1560,8 @@ func (w *Writer) validationSetAsserts(modelEnforcedOnly bool) (map[*asserts.AtSe
 	return vsAsserts, nil
 }
 
-func (w *Writer) validationSets(modelEnforcedOnly bool) (*snapasserts.ValidationSets, error) {
-	vss, err := w.validationSetAsserts(modelEnforcedOnly)
+func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
+	vss, err := w.validationSetAsserts()
 	if err != nil {
 		return nil, err
 	}
@@ -1596,7 +1600,7 @@ func (w *Writer) checkStepCompleted(step writerStep) bool {
 // CheckValidationSets validates all snaps that are to be seeded against any
 // specified validation set. Info for all seed snaps must have been derived prior
 // to this call.
-func (w *Writer) CheckValidationSets(modelEnforcedOnly bool) error {
+func (w *Writer) CheckValidationSets() error {
 	// It makes no sense to check validation-sets before all required snaps
 	// have been resolved and downloaded. Ensure that this is not called before
 	// the Downloaded step has completed.
@@ -1604,7 +1608,7 @@ func (w *Writer) CheckValidationSets(modelEnforcedOnly bool) error {
 		return fmt.Errorf("internal error: seedwriter.Writer cannot check validation-sets before Downloaded signaled complete")
 	}
 
-	valsets, err := w.validationSets(modelEnforcedOnly)
+	valsets, err := w.validationSets()
 	if err != nil {
 		return err
 	}
@@ -1697,8 +1701,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 }
 
 func (w *Writer) markValidationSetsSeeded() error {
-	const modelEnforcedOnly = false
-	vsm, err := w.validationSetAsserts(modelEnforcedOnly)
+	vsm, err := w.validationSetAsserts()
 	if err != nil {
 		return err
 	}

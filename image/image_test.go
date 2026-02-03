@@ -4691,7 +4691,7 @@ func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteria(c *C) {
 	})
 }
 
-func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaButIgnoredValidation(c *C) {
+func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaEvenWithIgnoredValidation(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -4738,9 +4738,7 @@ func (s *imageSuite) TestSetupSeedValidationSetsUnmetCriteriaButIgnoredValidatio
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, ErrorMatches, `validation sets assertions are not met:
-- snaps at wrong revisions:
-  - pc-kernel \(required at revision 6 by sets canonical/base-set\)`)
+	c.Assert(err, ErrorMatches, `model requires validation-set "base-set" to be enforced, but --validation is set to ignore`)
 
 	// ensure download actions were invoked with the validation-sets
 	// described in the model.

@@ -125,8 +125,8 @@ execute: |
         echo "snap prepare-image succeeded unexpectedly"
         exit 1
     } || {
-        # look for 'error: validation sets assertions are not met'
-        grep -q "error: validation sets assertions are not met" prepare-image.log || {
+        # look for 'error: model requires validation-set'
+        MATCH "error: model requires validation-set" prepare-image.log || {
             echo "snap prepare-image failed, but not for the expected reason"
             cat prepare-image.log
             exit 1
