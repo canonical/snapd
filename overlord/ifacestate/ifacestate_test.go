@@ -647,6 +647,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 		c.Check(ht[i].Kind(), Equals, "run-hook")
 		c.Check(ht[i].Summary(), Matches, "Run hook connect-slot-slot .*")
 	}
+
+	var newConns []string
+	c.Assert(setupProfiles.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer2:plug producer:slot", "consumer:plug producer:slot"})
 }
 
 func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
@@ -3032,7 +3036,17 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
 	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, HasLen, 1) //FIXME add deep eq
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "snap", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"snap:network ubuntu-core:network"})
 }
 
 // The auto-connect task will auto-connect slots with viable candidates.
@@ -3088,6 +3102,13 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
 // The auto-connect task will auto-connect slots with viable multiple candidates.
@@ -3152,6 +3173,13 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
 		{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
 	})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer2:plug producer:slot", "consumer:plug producer:slot"})
 }
 
 // The auto-connect task will not auto-connect slots if viable alternative slots are present.
@@ -3194,6 +3222,101 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(conns, HasLen, 0)
+}
+
+// The auto-connect task will auto-connect slots with viable multiple candidates.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSomeConnected(c *C) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	// Add an OS snap.
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	// Add a consumer snap with unconnect plug (interface "test")
+	s.mockSnap(c, consumerYaml)
+	// Add a 2nd consumer snap with unconnect plug (interface "test")
+	s.mockSnap(c, consumer2Yaml)
+	// consumer2 := s.mockSnap(c, consumer2Yaml)
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// Add a producer snap with a "slot" slot of the "test" interface.
+	producer := s.mockSnap(c, producerYaml)
+
+	// producerAppSet, err := interfaces.NewSnapAppSet(producer, nil)
+	// c.Assert(err, IsNil)
+
+	// consumer2AppSet, err := interfaces.NewSnapAppSet(consumer2, nil)
+	// c.Assert(err, IsNil)
+
+	// repo := mgr.Repository()
+	// err = repo.AddAppSet(consumer2AppSet)
+	// c.Assert(err, IsNil)
+
+	// err = repo.AddAppSet(producerAppSet)
+	// c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		// one connection is already present
+		"consumer2:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+	s.state.Unlock()
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: producer.SnapName(),
+			Revision: producer.Revision,
+		},
+	})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "slot" is now saved in the state as auto-connected.
+	var conns map[string]any
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
+			"interface": "test", "auto": true,
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+		"consumer2:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	// Ensure that "slot" is really connected.
+	slot := repo.Slot("producer", "slot")
+	c.Assert(slot, Not(IsNil))
+	ifaces := repo.Interfaces()
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+	})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	// only new connection shows up
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
@@ -8300,6 +8423,10 @@ volumes:
 	c.Assert(tasks[0].Kind(), Equals, "auto-connect")
 	c.Assert(tasks[1].Kind(), Equals, "connect")
 	c.Assert(tasks[2].Kind(), Equals, "setup-profiles")
+	sp := tasks[2]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"foo:network-control core:network-control"})
 
 	s.state.Unlock()
 	s.settle(c)
