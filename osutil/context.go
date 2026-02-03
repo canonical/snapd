@@ -24,10 +24,6 @@ import (
 	"io"
 	"os/exec"
 
-	"sync"
-	"sync/atomic"
-	"syscall"
-
 	"golang.org/x/sync/errgroup"
 )
 
@@ -50,84 +46,44 @@ func (w ctxWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// RunWithContext runs the given command, but kills it if the context
-// becomes done before the command finishes.
-// TODO make this a variant of RunManyWithContext.
-func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+// RunManyWithContext takes a context and a method with a context argument that
+// returns a slice of commands and a slice of functions. It uses errgroup to
+// manage the lifecycle and error propagation of all commands/tasks. It returns
+// the first non-nil error (if any) from the group. If the commands/tasks are
+// expected to be cancellable, buildWithContext should pass the input context
+// when creating the commands (using exec.CommandContext) and should ensure
+// that tasks listen to ctx.Done() if necessary.
+func RunManyWithContext(
+	ctx context.Context,
+	buildWithContext func(context.Context) (cmds []*exec.Cmd, tasks []func() error, err error),
+) error {
 
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	var ctxDone uint32
-	var wg sync.WaitGroup
-	waitDone := make(chan struct{})
-
-	wg.Add(1)
-	go func() {
-		select {
-		case <-ctx.Done():
-			atomic.StoreUint32(&ctxDone, 1)
-			cmd.Process.Kill()
-		case <-waitDone:
-		}
-		wg.Done()
-	}()
-
-	err := cmd.Wait()
-	close(waitDone)
-	wg.Wait()
-
-	if atomic.LoadUint32(&ctxDone) != 0 {
-		// do one last check to make sure the error from Wait is what we expect from Kill
-		if err, ok := err.(*exec.ExitError); ok {
-			if ws, ok := err.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signal() == syscall.SIGKILL {
-				return ctx.Err()
-			}
-		}
-	}
-	return err
-}
-
-// RunManyWithContext takes a context, a slice of commands, and a slice of
-// functions that accept a context as argument. It uses errgroup to manage the
-// lifecycle and error propagation of all tasks. It returns the first non-nil
-// error (if any) from the group. The go routines need to periodically look at
-// ctx.Done() to be cancellable.
-func RunManyWithContext(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
 	// Create the group and a derived cancellable context
 	g, gCtx := errgroup.WithContext(ctx)
+
+	// buildWithContext needs to pass down the errgroup context.
+	cmds, tasks, err := buildWithContext(gCtx)
+	if err != nil {
+		return err
+	}
 
 	for _, cmd := range cmds {
 		c := cmd
 		g.Go(func() error {
-			if err := c.Start(); err != nil {
-				return err
+			err := c.Run()
+			// If cancelled, return that error from the context, as
+			// the process error will be just the exit status,
+			// providing less information.
+			if ctxErr := gCtx.Err(); ctxErr != nil {
+				return ctxErr
 			}
-			// Create a channel to wait for the process result
-			waitDone := make(chan error, 1)
-			go func() {
-				waitDone <- c.Wait()
-			}()
-
-			// Wait for the context to cancel OR for the process to finish (waitDone)
-			select {
-			case <-gCtx.Done():
-				c.Process.Kill()
-				<-waitDone
-				return gCtx.Err()
-			case err := <-waitDone:
-				return err
-			}
+			return err
 		})
 	}
 
 	for _, task := range tasks {
 		t := task
-		g.Go(func() error { return t(gCtx) })
+		g.Go(func() error { return t() })
 	}
 
 	// Return nil or the first error (if any) returned by the spawned go routines
