@@ -52,6 +52,7 @@
 
 #define MAX_BUF 1000
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
+#define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
@@ -566,15 +567,38 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
         // Fixes the following bugs:
         //  - https://bugs.launchpad.net/snap-confine/+bug/1580018
         //  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-        static const char *dirs_from_core[] = {"/etc/alternatives", "/etc/nsswitch.conf",
-                                               // Some specific and privileged interfaces (e.g docker-support) give
-                                               // access to apparmor_parser from the base snap which at a minimum
-                                               // needs to use matching configuration from the base snap instead
-                                               // of from the users host system.
-                                               "/etc/apparmor", "/etc/apparmor.d",
-                                               // Use ssl certs from the base by default unless
-                                               // using Debian/Ubuntu classic (see below)
-                                               "/etc/ssl", NULL};
+        static const char *dirs_all[] = {"/etc/alternatives", "/etc/nsswitch.conf",
+                                         // Some specific and privileged interfaces (e.g docker-support) give
+                                         // access to apparmor_parser from the base snap which at a minimum
+                                         // needs to use matching configuration from the base snap instead
+                                         // of from the users host system.
+                                         "/etc/apparmor", "/etc/apparmor.d",
+                                         // Use ssl certs from the base by default unless
+                                         // using Debian/Ubuntu classic (see below)
+                                         "/etc/ssl"};
+        static const char *dirs_after_26[] = {// We want to use the ld cache / configuration from the app base
+                                              "/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/ld.so.conf.d"};
+        static const char *dirs_from_core[NUM_ELEM(dirs_all) + NUM_ELEM(dirs_after_26) + 1] = {NULL};
+        size_t num_dirs = 0;
+        for (; num_dirs < NUM_ELEM(dirs_all); ++num_dirs) {
+            dirs_from_core[num_dirs] = dirs_all[num_dirs];
+        }
+        const char *bases_before_26[] = {
+            "core", "core18", "core20", "core22", "core24", NULL,
+        };
+        bool is_after_26 = true;
+        for (const char **base = bases_before_26; *base != NULL; ++base) {
+            if (sc_streq(config->base_snap_name, *base)) {
+                is_after_26 = false;
+                break;
+            }
+        }
+        if (is_after_26) {
+            debug("adding ld caches to bind mounts for core26+");
+            for (size_t i = 0; i < NUM_ELEM(dirs_after_26); ++i) {
+                dirs_from_core[num_dirs + i] = dirs_after_26[i];
+            }
+        }
 
         for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
             const char *dir = *dirs;
