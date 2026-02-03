@@ -67,7 +67,7 @@ func (db EFISecurebootKeyDatabase) String() string {
 
 // EFISecurebootDBUpdatePrepare notifies that the local EFI key
 // database manager is about to update the database.
-func EFISecurebootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payload []byte) error {
+func EFISecurebootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, payloads [][]byte) error {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
 		if err == device.ErrNoSealedKeys {
@@ -87,7 +87,7 @@ func EFISecurebootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 		return err
 	}
 
-	op, err := addEFISecurebootDBUpdateChange(st, method, db, payload)
+	op, err := addEFISecurebootDBUpdateChange(st, method, db, payloads)
 	if err != nil {
 		return err
 	}
@@ -234,9 +234,9 @@ func EFISecurebootDBManagerStartup(st *state.State) error {
 }
 
 type securebootUpdateContext struct {
-	Payload []byte                   `json:"payload"`
-	Method  device.SealingMethod     `json:"sealing-method"`
-	DB      EFISecurebootKeyDatabase `json:"db"`
+	Payloads [][]byte                 `json:"payloads"`
+	Method   device.SealingMethod     `json:"sealing-method"`
+	DB       EFISecurebootKeyDatabase `json:"db"`
 }
 
 // addEFISecurebootDBUpdateChange adds a state change related to the Secureboot
@@ -245,7 +245,7 @@ func addEFISecurebootDBUpdateChange(
 	st *state.State,
 	method device.SealingMethod,
 	db EFISecurebootKeyDatabase,
-	payload []byte,
+	payloads [][]byte,
 ) (*externalOperation, error) {
 	// add a change carrying 2 tasks:
 	// - efi-secureboot-db-update-prepare: with a noop do, but the undo handler
@@ -269,9 +269,9 @@ func addEFISecurebootDBUpdateChange(
 	chg.AddAll(ts)
 
 	data, err := json.Marshal(securebootUpdateContext{
-		Payload: payload,
-		Method:  method,
-		DB:      db,
+		Payloads: payloads,
+		Method:   method,
+		DB:       db,
 	})
 	if err != nil {
 		return nil, err
@@ -368,7 +368,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 			// TODO: are we logging too much?
 			logger.Debugf("attempting reseal for Secureboot Key Database")
 			logger.Debugf("boot chains: %v\n", bc)
-			logger.Debugf("Secureboot Key Database payload: %x", updateData.Payload)
+			logger.Debugf("Secureboot Key Database payload: %v", updateData.Payloads)
 
 			params := &boot.ResealKeyForBootChainsParams{
 				BootChains: bc,
@@ -379,7 +379,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 					FDEManager: mgr,
 					unlocker:   st.Unlocker(),
 				},
-				updateData.Method, dirs.GlobalRootDir, params, updateData.Payload,
+				updateData.Method, dirs.GlobalRootDir, params, updateData.Payloads,
 			)
 		}, updateData.Method)
 	}()

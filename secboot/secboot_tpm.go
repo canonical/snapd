@@ -815,11 +815,13 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *P
 
 	// all models have the same dbx data, get it from the first one
 	var dbUpdates []*sb_efi.SignatureDBUpdate
-	if len(modelParams) > 0 && len(modelParams[0].EFISignatureDbxUpdate) > 0 {
-		dbUpdates = append(dbUpdates, &sb_efi.SignatureDBUpdate{
-			Name: sb_efi.Dbx,
-			Data: modelParams[0].EFISignatureDbxUpdate,
-		})
+	if len(modelParams) > 0 {
+		for _, update := range modelParams[0].EFISignatureDbxUpdates {
+			dbUpdates = append(dbUpdates, &sb_efi.SignatureDBUpdate{
+				Name: sb_efi.Dbx,
+				Data: update,
+			})
+		}
 	}
 
 	// build PCR protection policy
@@ -884,10 +886,10 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 	for _, mp := range modelParams {
 		var updateDB []*sb_efi.SignatureDBUpdate
 
-		if len(mp.EFISignatureDbxUpdate) > 0 {
+		for _, update := range mp.EFISignatureDbxUpdates {
 			updateDB = append(updateDB, &sb_efi.SignatureDBUpdate{
 				Name: sb_efi.Dbx,
-				Data: mp.EFISignatureDbxUpdate,
+				Data: update,
 			})
 		}
 
