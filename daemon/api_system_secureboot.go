@@ -67,6 +67,11 @@ type securebootRequest struct {
 	// blob is in the range from few kB to tens of kBs
 	Payload string `json:"payload,omitempty"`
 
+	// Payloads is the same as Payload, but as a list of multiple
+	// ordered payloads to be applied. It is not valid to have both
+	// Payload and Payloads defined at the same time.
+	Payloads []string `json:"payloads,omitempty"`
+
 	// KeyDatabase is used with efi-secureboot-db-prepare action, and indicates the
 	// secureboot keys database which is a target of the action, possible values are
 	// PK, KEK, DB, DBX
@@ -110,8 +115,11 @@ func (r *securebootRequest) Validate() error {
 			return fmt.Errorf("invalid key database %q", r.KeyDatabase)
 		}
 
-		if len(r.Payload) == 0 {
-			return errors.New("update payload not provided")
+		if len(r.Payload) == 0 && len(r.Payloads) == 0 {
+			return errors.New("payload not provided")
+		}
+		if len(r.Payload) != 0 && len(r.Payloads) != 0 {
+			return errors.New("both single payload and multiple payloads provided")
 		}
 	default:
 		return fmt.Errorf("unsupported EFI secure boot action %q", r.Action)
@@ -151,9 +159,26 @@ func postSystemSecurebootActionJSON(c *Command, r *http.Request) Response {
 var fdestateEFISecurebootDBUpdatePrepare = fdestate.EFISecurebootDBUpdatePrepare
 
 func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootRequest) Response {
-	payload, err := base64.StdEncoding.DecodeString(req.Payload)
-	if err != nil {
-		return BadRequest("cannot decode payload: %v", err)
+	var payloads [][]byte
+	switch {
+	case len(req.Payload) != 0 && len(req.Payloads) != 0:
+		return BadRequest("cannot use both single payload and multiple payloads were provided")
+	case len(req.Payload) != 0:
+		payload, err := base64.StdEncoding.DecodeString(req.Payload)
+		if err != nil {
+			return BadRequest("cannot decode payload: %v", err)
+		}
+		payloads = append(payloads, payload)
+	case len(req.Payloads) != 0:
+		for _, rawPayload := range req.Payloads {
+			payload, err := base64.StdEncoding.DecodeString(rawPayload)
+			if err != nil {
+				return BadRequest("cannot decode payload: %v", err)
+			}
+			payloads = append(payloads, payload)
+		}
+	default:
+		return BadRequest("cannot find payload")
 	}
 
 	keyDatabase, err := keyDatabaseFromString(req.KeyDatabase)
@@ -163,7 +188,7 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 
 	err = fdestateEFISecurebootDBUpdatePrepare(c.d.state,
 		keyDatabase,
-		payload)
+		payloads)
 	if err != nil {
 		return BadRequest("cannot notify of update prepare: %v", err)
 	}
