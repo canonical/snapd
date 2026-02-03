@@ -61,15 +61,24 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	}
 }
 
-func MockOsutilRunWithContext(f func(ctx context.Context, cmd *exec.Cmd) error) (restore func()) {
-	oldOsutilRunWithContext := osutilRunWithContext
-	osutilRunWithContext = f
+func MockCommandFromSystemSnapWithContext(f func(context.Context, string, ...string) (*exec.Cmd, error)) (restore func()) {
+	oldCommand := snapdtoolCommandFromSystemSnapWithContext
+	snapdtoolCommandFromSystemSnapWithContext = f
 	return func() {
-		osutilRunWithContext = oldOsutilRunWithContext
+		snapdtoolCommandFromSystemSnapWithContext = oldCommand
 	}
 }
 
-func MockOsutilRunManyWithContext(f func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error) (restore func()) {
+func MockCmdRun(f func(c *exec.Cmd) error) (restore func()) {
+	oldCmdRun := cmdRun
+	cmdRun = f
+	return func() {
+		cmdRun = oldCmdRun
+	}
+}
+
+func MockOsutilRunManyWithContext(f func(context.Context, func(context.Context) (
+	cmds []*exec.Cmd, tasks []func() error, err error)) error) (restore func()) {
 	oldOsutilRunManyWithContext := osutilRunManyWithContext
 	osutilRunManyWithContext = f
 	return func() {
