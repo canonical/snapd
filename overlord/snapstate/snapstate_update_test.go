@@ -81,7 +81,11 @@ func verifyUpdateTasksWithComponents(c *C, typ snap.Type, opts, compOpts, discar
 
 	expected := expectedDoInstallTasks(typ, unlinkBefore|cleanupAfter|opts, compOpts, discards, nil, components, nil)
 	if opts&doesReRefresh != 0 {
-		expected = append(expected, "check-rerefresh")
+		if opts&mockDelayedEffects != 0 {
+			expected = append(expected[:len(expected)-1], "check-rerefresh", expected[len(expected)-1])
+		} else {
+			expected = append(expected, "check-rerefresh")
+		}
 	}
 
 	c.Assert(kinds, DeepEquals, expected)
@@ -335,20 +339,21 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 2, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 2, ts)
 
 	// and ensure that it will remove the revisions after "current"
 	// (si3, si4)
 	var snapsup snapstate.SnapSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 8
+	// TODO use a helper to find proper tasks
+	i := len(tasks) - 9
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, si3.Revision)
 
-	i = len(tasks) - 6
+	i = len(tasks) - 7
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -529,7 +534,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		// don't make a task wait on rerefresh, that's bad
 		for i := len(tasks) - 1; i > 0; i-- {
 			last = tasks[i]
-			if last.Kind() != "check-rerefresh" {
+			if kind := last.Kind(); kind != "check-rerefresh" && kind != "mock-process-delayed-backend-effects" {
 				break
 			}
 		}
@@ -771,7 +776,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
@@ -3132,7 +3137,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
 		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
-		TrackingChannel: "other-chanenl/stable",
+		TrackingChannel: "other-channel/stable",
 		Current:         si.Revision,
 	})
 
@@ -3533,8 +3538,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	}
 	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
-	c.Check(tts, HasLen, 2)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Check(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-snap-action",
@@ -3735,8 +3740,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	}
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-snap_instance"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
-	c.Check(tts, HasLen, 3)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Check(tts, HasLen, 4)
+	verifyReRefreshTasks(c, tts[2])
+	verifyDelayedEffectsTasks(c, tts[3], []int{2, 3})
 	sort.Strings(updates)
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 
@@ -3862,7 +3868,7 @@ func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7"}, s.user.ID, snapstate.Flags{Amend: true})
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 0, ts)
 
 	// ensure we go from local to store revision-7
 	var snapsup snapstate.SnapSetup
@@ -3901,7 +3907,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendToLocalRevWithoutFlag(c *C) {
 		Revision: otherSI.Revision,
 	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localRevision, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localRevision|mockDelayedEffects, 0, ts)
 
 	// ensure we go from local to local revision x2
 	var snapsup snapstate.SnapSetup
@@ -4177,9 +4183,11 @@ func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) 
 
 	// check-rerefresh is last
 	tasks := chg.Tasks()
-	checkRerefresh := tasks[len(tasks)-1]
+	checkRerefresh := tasks[len(tasks)-2]
 	c.Check(checkRerefresh.Kind(), Equals, "check-rerefresh")
 	c.Check(checkRerefresh.Status(), Equals, state.DoneStatus)
+
+	c.Check(tasks[len(tasks)-1].Kind(), Equals, "mock-process-delayed-backend-effects")
 
 	// validity
 	c.Check(someSnapValidation, Equals, true)
@@ -4257,6 +4265,8 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	}
 
 	for _, scenario := range orthogonalAutoAliasesScenarios {
+		c.Logf("scenario start: %+v", scenario)
+
 		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
 			err := snapstate.Get(s.state, instanceName, &snapst)
@@ -4274,10 +4284,36 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			snapstate.Set(s.state, instanceName, &snapst)
 		}
 
+		pruneTsCnt := 0
+		rerefTsCnt := 0
+		delayedEffTsCnt := 0
+		if scenario.update {
+			// updates add re-refresh
+			rerefTsCnt++
+		}
+		if scenario.update || scenario.new {
+			// install or update would add delayed effects task
+			delayedEffTsCnt++
+		}
+		if scenario.new && !scenario.update {
+			// flattened
+			delayedEffTsCnt = 0
+		}
+		if len(scenario.prune) != 0 {
+			pruneTsCnt++
+		}
+
 		updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, scenario.names, nil, s.user.ID, nil)
 		c.Check(err, IsNil)
+		snapTtsCnt := len(updates)
+		for i, tsone := range tts {
+			c.Logf("taskset[%d] kinds: %v", i, taskKinds(tsone.Tasks()))
+		}
 		if scenario.update {
-			verifyLastTasksetIsReRefresh(c, tts)
+			c.Assert(len(tts), Equals, pruneTsCnt+snapTtsCnt+rerefTsCnt+delayedEffTsCnt)
+			verifyReRefreshTasks(c, tts[pruneTsCnt+snapTtsCnt])
+			// do not check lanes, too much hassle
+			verifyDelayedEffectsTasks(c, tts[pruneTsCnt+snapTtsCnt+1], nil)
 		}
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
@@ -4349,7 +4385,13 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			}
 		}
 		l := len(tts)
-		if scenario.update {
+		c.Logf("len: %v j: %v", len(tts), j)
+		if rerefTsCnt != 0 {
+			// account for re-refresh
+			l--
+		}
+		if delayedEffTsCnt != 0 {
+			// account for delayed effects
 			l--
 		}
 		c.Assert(j, Equals, l, Commentf("%#v", scenario))
@@ -4440,11 +4482,15 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		tasks := ts.Tasks()
 		// make sure the last task from Update is the rerefresh
 		if scenario.update {
-			reRefresh := tasks[len(tasks)-1]
+			reRefresh := tasks[len(tasks)-2]
 			c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
 			// nothing should wait on it
 			c.Check(reRefresh.NumHaltTasks(), Equals, 0)
-			tasks = tasks[:len(tasks)-1] // and now forget about it
+
+			delayedEffects := tasks[len(tasks)-1]
+			c.Check(delayedEffects.Kind(), Equals, "mock-process-delayed-backend-effects")
+
+			tasks = tasks[:len(tasks)-2] // and now forget about both
 		}
 
 		var expectedPruned map[string]map[string]bool
@@ -4686,7 +4732,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 
 	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
@@ -4739,7 +4785,7 @@ epoch: 1*
 
 	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap|mockDelayedEffects, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
@@ -4859,7 +4905,7 @@ func (s *snapmgrTestSuite) testUpdateWithDeviceContext(c *C, revision snap.Revis
 	opts := &snapstate.RevisionOptions{Channel: channel, Revision: revision}
 	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	enforceValidationSets := store.SnapActionFlags(0)
@@ -5173,7 +5219,7 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, expectedDiscards, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, expectedDiscards, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -5196,7 +5242,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 3, ts)
+	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 3, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -5236,8 +5282,8 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
 	ts := tts[0]
@@ -5247,7 +5293,8 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	for _, t := range ts.Tasks() {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
+	// 1==rerefresh, 2==mock-process-delayed-backend-effects
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+2)
 
 	// ensure edges information is still there
 	te, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
@@ -5279,8 +5326,8 @@ func (s *snapmgrTestSuite) TestUpdateManyIgnoreRunning(c *C) {
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap"}, nil, 0, &snapstate.Flags{IgnoreRunning: true})
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 	c.Assert(updates, HasLen, 1)
 
 	snapsup, err := snapstate.TaskSnapSetup(tts[0].Tasks()[0])
@@ -5325,12 +5372,12 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 		[]string{"some-snap", "some-other-snap"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 3)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 4)
+	verifyReRefreshTasks(c, tts[2])
 	c.Assert(updates, HasLen, 2)
 
 	// Last task is re-refresh, so it is a different lane
-	for _, ts := range tts[:len(tts)-1] {
+	for _, ts := range tts[:len(tts)-2] {
 		checkIsAutoRefresh(c, ts.Tasks(), false)
 		// check that tasksets are all in one lane
 		for _, t := range ts.Tasks() {
@@ -5451,7 +5498,7 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "snapd"}, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 4)
+	c.Assert(tts, HasLen, 5)
 	c.Assert(updates, HasLen, 3)
 
 	chg := s.state.NewChange("refresh", "...")
@@ -5560,8 +5607,8 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	// snap installed with classic: refresh gets classic
 	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyClassicToStrict(c *C) {
@@ -5583,13 +5630,13 @@ func (s *snapmgrTestSuite) TestUpdateManyClassicToStrict(c *C) {
 	// snap installed with classic: refresh gets classic
 	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, s.user.ID, &snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	// ensure we clear the classic flag
 	snapsup, err := snapstate.TaskSnapSetup(tts[0].Tasks()[0])
 	c.Assert(err, IsNil)
 	c.Assert(snapsup.Flags.Classic, Equals, false)
 
-	verifyLastTasksetIsReRefresh(c, tts)
+	verifyReRefreshTasks(c, tts[1])
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
@@ -5656,11 +5703,13 @@ func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannel(c *C) {
 	goal := snapstate.StoreUpdateGoal(updates...)
 	names, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
-	c.Assert(uts.Refresh, HasLen, 3)
+	c.Assert(uts.Refresh, HasLen, 4)
 
 	c.Assert(names, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 
-	verifyLastTasksetIsReRefresh(c, uts.Refresh)
+	verifyReRefreshTasks(c, uts.Refresh[2])
+	// snap is update in default lane 0
+	verifyDelayedEffectsTasks(c, uts.Refresh[3], []int{0})
 	c.Assert(uts.Refresh[1].Tasks(), HasLen, 1)
 
 	switchTask := uts.Refresh[1].Tasks()[0]
@@ -5737,12 +5786,13 @@ func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannelWithAutoAlias(c *C) {
 	goal := snapstate.StoreUpdateGoal(updates...)
 	names, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
-	// switch channel task set, refresh task set, auto alias task set, and
-	// rerefresh task set
-	c.Assert(uts.Refresh, HasLen, 4)
+	// switch channel task set, refresh task set, auto alias task set, rerefresh
+	// task set, and delayed effects task set
+	c.Assert(uts.Refresh, HasLen, 5)
 	c.Assert(names, testutil.DeepUnsortedMatches, []string{"alias-snap", "some-other-snap"})
 
-	verifyLastTasksetIsReRefresh(c, uts.Refresh)
+	verifyReRefreshTasks(c, uts.Refresh[3])
+	verifyDelayedEffectsTasks(c, uts.Refresh[4], []int{0})
 
 	switchTask := uts.Refresh[2].Tasks()[0]
 	c.Assert(switchTask.Kind(), Equals, "switch-snap-channel")
@@ -5828,8 +5878,9 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core", "some-base"}, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 4)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 5)
+	verifyReRefreshTasks(c, tts[3])
+	verifyDelayedEffectsTasks(c, tts[4], []int{1, 2, 3})
 	c.Check(updates, HasLen, 3)
 
 	// to make TaskSnapSetup work
@@ -5908,8 +5959,9 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "core18", "some-base", "snapd"}, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 5)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 6)
+	verifyReRefreshTasks(c, tts[4])
+	verifyDelayedEffectsTasks(c, tts[5], []int{1, 2, 3, 4})
 	c.Check(updates, HasLen, 4)
 
 	// to make TaskSnapSetup work
@@ -6026,8 +6078,9 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
+	verifyDelayedEffectsTasks(c, tts[2], []int{1})
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 	verifyUpdateTasks(c, snap.TypeApp, 0, 0, tts[0])
 
@@ -6070,8 +6123,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 3)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 4)
+	verifyReRefreshTasks(c, tts[2])
+	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2})
 	// ensure stable ordering of updates list
 	if updates[0] != "some-snap" {
 		updates[1], updates[0] = updates[0], updates[1]
@@ -6149,8 +6203,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(tts, HasLen, 3)
-	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(tts, HasLen, 4)
+	verifyReRefreshTasks(c, tts[2])
+	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2})
 	sort.Strings(updates)
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 	verifyUpdateTasks(c, snap.TypeApp, 0, 0, tts[0])
@@ -10780,13 +10835,45 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionalWithLane(c *C) {
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
 	c.Assert(err, IsNil)
 	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
-	c.Check(tss, HasLen, 2)
+	c.Check(tss, HasLen, 3)
 
 	for _, ts := range tss {
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{lane})
 		}
 	}
+
+	verifyDelayedEffectsTasks(c, tss[2], []int{lane})
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyNoDelayedEffects(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		snapID := fmt.Sprintf("%s-id", name)
+		si := &snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Revision: snap.R(7),
+		}
+
+		snaptest.MockSnap(c, `name: some-snap`, si)
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Current:  si.Revision,
+		})
+	}
+
+	flags := &snapstate.Flags{
+		NoDelayedSideEffects: true,
+	}
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 3)
+	verifyReRefreshTasks(c, tss[2])
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyLaneErrorsWithLaneButNoTransaction(c *C) {
@@ -10858,6 +10945,8 @@ func (s *snapmgrTestSuite) TestUpdateTransactionalWithLane(c *C) {
 	for _, t := range ts.Tasks() {
 		c.Assert(t.Lanes(), DeepEquals, []int{lane})
 	}
+
+	verifyUpdateTasks(c, snap.TypeApp, mockDelayedEffects, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
@@ -17279,6 +17368,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		"run-hook[configure]",
 		"run-hook[check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-backend-effects",
 	})
 
 	// and ensure that it will remove the components - si1 is cleaned
@@ -17287,25 +17377,26 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 	var compSup snapstate.ComponentSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 17
+	// TODO: use a helper to find required tasks
+	i := len(tasks) - 18
 	c.Check(tasks[i].Kind(), Equals, "unlink-component")
 	err = tasks[i].Get("component-setup", &compSup)
 	c.Assert(err, IsNil)
 	c.Check(compSup.CompSideInfo.Component, Equals, cref1)
 
-	i = len(tasks) - 15
+	i = len(tasks) - 16
 	c.Check(tasks[i].Kind(), Equals, "unlink-component")
 	err = tasks[i].Get("component-setup", &compSup)
 	c.Assert(err, IsNil)
 	c.Check(compSup.CompSideInfo.Component, Equals, cref2)
 
-	i = len(tasks) - 9
+	i = len(tasks) - 10
 	c.Check(tasks[i].Kind(), Equals, "unlink-component")
 	err = tasks[i].Get("component-setup", &compSup)
 	c.Assert(err, IsNil)
 	c.Check(compSup.CompSideInfo.Component, Equals, cref1)
 
-	i = len(tasks) - 7
+	i = len(tasks) - 8
 	c.Check(tasks[i].Kind(), Equals, "unlink-component")
 	err = tasks[i].Get("component-setup", &compSup)
 	c.Assert(err, IsNil)

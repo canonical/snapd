@@ -959,6 +959,12 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
 	}
 	s.AddCleanup(func() { snapstate.AutoAliases = nil })
 
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// only one snap is updated
+		c.Check(lanes, HasLen, 1)
+		return state.NewTaskSet(st.NewTask("process-delayed-backend-effects", "Process delayed backend effects"))
+	}))
+
 	st := s.state
 	st.Lock()
 
