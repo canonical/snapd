@@ -161,7 +161,7 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 
 func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermission) error {
 	for _, listenerReq := range p.listenerReqs {
-		if err := sendReply(listenerReq, allowedPermission); err != nil {
+		if err := listenerReq.Reply(allowedPermission); err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// If err is ENOENT, then notification with the given ID does not
 				// exist, so it timed out in the kernel.
@@ -178,8 +178,6 @@ func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermis
 	}
 	return nil
 }
-
-var sendReply = (*listener.Request).Reply
 
 // promptConstraints store the path which was requested, along with three
 // lists of permissions: the original permissions associated with the request,
@@ -756,7 +754,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 			// Deny all permissions which are not already allowed by existing rules
 			allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
-			sendReply(listenerReq, allowedPermission)
+			listenerReq.Reply(allowedPermission)
 			return nil, false, prompting_errors.ErrTooManyPrompts
 		}
 
@@ -1091,15 +1089,4 @@ func (pdb *PromptDB) Close() error {
 // The caller must ensure that the DB lock is held.
 func (pdb *PromptDB) isClosed() bool {
 	return pdb.maxIDMmap.IsClosed()
-}
-
-// MockSendReply mocks the function to send a reply back to the listener so
-// tests, both for this package and for consumers of this package, can mock
-// the listener.
-func MockSendReply(f func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error) (restore func()) {
-	orig := sendReply
-	sendReply = f
-	return func() {
-		sendReply = orig
-	}
 }

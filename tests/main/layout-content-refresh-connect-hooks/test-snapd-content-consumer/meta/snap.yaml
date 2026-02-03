@@ -1,0 +1,25 @@
+name: test-snapd-content-consumer
+version: 1.0.0
+base: core24
+
+assumes:
+    - command-chain
+
+apps:
+    app:
+        command: bin/app
+        plugs:
+            - special-content-basic
+            - special-content-extra
+
+plugs:
+  special-content-basic:
+    interface: content
+    target: $SNAP/connected-content-basic
+    # like a snap using one version of gnome runtime
+    default-provider: test-snapd-content-provider
+
+  special-content-extra:
+    interface: content
+    target: $SNAP/connected-content-extra
+    # no default provider is listed

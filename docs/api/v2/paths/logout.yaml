@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Store
+    - Synchronous
+  summary: Log user out of snapd and the store
+  description: |-
+    Logs the currently authenticated user out of snapd and the store.
+  operationId: logoutUser
+  security:
+    - PeerAuth: []              # TODO security and responses need to be re-evaluated in another PR
+  parameters:
+    - in: header
+      name: Authorization
+      schema:
+        type: string
+        format: 'Authorization: Macaroon <the-macaroon>'
+        description: The authorization to remove from the system.
+  responses:
+    200:
+      description: Successfully logged out.
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'

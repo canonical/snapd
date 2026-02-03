@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -73,56 +72,6 @@ func (s *listenerSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-func (*listenerSuite) TestReply(c *C) {
-	var (
-		id      = uint64(0xabcd)
-		version = notify.ProtocolVersion(43)
-		class   = notify.AA_CLASS_FILE
-		aaAllow = notify.FilePermission(0b1010)
-		aaDeny  = notify.FilePermission(0b0101)
-
-		userAllow = notify.FilePermission(0b0011)
-	)
-
-	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		c.Check(resp.KernelNotificationID, Equals, id)
-		c.Check(resp.Version, Equals, version)
-		c.Check(resp.Allow, Equals, uint32(0b1011))
-		c.Check(resp.Deny, Equals, uint32(0b0100))
-		return nil
-	})
-	defer restore()
-
-	req := listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-	err := req.Reply(userAllow)
-	c.Assert(err, IsNil)
-}
-
-func (*listenerSuite) TestReplyNil(c *C) {
-	var (
-		id      = uint64(0xabcd)
-		version = notify.ProtocolVersion(43)
-		class   = notify.AA_CLASS_FILE
-		aaAllow = notify.FilePermission(0b1010)
-		aaDeny  = notify.FilePermission(0b0101)
-
-		userAllow notify.AppArmorPermission = nil
-	)
-
-	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		c.Check(resp.KernelNotificationID, Equals, id)
-		c.Check(resp.Version, Equals, version)
-		c.Check(resp.Allow, Equals, aaAllow.AsAppArmorOpMask())
-		c.Check(resp.Deny, Equals, aaDeny.AsAppArmorOpMask())
-		return nil
-	})
-	defer restore()
-
-	req := listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-	err := req.Reply(userAllow)
-	c.Assert(err, IsNil)
-}
-
 type fakeAaPerm string
 
 func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
@@ -134,167 +83,88 @@ func (p fakeAaPerm) String() string {
 	return string(p)
 }
 
-func (*listenerSuite) TestReplyBad(c *C) {
+func (*listenerSuite) TestNewListenerRequestReply(c *C) {
 	var (
 		id      = uint64(0xabcd)
 		version = notify.ProtocolVersion(43)
-		class   = notify.AA_CLASS_FILE
-		aaAllow = notify.FilePermission(0b1010)
-		aaDeny  = notify.FilePermission(0b0101)
-
-		userAllow = fakeAaPerm("read")
+		aaAllow = uint32(0b01010000) // some higher bits
+		aaDeny  = uint32(0b00110110) // read, write, some higher bits
+		path    = "/home/test/foo"
 	)
 
-	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		c.Fatalf("should not have attempted to encode and send response")
-		return nil
-	})
-	defer restore()
+	msg := &notify.MsgNotificationFile{
+		MsgNotificationOp: notify.MsgNotificationOp{
+			MsgNotification: notify.MsgNotification{
+				MsgHeader: notify.MsgHeader{
+					Length:  52,
+					Version: version,
+				},
+				NotificationType:     notify.APPARMOR_NOTIF_OP,
+				KernelNotificationID: id,
+			},
+			Allow: aaAllow,
+			Deny:  aaDeny,
+			Class: notify.AA_CLASS_FILE,
+		},
+		Filename: path,
+	}
 
-	req := listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-	err := req.Reply(userAllow)
-	c.Assert(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
-
-	class = notify.AA_CLASS_DBUS // unsupported at the moment
-	req = listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-	err = req.Reply(userAllow)
-	c.Assert(err, ErrorMatches, "internal error: unsupported mediation class: AA_CLASS_DBUS")
-}
-
-func (*listenerSuite) TestReplyError(c *C) {
-	var (
-		id      = uint64(0xabcd)
-		version = notify.ProtocolVersion(43)
-		class   = notify.AA_CLASS_FILE
-		aaAllow = notify.FilePermission(0b1010)
-		aaDeny  = notify.FilePermission(0b0101)
-
-		userAllow = notify.FilePermission(0b1111)
-	)
-
-	restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-		return fmt.Errorf("failed to send response")
-	})
-	defer restore()
-
-	req := listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-	err := req.Reply(userAllow)
-	c.Assert(err, ErrorMatches, "failed to send response")
-}
-
-func (*listenerSuite) TestReplyPermissions(c *C) {
-	var (
-		id      = uint64(0xabcd)
-		version = notify.ProtocolVersion(43)
-		class   = notify.AA_CLASS_FILE
-		aaAllow = notify.FilePermission(0b0101)
-		aaDeny  = notify.FilePermission(0b0011)
-	)
-
-	for _, testCase := range []struct {
-		allowedPermission notify.AppArmorPermission
-		respAllow         uint32
-		respDeny          uint32
-	}{
-		{
-			nil,
-			0b0100,
-			0b0011,
-		},
-		{
-			notify.FilePermission(0b0000),
-			0b0100,
-			0b0011,
-		},
-		{
-			notify.FilePermission(0b0001),
-			0b0101,
-			0b0010,
-		},
-		{
-			notify.FilePermission(0b0010),
-			0b0110,
-			0b0001,
-		},
-		{
-			notify.FilePermission(0b0011),
-			0b0111,
-			0b0000,
-		},
-		{
-			notify.FilePermission(0b0100),
-			0b0100,
-			0b0011,
-		},
-		{
-			notify.FilePermission(0b0101),
-			0b0101,
-			0b0010,
-		},
-		{
-			notify.FilePermission(0b0110),
-			0b0110,
-			0b0001,
-		},
-		{
-			notify.FilePermission(0b0111),
-			0b0111,
-			0b0000,
-		},
-		{
-			notify.FilePermission(0b1000),
-			0b0100,
-			0b0011,
-		},
-		{
-			notify.FilePermission(0b1001),
-			0b0101,
-			0b0010,
-		},
-		{
-			notify.FilePermission(0b1010),
-			0b0110,
-			0b0001,
-		},
-		{
-			notify.FilePermission(0b1011),
-			0b0111,
-			0b0000,
-		},
-		{
-			notify.FilePermission(0b1100),
-			0b0100,
-			0b0011,
-		},
-		{
-			notify.FilePermission(0b1101),
-			0b0101,
-			0b0010,
-		},
-		{
-			notify.FilePermission(0b1110),
-			0b0110,
-			0b0001,
-		},
-		{
-			notify.FilePermission(0b1111),
-			0b0111,
-			0b0000,
-		},
+	for _, responsePerm := range []notify.AppArmorPermission{
+		nil,
+		notify.FilePermission(0),
+		notify.FilePermission(0b0001),
+		notify.FilePermission(0b0010),
+		notify.FilePermission(0b0011),
+		notify.FilePermission(0b0110),
 	} {
-		restore := listener.MockEncodeAndSendResponse(func(l *listener.Listener, resp *notify.MsgNotificationResponse) error {
-			c.Check(resp.KernelNotificationID, Equals, id)
-			c.Check(resp.Version, Equals, version)
-			c.Check(resp.Allow, Equals, testCase.respAllow, Commentf("testCase: %+v", testCase))
-			c.Check(resp.Deny, Equals, testCase.respDeny, Commentf("testCase: %+v", testCase))
+		fakeSendResponse := func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {
+			c.Check(recvID, Equals, id)
+			c.Check(recvAaAllowed, Equals, notify.FilePermission(aaAllow))
+			c.Check(recvAaRequested, Equals, notify.FilePermission(aaDeny))
+			c.Check(userAllowed, Equals, responsePerm)
 			return nil
-		})
+		}
 
-		req := listener.FakeRequestWithIDVersionClassAllowDeny(id, version, class, aaAllow, aaDeny)
-		err := req.Reply(testCase.allowedPermission)
+		req, err := listener.NewListenerRequest(msg, fakeSendResponse)
 		c.Assert(err, IsNil)
+		c.Assert(req, NotNil)
 
-		restore()
+		err = req.Reply(responsePerm)
+		c.Check(err, IsNil)
+	}
+
+	fakeSendResponse := func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {
+		c.Fatalf("should not have attempted to send response")
+		return nil
+	}
+	req, err := listener.NewListenerRequest(msg, fakeSendResponse)
+	c.Assert(err, IsNil)
+	c.Assert(req, NotNil)
+	err = req.Reply(fakeAaPerm("read"))
+	c.Check(err, ErrorMatches, "invalid reply: response permission must be of type notify.FilePermission")
+
+	fakeSendResponse = func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {
+		return fmt.Errorf("failed to send response")
+	}
+	req, err = listener.NewListenerRequest(msg, fakeSendResponse)
+	c.Assert(err, IsNil)
+	c.Assert(req, NotNil)
+	err = req.Reply(notify.FilePermission(0b0110))
+	c.Check(err, ErrorMatches, "failed to send response")
+}
+
+func (*listenerSuite) TestBuildKey(c *C) {
+	for _, testCase := range []struct {
+		iface    string
+		id       uint64
+		expected string
+	}{
+		{"foo", 0x1234, "kernel:foo:0000000000001234"},
+		{"home", 0x1, "kernel:home:0000000000000001"},
+		{"camera", 0xdeadbeefdeadbeef, "kernel:camera:DEADBEEFDEADBEEF"},
+	} {
+		key := listener.BuildKey(testCase.iface, testCase.id)
+		c.Check(key, Equals, testCase.expected)
 	}
 }
 
@@ -328,7 +198,7 @@ func testRegisterCloseWithPendingCountExpectReady(c *C, pendingCount int, expect
 	})
 	defer restoreTimer()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	checkListenerReady(c, l, expectReady)
@@ -360,7 +230,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	c.Assert(outputOverridePath, Equals, apparmor.NotifySocketPath)
@@ -376,7 +246,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 		c.Assert(err, IsNil)
 	}()
 
-	l, err = listener.Register()
+	l, err = listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	c.Assert(outputOverridePath, Equals, fakePath)
@@ -391,7 +261,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(l, IsNil)
 	c.Assert(err, Equals, listener.ErrNotSupported)
 
@@ -402,7 +272,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err = listener.Register()
+	l, err = listener.Register(listener.NewListenerRequest)
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", apparmor.NotifySocketPath, customError))
 
@@ -425,7 +295,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err = listener.Register()
+	l, err = listener.Register(listener.NewListenerRequest)
 	c.Assert(l, IsNil)
 	c.Assert(err, Equals, customError)
 
@@ -442,7 +312,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreRegisterFileDescriptor()
 
-	l, err = listener.Register()
+	l, err = listener.Register(listener.NewListenerRequest)
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", apparmor.NotifySocketPath))
 }
@@ -503,12 +373,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
@@ -520,8 +386,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
+	aBits := uint32(0b1010) // write (and append)
+	dBits := uint32(0b0101) // read, exec
 	tagsets := notify.TagsetMap{
 		notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "tag2"},
 		notify.FilePermission(0b0010): notify.MetadataTags{"tag3"},
@@ -540,7 +406,12 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
 		buf, err := msg.MarshalBinary()
 		c.Assert(err, IsNil)
-		recvChan <- buf
+		select {
+		case recvChan <- buf:
+			// all good
+		case <-time.NewTimer(time.Second).C:
+			c.Fatalf("timed out waiting to send request")
+		}
 
 		select {
 		case req := <-l.Reqs():
@@ -556,6 +427,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 			requests = append(requests, req)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error: %v", t.Err())
+		case <-time.NewTimer(time.Second).C:
+			c.Fatalf("timed out waiting to receive request")
 		}
 	}
 
@@ -575,13 +448,16 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		case received := <-sendChan:
 			// all good
 			c.Check(received, DeepEquals, desiredBuf)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Errorf("failed to receive response in time")
 		}
 	}
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
-func checkListenerReady(c *C, l *listener.Listener, ready bool) {
+func checkListenerReady(c *C, l *listener.Listener[listener.Request], ready bool) {
 	if ready {
 		select {
 		case <-l.Ready():
@@ -599,20 +475,20 @@ func checkListenerReady(c *C, l *listener.Listener, ready bool) {
 	}
 }
 
-func checkListenerReadyWithTimeout(c *C, l *listener.Listener, ready bool, timeout time.Duration) {
+func checkListenerReadyWithTimeout(c *C, l *listener.Listener[listener.Request], ready bool, timeout time.Duration) {
 	c.Assert(timeout, Not(Equals), time.Duration(0))
 	if ready {
 		select {
 		case <-l.Ready():
 			// all good
-		case <-time.NewTimer(timeout).C:
+		case <-time.After(timeout):
 			c.Error("listener not ready")
 		}
 	} else {
 		select {
 		case <-l.Ready():
 			c.Error("listener unexpectedly ready")
-		case <-time.NewTimer(timeout).C:
+		case <-time.After(timeout):
 			// all good
 		}
 	}
@@ -647,12 +523,8 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// The timer isn't created until Run is called
 	c.Check(timer, IsNil)
@@ -684,7 +556,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
@@ -703,7 +575,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -711,6 +583,9 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	c.Check(timer.Active(), Equals, false)
 
 	c.Check(logbuf.String(), Equals, "")
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
@@ -743,12 +618,8 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// The timer isn't created until Run is called
 	c.Check(timer, IsNil)
@@ -780,7 +651,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
@@ -807,7 +678,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -815,6 +686,9 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 
 	// We're still ready, of course
 	checkListenerReady(c, l, true)
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
@@ -850,12 +724,8 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// The timer isn't created until Run is called
 	c.Check(timer, IsNil)
@@ -883,7 +753,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -917,7 +787,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -925,6 +795,9 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 
 	// We're still ready
 	checkListenerReady(c, l, true)
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 // Check that if a request is written between when the listener is registered
@@ -940,12 +813,8 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
@@ -965,7 +834,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		select {
 		case recvChan <- buf:
 			// all good
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive buffer")
 		}
 	}()
@@ -975,7 +844,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		c.Fatalf("should not have received request before Run() called")
 	case <-t.Dying():
 		c.Fatalf("tomb encountered an error before Run() called: %v", t.Err())
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 	}
 
 	t.Go(l.Run)
@@ -986,9 +855,12 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		c.Assert(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", t.Err())
-	case <-time.NewTimer(time.Second).C:
+	case <-time.After(time.Second):
 		c.Fatalf("failed to receive request before timer expired")
 	}
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 // Check that if multiple requests are included in a single request buffer from
@@ -1004,12 +876,8 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
@@ -1039,15 +907,19 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 			c.Assert(req.Path, DeepEquals, path)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, t.Err())
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive request %d before timer expired", i)
 		}
 	}
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 // Check that the system of epoll event listening works as expected.
 func (*listenerSuite) TestRunEpoll(c *C) {
-	listener.ExitOnError()
+	restoreExitOnError := listener.ExitOnError()
+	defer restoreExitOnError()
 
 	sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 	c.Assert(err, IsNil)
@@ -1096,27 +968,25 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	c.Assert(err, IsNil)
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(l.Close(), IsNil)
-		c.Check(t.Wait(), IsNil)
-	}()
 
 	t.Go(l.Run)
 
 	_, err = unix.Write(kernelSocket, recvBuf)
 	c.Check(err, IsNil)
 
-	requestTimer := time.NewTimer(time.Second)
 	select {
 	case req := <-l.Reqs():
 		c.Check(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Errorf("listener encountered unexpected error: %v", t.Err())
-	case <-requestTimer.C:
+	case <-time.After(time.Second):
 		c.Errorf("timed out waiting for listener to send request")
 	}
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
 }
 
 // Check that if no epoll event occurs, listener can still close.
@@ -1124,12 +994,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreEpoll := listener.MockEpollWait(func(l *listener.Listener) ([]epoll.Event, error) {
-		for !l.EpollIsClosed() {
-			// do nothing until epoll is closed
-		}
-		return nil, fmt.Errorf("fake epoll error")
-	})
+	restoreEpoll := listener.MockEpollWaitForClose()
 	defer restoreEpoll()
 
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
@@ -1145,7 +1010,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	runAboutToStart := make(chan struct{})
@@ -1179,7 +1044,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	checkListenerReady(c, l, true)
@@ -1202,7 +1067,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1236,7 +1101,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	// Timer hasn't been created yet
@@ -1265,7 +1130,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1319,7 +1184,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	// Timer hasn't been created yet
@@ -1348,7 +1213,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	select {
 	case req := <-ioctlDone:
 		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.NewTimer(100 * time.Millisecond).C:
+	case <-time.After(100 * time.Millisecond):
 		c.Errorf("failed to synchronize on ioctl call")
 	}
 
@@ -1373,7 +1238,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	select {
 	case <-l.Reqs():
 		// all good
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		c.Fatalf("reqs failed to close once listener closed")
 	}
 
@@ -1399,7 +1264,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	t.Go(l.Run)
@@ -1463,16 +1328,14 @@ func newMsgNotificationResponse(protocolVersion notify.ProtocolVersion, id uint6
 }
 
 func (*listenerSuite) TestRunErrors(c *C) {
-	listener.ExitOnError()
+	restoreExitOnError := listener.ExitOnError()
+	defer restoreExitOnError()
 
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
 	protoVersion := notify.ProtocolVersion(1123)
 	pendingCount := 0
-
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
-	defer restoreEpollIoctl()
 
 	for _, testCase := range []struct {
 		msg msgNotificationFile
@@ -1523,31 +1386,31 @@ func (*listenerSuite) TestRunErrors(c *C) {
 			},
 			`unsupported notification type: APPARMOR_NOTIF_CANCEL`,
 		},
-		{
-			msgNotificationFile{
-				Length:           52,
-				Version:          1123,
-				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Class:            uint16(notify.AA_CLASS_DBUS),
-			},
-			`unsupported mediation class: AA_CLASS_DBUS`,
-		},
 	} {
-		l, err := listener.Register()
+		recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+		defer restoreEpollIoctl()
+
+		l, err := listener.Register(listener.NewListenerRequest)
 		c.Assert(err, IsNil)
 
 		var t tomb.Tomb
 		t.Go(l.Run)
 
 		buf := testCase.msg.MarshalBinary(c)
-		recvChan <- buf
+		select {
+		case recvChan <- buf:
+			// all good
+		case <-time.NewTimer(time.Second).C:
+			c.Fatalf("timed out waiting to send request")
+		}
 
 		select {
 		case r := <-l.Reqs():
 			c.Check(r, IsNil, Commentf("should not have received non-nil request; expected error: %v", testCase.err))
-		case <-time.NewTimer(time.Second).C:
-			c.Error("done waiting for expected error", testCase.err)
+		case <-time.After(time.Second):
+			c.Errorf("timed out waiting for expected error %v", testCase.err)
 		case <-t.Dying():
+			// all good
 		}
 		err = t.Wait()
 		c.Check(err, ErrorMatches, testCase.err)
@@ -1557,16 +1420,237 @@ func (*listenerSuite) TestRunErrors(c *C) {
 	}
 }
 
+func (*listenerSuite) TestRunMalformedMessage(c *C) {
+	testRunMalformedMessage(c, true)
+	testRunMalformedMessage(c, false)
+}
+
+func testRunMalformedMessage(c *C, finalResent bool) {
+	// Rare case:
+	// Pending count 3, send 2 malformed RESENT messages, then one malformed
+	// message which is either RESENT or non-RESENT, depending on whether
+	// finalResent is true.
+	// Malformed messages should get auto-denied, and should not result in a request being sent
+	// over the Reqs channel, but they should be handled like any other RESENT/non-RESENT messages.
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	var (
+		protoVersion  = notify.ProtocolVersion(12345)
+		aaAllow       = uint32(0b0101)
+		aaDeny        = uint32(0b0011)
+		expectedAllow = uint32(0b0100)
+		expectedDeny  = uint32(0b0011)
+	)
+	pendingCount := 3
+
+	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
+	defer restoreEpollIoctl()
+
+	var timer *testtime.TestTimer
+	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			c.Fatalf("should not have timed out; receiving non-RESENT message should have explicitly triggered ready")
+		})
+		return timer
+	})
+	defer restoreTimer()
+
+	var t tomb.Tomb
+	l, err := listener.Register(listener.NewListenerRequest)
+	c.Assert(err, IsNil)
+
+	// The timer isn't created until Run is called
+	c.Check(timer, IsNil)
+	checkListenerReady(c, l, false) // not ready
+
+	t.Go(l.Run)
+
+	msgTemplate := msgNotificationFile{
+		Length:           58,
+		Version:          uint16(protoVersion),
+		NotificationType: notify.APPARMOR_NOTIF_OP,
+		Allow:            aaAllow,
+		Deny:             aaDeny,
+		Pid:              123,
+		Class:            uint16(notify.AA_CLASS_FILE),
+	}
+	idTemplate := uint64(0x100)
+
+	for i, step := range []struct {
+		mClass      notify.MediationClass
+		prepareFunc func() func()
+	}{
+		{
+			notify.AA_CLASS_FILE,
+			func() func() {
+				return listener.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+					return "", fmt.Errorf("something failed")
+				})
+			},
+		},
+		{
+			notify.AA_CLASS_DBUS,
+			func() func() { return func() {} },
+		},
+	} {
+		restoreStep := step.prepareFunc()
+
+		msg := msgTemplate
+		msg.KernelNotificationID = idTemplate + uint64(i)
+		msg.Flags = notify.UNOTIF_RESENT
+		msg.Class = uint16(step.mClass)
+		buf := msg.MarshalBinary(c)
+
+		// Send message
+		select {
+		case recvChan <- buf:
+			// all good
+		case <-time.After(time.Second):
+			c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
+		}
+
+		// Check that we don't receive a request
+		select {
+		case req, ok := <-l.Reqs():
+			if !ok {
+				c.Fatal("l.Reqs() unexpectedly closed")
+			}
+			c.Fatalf("unexpectedly received request %d", req.ID)
+		case <-time.After(50 * time.Millisecond):
+			// all good
+		}
+
+		// Wait for the auto-deny reply
+		resp := newMsgNotificationResponse(protoVersion, msg.KernelNotificationID, expectedAllow, expectedDeny)
+		desiredBuf, err := resp.MarshalBinary()
+		c.Assert(err, IsNil)
+		select {
+		case received := <-sendChan:
+			c.Check(received, DeepEquals, desiredBuf)
+		case <-time.After(time.Second):
+			c.Fatalf("failed to receive response in time")
+		}
+
+		// We have still not received the final RESENT message, so should not be ready.
+		checkListenerReady(c, l, false)
+		c.Check(timer.Active(), Equals, true)
+
+		restoreStep()
+	}
+
+	// Cause another different error
+	restore = listener.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "", fmt.Errorf("another error")
+	})
+	defer restore()
+
+	// Send a third message, with UNOTIF_RESENT set iff finalResent is true
+	msg := msgTemplate
+	msg.KernelNotificationID = idTemplate + 2
+	if finalResent {
+		msg.Flags = notify.UNOTIF_RESENT
+	}
+	buf := msg.MarshalBinary(c)
+	select {
+	case recvChan <- buf:
+		// all good
+	case <-time.After(time.Second):
+		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
+	}
+
+	// Check that we don't receive a request
+	select {
+	case req, ok := <-l.Reqs():
+		if !ok {
+			c.Fatal("l.Reqs() unexpectedly closed")
+		}
+		c.Fatalf("unexpectedly received request %d", req.ID)
+	case <-time.After(50 * time.Millisecond):
+		// all good
+	}
+
+	// Wait for the auto-deny reply
+	resp := newMsgNotificationResponse(protoVersion, msg.KernelNotificationID, expectedAllow, expectedDeny)
+	desiredBuf, err := resp.MarshalBinary()
+	c.Assert(err, IsNil)
+	select {
+	case received := <-sendChan:
+		c.Check(received, DeepEquals, desiredBuf)
+	case <-time.After(time.Second):
+		c.Fatalf("failed to receive response in time")
+	}
+
+	// The listener should ready up regardless of whether UNOTIF_RESENT is set,
+	// since either way the kernel is done resending previously-sent requests.
+	checkListenerReadyWithTimeout(c, l, true, time.Second)
+	// Readiness stops the timer
+	c.Check(timer.Active(), Equals, false)
+
+	// Check that we don't receive a request
+	select {
+	case req, ok := <-l.Reqs():
+		if !ok {
+			c.Fatal("l.Reqs() unexpectedly closed")
+		}
+		c.Fatalf("unexpectedly received request %d", req.ID)
+	case <-time.After(50 * time.Millisecond):
+		// all good
+	}
+
+	restore() // no longer malformed
+
+	// Send one more well-formed message and wait for it, so we're sure the
+	// listener finished logging all previous errors.
+	msg = msgTemplate
+	msg.KernelNotificationID = idTemplate + 3
+	msg.Flags = 0
+	buf = msg.MarshalBinary(c)
+	select {
+	case recvChan <- buf:
+		// all good
+	case <-time.After(time.Second):
+		c.Fatalf("timed out waiting to send request %x", msg.KernelNotificationID)
+	}
+
+	select {
+	case req, ok := <-l.Reqs():
+		if !ok {
+			c.Errorf("l.Reqs() unexpectedly closed")
+		}
+		c.Check(req.ID, Equals, msg.KernelNotificationID)
+	case <-time.After(time.Second):
+		c.Errorf("timed out waiting to receive request %x", msg.KernelNotificationID)
+	}
+
+	c.Check(logbuf.String(), testutil.Contains, "something failed")
+	c.Check(logbuf.String(), testutil.Contains, "unsupported mediation class: AA_CLASS_DBUS")
+	if finalResent {
+		c.Check(logbuf.String(), Not(testutil.Contains), "received non-resent message when pending count was 1")
+	} else {
+		c.Check(logbuf.String(), testutil.Contains, "received non-resent message when pending count was 1")
+	}
+	c.Check(logbuf.String(), testutil.Contains, "another error")
+
+	// We're still ready, of course
+	checkListenerReady(c, l, true)
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), IsNil)
+}
+
 func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	restoreEpoll := listener.MockEpollWait(func(l *listener.Listener) ([]epoll.Event, error) {
-		for !l.EpollIsClosed() {
-			// do nothing until epoll is closed
-		}
-		return nil, fmt.Errorf("fake epoll error")
-	})
+	restoreEpoll := listener.MockEpollWaitForClose()
 	defer restoreEpoll()
 
 	restoreRegisterFileDescriptor := listener.MockNotifyRegisterFileDescriptor(func(fd uintptr) (notify.ProtocolVersion, int, error) {
@@ -1581,7 +1665,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 
 	count := 3
@@ -1602,7 +1686,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	select {
 	case err := <-returnChan:
 		c.Fatalf("received unexpected return before listener closed: %v", err)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.After(10 * time.Millisecond):
 		// no errors yet
 	}
 
@@ -1613,7 +1697,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		case err := <-returnChan:
 			// Run returns nil if the listener was deliberately closed.
 			c.Check(err, IsNil)
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 			c.Fatalf("failed to receive error from listener.Run")
 		}
 	}
@@ -1636,7 +1720,7 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 	defer func() {
 		c.Assert(l.Close(), Equals, listener.ErrAlreadyClosed)
@@ -1664,7 +1748,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		}
 	}()
 
-	l, err := listener.Register()
+	l, err := listener.Register(listener.NewListenerRequest)
 	c.Assert(err, IsNil)
 	defer func() {
 		err = l.Close()

@@ -128,7 +128,7 @@ func InstallComponents(
 		// the component task chains. this results in multiple parallel tasks
 		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		cts, ts, err := doInstallComponent(st, &snapst, compsup, snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
+		cts, ts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +285,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	cts, ts, err := doInstallComponent(st, &snapst, compSetup, snapsup, nil, nil, nil, "")
+	cts, ts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -432,7 +432,7 @@ func (cc *componentInstallChoreographer) canDiscardOldRevision() bool {
 		!cc.snapst.IsCurrentComponentRevInAnyNonCurrentSeq(csi.Component)
 }
 
-func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan) error {
+func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan) ([]*state.Task, error) {
 	// Check if we already have the revision in the snaps folder (alters tasks).
 	// Note that this will search for all snap revisions in the system.
 	needsDownload := cc.compsup.CompPath == "" && !cc.revisionIsPresent()
@@ -487,10 +487,10 @@ func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s
 		s.UpdateEdge(validate, LastBeforeLocalModificationsEdge)
 	}
 
-	return nil
+	return s.Close()
 }
 
-func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChainSpan) error {
+func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChainSpan) ([]*state.Task, error) {
 	csi := cc.compsup.CompSideInfo
 	si := cc.snapsup.SideInfo
 
@@ -503,7 +503,7 @@ func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChai
 		// side-loading a local revision again. The path is only needed in the "mount-snap" handler
 		// and that is skipped for local revisions.
 		if err := os.Remove(cc.compsup.CompPath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -538,10 +538,10 @@ func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChai
 		s.b.JoinOn(cc.setupSecurityTask)
 	}
 
-	return nil
+	return s.Close()
 }
 
-func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State, s *taskChainSpan) error {
+func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State, s *taskChainSpan) ([]*state.Task, error) {
 	csi := cc.compsup.CompSideInfo
 
 	if !cc.installed() {
@@ -563,19 +563,19 @@ func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State
 		s.b.JoinOn(cc.kmodSetupTask)
 	}
 
-	return nil
+	return s.Close()
 }
 
 func (cc *componentInstallChoreographer) choreograph(st *state.State) (componentInstallTaskSet, *state.TaskSet, error) {
 	b := newTaskChainBuilder()
 
-	beforeLocalSystemMods := b.NewSpan()
-	if err := cc.BeforeLocalSystemMod(st, &beforeLocalSystemMods); err != nil {
+	beforeLocalSystemMods, err := cc.BeforeLocalSystemMod(st, b.OpenSpan())
+	if err != nil {
 		return componentInstallTaskSet{}, nil, err
 	}
 
-	beforeLink := b.NewSpan()
-	if err := cc.BeforeLink(st, &beforeLink); err != nil {
+	beforeLink, err := cc.BeforeLink(st, b.OpenSpan())
+	if err != nil {
 		return componentInstallTaskSet{}, nil, err
 	}
 
@@ -595,8 +595,8 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 		b.Append(maybeLink)
 	}
 
-	postOpHookToBeforeDiscard := b.NewSpan()
-	if err := cc.PostHookToBeforeDiscard(st, &postOpHookToBeforeDiscard); err != nil {
+	postOpHookToBeforeDiscard, err := cc.PostHookToBeforeDiscard(st, b.OpenSpan())
+	if err != nil {
 		return componentInstallTaskSet{}, nil, err
 	}
 
@@ -614,10 +614,10 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 
 	return componentInstallTaskSet{
 		compSetupTaskID:                     cc.compsupTask.ID(),
-		beforeLocalSystemModificationsTasks: beforeLocalSystemMods.Tasks(),
-		beforeLinkTasks:                     beforeLink.Tasks(),
+		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
+		beforeLinkTasks:                     beforeLink,
 		maybeLinkTask:                       maybeLink,
-		postHookToDiscardTasks:              postOpHookToBeforeDiscard.Tasks(),
+		postHookToDiscardTasks:              postOpHookToBeforeDiscard,
 		maybeDiscardTask:                    maybeDiscard,
 	}, b.ts, nil
 }
@@ -630,13 +630,13 @@ func doInstallComponent(
 	st *state.State,
 	snapst *SnapState,
 	compsup ComponentSetup,
-	snapsup SnapSetup,
+	snapsup *SnapSetup,
 	snapsupTask *state.Task,
 	setupSecurity, kmodSetup *state.Task,
 	fromChange string,
 ) (componentInstallTaskSet, *state.TaskSet, error) {
 	cc, err := newComponentInstallChoreographer(
-		st, &snapsup, snapst, &compsup, fromChange,
+		st, snapsup, snapst, &compsup, fromChange,
 		snapsupTask, setupSecurity, kmodSetup,
 	)
 	if err != nil {

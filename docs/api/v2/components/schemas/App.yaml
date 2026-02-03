@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents a single application provided by a snap.
+required:
+  - name
+properties:
+  snap:
+    type: string
+    description: The snap providing the app.
+  name:
+    type: string
+    description: The name of the app.
+  desktop-file:
+    type: string
+    description: The desktop file for the app.
+  daemon:
+    type: string
+    description: The daemon type, if the app is a service.
+    enum:
+      - forking
+      - notify
+      - oneshot
+      - simple
+  enabled:
+    type: boolean
+    description: True if the app is an enabled service.
+  active:
+    type: boolean
+    description: True if the app is an active service.
+  common-id:
+    type: string
+    description: Common ID associated with this app.
+  activators:
+    type: array
+    items:
+      $ref: './Activator.yaml'
+example:
+  snap: lxd
+  name: daemon
+  daemon: simple
+  enabled: true
+  activators:
+    - name: unix
+      type: socket
+      active: true
+      enabled: true

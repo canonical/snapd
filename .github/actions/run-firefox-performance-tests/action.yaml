@@ -57,24 +57,80 @@ runs:
           sleep 5
         done
         ps aux | grep -i xvfb | head -1 | tr -s ' ' | cut -d ' ' -f 2 | xargs -I {} kill {}
+        kill "\$(pgrep -f 'python3 ./server.py')"
+        kill "\$(pgrep firefox)"
         EOF
         chmod +x ${{ github.workspace }}/JetStream/kill.sh
+
+  - name: Write consolidate script
+    shell: bash
+    run: |
+        cat <<EOF > ${{ github.workspace }}/consolidate-jetstream-results.py
+        #!/usr/bin/env python3
+        import json
+        import sys
+
+        def update_max(json_1, json_2):
+            # Given two json objects of JetStream2.0 results, take the max
+            # result (since these are performance tests) of each metric 
+            # and put the result in the first object.
+            tests_1 = json_1['JetStream2.0']['tests']
+            tests_2 = json_2['JetStream2.0']['tests']
+            for metric in tests_1.keys():
+                score_1 = tests_1[metric]['metrics']['Score']['current'][0]
+                score_2 = tests_2[metric]['metrics']['Score']['current'][0]
+                tests_1[metric]['metrics']['Score']['current'][0] = max(score_1, score_2)
+            return json_1
+
+        if len(sys.argv) != 3:
+            print('should pass two input files', file=sys.stderr)
+            exit(1)
+
+        with open(sys.argv[1], 'r') as f:
+            test_1 = json.load(f)
+        with open(sys.argv[2], 'r') as f:
+            test_2 = json.load(f)
+        with open(sys.argv[1], 'w') as f:
+            json.dump(update_max(test_1, test_2), f)
+        EOF
+        chmod +x ${{ github.workspace }}/consolidate-jetstream-results.py
 
   - name: Run firefox performance tests
     shell: bash
     run: |
         cd JetStream
 
-        ./server.py &
-        ./kill.sh &
+        for i in $(seq 1 30); do
 
-        echo "Make sure the server is up and running"
-        for i in $(seq 10); do
-          if curl -I 'http://localhost:8000' -o /dev/null 2>/dev/null; then
-            break
+          sudo snap install firefox
+
+          ./server.py &
+          server_pid=$!
+          sudo ./kill.sh &
+          kill_pid=$!
+
+          echo "Make sure the server is up and running"
+          for _ in $(seq 10); do
+            if curl -I 'http://localhost:8000' -o /dev/null 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          echo "Running firefox performance tests: iteration $i"
+          xvfb-run -s '-terminate' ${{ inputs.firefox-exec }} 'http://localhost:8000/?startDelay=1&report=true' || true
+
+          if [ $i -eq 1 ]; then
+            mv "${{ inputs.results-file }}" intermediate-results.json
+          else
+            mv "${{ inputs.results-file }}" "results_$i.json"
+            ${{ github.workspace }}/consolidate-jetstream-results.py intermediate-results.json "results_$i.json"
           fi
-          sleep 1
+
+          kill "$(pgrep Xvfb)" || true
+
+          sudo snap remove --purge firefox
+
         done
 
-        echo "Running firefox performance tests"
-        xvfb-run ${{ inputs.firefox-exec }} 'http://localhost:8000/?startDelay=1&report=true' || true
+        mv intermediate-results.json "${{ inputs.results-file }}"

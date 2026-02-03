@@ -30,7 +30,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -42,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -58,12 +56,6 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
-)
-
-// control flags for doInstall
-const (
-	skipConfigure = 1 << iota
-	noRestartBoundaries
 )
 
 // control flags for "Configure()"
@@ -183,769 +175,6 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 // safetyMarginDiskSpace returns size plus a safety margin (5Mb)
 func safetyMarginDiskSpace(size uint64) uint64 {
 	return size + 5*1024*1024
-}
-
-func isParallelInstallable(snapsup *SnapSetup) error {
-	if snapsup.InstanceKey == "" {
-		return nil
-	}
-	if snapsup.Type == snap.TypeApp {
-		return nil
-	}
-	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
-}
-
-// refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
-// It deals with potentially wrong type due to lax validation.
-func refreshRetain(st *state.State) int {
-	var val any
-	// due to lax validation of refresh.retain on set we might end up having a string representing a number here; handle it gracefully
-	// for backwards compatibility.
-	err := config.NewTransaction(st).Get("core", "refresh.retain", &val)
-	var retain int
-	if err == nil {
-		switch v := val.(type) {
-		// this is the expected value; confusingly, since we pass any to Get(), we get json.Number type; if int reference was passed,
-		// we would get an int instead of json.Number.
-		case json.Number:
-			retain, err = strconv.Atoi(string(v))
-		// not really expected when requesting any.
-		case int:
-			retain = v
-		// we can get string here due to lax validation of refresh.retain on Set in older releases.
-		case string:
-			retain, err = strconv.Atoi(v)
-		default:
-			logger.Noticef("internal error: refresh.retain system option has unexpected type: %T", v)
-		}
-	}
-
-	// this covers error from Get() and strconv above.
-	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("internal error: refresh.retain system option is not valid: %v", err)
-	}
-
-	// not set, use default value
-	if retain == 0 {
-		// on classic we only keep 2 copies by default
-		if release.OnClassic {
-			retain = 2
-		} else {
-			retain = 3
-		}
-	}
-	return retain
-}
-
-var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
-	return t == snap.TypeSnapd || t == snap.TypeOS
-}
-
-func isDefaultConfigureAllowed(snapsup *SnapSetup) bool {
-	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName())
-}
-
-func isConfigureAllowed(snapsup *SnapSetup) bool {
-	// we do not support configuration for bases or the "snapd" snap yet
-	return snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd
-}
-
-func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
-	confFlags := 0
-	// config defaults cannot be retrieved without a snap ID
-	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
-
-	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
-		// installation, run configure using the gadget defaults if available, system config defaults (attached to
-		// "core") are consumed only during seeding, via an explicit configure step separate from installing
-		confFlags |= UseConfigDefaults
-	}
-	return confFlags
-}
-
-func isCoreSnap(snapName string) bool {
-	return snapName == defaultCoreSnapName
-}
-
-// removeExtraComponentsTasks creates tasks that will remove unwanted components
-// that are currently installed alongside the target snap revision. If the new
-// snap revision is not in the sequence, then we don't have anything to do. If
-// the revision is in the sequence, then we generate tasks that will unlink
-// components that are not in compsups.
-//
-// This is mostly relevant when we're moving from one snap revision to another
-// snap revision that was installed in past and is still in the sequence. The
-// target snap might have had components that were installed alongside it in the
-// past, and they are not wanted anymore.
-func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevision snap.Revision, compsups []ComponentSetup) (
-	unlinkTasks, discardTasks []*state.Task, err error,
-) {
-	idx := snapst.LastIndex(targetRevision)
-	if idx < 0 {
-		return nil, nil, nil
-	}
-
-	keep := make(map[naming.ComponentRef]bool, len(compsups))
-	for _, compsup := range compsups {
-		keep[compsup.CompSideInfo.Component] = true
-	}
-
-	linkedForRevision, err := snapst.ComponentInfosForRevision(targetRevision)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for _, ci := range linkedForRevision {
-		if keep[ci.Component] {
-			continue
-		}
-
-		// note that we shouldn't ever be able to lose components during a
-		// refresh without a snap revision change. this might be able to happen
-		// once we introduce components and validation sets? if that is the
-		// case, we'll need to take care here to use "unlink-current-component"
-		// and point it to the correct snap setup task.
-		if snapst.Current == targetRevision {
-			return nil, nil, errors.New("internal error: cannot lose a component during a refresh without a snap revision change")
-		}
-
-		// note that we don't need to worry about kernel module components here,
-		// since the components that we are removing are not associated with the
-		// current snap revision. unlink-component differs from
-		// unlink-current-component in that it doesn't save the state of kernel
-		// module components on the the SnapSetup.
-		unlink := st.NewTask("unlink-component", fmt.Sprintf(
-			i18n.G("Unlink component %q for snap revision %s"), ci.Component, targetRevision,
-		))
-
-		unlink.Set("component-setup", ComponentSetup{
-			CompSideInfo: &ci.ComponentSideInfo,
-			CompType:     ci.Type,
-		})
-		unlinkTasks = append(unlinkTasks, unlink)
-
-		if !snapst.Sequence.IsComponentRevInRefSeqPtInAnyOtherSeqPt(ci.Component, idx) {
-			discard := st.NewTask("discard-component", fmt.Sprintf(
-				i18n.G("Discard previous revision for component %q"), ci.Component,
-			))
-			discard.Set("component-setup-task", unlink.ID())
-			discardTasks = append(discardTasks, discard)
-		}
-	}
-
-	return unlinkTasks, discardTasks, nil
-}
-
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error), deviceCtx DeviceContext) (*state.TaskSet, error) {
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
-	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
-
-	if snapsup.InstanceName() == "system" {
-		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
-	}
-	if snapst.IsInstalled() && !snapst.Active {
-		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
-	}
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		if inUseCheck == nil {
-			return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
-		}
-	}
-
-	if snapsup.Flags.Classic {
-		if !release.OnClassic {
-			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
-		} else if !dirs.SupportsClassicConfinement() {
-			return nil, fmt.Errorf(i18n.G("classic confinement requires snaps under /snap or symlink from /snap to %s"), dirs.SnapMountDir)
-		}
-	}
-	if !snapst.IsInstalled() { // install?
-		// check that the snap command namespace doesn't conflict with an enabled alias
-		if err := checkSnapAliasConflict(st, snapsup.InstanceName()); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := isParallelInstallable(&snapsup); err != nil {
-		return nil, err
-	}
-
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
-		return nil, err
-	}
-
-	targetRevision := snapsup.Revision()
-	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
-
-	if snapst.IsInstalled() {
-		// consider also the current revision to set plugs-only hint
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
-		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
-
-		// When downgrading snapd we want to make sure that it's an exclusive change.
-		if snapsup.SnapName() == "snapd" {
-			res, err := strutil.VersionCompare(info.Version, snapsup.Version)
-			if err != nil {
-				return nil, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", info.Version, snapsup.Version, err)
-			}
-			// If snapsup.Version was smaller, 1 is returned.
-			if res == 1 {
-				if err := checkChangeConflictExclusiveKinds(st, "snapd downgrade", fromChange); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
-			// Note that because we are modifying the snap state inside
-			// softCheckNothingRunningForRefresh, this block must be located
-			// after the conflict check done above.
-			if err := softCheckNothingRunningForRefresh(st, snapst, &snapsup, info); err != nil {
-				// snap is running; schedule its downloading before notifying to close
-				var busyErr *timedBusySnapError
-				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
-					tasks, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
-					if err != nil {
-						return nil, err
-					}
-
-					for _, task := range tasks {
-						switch task.Status() {
-						case state.DoStatus, state.DoingStatus:
-							// there's already a task for this snap/revision combination
-							return nil, busyErr
-						}
-					}
-
-					ts := state.NewTaskSet()
-					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
-					preDownTask.Set("snap-setup", snapsup)
-					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
-
-					ts.AddTask(preDownTask)
-					return ts, busyErr
-				}
-
-				return nil, err
-			}
-		}
-
-		if experimentalGateAutoRefreshHook {
-			// If this snap was held, then remove it from snaps-hold.
-			if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
-
-	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.InstanceName()))
-	prereq.Set("snap-setup", snapsup)
-
-	var prepare, prev *state.Task
-	fromStore := false
-	// if we have a local revision here we go back to that
-	if snapsup.SnapPath != "" || revisionIsLocal {
-		prepare = st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), snapsup.SnapPath, revisionStr))
-	} else {
-		fromStore = true
-		prepare = st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
-	}
-	prepare.Set("snap-setup", snapsup)
-	prepare.WaitFor(prereq)
-
-	tasks := []*state.Task{prereq, prepare}
-	prev = prepare
-
-	addTask := func(t *state.Task) {
-		t.Set("snap-setup-task", prepare.ID())
-		t.WaitFor(prev)
-		tasks = append(tasks, t)
-		prev = t
-	}
-	addTasksFromTaskSet := func(ts *state.TaskSet) {
-		ts.WaitFor(prev)
-		tasks = append(tasks, ts.Tasks()...)
-		prev = tasks[len(tasks)-1]
-	}
-
-	componentsTSS, err := splitComponentTasksForInstall(
-		compsups, st, snapst, snapsup, prepare, fromChange,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	finalBeforeLocalSystemModifications := prepare
-
-	var checkAsserts *state.Task
-	if fromStore {
-		// fetch and check assertions
-		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(checkAsserts)
-		finalBeforeLocalSystemModifications = checkAsserts
-	}
-
-	for _, t := range componentsTSS.beforeLocalSystemModificationsTasks {
-		finalBeforeLocalSystemModifications = t
-		addTask(t)
-	}
-
-	// mount
-	if !revisionIsLocal {
-		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(mount)
-	} else {
-		if snapsup.Flags.RemoveSnapPath {
-			// If the revision is local, we will not need the
-			// temporary snap.  This can happen when
-			// e.g. side-loading a local revision again.  The
-			// SnapPath is only needed in the "mount-snap" handler
-			// and that is skipped for local revisions.
-			if err := os.Remove(snapsup.SnapPath); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, snapst, snapsup.Revision(), compsups)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, t := range removeExtraComps {
-		addTask(t)
-	}
-
-	componentsTSS.discardTasks = append(componentsTSS.discardTasks, discardExtraComps...)
-
-	for _, t := range componentsTSS.beforeLinkTasks {
-		addTask(t)
-	}
-
-	// if the snap is already installed, and the revision we are refreshing to
-	// is the same as the current revision, and we're not forcing an update,
-	// then we know that we're really modifying the state of components.
-	componentOnlyUpdate := snapst.IsInstalled() && snapsup.Revision() == snapst.Current && !snapsup.AlwaysUpdate
-
-	// run refresh hooks when updating existing snap, otherwise run install hook
-	// further down.
-	runRefreshHooks := snapst.IsInstalled() && !componentOnlyUpdate && !snapsup.Flags.Revert
-	if runRefreshHooks {
-		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
-		addTask(preRefreshHook)
-	}
-	prepare.Set("component-setup-tasks", componentsTSS.compSetupTaskIDs)
-
-	if snapst.IsInstalled() {
-		// unlink-current-snap (will stop services for copy-data)
-		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
-		stop.Set("stop-reason", snap.StopReasonRefresh)
-		addTask(stop)
-
-		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
-		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
-		addTask(removeAliases)
-
-		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
-		unlink.Set("unlink-reason", unlinkReasonRefresh)
-		addTask(unlink)
-	}
-
-	// we need to know some of the characteristics of the device - it is
-	// expected to always have a model/device context at this point.
-	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	// This task is necessary only for UC24+ and hybrid 24.04+
-	if snapsup.Type == snap.TypeKernel && kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(setupKernel)
-	}
-
-	if deviceCtx.IsCoreBoot() && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
-		// gadget update currently for core boot systems only
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
-		addTask(gadgetUpdate)
-	}
-	// kernel command line from gadget is for core boot systems only
-	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeGadget {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
-			return nil, err
-		}
-		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(gadgetCmdline)
-	}
-
-	// copy-data (needs stopped services by unlink)
-	if !snapsup.Flags.Revert {
-		copyData := st.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapsup.InstanceName()))
-		addTask(copyData)
-	}
-
-	// security
-	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
-	addTask(setupSecurity)
-
-	// finalize (wrappers+current symlink)
-	//
-	// For essential snaps that require reboots, 'link-snap' is currently
-	// marked as the edge of that reboot sequence. This means that we currently
-	// expect 'link-snap' to request the reboot and be the last task to run
-	// before the reboot takes place (for that lane/change). This task is
-	// assigned the edge 'MaybeRebootEdge' to indicate this.
-	//
-	// 'link-snap' is the last task to run before a reboot for cases like the kernel
-	// where we would like to try to make sure it boots correctly before we perform
-	// additional tasks.
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
-	addTask(linkSnap)
-
-	for _, t := range componentsTSS.linkTasks {
-		addTask(t)
-	}
-
-	// auto-connections
-	//
-	// For essential snaps that require reboots, 'auto-connect' is marked
-	// as edge 'MaybeRebootWaitEdge' to indicate that this task is expected
-	// to be the first to run after the reboot (for that lane/change). This
-	// is noted here to make sure we consider any changes between 'link-snap'
-	// and 'auto-connect', as that need the edges to be modified as well.
-	//
-	// 'auto-connect' is expected to run first after the reboot as it also
-	// performs some reboot-verification code.
-	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
-	addTask(autoConnect)
-
-	// setup aliases
-	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
-	addTask(setAutoAliases)
-
-	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
-	addTask(setupAliases)
-
-	var setupKmodComponentsPreseed *state.Task
-	if snapdenv.Preseeding() && requiresKmodSetup(snapst, compsups) {
-		// We need this task as the other
-		// prepare-kernel-modules-components defined below will not be
-		// run when creating a preseeding tarball, but we still need to
-		// have a correct driver tree in the tarball. This implies that
-		// if some kernel module is created by the install hook, it
-		// will be available only after full installation on first
-		// boot, but static modules in the components where be
-		// available early.
-		logger.Noticef("kernel-modules components present, creating preseed task for them")
-		// TODO move the setupKernel task here and make it configure
-		// kernel-modules components too so we can remove this task.
-		setupKmodComponentsPreseed = st.NewTask("prepare-kernel-modules-components",
-			fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"),
-				snapsup.InstanceName(), revisionStr))
-		addTask(setupKmodComponentsPreseed)
-	}
-
-	if snapsup.Flags.Prefer {
-		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(i18n.G("Prefer aliases for snap %q"), snapsup.InstanceName()))
-		addTask(prefer)
-	}
-
-	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeSnapd {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
-			return nil, err
-		}
-		// only run for core devices and the snapd snap, run late enough
-		// so that the task is executed by the new snapd
-		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(bootConfigUpdate)
-	}
-
-	if runRefreshHooks {
-		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
-		addTask(postRefreshHook)
-	}
-
-	var installHook *state.Task
-	// only run install hook if installing the snap for the first time
-	if !snapst.IsInstalled() {
-		installHook = SetupInstallHook(st, snapsup.InstanceName())
-		addTask(installHook)
-	}
-
-	for _, t := range componentsTSS.postHookToDiscardTasks {
-		addTask(t)
-	}
-
-	// Check if either the snap currently has kernel-modules components or
-	// any of the new components are kernel-modules components (only will
-	// happen for kernel snaps).
-	var setupKmodComponents, afterSetupKmodComps *state.Task
-	if requiresKmodSetup(snapst, compsups) {
-		logger.Noticef("kernel-modules components present, delaying reboot after hooks are run")
-		// TODO move the setupKernel task here and make it configure
-		// kernel-modules components too so we can remove this task.
-		setupKmodComponents = st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(setupKmodComponents)
-	}
-
-	if snapsup.Type == snap.TypeKernel && kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-		// This task needs to run after we're back and running the new
-		// kernel after a reboot was requested in link-snap handler.
-		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
-			fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
-		// Note that if requiresKmodSetup is true, NeedsKernelSetup must be too
-		afterSetupKmodComps = discardOldKernelSetup
-		addTask(discardOldKernelSetup)
-	}
-
-	if snapsup.QuotaGroupName != "" {
-		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
-		if err != nil {
-			return nil, err
-		}
-		addTask(quotaAddSnapTask)
-	}
-
-	// only run default-configure hook if installing the snap for the first time and
-	// default-configure is allowed
-	if !snapst.IsInstalled() && isDefaultConfigureAllowed(&snapsup) {
-		defaultConfigureSet := DefaultConfigure(st, snapsup.InstanceName())
-		addTasksFromTaskSet(defaultConfigureSet)
-	}
-
-	// run new services
-	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
-	addTask(startSnapServices)
-
-	for _, t := range componentsTSS.discardTasks {
-		addTask(t)
-	}
-
-	// Do not do that if we are reverting to a local revision
-	var cleanupTask *state.Task
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		retain := refreshRetain(st)
-
-		// if we're not using an already present revision, account for the one being added
-		if snapst.LastIndex(targetRevision) == -1 {
-			retain-- //  we're adding one
-		}
-
-		seq := snapst.Sequence.Revisions
-		currentIndex := snapst.LastIndex(snapst.Current)
-
-		// discard everything after "current" (we may have reverted to
-		// a previous versions earlier)
-		for i := currentIndex + 1; i < len(seq); i++ {
-			si := seq[i]
-			if si.Snap.Revision == targetRevision {
-				// but don't discard this one; its' the thing we're switching to!
-				continue
-			}
-			ts, err := removeInactiveRevision(st, snapst, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
-			if err != nil {
-				return nil, err
-			}
-			addTasksFromTaskSet(ts)
-		}
-
-		// make sure we're not scheduling the removal of the target
-		// revision in the case where the target revision is already in
-		// the sequence.
-		for i := 0; i < currentIndex; i++ {
-			si := seq[i]
-			if si.Snap.Revision == targetRevision {
-				// we do *not* want to removeInactiveRevision of this one
-				copy(seq[i:], seq[i+1:])
-				seq = seq[:len(seq)-1]
-				currentIndex--
-			}
-		}
-
-		// normal garbage collect
-		var inUse boot.InUseFunc
-		for i := 0; i <= currentIndex-retain; i++ {
-			if inUse == nil {
-				var err error
-				inUse, err = inUseCheck(snapsup.Type)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			si := seq[i]
-			if inUse(snapsup.InstanceName(), si.Snap.Revision) {
-				continue
-			}
-			ts, err := removeInactiveRevision(st, snapst, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
-			if err != nil {
-				return nil, err
-			}
-			addTasksFromTaskSet(ts)
-		}
-
-		cleanupTask = st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr))
-		addTask(cleanupTask)
-	}
-
-	installSet := state.NewTaskSet(tasks...)
-	installSet.MarkEdge(prereq, BeginEdge)
-	installSet.MarkEdge(prepare, SnapSetupEdge)
-	// BeforeHooksEdge is used by preseeding to know up to which task to run
-	beforeHooksEdgeTask := setupAliases
-	if setupKmodComponentsPreseed != nil {
-		beforeHooksEdgeTask = setupKmodComponentsPreseed
-	}
-	installSet.MarkEdge(beforeHooksEdgeTask, BeforeHooksEdge)
-
-	// Let tasks know if they have to do something about restarts
-	if setupKmodComponents == nil {
-		// No kernel modules, reboot after link snap
-		installSet.MarkEdge(linkSnap, MaybeRebootEdge)
-		installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
-		linkSnap.Set("set-next-boot", true)
-		autoConnect.Set("finish-restart", true)
-		if afterSetupKmodComps != nil {
-			afterSetupKmodComps.Set("finish-restart", false)
-		}
-	} else {
-		logger.Noticef("reboot will happen after set-up of kernel-modules")
-		installSet.MarkEdge(setupKmodComponents, MaybeRebootEdge)
-		installSet.MarkEdge(afterSetupKmodComps, MaybeRebootWaitEdge)
-		linkSnap.Set("set-next-boot", false)
-		autoConnect.Set("finish-restart", false)
-		setupKmodComponents.Set("set-next-boot", true)
-		afterSetupKmodComps.Set("finish-restart", true)
-	}
-
-	if installHook != nil {
-		installSet.MarkEdge(installHook, HooksEdge)
-	}
-	installSet.MarkEdge(finalBeforeLocalSystemModifications, LastBeforeLocalModificationsEdge)
-	if flags&noRestartBoundaries == 0 {
-		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{installSet}); err != nil {
-			return nil, err
-		}
-	}
-	if flags&skipConfigure != 0 {
-		if cleanupTask != nil {
-			installSet.MarkEdge(cleanupTask, EndEdge)
-		} else {
-			installSet.MarkEdge(startSnapServices, EndEdge)
-		}
-		return installSet, nil
-	}
-
-	if isConfigureAllowed(&snapsup) {
-		confFlags := configureSnapFlags(snapst, &snapsup)
-		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(installSet)
-		installSet.AddAll(configSet)
-	}
-
-	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
-	healthCheck.WaitAll(installSet)
-	installSet.AddTask(healthCheck)
-	installSet.MarkEdge(healthCheck, EndEdge)
-
-	return installSet, nil
-}
-
-func requiresKmodSetup(snapst *SnapState, compsups []ComponentSetup) bool {
-	current := snapst.Sequence.ComponentsWithTypeForRev(snapst.Current, snap.KernelModulesComponent)
-	if len(current) > 0 {
-		return true
-	}
-
-	for _, compsup := range compsups {
-		if compsup.CompType == snap.KernelModulesComponent {
-			return true
-		}
-	}
-	return false
-}
-
-// multiComponentInstallTaskSet contains the tasks that are needed to install
-// multiple components. The tasks are partitioned into groups so that they can
-// be easily spliced into the chain of tasks created to install a snap.
-type multiComponentInstallTaskSet struct {
-	compSetupTaskIDs                    []string
-	beforeLocalSystemModificationsTasks []*state.Task
-	beforeLinkTasks                     []*state.Task
-	linkTasks                           []*state.Task
-	postHookToDiscardTasks              []*state.Task
-	discardTasks                        []*state.Task
-}
-
-func newMultiComponentInstallTaskSet(ctss ...componentInstallTaskSet) multiComponentInstallTaskSet {
-	var mcts multiComponentInstallTaskSet
-	for _, cts := range ctss {
-		mcts.compSetupTaskIDs = append(mcts.compSetupTaskIDs, cts.compSetupTaskID)
-		mcts.beforeLocalSystemModificationsTasks = append(mcts.beforeLocalSystemModificationsTasks, cts.beforeLocalSystemModificationsTasks...)
-		mcts.beforeLinkTasks = append(mcts.beforeLinkTasks, cts.beforeLinkTasks...)
-		if cts.maybeLinkTask != nil {
-			mcts.linkTasks = append(mcts.linkTasks, cts.maybeLinkTask)
-		}
-		mcts.postHookToDiscardTasks = append(mcts.postHookToDiscardTasks, cts.postHookToDiscardTasks...)
-		if cts.maybeDiscardTask != nil {
-			mcts.discardTasks = append(mcts.discardTasks, cts.maybeDiscardTask)
-		}
-	}
-	return mcts
-}
-
-func splitComponentTasksForInstall(
-	compsups []ComponentSetup,
-	st *state.State,
-	snapst *SnapState,
-	snapsup SnapSetup,
-	snapsupTask *state.Task,
-	fromChange string,
-) (multiComponentInstallTaskSet, error) {
-	componentTSS := make([]componentInstallTaskSet, 0, len(compsups))
-	for _, compsup := range compsups {
-		cts, _, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, fromChange)
-		if err != nil {
-			return multiComponentInstallTaskSet{}, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
-		}
-		componentTSS = append(componentTSS, cts)
-	}
-	return newMultiComponentInstallTaskSet(componentTSS...), nil
-}
-
-func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
-	var tasks []*state.Task
-	for _, t := range st.Tasks() {
-		if t.Kind() != kind {
-			continue
-		}
-
-		snapsup, _, err := snapSetupAndState(t)
-		if err != nil {
-			return nil, err
-		}
-
-		if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
-			tasks = append(tasks, t)
-		}
-	}
-
-	return tasks, nil
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -2453,7 +1682,11 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
+		ts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
+			FromChange:          opts.FromChange,
+			DeviceCtx:           opts.DeviceCtx,
+			NoRestartBoundaries: true,
+		})
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -3928,6 +3161,14 @@ type RemoveFlags struct {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (*state.TaskSet, error) {
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
+
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
+		return nil, err
+	}
+
 	ts, snapshotSize, err := removeTasks(st, name, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
@@ -3951,10 +3192,6 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
-	if flags == nil {
-		flags = &RemoveFlags{}
-	}
-
 	var snapst SnapState
 	err = Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -4233,11 +3470,37 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 	return state.NewTaskSet(tasks...), nil
 }
 
+func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
+	nfsMount, err := osutil.SnapDirsUnderNFSMounts()
+	if err != nil {
+		logger.Noticef("cannot check if any snap dirs are under remote mouts: %v", err)
+		return nil
+	}
+
+	if !nfsMount {
+		return nil
+	}
+
+	if !flags.Purge {
+		return fmt.Errorf("cannot snapshot user data directories in NFS mounts: use --purge to skip taking a snapshot")
+	}
+
+	st.AddWarning("May not be able to remove user data under NFS mounted snap directory", nil)
+	return nil
+}
+
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
-	names = strutil.Deduplicate(names)
+	if flags == nil {
+		flags = &RemoveFlags{}
+	}
 
+	if err := checkSnapDirsInNFSMount(st, flags); err != nil {
+		return nil, nil, err
+	}
+
+	names = strutil.Deduplicate(names)
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}
@@ -4376,7 +3639,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil, nil)
+	return doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4424,13 +3687,13 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		newInfo := result.Info
 
 		// start by installing the new snap
-		tsInst, err := doInstall(st, &newSnapst, SnapSetup{
+		tsInst, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, nil, 0, "", nil, nil)
+		}, nil, installContext{})
 		if err != nil {
 			return nil, err
 		}

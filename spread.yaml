@@ -153,10 +153,11 @@ backends:
                   workers: 8
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64
-                  storage: 15G
+                  storage: 16G
                   workers: 8
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-2004-64
+                  storage: 16G
                   workers: 1
                   secure-boot: true
             - ubuntu-22.04-64:
@@ -554,8 +555,8 @@ backends:
     openstack-arm-ext:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
-        plan: shared.medium.arm64
-        halt-timeout: 2h
+        plan: shared.large.arm64
+        halt-timeout: 3h
         wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
@@ -607,9 +608,6 @@ backends:
                 workers: 8
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
-                workers: 8
-            - ubuntu-25.04-64:
-                image: snapd-spread/ubuntu-25.04-64
                 workers: 8
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64

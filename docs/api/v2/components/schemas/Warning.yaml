@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  message:
+    type: string
+    description: The warnings message content.
+  first-added:
+    type: string
+    format: date-time
+    description: The first time a warning with this message was created (RFC3339 UTC format).
+    example: 2025-09-08T17:29:40.829324752Z
+  last-added:
+    type: string
+    format: date-time
+    description: The last time a warning with this message was created (RFC3339 UTC format).
+    example: 2025-09-08T17:34:40.829324752Z
+  last-shown:
+    type: string
+    format: date-time
+    description: The last time this warning was displayed to the user (RFC3339 UTC format).
+    example: 2025-09-08T17:34:40.829324752Z
+  delete-after:
+    type: string
+    description: A duration string indicating how much time since this warning was last added that it should be deleted.
+    example: 1h30m
+  repeat-after:
+    type: string
+    description: Duration string indicating how much time since this warning was last shown that it should be shown again.
+    example: 30m

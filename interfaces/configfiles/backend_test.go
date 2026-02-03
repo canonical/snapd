@@ -183,7 +183,7 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	_, err = s.Repo.Connect(connRef2, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	checkConfigfilesFile(c, "/etc/conf1.d/snap.a.conf", "aaaa")
 	checkConfigfilesFile(c, "/etc/conf1.d/snap.b.conf", "bbbb")
@@ -191,7 +191,7 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	// Now disconnect the first slot and set-up backends again
 	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
-	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only files for the connected slots are around
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.a.conf"), testutil.FileAbsent)
@@ -238,7 +238,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	_, slotInfo1 := s.mockSlot(c, eglProvider1, "egl-driver-libs")
 	_, slotInfo2 := s.mockSlot(c, otherProvider, "other-driver-libs")
 
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	// Connect them
 	connRef1 := interfaces.NewConnRef(plugInfos[0], slotInfo1)
@@ -248,7 +248,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	_, err = s.Repo.Connect(connRef2, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), IsNil)
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 
 	checkConfigfilesFile(c, "/etc/conf1.d/snap.a.conf", "a")
 	checkConfigfilesFile(c, "/etc/conf2.d/snap.a.conf", "a")
@@ -256,7 +256,7 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	// Now disconnect the first slot and set-up backends again
 	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
 		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
-	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only files for the connected slots are around
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.a.conf"), testutil.FileAbsent)
@@ -290,7 +290,7 @@ func (s *backendSuite) TestUnmatchedPattern(c *C) {
 	_, err := s.Repo.Connect(connRef1, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	// Set-up the backend
-	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, nil), ErrorMatches,
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), ErrorMatches,
 		`internal error: .*/etc/conf1.d/snap.a.txt\] not in any registered configfiles pattern`)
 
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/a.txt"), testutil.FileAbsent)

@@ -11,9 +11,12 @@ environment:
     # uploading the snapd snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
 
+skip:
+    - reason: skipping test when SNAP_REEXEC is disabled
+      if: |
+        [ "${SNAP_REEXEC:-}" = "0" ]
+       
 restore: |
-    tests.exec is-skipped && exit 0
-
     # Remove the local revision of snapd, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$(readlink "$SNAP_MOUNT_DIR/snapd/current")" = x1 ]; then
@@ -22,10 +25,6 @@ restore: |
     fi
 
 execute: |
-    if [ "${SNAP_REEXEC:-}" = "0" ]; then
-        tests.exec skip-test "skipping test when SNAP_REEXEC is disabled" && exit 0
-    fi
-
     snap list snapd | awk "/^snapd / {print(\$3)}" > prevBoot
 
     echo "Ensure service file is created if missing (e.g. on re-exec)"

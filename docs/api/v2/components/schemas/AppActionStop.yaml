@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Stops one or more services.
+allOf:
+  - $ref: './AppActionBase.yaml'
+  - type: object
+    required:
+      - action
+    properties:
+      action:
+        type: string
+        enum:
+          - stop
+      disable:
+        type: boolean
+        description: Arranges to no longer start the service at system boot.
+        default: false
+example:
+  action: stop
+  names: [lxd]
+  disable: true

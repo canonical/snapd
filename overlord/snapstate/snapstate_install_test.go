@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
@@ -675,15 +674,9 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 		Current:         snap.R(2),
 		SnapType:        "app",
 	}
-	snapsup := snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", nil, nil)
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
-}
-
-func inUseCheck(snap.Type) (boot.InUseFunc, error) {
-	return func(string, snap.Revision) bool {
-		return false
-	}, nil
 }
 
 func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
@@ -728,12 +721,12 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	defer restore()
 
 	// Attempt to install revision 2 of the snap.
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 	}
 
 	// And observe that we cannot refresh because the snap is busy.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
 	// Don't record time since it wasn't a failed refresh
@@ -792,14 +785,14 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	defer restore()
 
 	// Attempt to install revision 2 of the snap, with the IgnoreRunning flag set.
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IgnoreRunning: true},
 		Type:     "app",
 	}
 
 	// And observe that we do so despite the running app.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 
 	// The state confirms that the refresh operation was not postponed.
@@ -855,12 +848,12 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	defer restore()
 
 	// Attempt to install revision 2 of the snap.
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 	}
 
 	// And observe that refresh occurred regardless of the running process.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 }
 
@@ -868,8 +861,8 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapsup := snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, nil, snapsup, nil, 0, "", nil, nil)
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
+	_, err := snapstate.DoInstallOrPreDownload(s.state, nil, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
 
@@ -953,7 +946,7 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 	r := snapstatetest.MockDeviceModel(DefaultModel())
 	defer r()
 
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "brand-gadget",
 			SnapID:   "brand-gadget",
@@ -963,8 +956,8 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 	}
 
 	// Ensure that restart boundaries were set on 'link-snap' as a part of doInstall
-	// when the flag noRestartBoundaries is not set
-	ts1, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, 0, "", inUseCheck, nil)
+	// when NoRestartBoundaries is false
+	ts1, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 
 	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
@@ -973,13 +966,47 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 	var boundary restart.RestartBoundaryDirection
 	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
 
-	// Ensure that restart boundaries are not set when we do provide the noRestartBoundaries flag
-	ts2, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.NoRestartBoundaries, "", inUseCheck, nil)
+	// Ensure that restart boundaries are not set when we provide NoRestartBoundaries=true
+	ts2, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{NoRestartBoundaries: true})
 	c.Assert(err, IsNil)
 
 	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
 	c.Assert(linkSnap2, NotNil)
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
+}
+
+func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}, nil
+	})
+	defer restore()
+
+	snapPath := makeTestSnap(c, "name: some-snap\nversion: 1.0\n")
+	c.Assert(snapPath, testutil.FilePresent)
+
+	snapst := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		Type:     snap.TypeApp,
+		SnapPath: snapPath,
+		Flags:    snapstate.Flags{RemoveSnapPath: true},
+	}
+
+	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
+	c.Assert(err, IsNil)
+	c.Check(snapPath, testutil.FileAbsent)
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {

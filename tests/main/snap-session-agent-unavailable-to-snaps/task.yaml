@@ -11,6 +11,11 @@ systems:
     # Systemd on Amazon Linux 2 does not have the user@uid unit
     - -amazon-linux-2-*
 
+skip:
+    - reason: Debug confinement is not strict on the system
+      if: |
+        [ "$(snap debug confinement)" != strict ]
+
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
@@ -33,10 +38,6 @@ restore: |
     fi
 
 execute: |
-    if [ "$(snap debug confinement)" != strict ]; then
-        exit 0
-    fi
-
     echo "The snap session agent REST API socket exists"
     test -S "/run/user/12345/snapd-session-agent.socket"
 

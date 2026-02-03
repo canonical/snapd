@@ -3,9 +3,9 @@ summary: End-to-end test for install via muinstaller
 details: End-to-end test for install via muinstaller
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   # No partial gadget by default
@@ -39,11 +39,12 @@ environment:
   # image
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
@@ -153,7 +154,7 @@ execute: |
       # Make sure it was loaded early
       remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
-      remote.exec lsmod | MATCH ip_tables
+      remote.exec lsmod | MATCH ahci
       # Check that the kernel-modules component can be removed
       remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
@@ -177,13 +178,17 @@ execute: |
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
 
-      echo "Ensure recovery keys are available on classic FDE too"
-      # We check for the key twice (see LP#2036631)
-      #shellcheck disable=SC2034
-      for i in 1 2; do
-          remote.exec "sudo snap recovery --show-keys" > show-keys.out
-          MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
-      done
+      # 25.10+ systems are not permitted to use /v2/system-recovery-keys, it can only
+      # show the recovery key at the point where it gets created.
+      if os.query is_ubuntu_lt 25.10; then
+          echo "Ensure recovery keys are available on classic FDE too"
+          # We check for the key twice (see LP#2036631)
+          #shellcheck disable=SC2034
+          for i in 1 2; do
+              remote.exec "sudo snap recovery --show-keys" > show-keys.out
+              MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+          done
+      fi
 
       # check disk mappings
       # TODO: no ubuntu-save right now because:
@@ -199,9 +204,21 @@ execute: |
       # check that on an already provisioned system the API will give a
       # sensible reason why the system cannot be installed without further
       # action.
+      if os.query is_ubuntu_ge 25.10; then
+           # satisfy preinstall check need for locating boot images
+           remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+           remote.exec "sudo touch /cdrom/EFI/boot/bootx64.efi"
+           remote.exec "sudo touch /cdrom/EFI/boot/grubx64.efi"
+           remote.exec "sudo mkdir -p /cdrom/casper"
+           remote.exec "sudo touch /cdrom/casper/vmlinuz"
+      fi
       remote.exec "sudo snap debug api /v2/systems/classic" > system
       gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
-      gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+      if os.query is_ubuntu_ge 25.10; then
+          gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned"
+      else
+          gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
+      fi
   fi
 
   if os.query is-ubuntu-ge 24.04; then

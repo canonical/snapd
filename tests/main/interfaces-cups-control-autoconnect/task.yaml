@@ -17,12 +17,12 @@ systems:
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     snap debug can-manage-refreshes | MATCH false
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -56,10 +56,6 @@ prepare: |
     fi
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = false ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
     rm -f /etc/cups/cupsd.conf
@@ -68,11 +64,6 @@ restore: |
     fi
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = false ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Install the cups-provider snap"
     "$TESTSTOOLS"/snaps-state install-local cups-provider
 

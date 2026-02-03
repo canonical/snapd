@@ -26,6 +26,11 @@ environment:
   SNAPD_2_49_2_ARM64: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11584.snap
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
+skip:
+    - reason: Test designed for amd64 and arm architectures
+      if: |
+        ! os.query is-pc-amd64 && ! os.query is-arm
+
 prepare: |
   # save the version of snapd from the PR to refresh to later
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
@@ -47,11 +52,6 @@ prepare: |
   snap version | MATCH 2.49.2
 
 execute: |
-  if ! os.query is-pc-amd64 && ! os.query is-arm; then
-    echo "architecture not supported for this variant"
-    exit 0
-  fi
-
   if [ "$SPREAD_REBOOT" = "0" ]; then
     # install the special service snap which will fail to startup every other time
     # it is started

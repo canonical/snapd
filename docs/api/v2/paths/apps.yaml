@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Apps
+    - OpenAccess
+    - Synchronous
+  summary: List available apps
+  description: |-
+    Lists applications available from installed snaps. Can be filtered by services or snap names.
+  operationId: listApps
+  security: []
+  parameters:
+    - name: global
+      in: query
+      description: Defaults to true for the root user to preserve normal behavior and match snapctl functionality.
+      schema:
+        type: boolean
+    - name: select
+      in: query
+      description: Limit which apps are returned.
+      schema:
+        type: string
+        enum:
+          - service
+        example: service
+    - name: names
+      in: query
+      description: Comma-separated list of snap names to get apps for.
+      schema:
+        type: string
+        example: spotify, lxd
+  responses:
+    200:
+      description: A synchronous response containing the connection status of plugs and slots.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                $ref: '../components/schemas/App.yaml'
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - Apps
+    - Asynchronous
+    - AuthenticationRequired
+  summary: Modify attributes of applications
+  description: |-
+    Perform actions like start, stop, or restart on snap applications, typically services.
+  operationId: modifyApps
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The action to perform on one or more applications.
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/AppActionStart.yaml'
+            - $ref: '../components/schemas/AppActionStop.yaml'
+            - $ref: '../components/schemas/AppActionRestart.yaml'
+          discriminator:
+            propertyName: action
+            mapping:
+              start: '../components/schemas/AppActionStart.yaml'
+              stop: '../components/schemas/AppActionStop.yaml'
+              restart: '../components/schemas/AppActionRestart.yaml'
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

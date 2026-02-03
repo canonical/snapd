@@ -18,7 +18,6 @@ environment:
     TEST_FISH_USER: test-fish
 
 prepare: |
-
     echo "Create a user with a different shell"
     useradd --create-home --user-group -s /usr/bin/zsh "$TEST_ZSH_USER"
     useradd --create-home --user-group -s /usr/bin/fish "$TEST_FISH_USER"

@@ -33,7 +33,7 @@ type TestSecurityBackend struct {
 	// RemoveCalls stores information about all calls to Remove
 	RemoveCalls []string
 	// SetupCallback is an callback that is optionally called in Setup
-	SetupCallback func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error
+	SetupCallback func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
 	RemoveCallback func(snapName string) error
 	// SandboxFeaturesCallback is a callback that is optionally called in SandboxFeatures
@@ -46,6 +46,8 @@ type TestSetupCall struct {
 	AppSet *interfaces.SnapAppSet
 	// Options is a copy of the confinement options to a particular call to Setup
 	Options interfaces.ConfinementOptions
+	// SetupContext is a copy of the setup context to a particular call to Setup
+	SetupContext interfaces.SetupContext
 }
 
 // Initialize does nothing.
@@ -59,12 +61,12 @@ func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 }
 
 // Setup records information about the call and calls the setup callback if one is defined.
-func (b *TestSecurityBackend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	b.SetupCalls = append(b.SetupCalls, TestSetupCall{AppSet: appSet, Options: opts})
+func (b *TestSecurityBackend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
+	b.SetupCalls = append(b.SetupCalls, TestSetupCall{AppSet: appSet, Options: opts, SetupContext: sctx})
 	if b.SetupCallback == nil {
 		return nil
 	}
-	return b.SetupCallback(appSet, opts, repo)
+	return b.SetupCallback(appSet, opts, sctx, repo)
 }
 
 // Remove records information about the call and calls the remove callback if one is defined
@@ -95,7 +97,12 @@ type TestSecurityBackendSetupMany struct {
 	SetupManyCalls []TestSetupManyCall
 
 	// SetupManyCallback is an callback that is optionally called in Setup
-	SetupManyCallback func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error
+	SetupManyCallback func(appSets []*interfaces.SnapAppSet,
+		confinement func(snapName string) interfaces.ConfinementOptions,
+		sctx func(snapName string) interfaces.SetupContext,
+		repo *interfaces.Repository,
+		tm timings.Measurer,
+	) []error
 }
 
 // TestSetupManyCall stores details about calls to TestSecurityBackendMany.SetupMany
@@ -104,12 +111,12 @@ type TestSetupManyCall struct {
 	AppSets []*interfaces.SnapAppSet
 }
 
-func (b *TestSecurityBackendSetupMany) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *TestSecurityBackendSetupMany) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, sctx func(snapName string) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
 	b.SetupManyCalls = append(b.SetupManyCalls, TestSetupManyCall{AppSets: appSets})
 	if b.SetupManyCallback == nil {
 		return nil
 	}
-	return b.SetupManyCallback(appSets, confinement, repo, tm)
+	return b.SetupManyCallback(appSets, confinement, sctx, repo, tm)
 }
 
 // TestSecurityBackendDiscardingLate implements RemoveLate on top of TestSecurityBackend.
