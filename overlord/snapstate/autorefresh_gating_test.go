@@ -1438,6 +1438,12 @@ func (s *autorefreshGatingSuite) TestAffectingSnapsForAffectedByRefreshCandidate
 }
 
 func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed backend effects")
+		tsk.Set("mock-monitored-lanes", lanes)
+		return state.NewTaskSet(tsk)
+	}))
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1466,10 +1472,11 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	_, updateTss, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
 	tss := updateTss.Refresh
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	c.Check(tss[0].Tasks()[0].Kind(), Equals, "prerequisites")
 	c.Check(tss[0].Tasks()[1].Kind(), Equals, "download-snap")
 	c.Check(tss[1].Tasks()[0].Kind(), Equals, "check-rerefresh")
+	c.Check(tss[2].Tasks()[0].Kind(), Equals, "mock-process-delayed-security-backend-effects")
 
 	// enable gate-auto-refresh-hook feature
 	tr := config.NewTransaction(s.state)
@@ -2086,6 +2093,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-security-backend-effects",
 	}
 
 	seenSnapsWithGateAutoRefreshHook := make(map[string]bool)
@@ -2103,7 +2111,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	defer s.state.Unlock()
 
 	tasks := chg.Tasks()
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snaps "base-snap-b", "snap-a" to determine whether extra refresh steps are required`)
+	c.Check(tasks[len(tasks)-2].Summary(), Equals, `Monitoring snaps "base-snap-b", "snap-a" to determine whether extra refresh steps are required`)
 
 	var snaps map[string]any
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
@@ -2146,6 +2154,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-security-backend-effects",
 	}
 
 	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
@@ -2169,7 +2178,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 	c.Check(snaps["snap-a"], NotNil)
 
 	// no re-refresh for base-snap-b because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snap "snap-a" to determine whether extra refresh steps are required`)
+	c.Check(tasks[len(tasks)-2].Summary(), Equals, `Monitoring snap "snap-a" to determine whether extra refresh steps are required`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
@@ -2201,6 +2210,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-security-backend-effects",
 	}
 
 	s.testAutoRefreshPhase2(c, func() {
@@ -2428,6 +2438,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 		"cleanup",
 		"run-hook [base-snap-b;check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-security-backend-effects",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
 }
@@ -2592,11 +2603,12 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"cleanup",
 		"run-hook [base-snap-b;check-health]",
 		"check-rerefresh",
+		"mock-process-delayed-security-backend-effects",
 	}
 	tasks := chg.Tasks()
 	verifyPhasedAutorefreshTasks(c, tasks, expected)
 	// no re-refresh for snap-a because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snap "base-snap-b" to determine whether extra refresh steps are required`)
+	c.Check(tasks[len(tasks)-2].Summary(), Equals, `Monitoring snap "base-snap-b" to determine whether extra refresh steps are required`)
 
 	// only snap-a remains in refresh-candidates because it was held;
 	// base-snap-b got pruned (was refreshed).

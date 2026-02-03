@@ -689,6 +689,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	if err != nil {
 		return nil, nil, err
 	}
+
 	return ts, info, nil
 }
 
@@ -1214,10 +1215,15 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		})
 	}
 
+	// disable delayed side effects for all operations triggered by validation
+	// sets
 	var essentialTss []*state.TaskSet
 	if len(wrongRevsEssential) > 0 {
 		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevsEssential...), nil, Options{
-			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
+			Flags: Flags{
+				Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true,
+				NoDelayedSideEffects: true,
+			},
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
@@ -1230,7 +1236,10 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	var updateTss []*state.TaskSet
 	if len(wrongRevs) > 0 {
 		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
-			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
+			Flags: Flags{
+				Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true,
+				NoDelayedSideEffects: true,
+			},
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
@@ -1245,7 +1254,10 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	if len(missing) > 0 {
 		var err error
 		installed, installTss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
-			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
+			Flags: Flags{
+				Transaction: client.TransactionAllSnaps, Lane: lane,
+				NoDelayedSideEffects: true,
+			},
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
@@ -1425,13 +1437,13 @@ func canSplitRefresh(deviceCtx DeviceContext, updates []update) (essential, nonE
 // dependency is snapd which, if present, must refresh before all other snaps.
 func splitRefresh(st *state.State, essential, nonEssential []update, userID int, flags *Flags, updateFunc func([]update) ([]string, bool, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
 	// taskset with essential snaps (snapd, kernel, gadget and the model base)
-	essentialUpdated, _, essentialTss, err := updateFunc(essential)
+	essentialUpdated, essentialSnapsChanged, essentialTss, err := updateFunc(essential)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// taskset with non-essential snaps (apps and their bases)
-	nonEssentialUpdated, nonEssentialReRefresh, nonEssentialTss, err := updateFunc(nonEssential)
+	nonEssentialUpdated, nonEssentialSnapsChanged, nonEssentialTss, err := updateFunc(nonEssential)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1460,10 +1472,11 @@ func splitRefresh(st *state.State, essential, nonEssential []update, userID int,
 		}
 	}
 
-	// essential snaps don't use epochs at the moment so we can run a check-rerefresh
-	// task with the non-essential set (before the reboot). Note that even if some
-	// app depends on the model base, the prerequisites code will only wait for it
-	// to link and therefore doesn't need to wait for the reboot
+	// essential snaps don't use epochs at the moment (due to increased
+	// complexity) so we can run a check-rerefresh task with the non-essential
+	// set (before the reboot). Note that even if some app depends on the model
+	// base, the prerequisites code will only wait for it to link and therefore
+	// doesn't need to wait for the reboot
 	if len(nonEssentialTss.Refresh) > 0 && !flags.NoReRefresh {
 		var considerTasks []string
 		for _, ts := range nonEssentialTss.Refresh {
@@ -1472,14 +1485,23 @@ func splitRefresh(st *state.State, essential, nonEssential []update, userID int,
 			}
 		}
 
-		nonEssentialTss.Refresh = finalizeUpdate(st, nonEssentialTss.Refresh, nonEssentialReRefresh, nonEssentialUpdated, considerTasks, userID, flags)
+		nonEssentialTss.Refresh = finalizeUpdate(st, nonEssentialTss.Refresh, nonEssentialSnapsChanged, nonEssentialUpdated, considerTasks, userID, flags)
 	}
 
-	return allUpdated, &UpdateTaskSets{
+	uts := &UpdateTaskSets{
 		// only non-essential snaps can trigger pre-downloads
 		PreDownload: nonEssentialTss.PreDownload,
 		Refresh:     append(essentialTss.Refresh, nonEssentialTss.Refresh...),
-	}, nil
+		Lanes:       append(essentialTss.Lanes, nonEssentialTss.Lanes...),
+	}
+
+	if len(allUpdated) > 0 && (essentialSnapsChanged || nonEssentialSnapsChanged) {
+		// delayed effects for indirectly affected snaps are possible either
+		// class of snaps
+		uts.Refresh = setupDelayedSecurityBackendEffects(st, uts.Refresh, uts.Lanes, flags)
+	}
+
+	return allUpdated, uts, nil
 }
 
 func maybeFindTasksetForSnap(tss []*state.TaskSet, name string) (*state.TaskSet, error) {
@@ -1511,6 +1533,8 @@ type UpdateTaskSets struct {
 	PreDownload []*state.TaskSet
 	// Refresh holds the refresh tasksets.
 	Refresh []*state.TaskSet
+
+	Lanes []int
 }
 
 // update contains the state of a snap before it is updated on the system and
@@ -1587,14 +1611,22 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 		return splitRefresh(st, essential, nonEssential, opts.UserID, &opts.Flags, updateFunc)
 	}
 
-	updated, rerefresh, uts, err := doUpdate(st, requested, updates, opts)
+	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
+		opts.Flags.Lane = st.NewLane()
+	}
+
+	updated, snapsChanged, uts, err := doUpdate(st, requested, updates, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// if there are only pre-downloads, don't add a check-rerefresh task
+	// if there are only pre-downloads, don't add a check-rerefresh or side
+	// effect processing tasks
 	if len(uts.Refresh) > 0 {
-		uts.Refresh = finalizeUpdate(st, uts.Refresh, rerefresh, updated, nil, opts.UserID, &opts.Flags)
+		uts.Refresh = finalizeUpdate(st, uts.Refresh, snapsChanged, updated, nil, opts.UserID, &opts.Flags)
+		if snapsChanged {
+			uts.Refresh = setupDelayedSecurityBackendEffects(st, uts.Refresh, uts.Lanes, &opts.Flags)
+		}
 	}
 
 	return updated, uts, nil
@@ -1648,10 +1680,6 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		return updates[i].Setup.Type.SortsBefore(updates[j].Setup.Type)
 	})
 
-	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
-		opts.Flags.Lane = st.NewLane()
-	}
-
 	// some snaps might not have a revision change, we'll keep track of those
 	// and check to see if we need to switch any metadata, like channel or
 	// cohort
@@ -1663,6 +1691,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	needsRerefreshCheck := false
 
 	var snapInstallTSS []snapInstallTaskSet
+	snapLanes := map[int]struct{}{}
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1713,8 +1742,10 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			}
 			return nil, false, nil, err
 		}
+		lane := generateLane(st, opts)
+		snapLanes[lane] = struct{}{}
 
-		sts.ts.JoinLane(generateLane(st, opts))
+		sts.ts.JoinLane(lane)
 		tss = append(tss, sts.ts)
 		snapInstallTSS = append(snapInstallTSS, sts)
 
@@ -1761,6 +1792,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	updateTss := &UpdateTaskSets{
 		Refresh:     tss,
 		PreDownload: predownloadTSS,
+		Lanes:       keys(snapLanes),
 	}
 
 	return updated, needsRerefreshCheck, updateTss, nil
@@ -4324,4 +4356,19 @@ func unmountSnap(snapst *SnapState) error {
 	}
 
 	return nil
+}
+
+func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, monitoredLanes []int, flags *Flags) []*state.TaskSet {
+	if flags.NoDelayedSideEffects {
+		// all side effects are immediate
+		return tss
+	}
+
+	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes)
+	if flags.Transaction == client.TransactionAllSnaps {
+		// TODO: when doing an all-snap transaction, the per snap snap
+		// apply-effects tasks should be forced onto the same lane
+		pde.JoinLane(flags.Lane)
+	}
+	return append(tss, pde)
 }
