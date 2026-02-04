@@ -510,15 +510,6 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 
 // gadgetHasSystemBootState checks if the gadget has a partition with the system-boot-state role.
 func gadgetHasSystemBootState(gadgetDir string) bool {
-	gadgetYamlPath := filepath.Join(gadgetDir, "meta", "gadget.yaml")
-	if !osutil.FileExists(gadgetYamlPath) {
-		// Also try without meta/ prefix for unpacked gadgets
-		gadgetYamlPath = filepath.Join(gadgetDir, "gadget.yaml")
-		if !osutil.FileExists(gadgetYamlPath) {
-			return false
-		}
-	}
-
 	ginfo, err := gadget.ReadInfo(gadgetDir, nil)
 	if err != nil {
 		return false
