@@ -3232,11 +3232,10 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSomeConnected
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
-	// Add a consumer snap with unconnect plug (interface "test")
+	// Add a consumer snap with unconnected plug (interface "test")
 	s.mockSnap(c, consumerYaml)
-	// Add a 2nd consumer snap with unconnect plug (interface "test")
+	// Add a 2nd consumer snap with unconnected plug (interface "test")
 	s.mockSnap(c, consumer2Yaml)
-	// consumer2 := s.mockSnap(c, consumer2Yaml)
 
 	mgr := s.manager(c)
 	repo := mgr.Repository()
