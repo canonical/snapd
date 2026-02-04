@@ -73,6 +73,13 @@
       "description": "Time after which a warning is issued if task hasn't completed",
       "pattern": "^[0-9]+(s|m|h)$"
     },
+    "artifacts": {
+      "type": "array",
+      "description": "List of artifact paths to collect from test systems",
+      "items": {
+        "type": "string"
+      }
+    },
     "skip": {
       "oneOf": [
         {
