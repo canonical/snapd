@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -361,6 +362,25 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 		return fmt.Errorf("cannot unmarshal Secureboot Key Database context data: %v", err)
 	}
 
+	var database secboot.KeyDatabase
+	switch updateData.DB {
+	case EFISecurebootPK:
+		database = secboot.KeyDatabasePK
+	case EFISecurebootKEK:
+		database = secboot.KeyDatabaseKEK
+	case EFISecurebootDB:
+		database = secboot.KeyDatabaseDB
+	case EFISecurebootDBX:
+		database = secboot.KeyDatabaseDBX
+	default:
+		return fmt.Errorf("unknown key database %v", updateData.DB)
+	}
+
+	var updates []secboot.DbUpdate
+	for _, payload := range updateData.Payloads {
+		updates = append(updates, secboot.DbUpdate{Database: database, Payload: payload})
+	}
+
 	err = func() error {
 		mgr := fdeMgr(st)
 
@@ -379,7 +399,7 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 					FDEManager: mgr,
 					unlocker:   st.Unlocker(),
 				},
-				updateData.Method, dirs.GlobalRootDir, params, updateData.Payloads,
+				updateData.Method, dirs.GlobalRootDir, params, updates,
 			)
 		}, updateData.Method)
 	}()
