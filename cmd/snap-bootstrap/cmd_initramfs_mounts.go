@@ -2023,7 +2023,12 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 
-		verityOptions, err := getVerityOptions(essentialSnap.Path, essentialSnap.IntegrityDataParams)
+		// TODO: retrieve dm-verity options with
+		// getVerityOptions(essentialSnap.Path, essentialSnap.IntegrityDataParams)
+		// when it is finally enabled. For the moment, do not set IntegrityDataParams.
+		// After the change, re-enable tests with skip reason:
+		//     "skip until dm-verity for bases is re-enabled".
+		verityOptions, err := getVerityOptions(essentialSnap.Path, nil)
 		if err != nil {
 			return nil, nil, err
 		}
