@@ -182,7 +182,7 @@ type TestConflictingConnectionInterface struct {
 type TestDelayedEffectApplyingInterface struct {
 	TestInterface
 
-	SupportsDelayedEffectCallback func(backend interfaces.SecuritySystem, id interfaces.DelayedEffect) bool
+	SupportsDelayedEffectCallback func(backend interfaces.SecuritySystem) bool
 }
 
 // String() returns the same value as Name().
@@ -649,13 +649,11 @@ func (t *TestConflictingConnectionInterface) ConflictsWithOtherConnectedInterfac
 
 // Support for delaying side effects.
 
-func (t *TestDelayedEffectApplyingInterface) SupportsDelayedEffect(
-	backend interfaces.SecuritySystem, effect interfaces.DelayedEffect,
-) bool {
+func (t *TestDelayedEffectApplyingInterface) SupportsDelayedEffect(backend interfaces.SecuritySystem) bool {
 	if t.SupportsDelayedEffectCallback == nil {
 		panic("SupportsDelayedEffectCallback not set up")
 	}
-	return t.SupportsDelayedEffectCallback(backend, effect)
+	return t.SupportsDelayedEffectCallback(backend)
 }
 
 var _ interfaces.DelayedEffectApplicable = (*TestDelayedEffectApplyingInterface)(nil)
