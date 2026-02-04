@@ -39,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	efilib "github.com/canonical/go-efilib"
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
 	"github.com/canonical/go-tpm2/mu"
@@ -1477,7 +1478,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		expectedErr            string
 		oldKeyFiles            bool
 		buildProfileErr        string
-		dbxUpdates             [][]byte
+		dbxUpdates             []secboot.DbUpdate
 		revoke                 bool
 		noDmaProtection        bool
 		// Preinstall check was used to determine for encryption availability at install time
@@ -1490,11 +1491,11 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true, hasCheckResult: true},
 		// happy case with check result available on disk and DBX update
-		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdates: [][]byte{[]byte("dbx-update")}},
+		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdates: []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-update")}}},
 		// happy case with key files
 		{tpmEnabled: true, keyDataInFile: true, usePrimaryKeyFile: true, resealCalls: 1},
 		// happy case with DBX update
-		{tpmEnabled: true, resealCalls: 1, dbxUpdates: [][]byte{[]byte("dbx-update")}},
+		{tpmEnabled: true, resealCalls: 1, dbxUpdates: []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-update")}}},
 		// happy case, old keys
 		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, oldKeyFiles: true},
 		// happy case, revoke (new keys)
@@ -1591,7 +1592,18 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 
 		var dbxUpdates []*sb_efi.SignatureDBUpdate
 		for _, u := range tc.dbxUpdates {
-			dbxUpdates = append(dbxUpdates, &sb_efi.SignatureDBUpdate{Name: sb_efi.Dbx, Data: u})
+			var db efilib.VariableDescriptor
+			switch u.Database {
+			case secboot.KeyDatabasePK:
+				db = sb_efi.PK
+			case secboot.KeyDatabaseKEK:
+				db = sb_efi.KEK
+			case secboot.KeyDatabaseDB:
+				db = sb_efi.Db
+			case secboot.KeyDatabaseDBX:
+				db = sb_efi.Dbx
+			}
+			dbxUpdates = append(dbxUpdates, &sb_efi.SignatureDBUpdate{Name: db, Data: u.Payload})
 		}
 		var dbUpdateOption sb_efi.PCRProfileOption = sb_efi.WithSignatureDBUpdates(dbxUpdates...)
 

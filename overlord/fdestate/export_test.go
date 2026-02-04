@@ -63,7 +63,7 @@ func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, m
 	return restore
 }
 
-func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, payloads [][]byte) error) (restore func()) {
+func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, payloads []secboot.DbUpdate) error) (restore func()) {
 	restore = testutil.Backup(&backendResealKeysForSignaturesDBUpdate)
 	backendResealKeysForSignaturesDBUpdate = f
 	return restore

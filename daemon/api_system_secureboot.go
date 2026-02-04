@@ -116,7 +116,7 @@ func (r *securebootRequest) Validate() error {
 		}
 
 		if len(r.Payload) == 0 && len(r.Payloads) == 0 {
-			return errors.New("payload not provided")
+			return errors.New("update payload not provided")
 		}
 		if len(r.Payload) != 0 && len(r.Payloads) != 0 {
 			return errors.New("both single payload and multiple payloads provided")
@@ -162,7 +162,7 @@ func postSystemActionEFISecurebootUpdateDBPrepare(c *Command, req *securebootReq
 	var payloads [][]byte
 	switch {
 	case len(req.Payload) != 0 && len(req.Payloads) != 0:
-		return BadRequest("cannot use both single payload and multiple payloads were provided")
+		return BadRequest("cannot use both single payload and multiple payloads")
 	case len(req.Payload) != 0:
 		payload, err := base64.StdEncoding.DecodeString(req.Payload)
 		if err != nil {
