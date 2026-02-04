@@ -174,7 +174,7 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) {
 	// The environment size is a U-Boot compile option, so InstallBootConfig
-	// should honour the size from the gadget's reference boot.sel rather
+	// should honour the size from the gadget's reference ubootpart.sel rather
 	// than always using the default.
 	opts := &bootloader.Options{PrepareImageTime: true}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
@@ -183,9 +183,9 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) 
 	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	// Create a reference boot.sel in the gadget with a non-default size
+	// Create a reference ubootpart.sel in the gadget with a non-default size
 	customSize := 16384
-	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "boot.sel"), customSize,
+	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "ubootpart.sel"), customSize,
 		ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	err = ref.Save()
