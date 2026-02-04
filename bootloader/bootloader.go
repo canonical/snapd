@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
@@ -343,6 +342,7 @@ var (
 	//  bootloaders list all possible bootloaders by their constructor
 	//  function.
 	bootloaders = []bootloaderNewFunc{
+		newUbootPart,
 		newUboot,
 		newGrub,
 		newAndroidBoot,
@@ -497,25 +497,10 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
 		// do we have a marker file?
 		if osutil.FileExists(markerConf) {
-			// For U-Boot, check if the gadget has a system-boot-state
-			// partition, which means we should use ubootpart instead
-			if bl.Name() == ubootName && gadgetHasSystemBootState(gadgetDir) {
-				return newUbootPart(rootDir, opts), nil
-			}
 			return bl, nil
 		}
 	}
 	return nil, ErrBootloader
-}
-
-// gadgetHasSystemBootState checks if the gadget has a partition with the system-boot-state role.
-func gadgetHasSystemBootState(gadgetDir string) bool {
-	ginfo, err := gadget.ReadInfo(gadgetDir, nil)
-	if err != nil {
-		return false
-	}
-
-	return ginfo.HasRole(gadget.SystemBootState)
 }
 
 // BootFile represents each file in the chains of trusted assets and

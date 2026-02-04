@@ -343,6 +343,7 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		{name: "grub", gadgetFile: "grub.conf", expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true}, expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRecovery}, expName: "grub"},
+		{name: "ubootpart", gadgetFile: "ubootpart.conf", expName: "ubootpart"},
 		{name: "uboot", gadgetFile: "uboot.conf", expName: "uboot"},
 		{name: "androidboot", gadgetFile: "androidboot.conf", expName: "androidboot"},
 		{name: "lk", gadgetFile: "lk.conf", expName: "lk"},
@@ -369,67 +370,18 @@ func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
 }
 
 func (s *bootenvTestSuite) TestForGadgetWithSystemBootState(c *C) {
-	// When a gadget has uboot.conf and a system-boot-state partition,
-	// ForGadget should return ubootpart instead of uboot
+	// When a gadget has ubootpart.conf, ForGadget should return ubootpart
 	gadgetDir := c.MkDir()
 	rootDir := c.MkDir()
 
-	// Create uboot.conf marker
-	err := os.WriteFile(filepath.Join(gadgetDir, "uboot.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	// Create gadget.yaml with system-boot-state partition (in meta/)
-	metaDir := filepath.Join(gadgetDir, "meta")
-	err = os.MkdirAll(metaDir, 0755)
-	c.Assert(err, IsNil)
-
-	gadgetYaml := `volumes:
-  pi:
-    bootloader: u-boot
-    structure:
-      - name: ubuntu-boot-state
-        role: system-boot-state
-        type: bare
-        offset: 1M
-        size: 1M
-`
-	err = os.WriteFile(filepath.Join(metaDir, "gadget.yaml"), []byte(gadgetYaml), 0644)
+	// Create ubootpart.conf marker
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	bl, err := bootloader.ForGadget(gadgetDir, rootDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(bl, NotNil)
-	// Should still return "uboot" as the name (ubootpart returns same name)
-	c.Check(bl.Name(), Equals, "uboot")
-}
-
-func (s *bootenvTestSuite) TestForGadgetWithSystemBootStateNoMeta(c *C) {
-	// Test gadgetHasSystemBootState fallback path: gadget.yaml at root (not in meta/)
-	gadgetDir := c.MkDir()
-	rootDir := c.MkDir()
-
-	// Create uboot.conf marker
-	err := os.WriteFile(filepath.Join(gadgetDir, "uboot.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	// Create gadget.yaml at root (not in meta/)
-	gadgetYaml := `volumes:
-  pi:
-    bootloader: u-boot
-    structure:
-      - name: ubuntu-boot-state
-        role: system-boot-state
-        type: bare
-        offset: 1M
-        size: 1M
-`
-	err = os.WriteFile(filepath.Join(gadgetDir, "gadget.yaml"), []byte(gadgetYaml), 0644)
-	c.Assert(err, IsNil)
-
-	bl, err := bootloader.ForGadget(gadgetDir, rootDir, nil)
-	c.Assert(err, IsNil)
-	c.Assert(bl, NotNil)
-	c.Check(bl.Name(), Equals, "uboot")
+	c.Check(bl.Name(), Equals, "ubootpart")
 }
 
 // Shared test helpers for bootloader implementations

@@ -32,9 +32,9 @@
 // For security, the kernel command line parameter "snapd_system_disk" restricts which disk
 // snapd will search for the boot state partition.
 //
-// Bootloader selection: Name() returns ubootName so that gadgets can use the standard uboot.conf
-// marker file. This allows gadgets to opt into partition-based environment storage without
-// changing their marker file.
+// Bootloader selection: Name() returns ubootpartName and gadgets use a ubootpart.conf marker
+// file. This makes ubootpart a first-class bootloader discoverable through the standard
+// bootloader machinery, without special-casing in ForGadget().
 
 package bootloader
 
@@ -61,6 +61,9 @@ var (
 )
 
 const (
+	// ubootpartName is the bootloader name for the partition-based U-Boot implementation.
+	ubootpartName = "ubootpart"
+
 	// ubuntuBootStateLabel is the partition label for the boot state partition
 	ubuntuBootStateLabel = "ubuntu-boot-state"
 )
@@ -92,9 +95,7 @@ func newUbootPart(rootdir string, blOpts *Options) Bootloader {
 }
 
 func (u *ubootpart) Name() string {
-	// Returns ubootName since this is a U-Boot bootloader; the difference
-	// from uboot.go is only the storage backend (partition vs file)
-	return ubootName
+	return ubootpartName
 }
 
 func (u *ubootpart) dir() string {
@@ -192,8 +193,8 @@ func (u *ubootpart) envDevice() (string, error) {
 
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, check for uboot.conf marker file
-		markerConf := filepath.Join(u.rootdir, "uboot.conf")
+		// At prepare-image time, check for ubootpart.conf marker file
+		markerConf := filepath.Join(u.rootdir, "ubootpart.conf")
 		return osutil.FileExists(markerConf), nil
 	}
 

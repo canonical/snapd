@@ -45,7 +45,7 @@ func (s *ubootpartTestSuite) TestNewUbootPart(c *C) {
 	opts := &bootloader.Options{PrepareImageTime: true}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 	c.Assert(u, NotNil)
-	c.Assert(u.Name(), Equals, "uboot")
+	c.Assert(u.Name(), Equals, "ubootpart")
 
 	present, err := u.Present()
 	c.Assert(err, IsNil)
