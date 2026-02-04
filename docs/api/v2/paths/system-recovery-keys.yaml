@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - System
+  summary: Get system recovery key
+  description: |-
+    Retrieve LUKS encryption keys when using full disk encryption on Ubuntu Core.
+  operationId: getSystemRecoveryKey
+  security:
+    - PeerAuth: []
+  responses:
+    200:
+      description: The recovery key for the system.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              result:
+                type: object
+                properties:
+                  recovery-key:
+                    type: string
+                    example: "14697-25590-04585-06938-46886-23115-29787-34072"
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - System
+  summary: Manage system recovery keys
+  description: |-
+    Removes and resets LUKS encryption keys when using full disk encryption on Ubuntu Core devices.
+  operationId: manageSystemRecoveryKeys
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+          properties:
+            action:
+              type: string
+              description: The only supported action is 'remove'.
+              enum:
+                - remove
+  responses:
+    200:
+      description: The action was successful.
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

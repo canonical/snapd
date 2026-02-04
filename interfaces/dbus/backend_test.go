@@ -463,7 +463,7 @@ func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdY
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
 	// Config files are not copied if we haven't reexecuted
-	err = s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -476,7 +476,7 @@ func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdY
 	})
 	defer restore()
 
-	err = s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -514,7 +514,7 @@ func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 	}
 
 	// Config files are not modified if we haven't reexecuted
-	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -532,7 +532,7 @@ func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 	})
 	defer restore()
 
-	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -564,11 +564,11 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	defer restore()
 
 	// first setup snapd which writes the files
-	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	// then setup core - if both are installed snapd should win
-	err = s.Backend.Setup(coreAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(coreAppSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {

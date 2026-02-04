@@ -19,7 +19,11 @@
 
 package snapstate
 
-import "github.com/snapcore/snapd/overlord/state"
+import (
+	"errors"
+
+	"github.com/snapcore/snapd/overlord/state"
+)
 
 // taskChainBuilder constructs a chain of tasks with automatic dependency
 // chaining and task data management.
@@ -54,9 +58,10 @@ func (b *taskChainBuilder) Append(t *state.Task) {
 	tmp.Append(t)
 }
 
-// NewSpan creates a new taskChainSpan that shares this taskChainBuilder's task set and tail.
-func (b *taskChainBuilder) NewSpan() taskChainSpan {
-	return taskChainSpan{b: b}
+// OpenSpan creates a new taskChainSpan that shares this taskChainBuilder's task
+// set and tail.
+func (b *taskChainBuilder) OpenSpan() *taskChainSpan {
+	return &taskChainSpan{b: b}
 }
 
 // JoinOn makes the given task wait for the current tail and updates the tail to
@@ -76,6 +81,23 @@ func (b *taskChainBuilder) JoinOn(t *state.Task) {
 type taskChainSpan struct {
 	b     *taskChainBuilder
 	tasks []*state.Task
+}
+
+// Close returns the tasks owned by this taskChainSpan. It also validates that
+// the span has a clear start and end task so the returned slice can be organized
+// with other slices of tasks.
+func (s *taskChainSpan) Close() ([]*state.Task, error) {
+	if len(s.tasks) > 0 {
+		head, tails, _ := findHeadAndTailTasks(s.tasks)
+		if len(head) > 1 {
+			return s.tasks, errors.New("internal error: cannot start task chain span with multiple heads")
+		}
+		if len(tails) > 1 {
+			return s.tasks, errors.New("internal error: cannot end task chain span with multiple tails")
+		}
+	}
+
+	return s.tasks, nil
 }
 
 // SetTaskData sets the task data applied to all future tasks added to the parent
@@ -125,7 +147,7 @@ func (s *taskChainSpan) AppendTSWithoutData(ts *state.TaskSet) {
 		return
 	}
 
-	heads, tails := findHeadAndTailTasks(ts)
+	heads, tails, remainder := findHeadAndTailTasks(tasks)
 
 	// only head tasks need to wait on the existing tails
 	for _, head := range heads {
@@ -134,23 +156,46 @@ func (s *taskChainSpan) AppendTSWithoutData(ts *state.TaskSet) {
 		}
 	}
 
+	// the ordering here is important. we want users of the span's output to be
+	// able to assume that the first and last task of the slice are the head and
+	// tail of the chain, respectively. to ensure this, we manually order the
+	// tasks from the task set when adding them to our internal record of the
+	// tasks in this span.
+	order := heads
+	order = append(order, remainder...)
+	order = append(order, tails...)
+
+	// note, the set of tasks in heads could equal tails. in that case,
+	// remainder would be empty. but we still must make sure not to add heads
+	// and tails twice.
+	added := make(map[*state.Task]bool, len(tasks))
+	for _, t := range order {
+		if added[t] {
+			continue
+		}
+
+		s.tasks = append(s.tasks, t)
+		added[t] = true
+	}
+
 	s.b.ts.AddAll(ts)
 	s.b.tails = tails
-	s.tasks = append(s.tasks, tasks...)
-}
-
-// Tasks returns the tasks owned by this taskChainSpan.
-func (s *taskChainSpan) Tasks() []*state.Task {
-	return s.tasks
 }
 
 // findHeadAndTailTasks identifies entry and exit points within a task set based
 // on internal dependencies. Head tasks have no predecessors within the set, and
 // tail tasks have no successors within the set.
-func findHeadAndTailTasks(ts *state.TaskSet) (heads, tails []*state.Task) {
-	tasks := ts.Tasks()
+//
+// The returned remainder contains tasks that are neither heads nor tails (i.e.,
+// they have both predecessors and successors within the set).
+//
+// Special case: when a task is both a head and a tail (e.g., a single task with
+// no internal dependencies, or disconnected tasks), it appears in both heads and
+// tails but remainder will be empty. Callers must handle this case to avoid
+// double-counting tasks.
+func findHeadAndTailTasks(tasks []*state.Task) (heads, tails, remainder []*state.Task) {
 	if len(tasks) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	inSet := make(map[string]bool, len(tasks))
@@ -186,7 +231,11 @@ func findHeadAndTailTasks(ts *state.TaskSet) (heads, tails []*state.Task) {
 		if tail {
 			tails = append(tails, t)
 		}
+
+		if !head && !tail {
+			remainder = append(remainder, t)
+		}
 	}
 
-	return heads, tails
+	return heads, tails, remainder
 }

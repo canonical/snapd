@@ -20,6 +20,11 @@
 package osutil_test
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
@@ -104,5 +109,48 @@ func (s *nfsSuite) TestIsHomeUsingRemoteFS(c *C) {
 			c.Assert(err, IsNil)
 		}
 		c.Assert(isRemoteFS, Equals, tc.isRemoteFS)
+	}
+}
+
+func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
+	types := map[string]int64{
+		"autofs": 0x0187,
+		"nfs":    0x6969,
+		"cifs":   0xFF534D42,
+	}
+
+	restore := osutil.MockSyscallStatfs(func(path string, statfs *syscall.Statfs_t) error {
+		dir, _ := filepath.Split(path)
+		_, fs := filepath.Split(strings.TrimSuffix(dir, "/"))
+
+		fsMagicNumber, ok := types[fs]
+		if !ok {
+			c.Fatalf("unknown filesystem %q", fs)
+		}
+
+		statfs.Type = fsMagicNumber
+		return nil
+	})
+	defer restore()
+
+	dirPath := c.MkDir()
+	restore = osutil.MockAllDataHomeGlobs(func() []string {
+		return []string{filepath.Join(dirPath, "*", "snap")}
+	})
+	defer restore()
+
+	for typ := range types {
+		cmt := Commentf("testcase %q", typ)
+
+		fsDir := filepath.Join(dirPath, typ)
+		err := os.MkdirAll(filepath.Join(fsDir, "snap"), 0755)
+		c.Assert(err, IsNil, cmt)
+
+		res, err := osutil.SnapDirsUnderNFSMounts()
+		c.Assert(err, IsNil, cmt)
+		c.Assert(res, Equals, typ == "nfs")
+
+		err = os.RemoveAll(fsDir)
+		c.Assert(err, IsNil)
 	}
 }

@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: string
+description: |
+  A custom schedule format for defining recurring events, combining weekdays, times, spans, and frequencies.
+
+  **Syntax Summary:**
+  - A timer string is composed of one or more event sets, separated by ',,'.
+  - Each event set can define weekdays ('mon', 'tue', 'wed2', 'fri5') and time windows ('10:00', '09:00-11:00').
+  - Weekday spans ('mon-fri') define an event for each day in the span.
+  - Time spans ('14:00-16:00') define a single event within the span, which can be divided using a count ('/2').
+externalDocs:
+  description: For the complete specification, see the timer string documentation.
+  url: https://snapcraft.io/docs/timer-string-format
+pattern: ^[a-zA-Z0-9,:~\/-]+$
+example: mon-wed,fri,9:00-11:00/2

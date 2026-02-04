@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: A reference to a specific slot.
+properties:
+  snap:
+    type: string
+    description: The name of the snap providing the slot.
+  slot:
+    type: string
+    description: The name of the slot.

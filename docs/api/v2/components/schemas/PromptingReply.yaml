@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - action
+  - lifespan
+  - constraints
+properties:
+  action:
+    type: string
+    enum:
+      - allow
+      - deny
+  lifespan:
+    type: string
+    description: |-
+      The lifespan for which the decision applies.
+
+      single: the decision only applies to the prompt with the given ID
+
+      timespan: the decision creates a rule which applies for the duration
+      specified by the duration field or until it is deleted
+
+      session: the decision creates a rule which applies until the user logs
+      out (specifically, until the systemd user session ends)
+
+      forever: the decision creates a rule which applies until it is deleted
+    enum:
+      - single
+      - timespan
+      - session
+      - forever
+  duration:
+    type: string
+    description: |-
+      The duration for which the decision applies. Required if lifespan is
+      timespan, otherwise must be omitted.
+    format: Go duration
+    externalDocs:
+      description: |-
+        Read more about how Go handles time and durations in the official Go
+        Time package documentation.
+      url: https://pkg.go.dev/time
+    example: 7h30m
+  constraints:
+    oneOf:    # TODO look into mapping interface name to oneOf instances
+      - $ref: ./PromptingReplyConstraintsCamera.yaml
+      - $ref: ./PromptingReplyConstraintsHome.yaml

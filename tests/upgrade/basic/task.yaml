@@ -14,11 +14,12 @@ environment:
     # downloading the core snap triggers OOM occasionally
     SNAPD_NO_MEMORY_LIMIT: 1
 
+skip:
+    - reason: This test doesn't work with the staging store
+      if: |
+        [ "$REMOTE_STORE" = staging ]
+
 restore: |
-    if [ "$REMOTE_STORE" = staging ]; then
-        echo "skip upgrade tests while talking to the staging store"
-        exit 0
-    fi
     rm -f /var/tmp/myevil.txt
 
     # An older version of snapd might have been missing proper context
@@ -33,10 +34,6 @@ restore: |
     esac
 
 execute: |
-    if [ "$REMOTE_STORE" = staging ]; then
-        echo "skip upgrade tests while talking to the staging store"
-        exit 0
-    fi
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 

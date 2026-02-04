@@ -15,6 +15,10 @@ c-vendor/*/
 po/snappy.pot
 /debian
 
+# REST API Documentation
+docs/api/redoc-static.html
+docs/api/visuals
+
 # snap-confine bits
 *.a
 *.o

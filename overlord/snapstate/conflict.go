@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -378,4 +380,59 @@ func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string
 	}
 
 	return nil
+}
+
+var resealingTaskKindCheckers = make(map[string]func(t *state.Task) bool)
+
+// RegisterResealingTaskKind marks a task kind as unconditionally causing a reseal.
+func RegisterResealingTaskKind(kind string) {
+	if _, exists := resealingTaskKindCheckers[kind]; exists {
+		logger.Panicf("internal error: resealing task kind %q is already registered", kind)
+	}
+	resealingTaskKindCheckers[kind] = func(t *state.Task) bool { return true }
+}
+
+// RegisterResealingTaskCheckerForKind marks a task kind as conditionally causing a reseal.
+func RegisterResealingTaskCheckerForKind(kind string, checker func(t *state.Task) bool) {
+	if _, exists := resealingTaskKindCheckers[kind]; exists {
+		logger.Panicf("internal error: resealing task kind %q is already registered", kind)
+	}
+	resealingTaskKindCheckers[kind] = checker
+}
+
+func isResealingTask(t *state.Task) bool {
+	check := resealingTaskKindCheckers[t.Kind()]
+	if check == nil {
+		return false
+	}
+	return check(t)
+}
+
+func resealingTaskBlocked(t *state.Task, running []*state.Task) (block bool) {
+	if !isResealingTask(t) {
+		return false
+	}
+
+	// Simple symmetric blocking of resealing tasks, No resealing
+	// task can run if another resealing task is running.
+	for _, tRunning := range running {
+		if isResealingTask(tRunning) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isLinkTaskResealing(t *state.Task) bool {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		logger.Debugf("internal error: cannot obtain snap setup: %v", err)
+		return false
+	}
+	switch snapsup.Type {
+	case snap.TypeKernel, snap.TypeGadget, snap.TypeBase:
+		return true
+	}
+	return false
 }

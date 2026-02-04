@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/tomb.v2"
 )
@@ -75,6 +76,10 @@ func (m *DeviceMgmtManager) DoApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 
 func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) error {
 	return m.doQueueResponse(t, tomb)
+}
+
+func ParseRequestMessage(msg store.Message) (*RequestMessage, error) {
+	return parseRequestMessage(msg)
 }
 
 func MockTimeNow(t time.Time) func() {

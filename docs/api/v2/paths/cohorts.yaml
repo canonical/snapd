@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+  summary: Create cohort keys
+  description: |-
+    Creates a set of cohort keys for a given set of snaps.
+  operationId: createCohorts
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+            - snaps
+          properties:
+            action:
+              type: string
+              enum:
+                - create
+            snaps:
+              type: array
+              description: An array of snap names to create cohorts for.
+              items:
+                type: string
+              example:
+                - libreoffice
+                - lxd
+                - multipass
+  responses:
+    200:
+      description: A map of snap names to their newly created cohort keys.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - cohorts
+            properties:
+              cohorts:
+                type: object
+                description: An object mapping each snap name to its corresponding cohort key string.
+                additionalProperties:
+                  type: string
+                  description: The generated cohort key for the snap.
+            example:
+              cohorts:
+                core24: MSBkd1RBaDdNWlowMXp5cmlPWkVycWQxSnluUUxpT0d2TSAxNzU5NDIxNjg0IDc3Yzk1ODllNDYxNzEwNDUwZWZiNjE5YjMwNmJiMzJlMmJiZTlkMzNmOGRlMmIwYmQzNmQ4ZWEyYjcwNGNmZmI=
+                snapd: MSBQTXJyVjRtbDh1V3VFVURCVDhkU0duS1VZYmV2VmhjNCAxNzU5NDIxNjg0IDU1YzdjZWRkZWJhNjFkNjIxMjU3ZTAwMDYxMjllZWJkYjE4N2Y3YTE0MTc0NmM2NjAyM2IyYWY4ZDY2MzRlZDU=
+
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

@@ -10,6 +10,13 @@ environment:
     # on core systems, the test was seen to misbehave when memory limit is set
     SNAPD_NO_MEMORY_LIMIT: 1
 
+skip:
+    - reason: Cannot run when there is a http proxy set
+      if: |
+        # all queries will go through the proxy so breaking DNS will not work
+        [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
+        [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
+
 prepare: |
     echo "Break DNS"
     if os.query is-core; then
@@ -39,13 +46,6 @@ restore: |
     systemctl stop snapd.service
 
 execute: |
-    if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
-       [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]; then
-       # all queries will go through the proxy so breaking DNS will not work
-       echo "SKIP: cannot run when there is a http proxy set"
-       exit 0
-    fi
-
     echo "Try to install a snap with broken DNS"
     if snap install test-snapd-sh; then
         echo "Installing test-snapd-sh with broken DNS should not work"

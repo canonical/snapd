@@ -5,7 +5,7 @@ details: |
 
 systems: [ubuntu-*]
 
-kill-timeout: 100m
+kill-timeout: 150m
 
 prepare: |
     # make sure snapd snap is refreshed

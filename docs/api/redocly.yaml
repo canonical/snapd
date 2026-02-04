@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+extends:
+  - recommended
+
+openapi:
+  # --- Redoc functional options ---
+  schemasExpansionLevel: 2
+  showExtensions: true
+  hideDownloadButton: false
+
+  # --- Redoc theme options ---
+  # The open-source build tool does not support automatic switching.
+  theme:
+    typography:
+      fontFamily: "Ubuntu Sans, Ubuntu, -apple-system, Segoe UI, Roboto, Oxygen, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif"
+      headings:
+        fontFamily: "Ubuntu Sans, Ubuntu, -apple-system, Segoe UI, Roboto, Oxygen, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif"
+        fontWeight: "bold"
+      code:
+        fontFamily: "Ubuntu Mono Sans, Ubuntu Mono, Consolas, Monaco, Courier, monospace"
+        fontSize: "1rem"
+        color: "black" # Light theme code color
+        backgroundColor: "#f8f8f8" # Light theme code background
+      links:
+        color: "#4a90e2" # Light theme link color
+    sidebar:
+      backgroundColor: "#202020" # Light theme sidebar
+      textColor: "#d0d0d0" # Light theme text
+      activeTextColor: "#606060" # Light theme active text
+      activeBgColor: "#ebebeb" # Light theme active background
+    colors:
+      primary:
+        main: "#06C" # Light theme primary
+      text:
+        primary: "#111" # Light theme primary text
+        secondary: "#333" # Light theme secondary text
+    rightPanel:
+      backgroundColor: "#202020" # Light theme sidebar
+      textColor: "#d0d0d0" # Light theme text
+    codeBlock:
+      backgroundColor: "#010101" # Light theme code block

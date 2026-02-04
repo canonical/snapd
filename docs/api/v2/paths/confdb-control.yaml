@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - Experimental
+    - AuthenticationRequired
+    - Synchronous
+  summary: Delegate remote confdb management to operators
+  description: |-
+    Grants or withdraws an operator's ability to remotely manage confdb values
+    on the device.
+
+    Use the `delegate` action to allow an operator to remotely manage specific
+    confdb views using the specified authentication methods.
+
+    Use the `undelegate` action to withdraw this ability. Omit `views` or
+    `authentications` to withdraw all views or all authentication methods
+    respectively.
+  operationId: postConfdbControl
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/ConfdbControlAction.yaml'
+        examples:
+          delegate:
+            summary: Delegate access to an operator
+            value:
+              action: delegate
+              operator-id: alice
+              authentications:
+                - operator-key
+                - store
+              views:
+                - bob/network/control-wifi
+                - bob/network/observe-wifi
+          undelegate:
+            summary: Withdraw all access from an operator
+            value:
+              action: undelegate
+              operator-id: alice
+          undelegatePartial:
+            summary: Withdraw access to specific views
+            value:
+              action: undelegate
+              operator-id: alice
+              authentications:
+                - store
+              views:
+                - bob/network/control-wifi
+  responses:
+    200:
+      description: The confdb-control assertion was updated successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              type:
+                type: string
+                enum:
+                  - sync
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              result:
+                type: object
+                nullable: true
+                example: null
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'

@@ -1,0 +1,9 @@
+{
+  "yaml.schemas": {
+    "./tests/schemas/spread-schema.json": "spread.yaml",
+    "./tests/schemas/spread-task-schema.json": "tests/**/task.yaml"
+  },
+  "yaml.customTags": [
+    "!include scalar"
+  ]
+}

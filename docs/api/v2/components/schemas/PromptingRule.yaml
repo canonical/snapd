@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: An object describing the structure of a rule.
+required:
+  - id
+  - timestamp
+  - user
+  - snap
+  - interface
+  - constraints
+properties:
+  id:
+    type: string
+    description: Unique rule identifier.
+  timestamp:
+    type: string
+    format: date-time
+    description: Timestamp of rule creation/modification.
+  user:
+    type: integer
+    description: The UID for which the rule applies.
+  snap:
+    type: string
+    description: The name of the snap for which the rule applies.
+  interface:
+    type: string
+    description: The interface for which the rule applies.
+    enum:
+      - camera
+      - home
+  constraints:
+    oneOf:
+      - $ref: './PromptingRuleConstraintsCamera.yaml'
+      - $ref: './PromptingRuleConstraintsHome.yaml'

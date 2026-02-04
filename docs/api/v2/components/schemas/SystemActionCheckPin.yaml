@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionCheckPin
+description: Payload to check the quality of a given PIN.
+required:
+  - action
+  - pin
+properties:
+  action:
+    type: string
+    enum:
+      - check-pin
+  pin:
+    type: string
+    format: password
+    description: The PIN to validate.

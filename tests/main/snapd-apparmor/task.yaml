@@ -8,15 +8,14 @@ details: |
 environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
+skip:
+    - reason: The snapd.apparmor.service is not active in the system
+      if: not systemctl is-active snapd.apparmor.service
+
 debug: |
     "$TESTSTOOLS"/journal-state get-log -u snap.apparmor.service
 
 execute: |
-    if ! systemctl is-active snapd.apparmor.service; then
-      echo "Skipping test since snapd.apparmor.service is not active"
-      exit 0
-    fi
-
     echo "Ensure snapd.apparmor is enabled"
     systemctl is-enabled snapd.apparmor.service
 

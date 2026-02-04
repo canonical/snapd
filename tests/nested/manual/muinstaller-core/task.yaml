@@ -41,11 +41,10 @@ environment:
   INSTALL_OPTIONAL_ALL/install_optional_all: true
   INSTALL_OPTIONAL_EXPECT_ALL/install_optional_all: true
 
-prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
 restore: |
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget snap-with-comps.snap snap-with-comps+comp1.comp core-seed fake-disk.img

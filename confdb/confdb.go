@@ -170,14 +170,14 @@ func (e *BadRequestError) Error() string {
 	if e.request != "" {
 		reqStr = "\"" + e.request + "\""
 	} else {
-		reqStr = "empty path"
+		reqStr = i18n.G("empty path")
 	}
 
 	var causeSuffix string
 	if e.cause != "" {
 		causeSuffix = ": " + e.cause
 	}
-	return fmt.Sprintf("cannot %s %s through confdb view %s%s", e.operation, reqStr, e.viewID, causeSuffix)
+	return fmt.Sprintf(i18n.G("cannot %s %s through confdb view %s%s"), e.operation, reqStr, e.viewID, causeSuffix)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -1069,7 +1069,8 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
+// Set sets the named view to a specified non-nil value. Matches that cannot
+// extract their data from the provided value will be considered as being unset.
 func (v *View) Set(databag Databag, request string, value any) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
@@ -1107,6 +1108,14 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	for _, match := range matches {
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
+			if errors.Is(err, &NoDataError{}) {
+				// match has no corresponding data in value, so treat it as removing value.
+				expandedMatches = append(expandedMatches, expandedMatch{
+					storagePath: match.storagePath,
+					value:       nil,
+				})
+				continue
+			}
 			return badRequestErrorFrom(v, "set", request, err.Error())
 		}
 
@@ -1375,7 +1384,9 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
+				// matched a write path that doesn't have corresponding data in the value
+				// so signal that scenario, such that Set() can interpret it as unsetting the path
+				return nil, &NoDataError{}
 			}
 
 		case IndexPlaceholderType:
@@ -1647,11 +1658,52 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
+type UnconstrainedParamsError struct {
+	operation     string
+	unconstrained map[string][]string
+}
+
+func (e *UnconstrainedParamsError) Error() string {
+	var sb strings.Builder
+	reqs := keys(e.unconstrained)
+	sort.Strings(reqs)
+
+	for i, req := range reqs {
+		params := e.unconstrained[req]
+		if i > 0 {
+			sb.WriteRune('\n')
+		}
+
+		paramStr := i18n.G("parameter ")
+		if len(params) > 1 {
+			paramStr = i18n.G("parameters ")
+		}
+		paramStr += strutil.Quoted(params)
+
+		sb.WriteString(fmt.Sprintf(i18n.G("cannot %s %q: filter %s must be constrained"), e.operation, req, paramStr))
+	}
+
+	return sb.String()
+}
+
+func (e *UnconstrainedParamsError) Is(err error) bool {
+	_, ok := err.(*UnconstrainedParamsError)
+	return ok
+}
+
+func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
+	return &UnconstrainedParamsError{
+		operation:     op,
+		unconstrained: unconstrained,
+	}
+}
+
 func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
 	if op != "get" && op != "set" {
 		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
 	}
 
+	unconstrainedReqs := make(map[string][]string)
 	for _, m := range matches {
 		for _, acc := range m.storagePath {
 			if acc.FieldFilters() == nil {
@@ -1662,7 +1714,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				pres, ok := v.params[param]
 				if !ok {
 					// we checked this at schema creation so this shouldn't happen
-					return fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+					return fmt.Errorf(`internal error: filter parameter %q must be declared in "parameters" stanza`, param)
 				}
 
 				if _, ok := constraints[param]; ok {
@@ -1676,12 +1728,17 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				case pres == requiredOnRead && op == "get":
 					fallthrough
 				case pres == requiredOnWrite && op == "set":
-					return fmt.Errorf(`unconstrained filter parameter %q is set as %s in "parameters" stanza`, param, pres)
+					params := unconstrainedReqs[m.request]
+					params = append(params, param)
+					unconstrainedReqs[m.request] = params
 				}
 			}
 		}
 	}
 
+	if len(unconstrainedReqs) != 0 {
+		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+	}
 	return nil
 }
 

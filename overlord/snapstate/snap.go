@@ -105,7 +105,7 @@ func (sc *snapInstallChoreographer) runRefreshHooks() bool {
 	return sc.snapst.IsInstalled() && !componentOnlyUpdate && !sc.snapsup.Flags.Revert
 }
 
-func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) error {
+func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
 	prereq := st.NewTask("prerequisites", fmt.Sprintf(
 		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
 	prereq.Set("snap-setup", sc.snapsup)
@@ -136,7 +136,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 	componentTSS, err := splitComponentTasksForInstall(
 		sc.compsups, st, sc.snapst, sc.snapsup, prepare, ic.FromChange)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sc.componentTSS = componentTSS
 	prepare.Set("component-setup-tasks", componentTSS.compSetupTaskIDs)
@@ -155,10 +155,10 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 		s.UpdateEdge(t, LastBeforeLocalModificationsEdge)
 	}
 
-	return nil
+	return s.Close()
 }
 
-func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State, s *taskChainSpan, ic installContext) error {
+func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
 	// mount
 	if !sc.revisionIsPresent() {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(
@@ -170,13 +170,13 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		// SnapPath is only needed in the "mount-snap" handler and that is
 		// skipped for local revisions.
 		if err := os.Remove(sc.snapsup.SnapPath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, sc.snapst, sc.snapsup.Revision(), sc.compsups)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, t := range removeExtraComps {
 		s.Append(t)
@@ -230,7 +230,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	if ic.DeviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeGadget {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
-			return err
+			return nil, err
 		}
 		cmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(
 			i18n.G("Update kernel command line from gadget %q%s"),
@@ -279,7 +279,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		// after the reboot
 		const postReboot = false
 		if err := sc.addAutoConnectThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
-			return err
+			return nil, err
 		}
 
 		// TODO move the setupKernel task here and make it configure
@@ -292,7 +292,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		s.UpdateEdge(setupKmodComponents, MaybeRebootEdge)
 	}
 
-	return nil
+	return s.Close()
 }
 
 // removeExtraComponentsTasks creates tasks that will remove unwanted components
@@ -364,13 +364,13 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
-func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) error {
+func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
 	if !sc.requiresKmodSetup() {
 		// Let tasks know if they have to do something about restarts
 		// No kernel modules, reboot after link snap
 		const postReboot = true
 		if err := sc.addAutoConnectThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -391,7 +391,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	if sc.snapsup.QuotaGroupName != "" {
 		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName(), sc.snapsup.QuotaGroupName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		s.Append(quotaAddSnapTask)
 	}
@@ -418,12 +418,12 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	if sc.snapst.IsInstalled() && !sc.snapsup.Flags.Revert {
 		// addCleanupTasks will set EndEdge on the last task
 		if err := sc.addCleanupTasks(st, s, ic); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if ic.SkipConfigure {
-		return nil
+		return s.Close()
 	}
 
 	if isConfigureAllowed(sc.snapsup) {
@@ -436,7 +436,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	s.Append(healthCheck)
 	s.UpdateEdge(healthCheck, EndEdge)
 
-	return nil
+	return s.Close()
 }
 
 // addAutoConnectThroughHooks builds the chain of tasks that starts with
@@ -605,18 +605,18 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installContext) (snapInstallTaskSet, *state.TaskSet, error) {
 	b := newTaskChainBuilder()
 
-	beforeLocalSystemMods := b.NewSpan()
-	if err := sc.BeforeLocalSystemMod(st, &beforeLocalSystemMods, ic); err != nil {
+	beforeLocalSystemMods, err := sc.BeforeLocalSystemMod(st, b.OpenSpan(), ic)
+	if err != nil {
 		return snapInstallTaskSet{}, nil, err
 	}
 
-	upToLinkSnapAndBeforeReboot := b.NewSpan()
-	if err := sc.UpToLinkSnapAndBeforeReboot(st, &upToLinkSnapAndBeforeReboot, ic); err != nil {
+	upToLinkSnapAndBeforeReboot, err := sc.UpToLinkSnapAndBeforeReboot(st, b.OpenSpan(), ic)
+	if err != nil {
 		return snapInstallTaskSet{}, nil, err
 	}
 
-	afterLinkSnapAndPostReboot := b.NewSpan()
-	if err := sc.AfterLinkSnapAndPostReboot(st, &afterLinkSnapAndPostReboot, ic); err != nil {
+	afterLinkSnapAndPostReboot, err := sc.AfterLinkSnapAndPostReboot(st, b.OpenSpan(), ic)
+	if err != nil {
 		return snapInstallTaskSet{}, nil, err
 	}
 
@@ -627,9 +627,9 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 	}
 
 	return snapInstallTaskSet{
-		beforeLocalSystemModificationsTasks: beforeLocalSystemMods.Tasks(),
-		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot.Tasks(),
-		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot.Tasks(),
+		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
+		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
+		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
 	}, b.TaskSet(), nil
 }
 

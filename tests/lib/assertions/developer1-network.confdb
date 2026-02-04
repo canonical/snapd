@@ -53,9 +53,20 @@ type: confdb-schema
 authority-id: developer1
 account-id: developer1
 name: network
-timestamp: 2024-02-09T17:11:32Z
+timestamp: 2026-01-22T17:11:32Z
 views:
   wifi-setup:
+    parameters:
+      metric:
+        presence: optional
+      on-link:
+        presence: optional
+      to:
+        presence: optional
+      type:
+        presence: optional
+      via:
+        presence: optional
     rules:
       -
         content:
@@ -78,7 +89,26 @@ views:
         storage: wifi.status
       -
         request: private.{placeholder}
-        storage: wifi.{placeholder}
+        storage: wifi.private.{placeholder}
+      -
+        content:
+          -
+            request: to
+            storage: to
+          -
+            request: via
+            storage: via
+          -
+            request: type
+            storage: type
+          -
+            request: metric
+            storage: metric
+          -
+            request: on-link
+            storage: on-link
+        request: routes[{n}]
+        storage: wifi.routes[{n}][.to={to}][.via={via}][.type={type}][.metric={metric}][.on-link={on-link}]
 body-length: 92
 sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
@@ -92,13 +122,13 @@ sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11m
   }
 }
 
-AcLBUgQAAQoABgUCaIjODQAAJZ8QAAvgv3oy4iOMLp1drGn9CWWoNX2ab4YRrEw5KGhBvqljTkmt
-RxaFBXecEreGYEc/WKBFhgeslDlAKQCz4IUqFY+Gqu70FUU2f/hYAfnFTuRYbDy1v8GJkpCLyzWV
-FAC1mZISwPvwQeXyYBTQLlMHc6H3E3DXWIivSG9XfceSAGxjvQYQDjs2RCJ6CjdsyhaXnH7yQKEO
-sR0t78PjDrJbnDBCZgPhw3tXBQj7JaGX9kJc7WT8Z6py2kV7MjnItrVQRi+T9sZ8BcRDLR6R/hpd
-TvxXOpMBECp5Ny6Mj/B5WsdD7MqjgYTipNWW5+75MNof/1izA7NLokIkA4AeErRUHl2AJXv92zmn
-kJFNrVlIKF6QFVTNPfTLGeCKEc/Lb918RIjr1EV8vk/PVvaqGrcLP67EgI3cOSM+6aEiLOvQ7qrq
-Z0diQozn3i6CT0uwOo3G1mc49RPXVaDqQ/OqAZEsBUN6BpbVDTU07hHiciNhyOvpmtTRT/STEX6p
-AWZ5gl+rTdEsKrfrG54SCtJTg7mx3wbAtnLkRUWMb5IL16FmQsi8TRyZ3c9J/T+W//K/larRJqlK
-ID84AHnrCDym0BFzjvQVf03yUY5CHCuL+n/4VhlFVnGLB3sT/iFAQ1YxyhiUW7tcxSRqY9GixArI
-B+K2PjDpYnuDbL/7lf7r+mo4kKhK
+AcLBUgQAAQoABgUCaXIzhgAAugQQAKq7LujbXR6nidSYviK+IcEqcFnPSYnRixUFLC30Zi+ni3T5
+ByIr0fKVJI2pnHbppoLFdYyKX6Vtc9h1XiiB5RFC5ZuX3UAwBFnjhzopNiJKJ7/n0kQ2efhxiO/P
+Ehxs714zAv0YxVFMv5puV/8+YHjgDa9eHgsOFQNzWGlNvQUcJUbzeBnMYd/IYB50dK5ldyuHesBx
+WahAT+G41hYuf1IFtyEfIW4qbVtv9N9vEY9G0jPStWSptfRFnsR/o/u52FiyfcH2Rs9fBnYDcOtt
+0ge/lRdmm1ejiWNSSFp+XaDBs2UyhpiVMDfwwFobsI0OMmIZw7+4j8mnV7Qf5uvo0L6zynzLdLdR
+7HVZosoUUnaj87sTmTsfx+0141aMgP6bT2PuiZ105Qhy2dGVq5eSm86ehsmu7iJEJSwEcU2Eyblt
+EmZkhnxz/qpi+tWzTPqmn6XhBoB3qIwI1nYHzd4vkxYtIDApkjM2NIOUs/NFSuppGSTzeMKsiZKg
+UASFGn+o+Di6PdTM8ARr4fcJTSODAJEWNOPy3ZME9xqQqffJh7+aVPD1XZNNq6r82hwRmWRXdY7M
+9tw8VcGs++TQ/zDMTED8hrTVy4obfrhMciSNYbogV2v3fpPmBCinG164x3kP4VxZdddG1fSA2JaS
+XqcSZy5xRzSyVxC4dlE1Mt3Ry/Ro

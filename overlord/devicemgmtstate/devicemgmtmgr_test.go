@@ -21,11 +21,15 @@ package devicemgmtstate_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -33,12 +37,25 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
+
+type mockStore struct {
+	storetest.Store
+
+	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
+}
+
+func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+	return s.exchangeMessages(ctx, req)
+}
 
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
 	tr := config.NewTransaction(st)
@@ -86,6 +103,28 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	var restoreLogger func()
 	s.logbuf, restoreLogger = logger.MockLogger()
 	s.AddCleanup(restoreLogger)
+}
+
+func (s *deviceMgmtMgrSuite) mockModel() {
+	as := assertstest.FakeAssertion(map[string]any{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: as.(*asserts.Model)}
+	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
+	s.st.Set("seeded", true)
+}
+
+func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
+	snapstate.ReplaceStore(s.st, &mockStore{exchangeMessages: exchangeMessages})
 }
 
 func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
@@ -237,4 +276,235 @@ func (s *deviceMgmtMgrSuite) TestEnsureFeatureDisabled(c *C) {
 
 	changes := s.st.Changes()
 	c.Assert(changes, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Check(req.After, Equals, "")
+		c.Check(req.Limit, Equals, devicemgmtstate.DefaultExchangeLimit)
+		c.Check(req.Messages, HasLen, 0)
+
+		oneHourAgo := time.Now().Add(-1 * time.Hour)
+		tomorrow := oneHourAgo.Add(24 * time.Hour)
+
+		body := []byte(`{"action": "get", "account": "my-brand", "view": "network/access-wifi"}`)
+		as, err := s.storeStack.Sign(
+			asserts.RequestMessageType,
+			map[string]any{
+				"authority-id": "my-brand",
+				"account-id":   "my-brand",
+				"message-id":   "someId",
+				"message-kind": "confdb",
+				"devices":      []any{"serial-1.my-model.my-brand"},
+				"valid-since":  oneHourAgo.UTC().Format(time.RFC3339),
+				"valid-until":  tomorrow.UTC().Format(time.RFC3339),
+				"timestamp":    oneHourAgo.UTC().Format(time.RFC3339),
+			},
+			body, "",
+		)
+		c.Assert(err, IsNil)
+
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				{
+					Token: "token-123",
+					Message: store.Message{
+						Format: "assertion",
+						Data:   string(asserts.Encode(as)),
+					},
+				},
+			},
+			TotalPendingMessages: 0,
+		}, nil
+	})
+
+	setRemoteMgmtFeatureFlag(c, s.st, true)
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.LastReceivedToken, Equals, "token-123")
+	c.Check(ms.LastExchangeTime.IsZero(), Equals, false)
+	c.Assert(ms.PendingRequests, HasLen, 1)
+
+	msg := ms.PendingRequests["someId"]
+	c.Check(msg.BaseID, Equals, "someId")
+	c.Check(msg.SeqNum, Equals, 0)
+	c.Check(msg.AccountID, Equals, "my-brand")
+	c.Check(msg.AuthorityID, Equals, "my-brand")
+	c.Check(msg.Kind, Equals, "confdb")
+	c.Check(msg.Devices, DeepEquals, []string{"serial-1.my-model.my-brand"})
+	c.Check(msg.Body, Equals, `{"action": "get", "account": "my-brand", "view": "network/access-wifi"}`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Check(req.After, Equals, "token-123")
+		c.Check(req.Limit, Equals, 0)
+		c.Check(req.Messages, HasLen, 1)
+
+		return &store.MessageExchangeResponse{
+			Messages:             []store.MessageWithToken{},
+			TotalPendingMessages: 0,
+		}, nil
+	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		ReadyResponses: map[string]store.Message{
+			"someId": {Format: "assertion", Data: "response-data"},
+		},
+		LastReceivedToken: "token-123",
+	}
+	s.mgr.SetState(ms)
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.LastReceivedToken, Equals, "")
+	c.Check(ms.ReadyResponses, HasLen, 0)
+	c.Check(ms.PendingRequests, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				{
+					Token: "token-123",
+					Message: store.Message{
+						Format: "assertion",
+						Data:   "not-an-assertion",
+					},
+				},
+			},
+			TotalPendingMessages: 0,
+		}, nil
+	})
+
+	setRemoteMgmtFeatureFlag(c, s.st, true)
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(s.logbuf.String(), testutil.Contains, "cannot parse request-message with token token-123")
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.LastReceivedToken, Equals, "token-123")
+	c.Check(ms.PendingRequests, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.AddCleanup(snapstatetest.MockDeviceContext(nil))
+	s.st.Set("seeded", false)
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Log("call not expected")
+		c.Fail()
+
+		return nil, fmt.Errorf("call not expected")
+	})
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(
+		err, ErrorMatches,
+		"too early for operation, device not yet seeded or device model not acknowledged",
+	)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return nil, fmt.Errorf("network timeout")
+	})
+
+	setRemoteMgmtFeatureFlag(c, s.st, true)
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, ErrorMatches, "network timeout")
+}
+
+func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
+	type test struct {
+		name        string
+		message     store.Message
+		expectedErr string
+	}
+
+	tests := []test{
+		{
+			name: "unsupported format",
+			message: store.Message{
+				Format: "json",
+				Data:   `{"some": "data"}`,
+			},
+			expectedErr: `cannot process assertion: unsupported format "json"`,
+		},
+		{
+			name: "invalid assertion data",
+			message: store.Message{
+				Format: "assertion",
+				Data:   "not-an-assertion",
+			},
+			expectedErr: `cannot decode assertion: assertion content/signature separator not found`,
+		},
+		{
+			name: "wrong assertion type",
+			message: store.Message{
+				Format: "assertion",
+				Data:   string(asserts.Encode(s.storeStack.TrustedKey)),
+			},
+			expectedErr: `cannot process assertion: expected "request-message" but got \"account-key\"`,
+		},
+	}
+
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+
+		msg, err := devicemgmtstate.ParseRequestMessage(tt.message)
+		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
+		c.Check(msg, IsNil, cmt)
+	}
 }

@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Changes
+    - Synchronous
+  summary: Get all changes
+  description: |-
+    Retrieves a list of all changes in progress or completed on the system.
+  operationId: getChanges
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: select
+      in: query
+      description: Limit which changes are returned.
+      schema:
+        type: string
+        enum:
+          - all
+          - in-progress
+          - ready
+        default: in-progress
+    - name: for
+      in: query
+      description: Optional snap name to limit results to.
+      schema:
+        type: string
+  responses:
+    200:
+      description: |-
+        A synchronous response containing all the changes that have occurred,
+        and have not been garbage-collected yet.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: array
+                items:
+                  $ref: '../components/schemas/Change.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

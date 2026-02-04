@@ -25,13 +25,13 @@ environment:
     OTHER_UDEVADM_PATH/uinput: /sys/devices/virtual/mem/kmsg
     OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
 
+skip:
+    - reason: No uinput support, cannot run test
+      if: |
+        # some systems (like s390x) do not have support for this
+        [ ! -e /sys/devices/virtual/misc/uinput ] && ! modprobe uinput
+
 prepare: |
-    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        if ! modprobe uinput; then
-            echo "no uinput support, cannot run test"
-            exit 0
-        fi
-    fi
     # create nvidia devices if they don't exist
     if [ ! -e /dev/nvidia0 ]; then
         mknod /dev/nvidia0 c 195 0
@@ -80,12 +80,6 @@ restore: |
     fi
 
 execute: |
-    # some systems (like s390x) do not have support for this
-    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        echo "no uinput support, cannot run test"
-        exit 0
-    fi
-
     tags_are_sticky=0
     systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
     if [ "$systemd_ver" -ge 247 ]; then
@@ -161,3 +155,15 @@ execute: |
     else
         udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
     fi
+
+    # In the unlikely case of low value of RLIMIT_MEMLOCK, snap-confine can
+    # increase the value automatically. Here we explicitly pass a small value
+    # to observe that we can construct everything from scratch just fine. Note
+    # that this requires us to have at least one device tagged to the snap,
+    # otherwise snap-confine will not run the relevant logic.
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+    prlimit --memlock=65536 env SNAP_CONFINE_DEBUG=1 test-snapd-sh-core24.sh -c 'true'
+    # Remove observable state of the previous command.
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-core24-sh_sh
+    snapd.tool exec snap-discard-ns test-snapd-sh-core24

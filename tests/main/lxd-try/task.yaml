@@ -5,18 +5,16 @@ details: |
 
 systems: [ubuntu-2*]
 
+skip:
+    - reason: Requires snapd .deb files built for testing
+      if: |
+        # "$GOHOME"/snapd_*.deb is used in the lxd container
+        [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]
+
 prepare: |
   echo "Install lxd"
   "$TESTSTOOLS"/lxd-state prepare-snap
   "$TESTSTOOLS"/lxd-state launch --name ubuntu
-
-  echo "Setting up proxy *inside* the container"
-  if [ -n "${http_proxy:-}" ]; then
-      lxd.lxc exec ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-  fi
-  if [ -n "${https_proxy:-}" ]; then
-      lxd.lxc exec ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-  fi
 
   # wait for the container to be fully up
   # the retry is needed because of the error "Failed to connect to bus: No such file or directory"

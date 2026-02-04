@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+  summary: Get log contents
+  description: |-
+    Retrieves log contents from the snapd daemon. The response is a stream of newline-delimited JSON objects.
+  operationId: getLogs
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: follow
+      in: query
+      description: If set, returns log entries as they occur, streaming the response.
+      schema:
+        type: boolean
+        default: false
+    - name: n
+      in: query
+      description: Number of log entries to return.
+      schema:
+        type: integer
+        default: 10
+    - name: names
+      in: query
+      description: Comma-separated list of snap names to filter by.
+      schema:
+        type: string
+        example: multipass,lxd
+  responses:
+    200:
+      description: A stream of log messages. Each line is a self-contained JSON object.
+      content:
+        application/x-ndjson:
+          schema:
+            $ref: '../components/schemas/Log.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'

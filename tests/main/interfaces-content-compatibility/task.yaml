@@ -8,19 +8,15 @@ environment:
   STORE_DIR: $(pwd)/fake-store-blobdir
   STORE_ADDR: localhost:11028
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 restore: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
-
   snap set system experimental.content-compatibility-label=true
 
   snap install core24

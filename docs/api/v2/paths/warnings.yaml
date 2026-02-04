@@ -1,0 +1,111 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Synchronous
+    - Warnings
+  summary: Get system warnings
+  description: |-
+    Retrieves the current warnings in snapd.
+  operationId: getWarnings
+  security: []
+  parameters:
+    - name: select
+      in: query
+      description: |-
+        Retrieve specific warnings. The default only shows pending warnings.
+        All shows warnings that haven't expired or been cleaned.
+      schema:
+        type: string
+        enum:
+          - ''
+          - all
+          - pending
+        default: pending
+  responses:
+    200:
+      description: A synchronous response containing a list of warnings.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: array
+                items:
+                  $ref: '../components/schemas/Warning.yaml'
+
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - Warnings
+  summary: Respond to warnings
+  description: |-
+    Warnings can only be acknowledged to clear them, but they may reoccur
+    Acknowledging warnings does not fix the underlying cause.
+  operationId: respondToWarnings
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+            - timestamp
+          properties:
+            action:
+              type: string
+              enum: 
+                - okay
+            timestamp:
+              type: string
+              format: date-time
+              description: Time to clear warnings before (RFC3339 UTC format).
+              example: 2025-09-08T17:29:40.829324752Z
+  responses:
+    200:
+      description: A synchronous response indicating success.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum: 
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: integer
+                description: The number of warnings cleared.
+                example: 0
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

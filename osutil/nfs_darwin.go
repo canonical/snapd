@@ -23,3 +23,8 @@ package osutil
 var isHomeUsingRemoteFS = func() (bool, error) {
 	return false, ErrDarwin
 }
+
+// snapDirsUnderNFSMounts is not implemented on darwin
+var snapDirsUnderNFSMounts = func() (bool, error) {
+	return false, ErrDarwin
+}

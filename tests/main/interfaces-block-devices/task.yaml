@@ -8,7 +8,14 @@ prepare: |
     # identify which disk /var/snap lives on; we could use %Hd:%Ld, but not all
     # versions of coreutils support that, but it's not always obvious what the
     # device is if the host is using btrfs, or an alias such as /dev/root
-    maybe_partition_dev="$(df --output=source /var/snap | tail -n -1)"
+    if lsblk -f -o label,fstype | MATCH "ubuntu-data.*crypto_LUKS"; then
+        # This is the case when TPM is enabled and we're using FDE
+        # Now /var/snap is on an ubuntu-data volume made available through device
+        # mapper and will show up as disk, so it is required to find the parent partition
+        maybe_partition_dev=/dev/"$(lsblk -f -o label,fstype,name --raw | awk '/ubuntu-data.*crypto_LUKS/  { print $3 }')"
+    else
+        maybe_partition_dev="$(df --output=source /var/snap | tail -n -1)"
+    fi
     # we're expecting a partition
     udevadm info -q property "$maybe_partition_dev" | MATCH 'DEVTYPE=partition'
     # get the node name under /dev

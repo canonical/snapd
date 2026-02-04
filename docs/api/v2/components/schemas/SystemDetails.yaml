@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemDetails
+description: Detailed information about a specific recovery system.
+properties:
+  current:
+    type: boolean
+    description: Whether this is the currently running system.
+  label:
+    type: string
+    description: The unique label identifying the recovery system.
+  brand:
+    type: object
+    title: StoreAccount         # TODO: Adding 'title' fields to inline defined objects provide greater clarity to the user.
+    properties:
+      id:
+        type: string
+      username:
+        type: string
+      display-name:
+        type: string
+      validation:
+        type: string
+  model:
+    type: object
+    description: A map of the model assertion's headers.
+    additionalProperties: true
+  actions:
+    type: array
+    description: A list of actions that can be performed on this system.
+    items:
+      type: object
+      title: SystemActionInfo
+      properties:
+        title:
+          type: string
+        mode:
+          type: string
+  available-optional:
+    type: object
+    properties:
+      snaps:
+        type: array
+        items:
+          type: string
+        description: A list of optional snaps available for installation.
+      components:
+        type: array
+        items:
+          type: string
+        description: A list of optional components available for installation.
+  volumes:
+    type: array
+    description: A list of storage volumes defined by the system's gadget snap.
+    items:
+      type: object
+      title: VolumeInfo
+      properties:
+        name:
+          type: string
+          description: The name of the volume.
+        type:
+          type: string
+          description: The filesystem type.
+        size:
+          type: string
+          description: The size of the volume.
+  storage-encryption:
+    type: object
+    title: StorageEncryptionInfo
+    description: Information about the system's storage encryption capabilities.
+    properties:
+      support:
+        type: string
+        enum: 
+          - disabled
+          - available
+          - defective
+          - unavailable
+        description: The current support status for storage encryption.
+      storage-safety:
+        type: string
+        description: The required storage safety level (e.g., 'encrypted').
+      type:
+        type: string
+        description: The type of encryption (e.g., 'luks2').
+      unavailable-reason:
+        type: string
+        description: The reason why encryption is unavailable or defective.
+      availability-check-errors:
+        type: array
+        items:
+          type: string
+        description: A list of errors encountered during the availability check.
+      features:
+        type: array
+        items:
+          type: string
+          enum:
+            - passphrase-auth
+        description: A list of supported encryption features.

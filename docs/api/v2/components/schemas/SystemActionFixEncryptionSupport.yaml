@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionFixEncryptionSupport
+description: Payload to apply a corrective action to fix storage encryption support.
+required:
+  - action
+  - fix-action
+properties:
+  action:
+    type: string
+    enum:
+      - fix-encryption-support
+  fix-action:
+    type: string
+    description: The specific fix to apply.
+  args:
+    type: object
+    additionalProperties:
+      type: string
+    description: A map of key-value arguments for the fix action.

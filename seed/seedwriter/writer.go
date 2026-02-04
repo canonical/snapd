@@ -61,6 +61,10 @@ type Options struct {
 	// required to end in .snap or .comp, respectively.
 	IgnoreOptionFileExtentions bool
 
+	// EnforceValidation if set, will enforce validation sets, but if
+	// any are enforced by the model, then image writing will fail.
+	EnforceValidation bool
+
 	// Assertions to inject into the built image
 	ExtraAssertions []asserts.Assertion
 }
@@ -1539,6 +1543,10 @@ func (w *Writer) validationSetAsserts() (map[*asserts.AtSequence]*asserts.Valida
 	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
 	vss := w.model.ValidationSets()
 	for _, vs := range vss {
+		if !w.opts.EnforceValidation && vs.Mode == asserts.ModelValidationSetModeEnforced {
+			return nil, fmt.Errorf("model requires validation-set %q to be enforced, but validation is set to ignore", vs.Name)
+		}
+
 		atSeq, err := w.finalValidationSetAtSequence(vs)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: %v", err)

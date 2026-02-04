@@ -21,6 +21,11 @@ environment:
   KEY_DATABASE/kek: KEK
   KEY_DATABASE/pk: PK
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 prepare: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
@@ -28,11 +33,6 @@ prepare: |
   . "$TESTSLIB"/nested.sh
 
   tests.pkgs install efitools
-
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
 
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 

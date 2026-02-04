@@ -21,12 +21,12 @@ environment:
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     mkdir -p "$NESTED_FAKESTORE_BLOB_DIR"
 
     add_official_snap_to_fakestore() {
@@ -85,19 +85,9 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     # wait for the initialize system state change to be done, it's the change that
     # seeds the system, and it must complete correctly. Initialize device will fail due
     # to the serial assertion missing at this point

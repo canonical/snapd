@@ -65,6 +65,8 @@ The `StateManager.Ensure` methods implement small state machines that first chec
 
 Any system change operation is realized as a set and dependency graph of tasks. Each state manager implements different sets of *task kinds*, with each responsible for a relatively orthogonal set of concerns and behaviors. The graph and tasks are realized as [`state.Change`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#Change) and [`state.Task`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#Task), which are persisted to survive reboots and restarts. [`state.TaskRunner`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#TaskRunner) is the execution engine of `state.Changes` and is wired in the ensure loop as a manager itself.
 
+### SnapManager
+
 The [`overlord/snapstate.SnapManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#SnapManager) is responsible for:
 
 * managing the snapd persisted internal state for each installed snap (see [`snapstate.SnapState`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/snapstate#SnapState))
@@ -84,13 +86,19 @@ Paradigmatic tasks for [`snapstate`](https://github.com/canonical/snapd/tree/mas
 
 Snap metadata, as used throughout snapd and some basic operation helpers, are defined in the [`snap`](https://github.com/canonical/snapd/tree/master/snap) package. This metadata usually comes from parsing `snap.yaml` files.
 
+### InterfaceManager
+
 The [`overlord/ifacestate.InterfaceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#InterfaceManager) using the [`interfaces`](https://github.com/canonical/snapd/tree/master/interfaces) package is responsible for keeping the per-snap security profiles up-to-date used to sandbox them. It ensures that interface connections (persistently modeled by [`ifacestate.ConnectionState`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/ifacestate#ConnectionState)) are correctly reflected in the profiles. The [`interfaces.Repository`](https://pkg.go.dev/github.com/snapcore/snapd/interfaces#Repository) is the main abstraction to manage those connections, while [`interfaces/builtin`](https://github.com/canonical/snapd/tree/master/interfaces/builtin) carries each interface logic implementation.
 
 Paradigmatic handlers for [`ifacestate`](https://github.com/canonical/snapd/tree/master/overlord/ifacestate) include `setup-profiles`, `auto-connect` and `connect`.
 
+### AssertManager
+
 Assertions are signed documents used to carry policy or verification information. The [`overlord/assertstate.AssertManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#AssertManager), using the [`asserts`](https://github.com/canonical/snapd/tree/master/asserts) package, is responsible for maintaining the system assertion database. This includes updating and retrieving assertions, as needed, and to verify snaps. The `snap-declaration` assertion, for example, carries identity and sandbox policy information for a snap, while `snap-revision` carries verification information for a specific snap revision.
 
 Paradigmatic functionality in [`assertstate`](https://github.com/canonical/snapd/tree/master/overlord/assertstate) is [`DB`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#DB) to get read-only access to the database, more direct retrieval helpers (e.g. [`SnapDeclaration`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#SnapDeclaration)) , [`RefreshSnapAssertions`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/assertstate#RefreshSnapAssertions) and the `verify-snap` task.
+
+### Other State Managers
 
 More state managers exist to cover other aspects of snaps ([`overlord/hookstate.HookManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/hookstate#HookManager) for hooks, etc.)
 

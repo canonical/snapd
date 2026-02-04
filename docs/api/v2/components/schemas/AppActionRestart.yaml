@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Restarts one or more services.
+allOf:
+  - $ref: './AppActionBase.yaml'
+  - type: object
+    required:
+      - action
+    properties:
+      action:
+        type: string
+        enum:
+          - restart
+      reload:
+        type: boolean
+        description: Tries to reload the service if it supports it; otherwise, it performs a full restart.
+        default: false
+example:
+  action: restart
+  names: [lxd]
+  reload: true

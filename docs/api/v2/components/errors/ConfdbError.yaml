@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: An error occured while interacting with confdb.
+properties:
+  kind:
+    type: string
+    description: machine-readable definition of the error.
+    enum:
+      - option-not-available
+      - option-not-found
+      - assertion-not-found  # TODO Need follow up PR focusing only on errors
+  message:
+    type: string
+    description: Human-readable string describing the error.
+    example: "cannot get 'ssid' through canonical/network/wifi-setup: no data"

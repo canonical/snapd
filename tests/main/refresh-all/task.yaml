@@ -11,12 +11,12 @@ systems: [-ubuntu-core-*, -ubuntu-14.04*]
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
     # needed for test-snapd-tools_instance
     snap set system experimental.parallel-instances=true
 
@@ -29,21 +29,12 @@ prepare: |
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
     snap set system experimental.parallel-instances=null
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Precondition check for the fake store"
     snap refresh --list 2>&1 | MATCH "All snaps up to date."
     snap refresh 2>&1 | MATCH "All snaps up to date."

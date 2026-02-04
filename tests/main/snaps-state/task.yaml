@@ -6,7 +6,7 @@ details: |
    and otherwise it tries from $TESTSLIB. Finally verifies that the confinement for 
    the current system can be checked
 
-backends: [google, qemu]
+backends: [google, qemu, openstack]
 
 prepare: |
     snap set system experimental.parallel-instances=true

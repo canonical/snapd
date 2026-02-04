@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+# TODO Link to routes that do not define endpoints for certain request types
+
+description: |-
+  The requested method is not allowed.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum: 
+            - 405
+        status:
+          type: string
+          enum:
+            - Method Not Allowed
+        type:
+          type: string
+          enum:
+            - error
+        result:
+          type: object
+          properties:
+            message:
+              type: string
+              example: system user administration via snapd is not allowed on this system

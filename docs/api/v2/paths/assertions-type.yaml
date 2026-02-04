@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: assertion-type
+    in: path
+    required: true
+    description: The type of assertion to retrieve.
+    schema:
+      type: string
+      example: 'account'
+
+get:
+  tags:
+    - Assertions
+    - OpenAccess
+    - Synchronous
+  summary: Get assertions of a given type
+  description: |-
+    Get all the assertions in the system assertion database of the given type.
+    Assertions can be filtered by providing assertion header keys as query
+    parameters (e.g., `?username=canonical`). The response is a stream of
+    assertions separated by double newlines. An assertion type of
+    snap-declaration can also be used to retrieve a remote snap-declaration
+    assertion for a given snap-id. This can also be accomplished from within the
+    snap environment.
+  operationId: getAssertionsByType
+  security: []
+  parameters:
+    - name: remote
+      in: query
+      description: |- # TODO Look for a way to syntactically document this
+        When using remote, a primary key must be associated with the request
+        assertion type. These mappings are as below
+        account -> account-id
+        account-key -> public-key-sha3-384
+        base-declaration -> series
+        confdb-schema -> account-id AND name
+        model -> series AND brand-id AND model
+        preseed -> series AND brand-id AND model AND system_label
+        repair -> brand-id AND repair-id
+        serial -> brand-id AND model AND serial
+        snap-build -> snap-sha3-384
+        snap-declaration -> series AND snap-id
+        snap-developer -> snap-id AND publisher-id
+        snap-resource-revision -> snap-id AND resource-name AND
+        resource-sha3-384 AND provenance
+        snap-resource-pair -> snap-id AND resource-name AND
+        resource-revision AND snap-revision AND provenance
+        snap-revision -> snap-sha3-384 AND provenance
+        store -> store
+        system-user -> brand-id AND email
+        validation -> series AND snap-id AND approved-snap-id AND
+        approved-snap-revision
+        validation-set -> series AND account-id AND name AND sequence
+
+        Some assertion types do not have a definite authority set
+        account-key-request -> public-key-sha3-384
+        confdb-control -> brand-id AND model AND serial
+        device-session-request -> brand_id AND model AND serial
+        serial-request - N/A
+
+      schema:
+        type: boolean
+        default: false
+    - name: json
+      in: query
+      description: |-
+        If true, the response is formatted as a JSON object containing the
+        headers of the assertions instead of the default signed assertion
+        stream format.
+      schema:
+        type: boolean
+        default: false
+  responses:
+    200:
+      description: |-
+        The response format depends on the `json` query parameter.
+        - By default (`json=false`), returns a stream of signed assertions.
+        - When `json=true`, returns a single JSON object.
+      headers:
+        X-Ubuntu-Assertions-Count:
+          description: |-
+            The total number of assertions returned in the stream.
+            (Only present for `application/x-ubuntu-assertion-stream` responses).
+          schema:
+            type: integer
+      content:
+        application/x-ubuntu-assertion-stream:
+          schema:
+            type: string
+            description: |-
+              A string containing one or more signed assertions, each separated
+              by double newlines. This is the default response format.
+            example: |
+              type: account
+              authority-id: canonical
+              account-id: canonical
+              display-name: canonical
+              timestamp: 2016-04-01T00:00:00.0Z
+              username: canonical
+              validation: certified
+              sign-key-sha3-384: <key>
+
+              <signature>
+        application/json:
+          schema:
+            $ref: '../components/schemas/AssertionResult.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

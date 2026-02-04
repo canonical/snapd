@@ -77,6 +77,9 @@ const (
 	// FDEStatusRecovery means some disk have been activated with
 	// a recovery key.
 	FDEStatusRecovery FDEStatus = "recovery"
+	// FDEStatusDegraded is reported when otherwise active, some
+	// keyslots tried were invalid.
+	FDEStatusDegraded FDEStatus = "degraded"
 )
 
 // FDESystemState is json serializable disk encryption state for the
@@ -123,6 +126,8 @@ func SystemState(st *state.State) (*FDESystemState, error) {
 
 	if s.NumActivatedContainersWithRecoveryKey() != 0 {
 		ret.Status = FDEStatusRecovery
+	} else if secboot.ActivateStateHasDegradedErrors(s) {
+		ret.Status = FDEStatusDegraded
 	} else {
 		ret.Status = FDEStatusActive
 	}
