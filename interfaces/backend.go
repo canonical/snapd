@@ -215,13 +215,13 @@ type SecurityBackendDiscardingLate interface {
 	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
 }
 
-// DelayedEffect wraps a delayed side effect ID;
+// DelayedEffect wraps a delayed side effect ID.
 type DelayedEffect string
 
 // DelayedSideEffectsBackend is an interface which is implemented by a backend
 // that supports delaying some side effects of their Setup().
 type DelayedSideEffectsBackend interface {
-	ApplyDelayedEffects(appSets *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
+	ApplyDelayedEffects(appSet *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
 }
 
 func SupportsDelayingEffects(backend SecurityBackend) bool {
