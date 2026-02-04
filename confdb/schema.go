@@ -651,6 +651,12 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 }
 
 func (v *alternativesSchema) PruneByVisibility(path []Accessor, index int, vis []Visibility, data []byte) ([]byte, error) {
+	// To find the correct alternative, we need to validate the data, because the
+	// path itself may not differentiate between which alternative is contained in
+	// the data in the case of identical prefixes. Though potentially validating
+	// each alternative may explode with n levels of nesting, we do not expect this
+	// to be a problem since nesting much beyond a simple leaf-node make the schema
+	// hard to understand.
 	for _, schema := range v.schemas {
 		if err := schema.Validate(data); err != nil {
 			continue
