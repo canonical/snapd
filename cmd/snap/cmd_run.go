@@ -1671,7 +1671,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		return err
 	}
 
-	snapenv.ExtendEnvForRun(env, info, runner.Component(), opts)
+	snapenv.ExtendEnvForRun(env, info, runner.App(), runner.Component(), opts)
 
 	if len(xauthPath) > 0 {
 		// Environment is not nil here because it comes from
