@@ -232,29 +232,41 @@ components:
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestComponentRemoveEnforcedValidationSet(c *C) {
+func (s *snapmgrTestSuite) TestComponentEnforcedValidationSet(c *C) {
+	expectedErr := `cannot remove component "mysnap+mycomp" as it is required by an enforcing validation set`
+	s.testComponentRemoveValidationSet(c, "mysnap", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", expectedErr)
+}
+
+func (s *snapmgrTestSuite) TestComponentUnenforcedValidationSet(c *C) {
+	s.testComponentRemoveValidationSet(c, "othersnap", "otherIDVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
+}
+
+func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName, targetSnapID, expectedErrorMsg string) {
 	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
 
-	const snapName = "mysnap"
+	const enforcedSnapName = "mysnap"
+	const enforcedSnapID = "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"
+
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(33)
 
+	snapYaml := fmt.Sprintf(`name: %s
+version: 1
+components:
+  %s:
+    type: standard
+`, targetSnapName, compName)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const snapYaml = `name: mysnap
-version: 1
-components:
-  mycomp:
-    type: standard
-`
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"}
-	cref := naming.NewComponentRef(snapName, compName)
+	ssi := &snap.SideInfo{RealName: targetSnapName, Revision: snapRev,
+		SnapID: targetSnapID}
+	cref := naming.NewComponentRef(targetSnapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	s.mockComponentInfos(c, snapName, []string{compName},
-		[]snap.Revision{compRev})
+
+	s.mockComponentInfos(c, targetSnapName, []string{compName}, []snap.Revision{compRev})
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
@@ -267,7 +279,7 @@ components:
 	compSt := snapSt.CurrentComponentState(cref)
 
 	snaptest.MockSnap(c, snapYaml, ssi)
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, targetSnapName, snapSt)
 
 	headers := map[string]any{
 		"series":     "16",
@@ -277,8 +289,8 @@ components:
 		"timestamp":  time.Now().Format(time.RFC3339),
 		"snaps": []any{
 			map[string]any{
-				"name":     snapName,
-				"id":       ssi.SnapID,
+				"name":     enforcedSnapName,
+				"id":       enforcedSnapID,
 				"presence": "required",
 			},
 		},
@@ -309,6 +321,10 @@ components:
 
 	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, "")
 
-	expectedMsg := fmt.Sprintf("cannot remove component %q as it is required by an enforcing validation set", csi.Component.SnapName+"+"+csi.Component.ComponentName)
-	c.Assert(err.Error(), Equals, expectedMsg)
+	if expectedErrorMsg != "" {
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, expectedErrorMsg)
+	} else {
+		c.Assert(err, IsNil)
+	}
 }
