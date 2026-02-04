@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -235,22 +236,29 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 //
 // The return value includes the length of the returned stream.
 func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
-	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
-	if err != nil {
-		return nil, 0, err
-	}
-	if rsp.StatusCode != 200 {
-		defer rsp.Body.Close()
-
-		var r response
-		dec := json.NewDecoder(rsp.Body)
-		if err := dec.Decode(&r); err == nil {
-			specificErr := r.err(client, rsp.StatusCode)
-			if specificErr != nil {
-				return nil, 0, specificErr
-			}
+	var rsp *http.Response
+	for {
+		rsp, err = client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
+		if err != nil {
+			return nil, 0, err
 		}
-		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
+		if rsp.StatusCode != 200 {
+			defer rsp.Body.Close()
+
+			var r response
+			dec := json.NewDecoder(rsp.Body)
+			if err := dec.Decode(&r); err == nil {
+				specificErr, isDaemonRestart := r.err(client, rsp.StatusCode)
+				if isDaemonRestart {
+					continue
+				}
+				if specificErr != nil {
+					return nil, 0, specificErr
+				}
+			}
+			return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
+		}
+		break
 	}
 	contentType := rsp.Header.Get("Content-Type")
 	if contentType != SnapshotExportMediaType {
