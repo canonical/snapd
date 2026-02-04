@@ -11891,6 +11891,116 @@ func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C)
 	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
 }
 
+func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {
+	expectedTaskKinds := []string{
+		//snapmgr
+		"link-snap",
+		"unlink-snap",
+		"unlink-current-snap",
+		"prepare-kernel-modules-components",
+		// fdemgr
+		"efi-secureboot-db-update-prepare",
+		"efi-secureboot-db-update",
+		"fde-add-platform-keys",
+		// devicemgr
+		"set-model",
+		"create-recovery-system",
+		"remove-recovery-system",
+		"finalize-recovery-system",
+		"update-managed-boot-config",
+		"update-gadget-cmdline",
+		"update-gadget-assets",
+	}
+	registeredTaskKinds := snapstate.ResealingTaskKinds()
+	sort.Strings(expectedTaskKinds)
+	sort.Strings(registeredTaskKinds)
+	c.Assert(registeredTaskKinds, DeepEquals, expectedTaskKinds)
+}
+
+func (s *snapmgrTestSuite) TestResealingTaskBlocked(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockResealingTask := st.NewTask("update-gadget-cmdline", "Some task we know is unconditionally a resealing task")
+	mockNonResealingTask := st.NewTask("mock-non-resealing-task", "Pretend this is not a resealing task")
+
+	type testcase struct {
+		kind           string
+		expectNoReseal bool
+
+		withSnapType snap.Type
+	}
+
+	tcs := []testcase{
+		// snapmgr
+		{kind: "link-snap", withSnapType: snap.TypeKernel},
+		{kind: "link-snap", withSnapType: snap.TypeGadget},
+		{kind: "link-snap", withSnapType: snap.TypeBase},
+		{kind: "link-snap", withSnapType: snap.TypeOS, expectNoReseal: true},
+		{kind: "link-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "link-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "link-snap", expectNoReseal: true},
+		{kind: "unlink-snap", withSnapType: snap.TypeKernel},
+		{kind: "unlink-snap", withSnapType: snap.TypeGadget},
+		{kind: "unlink-snap", withSnapType: snap.TypeBase},
+		{kind: "unlink-snap", withSnapType: snap.TypeOS, expectNoReseal: true},
+		{kind: "unlink-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "unlink-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "unlink-snap", expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeKernel},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeGadget},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeBase},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeOS, expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeApp, expectNoReseal: true},
+		{kind: "unlink-current-snap", withSnapType: snap.TypeSnapd, expectNoReseal: true},
+		{kind: "unlink-current-snap", expectNoReseal: true},
+		{kind: "prepare-kernel-modules-components"},
+		// fdemgr
+		{kind: "efi-secureboot-db-update-prepare"},
+		{kind: "efi-secureboot-db-update"},
+		{kind: "fde-add-platform-keys"},
+		// devicemgr
+		{kind: "set-model"},
+		{kind: "create-recovery-system"},
+		{kind: "remove-recovery-system"},
+		{kind: "finalize-recovery-system"},
+		{kind: "update-managed-boot-config"},
+		{kind: "update-gadget-cmdline"},
+		{kind: "update-gadget-assets"},
+	}
+
+	var testedTaskKinds []string
+
+	for i, tc := range tcs {
+		cmt := Commentf("tcs[%d] failed, task kind %q", i, tc.kind)
+
+		if !strutil.ListContains(testedTaskKinds, tc.kind) {
+			testedTaskKinds = append(testedTaskKinds, tc.kind)
+		}
+
+		resealingTask := st.NewTask(tc.kind, "Resealing task being tested")
+
+		if tc.withSnapType != "" {
+			si := &snap.SideInfo{RealName: "some-snap"}
+			snapsup := &snapstate.SnapSetup{SideInfo: si, Type: tc.withSnapType}
+			resealingTask.Set("snap-setup", snapsup)
+		}
+
+		// no other resealing tasks are running, No blocking.
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, nil), Equals, false, cmt)
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, []*state.Task{mockNonResealingTask}), Equals, false, cmt)
+
+		c.Check(snapstate.ResealingTaskBlocked(resealingTask, []*state.Task{mockResealingTask}), Equals, !tc.expectNoReseal, cmt)
+	}
+
+	// Make sure all registered resealing tasks are tested.
+	registeredTaskKinds := snapstate.ResealingTaskKinds()
+	sort.Strings(registeredTaskKinds)
+	sort.Strings(testedTaskKinds)
+	c.Assert(testedTaskKinds, DeepEquals, registeredTaskKinds, Commentf("Tested task kinds do not match registered task kinds"))
+}
+
 func (s *refreshSuite) TestSetMaxInhibitionDays(c *C) {
 	st := s.state
 	st.Lock()
