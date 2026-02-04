@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	efilib "github.com/canonical/go-efilib"
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
@@ -817,9 +818,20 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *P
 	var dbUpdates []*sb_efi.SignatureDBUpdate
 	if len(modelParams) > 0 {
 		for _, update := range modelParams[0].EFISignatureDbxUpdates {
+			var db efilib.VariableDescriptor
+			switch update.Database {
+			case KeyDatabasePK:
+				db = sb_efi.PK
+			case KeyDatabaseKEK:
+				db = sb_efi.KEK
+			case KeyDatabaseDB:
+				db = sb_efi.Db
+			case KeyDatabaseDBX:
+				db = sb_efi.Dbx
+			}
 			dbUpdates = append(dbUpdates, &sb_efi.SignatureDBUpdate{
-				Name: sb_efi.Dbx,
-				Data: update,
+				Name: db,
+				Data: update.Payload,
 			})
 		}
 	}
@@ -887,9 +899,20 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 		var updateDB []*sb_efi.SignatureDBUpdate
 
 		for _, update := range mp.EFISignatureDbxUpdates {
+			var db efilib.VariableDescriptor
+			switch update.Database {
+			case KeyDatabasePK:
+				db = sb_efi.PK
+			case KeyDatabaseKEK:
+				db = sb_efi.KEK
+			case KeyDatabaseDB:
+				db = sb_efi.Db
+			case KeyDatabaseDBX:
+				db = sb_efi.Dbx
+			}
 			updateDB = append(updateDB, &sb_efi.SignatureDBUpdate{
-				Name: sb_efi.Dbx,
-				Data: update,
+				Name: db,
+				Data: update.Payload,
 			})
 		}
 
