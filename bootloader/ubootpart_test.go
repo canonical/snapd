@@ -156,9 +156,7 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	confFile, err := os.Create(filepath.Join(gadgetDir, "uboot.conf"))
-	c.Assert(err, IsNil)
-	err = confFile.Close()
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = u.InstallBootConfig(gadgetDir, opts)
@@ -168,10 +166,40 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	envPath := filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img")
 	c.Assert(osutil.FileExists(envPath), Equals, true)
 
-	// Verify it's a valid redundant environment
+	// Verify it's a valid redundant environment with the default size
 	env, err := ubootenv.OpenRedundant(envPath, ubootenv.DefaultRedundantEnvSize)
 	c.Assert(err, IsNil)
 	c.Assert(env.Redundant(), Equals, true)
+}
+
+func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) {
+	// The environment size is a U-Boot compile option, so InstallBootConfig
+	// should honour the size from the gadget's reference boot.sel rather
+	// than always using the default.
+	opts := &bootloader.Options{PrepareImageTime: true}
+	u := bootloader.NewUbootPart(s.rootdir, opts)
+
+	gadgetDir := c.MkDir()
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// Create a reference boot.sel in the gadget with a non-default size
+	customSize := 16384
+	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "boot.sel"), customSize,
+		ubootenv.CreateOptions{HeaderFlagByte: true})
+	c.Assert(err, IsNil)
+	err = ref.Save()
+	c.Assert(err, IsNil)
+
+	err = u.InstallBootConfig(gadgetDir, opts)
+	c.Assert(err, IsNil)
+
+	// Verify the installed environment uses the gadget-specified size
+	envPath := filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img")
+	env, err := ubootenv.OpenRedundant(envPath, customSize)
+	c.Assert(err, IsNil)
+	c.Assert(env.Redundant(), Equals, true)
+	c.Assert(env.Size(), Equals, customSize)
 }
 
 func (s *ubootpartTestSuite) TestUbootPartSetBootVarsNoUselessWrites(c *C) {
