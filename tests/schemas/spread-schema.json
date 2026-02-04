@@ -686,6 +686,56 @@
           "type": "string",
           "description": "Time after which a warning is issued",
           "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Suite priority (higher runs first)",
+          "minimum": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "List of artifact paths to collect from test systems",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skip": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "description": "Reason for skipping"
+                },
+                "if": {
+                  "type": "string",
+                  "description": "Shell condition to evaluate for skipping"
+                }
+              },
+              "required": ["reason"],
+              "additionalProperties": false
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "Reason for skipping"
+                  },
+                  "if": {
+                    "type": "string",
+                    "description": "Shell condition to evaluate for skipping"
+                  }
+                },
+                "required": ["reason"],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "description": "Conditions for skipping this suite"
         }
       },
       "additionalProperties": false
