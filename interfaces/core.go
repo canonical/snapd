@@ -439,11 +439,14 @@ func ValidateDBusBusName(busName string) error {
 // be delayed until the provider has been fully set up.
 type DelayedEffectApplicable interface {
 	// SupportsDelayedEffect returns true when an interface indicates that a
-	// given backend specific side effect can be applied in a delayed manner.
-	SupportsDelayedEffect(backend SecuritySystem, id DelayedEffect) bool
+	// given backend may delay some side effects.
+	SupportsDelayedEffect(backend SecuritySystem) bool
 }
 
-func SupportsDelayedEffects(iface Interface, backend SecuritySystem, id DelayedEffect) bool {
+// SupportsDelayedEffects checks whether the interface supports
+// DelayedEffectApplicable, and if supported, proceeds calls
+// SupportsDelayedEffect() returning its result. Otherwise returns false.
+func SupportsDelayedEffects(iface Interface, backend SecuritySystem) bool {
 	delayedEffectsIface, ok := iface.(DelayedEffectApplicable)
-	return ok && delayedEffectsIface.SupportsDelayedEffect(backend, id)
+	return ok && delayedEffectsIface.SupportsDelayedEffect(backend)
 }
