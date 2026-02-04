@@ -29,7 +29,7 @@
 // read from and written to the partition device node
 // (e.g., /dev/disk/by-partlabel/ubuntu-boot-state).
 //
-// For security, the kernel command line parameter "snapd_ubootpart_disk" restricts which disk
+// For security, the kernel command line parameter "snapd_system_disk" restricts which disk
 // snapd will search for the boot state partition.
 //
 // Bootloader selection: Name() returns ubootName so that gadgets can use the standard uboot.conf
@@ -42,10 +42,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
@@ -66,6 +69,10 @@ type ubootpart struct {
 	rootdir          string
 	prepareImageTime bool
 	role             Role
+
+	// blDisk is the disk to search for the boot state partition,
+	// as specified by the snapd_system_disk kernel command line parameter
+	blDisk disks.Disk
 }
 
 func (u *ubootpart) processBlOpts(blOpts *Options) {
@@ -101,6 +108,33 @@ func (u *ubootpart) dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/")
 }
 
+// diskFromEFI attempts to find the boot disk using the EFI
+// LoaderDevicePartUUID variable set by shim during boot. It returns nil
+// if EFI is not available or the variable is not set.
+func diskFromEFI() (disks.Disk, error) {
+	const loaderDevicePartUUID = "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+
+	partuuid, _, err := efi.ReadVarString(loaderDevicePartUUID)
+	if err != nil {
+		if err == efi.ErrNoEFISystem {
+			return nil, nil
+		}
+		return nil, nil
+	}
+
+	partNode := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", strings.ToLower(partuuid))
+	resolved, err := filepath.EvalSymlinks(partNode)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve EFI boot partition %q: %v", partNode, err)
+	}
+
+	disk, err := disks.DiskFromPartitionDeviceNode(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk for EFI boot partition %q: %v", resolved, err)
+	}
+	return disk, nil
+}
+
 // envDevice returns the path to the environment device/file.
 func (u *ubootpart) envDevice() (string, error) {
 	if u.prepareImageTime {
@@ -108,38 +142,50 @@ func (u *ubootpart) envDevice() (string, error) {
 		return filepath.Join(u.dir(), "ubuntu-boot-state.img"), nil
 	}
 
-	// At runtime, check kernel cmdline for disk restriction
-	disk, err := u.getAllowedDisk()
-	if err != nil {
-		return "", err
+	// At runtime, lazily initialise the disk. Try EFI first, then
+	// fall back to the snapd_system_disk kernel command line parameter.
+	if u.blDisk == nil {
+		disk, err := diskFromEFI()
+		if err != nil {
+			return "", err
+		}
+		u.blDisk = disk
 	}
 
-	if disk != "" {
-		// Use the specific disk's partition
-		// TODO: implement disk-specific partition lookup
-		return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel), nil
+	if u.blDisk == nil {
+		m, err := kcmdline.KeyValues("snapd_system_disk")
+		if err != nil {
+			return "", err
+		}
+		if diskName, ok := m["snapd_system_disk"]; ok {
+			// Try device name first, then fall back to device path
+			disk, err := disks.DiskFromDeviceName(diskName)
+			if err != nil {
+				disk, err = disks.DiskFromDevicePath(diskName)
+				if err != nil {
+					return "", fmt.Errorf("cannot find disk %q: %v", diskName, err)
+				}
+			}
+			u.blDisk = disk
+		}
 	}
 
-	// Use partition by label
+	if u.blDisk != nil {
+		partUUID, err := u.blDisk.FindMatchingPartitionUUIDWithPartLabel(ubuntuBootStateLabel)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partUUID), nil
+	}
+
+	// Neither EFI nor snapd_system_disk available: fall back to
+	// partition by label
 	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
 	resolved, err := filepath.EvalSymlinks(partPath)
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve boot state partition: %v", err)
 	}
 	return resolved, nil
-}
-
-// getAllowedDisk returns the disk specified in kernel cmdline, if any.
-func (u *ubootpart) getAllowedDisk() (string, error) {
-	// Check for snapd_ubootpart_disk in kernel cmdline
-	cmdline, err := kcmdline.KeyValues("snapd_ubootpart_disk")
-	if err != nil {
-		return "", err
-	}
-	if disk, ok := cmdline["snapd_ubootpart_disk"]; ok {
-		return disk, nil
-	}
-	return "", nil
 }
 
 func (u *ubootpart) Present() (bool, error) {

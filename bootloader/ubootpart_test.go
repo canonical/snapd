@@ -26,8 +26,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
@@ -171,6 +174,9 @@ func (s *ubootpartTestSuite) TestUbootPartSetBootVarsNoUselessWrites(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimePresent(c *C) {
 	// At runtime (not prepare-image time), Present() checks for partition
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -189,6 +195,9 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimePresent(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeEnvDevice(c *C) {
 	// At runtime, envDevice() resolves the partition symlink
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	bootloader.MockUbootPartFiles(c, s.rootdir, opts)
 	u := bootloader.NewUbootPart(s.rootdir, opts)
@@ -201,6 +210,9 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeEnvDevice(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeEnvDeviceError(c *C) {
 	// At runtime, envDevice() returns error if partition doesn't exist
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -209,28 +221,47 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeEnvDeviceError(c *C) {
 }
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeWithKernelCmdline(c *C) {
-	// At runtime with snapd_ubootpart_disk in kernel cmdline
+	// At runtime with snapd_system_disk in kernel cmdline
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 
 	// Create mock kernel cmdline
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-	err := os.WriteFile(cmdlineFile, []byte("snapd_ubootpart_disk=mmcblk0"), 0644)
+	err := os.WriteFile(cmdlineFile, []byte("snapd_system_disk=mmcblk0"), 0644)
 	c.Assert(err, IsNil)
-	restore := kcmdline.MockProcCmdline(cmdlineFile)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
 	defer restore()
 
-	// Create the partition (needed for the disk path)
-	bootloader.MockUbootPartFiles(c, s.rootdir, opts)
+	// Mock the disk
+	bootStateDisk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel: "ubuntu-boot-state",
+				PartitionUUID:  "boot-state-partuuid",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "bootstate-dev-num",
+	}
+	restoreDisk := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"mmcblk0": bootStateDisk,
+	})
+	defer restoreDisk()
+
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
-	// envDevice should return the partition path (disk-specific lookup not yet implemented)
 	envPath, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, IsNil)
-	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partlabel/ubuntu-boot-state"))
+	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-partuuid"))
 }
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeGetSetEnvVar(c *C) {
 	// Test get/set at runtime using the partition
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	bootloader.MockUbootPartFiles(c, s.rootdir, opts)
 	u := bootloader.NewUbootPart(s.rootdir, opts)
@@ -260,6 +291,9 @@ func (s *ubootpartTestSuite) TestUbootPartGetBootVarsEnvNotExist(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeSetBootVarsEnvDeviceError(c *C) {
 	// At runtime, SetBootVars should fail if partition doesn't exist
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -269,6 +303,9 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeSetBootVarsEnvDeviceError(c *C)
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeGetBootVarsEnvDeviceError(c *C) {
 	// At runtime, GetBootVars should fail if partition doesn't exist
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -278,6 +315,9 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeGetBootVarsEnvDeviceError(c *C)
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeInstallBootConfigEnvDeviceError(c *C) {
 	// At runtime, InstallBootConfig should fail if partition doesn't exist
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -286,15 +326,99 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeInstallBootConfigEnvDeviceError
 	c.Assert(err, ErrorMatches, "cannot resolve boot state partition:.*")
 }
 
-func (s *ubootpartTestSuite) TestUbootPartRuntimeGetAllowedDiskError(c *C) {
-	// At runtime, getAllowedDisk error should propagate
+func (s *ubootpartTestSuite) TestUbootPartRuntimeCmdlineError(c *C) {
+	// At runtime, kernel cmdline read error should propagate
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
 	opts := &bootloader.Options{PrepareImageTime: false}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	// Mock a non-existent cmdline file to trigger error
-	restore := kcmdline.MockProcCmdline("/nonexistent/cmdline")
+	restore = kcmdline.MockProcCmdline("/nonexistent/cmdline")
 	defer restore()
 
 	_, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, ErrorMatches, ".*no such file or directory")
+}
+
+func (s *ubootpartTestSuite) TestUbootPartRuntimeWithDevicePath(c *C) {
+	// At runtime with snapd_system_disk as a device path (fallback)
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
+	opts := &bootloader.Options{PrepareImageTime: false}
+
+	// Create mock kernel cmdline with a device path
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := os.WriteFile(cmdlineFile, []byte("snapd_system_disk=/dev/disk/by-id/mmc-FOO"), 0644)
+	c.Assert(err, IsNil)
+	restore = kcmdline.MockProcCmdline(cmdlineFile)
+	defer restore()
+
+	// Mock the disk - device name lookup fails, device path succeeds
+	bootStateDisk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel: "ubuntu-boot-state",
+				PartitionUUID:  "boot-state-path-partuuid",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "bootstate-path-dev-num",
+	}
+	restoreDisk := disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/disk/by-id/mmc-FOO": bootStateDisk,
+	})
+	defer restoreDisk()
+
+	u := bootloader.NewUbootPart(s.rootdir, opts)
+
+	envPath, err := bootloader.UbootPartEnvDevice(u)
+	c.Assert(err, IsNil)
+	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-path-partuuid"))
+}
+
+func (s *ubootpartTestSuite) TestUbootPartRuntimeWithEFI(c *C) {
+	// At runtime with EFI LoaderDevicePartUUID available
+	opts := &bootloader.Options{PrepareImageTime: false}
+
+	// Mock the EFI variable with a partition UUID (UTF-16 encoded, upper case)
+	const loaderDevicePartUUID = "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+	restoreEFI := efi.MockVars(map[string][]byte{
+		loaderDevicePartUUID: bootloadertest.UTF16Bytes("AAAA-BBBB-CCCC"),
+	}, nil)
+	defer restoreEFI()
+
+	// Create a by-partuuid symlink that resolves to a device node
+	byPartUUID := filepath.Join(s.rootdir, "/dev/disk/by-partuuid")
+	err := os.MkdirAll(byPartUUID, 0755)
+	c.Assert(err, IsNil)
+	mockPartDev := filepath.Join(s.rootdir, "/dev/mmcblk0p3")
+	err = os.WriteFile(mockPartDev, nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(mockPartDev, filepath.Join(byPartUUID, "aaaa-bbbb-cccc"))
+	c.Assert(err, IsNil)
+
+	// Mock DiskFromPartitionDeviceNode to return a disk with boot-state
+	bootStateDisk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel: "ubuntu-boot-state",
+				PartitionUUID:  "boot-state-efi-partuuid",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "bootstate-efi-dev-num",
+	}
+	restoreDisk := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		mockPartDev: bootStateDisk,
+	})
+	defer restoreDisk()
+
+	u := bootloader.NewUbootPart(s.rootdir, opts)
+
+	envPath, err := bootloader.UbootPartEnvDevice(u)
+	c.Assert(err, IsNil)
+	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-efi-partuuid"))
 }
