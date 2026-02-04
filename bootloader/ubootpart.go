@@ -22,7 +22,8 @@
 //
 // Unlike the standard 'uboot' bootloader which stores the environment in a file on a FAT
 // filesystem, ubootpart writes directly to a raw partition. This provides true redundancy with
-// two environment copies that can survive filesystem corruption.
+// two environment copies that are not affected by filesystem corruption, as there is no
+// filesystem.
 //
 // At prepare-image time, an initial environment image is created. At runtime, the environment is
 // read from and written to the partition device node
