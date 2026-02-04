@@ -46,7 +46,7 @@ N = int(os.getenv("N") or cpu_count())
 CAN_FAIL = os.getenv("CAN_FAIL")
 
 # names of sections
-SECTIONS = [
+SECTIONS: [str] = [
     "prepare",
     "prepare-each",
     "restore",
@@ -55,6 +55,7 @@ SECTIONS = [
     "debug-each",
     "execute",
     "repack",
+    "skip",
 ]
 
 
@@ -138,6 +139,10 @@ class ShellcheckFailures(Exception):
         return iter(self.failures)
 
 
+def iscomposite(section: str) -> bool:
+    return section == "skip"
+
+
 def checksection(data, env: Dict[str, str]):
     # spread shell snippets are executed under 'set -e' shell, make sure
     # shellcheck knows about that
@@ -192,6 +197,18 @@ def checksection(data, env: Dict[str, str]):
     )
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
+
+
+def checkcompositesection(compositesection: str, data, env):
+    if compositesection == "skip":
+        # skip data is a list of conditions
+        for entry in data:
+            if "if" not in entry:
+                continue
+            logging.debug("checking composite 'if' entry")
+            checksection(entry["if"], env)
+    else:
+        raise RuntimeError(f"unsupported composite section {compositesection}")
 
 
 class Cacher:
@@ -290,8 +307,12 @@ def checkfile(path, executor):
         if section not in data:
             continue
         try:
-            logging.debug("%s: checking section %s", path, section)
-            checksection(data[section], env)
+            if not iscomposite(section):
+                logging.debug("%s: checking section %s", path, section)
+                checksection(data[section], env)
+            else:
+                logging.debug("%s: checking composite section %s", path, section)
+                checkcompositesection(section, data[section], env)
         except ShellcheckRunError as serr:
             errors.addfailure(section, serr.stderr.decode("utf-8"))
 
