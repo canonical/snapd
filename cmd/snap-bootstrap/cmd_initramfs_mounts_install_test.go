@@ -966,6 +966,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataFound(c *C) {
+	c.Skip("skip until dm-verity for bases is re-enabled")
 	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",

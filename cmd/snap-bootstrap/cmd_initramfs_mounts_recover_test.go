@@ -3624,6 +3624,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityAssertionAndDataFound(c *C) {
+	c.Skip("skip until dm-verity for bases is re-enabled")
 	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
