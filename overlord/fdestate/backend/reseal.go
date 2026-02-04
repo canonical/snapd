@@ -504,7 +504,7 @@ func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 func updateRunProtectionProfile(
 	parameters *updatedParameters,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
-	sigDbxUpdates [][]byte,
+	sigDbxUpdates []secboot.DbUpdate,
 	roleToBlName map[bootloader.Role]string,
 	checkResult *secboot.PreinstallCheckResult,
 ) error {
@@ -573,7 +573,7 @@ func updateRunProtectionProfile(
 func updateFallbackProtectionProfile(
 	parameters *updatedParameters,
 	pbc boot.PredictableBootChains,
-	sigDbxUpdates [][]byte,
+	sigDbxUpdates []secboot.DbUpdate,
 	roleToBlName map[bootloader.Role]string,
 	checkResult *secboot.PreinstallCheckResult,
 ) error {
@@ -643,7 +643,7 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 // boot chains and an optional signature DB update
 func ResealKeysForSignaturesDBUpdate(
 	manager FDEStateManager, method device.SealingMethod, rootdir string,
-	params *boot.ResealKeyForBootChainsParams, dbUpdate [][]byte,
+	params *boot.ResealKeyForBootChainsParams, dbUpdate []secboot.DbUpdate,
 ) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
@@ -665,7 +665,7 @@ func ResealKeysForSignaturesDBUpdate(
 
 type resealInputs struct {
 	bootChains         boot.BootChains
-	signatureDBUpdates [][]byte
+	signatureDBUpdates []secboot.DbUpdate
 }
 
 type resealOptions struct {
@@ -701,7 +701,7 @@ func resealKeys(
 	return doReseal(manager, rootdir, method == device.SealingMethodFDESetupHook, inputs, opts)
 }
 
-func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, updates [][]byte) {
+func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, updates []secboot.DbUpdate) {
 	if len(updates) == 0 {
 		return
 	}
