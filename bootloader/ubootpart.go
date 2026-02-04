@@ -179,7 +179,9 @@ func (u *ubootpart) envDevice() (string, error) {
 	}
 
 	// Neither EFI nor snapd_system_disk available: fall back to
-	// partition by label
+	// partition by label. This is the common path on first boot
+	// before the kernel command line is configured, or on non-EFI
+	// systems without snapd_system_disk set.
 	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
 	resolved, err := filepath.EvalSymlinks(partPath)
 	if err != nil {
