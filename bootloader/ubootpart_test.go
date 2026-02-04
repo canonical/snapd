@@ -124,6 +124,33 @@ func (s *ubootpartTestSuite) TestUbootPartExtractRecoveryKernelAssets(c *C) {
 	testBootloaderExtractRecoveryKernelAssets(c, u, kernelAssetsDir)
 }
 
+func (s *ubootpartTestSuite) TestUbootPartPresentAfterInstall(c *C) {
+	// Present() at prepare-image time checks for the installed environment
+	// file, not the .conf marker (which lives in gadgetDir, not rootdir).
+	// Use separate directories to verify this.
+	opts := &bootloader.Options{PrepareImageTime: true}
+	u := bootloader.NewUbootPart(s.rootdir, opts)
+
+	// Marker in a separate gadget dir — not in rootdir
+	gadgetDir := c.MkDir()
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// Before install, not present (no env file yet)
+	present, err := u.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// Install creates the env file in rootdir
+	err = u.InstallBootConfig(gadgetDir, opts)
+	c.Assert(err, IsNil)
+
+	// Now present via the env file, even though the marker is not in rootdir
+	present, err = u.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
+}
+
 func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	opts := &bootloader.Options{PrepareImageTime: true}
 	u := bootloader.NewUbootPart(s.rootdir, opts)

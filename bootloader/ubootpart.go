@@ -193,9 +193,9 @@ func (u *ubootpart) envDevice() (string, error) {
 
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, check for ubootpart.conf marker file
-		markerConf := filepath.Join(u.rootdir, "ubootpart.conf")
-		return osutil.FileExists(markerConf), nil
+		// At prepare-image time, check for the installed environment file
+		envFile := filepath.Join(u.dir(), "ubuntu-boot-state.img")
+		return osutil.FileExists(envFile), nil
 	}
 
 	// At runtime, check for partition by label
