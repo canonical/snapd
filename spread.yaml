@@ -332,11 +332,11 @@ backends:
                   workers: 14
             - ubuntu-24.04-64:
                   image: ubuntu-2404-64-virt-enabled
-                  storage: 25G
+                  storage: 30G
                   workers: 14
             - ubuntu-26.04-64:
                   image: ubuntu-2604-64-virt-enabled
-                  storage: 25G
+                  storage: 30G
                   workers: 14
 
     google-nested-arm:
@@ -496,11 +496,11 @@ backends:
                   workers: 12
             - ubuntu-24.04-64:
                   image: snapd-spread/ubuntu-24.04-64
-                  storage: 25G
+                  storage: 30G
                   workers: 12
             - ubuntu-26.04-64:
                   image: snapd-spread/ubuntu-26.04-64
-                  storage: 25G
+                  storage: 30G
                   workers: 12
 
     openstack-validation:
