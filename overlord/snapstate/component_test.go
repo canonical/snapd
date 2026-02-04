@@ -269,14 +269,14 @@ components:
 	snaptest.MockSnap(c, snapYaml, ssi)
 	snapstate.Set(s.state, snapName, snapSt)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"series":     "16",
 		"account-id": "developer",
 		"name":       "my-set",
 		"sequence":   "1",
 		"timestamp":  time.Now().Format(time.RFC3339),
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     snapName,
 				"id":       ssi.SnapID,
 				"presence": "required",
