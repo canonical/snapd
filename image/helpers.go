@@ -153,7 +153,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 
 			// Handle system-boot-state partition (raw partition for U-Boot env)
 			if ps.Role() == gadget.SystemBootState {
-				if err := writeBootStatePartition(dst); err != nil {
+				if err := writeBootStatePartition(dst, ps.Name()); err != nil {
 					return err
 				}
 				continue
@@ -187,15 +187,16 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 }
 
 // writeBootStatePartition creates the initial redundant U-Boot environment for a system-boot-state
-// partition. The output is a raw file containing two environment copies, each
-// DefaultRedundantEnvSize bytes.
-func writeBootStatePartition(dst string) error {
+// partition. The partition name comes from the gadget so that the image filename
+// matches the actual partition name. The output is a raw file containing two
+// environment copies, each DefaultRedundantEnvSize bytes.
+func writeBootStatePartition(dst, partName string) error {
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return err
 	}
 
 	// Create the environment image file (already saved by CreateRedundant)
-	envFile := filepath.Join(dst, "ubuntu-boot-state.img")
+	envFile := filepath.Join(dst, partName+".img")
 	_, err := ubootenv.CreateRedundant(envFile, ubootenv.DefaultRedundantEnvSize)
 	if err != nil {
 		return fmt.Errorf("cannot create boot state environment: %v", err)

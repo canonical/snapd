@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -173,6 +174,67 @@ func (s *imageSuite) TestWriteResolvedContentWithBootState(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// Should be 2 * DefaultRedundantEnvSize (2 * 8KB = 16KB)
 	c.Check(fi.Size(), check.Equals, int64(16384))
+}
+
+var gadgetYamlWithCustomBootStateName = `
+volumes:
+  pi:
+    bootloader: u-boot
+    structure:
+      - name: my-boot-env
+        role: system-boot-state
+        type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+        offset: 1M
+        size: 1M
+      - name: ubuntu-seed
+        role: system-seed
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+      - name: ubuntu-boot
+        role: system-boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+        content:
+         - source: boot.scr
+           target: boot.scr
+      - name: ubuntu-data
+        role: system-data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        filesystem: ext4
+`
+
+func (s *imageSuite) TestWriteResolvedContentWithBootStateCustomName(c *check.C) {
+	// The environment image filename should match the gadget partition name,
+	// not be hardcoded to "ubuntu-boot-state".
+	prepareImageDir := c.MkDir()
+
+	gadgetRoot := c.MkDir()
+	snaptest.PopulateDir(gadgetRoot, [][]string{
+		{"meta/snap.yaml", packageGadget},
+		{"meta/gadget.yaml", gadgetYamlWithCustomBootStateName},
+		{"boot.scr", "content of boot.scr"},
+	})
+	kernelRoot := c.MkDir()
+
+	model := s.makeUC20Model(nil)
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	c.Assert(err, check.IsNil)
+
+	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
+	c.Assert(err, check.IsNil)
+
+	// Filename should use the gadget partition name "my-boot-env"
+	envFile := filepath.Join(prepareImageDir, "resolved-content/pi/part0/my-boot-env.img")
+	fi, err := os.Stat(envFile)
+	c.Assert(err, check.IsNil)
+	c.Check(fi.Size(), check.Equals, int64(16384))
+
+	// The old hardcoded name should not exist
+	oldName := filepath.Join(prepareImageDir, "resolved-content/pi/part0/ubuntu-boot-state.img")
+	c.Check(osutil.FileExists(oldName), check.Equals, false)
 }
 
 func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string) {
