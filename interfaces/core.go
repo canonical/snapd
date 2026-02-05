@@ -430,23 +430,3 @@ func ValidateDBusBusName(busName string) error {
 	}
 	return nil
 }
-
-// DelayedEffectApplicable is implemented by interfaces for which some, backend
-// specific, side effects can be applied in a delayed manner, not during the
-// backend's Setup(), but rather at the end.
-//
-// For instance, an update of a connected content consumer mount namespace may
-// be delayed until the provider has been fully set up.
-type DelayedEffectApplicable interface {
-	// SupportsDelayedEffect returns true when an interface indicates that a
-	// given backend may delay some side effects.
-	SupportsDelayedEffect(backend SecuritySystem) bool
-}
-
-// SupportsDelayedEffects checks whether the interface supports
-// DelayedEffectApplicable, and if supported, proceeds calls
-// SupportsDelayedEffect() returning its result. Otherwise returns false.
-func SupportsDelayedEffects(iface Interface, backend SecuritySystem) bool {
-	delayedEffectsIface, ok := iface.(DelayedEffectApplicable)
-	return ok && delayedEffectsIface.SupportsDelayedEffect(backend)
-}
