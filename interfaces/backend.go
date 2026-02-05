@@ -224,6 +224,8 @@ type DelayedSideEffectsBackend interface {
 	ApplyDelayedEffects(appSet *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
 }
 
+// SupportsDelayingEffects is a helper which returns true when a given backend
+// implements DelayedSideEffectsBackend interface.
 func SupportsDelayingEffects(backend SecurityBackend) bool {
 	_, ok := backend.(DelayedSideEffectsBackend)
 	return ok
