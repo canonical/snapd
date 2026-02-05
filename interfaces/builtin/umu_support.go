@@ -135,14 +135,6 @@ KERNEL=="hidraw*", KERNELS=="*28DE:*", MODE="0660", TAG+="uaccess"
 type umuSupportInterface struct {
 	commonInterface
 }
-
-func (iface *umuSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Similar approach to Steam Support but with more restricted permissions.
-	spec.AddSnippet(umuSupportConnectedPlugAppArmor)
-
-	return nil
-}
-
 func (iface *umuSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Basic rules for input devices
 	spec.AddSnippet(umuSupportSteamInputUDevRules)
