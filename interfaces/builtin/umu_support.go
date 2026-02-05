@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 )
@@ -125,12 +124,8 @@ const umuSupportConnectedPlugSecComp = `
 `
 
 const umuSupportSteamInputUDevRules = steamSupportSteamInputUDevRules
-# Valve USB devices
-SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"
-KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
-KERNEL=="hidraw*", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"
-KERNEL=="hidraw*", KERNELS=="*28DE:*", MODE="0660", TAG+="uaccess"
-`
+
+const umuSupportSteamVRUDevRules = steamSupportSteamVRUDevRules
 
 type umuSupportInterface struct {
 	commonInterface
