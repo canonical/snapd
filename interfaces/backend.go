@@ -141,7 +141,7 @@ func (d *DelayedSideEffect) String() string {
 	if desc == "" {
 		desc = "<none>"
 	}
-	return fmt.Sprintf("%s(%s)", d.ID, desc)
+	return fmt.Sprintf("%s (%s)", d.ID, desc)
 }
 
 // SetupContext conveys information on the context in which a call to Setup()
