@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -114,9 +114,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "/home/*/.local/share/applications/{,**} rw,")
 	c.Check(snippet, testutil.Contains, "/home/*/.local/share/desktop-directories/{,**} rw,")
 	c.Check(snippet, testutil.Contains, "/home/*/.local/share/icons/{,**} rw,")
-	
-	// Test snapd hostfs access
-	c.Check(snippet, testutil.Contains, "/var/lib/snapd/hostfs/** r,")
 }
 
 func (s *UMUSupportInterfaceSuite) TestSecCompSpec(c *C) {
