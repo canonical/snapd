@@ -272,6 +272,7 @@ arm_fadvise64_64
 mbind
 membarrier
 memfd_create
+memfd_secret
 mincore
 mkdir
 mkdirat
