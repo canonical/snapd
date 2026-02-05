@@ -110,7 +110,6 @@ parts:
       - libseccomp2
       - libudev1
       - libzstd1
-      - squashfs-tools
       - xdelta3
       - zlib1g
       - on armhf:
@@ -601,3 +600,30 @@ parts:
       craftctl default
       "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" \
           "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+  # TODO This is needed due to an unsquashfs crash on big pseudo-files in older
+  # squashfs-tools. Revert to pulling the deb when snapd is moved to the core26
+  # base.
+  squashfs-tools:
+    plugin: make
+    after:
+      - dynamic-linker
+    <<:
+      - *dynamic-linker
+    source: https://github.com/plougher/squashfs-tools.git
+    source-type: git
+    source-tag: "4.7.4"
+    override-build: |
+      cd squashfs-tools
+      make -j${CRAFT_PARALLEL_BUILD_COUNT}
+      install -Dm755 --strip --target-directory="${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/mksquashfs"
+      install -Dm755 --strip --target-directory="${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/unsquashfs"
+    override-prime: |
+      craftctl default
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+    build-packages:
+      - liblz4-dev
+      - liblzma-dev
+      - liblzo2-dev
+      - libzstd-dev
+      - zlib1g-dev

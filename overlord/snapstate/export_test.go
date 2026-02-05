@@ -152,7 +152,18 @@ func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 }
 
 // helpers
-var InstallSize = installSize
+var (
+	InstallSize          = installSize
+	ResealingTaskBlocked = resealingTaskBlocked
+)
+
+func ResealingTaskKinds() []string {
+	kinds := make([]string, 0, len(resealingTaskKindCheckers))
+	for kind := range resealingTaskKindCheckers {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
 
 // aliases v2
 var (

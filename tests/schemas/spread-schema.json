@@ -1,0 +1,744 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/snapcore/snapd/spread-project-schema.json",
+  "title": "Spread Project Configuration Schema",
+  "description": "Schema for Spread testing framework project configuration file (spread.yaml)",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "environment": {
+      "type": "object",
+      "description": "Environment variables available to all tasks",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" }
+        ]
+      }
+    },
+    "backends": {
+      "type": "object",
+      "description": "Backend configurations for test execution",
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/definitions/googleBackend" },
+          { "$ref": "#/definitions/openstackBackend" },
+          { "$ref": "#/definitions/qemuBackend" },
+          { "$ref": "#/definitions/adhocBackend" },
+          { "$ref": "#/definitions/testflingerBackend" }
+        ]
+      }
+    },
+    "path": {
+      "type": "string",
+      "description": "Path where the project is copied on the test systems"
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "List of artifact paths to collect from test systems",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude": {
+      "type": "array",
+      "description": "Files and directories to exclude from project sync",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prepare": {
+      "type": "string",
+      "description": "Script to run once before all tests"
+    },
+    "prepare-each": {
+      "type": "string",
+      "description": "Script to run before each test"
+    },
+    "restore": {
+      "type": "string",
+      "description": "Script to run once after all tests"
+    },
+    "restore-each": {
+      "type": "string",
+      "description": "Script to run after each test"
+    },
+    "debug": {
+      "type": "string",
+      "description": "Script to run for debugging (project wide)"
+    },
+    "debug-each": {
+      "type": "string",
+      "description": "Script to run for debugging after each test"
+    },
+    "suites": {
+      "type": "object",
+      "description": "Test suite configurations",
+      "additionalProperties": {
+        "$ref": "#/definitions/suite"
+      }
+    },
+    "kill-timeout": {
+      "type": "string",
+      "description": "Maximum time to wait before killing a task",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "warn-timeout": {
+      "type": "string",
+      "description": "Time after which a warning is issued if task hasn't completed",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "tasks-limit": {
+      "type": "integer",
+      "description": "Maximum number of tasks to run",
+      "minimum": 1
+    },
+    "rename": {
+      "type": "array",
+      "description": "List of sed-like rename rules for project files",
+      "items": {
+        "type": "string"
+      }
+    },
+    "repack": {
+      "type": "string",
+      "description": "Script to repack the project for efficient distribution"
+    }
+  },
+  "required": ["project", "backends", "path", "suites"],
+  "additionalProperties": false,
+  "definitions": {
+    "backendEnvironment": {
+      "type": "object",
+      "description": "Environment variables for this backend",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" }
+        ]
+      }
+    },
+    "backendSystemsGoogle": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigGoogle" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesGoogle"
+          }
+        }
+      ]
+    },
+    "backendSystemsOpenstack": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigOpenstack" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesOpenstack"
+          }
+        }
+      ]
+    },
+    "backendSystemsQemu": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigQemu" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesQemu"
+          }
+        }
+      ]
+    },
+    "backendSystemsAdhoc": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigAdhoc" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesAdhoc"
+          }
+        }
+      ]
+    },
+    "backendSystemsTestflinger": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "List of systems (simple strings or objects)",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "$ref": "#/definitions/systemConfigTestflinger" }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "description": "Systems defined as object with system name as key",
+          "additionalProperties": {
+            "$ref": "#/definitions/systemPropertiesTestflinger"
+          }
+        }
+      ]
+    },
+    "googleBackend": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "google",
+          "description": "Google backend type"
+        },
+        "key": {
+          "type": "string",
+          "description": "Authentication key for the backend"
+        },
+        "location": {
+          "type": "string",
+          "description": "Backend location/region"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Machine plan/type"
+        },
+        "storage": {
+          "type": "string",
+          "description": "Storage allocation"
+        },
+        "halt-timeout": {
+          "type": "string",
+          "description": "Time to wait before halting a machine",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "kill-timeout": {
+          "type": "string",
+          "description": "Time to wait before killing a task",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsGoogle"
+        }
+      },
+      "required": ["location"],
+      "additionalProperties": false
+    },
+    "openstackBackend": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "openstack",
+          "description": "OpenStack backend type"
+        },
+        "key": {
+          "type": "string",
+          "description": "Authentication key for the backend"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Machine plan/type"
+        },
+        "storage": {
+          "type": "string",
+          "description": "Storage allocation"
+        },
+        "halt-timeout": {
+          "type": "string",
+          "description": "Time to wait before halting a machine",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "wait-timeout": {
+          "type": "string",
+          "description": "Time to wait for machine to be ready",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "groups": {
+          "type": "array",
+          "description": "Backend groups",
+          "items": {
+            "type": "string"
+          }
+        },
+        "proxy": {
+          "type": "string",
+          "description": "Proxy server"
+        },
+        "cidr-port-rel": {
+          "type": "array",
+          "description": "CIDR and port relationships",
+          "items": {
+            "type": "string"
+          }
+        },
+        "volume-auto-delete": {
+          "type": "boolean",
+          "description": "Automatically delete volumes"
+        },
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsOpenstack"
+        }
+      },
+      "required": ["groups"],
+      "additionalProperties": false
+    },
+    "qemuBackend": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "qemu",
+          "description": "QEMU backend type"
+        },
+        "memory": {
+          "type": "string",
+          "description": "Memory allocation (e.g., 4G)"
+        },
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsQemu"
+        }
+      },
+      "required": ["memory"],
+      "additionalProperties": false
+    },
+    "adhocBackend": {
+      "type": "object",
+      "required": ["type", "allocate"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "adhoc"
+        },
+        "allocate": {
+          "type": "string",
+          "description": "Script to allocate a test machine"
+        },
+        "discard": {
+          "type": "string",
+          "description": "Script to discard a test machine"
+        },
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsAdhoc"
+        }
+      },
+      "additionalProperties": false
+    },
+    "testflingerBackend": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "$ref": "#/definitions/backendEnvironment"
+        },
+        "systems": {
+          "$ref": "#/definitions/backendSystemsTestflinger"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigGoogle": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesGoogle"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigOpenstack": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesOpenstack"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigQemu": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesQemu"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigAdhoc": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesAdhoc"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemConfigTestflinger": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_.-]+$": {
+          "$ref": "#/definitions/systemPropertiesTestflinger"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesGoogle": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "Base image name"
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "storage": {
+          "type": "string",
+          "description": "Storage allocation"
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        },
+        "secure-boot": {
+          "type": "boolean",
+          "description": "Enable secure boot"
+        },
+        "attach-service-account": {
+          "type": "boolean",
+          "description": "Attach service account"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesOpenstack": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "Base image name"
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "storage": {
+          "type": "string",
+          "description": "Storage allocation"
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesQemu": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "Base image name"
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        },
+        "bios": {
+          "type": "string",
+          "description": "BIOS type",
+          "enum": ["bios", "uefi"]
+        },
+        "flags": {
+          "type": "array",
+          "description": "System flags",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesAdhoc": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "Base image name"
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        }
+      },
+      "additionalProperties": false
+    },
+    "systemPropertiesTestflinger": {
+      "type": "object",
+      "properties": {
+        "queue": {
+          "type": "string",
+          "description": "Testflinger queue to submit jobs to"
+        },
+        "image": {
+          "type": "string",
+          "description": "Image URL or identifier for the test device"
+        },
+        "workers": {
+          "type": "integer",
+          "description": "Number of parallel workers",
+          "minimum": 1
+        },
+        "username": {
+          "type": "string",
+          "description": "SSH username"
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH password"
+        },
+        "reserve-key": {
+          "type": "string",
+          "description": "Key for reserving the device (e.g., lp:<KEY_NAME> or gh:<KEY_NAME>)"
+        },
+        "ssh-rsa-key": {
+          "type": "string",
+          "description": "SSH RSA private key for authentication"
+        },
+        "ssh-key-pass": {
+          "type": "string",
+          "description": "Passphrase for the SSH private key"
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Manually triggered system"
+        }
+      },
+      "additionalProperties": false
+    },
+    "suite": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "Brief summary of the test suite"
+        },
+        "details": {
+          "type": "string",
+          "description": "Detailed description of the test suite"
+        },
+        "systems": {
+          "type": "array",
+          "description": "Systems to run tests on (supports negation with -prefix)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "backends": {
+          "type": "array",
+          "description": "Backends to run tests on (supports negation with -prefix)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "environment": {
+          "type": "object",
+          "description": "Environment variables for this suite",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" }
+            ]
+          }
+        },
+        "prepare": {
+          "type": "string",
+          "description": "Script to run once before all tests in suite"
+        },
+        "prepare-each": {
+          "type": "string",
+          "description": "Script to run before each test in suite"
+        },
+        "restore": {
+          "type": "string",
+          "description": "Script to run once after all tests in suite"
+        },
+        "restore-each": {
+          "type": "string",
+          "description": "Script to run after each test in suite"
+        },
+        "debug": {
+          "type": "string",
+          "description": "Script to run for debugging when a test fails"
+        },
+        "manual": {
+          "type": "boolean",
+          "description": "Suite requires manual triggering"
+        },
+        "kill-timeout": {
+          "type": "string",
+          "description": "Maximum time to wait before killing a task",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "warn-timeout": {
+          "type": "string",
+          "description": "Time after which a warning is issued",
+          "pattern": "^[0-9]+(s|m|h)$"
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Suite priority (higher runs first)",
+          "minimum": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "List of artifact paths to collect from test systems",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skip": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "description": "Reason for skipping"
+                },
+                "if": {
+                  "type": "string",
+                  "description": "Shell condition to evaluate for skipping"
+                }
+              },
+              "required": ["reason"],
+              "additionalProperties": false
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "Reason for skipping"
+                  },
+                  "if": {
+                    "type": "string",
+                    "description": "Shell condition to evaluate for skipping"
+                  }
+                },
+                "required": ["reason"],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "description": "Conditions for skipping this suite"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

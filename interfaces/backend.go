@@ -141,7 +141,7 @@ func (d *DelayedSideEffect) String() string {
 	if desc == "" {
 		desc = "<none>"
 	}
-	return fmt.Sprintf("%s(%s)", d.ID, desc)
+	return fmt.Sprintf("%s (%s)", d.ID, desc)
 }
 
 // SetupContext conveys information on the context in which a call to Setup()
@@ -215,15 +215,17 @@ type SecurityBackendDiscardingLate interface {
 	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
 }
 
-// DelayedEffect wraps a delayed side effect ID;
+// DelayedEffect wraps a delayed side effect ID.
 type DelayedEffect string
 
 // DelayedSideEffectsBackend is an interface which is implemented by a backend
 // that supports delaying some side effects of their Setup().
 type DelayedSideEffectsBackend interface {
-	ApplyDelayedEffects(appSets *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
+	ApplyDelayedEffects(appSet *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error
 }
 
+// SupportsDelayingEffects is a helper which returns true when a given backend
+// implements DelayedSideEffectsBackend interface.
 func SupportsDelayingEffects(backend SecurityBackend) bool {
 	_, ok := backend.(DelayedSideEffectsBackend)
 	return ok

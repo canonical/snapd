@@ -58,7 +58,7 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 	return errors
 }
 
-// ApplyDelayedEffects delayed side effects of a previous call to backend's Setup().
+// ApplyDelayedEffects applies delayed side effects of a previous call to the backend's Setup().
 func ApplyDelayedEffects(repo *Repository, backend SecurityBackend, appSet *SnapAppSet, effects []DelayedSideEffect, tm timings.Measurer) error {
 	if len(effects) == 0 {
 		return nil

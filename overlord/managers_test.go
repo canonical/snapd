@@ -12194,9 +12194,6 @@ func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBa
 	// dependency between kernel, gadget and base, which then gets fixed by
 	// calling AbortUnreadyLanes()
 
-	// enable buggy behavior
-	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
-	defer restore()
 	const pcGadget = `
 name: pc
 version: 1.0
@@ -12288,19 +12285,17 @@ base: core20
 }
 
 func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithBuggySelfHeal(c *C) {
-	// pretend it's a buggy snapd version that generates the change, then
-	// snapd gets updated as part of the auto-refresh, during which we
-	// restart to the new snapd which uses a new prune interval that
-	// effectively aborts unready lanes and thus the buggy change completes,
-	// while the new version of snaps remains
-	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
-	defer restore()
 	const pcGadget = `
 name: pc
 version: 1.0
 type: gadget
 base: core20
 `
+	// pretend it's a buggy snapd version that generates the change, then
+	// snapd gets updated as part of the auto-refresh, during which we
+	// restart to the new snapd which uses a new prune interval that
+	// effectively aborts unready lanes and thus the buggy change completes,
+	// while the new version of snaps remains
 	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
 	c.Assert(rearrangeBaseKernelForCyclicDependency(s.o.State(), tss), IsNil)
 

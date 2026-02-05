@@ -267,10 +267,6 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	s.Append(linkSnap)
 	s.UpdateEdge(linkSnap, MaybeRebootEdge)
 
-	for _, t := range sc.componentTSS.linkTasks {
-		s.Append(t)
-	}
-
 	if sc.requiresKmodSetup() {
 		logger.Noticef("kernel-modules components present, delaying reboot after hooks are run")
 
@@ -278,7 +274,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		// before we schedule the reboot. otherwise, hooks are scheduled for
 		// after the reboot
 		const postReboot = false
-		if err := sc.addAutoConnectThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
+		if err := sc.addLinkComponentThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
 			return nil, err
 		}
 
@@ -369,7 +365,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 		// Let tasks know if they have to do something about restarts
 		// No kernel modules, reboot after link snap
 		const postReboot = true
-		if err := sc.addAutoConnectThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
+		if err := sc.addLinkComponentThroughHooks(st, s, ic, postReboot, ic.DeviceCtx); err != nil {
 			return nil, err
 		}
 	}
@@ -439,18 +435,26 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	return s.Close()
 }
 
-// addAutoConnectThroughHooks builds the chain of tasks that starts with
-// auto-connect and runs through any post-refresh/install hooks. Depending on
-// whether kernel-module preparation is required, this chain may belong either
-// to the up-to-link-snap or after-link-snap taskChainSpan, so the taskChainSpan
-// is provided by the caller.
-func (sc *snapInstallChoreographer) addAutoConnectThroughHooks(
+// addLinkComponentThroughHooks builds the chain of tasks that starts with any
+// component linking tasks, continues through auto-connect, and then runs through
+// any post-refresh/install hooks. Depending on whether kernel-module preparation
+// is required, this chain may belong either to the up-to-link-snap or
+// after-link-snap taskChainSpan, so the taskChainSpan is provided by the caller.
+func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	st *state.State,
 	s *taskChainSpan,
 	ic installContext,
 	postReboot bool,
 	deviceCtx DeviceContext,
 ) error {
+	// link components
+	for _, t := range sc.componentTSS.linkTasks {
+		s.Append(t)
+		if postReboot {
+			s.UpdateEdgeIfUnset(t, MaybeRebootWaitEdge)
+		}
+	}
+
 	// auto-connections
 	//
 	// For essential snaps that require reboots, 'auto-connect' is marked
@@ -466,7 +470,7 @@ func (sc *snapInstallChoreographer) addAutoConnectThroughHooks(
 	autoConnect.Set("finish-restart", postReboot)
 	s.Append(autoConnect)
 	if postReboot {
-		s.UpdateEdge(autoConnect, MaybeRebootWaitEdge)
+		s.UpdateEdgeIfUnset(autoConnect, MaybeRebootWaitEdge)
 	}
 
 	// setup aliases
