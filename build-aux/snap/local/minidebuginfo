@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -eu
+
+tmp=$(mktemp -d)
+cleanup() {
+  rm -rf "${tmp}"
+}
+trap cleanup EXIT
+
+# This is from gdb documentation
+# https://sourceware.org/gdb/current/onlinedocs/gdb.html/MiniDebugInfo.html
+
+# Extract the dynamic symbols from the main binary, there is no need
+# to also have these in the normal symbol table.
+nm -D "${1}" --format=posix --defined-only \
+  | awk '{ print $1 }' | sort > "${tmp}/dynsyms"
+
+# Extract all the text (i.e. function) symbols from the debuginfo.
+# (Note that we actually also accept "D" symbols, for the benefit
+# of platforms like PowerPC64 that use function descriptors.)
+nm "${1}" --format=posix --defined-only \
+  | awk '{ if ($2 == "T" || $2 == "t" || $2 == "D") print $1 }' \
+  | sort > "${tmp}/funcsyms"
+
+# Keep all the function symbols not already in the dynamic symbol
+# table.
+comm -13 "${tmp}/dynsyms" "${tmp}/funcsyms" > "${tmp}/keep_symbols"
+
+# Separate full debug info into debug binary.
+objcopy --only-keep-debug "${1}" "${tmp}/debug"
+
+# Copy the full debuginfo, keeping only a minimal set of symbols and
+# removing some unnecessary sections.
+objcopy -S --remove-section .gdb_index --remove-section .comment \
+  --keep-symbols="${tmp}/keep_symbols" "${tmp}/debug" "${tmp}/mini_debuginfo"
+
+# Drop the full debug info from the original binary.
+strip --strip-all -R .comment "${1}"
+
+# Inject the compressed data into the .gnu_debugdata section of the
+# original binary.
+xz -T0 "${tmp}/mini_debuginfo"
+objcopy --add-section .gnu_debugdata="${tmp}/mini_debuginfo.xz" "${1}"
