@@ -88,12 +88,14 @@ func (spec *Specification) SecurityTags() []string {
 
 // Implementation of methods required by interfaces.Specification
 
+// ConnectedPlugDefiner can be implemented by interfaces that need to add DBus snippets for connected plugs.
+type ConnectedPlugDefiner interface {
+	DBusConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records dbus-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		DBusConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
 		if err != nil {
 			return err
@@ -106,12 +108,14 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
+// ConnectedSlotDefiner can be implemented by interfaces that need to add DBus snippets for connected slots.
+type ConnectedSlotDefiner interface {
+	DBusConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedSlot records dbus-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		DBusConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
 		if err != nil {
 			return err
@@ -124,12 +128,14 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	return nil
 }
 
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent DBus snippets for plugs.
+type PermanentPlugDefiner interface {
+	DBusPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
 // AddPermanentPlug records dbus-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
-	type definer interface {
-		DBusPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		tags, err := spec.appSet.SecurityTagsForPlug(plug)
 		if err != nil {
 			return err
@@ -142,12 +148,14 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	return nil
 }
 
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent DBus snippets for slots.
+type PermanentSlotDefiner interface {
+	DBusPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 // AddPermanentSlot records dbus-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		DBusPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		tags, err := spec.appSet.SecurityTagsForSlot(slot)
 		if err != nil {
 			return err

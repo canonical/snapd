@@ -79,13 +79,15 @@ func (spec *Specification) Services() map[string]*Service {
 
 // Implementation of methods required by interfaces.Specification
 
+// ConnectedPlugDefiner can be implemented by interfaces that need to add systemd services for connected plugs.
+type ConnectedPlugDefiner interface {
+	interfaces.Interface
+	SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records systemd-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		interfaces.Interface
-		SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedPlug(spec, plug, slot)
@@ -93,13 +95,15 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	return nil
 }
 
+// ConnectedSlotDefiner can be implemented by interfaces that need to add systemd services for connected slots.
+type ConnectedSlotDefiner interface {
+	interfaces.Interface
+	SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedSlot records systemd-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		interfaces.Interface
-		SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedSlot(spec, plug, slot)
@@ -107,13 +111,15 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	return nil
 }
 
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent systemd services for plugs.
+type PermanentPlugDefiner interface {
+	interfaces.Interface
+	SystemdPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
 // AddPermanentPlug records systemd-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
-	type definer interface {
-		interfaces.Interface
-		SystemdPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentPlug(spec, plug)
@@ -121,13 +127,15 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	return nil
 }
 
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent systemd services for slots.
+type PermanentSlotDefiner interface {
+	interfaces.Interface
+	SystemdPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 // AddPermanentSlot records systemd-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		interfaces.Interface
-		SystemdPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentSlot(spec, slot)

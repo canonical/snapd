@@ -77,15 +77,33 @@ func (spec *Specification) AddPathContent(path string, state osutil.FileState) e
 
 // Implementation of methods required by interfaces.Specification
 
-// ConnectedPlugCallback must be implemented as a minimum by users of this backend.
-type ConnectedPlugCallback interface {
+// ConnectedPlugDefiner can be implemented by interfaces that need to add configuration files for connected plugs.
+type ConnectedPlugDefiner interface {
 	ConfigfilesConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug,
 		slot *interfaces.ConnectedSlot) error
 }
 
+// ConnectedPlugCallback is deprecated. Use ConnectedPlugDefiner instead.
+type ConnectedPlugCallback = ConnectedPlugDefiner
+
+// ConnectedSlotDefiner can be implemented by interfaces that need to add configuration files for connected slots.
+type ConnectedSlotDefiner interface {
+	ConfigfilesConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent configuration files for plugs.
+type PermanentPlugDefiner interface {
+	ConfigfilesPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent configuration files for slots.
+type PermanentSlotDefiner interface {
+	ConfigfilesPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 func getConnectedPlugCallback(iface interfaces.Interface, instanceName string) (
-	ConnectedPlugCallback, error) {
-	if iface, ok := iface.(ConnectedPlugCallback); ok {
+	ConnectedPlugDefiner, error) {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		if !interfaces.IsTheSystemSnap(instanceName) {
 			return nil, errors.New("internal error: configfiles plugs can be defined only by the system snap")
 		}
@@ -108,10 +126,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 
 // AddConnectedSlot records configfiles-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		ConfigfilesConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		if !interfaces.IsTheSystemSnap(plug.Snap().InstanceName()) {
 			return errors.New("internal error: configfiles plugs can be defined only by the system snap")
 		}
@@ -133,10 +148,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		spec.plugs = append(spec.plugs, plug.Name)
 	}
 
-	type definer interface {
-		ConfigfilesPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		if !interfaces.IsTheSystemSnap(plug.Snap.InstanceName()) {
 			return errors.New("internal error: configfiles plugs can be defined only by the system snap")
 		}
@@ -147,10 +159,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 
 // AddPermanentSlot records configfiles-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		ConfigfilesPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		return iface.ConfigfilesPermanentSlot(spec, slot)
 	}
 	return nil
