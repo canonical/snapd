@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -717,7 +718,18 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		return nil, err
 	}
 
-	// TODO:COMPS: check if component is enforced by validation set (see snapstate.canRemove)
+	// check if this component is required by any validation set in enforcing mode
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	pres, err := enforcedSets.Presence(info)
+	if err != nil {
+		return nil, err
+	}
+	if pres.Presence == asserts.PresenceRequired {
+		return nil, fmt.Errorf("cannot remove component %q as it is required by an enforcing validation set", compst.SideInfo.Component)
+	}
 
 	snapSup := &SnapSetup{
 		Base:        info.Base,
