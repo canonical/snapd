@@ -82,6 +82,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityUDev
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // snapRulesFileName returns the path of the snap udev rules file.
 func snapRulesFilePath(snapName string) string {
 	rulesFileName := fmt.Sprintf("70-%s.rules", snap.SecurityTag(snapName))
