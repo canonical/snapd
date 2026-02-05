@@ -48,7 +48,7 @@ execute: |
         esac
 
         echo "Install previous snapd version from the store"
-        distro_install_package snap-confine snapd
+        distro_install_package snapd
 
         case "$SPREAD_SYSTEM" in
             arch-*|centos-*)
@@ -108,8 +108,8 @@ execute: |
         if os.query is-arch-linux; then
             # Arch's pacman is a bit funky here, the command that's run is:
             #    pacman -U --noconfirm --force /home/gopath/snapd-*.pkg.tar.xz
-            # The official repo package contains snapd and snap-confine. The local test package
-            # conflicts with snap-confine, thus pacman will ask to remove snap-confine, displaying
+            # The official repo package contains snapd and snap-confine (up to snapd < 2.74). The local
+            # test package conflicts with snap-confine, thus pacman will ask to remove snap-confine, displaying
             # a question, but at the same time it completely ignores --noconfirm and aborts the upgrade.
             # As a workaround, drop --noconfirm and pass 'y' to all the questions.
             yes | pacman -U "$GOHOME"/snap*."$pkg_extension"
