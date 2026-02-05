@@ -136,8 +136,8 @@ type umuSupportInterface struct {
 	commonInterface
 }
 func (iface *umuSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Basic rules for input devices
 	spec.AddSnippet(umuSupportSteamInputUDevRules)
+	spec.AddSnippet(umuSupportSteamVRUDevRules)
 	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
 }
 
