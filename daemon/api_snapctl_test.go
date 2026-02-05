@@ -54,6 +54,33 @@ func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
+func (s *snapctlSuite) TestSnapctlGetFeatures(c *check.C) {
+    s.daemon(c)
+
+    defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+        return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
+    })()
+
+    defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, args []string, uid uint32, features []string) ([]byte, []byte, error) {
+        c.Check(features, check.DeepEquals, []string{"feat1", "feat2"})
+        return []byte("stdout output"), nil, nil
+    })()
+
+    buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
+    req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+    c.Assert(err, check.IsNil)
+
+    req.Header.Set("X-Snapctl-Features", "feat1 feat2")
+
+    rsp := s.syncReq(c, req, nil, actionIsExpected)
+    
+    c.Assert(rsp.Status, check.Equals, 200)
+    c.Check(rsp.Result, check.DeepEquals, map[string]string{
+        "stdout": "stdout output",
+        "stderr": "",
+    })
+}
+
 func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	s.daemon(c)
 
@@ -61,7 +88,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
 		return nil, nil, &ctlcmd.ForbiddenCommandError{}
 	})()
 
@@ -79,7 +106,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenErrorWithStdin(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
 		return nil, nil, &ctlcmd.ForbiddenCommandError{}
 	})()
 
@@ -98,7 +125,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
 		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
 	})()
 

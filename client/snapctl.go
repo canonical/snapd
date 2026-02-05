@@ -53,7 +53,7 @@ type SnapCtlOptions struct {
 type SnapCtlPostData struct {
 	SnapCtlOptions
 	Features map[string]string `json:"features,omitempty"`
-	Stdin []byte `json:"stdin,omitempty"`
+	Stdin    []byte            `json:"stdin,omitempty"`
 }
 
 type snapctlOutput struct {
@@ -96,6 +96,8 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 
 	if len(supportedFeatures) > 0 {
 		header["X-Snapctl-Features"] = fmt.Sprintf("%v", supportedFeatures)
+	} else {
+		header["X-Snapctl-Features"] = "none"
 	}
 
 	var output snapctlOutput

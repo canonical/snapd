@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-func MockCtlcmdRun(mock func(*hookstate.Context, []string, uint32) ([]byte, []byte, error)) (restore func()) {
+func MockCtlcmdRun(mock func(*hookstate.Context, []string, uint32, []string) ([]byte, []byte, error)) (restore func()) {
 	oldCtlcmdRun := ctlcmdRun
 	ctlcmdRun = mock
 	return func() {
