@@ -124,7 +124,7 @@ const umuSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
-const umuSupportSteamInputUDevRules = `
+const umuSupportSteamInputUDevRules = steamSupportSteamInputUDevRules
 # Valve USB devices
 SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"
 KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
