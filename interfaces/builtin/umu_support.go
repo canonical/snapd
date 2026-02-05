@@ -97,14 +97,20 @@ mount options=(rw, rbind) /bindfile* -> /newroot/**,
 /usr/bin/steam-runtime-launcher-interface-* ixr,
 /usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
 
+# Allow access to pressure-vessel directories
+/*/pressure-vessel/** mrw,
+
 # Allow access to icons and shortcuts directories
 owner /home/*/.config/menus/{,**} rw,
 owner /home/*/.local/share/applications/{,**} rw,
 owner /home/*/.local/share/desktop-directories/{,**} rw,
 owner /home/*/.local/share/icons/{,**} rw,
 
-# Permissions required for certain game launchers to function correctly.
-# Heroic Games Launcher
+# Permissions to access certain binaries
+# For UMU launcher
+/usr/bin/zenity ixr,
+/run/host/usr/sbin/ldconfig* ixr,
+# For Heroic Games Launcher
 /usr/bin/df ixr,
 
 # Allow basic operations needed by pressure-vessel
