@@ -124,3 +124,19 @@ func (cs *clientSuite) TestClientRunSnapctlReadLimitExact(c *check.C) {
 	_, _, err := cs.cli.RunSnapctl(options, mockStdin)
 	c.Check(err, check.IsNil)
 }
+
+func (cs *clientSuite) TestClientRunSnapctlHeader(c *check.C) {
+	cs.rsp = `{
+        "type": "sync",
+        "status-code": 200,
+        "result": {}
+    }`
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
+	}
+	_, _, err := cs.cli.RunSnapctl(options, nil)
+	c.Check(cs.req.Header.Get("X-Snapctl-Features"), check.Equals, "none")
+	c.Check(err, check.IsNil)
+}

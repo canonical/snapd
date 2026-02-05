@@ -22,6 +22,8 @@ package daemon
 import (
 	"net/http"
 
+	"strings"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -71,7 +73,12 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		context.Unlock()
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, snapctlPostData.Features)
+	var features []string
+	if header := r.Header.Get("X-Snapctl-Features"); header != "" && header != "none" {
+		features = strings.Fields(header)
+	}
+
+	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, features)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]any{
