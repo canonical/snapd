@@ -177,14 +177,6 @@ type TestConflictingConnectionInterface struct {
 	ConflictingConnectedInterfaces []string
 }
 
-// TestDelayedEffectApplyingInterface is used to test interfaces supporting
-// delayed side effects.
-type TestDelayedEffectApplyingInterface struct {
-	TestInterface
-
-	SupportsDelayedEffectCallback func(backend interfaces.SecuritySystem) bool
-}
-
 // String() returns the same value as Name().
 func (t *TestInterface) String() string {
 	return t.Name()
