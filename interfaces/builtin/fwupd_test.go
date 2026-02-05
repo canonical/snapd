@@ -81,6 +81,28 @@ func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, fwupdMockCoreSlotSnapInfoYaml, nil, "fwupd")
 }
 
+func (s *FwupdInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// dbus
+	_, ok = s.iface.(dbus.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *FwupdInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "fwupd")
 }

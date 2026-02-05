@@ -64,6 +64,16 @@ func (s *SteamSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, steamSupportCoreYaml, nil, "steam-support")
 }
 
+func (s *SteamSupportInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *SteamSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "steam-support")
 }

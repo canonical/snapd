@@ -193,6 +193,16 @@ apps:
 	s.plug3 = interfaces.NewConnectedPlug(s.plug3Info, appSet, nil, nil)
 }
 
+func (s *spiInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *spiInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "spi")
 }

@@ -74,6 +74,16 @@ func (s *QrtrInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrServerYaml, nil, "qc-router")
 }
 
+func (s *QrtrInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *QrtrInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "qualcomm-ipc-router")
 }

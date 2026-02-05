@@ -79,6 +79,20 @@ func (s *WaylandInterfaceSuite) SetUpTest(c *C) {
 	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, waylandClassicYaml, nil, "wayland")
 }
 
+func (s *WaylandInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *WaylandInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "wayland")
 }

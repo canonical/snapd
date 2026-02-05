@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,6 +65,22 @@ apps:
 `
 	s.slot, s.slotInfo = MockConnectedSlot(c, slotSnapInfoYaml, nil, "location")
 	s.plug, s.plugInfo = MockConnectedPlug(c, plugSnapInfoYaml, nil, "location-client")
+}
+
+func (s *LocationControlInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// dbus
+	_, ok = s.iface.(dbus.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(dbus.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
 }
 
 func (s *LocationControlInterfaceSuite) TestName(c *C) {

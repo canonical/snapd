@@ -155,6 +155,24 @@ func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *UDisks2InterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// dbus
+	_, ok = s.iface.(dbus.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "udisks2")
 }

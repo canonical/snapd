@@ -69,6 +69,16 @@ slots:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "personal-files")
 }
 
+func (s *personalFilesInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *personalFilesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "personal-files")
 }

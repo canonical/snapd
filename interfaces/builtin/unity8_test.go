@@ -62,6 +62,12 @@ apps:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "unity8")
 }
 
+func (s *unity8InterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *unity8InterfaceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }

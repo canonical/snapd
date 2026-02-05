@@ -128,6 +128,16 @@ func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 	s.malformedPlug, s.malformedPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersMalformedMockPlugSnapInfoYaml, nil, "privileged")
 }
 
+func (s *DockerSupportInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// kmod
+	_, ok = s.iface.(kmod.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker-support")
 }

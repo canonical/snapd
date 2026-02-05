@@ -60,6 +60,16 @@ slots:
 	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "ubuntu-download-manager")
 }
 
+func (s *UbuntuDownloadManagerInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *UbuntuDownloadManagerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "ubuntu-download-manager")
 }

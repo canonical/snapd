@@ -79,6 +79,16 @@ func (s *sdControlSuite) SetUpTest(c *C) {
 
 }
 
+func (s *sdControlSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *sdControlSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "sd-control")
 }

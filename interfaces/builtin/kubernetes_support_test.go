@@ -114,6 +114,20 @@ func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 	s.plugBad = interfaces.NewConnectedPlug(s.plugBadInfo, plugAppSet, nil, nil)
 }
 
+func (s *KubernetesSupportInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// kmod
+	_, ok = s.iface.(kmod.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *KubernetesSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kubernetes-support")
 }
