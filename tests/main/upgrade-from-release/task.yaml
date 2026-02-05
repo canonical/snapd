@@ -41,8 +41,9 @@ execute: |
         apt update -qq
     fi
 
+    # TODO: add automatic package lookup - manual list maintenance is impractical
     declare -A EXPECTED_SNAPD_VERSIONS=(
-        ["26.04"]='2.73\+ubuntu26.04'
+        ["26.04"]='2.74\+ubuntu26.04'
         ["25.10"]='2.73\+ubuntu25.10'
         ["24.04"]='2.62\+24.04'
         ["22.04"]='2.55.3\+22.04'
