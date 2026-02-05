@@ -1,0 +1,44 @@
+summary: Verify access to memfd_create and memfd_secret
+
+details: |
+    Verify access to memfd_create and memfd_secret for snaps.
+
+systems:
+    # UC: cannot use gcc
+    - -ubuntu-core-*
+    # no support at all for either syscall
+    - -ubuntu-20.04-*
+    - -ubuntu-18.04-*
+    - -ubuntu-16.04-*
+    - -amazon-linux-2-*
+
+environment:
+    MODE/secret: "secret"
+    MODE/create: "create"
+
+skip:
+    - reason: "Unsupported by host kernel"
+      if: |
+          case "$MODE/$SPREAD_SYSTEM" in
+          secret/debian-12-*|secret/ubuntu-22.04-*|secret/centos-9-*|secret/opensuse-15.6-*)
+              # supports memfd_create, but not memfd_secret, fallthrough
+              ;&
+          secret/amazon-linux-2023-*)
+              # supports memfd_create, but not memfd_secret
+              exit 0
+              ;;
+          *)
+              exit 1
+              ;;
+          esac
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+    gcc -o memfd -Wall -Wextra memfd.c
+    cp -v memfd /var/snap/test-snapd-sh-core24/common/
+
+execute: |
+    # these should not fail, unless it's unsupported system call
+    # shellcheck disable=SC2016
+    test-snapd-sh-core24.sh -c "\$SNAP_COMMON/memfd $MODE"
