@@ -43,9 +43,6 @@ const umuSupportBaseDeclarationSlots = `
 `
 
 const umuSupportConnectedPlugAppArmor = `
-# Allow basic operations needed by pressure-vessel
-capability sys_admin,
-
 # Allow pressure-vessel to set up its Bubblewrap sandbox
 @{PROC}/sys/kernel/overflowuid r,
 @{PROC}/sys/kernel/overflowgid r,
@@ -100,14 +97,18 @@ mount options=(rw, rbind) /bindfile* -> /newroot/**,
 /usr/bin/steam-runtime-launcher-interface-* ixr,
 /usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
 
-# This is to prevent errors in Heroic involving EACCES.
-/usr/bin/df ixr,
-
 # Allow access to icons and shortcuts directories
 owner /home/*/.config/menus/{,**} rw,
 owner /home/*/.local/share/applications/{,**} rw,
 owner /home/*/.local/share/desktop-directories/{,**} rw,
 owner /home/*/.local/share/icons/{,**} rw,
+
+# Permissions required for certain game launchers to function correctly.
+# Heroic Games Launcher
+/usr/bin/df ixr,
+
+# Allow basic operations needed by pressure-vessel
+capability sys_admin,
 `
 
 const umuSupportConnectedPlugSecComp = `
