@@ -1353,6 +1353,7 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 		return nil, false, nil
 	}
 
+	var newConnections []string
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
@@ -1388,8 +1389,13 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 			afterConnectTask.WaitFor(setupProfiles)
 		}
 		ts.AddAll(connectTs)
+
+		newConnections = append(newConnections, conn.ID())
 	}
 	if len(ts.Tasks()) > 0 {
+		sort.Strings(newConnections)
+		setupProfiles.Set("new-connections", newConnections)
+
 		ts.AddTask(setupProfiles)
 	}
 	return ts, hasInterfaceHooks, nil
