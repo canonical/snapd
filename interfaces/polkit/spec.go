@@ -94,45 +94,53 @@ func (spec *Specification) Rules() map[string]Rule {
 
 // Implementation of methods required by interfaces.Specification
 
+// ConnectedPlugDefiner can be implemented by interfaces that need to add polkit policies for connected plugs.
+type ConnectedPlugDefiner interface {
+	PolkitConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records polkit-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		PolkitConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		return iface.PolkitConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
+// ConnectedSlotDefiner can be implemented by interfaces that need to add polkit policies for connected slots.
+type ConnectedSlotDefiner interface {
+	PolkitConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedSlot records polkit-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		PolkitConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		return iface.PolkitConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent polkit policies for plugs.
+type PermanentPlugDefiner interface {
+	PolkitPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
 // AddPermanentPlug records polkit-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
-	type definer interface {
-		PolkitPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		return iface.PolkitPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent polkit policies for slots.
+type PermanentSlotDefiner interface {
+	PolkitPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 // AddPermanentSlot records polkit-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		PolkitPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		return iface.PolkitPermanentSlot(spec, slot)
 	}
 	return nil
