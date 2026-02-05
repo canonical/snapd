@@ -643,10 +643,25 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-25.*|ubuntu-26.*)
+        ubuntu-25.*)
             # bpftool is part of linux-tools package
             # ubuntu-25.04+ systemd-dev is optional
             echo "
+                dbus-user-session
+                fwupd
+                golang
+                gperf
+                libvirt-daemon-system
+                linux-tools-$(uname -r)
+                lz4
+                qemu-kvm
+                qemu-utils
+                systemd-dev
+                "
+            ;;
+        ubuntu-26.*)
+            echo "
+                util-linux-extra
                 dbus-user-session
                 fwupd
                 golang
@@ -666,6 +681,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-sid*)
             echo "
+                busybox
                 debhelper
                 autopkgtest
                 bpftool
