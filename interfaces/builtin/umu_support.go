@@ -101,7 +101,6 @@ mount options=(rw, rbind) /bindfile* -> /newroot/**,
 /usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
 
 # This is to prevent errors in Heroic involving EACCES.
-/var/lib/snapd/hostfs/** r,
 /usr/bin/df ixr,
 
 # Allow access to icons and shortcuts directories
