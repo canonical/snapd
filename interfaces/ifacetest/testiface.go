@@ -646,14 +646,3 @@ func (t *TestSymlinksInterface) TrackedDirectories() []string {
 func (t *TestConflictingConnectionInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return t.ConflictingConnectedInterfaces
 }
-
-// Support for delaying side effects.
-
-func (t *TestDelayedEffectApplyingInterface) SupportsDelayedEffect(backend interfaces.SecuritySystem) bool {
-	if t.SupportsDelayedEffectCallback == nil {
-		panic("SupportsDelayedEffectCallback not set up")
-	}
-	return t.SupportsDelayedEffectCallback(backend)
-}
-
-var _ interfaces.DelayedEffectApplicable = (*TestDelayedEffectApplyingInterface)(nil)
