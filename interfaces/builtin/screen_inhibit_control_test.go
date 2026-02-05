@@ -60,6 +60,14 @@ slots:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "screen-inhibit-control")
 }
 
+func (s *ScreenInhibitControlInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *ScreenInhibitControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "screen-inhibit-control")
 }

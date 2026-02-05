@@ -67,6 +67,16 @@ func (s *OpenglInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, openglCoreYaml, nil, "opengl")
 }
 
+func (s *OpenglInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *OpenglInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "opengl")
 }

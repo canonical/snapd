@@ -88,6 +88,12 @@ flags		: another cpu also without kvm support
 	s.AddCleanup(builtin.MockProcCpuinfo(mockCpuinfo))
 }
 
+func (s *kvmInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// kmod
+	_, ok := s.iface.(kmod.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *kvmInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kvm")
 }

@@ -78,6 +78,20 @@ func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, desktopCoreYaml, nil, "desktop")
 }
 
+func (s *DesktopInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *DesktopInterfaceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }

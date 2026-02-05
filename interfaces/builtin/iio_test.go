@@ -182,6 +182,16 @@ apps:
 	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, appSet, nil, nil)
 }
 
+func (s *IioInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *IioInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "iio")
 }

@@ -62,6 +62,14 @@ func (s *adbSupportSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, adbCoreYaml, nil, "adb-support")
 }
 
+func (s *adbSupportSuite) TestImplementedDefinerInterfaces(c *C) {
+	// udev
+	_, ok := s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(udev.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *adbSupportSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "adb-support")
 }

@@ -79,6 +79,16 @@ func (s *blockDevicesInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, blockDevicesCoreYaml, nil, "block-devices")
 }
 
+func (s *blockDevicesInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *blockDevicesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "block-devices")
 }

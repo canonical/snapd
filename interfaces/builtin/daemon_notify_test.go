@@ -61,6 +61,12 @@ func (s *daemoNotifySuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = builtin.MockConnectedPlug(c, daemoNotifyMockPlugSnapInfoYaml, nil, "daemon-notify")
 }
 
+func (s *daemoNotifySuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *daemoNotifySuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "daemon-notify")
 }

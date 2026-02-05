@@ -63,6 +63,16 @@ func (s *systemPackagesDocSuite) SetUpTest(c *C) {
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, systemPackagesDocCoreYaml, nil, "system-packages-doc")
 }
 
+func (s *systemPackagesDocSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *systemPackagesDocSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }

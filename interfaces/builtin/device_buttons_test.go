@@ -64,6 +64,12 @@ func (s *DeviceButtonsInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, gpioKeysCoreYaml, nil, "device-buttons")
 }
 
+func (s *DeviceButtonsInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// udev
+	_, ok := s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *DeviceButtonsInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "device-buttons")
 }

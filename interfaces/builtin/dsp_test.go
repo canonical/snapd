@@ -76,6 +76,16 @@ func (s *dspSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, dspMockPlugSnapInfoYaml, nil, "dsp")
 }
 
+func (s *dspSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *dspSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dsp")
 }

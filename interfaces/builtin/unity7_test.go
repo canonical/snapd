@@ -67,6 +67,12 @@ func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 	s.plugInst.AppSet().Info().InstanceKey = "instance"
 }
 
+func (s *Unity7InterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *Unity7InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "unity7")
 }

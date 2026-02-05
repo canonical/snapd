@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
@@ -67,6 +68,24 @@ apps:
 `
 	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "ofono")
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "ofono")
+}
+
+func (s *OfonoInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// dbus
+	_, ok = s.iface.(dbus.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
 }
 
 func (s *OfonoInterfaceSuite) TestName(c *C) {

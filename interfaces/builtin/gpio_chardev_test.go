@@ -90,6 +90,22 @@ func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
 }
 
+func (s *GpioChardevInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// systemd
+	_, ok = s.iface.(systemd.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(systemd.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *GpioChardevInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
 }

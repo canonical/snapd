@@ -85,6 +85,12 @@ func (s *UsbGadgetInterfaceSuite) SetUpTest(c *C) {
 	s.AddCleanup(systemd.MockSystemdVersion(210, nil))
 }
 
+func (s *UsbGadgetInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *UsbGadgetInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "usb-gadget")
 }

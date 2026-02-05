@@ -141,6 +141,20 @@ func (s *DbusInterfaceSuite) SetUpTest(c *C) {
 	s.connectedSystemPlug = interfaces.NewConnectedPlug(s.connectedSystemPlugInfo, appSet, nil, nil)
 }
 
+func (s *DbusInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// dbus
+	_, ok = s.iface.(dbus.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *DbusInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dbus")
 }

@@ -69,6 +69,16 @@ func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, sysobsMockPlugSnapInfoYaml, nil, "system-observe")
 }
 
+func (s *SystemObserveInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.PermanentPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *SystemObserveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "system-observe")
 }

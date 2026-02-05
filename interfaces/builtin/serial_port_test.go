@@ -420,6 +420,18 @@ apps:
 	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, appSet, nil, nil)
 }
 
+func (s *SerialPortInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(udev.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *SerialPortInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "serial-port")
 }
