@@ -2142,6 +2142,54 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
+func (s *interfaceManagerSuite) TestStaleConnectionsNotRemovedIfRemainingSnapBroken(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.state.Lock()
+	// Add stale connection to the state
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	sideInfo := &snap.SideInfo{
+		RealName: "consumer",
+		Revision: snap.R(1),
+	}
+
+	// Have one of the snaps in state, and broken due to missing snap.yaml
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
+		Current:  sideInfo.Revision,
+		SnapType: "app",
+	})
+
+	// Validity check - snap is broken
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+	curInfo, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Matches, `cannot find installed snap "consumer" at revision 1: missing file .*/1/meta/snap.yaml`)
+	s.state.Unlock()
+
+	// Create the manager, this removes stale connections
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing got connected and connection was not removed
+	var conns map[string]any
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+}
+
 func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, slotName string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.MockSnapDecl(c, "consumer", "same-publisher", nil)
