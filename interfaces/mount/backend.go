@@ -58,6 +58,12 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityMount
 }
 
+const (
+	// DelayedConsumerMountNsUpdate identifies an effect of updating the mount
+	// namespace of a connected consumer.
+	DelayedConsumerMountNsUpdate = interfaces.DelayedEffect("delayed-consumer-mount-ns-update")
+)
+
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
@@ -69,9 +75,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 	snapInfo := appSet.Info()
 
-	spec.(*Specification).AddOvername(snapInfo)
-	spec.(*Specification).AddLayout(snapInfo)
-	spec.(*Specification).AddExtraLayouts(opts.ExtraLayouts)
+	ms := spec.(*Specification)
+	ms.AddOvername(snapInfo)
+	ms.AddLayout(snapInfo)
+	ms.AddExtraLayouts(opts.ExtraLayouts)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
@@ -90,6 +97,41 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		// no changes in mount profiles, nothing to do
 		return nil
 	}
+
+	// The snap's mount namespace update can either be immediate or be delayed.
+	// In most cases, we want the update to be immediate, such as our own
+	// update, new connection, or during rebuilding of all profiles. However if
+	// we're indirectly affected by another snap update, delaying until the
+	// update of triggering snap is useful to ensure robustness.
+	// Actual delaying of mount namespace update depends on the source of
+	// the content, which can be:
+	// - our own snap
+	// - the content providers have been updated
+	// - the host
+	if sctx.CanDelayEffects && sctx.Reason == interfaces.SnapSetupReasonConnectedSlotProviderUpdate {
+		// The caller indicates support for delaying side effects and we're
+		// indirectly affected by another snap update. This could be snap with
+		// 'system' slots such as snapd, or another snap with content slots to
+		// which we are connected.
+		logger.Debugf("delaying update of mount namespaces for snap %q (triggered due to slot provider update)",
+			appSet.InstanceName())
+
+		if sctx.DelayEffect != nil {
+			sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+				ID:          DelayedConsumerMountNsUpdate,
+				Description: "mount namespace update triggered by slot provider update",
+			})
+		}
+		return nil
+	}
+
+	return b.updateOrDiscard(snapName, snapInfo)
+}
+
+// updateOrDiscard attempts to update the mount namespace for a snap, and if
+// that fails, tries to discard the namespace (unless the snap has enduring daemons).
+func (b *Backend) updateOrDiscard(snapName string, snapInfo *snap.Info) error {
+	logger.Debugf("update or discard mount ns for snap %v", snapInfo.InstanceName())
 
 	if err := UpdateSnapNamespace(snapName); err != nil {
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
@@ -174,4 +216,42 @@ func (b *Backend) SandboxFeatures() []string {
 
 	features := append(commonFeatures, cgroupv1Features...)
 	return features
+}
+
+var _ interfaces.DelayedSideEffectsBackend = (*Backend)(nil)
+
+func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []interfaces.DelayedSideEffect, tm timings.Measurer) error {
+	seen := map[interfaces.DelayedEffect]bool{}
+	var deduped []interfaces.DelayedSideEffect
+
+	// Remove duplicates, in case a snap was connected to multiple providers.
+	// The namespace update has a 'global' effect anyway, so it's sufficient to
+	// apply it once.
+	for _, w := range work {
+		if w.ID != DelayedConsumerMountNsUpdate {
+			return fmt.Errorf("unexpected effect: %q", w.ID)
+		}
+		if !seen[w.ID] {
+			deduped = append(deduped, w)
+			seen[w.ID] = true
+		}
+	}
+
+	// TODO opportunistically discard the mount namespace
+
+	switch {
+	case len(deduped) > 1:
+		return fmt.Errorf("internal error: expecting at most one delayed effect to apply")
+	case len(deduped) == 1:
+		snapName := appSet.InstanceName()
+		snapInfo := appSet.Info()
+
+		// TODO mask the errors?
+
+		logger.Debugf("setup delayed for %v", snapName)
+		// Assuming all non-deferred work was done in Setup(), perform only the
+		// remaining work, specifically update or discard the mount namespace
+		return b.updateOrDiscard(snapName, snapInfo)
+	}
+	return nil
 }
