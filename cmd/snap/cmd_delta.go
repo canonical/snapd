@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2025 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -29,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-var shortDeltaHelp = i18n.G("Apply/Generate snap detla")
+var shortDeltaHelp = i18n.G("Apply/Generate snap delta")
 var longDeltaHelp = i18n.G(`
 Generate / apply 'smart' delta between source and target snaps
 
@@ -53,6 +52,12 @@ type cmdDelta struct {
 	Delta  string `long:"delta" short:"d" required:"yes"`
 }
 
+// override for testing
+var (
+	squashfsGenerateDelta = squashfs.GenerateDelta
+	squashfsApplyDelta    = squashfs.ApplyDelta
+)
+
 func init() {
 	addCommand("delta", shortDeltaHelp, longDeltaHelp, func() flags.Commander { return &cmdDelta{} },
 		map[string]string{
@@ -73,17 +78,21 @@ func init() {
 }
 
 func (x *cmdDelta) Execute(args []string) error {
-	algo, _, _, _, err := squashfs.CheckSupportedDetlaFormats(nil)
-	if err != nil {
-		return fmt.Errorf(i18n.G("snap delta not supported: %v"), err)
+	// TODO: use correct delta format algorithm when multiple are supported
+	formats := squashfs.SupportedDeltaFormats()
+	if len(formats) == 0 {
+		return fmt.Errorf(i18n.G("snap delta not supported: no supported formats"))
 	}
-	fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), strings.Split(algo, ";")[0])
-	if "generate" == x.Positional.Operation {
+	fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), formats[1])
+
+	switch x.Positional.Operation {
+	case "generate":
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfs.GenerateSnapDelta(x.Source, x.Target, x.Delta)
-	} else if "apply" == x.Positional.Operation {
+		return squashfsGenerateDelta(x.Source, x.Target, x.Delta, squashfs.SnapXdelta3Format)
+	case "apply":
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
-		return squashfs.ApplySnapDelta(x.Source, x.Delta, x.Target)
+		return squashfsApplyDelta(x.Source, x.Delta, x.Target)
 	}
+
 	return fmt.Errorf(i18n.G("unknown operation: %s"), x.Positional.Operation)
 }
