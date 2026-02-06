@@ -22,10 +22,15 @@ package snapstate_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -225,4 +230,101 @@ components:
 	snapstate.Set(s.state, snapName, snapSt)
 
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestComponentEnforcedValidationSet(c *C) {
+	expectedErr := `cannot remove component "mysnap+mycomp" as it is required by an enforcing validation set`
+	s.testComponentRemoveValidationSet(c, "mysnap", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", expectedErr)
+}
+
+func (s *snapmgrTestSuite) TestComponentUnenforcedValidationSet(c *C) {
+	s.testComponentRemoveValidationSet(c, "othersnap", "otherIDVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
+}
+
+func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName, targetSnapID, expectedErrorMsg string) {
+	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
+
+	const enforcedSnapName = "mysnap"
+	const enforcedSnapID = "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"
+
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.R(33)
+
+	snapYaml := fmt.Sprintf(`name: %s
+version: 1
+components:
+  %s:
+    type: standard
+`, targetSnapName, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ssi := &snap.SideInfo{RealName: targetSnapName, Revision: snapRev,
+		SnapID: targetSnapID}
+	cref := naming.NewComponentRef(targetSnapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+
+	s.mockComponentInfos(c, targetSnapName, []string{compName}, []snap.Revision{compRev})
+
+	snapSt := &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi,
+					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})}),
+		Current: snapRev,
+	}
+	compSt := snapSt.CurrentComponentState(cref)
+
+	snaptest.MockSnap(c, snapYaml, ssi)
+	snapstate.Set(s.state, targetSnapName, snapSt)
+
+	headers := map[string]any{
+		"series":     "16",
+		"account-id": "developer",
+		"name":       "my-set",
+		"sequence":   "1",
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"snaps": []any{
+			map[string]any{
+				"name":     enforcedSnapName,
+				"id":       enforcedSnapID,
+				"presence": "required",
+			},
+		},
+	}
+
+	privKey, _ := assertstest.GenerateKey(1024)
+	signingDB := assertstest.NewSigningDB("developer", privKey)
+	assertion, err := signingDB.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	validSet := assertion.(*asserts.ValidationSet)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+	info.SideInfo = *ssi
+
+	// Set up enforced validation set mocking
+	snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vss := snapasserts.NewValidationSets()
+
+		err := vss.Add(validSet)
+		if err != nil {
+			return nil, err
+		}
+
+		return vss, nil
+	})
+
+	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, "")
+
+	if expectedErrorMsg != "" {
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, expectedErrorMsg)
+	} else {
+		c.Assert(err, IsNil)
+	}
 }
