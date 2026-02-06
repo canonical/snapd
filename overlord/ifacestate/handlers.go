@@ -403,6 +403,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// the snap for which profiles are being set up comes first
 	affectedNames = append([]string{snapName}, affectedNames...)
 
+	logger.Noticef(">>>> affected snaps: %v", affectedNames)
+	logger.Noticef(">>>> affected connections: %v", affectedConnections)
+	logger.Noticef(">>>> new connections; %v", newConns)
+
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
 	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
