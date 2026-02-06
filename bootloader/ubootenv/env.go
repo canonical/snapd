@@ -485,7 +485,10 @@ func CreateRedundant(fname string, size int) (*Env, error) {
 		activeCopy:     Copy1, // first Save() will write to Copy2
 	}
 
-	// Write initial empty environment with two copies
+	// Write initial empty environment to both copies
+	if err := env.Save(); err != nil {
+		return nil, err
+	}
 	if err := env.Save(); err != nil {
 		return nil, err
 	}
