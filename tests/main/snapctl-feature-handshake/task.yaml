@@ -1,0 +1,33 @@
+summary: Test the snapctl feature handshake
+
+details: |
+  Verifies that the snapctl feature handshake works by monitoring the PID
+  of a snap that snapctl is running inside of. Using strace, the syscalls
+  made by snapctl are monitored to check for the features header, which tells the
+  daemon which features snapctl supports.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    tests.session -u test prepare
+
+restore: |
+    snap remove --purge test-snapd-sh-core24
+    tests.session -u test restore
+
+execute: |
+    strace -f -s 2000 -e write -o trace.log test-snapd-sh-core24.sh -c 'snapctl get snapd-release'
+
+    if cat trace.log | MATCH "/v2/snapctl"; then
+        echo "ERROR: Trace log did not capture any snapctl API calls."
+        cat trace.log
+        exit 1
+    fi
+
+    if cat trace.log | MATCH "X-Snapctl-Features:"; then
+        echo "SUCCESS: Found feature handshake header."
+        cat trace.log | MATCH "X-Snapctl-Features: none"
+    else
+        echo "FAILURE: The X-Snapctl-Features header was missing."
+        cat trace.log
+        exit 1
+    fi
