@@ -172,6 +172,8 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 	if err != nil {
 		if !errors.Is(err, &confdb.NoDataError{}) {
 			// other errors (no match/view) would be detected before the change is created
+			logger.Noticef("DEBUG: error in readViewIntoChange for confdb %s/%s: %v", tx.ConfdbAccount, tx.ConfdbName, err)
+			// GetViaView already logged the confdb contents, so we don't need to do it again
 			return fmt.Errorf("internal error: cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
 		}
 

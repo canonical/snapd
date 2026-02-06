@@ -4568,3 +4568,44 @@ func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
 	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: true}
 	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
 }
+
+func (s *viewSuite) TestUnsetWithPrefixMatchDoesNotCreateUnsubstitutedPlaceholders(c *C) {
+	// This test verifies the fix for a bug where unset operations with view rules
+	// that matched as a prefix (not exact match) would create storage paths with
+	// unsubstituted placeholders, which would fail when unmarshalling from state.
+	//
+	// Given: request: '{category}.{key}', storage: 'robot-settings.{category}.{key}'
+	// When unsetting with just 'machine' (one part):
+	// - Before fix: Would match as prefix, create 'robot-settings.machine.{key}' with unsubstituted {key}
+	// - After fix: Should skip this rule since not all placeholders can be substituted
+
+	databag := confdb.NewJSONDatabag()
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"set-settings": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "{category}", "storage": "robot-settings.{category}"},
+				map[string]any{"request": "{category}.{key}", "storage": "robot-settings.{category}.{key}"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("set-settings")
+	c.Assert(view, NotNil)
+
+	// Set some nested data that would match both rules
+	err = view.Set(databag, "machine.password", "secret123")
+	c.Assert(err, IsNil)
+
+	err = view.Set(databag, "machine.username", "admin")
+	c.Assert(err, IsNil)
+
+	// Unset with just "machine" - this should only match the first rule exactly,
+	// not the second rule as a prefix (which would leave {key} unsubstituted)
+	err = view.Unset(databag, "machine")
+	c.Assert(err, IsNil)
+
+	// Verify the data was removed
+	_, err = view.Get(databag, "machine", nil)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}

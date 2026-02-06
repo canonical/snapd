@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -49,6 +50,16 @@ var (
 	setConfdbChangeKind = swfeats.RegisterChangeKind("set-confdb")
 	getConfdbChangeKind = swfeats.RegisterChangeKind("get-confdb")
 )
+
+// dumpConfdbContents logs the entire contents of a databag for debugging purposes
+func dumpConfdbContents(bag confdb.Databag, account, schemaName string) {
+	data, err := bag.Data()
+	if err != nil {
+		logger.Noticef("DEBUG confdb %s/%s: failed to dump contents: %v", account, schemaName, err)
+		return
+	}
+	logger.Noticef("DEBUG confdb %s/%s contents: %s", account, schemaName, string(data))
+}
 
 // SetViaView uses the view to set the requests in the transaction's databag.
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
@@ -87,33 +98,50 @@ func (e *NoViewError) Error() string {
 // name. Returns asserts.NotFoundError if no confdb-schema assertion can be
 // fetched and NoViewError if the known confdb-schema has no such view.
 func GetView(st *state.State, account, schemaName, viewName string) (*confdb.View, error) {
+	logger.Noticef("DEBUG: GetView called for view %q in confdb %s/%s", viewName, account, schemaName)
+	
 	confdbSchemaAs, err := assertstateConfdbSchema(st, account, schemaName)
 	if err != nil {
 		if !errors.Is(err, &asserts.NotFoundError{}) {
+			logger.Noticef("DEBUG: GetView error getting confdb-schema assertion for %s/%s: %v", account, schemaName, err)
 			return nil, err
 		}
-		logger.Noticef("confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
+		logger.Noticef("DEBUG: confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
 
 		userID := 0
 		fetchErr := assertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, store.ErrStoreOffline) {
+				logger.Noticef("DEBUG: store is offline, cannot fetch confdb-schema %s/%s: %v", account, schemaName, fetchErr)
 				logger.Noticef(fetchErr.Error())
 				return nil, err
 			}
+			logger.Noticef("DEBUG: GetView failed to fetch confdb-schema assertion for %s/%s: %v", account, schemaName, fetchErr)
 			return nil, fetchErr
 		}
 
 		confdbSchemaAs, err = assertstateConfdbSchema(st, account, schemaName)
 		if err != nil {
+			logger.Noticef("DEBUG: GetView error getting confdb-schema assertion after fetch for %s/%s: %v", account, schemaName, err)
 			return nil, err
 		}
+		logger.Noticef("DEBUG: successfully fetched confdb-schema %s/%s from store", account, schemaName)
 	}
 
 	dbSchema := confdbSchemaAs.Schema()
 
 	view := dbSchema.View(viewName)
 	if view == nil {
+		logger.Noticef("DEBUG: view %q not found in confdb-schema %s/%s", viewName, account, schemaName)
+		
+		// Dump current confdb contents to help debug
+		databag, err := readDatabag(st, account, schemaName)
+		if err != nil {
+			logger.Noticef("DEBUG: failed to read databag for %s/%s: %v", account, schemaName, err)
+		} else {
+			dumpConfdbContents(databag, account, schemaName)
+		}
+		
 		return nil, &NoViewError{
 			account:    account,
 			schemaName: schemaName,
@@ -121,6 +149,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 		}
 	}
 
+	logger.Noticef("DEBUG: GetView successfully retrieved view %q from confdb %s/%s", viewName, account, schemaName)
 	return view, nil
 }
 
@@ -130,6 +159,9 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 	if len(requests) == 0 {
 		val, err := view.Get(bag, "", constraints)
 		if err != nil {
+			logger.Noticef("DEBUG: error reading view %s from confdb %s/%s with empty request: %v",
+				view.Name, view.Schema().Account, view.Schema().Name, err)
+			dumpConfdbContents(bag, view.Schema().Account, view.Schema().Name)
 			return nil, err
 		}
 
@@ -144,6 +176,9 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 				continue
 			}
 
+			logger.Noticef("DEBUG: error reading view %s from confdb %s/%s with request %q (constraints: %v): %v",
+				view.Name, view.Schema().Account, view.Schema().Name, request, constraints, err)
+			dumpConfdbContents(bag, view.Schema().Account, view.Schema().Name)
 			return nil, err
 		}
 
@@ -151,6 +186,9 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 	}
 
 	if len(results) == 0 {
+		logger.Noticef("DEBUG: no results reading view %s from confdb %s/%s with requests %v (constraints: %v)",
+			view.Name, view.Schema().Account, view.Schema().Name, requests, constraints)
+		dumpConfdbContents(bag, view.Schema().Account, view.Schema().Name)
 		return nil, confdb.NewNoDataError(view, requests)
 	}
 
@@ -158,19 +196,51 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 }
 
 var readDatabag = func(st *state.State, account, dbSchemaName string) (confdb.JSONDatabag, error) {
+	logger.Noticef("DEBUG: readDatabag called for %s/%s (state file: %s)", account, dbSchemaName, dirs.SnapStateFile)
+	
 	var databags map[string]map[string]confdb.JSONDatabag
 	if err := st.Get("confdb-databags", &databags); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
+			logger.Noticef("DEBUG: no confdb-databags in state, returning empty databag for %s/%s", account, dbSchemaName)
 			return confdb.NewJSONDatabag(), nil
 		}
+		logger.Noticef("DEBUG: error reading confdb-databags from state for %s/%s: %v", account, dbSchemaName, err)
 		return nil, err
 	}
 
-	if databags[account] == nil || databags[account][dbSchemaName] == nil {
+	if databags[account] == nil {
+		logger.Noticef("DEBUG: no databags for account %q in state (available accounts: %v), returning empty databag", account, getKeys(databags))
+		return confdb.NewJSONDatabag(), nil
+	}
+	
+	if databags[account][dbSchemaName] == nil {
+		logger.Noticef("DEBUG: no databag for schema %q in account %q (available schemas: %v), returning empty databag", dbSchemaName, account, getKeys(databags[account]))
 		return confdb.NewJSONDatabag(), nil
 	}
 
-	return databags[account][dbSchemaName], nil
+	bag := databags[account][dbSchemaName]
+	data, _ := bag.Data()
+	logger.Noticef("DEBUG: successfully read databag for %s/%s with data: %s", account, dbSchemaName, string(data))
+	return bag, nil
+}
+
+func getKeys(m interface{}) []string {
+	switch v := m.(type) {
+	case map[string]map[string]confdb.JSONDatabag:
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		return keys
+	case map[string]confdb.JSONDatabag:
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		return keys
+	default:
+		return nil
+	}
 }
 
 var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, dbSchemaName string) error {
