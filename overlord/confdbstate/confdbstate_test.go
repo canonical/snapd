@@ -1018,7 +1018,7 @@ func (s *confdbTestSuite) TestGetTransactionFromSnapCreatesNewChange(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -1050,7 +1050,7 @@ func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) 
 		}
 
 		if hooksup.Hook == "install" {
-			_, _, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0)
+			_, _, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=foo"}, 0, nil)
 			c.Assert(err, IsNil)
 			return nil, nil
 		}
@@ -1151,7 +1151,7 @@ func (s *confdbTestSuite) TestGetTransactionFromChangeViewHook(c *C) {
 	ctx := s.testGetReadableOngoingTransaction(c, "change-view-setup")
 
 	// change-view hooks can also write to the transaction
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0, nil)
 	c.Assert(err, IsNil)
 	// accessed an ongoing transaction
 	c.Assert(stdout, IsNil)
@@ -1177,7 +1177,7 @@ func (s *confdbTestSuite) TestGetTransactionFromSaveViewHook(c *C) {
 	ctx := s.testGetReadableOngoingTransaction(c, "save-view-setup")
 
 	// non change-view hooks cannot modify the transaction
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot modify confdb in "save-view-setup" hook`)
 	c.Assert(stdout, IsNil)
 	c.Assert(stderr, IsNil)
@@ -1187,7 +1187,7 @@ func (s *confdbTestSuite) TestGetTransactionFromViewChangedHook(c *C) {
 	ctx := s.testGetReadableOngoingTransaction(c, "observe-view-setup")
 
 	// non change-view hooks cannot modify the transaction
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"set", "--view", ":setup", "ssid=bar"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot modify confdb in "observe-view-setup" hook`)
 	c.Assert(stdout, IsNil)
 	c.Assert(stderr, IsNil)
@@ -1221,7 +1221,7 @@ func (s *confdbTestSuite) testGetReadableOngoingTransaction(c *C, hook string) *
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":setup", "ssid"}, 0)
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":setup", "ssid"}, 0, nil)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 	// accessed an ongoing transaction

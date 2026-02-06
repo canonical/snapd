@@ -1442,7 +1442,7 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 		c.Assert(ctx.HookName(), Equals, "install-device")
 
 		// snapctl reboot --halt
-		_, _, err := ctlcmd.Run(ctx, []string{"reboot", arg}, 0)
+		_, _, err := ctlcmd.Run(ctx, []string{"reboot", arg}, 0, nil)
 		return nil, err
 	})
 	defer restore()
