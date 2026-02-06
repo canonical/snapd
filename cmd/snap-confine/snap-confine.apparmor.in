@@ -503,14 +503,11 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
-    ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,
     capability sys_admin,
-    signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
-    signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
-    signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    signal (send, receive) set=(int, abrt, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
 
     # workaround for linux 4.13/upstream, see
     # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
@@ -519,9 +516,6 @@
     # Allow reading snap cookies.
     /var/lib/snapd/cookie/snap.* r,
 
-    # For aa_change_hat() to go into ^mount-namespace-capture-helper
-    @{PROC}/[0-9]*/attr/{,apparmor/}current w,
-
     # As a special exception allow snap-confine to write to anything in /var/lib.
     # This code should be changed to allow delegation so that snap-confine can
     # inherit any file descriptor and pass it to the invoked application but
@@ -529,76 +523,28 @@
     # See https://bugs.launchpad.net/snapd/+bug/1815869
     /var/lib/** rw,
 
-    ^mount-namespace-capture-helper (attach_disconnected) {
-        # We run privileged, so be fanatical about what we include and don't use
-        # any abstractions
-        /etc/ld.so.cache r,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
-        # libc, you are funny
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,glibc-hwcaps/*/,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libresolv{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
-        # normal libs in order
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libdl{,-[0-9]*}.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnih-dbus.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libdbus-1.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
-
-        @LIBEXECDIR@/snap-confine mr,
-
-        /dev/null rw,
-        /dev/full rw,
-        /dev/zero rw,
-        /dev/random r,
-        /dev/urandom r,
-
-        # Stdout may be inherited from systemd. This is normally provided by <abstractions/base>
-        /{,var/}run/systemd/journal/stdout rw,
-
-        capability dac_override,
-        capability sys_ptrace,
-        capability sys_admin,
-        # This allows us to read and bind mount the namespace file
-        / r,
-        @{PROC}/ r,
-        @{PROC}/*/ r,
-        @{PROC}/*/ns/ r,
-        @{PROC}/*/ns/mnt r,
-        /run/ r,
-        /run/snapd/ r,
-        /run/snapd/ns/ r,
-        /run/snapd/ns/*.mnt rw,
-        # NOTE: the source name is / even though we map /proc/123/ns/mnt
-        mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
-        # This is the SIGALRM that we send and receive if a timeout expires
-        signal (send, receive) set=(alrm) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-        # Those two rules are exactly the same but we don't know if the parent process is still alive
-        # and hence has the appropriate label or is already dead and hence has no label.
-        signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
-        signal (send) set=(exists) peer=unconfined,
-        # This is so that we can abort
-        signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-        #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
-        signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
-        # This allows snap-confine to be killed from the outside.
-        signal (receive) peer=unconfined,
-        # This allows snap-confine to wait for us
-        ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
-    }
+    # This allows us to read and bind mount the namespace file
+    / r,
+    @{PROC}/ r,
+    @{PROC}/*/ r,
+    @{PROC}/*/ns/ r,
+    @{PROC}/*/ns/mnt r,
+    /run/ r,
+    /run/snapd/ r,
+    /run/snapd/ns/ r,
+    /run/snapd/ns/*.mnt rw,
+    # NOTE: the source name is / even though we map /proc/123/ns/mnt
+    mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
+    # Those two rules are exactly the same but we don't know if the parent process is still alive
+    # and hence has the appropriate label or is already dead and hence has no label.
+    signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
+    signal (send) set=(exists) peer=unconfined,
+    #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
+    signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
+    # This allows snap-confine to be killed from the outside.
+    signal (receive) peer=unconfined,
+    # This allows snap-confine to wait for us
+    ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
 
     # Allow snap-confine to be killed
     signal (receive) peer=unconfined,

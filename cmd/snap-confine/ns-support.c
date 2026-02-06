@@ -694,10 +694,7 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
     // This is the child process which will capture the mount namespace.
     //
     // It will do so by bind-mounting the .mnt after the parent process calls
-    // unshare() and finishes setting up the namespace completely. Change the
-    // hat to a sub-profile that has limited permissions necessary to
-    // accomplish the capture of the mount namespace.
-    sc_maybe_aa_change_hat(apparmor, "mount-namespace-capture-helper", 0);
+    // unshare() and finishes setting up the namespace completely.
     // Configure the child to die as soon as the parent dies. In an odd
     // case where the parent is killed then we don't want to complete our
     // task or wait for anything.
