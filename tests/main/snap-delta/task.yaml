@@ -1,0 +1,104 @@
+summary: Check that the snap delta command generates and applies deltas
+
+details: |
+    This test verifies that the snap delta command can generate a delta
+    between two snap files and then apply that delta to reconstruct the
+    target snap from the source and the generated delta file. The test
+    creates two slightly different snaps, generates a delta, applies it,
+    and verifies the result matches the original target.
+
+systems:
+    - ubuntu-2*
+    - ubuntu-core-2*
+
+skip:
+    # We need xdelta3, unsquashfs and mksquashfs tools available.
+    # These are bundled in the snapd snap but may also be on the host.
+    - reason: xdelta3 not available
+      if: |
+          ! command -v xdelta3 && ! test -f /snap/snapd/current/usr/bin/xdelta3
+    - reason: unsquashfs not available
+      if: |
+          ! command -v unsquashfs && ! test -f /snap/snapd/current/usr/bin/unsquashfs
+    - reason: mksquashfs not available
+      if: |
+          ! command -v mksquashfs && ! test -f /snap/snapd/current/usr/bin/mksquashfs
+
+prepare: |
+    # Create a source snap
+    SOURCE_DIR="$PWD/source-snap"
+    mkdir -p "$SOURCE_DIR/meta"
+    cat > "$SOURCE_DIR/meta/snap.yaml" << 'SNAPEOF'
+    name: test-delta-source
+    version: 1.0
+    summary: Source snap for delta testing
+    description: A snap used as source for delta generation
+    grade: devel
+    type: app
+    SNAPEOF
+    mkdir -p "$SOURCE_DIR/data"
+    dd if=/dev/urandom of="$SOURCE_DIR/data/payload.bin" bs=1024 count=64
+
+    snap pack "$SOURCE_DIR" --filename="source.snap"
+
+    # Create a target snap (slightly different content)
+    TARGET_DIR="$PWD/target-snap"
+    mkdir -p "$TARGET_DIR/meta"
+    cat > "$TARGET_DIR/meta/snap.yaml" << 'SNAPEOF'
+    name: test-delta-target
+    version: 2.0
+    summary: Target snap for delta testing
+    description: A snap used as target for delta generation
+    grade: devel
+    type: app
+    SNAPEOF
+    mkdir -p "$TARGET_DIR/data"
+    # Copy the same payload and append some bytes to make it different
+    cp "$SOURCE_DIR/data/payload.bin" "$TARGET_DIR/data/payload.bin"
+    dd if=/dev/urandom of="$TARGET_DIR/data/extra.bin" bs=1024 count=8
+
+    snap pack "$TARGET_DIR" --filename="target.snap"
+
+restore: |
+    rm -rf source-snap target-snap target-extracted reconstructed-extracted
+    rm -f source.snap target.snap out.delta reconstructed.snap
+
+execute: |
+    echo "Check snap delta help output"
+    snap delta --help 2>&1 | MATCH "Generate / apply"
+
+    echo "Generate a delta between source and target snaps"
+    snap delta generate --source source.snap --target target.snap --delta out.delta
+    test -f out.delta
+
+    echo "Check that the delta file is smaller than the target snap"
+    DELTA_SIZE=$(stat -c%s out.delta)
+    TARGET_SIZE=$(stat -c%s target.snap)
+    test "$DELTA_SIZE" -lt "$TARGET_SIZE"
+
+    echo "Apply the delta to reconstruct the target snap"
+    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the reconstructed snap matches the original target"
+    # Use unsquashfs to compare content rather than binary comparison,
+    # as mksquashfs may produce slightly different binary output depending
+    # on host-level tooling versions.
+    mkdir -p target-extracted reconstructed-extracted
+    unsquashfs -d target-extracted/root target.snap
+    unsquashfs -d reconstructed-extracted/root reconstructed.snap
+    diff -r target-extracted/root reconstructed-extracted/root
+    rm -rf target-extracted reconstructed-extracted
+
+    echo "Test snap delta with short flags"
+    rm -f out.delta reconstructed.snap
+    snap delta generate -s source.snap -t target.snap -d out.delta
+    test -f out.delta
+    snap delta apply -s source.snap -t reconstructed.snap -d out.delta
+    test -f reconstructed.snap
+
+    echo "Test error on unknown operation"
+    not snap delta compress --source source.snap --target target.snap --delta out.delta 2>&1 | MATCH "unknown operation"
+
+    echo "Test error when source file does not exist"
+    not snap delta generate --source nonexistent.snap --target target.snap --delta out.delta 2>&1
