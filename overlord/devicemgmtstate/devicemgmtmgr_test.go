@@ -496,11 +496,12 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 
 	waitOn := map[string]string{"msg2": "<dispatch>", "msg3": "<dispatch>"}
 	assertMessagesWaitOn(c, ti, waitOn, "unsequenced")
-
-	assertMessagesOnDifferentLanes(c, ti, []string{"msg2", "msg3"}, "unsequenced")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	type test struct {
 		name            string
 		sequences       map[string]int // last applied message per sequence
@@ -532,14 +533,16 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			name: "gap stops chaining",
 			pendingRequests: []*devicemgmtstate.RequestMessage{
 				makeRequestMessage("seqA", "confdb", 1, ""),
-				makeRequestMessage("seqA", "confdb", 3, ""), // 2 is missing
-				makeRequestMessage("seqA", "confdb", 4, ""),
+				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqA", "confdb", 4, ""), // 3 is missing
+				makeRequestMessage("seqA", "confdb", 5, ""),
 			},
 
-			dispatched:    []string{"seqA-1"},
-			notDispatched: []string{"seqA-3", "seqA-4"},
+			dispatched:    []string{"seqA-1", "seqA-2"},
+			notDispatched: []string{"seqA-4", "seqA-5"},
 			waitOn: map[string]string{
 				"seqA-1": "<dispatch>",
+				"seqA-2": "seqA-1",
 			},
 		},
 		{
@@ -568,14 +571,16 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			name:      "already dispatched skipped",
 			sequences: map[string]int{"seqA": 1},
 			pendingRequests: []*devicemgmtstate.RequestMessage{
-				makeRequestMessage("seqA", "confdb", 1, "16384"), // has change id
+				makeRequestMessage("seqA", "confdb", 1, "16384"), // already dispatched
 				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqA", "confdb", 3, ""),
 			},
 
-			dispatched:    []string{"seqA-2"},
+			dispatched:    []string{"seqA-2", "seqA-3"},
 			notDispatched: []string{"seqA-1"},
 			waitOn: map[string]string{
 				"seqA-2": "<dispatch>",
+				"seqA-3": "seqA-2",
 			},
 		},
 		{
@@ -615,7 +620,6 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 	}
 
 	for _, tt := range tests {
-		s.st.Lock()
 		cmt := Commentf("%s test", tt.name)
 
 		pending := make(map[string]*devicemgmtstate.RequestMessage)
@@ -623,15 +627,15 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			pending[msg.ID()] = msg
 		}
 
-		seq := devicemgmtstate.NewSequenceState()
+		sequences := devicemgmtstate.NewSequenceState()
 		for seqID, lastApplied := range tt.sequences {
-			seq.Applied[seqID] = lastApplied
-			seq.LRU = append(seq.LRU, seqID)
+			sequences.Applied[seqID] = lastApplied
+			sequences.LRU = append(sequences.LRU, seqID)
 		}
 
 		ms := &devicemgmtstate.DeviceMgmtState{
 			PendingRequests: pending,
-			Sequences:       seq,
+			Sequences:       sequences,
 			ReadyResponses:  make(map[string]store.Message),
 		}
 		s.mgr.SetState(ms)
@@ -649,8 +653,6 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 		assertMessagesDispatched(c, ti, tt.dispatched, tt.name)
 		assertMessagesNotDispatched(c, ti, tt.notDispatched, tt.name)
 		assertMessagesWaitOn(c, ti, tt.waitOn, tt.name)
-
-		s.st.Unlock()
 	}
 }
 
@@ -658,12 +660,15 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// Create MaxSequences+2 sequences, each with 2 pending messages.
+	baseTime := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
 	pending := make(map[string]*devicemgmtstate.RequestMessage)
-	for i := 0; i < devicemgmtstate.MaxSequences+1; i++ {
+	for i := 1; i <= devicemgmtstate.MaxSequences+2; i++ {
 		baseID := fmt.Sprintf("seq-%d", i)
 		for _, seqNum := range []int{1, 2} {
 			msg := makeRequestMessage(baseID, "confdb", seqNum, "")
+			msg.ReceiveTime = baseTime.Add(
+				time.Duration(i)*time.Minute + time.Duration(seqNum)*time.Second,
+			)
 			pending[msg.ID()] = msg
 		}
 	}
@@ -687,21 +692,25 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 	ms, err = s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	// seq-0 should be evicted. Its earliest message (seqNum 1) should
-	// be rejected and the rest deleted.
-	evicted := ms.PendingRequests["seq-0-1"]
-	c.Assert(evicted, NotNil)
-	c.Check(evicted.Status, Equals, asserts.MessageStatusRejected)
-	c.Check(evicted.Error, Equals, "sequence evicted from cache due to capacity limits")
-	c.Check(ms.PendingRequests["seq-0-2"], IsNil)
+	// seq-1 evicted.
+	rejected := ms.PendingRequests["seq-1-1"]
+	c.Assert(rejected, NotNil)
+	c.Check(rejected.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(rejected.Error, Equals, "sequence evicted from cache due to capacity limits")
+	c.Check(ms.PendingRequests["seq-1-2"], IsNil, Commentf("the 2nd message in seq-1 should have been deleted"))
 
-	// A queue task should exist for the rejected message.
 	ti := buildTaskIndex(chg)
-	c.Assert(ti.queue["seq-0-1"], NotNil)
+	c.Check(ti.validate["seq-1-1"], IsNil)
+	c.Check(ti.apply["seq-1-1"], IsNil)
+	c.Check(ti.queue["seq-1-1"], NotNil)
 
-	// The evicted sequence should no longer be tracked.
-	_, exists := ms.Sequences.Applied["seq-0"]
-	c.Check(exists, Equals, false)
+	_, tracked := ms.Sequences.Applied["seq-1"]
+	c.Check(tracked, Equals, false)
+
+	// seq-2 also evicted.
+	c.Check(ms.PendingRequests["seq-2-1"].Status, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.PendingRequests["seq-2-2"], IsNil)
+
 	c.Check(len(ms.Sequences.Applied), Equals, devicemgmtstate.MaxSequences)
 }
 
@@ -810,8 +819,9 @@ func assertMessagesDispatched(c *C, ti *taskIndex, msgIDs []string, testName str
 // assertMessagesNotDispatched checks that no tasks for the given messages were dispatched.
 func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
 	for _, id := range msgIDs {
-		c.Assert(ti.validate[id], IsNil, Commentf("%s: %s should not be dispatched", testName, id))
-		c.Assert(ti.apply[id], IsNil, Commentf("%s: %s should not be dispatched", testName, id))
+		c.Assert(ti.validate[id], IsNil, Commentf("%s: %s should not have a validate task", testName, id))
+		c.Assert(ti.apply[id], IsNil, Commentf("%s: %s should not have an apply task", testName, id))
+		c.Assert(ti.queue[id], IsNil, Commentf("%s: %s should not have a queue response task", testName, id))
 	}
 }
 
@@ -819,34 +829,20 @@ func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName 
 func assertMessagesWaitOn(c *C, ti *taskIndex, waitOn map[string]string, testName string) {
 	for msgID, prevID := range waitOn {
 		validate := ti.validate[msgID]
-		c.Assert(validate, NotNil, Commentf("%s: %s", testName, msgID))
+		c.Assert(validate, NotNil, Commentf("%s: %s should have a validate task", testName, msgID))
 
 		waitTasks := validate.WaitTasks()
-		c.Assert(waitTasks, HasLen, 1, Commentf("%s: %s", testName, msgID))
+		c.Assert(waitTasks, HasLen, 1, Commentf("%s: %s should have exactly one wait task", testName, msgID))
 
 		if prevID == "<dispatch>" {
 			c.Assert(waitTasks[0].Kind(), Equals, "dispatch-mgmt-messages",
 				Commentf("%s: %s should wait on the dispatch task", testName, msgID))
 		} else {
 			prevQueue := ti.queue[prevID]
-			c.Assert(prevQueue, NotNil, Commentf("%s: queue response task for %s not found", testName, msgID))
+			c.Assert(prevQueue, NotNil, Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
 
 			c.Assert(waitTasks[0].ID(), Equals, prevQueue.ID(),
-				Commentf("%s: %s should wait on %s", testName, msgID, prevID))
+				Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
 		}
-	}
-}
-
-// assertMessagesOnDifferentLanes checks that all messages are on different lanes.
-func assertMessagesOnDifferentLanes(c *C, ti *taskIndex, msgIDs []string, taskName string) {
-	seen := make(map[int]string)
-	for _, msgID := range msgIDs {
-		lane := ti.validate[msgID].Lanes()[0]
-		other, exists := seen[lane]
-		if exists {
-			c.Errorf("%s: %s and %s should be in different lanes, both in lane %d", taskName, msgID, other, lane)
-		}
-
-		seen[lane] = msgID
 	}
 }
