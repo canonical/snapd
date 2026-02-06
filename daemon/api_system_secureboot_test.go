@@ -48,7 +48,7 @@ func (s *systemSecurebootSuite) SetUpTest(c *C) {
 		Interfaces: []string{"fwupd"},
 	})
 
-	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payloads [][]byte) error {
 		panic("unexpected call")
 	}))
 	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdateCleanup(func(st *state.State) error {
@@ -215,23 +215,37 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayloadDBX(c 
 func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareHappyForKind(
 	c *C,
 	kind fdestate.EFISecurebootKeyDatabase,
+	multiplePayloads bool,
 ) {
 	s.daemon(c)
 
 	updatePrepareCalls := 0
-	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error {
+	s.AddCleanup(daemon.MockFdestateEFISecurebootDBUpdatePrepare(func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payloads [][]byte) error {
 		c.Check(db, Equals, kind)
-		c.Check(payload, DeepEquals, []byte("payload"))
+		if multiplePayloads {
+			c.Check(payloads, DeepEquals, [][]byte{[]byte("payload2"), []byte("payload3")})
+		} else {
+			c.Check(payloads, DeepEquals, [][]byte{[]byte("payload")})
+		}
 		updatePrepareCalls++
 		return nil
 	}))
 
 	updateKindStr := kind.String()
-	body, err := json.Marshal(map[string]any{
+	bodyRaw := map[string]any{
 		"action":       "efi-secureboot-update-db-prepare",
 		"key-database": updateKindStr,
-		"payload":      base64.StdEncoding.EncodeToString([]byte("payload")),
-	})
+	}
+	if multiplePayloads {
+		bodyRaw["payloads"] = []string{
+			base64.StdEncoding.EncodeToString([]byte("payload2")),
+			base64.StdEncoding.EncodeToString([]byte("payload3")),
+		}
+	} else {
+		bodyRaw["payload"] = base64.StdEncoding.EncodeToString([]byte("payload"))
+	}
+
+	body, err := json.Marshal(bodyRaw)
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", bytes.NewReader(body))
 	c.Assert(err, IsNil)
@@ -245,16 +259,28 @@ func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareHappyForKind(
 }
 
 func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyPK(c *C) {
-	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootPK)
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootPK, false)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyPKMultiple(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootPK, true)
 }
 func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyKEK(c *C) {
-	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootKEK)
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootKEK, false)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyKEKMultiple(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootKEK, true)
 }
 func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDB(c *C) {
-	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDB)
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDB, false)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDBMultiple(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDB, true)
 }
 func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDBX(c *C) {
-	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDBX)
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDBX, false)
+}
+func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappyDBXMultiple(c *C) {
+	s.testEFISecurebootUpdateDBPrepareHappyForKind(c, fdestate.EFISecurebootDBX, true)
 }
 
 func (s *systemSecurebootSuite) TestSecurebootRequestValidate(c *C) {
@@ -286,6 +312,14 @@ func (s *systemSecurebootSuite) TestSecurebootRequestValidate(c *C) {
 		KeyDatabase: "DBX",
 	}
 	c.Check(r.Validate(), ErrorMatches, `update payload not provided`)
+
+	r = daemon.SecurebootRequest{
+		Action:      "efi-secureboot-update-db-prepare",
+		Payload:     "MAo=",
+		Payloads:    []string{"MQo=", "Mgo="},
+		KeyDatabase: "DBX",
+	}
+	c.Check(r.Validate(), ErrorMatches, `both single payload and multiple payloads provided`)
 
 	// valid
 	for _, r := range []daemon.SecurebootRequest{{
