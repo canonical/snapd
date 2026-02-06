@@ -19,26 +19,18 @@ systems:
     - -amazon-linux-2023-64
     - -ubuntu-*-arm*
 
+skip:
+    - reason: D-Bus session bus is not supported in the system
+      if: not tests.session has-session-systemd-and-dbus
+
 prepare: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     tests.session -u test prepare
 
 restore: |
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
     rm -f /home/test/sleep.stamp
     tests.session -u test restore
 
 execute: |
-    # We don't actually need a D-Bus session bus, but this is a good
-    # guard for support for a user session.
-    if ! tests.session has-session-systemd-and-dbus; then
-        exit 0
-    fi
-
     echo "Install the test snap"
     snap install --edge test-snapd-polkit
 

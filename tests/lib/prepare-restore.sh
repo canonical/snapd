@@ -582,7 +582,12 @@ prepare_project() {
                 ( cd "${GOHOME}" && apt-get download snapd snap-confine )
                 ;;
             *)
-                ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+                if os.query is-ubuntu-lt 26.04; then
+                    ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+                else
+                    # In Ubuntu 26.04+, the snap-confine transitional package was removed.
+                    ( cd "${GOHOME}" && tests.pkgs download snapd)
+                fi
                 ;;
         esac
     elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then

@@ -56,7 +56,7 @@ func (s *fdeMgrSuite) testEFISecurebootNoSealedKeysForKind(
 	// make sure the state is true
 	c.Assert(err, Equals, device.ErrNoSealedKeys)
 
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		panic("unexpected call")
 	})()
 
@@ -74,7 +74,7 @@ func (s *fdeMgrSuite) testEFISecurebootNoSealedKeysForKind(
 	err = fdestate.EFISecurebootDBManagerStartup(st)
 	c.Assert(err, IsNil)
 
-	err = fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err = fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	err = fdestate.EFISecurebootDBUpdateCleanup(st)
@@ -105,7 +105,7 @@ func (s *fdeMgrSuite) TestEFISecurebootStartupClean(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		panic("unexpected call")
 	})()
 
@@ -140,12 +140,23 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareHappyForKind(
 	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		resealCalls++
 		c.Check(mgr, NotNil)
 		c.Check(params.Options.RevokeOldKeys, Equals, false)
 		c.Check(params.RunModeBootChains, HasLen, 1)
-		c.Check(update, DeepEquals, []byte("payload"))
+		var expectedDatabase secboot.KeyDatabase
+		switch kind {
+		case fdestate.EFISecurebootPK:
+			expectedDatabase = secboot.KeyDatabasePK
+		case fdestate.EFISecurebootKEK:
+			expectedDatabase = secboot.KeyDatabaseKEK
+		case fdestate.EFISecurebootDB:
+			expectedDatabase = secboot.KeyDatabaseDB
+		case fdestate.EFISecurebootDBX:
+			expectedDatabase = secboot.KeyDatabaseDBX
+		}
+		c.Check(updates, DeepEquals, []secboot.DbUpdate{{Database: expectedDatabase, Payload: []byte("payload")}})
 
 		// normally executed by the backend code
 		c.Check(mgr.Update("run", "default", &backend.SealingParameters{
@@ -160,7 +171,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareHappyForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -176,7 +187,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareHappyForKind(
 		Kind:     "fde-efi-secureboot-db-update",
 		ChangeID: "1",
 		Context: []byte(
-			fmt.Sprintf(`{"payload":"cGF5bG9hZA==","sealing-method":"tpm","db":%d}`, kind)),
+			fmt.Sprintf(`{"payloads":["cGF5bG9hZA=="],"sealing-method":"tpm","db":%d}`, kind)),
 		Status: fdestate.DoingStatus,
 	})
 	c.Check(fdeSt.KeyslotRoles, DeepEquals, map[string]fdestate.KeyslotRoleInfo{
@@ -255,7 +266,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSelfForKind(
 	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		resealCalls++
 		c.Check(params.Options.RevokeOldKeys, Equals, false)
 		return nil
@@ -265,7 +276,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSelfForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -282,7 +293,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSelfForKind(
 	err = func() error {
 		st.Unlock()
 		defer st.Lock()
-		return fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+		return fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	}()
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fde-efi-secureboot-db-update",
@@ -323,7 +334,7 @@ func (s *fdeMgrSuite) testEFISecurebootConflictFDEChangeForKind(
 	chg.AddTask(tsk)
 	st.Unlock()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, ErrorMatches, "FDE change in progress, no other FDE changes allowed until this is done")
 }
 
@@ -360,7 +371,7 @@ func (s *fdeMgrSuite) TestEFISecurebootPrepareConflictOperationNotInDoingYet(c *
 	s.mockDeviceInState(model, "run")
 
 	resealCalls := 0
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		resealCalls++
 		c.Check(params.Options.RevokeOldKeys, Equals, false)
 		return nil
@@ -430,14 +441,14 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSnapChangesForKind(
 	c.Assert(rmTasks, NotNil)
 	chg.AddAll(rmTasks)
 
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		c.Fatalf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})()
 
 	st.Unlock()
 	defer st.Lock()
-	err = fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err = fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "kernel-snap-remove",
 		Snap:       "pc-kernel",
@@ -478,7 +489,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAndCleanupRunningActionForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			// normally executed by the backend code
@@ -507,7 +518,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAndCleanupRunningActionForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -625,7 +636,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAndUnexpectedStartupActionForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			// normally executed by the backend code
@@ -654,7 +665,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAndUnexpectedStartupActionForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -813,7 +824,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAbortForKind(
 	resealForDBUpdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUpdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			return nil
@@ -831,7 +842,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateAbortForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -947,7 +958,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateResealFailedAbortsForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			return fmt.Errorf("mock error")
@@ -963,7 +974,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateResealFailedAbortsForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, ErrorMatches, "(?sm).*cannot perform initial reseal of keys for Secureboot Key Database update: mock error.*")
 
 	st.Lock()
@@ -1035,7 +1046,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdatePostUpdateResealFailedForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			return nil
@@ -1051,7 +1062,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdatePostUpdateResealFailedForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -1163,7 +1174,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateUndoResealFailsForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			return nil
@@ -1180,7 +1191,7 @@ func (s *fdeMgrSuite) testEFISecurebootUpdateUndoResealFailsForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -1276,7 +1287,7 @@ func (s *fdeMgrSuite) TestEFISecurebootCleanupNoChange(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
-	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 		panic("unexpected call")
 	})()
 
@@ -1441,7 +1452,7 @@ func (s *fdeMgrSuite) testEFISecurebootOperationAddWaitForKind(
 		st,
 		device.SealingMethodTPM,
 		kind,
-		[]byte("payload 1"),
+		[][]byte{[]byte("payload 1")},
 	)
 	c.Assert(err, IsNil)
 
@@ -1449,7 +1460,7 @@ func (s *fdeMgrSuite) testEFISecurebootOperationAddWaitForKind(
 		st,
 		device.SealingMethodTPM,
 		kind,
-		[]byte("payload 2"),
+		[][]byte{[]byte("payload 2")},
 	)
 	c.Assert(err, IsNil)
 
@@ -1543,7 +1554,7 @@ func (s *fdeMgrSuite) testEFISecurebootConflictingSnapsForKind(
 	resealForDBUPdateCalls := 0
 	resealForBootChainsCalls := 0
 	defer fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			resealForDBUPdateCalls++
 			c.Check(params.Options.RevokeOldKeys, Equals, false)
 			return nil
@@ -1564,7 +1575,7 @@ func (s *fdeMgrSuite) testEFISecurebootConflictingSnapsForKind(
 	s.o.Loop()
 	defer s.o.Stop()
 
-	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, []byte("payload"))
+	err := fdestate.EFISecurebootDBUpdatePrepare(st, kind, [][]byte{[]byte("payload")})
 	c.Assert(err, IsNil)
 
 	st.Lock()

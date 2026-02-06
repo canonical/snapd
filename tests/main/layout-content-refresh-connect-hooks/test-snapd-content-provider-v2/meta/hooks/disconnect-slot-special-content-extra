@@ -1,0 +1,6 @@
+#!/bin/sh
+exec >> "$SNAP_COMMON/hook.log" 2>&1
+
+date
+echo "=== provider"
+echo "disconnecting slot special-content extra"

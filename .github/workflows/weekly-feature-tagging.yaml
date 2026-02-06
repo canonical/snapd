@@ -84,6 +84,7 @@ jobs:
     needs: [set-inputs, read-systems]
     name: "spread ${{ matrix.group }}"
     if: needs.read-systems.outputs.fundamental-systems != ''
+    secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
@@ -105,6 +106,7 @@ jobs:
     needs: [set-inputs, read-systems]
     if: needs.read-systems.outputs.non-fundamental-systems != ''
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
@@ -125,6 +127,7 @@ jobs:
     needs: [set-inputs, read-systems]
     if: needs.read-systems.outputs.nested-systems != ''
     name: "spread ${{ matrix.group }}"
+    secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}

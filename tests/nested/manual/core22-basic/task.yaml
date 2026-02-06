@@ -11,10 +11,12 @@ environment:
     EXPECT_TOKENS/tokens: true
     EXPECT_TOKENS/files: false
 
+skip:
+    - reason: Tokens require UC 24.04
+      if: |
+        os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]
+
 prepare: |
-    if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
-        tests.exec skip-test "Tokens require UC 24.04" && exit 0
-    fi
     tests.nested build-image core
     tests.nested create-vm core
 
@@ -24,8 +26,6 @@ debug: |
     fi
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
 

@@ -35,14 +35,7 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    if ! snap install --edge test-snapd-eds ; then
-        if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
-            echo "The test-snapd-eds must be available on ubuntu-16.04-64"
-            exit 1
-        fi
-        echo "SKIP: test-snapd-eds not available"
-        exit 0
-    fi
+    snap install --edge test-snapd-eds 
 
     echo "The interface is initially disconnected"
     snap interfaces -i contacts-service | MATCH -- '- +test-snapd-eds:contacts-service'

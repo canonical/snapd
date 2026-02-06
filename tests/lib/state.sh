@@ -56,9 +56,8 @@ save_snapd_state() {
                 break
             fi
         done
-        snapd_service_env=$(ls -d /etc/systemd/system/snapd.*.d || true)
-        snap_confine_profiles="$(ls /etc/apparmor.d/snap.snapd.* || true)"
 
+        shopt -s nullglob
         # shellcheck disable=SC2086
         tar cf "$SNAPD_STATE_FILE" \
             /var/lib/snapd \
@@ -70,9 +69,10 @@ save_snapd_state() {
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
-            $snap_confine_profiles \
+            /etc/apparmor.d/snap.snapd.* \
             $snapd_env \
-            $snapd_service_env
+            /etc/systemd/system/snapd.*.d
+        shopt -u nullglob
 
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"

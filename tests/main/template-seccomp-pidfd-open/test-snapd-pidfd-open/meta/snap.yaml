@@ -1,0 +1,10 @@
+name: test-snapd-pidfd-open
+version: 1.0
+summary: Test snap for pidfd_open syscall
+description: |
+  This snap tests that the pidfd_open syscall is allowed by the default
+  seccomp profile.
+
+apps:
+  test-snapd-pidfd-open:
+    command: bin/test-pidfd-open

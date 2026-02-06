@@ -10,6 +10,10 @@ systems:
     # Systemd is too old to support passing stdio as file descriptors.
     - -amazon-linux-2-64
 
+skip:
+    - if: test -z "$(command -v plz-run)"
+      reason: The plz-run executable is missing
+
 prepare: |
     snap pack test-snapd-checkbox-support
     snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap

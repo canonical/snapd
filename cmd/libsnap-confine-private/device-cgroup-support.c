@@ -390,8 +390,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     int devmap_fd = bpf_get_by_path(path);
     /* keep a copy of errno in case it gets clobbered */
     int get_by_path_errno = errno;
-    /* XXX: this should be more than enough keys */
-    const size_t max_entries = 500;
+    /* This used to be 500 (using ~47kB of kernel mem), but got bumped to 1000
+       (~89kB of kernel mem) due to LP#2139099. Should be more than enough keys
+       now. */
+    /* TODO: make this configurable or proportional to number of
+       interfaces/potentially matching devices, system memory size or see
+       whether we can maybe use a 2 stage combination of
+       BPF_MAP_TYPE_BLOOM_FILTER & BPF_MAP_TYPE_HASH */
+    const size_t max_entries = 1000;
     if (devmap_fd < 0) {
         if (get_by_path_errno != ENOENT) {
             die("cannot get existing device map");

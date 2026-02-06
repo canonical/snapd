@@ -7,17 +7,15 @@ details: |
 systems:
   - ubuntu-2*
 
-prepare: |
-    if os.query is-ubuntu 20.04; then
-        tests.exec skip-test "Ubuntu 20.04 kernels doesn't support prompting" && exit 0
-    fi
-    if os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7 ; then
-        tests.exec skip-test "Ubuntu 22.04 kernel $(uname -r) doesn't support prompting" && exit 0
-    fi
-    if os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use; then
-        tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
-    fi
+skip:
+    - reason: Ubuntu 20.04 kernels don't support prompting
+      if: os.query is-ubuntu 20.04
+    - reason: Ubuntu 22.04 kernel doesn't support prompting
+      if: os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7
+    - reason: Ubuntu 22.04 AppArmor parser doesn't support prompting
+      if: os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use
 
+prepare: |
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
@@ -25,15 +23,11 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     snap unset system experimental.user-daemons
     snap remove --purge test-snapd-prompt-handler || true
     tests.session -u test restore
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     echo "Check kernel version"
     uname -a
     echo "Check kernel notification socket presence"
@@ -46,8 +40,6 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     not tests.session -u test exec systemctl --user is-active \
         snap.test-snapd-prompt-handler.prompt-handler.service
     not tests.session -u test exec systemctl --user is-enabled \

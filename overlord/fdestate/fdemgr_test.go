@@ -118,7 +118,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		panic("VerifyPrimaryKeyDigest is not mocked")
 	}))
 	s.AddCleanup(fdestate.MockBackendResealKeysForSignaturesDBUpdate(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, updates []secboot.DbUpdate) error {
 			panic("BackendResealKeysForSignaturesDBUpdate not mocked")
 		}))
 	s.AddCleanup(fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {

@@ -447,7 +447,7 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName, checkResult)
+		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdates, params.RoleToBlName, checkResult)
 		if err != nil {
 			return err
 		}
@@ -474,7 +474,7 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName, checkResult)
+		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdates, params.RoleToBlName, checkResult)
 		if err != nil {
 			return err
 		}
@@ -504,7 +504,7 @@ func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 func updateRunProtectionProfile(
 	parameters *updatedParameters,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
-	sigDbxUpdate []byte,
+	sigDbxUpdates []secboot.DbUpdate,
 	roleToBlName map[bootloader.Role]string,
 	checkResult *secboot.PreinstallCheckResult,
 ) error {
@@ -525,10 +525,10 @@ func updateRunProtectionProfile(
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	if len(sigDbxUpdate) > 0 {
+	if len(sigDbxUpdates) > 0 {
 		logger.Debug("attaching DB update payload")
-		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
-		attachSignatureDbxUpdate(modelParamsRunOnly, sigDbxUpdate)
+		attachSignatureDbxUpdate(modelParams, sigDbxUpdates)
+		attachSignatureDbxUpdate(modelParamsRunOnly, sigDbxUpdates)
 	}
 
 	var pcrProfile []byte
@@ -573,7 +573,7 @@ func updateRunProtectionProfile(
 func updateFallbackProtectionProfile(
 	parameters *updatedParameters,
 	pbc boot.PredictableBootChains,
-	sigDbxUpdate []byte,
+	sigDbxUpdates []secboot.DbUpdate,
 	roleToBlName map[bootloader.Role]string,
 	checkResult *secboot.PreinstallCheckResult,
 ) error {
@@ -588,9 +588,9 @@ func updateFallbackProtectionProfile(
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	if len(sigDbxUpdate) > 0 {
+	if len(sigDbxUpdates) > 0 {
 		logger.Debug("attaching DB update payload for fallback keys")
-		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
+		attachSignatureDbxUpdate(modelParams, sigDbxUpdates)
 	}
 
 	hasClassicModel := anyClassicModel(modelParams...)
@@ -643,12 +643,12 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 // boot chains and an optional signature DB update
 func ResealKeysForSignaturesDBUpdate(
 	manager FDEStateManager, method device.SealingMethod, rootdir string,
-	params *boot.ResealKeyForBootChainsParams, dbUpdate []byte,
+	params *boot.ResealKeyForBootChainsParams, dbUpdate []secboot.DbUpdate,
 ) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
-			bootChains:        params.BootChains,
-			signatureDBUpdate: dbUpdate,
+			bootChains:         params.BootChains,
+			signatureDBUpdates: dbUpdate,
 		},
 		resealOptions{
 			ExpectReseal: true,
@@ -664,8 +664,8 @@ func ResealKeysForSignaturesDBUpdate(
 }
 
 type resealInputs struct {
-	bootChains        boot.BootChains
-	signatureDBUpdate []byte
+	bootChains         boot.BootChains
+	signatureDBUpdates []secboot.DbUpdate
 }
 
 type resealOptions struct {
@@ -701,12 +701,12 @@ func resealKeys(
 	return doReseal(manager, rootdir, method == device.SealingMethodFDESetupHook, inputs, opts)
 }
 
-func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {
-	if len(update) == 0 {
+func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, updates []secboot.DbUpdate) {
+	if len(updates) == 0 {
 		return
 	}
 
 	for _, p := range params {
-		p.EFISignatureDbxUpdate = update
+		p.EFISignatureDbxUpdates = updates
 	}
 }

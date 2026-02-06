@@ -1,0 +1,10 @@
+#!/bin/bash
+exec >> "$SNAP_COMMON/hook.log" 2>&1
+
+set -x
+date
+echo "=== connect content basic"
+find "$SNAP/connected-content-basic" -ls
+find "$SNAP/connected-content-extra" -ls
+echo "should fail, file isn't there yet"
+cat "$SNAP/connected-content-extra/extra-content" || true

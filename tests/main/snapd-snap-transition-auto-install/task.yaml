@@ -14,11 +14,11 @@ environment:
     SNAPD_SRC/deb:  "deb"
     SNAPD_SRC/core: "core"
 
-prepare: |    
-    if tests.info is-snapd-from-archive; then
-        tests.exec skip-test "This test needs snapd deb built from local" && exit 0
-    fi
+skip:
+    - reason: This test needs snapd deb built from local
+      if: tests.info is-snapd-from-archive
 
+prepare: |    
     # Expect system preparation stage installed built snapd and core snaps.
     # Check this and remove all snaps to remove snapd.
     snap list core
@@ -49,8 +49,6 @@ prepare: |
     not snap list snapd
 
 execute: | 
-    tests.exec is-skipped && exit 0
-
     # check re-exec disabled, exec from snapd deb or re-exec from core snap
     snap_mount_dir="$(os.paths snap-mount-dir)"
     expect=""

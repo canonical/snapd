@@ -5,11 +5,12 @@ details: |
     can read /dev/pts, can openpty, and can access the PTY via /dev/ptmx, both
     with and without the physical-memory-observe interface connected.
 
-execute: |
-    if [ "$(snap debug confinement)" = none ] ; then
-        exit 0
-    fi
+skip:
+    - reason: The systems has "none" debug confinement
+      if: |
+        [ "$(snap debug confinement)" = none ]
 
+execute: |
     echo "Given a basic snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-devpts
 

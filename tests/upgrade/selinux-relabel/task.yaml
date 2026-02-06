@@ -10,12 +10,13 @@ systems:
     - fedora-*
     - centos-*
 
-execute: |
-    # TODO: remove this when snapd and snap-confine are uploaded to CentOS Stream 9 repo
-    if os.query is-centos 9; then
-        exit 0
-    fi
+skip:
+    - reason: Snapd and snap-confine are not upoloaded to CentOS Stream 9 repo yet
+      if: |
+        # TODO: remove this when snapd and snap-confine are uploaded to CentOS Stream 9 repo
+        os.query is-centos 9
 
+execute: |
     # only runs on distros with SELinux enabled
     selinuxenabled
 

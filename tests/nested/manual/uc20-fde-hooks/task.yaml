@@ -17,12 +17,12 @@ environment:
     EXPECT_TOKENS/tokens: true
     EXPECT_TOKENS/files: false
 
-prepare: |
-  if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
-    # SKIP
-    exit 0
-  fi
+skip:
+    - reason: Tokens are expected but ubuntu is lt 24.04
+      if: |
+        os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]
 
+prepare: |
   echo "Build a kernel snap with the fde-setup hook"
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
@@ -40,11 +40,6 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
-  if os.query is-ubuntu-lt 24.04 && [ "${EXPECT_TOKENS}" = true ]; then
-    # SKIP
-    exit 0
-  fi
-
   echo "Check that we have an encrypted system"
   remote.exec "find /dev/mapper" | MATCH ubuntu-data-[0-9a-f-]+
 

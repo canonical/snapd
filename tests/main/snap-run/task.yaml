@@ -14,19 +14,13 @@ environment:
     STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
-    tests.exec is-skipped && exit 0
-
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     cat stderr || true
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Running a trivial command causes no DENIED messages"
     test-snapd-sh-core24.sh -c 'echo hello'
     if os.query is-arch-linux && [ "$SNAP_REEXEC" != "1" ]; then

@@ -26,16 +26,14 @@ environment:
     SNAP/base: core20
     TRACK/base: latest
 
+skip:
+    - reason: Initial and target revisions are the same
+      if: |
+        FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+        TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+        [ "$FROM_REV" = "$TO_REV" ]
+
 prepare: |
-    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
-    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
-
-    if [ "$FROM_REV" = "$TO_REV" ]; then
-        echo "Initial and target revisions are the same, skipping..."
-        touch skip.test
-        exit
-    fi
-
     tests.nested build-image core
     tests.nested create-vm core
 
@@ -43,10 +41,6 @@ debug: |
     remote.exec "snap changes" || true
 
 execute: |
-    if [ -f skip.test ]; then
-        exit
-    fi
-
     FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
     TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 

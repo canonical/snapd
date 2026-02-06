@@ -28,7 +28,7 @@ import (
 type SecurebootRequest = securebootRequest
 
 func MockFdestateEFISecurebootDBUpdatePrepare(
-	f func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payload []byte) error,
+	f func(st *state.State, db fdestate.EFISecurebootKeyDatabase, payloads [][]byte) error,
 ) (restore func()) {
 	restore = testutil.Backup(&fdestateEFISecurebootDBUpdatePrepare)
 	fdestateEFISecurebootDBUpdatePrepare = f

@@ -18,11 +18,12 @@ environment:
     SNAPD_SRC/core: "core"
     SNAPD_SRC/snapd: "snapd"
 
-prepare: |
-    if [ "${SNAP_REEXEC:-}" = "0" ]; then
-        tests.exec skip-test "skipping test when SNAP_REEXEC is disabled" && exit 0
-    fi
+skip:
+    - reason: skipping test when SNAP_REEXEC is disabled
+      if: |
+        [ "${SNAP_REEXEC:-}" = "0" ]
 
+prepare: |
     #  when testing core remove snapd snap as option for re-exec
     if [ "$SNAPD_SRC" == "core" ]; then
         systemctl stop snapd.service snapd.socket
@@ -37,8 +38,6 @@ prepare: |
     fi
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     SNAPD_MOUNT_DIR="$SNAP_MOUNT_DIR/$SNAPD_SRC"
     # remove the locale revision of the snapd source snap, if we installed one
@@ -70,14 +69,10 @@ restore: |
     systemctl start snapd.service
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     ls /etc/systemd/system/snapd.service.d
     cat /etc/systemd/system/snapd.service.d/*
 
 execute: |
-    tests.exec is-skipped && exit 0
-    
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     SNAPD_MOUNT_DIR="$SNAP_MOUNT_DIR/$SNAPD_SRC"
 

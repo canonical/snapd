@@ -17,12 +17,12 @@ environment:
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
 
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-  
     # setup the fakestore, but don't use it for our snapd here on the
     # host VM, so tear down the staging_store immediately afterwards
     # so that only the SAS is running and our snapd is not pointed at
@@ -40,19 +40,9 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
     echo "Verify that no fde keys are generated"
     remote.exec "test ! -d /var/lib/snapd/device/fde"
 

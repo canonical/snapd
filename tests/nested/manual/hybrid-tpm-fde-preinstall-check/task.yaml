@@ -26,12 +26,12 @@ environment:
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir
 
-prepare: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
 
+prepare: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh

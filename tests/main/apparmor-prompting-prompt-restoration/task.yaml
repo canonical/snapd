@@ -11,11 +11,11 @@ details: |
 systems:
   - ubuntu-2*
 
-prepare: |
-    if os.query is-kernel-lt 6.16; then
-        tests.exec skip-test "Requires AppArmor notification protocol v5+ which is only in ubuntu kernels 6.16+" && exit 0
-    fi
+skip:
+    - reason: Requires AppArmor notification protocol v5+ which is only in ubuntu kernels 6.16+
+      if: os.query is-kernel-lt 6.16
 
+prepare: |
     echo "Check that the system AppArmor supports notification protocol v5"
     uname -a
     ls /sys/kernel/security/apparmor/features/policy
@@ -42,8 +42,6 @@ prepare: |
     snap connect prompt-requester:home
 
 restore: |
-    tests.exec is-skipped && exit 0
-
     SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     echo "Remove any new listener ID file"
@@ -62,8 +60,6 @@ restore: |
     snap remove test-snapd-prompt-handler
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     echo "Check kernel version"
     uname -a
     echo "Check system info"
@@ -74,8 +70,6 @@ debug: |
     tests.session -u test exec snap debug api /v2/interfaces/requests/prompts
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     echo "Remove any existing listener ID file so snapd will register new listener"
     rm -f /run/snapd/interfaces-requests/listener-id
 

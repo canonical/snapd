@@ -371,6 +371,9 @@ int main(int argc, char **argv) {
         CAP_CHOWN,            // file ownership
         CAP_FOWNER,           // to create tmp dir with sticky bit
         CAP_SYS_PTRACE,       // to inspect the mount namespace of PID1
+        // TODO: when removing the manual adjustment to memlock limit, remove this capability as well.
+        // The capability is to support the logic needed for 5.11 kernels.
+        CAP_SYS_RESOURCE,  // to raise memlock limit before setting up device eBPF program.
     };
 
     /* We may be invoking tools such as snap-update-ns or snap-discard which are

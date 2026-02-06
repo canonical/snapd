@@ -11,16 +11,16 @@ environment:
     SNAP_REEXEC/reexec0: 0
     SNAP_REEXEC/reexec1: 1
 
+skip:
+    - reason: No need to test when the snapd pkg is from the repository and reexec is disabled
+      if: |
+        [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
+
 prepare: |
-    if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-        tests.exec skip-test "No need to test when the snapd pkg is from the repository and reexec is disabled" && exit 0
-    fi
     snap pack test-snapd-epoch-1
     snap pack test-snapd-epoch-2
 
 execute: |
-    tests.exec is-skipped && exit 0
-
     rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
     snap try test-snapd-epoch-1
     not snap try test-snapd-epoch-2 2> try.err

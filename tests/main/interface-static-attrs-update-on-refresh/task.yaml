@@ -8,6 +8,11 @@ details: |
 # changes to the base profile or contents of the core snap will never break the test
 systems: [-ubuntu-core-*]
 
+skip:
+    - reason: Snap confinement is partial 
+      if: |
+        [ "$(snap debug confinement)" = partial ]
+
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snap-a-v1
   "$TESTSTOOLS"/snaps-state install-local test-snap-b
@@ -18,10 +23,6 @@ prepare: |
   tests.cleanup defer rm -rf /etc/foo /etc/bar
 
 execute: |
-  if [ "$(snap debug confinement)" = partial ] ; then
-    exit 0
-  fi
-
   snap info test-snap-a | MATCH "^installed: +version1"
 
   echo "test-snap-a reading /etc/foo, /etc/bar should fail."
