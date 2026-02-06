@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.74
+Version:        2.74.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1008,6 +1008,19 @@ fi
 %endif
 
 %changelog
+* Fri Feb 06 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.74.1
+ - FDE: measure DeployedMode and AuditMode variables if they appear
+   as disabled in the event log to avoid a potential reseal-failure
+   boot loop
+ - LP: #2139611 FDE: fix db updates by allowing multiple payloads
+ - LP: #2139300 snap-confine: add CAP_SYS_RESOURCE to allow raising
+   memory lock limit when required
+ - LP: #2139099 snap-confine: bump the max element count of the BPF
+   map used to store IDs of allowed/matched devices to 1000
+ - Interfaces: Added pidfd_open and memfd_secret to seccomp template
+ - Interfaces: camera | add locking permission for /dev/video
+
 * Tue Jan 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.74
  - FDE: use new activation API from secboot
