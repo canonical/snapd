@@ -428,8 +428,13 @@ func UseTokens(model *asserts.Model) bool {
 		case baseName == "core22":
 			fallthrough
 		case baseName == "core24":
+			// core/core18/core20/core22/core24 do not use
+			// keyslot tokens.
 			return false
 		case baseName[:4] == "core":
+			// Any base name starting with "core", but are
+			// not any of the previous case are expected
+			// to be core26 or later.
 			return true
 		default:
 			logger.Noticef("WARNING: unknown base %s. Guessing cryptsetup support", baseName)
