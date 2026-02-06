@@ -441,6 +441,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
 
 	// Perform any host-specific setup needed for core and snapd snaps.
+	// TODO: Remove this once Prepare is being called.
 	if err := b.setupHostAppArmorForCoreAndSnapd(appSet); err != nil {
 		return nil, err
 	}

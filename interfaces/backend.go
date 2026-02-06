@@ -170,8 +170,7 @@ type SecurityBackend interface {
 	Name() SecuritySystem
 
 	// Prepare performs any preparation required by the backend before
-	// setting up the given snap. This step can execute any special preparations
-	// required.
+	// making the given snap available to the system.
 	Prepare(appSet *SnapAppSet) error
 
 	// Setup creates and loads security artefacts specific to a given snap.
