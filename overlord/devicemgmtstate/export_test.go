@@ -37,8 +37,8 @@ var (
 	MaxSequences = maxSequences
 )
 
-func NewSequenceState() *sequenceState {
-	return &sequenceState{
+func NewSequenceCache() *sequenceCache {
+	return &sequenceCache{
 		Applied: make(map[string]int),
 		LRU:     make([]string, 0),
 	}

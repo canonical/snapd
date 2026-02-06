@@ -476,7 +476,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 			"msg2": makeRequestMessage("msg2", "confdb", 0, ""),
 			"msg3": makeRequestMessage("msg3", "confdb", 0, ""),
 		},
-		Sequences:      devicemgmtstate.NewSequenceState(),
+		Sequences:      devicemgmtstate.NewSequenceCache(),
 		ReadyResponses: make(map[string]store.Message),
 	}
 	s.mgr.SetState(ms)
@@ -506,11 +506,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 		name            string
 		sequences       map[string]int // last applied message per sequence
 		pendingRequests []*devicemgmtstate.RequestMessage
-
-		// Expectations
-		dispatched    []string
-		notDispatched []string
-		waitOn        map[string]string
+		expectedChain   map[string]string
 	}
 
 	tests := []test{
@@ -521,9 +517,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqA", "confdb", 2, ""),
 				makeRequestMessage("seqA", "confdb", 3, ""),
 			},
-
-			dispatched: []string{"seqA-1", "seqA-2", "seqA-3"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"seqA-1": "<dispatch>",
 				"seqA-2": "seqA-1",
 				"seqA-3": "seqA-2",
@@ -537,10 +531,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqA", "confdb", 4, ""), // 3 is missing
 				makeRequestMessage("seqA", "confdb", 5, ""),
 			},
-
-			dispatched:    []string{"seqA-1", "seqA-2"},
-			notDispatched: []string{"seqA-4", "seqA-5"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"seqA-1": "<dispatch>",
 				"seqA-2": "seqA-1",
 			},
@@ -552,9 +543,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqA", "confdb", 3, ""),
 				makeRequestMessage("seqA", "confdb", 4, ""),
 			},
-
-			dispatched: []string{"seqA-3", "seqA-4"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"seqA-3": "<dispatch>",
 				"seqA-4": "seqA-3",
 			},
@@ -564,8 +553,6 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			pendingRequests: []*devicemgmtstate.RequestMessage{
 				makeRequestMessage("seqA", "confdb", 5, ""), // can't start here
 			},
-
-			notDispatched: []string{"seqA-5"},
 		},
 		{
 			name:      "already dispatched skipped",
@@ -575,10 +562,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqA", "confdb", 2, ""),
 				makeRequestMessage("seqA", "confdb", 3, ""),
 			},
-
-			dispatched:    []string{"seqA-2", "seqA-3"},
-			notDispatched: []string{"seqA-1"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"seqA-2": "<dispatch>",
 				"seqA-3": "seqA-2",
 			},
@@ -591,9 +575,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqA", "confdb", 1, ""),
 				makeRequestMessage("seqA", "confdb", 2, ""),
 			},
-
-			dispatched: []string{"uns1", "uns2", "seqA-1", "seqA-2"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"uns1":   "<dispatch>",
 				"uns2":   "<dispatch>",
 				"seqA-1": "<dispatch>",
@@ -608,9 +590,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 				makeRequestMessage("seqB", "confdb", 1, ""),
 				makeRequestMessage("seqB", "confdb", 2, ""),
 			},
-
-			dispatched: []string{"seqA-1", "seqA-2", "seqB-1", "seqB-2"},
-			waitOn: map[string]string{
+			expectedChain: map[string]string{
 				"seqA-1": "<dispatch>",
 				"seqA-2": "seqA-1",
 				"seqB-1": "<dispatch>",
@@ -627,7 +607,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			pending[msg.ID()] = msg
 		}
 
-		sequences := devicemgmtstate.NewSequenceState()
+		sequences := devicemgmtstate.NewSequenceCache()
 		for seqID, lastApplied := range tt.sequences {
 			sequences.Applied[seqID] = lastApplied
 			sequences.LRU = append(sequences.LRU, seqID)
@@ -649,10 +629,23 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 		s.st.Lock()
 		c.Assert(err, IsNil, cmt)
 
+		dispatched := make([]string, 0, len(tt.expectedChain))
+		for id := range tt.expectedChain {
+			dispatched = append(dispatched, id)
+		}
+
+		var notDispatched []string
+		for id := range pending {
+			_, ok := tt.expectedChain[id]
+			if !ok {
+				notDispatched = append(notDispatched, id)
+			}
+		}
+
 		ti := buildTaskIndex(chg)
-		assertMessagesDispatched(c, ti, tt.dispatched, tt.name)
-		assertMessagesNotDispatched(c, ti, tt.notDispatched, tt.name)
-		assertMessagesWaitOn(c, ti, tt.waitOn, tt.name)
+		assertMessagesDispatched(c, ti, dispatched, tt.name)
+		assertMessagesNotDispatched(c, ti, notDispatched, tt.name)
+		assertMessagesWaitOn(c, ti, tt.expectedChain, tt.name)
 	}
 }
 
@@ -675,7 +668,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		PendingRequests: pending,
-		Sequences:       devicemgmtstate.NewSequenceState(),
+		Sequences:       devicemgmtstate.NewSequenceCache(),
 		ReadyResponses:  make(map[string]store.Message),
 	}
 	s.mgr.SetState(ms)
