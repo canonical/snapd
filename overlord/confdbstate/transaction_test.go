@@ -391,6 +391,70 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	c.Assert(value, Equals, "value")
 }
 
+func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
+	type testcase struct {
+		path  string
+		value any
+	}
+
+	tcs := []testcase{
+		{
+			path:  "foo",
+			value: "bar",
+		},
+		{
+			path:  "foo.{bar}",
+			value: map[string]any{"bar": "a", "baz": "b"},
+		},
+		{
+			path:  "foo[{n}]",
+			value: []any{"a", "b"},
+		},
+		{
+			path:  "foo[1]",
+			value: []any{"a", "b"},
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+
+		bag := confdb.NewJSONDatabag()
+		err := bag.Set(parsePath(c, "foo"), tc.value)
+		c.Assert(err, IsNil, cmt)
+
+		err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
+		c.Assert(err, IsNil, cmt)
+
+		tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+		c.Assert(err, IsNil, cmt)
+
+		err = tx.Unset(parsePath(c, tc.path))
+		c.Assert(err, IsNil, cmt)
+
+		jsonData, err := json.Marshal(tx)
+		c.Assert(err, IsNil, cmt)
+
+		tx = nil
+		err = json.Unmarshal(jsonData, &tx)
+		c.Assert(err, IsNil, cmt)
+
+		// transaction deltas are preserved
+		_, err = tx.Get(parsePath(c, tc.path), nil)
+		c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{}, cmt)
+
+		// we can commit as normal
+		err = tx.Commit(s.state, confdb.NewJSONSchema())
+		c.Assert(err, IsNil, cmt)
+
+		bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
+		c.Assert(err, IsNil, cmt)
+
+		_, err = bag.Get(parsePath(c, tc.path), nil)
+		c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{}, cmt)
+	}
+}
+
 func txData(c *C, tx *confdbstate.Transaction) string {
 	data, err := tx.Data()
 	c.Assert(err, IsNil)

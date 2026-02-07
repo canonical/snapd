@@ -741,9 +741,16 @@ func checkForMatchingPlaceholders(request, storage string, reqPlaceholders, stor
 }
 
 type ParseOptions struct {
+	// AllowPlaceholders allows the path to have placeholders. Input paths supplied
+	// by the user are not expected to have them.
 	AllowPlaceholders bool
-	ForbidIndexes     bool
-	AllowPartialPath  bool
+	// ForbidIndexes forbids the path from containing a literal index (e.g., [1]).
+	// Unlike user supplied paths, paths specified in confdb-schemas can only have
+	// index placeholders, never index literals.
+	ForbidIndexes bool
+	// AllowPathSuffix allows the parsed path to be a suffix of a regular path.
+	// The parsing won't reject paths not starting with a map key.
+	AllowPathSuffix bool
 }
 
 // ParsePathIntoAccessors validates that the path is composed of (some of these
@@ -852,7 +859,7 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 
 	finishSubkey := func() error {
 		if sb.Len() == 0 {
-			if len(subkeys) == 0 && opts.AllowPartialPath {
+			if len(subkeys) == 0 && opts.AllowPathSuffix {
 				// we may be parsing a suffix of a path 'foo[2].bar' so allow a path to
 				// start with a separator '[2].bar'
 				return nil
@@ -1452,7 +1459,7 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		var pathParts []Accessor
 
 		if path != "" {
-			opts := ParseOptions{AllowPlaceholders: true, AllowPartialPath: true}
+			opts := ParseOptions{AllowPlaceholders: true, AllowPathSuffix: true}
 			pathParts, err = ParsePathIntoAccessors(path, opts)
 			if err != nil {
 				return err
