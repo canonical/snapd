@@ -28,11 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapfile"
-	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type ubootTestSuite struct {
@@ -62,18 +57,7 @@ func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
-	err := u.SetBootVars(map[string]string{
-		"snap_mode": "",
-		"snap_core": "4",
-	})
-	c.Assert(err, IsNil)
-
-	m, err := u.GetBootVars("snap_mode", "snap_core")
-	c.Assert(err, IsNil)
-	c.Assert(m, DeepEquals, map[string]string{
-		"snap_mode": "",
-		"snap_core": "4",
-	})
+	testBootloaderGetSetEnvVar(c, u)
 }
 
 func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
@@ -117,13 +101,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
-
-	err := u.SetBootVars(map[string]string{"key": "value"})
-	c.Assert(err, IsNil)
-
-	content, err := u.GetBootVars("key")
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
+	testBootloaderSetBootVarFwEnv(c, u)
 }
 
 func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
@@ -141,90 +119,15 @@ func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
-
-	files := [][]string{
-		{"kernel.img", "I'm a kernel"},
-		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
-		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
-		// must be last
-		{"meta/kernel.yaml", "version: 4.2"},
-	}
-	si := &snap.SideInfo{
-		RealName: "ubuntu-kernel",
-		Revision: snap.R(42),
-	}
-	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
-
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
-
-	err = u.ExtractKernelAssets(info, snapf)
-	c.Assert(err, IsNil)
-
-	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "boot", "uboot", "ubuntu-kernel_42.snap")
-
-	for _, def := range files {
-		if def[0] == "meta/kernel.yaml" {
-			break
-		}
-
-		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		c.Check(fullFn, testutil.FileEquals, def[1])
-	}
-
-	// remove
-	err = u.RemoveKernelAssets(info)
-	c.Assert(err, IsNil)
-
-	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+	testBootloaderExtractKernelAssetsAndRemove(c, u, kernelAssetsDir)
 }
 
 func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
-
-	files := [][]string{
-		{"kernel.img", "I'm a kernel"},
-		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/foo.dtb", "foo dtb"},
-		{"dtbs/bar.dto", "bar dtbo"},
-		// must be last
-		{"meta/kernel.yaml", "version: 4.2"},
-	}
-	si := &snap.SideInfo{
-		RealName: "ubuntu-kernel",
-		Revision: snap.R(42),
-	}
-	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snapfile.Open(fn)
-	c.Assert(err, IsNil)
-
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
-
-	// try with empty recovery dir first to check the errors
-	err = u.ExtractRecoveryKernelAssets("", info, snapf)
-	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
-
-	// now the expected behavior
-	err = u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
-	c.Assert(err, IsNil)
-
-	// this is where the kernel/initrd is unpacked
 	kernelAssetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
-
-	for _, def := range files {
-		if def[0] == "meta/kernel.yaml" {
-			break
-		}
-
-		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		c.Check(fullFn, testutil.FileEquals, def[1])
-	}
+	testBootloaderExtractRecoveryKernelAssets(c, u, kernelAssetsDir)
 }
 
 func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {

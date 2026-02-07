@@ -77,7 +77,7 @@ func newUboot(rootdir string, blOpts *Options) Bootloader {
 }
 
 func (u *uboot) Name() string {
-	return "uboot"
+	return ubootName
 }
 
 func (u *uboot) dir() string {
@@ -165,43 +165,20 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-
-	dirty := false
-	for k, v := range values {
-		// already set to the right value, nothing to do
-		if env.Get(k) == v {
-			continue
-		}
-		env.Set(k, v)
-		dirty = true
-	}
-
-	if dirty {
-		return env.Save()
-	}
-
-	return nil
+	return setBootVarsInEnv(env, values)
 }
 
 func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
-	out := map[string]string{}
-
 	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, name := range names {
-		out[name] = env.Get(name)
-	}
-
-	return out, nil
+	return getBootVarsFromEnv(env, names...), nil
 }
 
 func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	dstDir := filepath.Join(u.dir(), s.Filename())
-	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
-	return extractKernelAssetsToBootDir(dstDir, snapf, assets)
+	return extractKernelAssetsToBootDir(dstDir, snapf, ubootKernelAssets)
 }
 
 func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
@@ -210,8 +187,7 @@ func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pla
 	}
 
 	recoverySystemUbootKernelAssetsDir := filepath.Join(u.rootdir, recoverySystemDir, "kernel")
-	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
-	return extractKernelAssetsToBootDir(recoverySystemUbootKernelAssetsDir, snapf, assets)
+	return extractKernelAssetsToBootDir(recoverySystemUbootKernelAssetsDir, snapf, ubootKernelAssets)
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {

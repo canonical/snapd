@@ -1907,8 +1907,17 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *sy
 			partSrc = partition.KernelDeviceNode
 		}
 	} else {
+		// When snapd_system_disk is set on the kernel command line,
+		// prefer label-based lookup over the EFI LoaderDevicePartUUID
+		// variable. The EFI variable records the partition the kernel
+		// was loaded from, which may differ from the partition we
+		// actually want (e.g. U-Boot loads kernel.efi from ubuntu-seed
+		// but we need to mount ubuntu-boot by its label).
+		values, _ := kcmdline.KeyValues("snapd_system_disk")
+		_, hasSystemDisk := values["snapd_system_disk"]
+
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-		if err == nil {
+		if err == nil && !hasSystemDisk {
 			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
 			//       to use by-uuid or by-id
 			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)

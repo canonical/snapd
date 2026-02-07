@@ -1140,7 +1140,7 @@ version: 5.0
 	restore := assets.MockInternal("grub.cfg", nil)
 	defer restore()
 	err = boot.MakeRunnableSystem(model, bootWith, nil)
-	c.Assert(err, ErrorMatches, `cannot install managed bootloader assets: internal error: no boot asset for "grub.cfg"`)
+	c.Assert(err, ErrorMatches, `cannot install boot config: internal error: no boot asset for "grub.cfg"`)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20RunModeSealKeyErr(c *C) {
