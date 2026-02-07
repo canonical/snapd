@@ -68,6 +68,12 @@ func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, networkControlCoreYaml, nil, "network-control")
 }
 
+func (s *NetworkControlInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *NetworkControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-control")
 }

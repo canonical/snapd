@@ -131,6 +131,16 @@ slots:
 	s.osPwmSlot = interfaces.NewConnectedSlot(s.osPwmSlotInfo, appSet, nil, nil)
 }
 
+func (s *PwmInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// systemd
+	_, ok = s.iface.(systemd.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *PwmInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "pwm")
 }

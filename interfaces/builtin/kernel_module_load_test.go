@@ -85,6 +85,12 @@ func (s *KernelModuleLoadInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, kernelModuleLoadCoreYaml, nil, "kernel-module-load")
 }
 
+func (s *KernelModuleLoadInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// kmod
+	_, ok := s.iface.(kmod.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *KernelModuleLoadInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kernel-module-load")
 }

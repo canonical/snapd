@@ -71,6 +71,14 @@ func (s *NetworkManagerObserveInterfaceSuite) SetUpTest(c *C) {
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, networkManagerObserveCoreYaml, nil, "network-manager-observe")
 }
 
+func (s *NetworkManagerObserveInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *NetworkManagerObserveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-manager-observe")
 }

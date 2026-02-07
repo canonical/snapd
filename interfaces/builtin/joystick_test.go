@@ -64,6 +64,12 @@ func (s *JoystickInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, joystickCoreYaml, nil, "joystick")
 }
 
+func (s *JoystickInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// udev
+	_, ok := s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *JoystickInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "joystick")
 }

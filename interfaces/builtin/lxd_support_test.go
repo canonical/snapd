@@ -63,6 +63,12 @@ func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
 }
 
+func (s *LxdSupportInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "lxd-support")
 }

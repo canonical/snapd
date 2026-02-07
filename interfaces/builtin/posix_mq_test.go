@@ -752,6 +752,14 @@ func (s *PosixMQInterfaceSuite) TestInvalidPerms3(c *C) {
 		`snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "permissions" attribute: \*\[\]string`)
 }
 
+func (s *PosixMQInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "posix-mq")
 }

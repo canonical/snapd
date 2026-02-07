@@ -65,6 +65,12 @@ func (s *UserNSInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, userNSCoreYaml, nil, "userns")
 }
 
+func (s *UserNSInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *UserNSInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "userns")
 }

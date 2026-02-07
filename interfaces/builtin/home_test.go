@@ -61,6 +61,12 @@ slots:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "home")
 }
 
+func (s *HomeInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *HomeInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "home")
 }

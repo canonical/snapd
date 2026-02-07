@@ -79,6 +79,12 @@ func (s *AudioRecordInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, audioRecordMockPlugSnapInfoYaml, nil, "audio-record")
 }
 
+func (s *AudioRecordInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *AudioRecordInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "audio-record")
 }
