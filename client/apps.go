@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -169,18 +170,29 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		query.Set("follow", strconv.FormatBool(opts.Follow))
 	}
 
-	rsp, err := client.raw(context.Background(), "GET", "/v2/logs", query, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if rsp.StatusCode != 200 {
-		var r response
-		defer rsp.Body.Close()
-		if err := decodeInto(rsp.Body, &r); err != nil {
+	var (
+		rsp *http.Response
+		err error
+	)
+	for {
+		rsp, err = client.raw(context.Background(), "GET", "/v2/logs", query, nil, nil)
+		if err != nil {
 			return nil, err
 		}
-		return nil, r.err(client, rsp.StatusCode)
+
+		if rsp.StatusCode != 200 {
+			var r response
+			defer rsp.Body.Close()
+			if err := decodeInto(rsp.Body, &r); err != nil {
+				return nil, err
+			}
+			err, isDaemonRestart := r.err(client, rsp.StatusCode)
+			if isDaemonRestart {
+				continue
+			}
+			return nil, err
+		}
+		break
 	}
 
 	ch := make(chan Log, 20)
