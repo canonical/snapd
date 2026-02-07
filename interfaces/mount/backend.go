@@ -58,6 +58,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityMount
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// no special preparation required
+	return nil
+}
+
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
