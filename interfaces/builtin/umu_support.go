@@ -65,21 +65,9 @@ userns,
 
 # Specific pressure-vessel assemblies
 mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,
-mount options=(rw, rbind) /oldroot/etc/ -> /newroot/run/host/etc/,
-mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-release,
-
-# Permission to read from the host
-/oldroot/usr/** r,
-/oldroot/etc/** r,
 
 # Restrictive host access
-/run/host/ r,
-/run/host/usr/ r,
-/run/host/etc/ r,
-/run/host/lib{,32,64}/ r,
-/run/host/usr/lib{,32,64}/ r,
-/run/host/lib{,32,64}/** mr,
-/run/host/usr/lib{,32,64}/** mr,
+/run/host/usr/lib/** mr,
 
 # Permission for bwrap temporary files
 /bindfile* rw,
@@ -97,7 +85,8 @@ mount options=(rw, rbind) /bindfile* -> /newroot/**,
 /usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
 
 # Allow access to pressure-vessel directories
-/*/pressure-vessel/** mrw,
+/run/pressure-vessel/** mrw,
+/var/pressure-vessel/** mrw,
 
 # Allow access to icons and shortcuts directories
 owner /home/*/.config/menus/{,**} rw,
