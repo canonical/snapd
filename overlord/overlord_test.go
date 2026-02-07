@@ -132,6 +132,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.FDEManager(), NotNil)
 	c.Check(o.ConfdbManager(), NotNil)
 	c.Check(o.DeviceMgmtManager(), NotNil)
+	c.Check(o.CertManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
 
 	o.InterfaceManager().DisableUDevMonitor()

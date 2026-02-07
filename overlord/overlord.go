@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
@@ -121,6 +122,7 @@ type Overlord struct {
 	noticeMgr     *notices.NoticeManager
 	confdbMgr     *confdbstate.ConfdbManager
 	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
+	certStateMgr  *certstate.CertManager
 
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
@@ -202,6 +204,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+	o.addManager(certstate.Manager(s, o.runner))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
@@ -253,6 +256,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.confdbMgr = x
 	case *devicemgmtstate.DeviceMgmtManager:
 		o.deviceMgmtMgr = x
+	case *certstate.CertManager:
+		o.certStateMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -738,6 +743,11 @@ func (o *Overlord) ConfdbManager() *confdbstate.ConfdbManager {
 // DeviceMgmtManager returns the manager responsible for device management.
 func (o *Overlord) DeviceMgmtManager() *devicemgmtstate.DeviceMgmtManager {
 	return o.deviceMgmtMgr
+}
+
+// CertManager returns the manager responsible for system certificates.
+func (o *Overlord) CertManager() *certstate.CertManager {
+	return o.certStateMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
