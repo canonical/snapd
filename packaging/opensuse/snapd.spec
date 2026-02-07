@@ -23,7 +23,7 @@
 %bcond_with testkeys
 
 # Enable apparmor on Tumbleweed and Leap 15.3+
-%if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
+%if 0%{?suse_version} >= 1550 || (!0%{is_opensuse} && 0%{?sle_version} >= 150300)
 %bcond_without apparmor
 %else
 %bcond_with apparmor

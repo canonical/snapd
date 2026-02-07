@@ -268,6 +268,8 @@ backends:
 
             - opensuse-15.6-64:
                   workers: 6
+            - opensuse-16.0-64:
+                  workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
                   storage: 12G
@@ -440,6 +442,9 @@ backends:
 
             - opensuse-15.6-64:
                 image: snapd-spread/opensuse-15.6-64
+                workers: 6
+            - opensuse-16.0-64:
+                image: snapd-spread/opensuse-16.0-64
                 workers: 6
             - opensuse-tumbleweed-64:
                 image: snapd-spread/opensuse-tumbleweed-64
@@ -777,6 +782,9 @@ backends:
                   username: root
                   password: root
             - debian-sid-64:
+                  username: root
+                  password: root
+            - opensuse-16.0-64:
                   username: root
                   password: root
             - opensuse-tumbleweed-64:
