@@ -466,6 +466,247 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 	c.Assert(err, ErrorMatches, "network timeout")
 }
 
+func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"msg1": makeRequestMessage("msg1", "confdb", 0, "16384"), // already dispatched
+			"msg2": makeRequestMessage("msg2", "confdb", 0, ""),
+			"msg3": makeRequestMessage("msg3", "confdb", 0, ""),
+		},
+		Sequences:      devicemgmtstate.NewSequenceCache(),
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	dispatch := s.st.NewTask("dispatch-mgmt-messages", "test dispatch-messages task")
+	chg.AddTask(dispatch)
+
+	s.st.Unlock()
+	err := s.mgr.DoDispatchMessages(dispatch, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ti := buildTaskIndex(chg)
+	assertMessagesDispatched(c, ti, []string{"msg2", "msg3"}, "unsequenced")
+	assertMessagesNotDispatched(c, ti, []string{"msg1"}, "unsequenced")
+
+	waitOn := map[string]string{"msg2": "<dispatch>", "msg3": "<dispatch>"}
+	assertMessagesWaitOn(c, ti, waitOn, "unsequenced")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	type test struct {
+		name            string
+		sequences       map[string]int // last applied message per sequence
+		pendingRequests []*devicemgmtstate.RequestMessage
+		expectedChain   map[string]string
+	}
+
+	tests := []test{
+		{
+			name: "consecutive from start",
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 1, ""),
+				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqA", "confdb", 3, ""),
+			},
+			expectedChain: map[string]string{
+				"seqA-1": "<dispatch>",
+				"seqA-2": "seqA-1",
+				"seqA-3": "seqA-2",
+			},
+		},
+		{
+			name: "gap stops chaining",
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 1, ""),
+				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqA", "confdb", 4, ""), // 3 is missing
+				makeRequestMessage("seqA", "confdb", 5, ""),
+			},
+			expectedChain: map[string]string{
+				"seqA-1": "<dispatch>",
+				"seqA-2": "seqA-1",
+			},
+		},
+		{
+			name:      "resume from last message applied",
+			sequences: map[string]int{"seqA": 2},
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 3, ""),
+				makeRequestMessage("seqA", "confdb", 4, ""),
+			},
+			expectedChain: map[string]string{
+				"seqA-3": "<dispatch>",
+				"seqA-4": "seqA-3",
+			},
+		},
+		{
+			name: "no dispatchable messages",
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 5, ""), // can't start here
+			},
+		},
+		{
+			name:      "already dispatched skipped",
+			sequences: map[string]int{"seqA": 1},
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 1, "16384"), // already dispatched
+				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqA", "confdb", 3, ""),
+			},
+			expectedChain: map[string]string{
+				"seqA-2": "<dispatch>",
+				"seqA-3": "seqA-2",
+			},
+		},
+		{
+			name: "mixed sequenced and unsequenced",
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("uns1", "confdb", 0, ""),
+				makeRequestMessage("uns2", "confdb", 0, ""),
+				makeRequestMessage("seqA", "confdb", 1, ""),
+				makeRequestMessage("seqA", "confdb", 2, ""),
+			},
+			expectedChain: map[string]string{
+				"uns1":   "<dispatch>",
+				"uns2":   "<dispatch>",
+				"seqA-1": "<dispatch>",
+				"seqA-2": "seqA-1",
+			},
+		},
+		{
+			name: "multiple independent sequences",
+			pendingRequests: []*devicemgmtstate.RequestMessage{
+				makeRequestMessage("seqA", "confdb", 1, ""),
+				makeRequestMessage("seqA", "confdb", 2, ""),
+				makeRequestMessage("seqB", "confdb", 1, ""),
+				makeRequestMessage("seqB", "confdb", 2, ""),
+			},
+			expectedChain: map[string]string{
+				"seqA-1": "<dispatch>",
+				"seqA-2": "seqA-1",
+				"seqB-1": "<dispatch>",
+				"seqB-2": "seqB-1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+
+		pending := make(map[string]*devicemgmtstate.RequestMessage)
+		for _, msg := range tt.pendingRequests {
+			pending[msg.ID()] = msg
+		}
+
+		sequences := devicemgmtstate.NewSequenceCache()
+		for seqID, lastApplied := range tt.sequences {
+			sequences.Applied[seqID] = lastApplied
+			sequences.LRU = append(sequences.LRU, seqID)
+		}
+
+		ms := &devicemgmtstate.DeviceMgmtState{
+			PendingRequests: pending,
+			Sequences:       sequences,
+			ReadyResponses:  make(map[string]store.Message),
+		}
+		s.mgr.SetState(ms)
+
+		chg := s.st.NewChange("test", "test change")
+		dispatchTask := s.st.NewTask("dispatch-mgmt-messages", "test dispatch-messages task")
+		chg.AddTask(dispatchTask)
+
+		s.st.Unlock()
+		err := s.mgr.DoDispatchMessages(dispatchTask, &tomb.Tomb{})
+		s.st.Lock()
+		c.Assert(err, IsNil, cmt)
+
+		dispatched := make([]string, 0, len(tt.expectedChain))
+		for id := range tt.expectedChain {
+			dispatched = append(dispatched, id)
+		}
+
+		var notDispatched []string
+		for id := range pending {
+			_, ok := tt.expectedChain[id]
+			if !ok {
+				notDispatched = append(notDispatched, id)
+			}
+		}
+
+		ti := buildTaskIndex(chg)
+		assertMessagesDispatched(c, ti, dispatched, tt.name)
+		assertMessagesNotDispatched(c, ti, notDispatched, tt.name)
+		assertMessagesWaitOn(c, ti, tt.expectedChain, tt.name)
+	}
+}
+
+func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	baseTime := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
+	pending := make(map[string]*devicemgmtstate.RequestMessage)
+	for i := 1; i <= devicemgmtstate.MaxSequences+2; i++ {
+		baseID := fmt.Sprintf("seq-%d", i)
+		for _, seqNum := range []int{1, 2} {
+			msg := makeRequestMessage(baseID, "confdb", seqNum, "")
+			msg.ReceiveTime = baseTime.Add(
+				time.Duration(i)*time.Minute + time.Duration(seqNum)*time.Second,
+			)
+			pending[msg.ID()] = msg
+		}
+	}
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: pending,
+		Sequences:       devicemgmtstate.NewSequenceCache(),
+		ReadyResponses:  make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	dispatch := s.st.NewTask("dispatch-mgmt-messages", "test dispatch-messages task")
+	chg.AddTask(dispatch)
+
+	s.st.Unlock()
+	err := s.mgr.DoDispatchMessages(dispatch, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// seq-1 evicted.
+	rejected := ms.PendingRequests["seq-1-1"]
+	c.Assert(rejected, NotNil)
+	c.Check(rejected.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(rejected.Error, Equals, "sequence evicted from cache due to capacity limits")
+	c.Check(ms.PendingRequests["seq-1-2"], IsNil, Commentf("the 2nd message in seq-1 should have been deleted"))
+
+	ti := buildTaskIndex(chg)
+	c.Check(ti.validate["seq-1-1"], IsNil)
+	c.Check(ti.apply["seq-1-1"], IsNil)
+	c.Check(ti.queue["seq-1-1"], NotNil)
+
+	_, tracked := ms.Sequences.Applied["seq-1"]
+	c.Check(tracked, Equals, false)
+
+	// seq-2 also evicted.
+	c.Check(ms.PendingRequests["seq-2-1"].Status, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.PendingRequests["seq-2-2"], IsNil)
+
+	c.Check(len(ms.Sequences.Applied), Equals, devicemgmtstate.MaxSequences)
+}
+
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 	type test struct {
 		name        string
@@ -506,5 +747,95 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 		msg, err := devicemgmtstate.ParseRequestMessage(tt.message)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(msg, IsNil, cmt)
+	}
+}
+
+func makeRequestMessage(baseID, kind string, seqNum int, changeID string) *devicemgmtstate.RequestMessage {
+	wayback := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
+
+	return &devicemgmtstate.RequestMessage{
+		AccountID:   "my-brand",
+		AuthorityID: "my-brand",
+		BaseID:      baseID,
+		SeqNum:      seqNum,
+		Kind:        kind,
+		Devices:     []string{"serial-1.my-model.my-brand"},
+		ValidSince:  wayback,
+		ValidUntil:  wayback.Add(24 * time.Hour),
+		Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+		ReceiveTime: wayback.Add(6 * time.Hour),
+		ChangeID:    changeID,
+	}
+}
+
+type taskIndex struct {
+	validate map[string]*state.Task // Message ID -> validate-mgmt-message
+	apply    map[string]*state.Task // Message ID -> apply-mgmt-message
+	queue    map[string]*state.Task // Message ID -> queue-mgmt-response
+}
+
+func buildTaskIndex(chg *state.Change) *taskIndex {
+	ti := &taskIndex{
+		validate: make(map[string]*state.Task),
+		apply:    make(map[string]*state.Task),
+		queue:    make(map[string]*state.Task),
+	}
+	for _, t := range chg.Tasks() {
+		var id string
+		err := t.Get("id", &id)
+		if err != nil {
+			continue
+		}
+
+		switch t.Kind() {
+		case "validate-mgmt-message":
+			ti.validate[id] = t
+		case "apply-mgmt-message":
+			ti.apply[id] = t
+		case "queue-mgmt-response":
+			ti.queue[id] = t
+		}
+	}
+
+	return ti
+}
+
+// assertMessagesDispatched checks that each message has all three dispatched tasks.
+func assertMessagesDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
+	for _, id := range msgIDs {
+		c.Assert(ti.validate[id], NotNil, Commentf("%s: %s should have a validate task", testName, id))
+		c.Assert(ti.apply[id], NotNil, Commentf("%s: %s should have an apply task", testName, id))
+		c.Assert(ti.queue[id], NotNil, Commentf("%s: %s should have a queue response task", testName, id))
+	}
+}
+
+// assertMessagesNotDispatched checks that no tasks for the given messages were dispatched.
+func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
+	for _, id := range msgIDs {
+		c.Assert(ti.validate[id], IsNil, Commentf("%s: %s should not have a validate task", testName, id))
+		c.Assert(ti.apply[id], IsNil, Commentf("%s: %s should not have an apply task", testName, id))
+		c.Assert(ti.queue[id], IsNil, Commentf("%s: %s should not have a queue response task", testName, id))
+	}
+}
+
+// assertMessagesWaitOn checks that each message's validate task waits on its predecessor's queue response task.
+func assertMessagesWaitOn(c *C, ti *taskIndex, waitOn map[string]string, testName string) {
+	for msgID, prevID := range waitOn {
+		validate := ti.validate[msgID]
+		c.Assert(validate, NotNil, Commentf("%s: %s should have a validate task", testName, msgID))
+
+		waitTasks := validate.WaitTasks()
+		c.Assert(waitTasks, HasLen, 1, Commentf("%s: %s should have exactly one wait task", testName, msgID))
+
+		if prevID == "<dispatch>" {
+			c.Assert(waitTasks[0].Kind(), Equals, "dispatch-mgmt-messages",
+				Commentf("%s: %s should wait on the dispatch task", testName, msgID))
+		} else {
+			prevQueue := ti.queue[prevID]
+			c.Assert(prevQueue, NotNil, Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
+
+			c.Assert(waitTasks[0].ID(), Equals, prevQueue.ID(),
+				Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
+		}
 	}
 }
