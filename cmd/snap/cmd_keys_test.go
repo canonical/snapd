@@ -69,7 +69,7 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 
 	s.tempdir = c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
+		data, err := os.ReadFile(filepath.Join("testdata", fileName))
 		c.Assert(err, IsNil)
 		err = os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
