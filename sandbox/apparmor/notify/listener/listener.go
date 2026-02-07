@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -53,55 +52,10 @@ var (
 	// someone listening over l.reqs to quickly receive and process them too.
 	readyTimeout = time.Duration(5 * time.Second)
 
-	osOpen                            = os.Open
-	notifyRegisterFileDescriptor      = notify.RegisterFileDescriptor
-	notifyIoctl                       = notify.Ioctl
-	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+	osOpen                       = os.Open
+	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
+	notifyIoctl                  = notify.Ioctl
 )
-
-// Request is a high-level representation of an apparmor prompting message.
-//
-// A request must be replied to via its Reply method.
-type Request struct {
-	// ID is the unique ID of the message notification associated with the request.
-	ID uint64
-	// PID is the identifier of the process which triggered the request.
-	PID int32
-	// Cgroup is the cgroup path of the process which triggered the request.
-	Cgroup string
-	// Label is the apparmor label on the process which triggered the request.
-	Label string
-	// SubjectUID is the UID of the subject which triggered the request.
-	SubjectUID uint32
-
-	// Path is the path of the file, as seen by the process triggering the request.
-	Path string
-	// Class is the mediation class corresponding to this request.
-	Class notify.MediationClass
-	// Permission is the opaque permission that is being requested.
-	Permission notify.AppArmorPermission
-	// AaAllowed is the opaque permission mask which was already allowed by
-	// AppArmor rules.
-	AaAllowed notify.AppArmorPermission
-	// Tagsets is the metadata tagsets associated with the permissions in the
-	// request. The tagsets map from permission mask to the list of tags
-	// associated with those permissions.
-	Tagsets notify.TagsetMap
-
-	// Reply is a closure which sends a response to the kernel.
-	Reply func(allowedPermission notify.AppArmorPermission) error
-}
-
-func expectedResponseTypeForClass(class notify.MediationClass) string {
-	switch class {
-	case notify.AA_CLASS_FILE:
-		return "notify.FilePermission"
-	default:
-		// This should never occur, as caller should return an error before
-		// calling this if the class is unsupported.
-		return "???"
-	}
-}
 
 // SendResponseFunc sends a response to the kernel on behalf of a request.
 type SendResponseFunc = func(id uint64, aaAllowed, aaRequested, allow notify.AppArmorPermission) error
@@ -526,52 +480,6 @@ func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
 	}
 	logger.Debugf("received file request from the kernel: %+v", fmsg)
 	return &fmsg, nil
-}
-
-func NewListenerRequest(msg notify.MsgNotificationGeneric, sendResponse SendResponseFunc) (*Request, error) {
-	pid := msg.PID()
-	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
-	}
-	aaAllowed, aaDenied, err := msg.AllowedDeniedPermissions()
-	if err != nil {
-		return nil, err
-	}
-	req := &Request{
-		ID:         msg.ID(),
-		PID:        pid,
-		Cgroup:     cgroup,
-		Label:      msg.ProcessLabel(),
-		SubjectUID: msg.SubjectUID(),
-
-		Path:       msg.Name(),
-		Class:      msg.MediationClass(),
-		Permission: aaDenied, // Request permissions which were initially denied
-		AaAllowed:  aaAllowed,
-		Tagsets:    msg.DeniedMetadataTagsets(),
-	}
-	req.Reply = func(allowedPermission notify.AppArmorPermission) error {
-		var ok bool
-		switch req.Class {
-		case notify.AA_CLASS_FILE:
-			_, ok = allowedPermission.(notify.FilePermission)
-		default:
-			// should not occur, since the request was created in this package
-			return fmt.Errorf("internal error: unsupported mediation class: %v", req.Class)
-		}
-		// Treat nil allowedPermission as allowing no permissions, which is valid
-		if !ok && allowedPermission != nil {
-			expectedType := expectedResponseTypeForClass(req.Class)
-			return fmt.Errorf("invalid reply: response permission must be of type %s", expectedType)
-		}
-		return sendResponse(req.ID, req.AaAllowed, req.Permission, allowedPermission)
-	}
-	return req, nil
-}
-
-func buildKey(iface string, id uint64) string {
-	return fmt.Sprintf("kernel:%s:%016X", iface, id)
 }
 
 func (l *Listener[R]) denyMalformedRequest(msg *notify.MsgNotificationOp) {
