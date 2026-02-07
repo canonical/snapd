@@ -1,0 +1,51 @@
+summary: Exercise update with multiple content connections
+
+details: |
+    Exercise an update where content providers have multiple consumers
+    connected.
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+    defer snap set system experimental.parallel-instances=null
+
+    snap install core24
+
+execute: |
+    # install the first version
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider-v1
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider-v2
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider-v3-two-slots
+
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-conent-consumer test-snapd-content-consumer_other
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-conent-consumer test-snapd-content-consumer_dual
+    
+    # the provider was pulled in and the plug is connected
+    snap connect test-snapd-content-consumer:special-content-v1 test-snapd-content-provider-v1:special-content-v1
+    snap connect test-snapd-content-consumer:special-content-v2 test-snapd-content-provider-v2:special-content-v2
+
+    snap connect test-snapd-content-consumer_other:special-content-v1 \
+        test-snapd-content-provider-v1:special-content-v1
+
+    snap connect test-snapd-content-consumer_dual:special-content-v1 \
+        test-snapd-content-provider-v3-dual:special-content-v1
+    snap connect test-snapd-content-consumer_dual:special-content-v2 \
+        test-snapd-content-provider-v3-dual:special-content-v2
+    
+
+    test-snapd-content-consumer.app |& tee output-v1.log
+    #MATCH 'hello from app' < output-v1.log
+    #MATCH 'hello from content provider V1' < output-v1.log
+
+    test-snapd-content-consumer_other.app |& tee output-other.log
+
+    test-snapd-content-consumer_dual.app |& tee output-dual.log
+
+    # affects test-snapd-content-consumer
+    snap install --dangerous test-snapd-content-provider-v1_*.snap test-snapd-content-provider-v2_*.snap
+
+    # affects test-snapd-content-consumer and test-snapd-content-consumer_other
+    snap install --dangerous test-snapd-content-provider-v1_*.snap
+
+    # affects test-snapd-content-consumer_dual
+    snap install --dangerous test-snapd-content-provider-v3-dual_*.snap

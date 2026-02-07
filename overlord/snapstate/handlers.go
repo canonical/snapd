@@ -81,6 +81,10 @@ var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ sn
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 
+var DelayedSecurityBackendEffects = func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	panic("internal error: snapstate.DelayedSecurityBackendEffects is unset")
+}
+
 var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
