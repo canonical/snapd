@@ -112,6 +112,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@{PROC}/pressure/memory r,")
 
 	// check desktop interface uses correct label for Mutter when provided
 	// by a snap
