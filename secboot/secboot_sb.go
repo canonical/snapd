@@ -49,9 +49,7 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbActivateVolumeWithKey      = sb.ActivateVolumeWithKey
 	sbFindStorageContainer       = sb.FindStorageContainer
-	sbDeactivateVolume           = sb.DeactivateVolume
 	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 	sbRenameLUKS2ContainerKey    = sb.RenameLUKS2ContainerKey
 	sbNewLUKS2KeyDataReader      = sbNewLUKS2KeyDataReaderImpl
@@ -84,7 +82,6 @@ func init() {
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
-type ActivateVolumeOptions sb.ActivateVolumeOptions
 
 const platformTpm2 = "tpm2"
 const platformTpm2Legacy = "tpm2-legacy"
@@ -143,8 +140,10 @@ func ActivateStateHasDegradedErrors(a *ActivateState) bool {
 	return false
 }
 
+// ActivateContext is a sub set interface of ActivateContext from secboot
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error
 	State() *ActivateState
 }
 
@@ -156,12 +155,28 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
 }
 
+func (a *activateContextImpl) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return a.ActivateContext.DeactivateContainer(ctx, container, reason)
+}
+
 func (a *activateContextImpl) State() *ActivateState {
 	return a.ActivateContext.State()
 }
 
+// NewActivateContext creates a activate context with some default options:
+//  * an auth requestor
+//  * 3 passphrase/pin tries
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
+	if err != nil {
+		return nil, err
+	}
+	return &activateContextImpl{ActivateContext: context}, nil
+}
+
+// NewSimpleActivateContext creates a activate context with no default options.
+func NewSimpleActivateContext(ctx context.Context) (ActivateContext, error) {
+	context, err := sbNewActivateContext(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -406,14 +421,22 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	return unlockRes, nil
 }
 
-// ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
-func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
-	return sb.ActivateVolumeWithKey(volumeName, sourceDevicePath, key, (*sb.ActivateVolumeOptions)(options))
-}
+type StorageContainer = sb.StorageContainer
 
-// DeactivateVolume is a wrapper for secboot.DeactivateVolume
-func DeactivateVolume(volumeName string) error {
-	return sb.DeactivateVolume(volumeName)
+// UnlockEncryptedVolumeUsingKey unlocks a volume using raw keyslot
+// key. This is typically used to lock a fresh encrypted volume with
+// only a bootstrap key.
+func UnlockEncryptedVolumeUsingKey(activation ActivateContext, devNode string, name string, key []byte) (StorageContainer, error) {
+	container, err := sbFindStorageContainer(context.Background(), devNode)
+	if err != nil {
+		return container, err
+	}
+
+	options := []sb.ActivateOption{
+		sbWithVolumeName(name),
+		sbWithExternalUnlockKey("key", key, sb.ExternalUnlockKeyFromStorageContainer),
+	}
+	return container, activation.ActivateContainer(context.Background(), container, options...)
 }
 
 // AddBootstrapKeyOnExistingDisk will add a new bootstrap key to on an

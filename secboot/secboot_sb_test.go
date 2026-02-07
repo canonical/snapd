@@ -128,6 +128,10 @@ func (m *mockActivateContext) ActivateContainer(ctx context.Context, container s
 	return err
 }
 
+func (a *mockActivateContext) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return fmt.Errorf("unexpected")
+}
+
 func (m *mockActivateContext) State() *secboot.ActivateState {
 	return m.state
 }
