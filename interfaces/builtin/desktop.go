@@ -238,11 +238,21 @@ const desktopConnectedPlugAppArmorClassic = `
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/*.css r,
+owner @{HOME}/.config/gtk-4.0/settings.ini r,
+owner @{HOME}/.config/gtk-4.0/*.css r,
 # Note: this leaks directory names that wouldn't otherwise be known to the snap
 owner @{HOME}/.config/gtk-3.0/bookmarks r,
+owner @{HOME}/.config/gtk-4.0/bookmarks r,
 
 # kde theming support
 owner @{HOME}/.config/kdeglobals r,
+
+# lxqt theming support
+# Note: Subfolders are ignored to avoid providing access to files that involve more than just simple LXQt configurations.
+owner @{HOME}/.config/lxqt/*.conf r,
+
+# kvantum theming support
+owner @{HOME}/.config/Kvantum/** r,
 
 /usr/share/icons/                          r,
 /usr/share/icons/**                        r,
