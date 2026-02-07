@@ -236,7 +236,29 @@ func generateInitramfsMounts() (err error) {
 	return nil
 }
 
-func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
+func canInstallAndRunAtOnce(mst *initramfsMountsState, model *asserts.Model) (bool, error) {
+	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
+	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
+	if kernelHasFdeSetup {
+		_, fdeSetupErr := exec.LookPath("fde-setup")
+		if fdeSetupErr != nil {
+			return false, nil
+		}
+	}
+
+	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
+	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
+		return false, nil
+	}
+
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+	default:
+		// UC24+, install and run is the default
+		return true, nil
+	}
+
 	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
 	if err != nil {
 		return false, err
@@ -246,21 +268,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 		return false, nil
 	}
 
-	// TODO: relax this condition when "install and run" well tested
 	if !preseedSeed.HasArtifact("preseed.tgz") {
-		return false, nil
-	}
-
-	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
-	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
-	_, fdeSetupErr := exec.LookPath("fde-setup")
-	if kernelHasFdeSetup && fdeSetupErr != nil {
-		return false, nil
-	}
-
-	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
-	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
 		return false, nil
 	}
 
@@ -613,7 +621,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		return err
 	}
 
-	installAndRun, err := canInstallAndRunAtOnce(mst)
+	installAndRun, err := canInstallAndRunAtOnce(mst, model)
 	if err != nil {
 		return err
 	}
