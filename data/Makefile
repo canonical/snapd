@@ -7,6 +7,7 @@ all install clean:
 	$(MAKE) -C env $@
 	$(MAKE) -C desktop $@
 	$(MAKE) -C polkit $@
+	$(MAKE) -C dracut $@
 
 check:
 	$(MAKE) -C systemd $@
