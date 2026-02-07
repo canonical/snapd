@@ -22,31 +22,30 @@ package osutil_test
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
-type fshelpersSuite struct{}
+func (s *fshelpersSuite) TestDeviceMajorAndMinor(c *C) {
+	// Test with /dev/null (major: 1, minor: 3)
+	major, minor, err := osutil.DeviceMajorAndMinor("/dev/null")
+	c.Check(err, IsNil)
+	c.Check(major, Equals, uint32(1))
+	c.Check(minor, Equals, uint32(3))
+}
 
-var _ = Suite(&fshelpersSuite{})
+func (s *fshelpersSuite) TestDeviceMajorAndMinorNotExist(c *C) {
+	_, _, err := osutil.DeviceMajorAndMinor("/dev/doesnotexist")
+	c.Assert(err, DeepEquals, os.ErrNotExist)
+}
 
-func (s *fshelpersSuite) TestSelfOwnedFile(c *C) {
-	name := filepath.Join(c.MkDir(), "testownedfile")
+func (s *fshelpersSuite) TestDeviceMajorAndMinorNotDevice(c *C) {
+	name := filepath.Join(c.MkDir(), "notadevice")
 	err := os.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)
 
-	gid, err := osutil.FindGidOwning(name)
-	c.Check(err, IsNil)
-
-	self, err := osutil.UserMaybeSudoUser()
-	c.Assert(err, IsNil)
-	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
-}
-
-func (s *fshelpersSuite) TestNoOwnedFile(c *C) {
-	_, err := osutil.FindGidOwning("/tmp/filedoesnotexistbutwhy")
-	c.Assert(err, DeepEquals, os.ErrNotExist)
+	_, _, err = osutil.DeviceMajorAndMinor(name)
+	c.Assert(err, ErrorMatches, "not a device")
 }

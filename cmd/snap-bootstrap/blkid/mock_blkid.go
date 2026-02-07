@@ -64,23 +64,29 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 }
 
 func (p *FakeBlkidProbe) AddEmptyPartitionProbe(start int64) *FakeBlkidProbe {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{"", "", start})
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{0, "", "", start})
 	return BuildFakeProbe(make(map[string]string))
 }
 
-func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, start int64) *FakeBlkidProbe {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, start})
+func (p *FakeBlkidProbe) AddPartitionProbe(number int, name, uuid string, start int64) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{number, name, uuid, start})
 
 	partition_values := make(map[string]string)
+	if name == "ubuntu-seed" {
+		partition_values["TYPE"] = "vfat"
+	} else {
+		partition_values["TYPE"] = "ext4"
+	}
 	partition_values["LABEL"] = name
 	partition_values["UUID"] = uuid
 	return BuildFakeProbe(partition_values)
 }
 
 type FakeBlkidPartition struct {
-	name  string
-	uuid  string
-	start int64
+	number int
+	name   string
+	uuid   string
+	start  int64
 }
 
 type FakeBlkidPartlist struct {
@@ -124,8 +130,7 @@ func (p *FakeBlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 }
 
 func (p *FakeBlkidProbe) GetSectorSize() (uint, error) {
-	// Simplify for testing
-	return 1, nil
+	return 512, nil
 }
 
 func (p *FakeBlkidPartlist) GetPartitions() []AbstractBlkidPartition {
@@ -150,4 +155,8 @@ func (p *FakeBlkidPartition) GetStart() int64 {
 
 func (p *FakeBlkidPartition) GetSize() int64 {
 	return 0
+}
+
+func (p *FakeBlkidPartition) GetNumber() int {
+	return p.number
 }

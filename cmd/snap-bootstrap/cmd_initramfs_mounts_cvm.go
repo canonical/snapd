@@ -218,14 +218,8 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		Private:   true,
 	}
 
-	// Mount ESP as UbuntuSeedDir which has UEFI label
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI", mountOpts); err != nil {
-		return err
-	}
-
-	// get the disk that we mounted the ESP from as a reference
-	// point for future mounts
-	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	// Mount ESP as UbuntuSeedDir which has UEFI label, and get disk info for it
+	disk, err := mountBootDiskPartition(boot.InitramfsUbuntuSeedDir, "UEFI", mountOpts)
 	if err != nil {
 		return err
 	}
@@ -260,8 +254,11 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// the public key and then measure a digest of the public key to the TPM.
 			// A later remote attestation step will be able to verify that the public
 			// key that was measured is an expected one.
-
-			partitionMounts, err = generateMountsFromManifest(im, disk)
+			ddisk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+			if err != nil {
+				return err
+			}
+			partitionMounts, err = generateMountsFromManifest(im, ddisk)
 			if err != nil {
 				return err
 			}
@@ -293,7 +290,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			// not the GPT label. Images that are created for CVM mode set both to the same label. The GPT label
 			// is used for partition discovery and the filesystem label for auto-discovery of a potentially encrypted
 			// partition.
-			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, disk, pm.GptLabel, keys, opts)
+			unlockRes, err = secbootUnlockVolumeUsingSealedKeyIfEncrypted(mst.activateContext, &SecbootDisk{Disk: disk}, pm.GptLabel, keys, opts)
 			if err != nil {
 				return err
 			}

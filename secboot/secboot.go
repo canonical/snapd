@@ -352,3 +352,17 @@ type LegacyKeyFile struct {
 	// Path is the absolute path to the key file
 	Path string
 }
+
+// Partition implementations return partition information required by secboot.
+type Partition interface {
+	PartitionNode() string
+	PartitionUUID() string
+	PartitionLabel() string
+	FilesystemUUID() string
+}
+
+// Disk implementations provide disk information required by secboot.
+type Disk interface {
+	PartitionWithFsLabel(string) (Partition, error)
+	DiskModel() string
+}

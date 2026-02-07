@@ -20,20 +20,27 @@
 package osutil
 
 import (
+	"fmt"
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
-// FindGidOwning obtains UNIX group ID and name owning file `path`.
-func FindGidOwning(path string) (uint64, error) {
+// DeviceMajorAndMinor returns major and minor numbers for the devPath device node.
+func DeviceMajorAndMinor(devPath string) (uint32, uint32, error) {
 	var stat syscall.Stat_t
-	if err := syscall.Stat(path, &stat); err != nil {
+	if err := syscall.Stat(devPath, &stat); err != nil {
 		if err == syscall.ENOENT {
-			return 0, os.ErrNotExist
+			return 0, 0, os.ErrNotExist
 		}
-		return 0, err
+		return 0, 0, err
 	}
 
-	gid := uint64(stat.Gid)
-	return gid, nil
+	// Check if it is a device
+	if stat.Mode&syscall.S_IFCHR == 0 && stat.Mode&syscall.S_IFBLK == 0 {
+		return 0, 0, fmt.Errorf("not a device")
+	}
+
+	return unix.Major(stat.Rdev), unix.Minor(stat.Rdev), nil
 }
