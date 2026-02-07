@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func Test(t *testing.T) {
@@ -300,6 +301,123 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got = strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
+}
+
+func (s *backendSuite) TestSetupNoChangesNoUpdate(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(fsEntry1)
+	}
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
+		return spec.AddMountEntry(fsEntry2)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content1, err := os.ReadFile(fn)
+	c.Assert(err, IsNil)
+	c.Check(fn, testutil.FileContains, fsEntry1.String())
+	c.Check(fn, testutil.FileContains, fsEntry2.String())
+
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	c.Assert(os.WriteFile(mntFile, []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// snap-update-ns was not called
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// content is identical
+	content2, err := os.ReadFile(fn)
+	c.Assert(err, IsNil)
+	c.Check(content1, DeepEquals, content2)
+}
+
+func (s *backendSuite) TestSetupUpdateChangedRemoved(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry1Mod := osutil.MountEntry{Name: "/src-1a", Dir: "/dst-1a", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	const (
+		modeStart = iota
+		modeRemove
+		modeUpdate
+	)
+	mode := modeStart
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		switch mode {
+		case modeStart:
+			return spec.AddMountEntry(fsEntry1)
+		case modeRemove:
+			return nil
+		case modeUpdate:
+			return spec.AddMountEntry(fsEntry1Mod)
+		default:
+			panic("unexpected state")
+		}
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	c.Check(fn, testutil.FileContains, fsEntry1.String())
+
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	c.Assert(os.WriteFile(mntFile, []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+
+	doSetup := func() {
+		err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+		c.Assert(err, IsNil)
+	}
+	// no changes
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// pretend we have an update
+	mode = modeUpdate
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 1)
+	cmd.ForgetCalls()
+
+	// still same updated content
+	doSetup()
+	// no calls
+	c.Check(cmd.Calls(), HasLen, 0)
+	cmd.ForgetCalls()
+
+	// now remove an entry
+	mode = modeRemove
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 1)
+	cmd.ForgetCalls()
+
+	// one more for good measure
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 0)
 }
 
 func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
