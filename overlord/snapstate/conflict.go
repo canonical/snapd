@@ -231,6 +231,12 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 	return nil
 }
 
+// CheckChangeConflictExclusiveKinds checks whether there are other changes that
+// need to run exclusively.
+func CheckChangeConflictExclusiveKinds(st *state.State, ignoreChangeID string) error {
+	return checkChangeConflictExclusiveKinds(st, "", ignoreChangeID)
+}
+
 // CheckChangeConflictRunExclusively checks for conflicts with a new change which
 // must be run when no other changes are running.
 func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) error {
@@ -285,7 +291,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 	}
 
 	// check whether there are other changes that need to run exclusively
-	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
+	if err := CheckChangeConflictExclusiveKinds(st, ignoreChangeID); err != nil {
 		return err
 	}
 
@@ -342,40 +348,6 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
 			return &ChangeConflictError{Snap: instanceName}
-		}
-	}
-
-	return nil
-}
-
-// CheckUpdateKernelCommandLineConflict checks that no active change other
-// than ignoreChangeID has a task that touches the kernel command
-// line.
-func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string) error {
-	// check whether there are other changes that need to run exclusively
-	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
-		return err
-	}
-
-	for _, task := range st.Tasks() {
-		chg := task.Change()
-		if isIrrelevantChange(chg, ignoreChangeID) {
-			continue
-		}
-
-		switch task.Kind() {
-		case "update-gadget-cmdline":
-			return &ChangeConflictError{
-				Message:    "kernel command line already being updated, no additional changes for it allowed meanwhile",
-				ChangeKind: task.Kind(),
-				ChangeID:   chg.ID(),
-			}
-		case "update-managed-boot-config":
-			return &ChangeConflictError{
-				Message:    "boot config is being updated, no change in kernel command line is allowed meanwhile",
-				ChangeKind: task.Kind(),
-				ChangeID:   chg.ID(),
-			}
 		}
 	}
 
