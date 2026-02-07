@@ -214,7 +214,7 @@ plugs:
 	defer s.st.Lock()
 
 	for _, test := range isConnectedTests {
-		stdout, stderr, err := ctlcmd.Run(context, test.args, 0)
+		stdout, stderr, err := ctlcmd.Run(context, test.args, 0, nil)
 		comment := Commentf("%s", test.args)
 		if test.exitCode > 0 {
 			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
@@ -260,7 +260,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 }
 
 func (s *isConnectedSuite) TestNoContextError(c *C) {
-	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0)
+	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "is-connected"\) from outside of a snap`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -284,7 +284,7 @@ plugs:
 
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -346,7 +346,7 @@ slots:
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "--list"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "--list"}, 0, nil)
 	c.Check(err, IsNil)
 
 	c.Check(string(stdout), Equals, "plug1a\nslot1a\n")

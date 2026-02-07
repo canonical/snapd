@@ -134,7 +134,7 @@ func (s *installSuite) testMngmtCommand(c *C, cmd string) {
 		})
 	}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "test-snap+comp1", "+comp2"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "test-snap+comp1", "+comp2"}, 0, nil)
 	c.Assert(err, IsNil)
 	s.st.Lock()
 	// one is the task added in SetUpTest, the other is the queued task
@@ -198,7 +198,7 @@ func (s *installSuite) TestInstallCommandUsesPendingValidationSets(c *C) {
 	})
 	defer restore()
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"install", "test-snap+comp1", "+comp2"}, 0)
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"install", "test-snap+comp1", "+comp2"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
@@ -239,7 +239,7 @@ func (s *installSuite) testEphemeralMngmtCommand(c *C, cmd string) {
 	go func() {
 		_, _, err := ctlcmd.Run(s.mockContext,
 			[]string{cmd, "test-snap+comp1", "test-snap+comp2+comp3",
-				"+comp4", "+comp5+comp6"}, 0)
+				"+comp4", "+comp5+comp6"}, 0, nil)
 		chann <- err
 	}()
 
@@ -275,7 +275,7 @@ func (s *installSuite) TestEphemeralRemoveCommand(c *C) {
 }
 
 func (s *installSuite) testMgmntCommandOtherSnap(c *C, cmd string) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp1", "other-snap+comp2"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp1", "other-snap+comp2"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot install snaps using snapctl")
 }
 
@@ -288,7 +288,7 @@ func (s *installSuite) TestRemoveCommandOtherSnap(c *C) {
 }
 
 func (s *installSuite) testMgmntCommandBadCompName(c *C, cmd string) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp_1"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp_1"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid snap name: "comp_1"`)
 }
 

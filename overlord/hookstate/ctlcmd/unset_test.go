@@ -58,7 +58,7 @@ func (s *unsetSuite) SetUpTest(c *C) {
 }
 
 func (s *unsetSuite) TestInvalidArguments(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset"}, 0)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset"}, 0, nil)
 	c.Check(err, ErrorMatches, "unset which option.*")
 }
 
@@ -78,7 +78,7 @@ func (s *unsetSuite) TestUnsetOne(c *C) {
 	s.mockContext.State().Unlock()
 	c.Check(value, Equals, "a")
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -103,7 +103,7 @@ func (s *unsetSuite) TestUnsetMany(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo", "bar"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo", "bar"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -131,7 +131,7 @@ func (s *unsetSuite) TestSetThenUnset(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "agent.x!", "agent.x.a!", "agent.x.b!"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "agent.x!", "agent.x.a!", "agent.x.b!"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -148,19 +148,19 @@ func (s *unsetSuite) TestSetThenUnset(c *C) {
 }
 
 func (s *unsetSuite) TestUnsetRegularUserForbidden(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "key"}, 1000)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "key"}, 1000, nil)
 	c.Assert(err, ErrorMatches, `cannot use "unset" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
 func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "-h"}, 1000)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "-h"}, 1000, nil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
 
 func (s *unsetSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0)
+	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
 }
 
@@ -180,7 +180,7 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 		return tx, nil, nil
 	})
 
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
@@ -214,7 +214,7 @@ func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {
 	}
 
 	for _, tc := range tcs {
-		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"unset", "--view"}, tc.args...), 0)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"unset", "--view"}, tc.args...), 0, nil)
 		c.Assert(err, ErrorMatches, tc.err)
 		c.Check(stdout, IsNil)
 		c.Check(stderr, IsNil)
