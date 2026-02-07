@@ -30,7 +30,7 @@ const krbBaseDeclarationSlots = `
 `
 
 const krbConnectedPlugAppArmor = `
-/var/lib/snapd/hostfs/tmp/krb5cc* rk,
+/var/lib/snapd/hostfs/tmp/krb5cc* rkw,
 `
 
 func init() {
