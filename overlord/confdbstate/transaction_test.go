@@ -460,3 +460,34 @@ func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
 
 	checkPrevious()
 }
+
+func (s *transactionTestSuite) TestTransactionMarshalUnmarshalWithPlaceholders(c *C) {
+	// This test verifies that transactions can be marshalled and unmarshalled
+	// even when they contain paths with placeholders (which can happen when
+	// view rules match as a prefix). The fix allows placeholders when parsing
+	// paths during unmarshalling, since databag.Set/Unset handle them correctly.
+
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	// Parse a path that contains a placeholder (this simulates what happens
+	// when a view rule matches partially)
+	pathWithPlaceholder, err := confdb.ParsePathIntoAccessors("robot-settings.machine.{key}", confdb.ParseOptions{AllowPlaceholders: true})
+	c.Assert(err, IsNil)
+	c.Logf("Parsed path: %v", pathWithPlaceholder)
+
+	err = tx.Set(pathWithPlaceholder, "some-value")
+	c.Assert(err, IsNil)
+
+	// Marshal the transaction to JSON (simulating state persistence)
+	data, err := json.Marshal(tx)
+	c.Assert(err, IsNil)
+	c.Logf("Marshaled data: %s", string(data))
+	// Try to unmarshal it back - this should now work with the fix
+	var tx2 confdbstate.Transaction
+	err = json.Unmarshal(data, &tx2)
+
+	c.Logf("Unmarshal error: %v", err)
+	// With the fix, unmarshalling should succeed
+	c.Assert(err, IsNil)
+}

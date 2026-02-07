@@ -117,7 +117,10 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	var deltas []pathValuePair
 	for _, delta := range mt.Deltas {
 		for path, value := range delta {
-			accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+			// Allow placeholders when parsing paths from state, since view rules
+			// can create storage paths with placeholders (e.g., when matching as
+			// a prefix). The databag.Set/Unset methods handle placeholder expansion.
+			accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{AllowPlaceholders: true})
 			if err != nil {
 				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
 			}
