@@ -217,6 +217,10 @@ check_fakestore_cleaned() {
     fi
 }
 
+check_snapd_version() {
+	snap version | grep -q "$(cat /var/tmp/snapd-testing-version)"
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -249,6 +253,9 @@ check_invariant() {
 		check-fakestore-cleaned)
 			check_fakestore_cleaned
 			;;
+		check-snapd-version)
+			check_snapd_version
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -268,6 +275,7 @@ main() {
 	cgroups
 	segmentation-violations
 	check-fakestore-cleaned
+	check-snapd-version
 	"
 
 	case "$action" in

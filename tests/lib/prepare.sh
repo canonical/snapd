@@ -610,6 +610,7 @@ prepare_classic() {
         mkdir -p /etc/dbus-1/system.d
         systemctl reload dbus.service
     fi
+    snap version | grep snapd | awk '{print $2}' > "/var/tmp/snapd-testing-version"
 }
 
 ensure_snapcraft() {
@@ -1999,6 +2000,7 @@ prepare_ubuntu_core() {
     fi
 
     disable_kernel_rate_limiting
+    snap version | grep snapd | awk '{print $2}' > "/var/tmp/snapd-testing-version"
 }
 
 cache_snaps(){
