@@ -283,6 +283,9 @@
     mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/apparmor/ -> /tmp/snap.rootfs_*/etc/apparmor/,
     mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/apparmor.d/ -> /tmp/snap.rootfs_*/etc/apparmor.d/,
+    mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/ld.so.conf -> /tmp/snap.rootfs_*/etc/ld.so.conf,
+    mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/ld.so.cache -> /tmp/snap.rootfs_*/etc/ld.so.cache,
+    mount options=(rw bind) @{SNAP_MOUNT_DIR_LIST}/*/*/etc/ld.so.conf.d/ -> /tmp/snap.rootfs_*/etc/ld.so.conf.d/,
 
     # /etc/alternatives (core/legacy mode)
     mount options=(rw bind) /etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
@@ -293,6 +296,9 @@
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/apparmor/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/apparmor.d/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ld.so.conf,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ld.so.cache,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/ld.so.conf.d/,
 
     # the /snap directory
     mount options=(rw rbind) @{SNAP_MOUNT_DIR_LIST}/ -> /tmp/snap.rootfs_*/snap/,
