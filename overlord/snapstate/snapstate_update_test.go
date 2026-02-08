@@ -9024,6 +9024,22 @@ func findLastTask(chg *state.Change, kind string) *state.Task {
 	return last
 }
 
+func firstTaskAfterLocalModifications(c *C, ts *state.TaskSet) *state.Task {
+	lastBeforeLocal := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(lastBeforeLocal, NotNil)
+
+	for _, t := range ts.Tasks() {
+		for _, wt := range t.WaitTasks() {
+			if wt == lastBeforeLocal {
+				return t
+			}
+		}
+	}
+
+	c.Fatalf("internal error: failed to find first task after last-before-local-modifications")
+	return nil
+}
+
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -9102,8 +9118,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(kernelTs, NotNil)
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := kernelTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, kernelTs)
 	linkTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
@@ -9116,7 +9131,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of base
+	// - the first system-modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -9291,8 +9306,7 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 	c.Assert(kernelTs, NotNil)
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := kernelTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, kernelTs)
 	linkTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
@@ -9305,7 +9319,7 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
+	// - the first system-modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -9486,14 +9500,13 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 	lastTaskOfBase, err := baseTs.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfGadget, err := gadgetTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfGadget := firstTaskAfterLocalModifications(c, gadgetTs)
 	linkTaskOfGadget, err := gadgetTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfGadget, err := gadgetTs.Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 
-	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
+	// - the first system-modification task of gadget must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of gadget (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfGadget)
@@ -9903,23 +9916,21 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleReboot(c *C) {
 	c.Assert(err, IsNil)
 	lastTaskOfBase, err := baseTs.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfGadget, err := gadgetTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfGadget := firstTaskAfterLocalModifications(c, gadgetTs)
 	linkTaskOfGadget, err := gadgetTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfGadget, err := gadgetTs.Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 	lastTaskOfGadget, err := gadgetTs.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfKernel, err := kernelTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, kernelTs)
 	linkTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 
 	// Things that must be correct between base and gadget:
-	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
+	// - the first system-modification task of gadget must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -9927,7 +9938,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleReboot(c *C) {
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
 
 	// Things that must be correct between gadget and kernel:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
+	// - the first system-modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on last task of base (EndEdge)
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
@@ -10016,8 +10027,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	c.Assert(kernelTs, NotNil)
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := kernelTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, kernelTs)
 	linkTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
@@ -10030,7 +10040,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of base
+	// - the first system-modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -10393,18 +10403,18 @@ NextSnap1:
 			// the snapd snap. If the snapd snap is present, make sure it's depending on
 			// that
 			if snapdTs := tsByName["snapd"]; snapdTs != nil {
-				firstTaskOfCurrent, err := currentTs.Edge(snapstate.BeginEdge)
-				c.Assert(err, IsNil)
 				lastTaskOfPrev, err := snapdTs.Edge(snapstate.EndEdge)
 				c.Assert(err, IsNil)
-				c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, lastTaskOfPrev)
+
+				firstTaskAfterLocal := firstTaskAfterLocalModifications(c, currentTs)
+				c.Check(firstTaskAfterLocal.WaitTasks(), testutil.Contains, lastTaskOfPrev)
 			}
 		} else {
-			firstTaskOfCurrent, err := currentTs.Edge(snapstate.BeginEdge)
-			c.Assert(err, IsNil)
 			linkSnapOfPrev, err := prevRebootTs.Edge(snapstate.MaybeRebootEdge)
 			c.Assert(err, IsNil)
-			c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, linkSnapOfPrev)
+
+			firstTaskAfterLocal := firstTaskAfterLocalModifications(c, currentTs)
+			c.Check(firstTaskAfterLocal.WaitTasks(), testutil.Contains, linkSnapOfPrev)
 		}
 		prevRebootTs = tsByName[sn]
 	}
@@ -10616,12 +10626,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	c.Assert(snapdTs, NotNil)
 	c.Assert(baseTs, NotNil)
 
-	// Use edges to verify there are correct dependencies
-	firstTaskOfBase, err := baseTs.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	// Use edges to verify there are correct dependencies.
 	lastTaskOfSnapd, err := snapdTs.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	c.Check(firstTaskOfBase.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
+
+	firstTaskAfterLocal := firstTaskAfterLocalModifications(c, baseTs)
+	c.Check(firstTaskAfterLocal.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
 
 	s.fakeBackend.linkSnapMaybeReboot = true
 	s.fakeBackend.linkSnapRebootFor = map[string]bool{
@@ -10971,7 +10981,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 	})
 
-	tasks := ts.Tasks()
+	tasks := ts.TaskSet().Tasks()
 	c.Assert(tasks, HasLen, 1)
 	c.Assert(tasks[0].Kind(), Equals, "pre-download-snap")
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
@@ -11648,7 +11658,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	// don't create a pre-download task if one exists w/ these statuses
 	for _, status := range []state.Status{state.DoStatus, state.DoingStatus} {
 		task.SetStatus(status)
-		ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
+		_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 
 		var busyErr *snapstate.TimedBusySnapError
 		c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -11657,7 +11667,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 			InstanceName:  "some-snap",
 			TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 		})
-		c.Assert(ts, IsNil)
 
 		// reset modified state to avoid conflicts
 		snapst.RefreshInhibitedTime = nil
@@ -11668,7 +11677,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	task.SetStatus(state.DoneStatus)
 	ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
-	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.TaskSet().Tasks(), HasLen, 1)
 }
 
 func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
