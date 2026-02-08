@@ -1654,9 +1654,13 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// re-refreshes
 	needsRerefreshCheck := false
 
+	var snapInstallTasks []snapInstallTaskSet
+
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, up := range updates {
+		up := up
+
 		// if the update is already satisfied, then we can skip it
 		ok, err := up.revisionSatisfied()
 		if err != nil {
@@ -1704,13 +1708,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		sts.ts.JoinLane(generateLane(st, opts))
 		tss = append(tss, sts.ts)
+		snapInstallTasks = append(snapInstallTasks, sts)
 
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	// Make sure each of them are marked with default restart-boundaries to maintain the previous
-	// reboot-behaviour prior to new restart logic.
-	if err := arrangeSnapTaskSetsLinkageAndRestart(st, nil, tss); err != nil {
+	if err := arrangeInstallTasksForSingleReboot(st, nil, snapInstallTasks); err != nil {
 		return nil, false, nil, err
 	}
 

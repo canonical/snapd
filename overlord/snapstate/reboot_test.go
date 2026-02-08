@@ -105,7 +105,6 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsNoBootBase(c *C) {
 	c.Check(mappedTaskSets, DeepEquals, map[snap.Type]*state.TaskSet{
 		snap.TypeGadget: tss[1],
 		snap.TypeKernel: tss[2],
-		snap.TypeOS:     tss[3],
 	})
 }
 
@@ -127,7 +126,6 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsBootBase(c *C) {
 		snap.TypeBase:   tss[0],
 		snap.TypeGadget: tss[1],
 		snap.TypeKernel: tss[2],
-		snap.TypeOS:     tss[3],
 	})
 }
 
