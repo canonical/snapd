@@ -59,7 +59,7 @@ var (
 )
 
 func init() {
-	addCommand("delta", shortDeltaHelp, longDeltaHelp, func() flags.Commander { return &cmdDelta{} },
+	cmd := addCommand("delta", shortDeltaHelp, longDeltaHelp, func() flags.Commander { return &cmdDelta{} },
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"source": i18n.G("Source snap package"),
@@ -75,6 +75,7 @@ func init() {
 				desc: i18n.G("The delta operation to perform, one of: apply|generate"),
 			},
 		})
+	cmd.hidden = true
 }
 
 func (x *cmdDelta) Execute(args []string) error {
