@@ -297,10 +297,6 @@ slots:
 	s.consumerPlug = s.consumer.Info().Plugs["plug"]
 	s.producer = ifacetest.MockInfoAndAppSet(c, producerYaml4, nil, nil)
 	s.producerSlot = s.producer.Info().Slots["slot"]
-	s.AddCleanup(ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
-		// pretend the snapd.apparmor.service is enabled
-		return false
-	}))
 
 	s.BaseTest.AddCleanup(ifacestate.MockCreateInterfacesRequestsManager(fakeCreateInterfacesRequestsManager))
 	s.BaseTest.AddCleanup(ifacestate.MockInterfacesRequestsManagerStop(fakeInterfacesRequestsManagerStop))
@@ -7373,38 +7369,6 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	tags, ok := allTimings[0]["tags"]
 	c.Assert(ok, Equals, true)
 	c.Check(tags, DeepEquals, map[string]any{"startup": "ifacemgr"})
-}
-
-func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmorWithAppArmor(c *C) {
-	invocationCount := 0
-	restore := ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
-		invocationCount++
-		return true
-	})
-	defer restore()
-	s.extraBackends = append(s.extraBackends, &ifacetest.TestSecurityBackend{
-		// pretend apparmor backend is present
-		BackendName: interfaces.SecurityAppArmor,
-	})
-	_ = s.manager(c)
-
-	c.Check(invocationCount, Equals, 1)
-
-	warns := s.state.AllWarnings()
-	c.Assert(warns, HasLen, 1)
-	c.Check(warns[0].String(), Matches, `the snapd\.apparmor service is disabled.*\nRun .* to correct this\.`)
-}
-
-func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmorNoAppArmor(c *C) {
-	restore := ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
-		return true
-	})
-	defer restore()
-	// no apparmor support, no warning, even if snapd.apparmor is disabled
-	_ = s.manager(c)
-
-	warns := s.state.AllWarnings()
-	c.Assert(warns, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
