@@ -150,6 +150,28 @@ func (c *userServiceClient) startServices(enable bool, disabledServices map[int]
 	return err
 }
 
+func (c *userServiceClient) enableServices(services ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+
+	failures, err := c.cli.ServicesEnable(ctx, services)
+	for _, f := range failures {
+		c.inter.Notify(fmt.Sprintf("Could not enable service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+	}
+	return err
+}
+
+func (c *userServiceClient) disableServices(services ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+
+	failures, err := c.cli.ServicesDisable(ctx, services)
+	for _, f := range failures {
+		c.inter.Notify(fmt.Sprintf("Could not disable service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+	}
+	return err
+}
+
 func (c *userServiceClient) restartServices(reload bool, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
@@ -248,6 +270,11 @@ func filterUserServicesNotInDisabledMap(disabledSvcs *DisabledServices, original
 // StartServicesOptions carries additional parameters for StartService.
 type StartServicesOptions struct {
 	Enable bool
+	ScopeOptions
+}
+
+// EnableServicesOptions carries additional parameters for EnableServices.
+type EnableServicesOptions struct {
 	ScopeOptions
 }
 
@@ -390,6 +417,60 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			return err
 		}
 	}
+	return nil
+}
+
+// EnableServices enables service units for the applications from the snap which
+// are services.
+func EnableServices(apps []*snap.AppInfo, opts *EnableServicesOptions, inter Interacter, tm timings.Measurer) error {
+	if opts == nil {
+		opts = &EnableServicesOptions{}
+	}
+
+	var err error
+
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+	userGlobalSysd := systemd.New(systemd.GlobalUserMode, inter)
+	cli, err := newUserServiceClientNames(opts.Users, inter)
+	if err != nil {
+		return err
+	}
+
+	const includeActivatedServices = false
+
+	sysApps, userApps := filterServicesForStart(apps, nil, opts.Scope)
+	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
+	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
+
+	if len(systemServices) > 0 {
+		timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", systemServices), func(nested timings.Measurer) {
+			err = systemSysd.EnableNoReload(systemServices)
+			if err != nil {
+				return
+			}
+			err = systemSysd.DaemonReload()
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(userServices) > 0 {
+		if len(opts.Users) == 0 {
+			timings.Run(tm, "enable-user-services", "enable user services", func(nested timings.Measurer) {
+				err = userGlobalSysd.EnableNoReload(userServices)
+			})
+			return err
+		}
+
+		timings.Run(tm, "enable-user-services", "enable user services", func(nested timings.Measurer) {
+			err = cli.enableServices(userServices...)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -980,6 +1061,11 @@ type StopServicesOptions struct {
 	ScopeOptions
 }
 
+// DisableServicesOptions carries additional parameters for DisableServices.
+type DisableServicesOptions struct {
+	ScopeOptions
+}
+
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
 func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
@@ -1074,6 +1160,61 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 			}
 		}
 	}
+	return nil
+}
+
+// DisableServices disables service units for the applications from the snap
+// which are services.
+func DisableServices(apps []*snap.AppInfo, opts *DisableServicesOptions, inter Interacter, tm timings.Measurer) error {
+	if opts == nil {
+		opts = &DisableServicesOptions{}
+	}
+
+	var err error
+
+	sysd := systemd.New(systemd.SystemMode, inter)
+	userGlobalSysd := systemd.New(systemd.GlobalUserMode, inter)
+	cli, err := newUserServiceClientNames(opts.Users, inter)
+	if err != nil {
+		return err
+	}
+
+	stopOpts := &StopServicesOptions{Disable: true, ScopeOptions: opts.ScopeOptions}
+	sysApps, userApps := filterAppsForStop(apps, snap.StopReasonOther, stopOpts)
+
+	const includeActivatedServices = true
+	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
+	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
+
+	if len(systemServices) > 0 {
+		timings.Run(tm, "disable-services", fmt.Sprintf("disable services %q", systemServices), func(nested timings.Measurer) {
+			err = sysd.DisableNoReload(systemServices)
+			if err != nil {
+				return
+			}
+			err = sysd.DaemonReload()
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(userServices) > 0 {
+		if len(opts.Users) == 0 {
+			timings.Run(tm, "disable-user-services", "disable user services", func(nested timings.Measurer) {
+				err = userGlobalSysd.DisableNoReload(userServices)
+			})
+			return err
+		}
+
+		timings.Run(tm, "disable-user-services", "disable user services", func(nested timings.Measurer) {
+			err = cli.disableServices(userServices...)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

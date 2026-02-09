@@ -5580,6 +5580,44 @@ func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
 	})
 }
 
+func (s *servicesTestSuite) TestEnableServices(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := "snap.hello-snap.svc1.service"
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	err = wrappers.EnableServices(info.Services(), nil, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "enable", svcFile},
+		{"daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestDisableServices(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := "snap.hello-snap.svc1.service"
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	err = wrappers.DisableServices(info.Services(), nil, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "disable", svcFile},
+		{"daemon-reload"},
+	})
+}
+
 func (s *servicesTestSuite) TestNewUserServiceClientNames(c *C) {
 	r := osutil.MockUserLookup(func(username string) (*user.User, error) {
 		switch username {

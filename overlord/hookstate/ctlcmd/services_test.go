@@ -320,6 +320,52 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
 
+func (s *servicectlSuite) TestEnableCommand(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "enable",
+			Names:  []string{"test-snap.test-service"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"enable", "test-snap.test-service"}, 0)
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestDisableCommand(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "disable",
+			Names:  []string{"test-snap.test-service"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"disable", "test-snap.test-service"}, 0)
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
 func (s *servicectlSuite) TestRestartCommand(c *C) {
 	var serviceChangeFuncCalled bool
 	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
