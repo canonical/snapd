@@ -429,14 +429,14 @@ func arrangeInstallTasksForSingleReboot(st *state.State, providedDeviceCtx Devic
 		}
 		chain(afterBoot(sts))
 	}
+
 	// before doing anything else, keep a pointer to the final essential snap
 	// task. we'll use this later. note, this might be nil! nothing about this
 	// code requires essential snap presence.
 	finalEssential := prev
 
 	if !isUC16 {
-		// set all of the do and undo boundaries on the essential snaps, with
-		// the exception of snapd.
+		// set the reboot boundary on the final pre-reboot essential snap task
 		for i := len(essentialSnapsRestartOrder) - 1; i >= 0; i-- {
 			sts, ok := essentials[essentialSnapsRestartOrder[i]]
 			if !ok {
@@ -452,6 +452,8 @@ func arrangeInstallTasksForSingleReboot(st *state.State, providedDeviceCtx Devic
 			break
 		}
 
+		// set the reboot undo boundary on the first post-reboot essential
+		// unlink-snap task
 		for i := 0; i < len(essentialSnapsRestartOrder); i++ {
 			sts, ok := essentials[essentialSnapsRestartOrder[i]]
 			if !ok {
@@ -468,6 +470,8 @@ func arrangeInstallTasksForSingleReboot(st *state.State, providedDeviceCtx Devic
 			break
 		}
 	} else {
+		// legacy behavior, set the do and undo reboot boundaries on all
+		// essential snaps, with the exception of snapd
 		for _, o := range essentialSnapsRestartOrder {
 			sts, ok := essentials[o]
 			if !ok {
