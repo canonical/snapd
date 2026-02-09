@@ -75,11 +75,6 @@ mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,
 # Mounting temporary files
 mount options=(rw, rbind) /bindfile* -> /newroot/**,
 
-# Permission to read mount paths.
-/media/ r,
-/mnt/ r,
-/run/media/ r,
-
 # Broad execution permissions for container binaries
 /usr/bin/steam-runtime-launcher-interface-* ixr,
 /usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
