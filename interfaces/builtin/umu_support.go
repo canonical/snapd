@@ -103,6 +103,7 @@ capability sys_admin,
 const umuSupportConnectedPlugSecComp = `
 # Description: allow UMU launcher to run without a seccomp profile so that
 # pressure-vessel containers can use any features available on the system
+# without having to perpetually update the snapd interface side.
 
 @unrestricted
 `

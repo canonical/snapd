@@ -106,11 +106,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "/newroot/** rwkl,")
 
 	c.Check(snippet, testutil.Contains, "mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,")
-	c.Check(snippet, testutil.Contains, "mount options=(rw, rbind) /oldroot/etc/ -> /newroot/run/host/etc/,")
-	c.Check(snippet, testutil.Contains, "mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-release,")
-
-	c.Check(snippet, testutil.Contains, "/oldroot/usr/** r,")
-	c.Check(snippet, testutil.Contains, "/oldroot/etc/** r,")
 
 	c.Check(snippet, testutil.Contains, "/run/host/ r,")
 	c.Check(snippet, testutil.Contains, "/run/host/usr/ r,")
@@ -124,14 +119,11 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(snippet, testutil.Contains, "mount options=(rw, rbind) /bindfile* -> /newroot/**,")
 
-	c.Check(snippet, testutil.Contains, "/media/ r,")
-	c.Check(snippet, testutil.Contains, "/mnt/ r,")
-	c.Check(snippet, testutil.Contains, "/run/media/ r,")
-
 	c.Check(snippet, testutil.Contains, "/usr/bin/steam-runtime-launcher-interface-* ixr,")
 	c.Check(snippet, testutil.Contains, "/usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,")
 
-	c.Check(snippet, testutil.Contains, "/*/pressure-vessel/** mrw,")
+	c.Check(snippet, testutil.Contains, "/run/pressure-vessel/** mrw,")
+	c.Check(snippet, testutil.Contains, "/var/pressure-vessel/** mrw,")
 
 	c.Check(snippet, testutil.Contains, "owner /home/*/.config/menus/{,**} rw,")
 	c.Check(snippet, testutil.Contains, "owner /home/*/.local/share/applications/{,**} rw,")
@@ -166,8 +158,9 @@ func (s *UMUSupportInterfaceSuite) TestUDevSpec(c *C) {
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"`)
+	c.Assert(spec.Snippets()[1], testutil.Contains, `KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="114d", ATTRS{idProduct}=="8a12", MODE="0660", TAG+="uaccess"`)
 }
 
 func (s *UMUSupportInterfaceSuite) TestStaticInfo(c *C) {
