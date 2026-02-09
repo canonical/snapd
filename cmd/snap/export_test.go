@@ -498,10 +498,10 @@ func MockSnapdtoolIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
 
-func MockSquashfsGenerateDelta(f func(string, string, string, squashfs.DeltaFormat) error) (restore func()) {
+func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, squashfs.DeltaFormat) error) (restore func()) {
 	return testutil.Mock(&squashfsGenerateDelta, f)
 }
 
-func MockSquashfsApplyDelta(f func(string, string, string) error) (restore func()) {
+func MockSquashfsApplyDelta(f func(context.Context, string, string, string) error) (restore func()) {
 	return testutil.Mock(&squashfsApplyDelta, f)
 }

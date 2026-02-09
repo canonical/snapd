@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"context"
 	"errors"
 
 	. "gopkg.in/check.v1"
@@ -33,7 +34,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 	var gotFormat squashfs.DeltaFormat
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta
@@ -62,7 +63,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 	var gotSource, gotDelta, gotTarget string
 
 	restore := snap.MockSquashfsApplyDelta(
-		func(source, delta, target string) error {
+		func(_ context.Context, source, delta, target string) error {
 			gotSource = source
 			gotDelta = delta
 			gotTarget = target
@@ -87,7 +88,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
 			return errors.New("cannot generate delta: xdelta3 not found")
 		})
 	defer restore()
@@ -103,7 +104,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandApplyError(c *C) {
 	restore := snap.MockSquashfsApplyDelta(
-		func(source, delta, target string) error {
+		func(_ context.Context, source, delta, target string) error {
 			return errors.New("cannot apply delta: unknown delta file format")
 		})
 	defer restore()
@@ -166,7 +167,7 @@ func (s *SnapSuite) TestDeltaCommandMissingOperation(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
 			return nil
 		})
 	defer restore()
@@ -197,7 +198,7 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	var gotSource, gotTarget, gotDelta string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta

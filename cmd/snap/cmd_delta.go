@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
@@ -89,10 +90,10 @@ func (x *cmdDelta) Execute(args []string) error {
 	switch x.Positional.Operation {
 	case "generate":
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfsGenerateDelta(x.Source, x.Target, x.Delta, squashfs.SnapXdelta3Format)
+		return squashfsGenerateDelta(context.TODO(), x.Source, x.Target, x.Delta, squashfs.SnapXdelta3Format)
 	case "apply":
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
-		return squashfsApplyDelta(x.Source, x.Delta, x.Target)
+		return squashfsApplyDelta(context.TODO(), x.Source, x.Delta, x.Target)
 	}
 
 	return fmt.Errorf(i18n.G("unknown operation: %s"), x.Positional.Operation)
