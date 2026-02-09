@@ -101,14 +101,19 @@ func (s *rebootSuite) taskSetsToInstallTaskSets(c *C, tss []*state.TaskSet) []sn
 		c.Assert(ok, Equals, true)
 
 		c.Assert(beginIndex <= maybeRebootIndex, Equals, true)
+		c.Assert(maybeRebootIndex, Equals, maybeRebootWaitIndex-1)
 		c.Assert(maybeRebootWaitIndex <= endIndex, Equals, true)
 
 		snapsup, err := snapstate.TaskSnapSetup(beginTask)
 		c.Assert(err, IsNil)
 
 		beforeLocalSystemModificationsTasks := []*state.Task{beginTask}
+
 		upToLinkSnapAndBeforeReboot := append([]*state.Task(nil), tasks[beginIndex+1:maybeRebootIndex+1]...)
+		c.Assert(len(upToLinkSnapAndBeforeReboot) > 0, DeepEquals, true)
+
 		afterLinkSnapAndPostReboot := append([]*state.Task(nil), tasks[maybeRebootWaitIndex:endIndex+1]...)
+		c.Assert(len(afterLinkSnapAndPostReboot) > 0, DeepEquals, true)
 
 		stss = append(stss, snapstate.NewSnapInstallTaskSetForTest(
 			snapsup,

@@ -202,6 +202,10 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			if begin != end {
 				panic("internal error: use of chain on partially empty range")
 			}
+
+			// nothing to do with prev here, since the caller added an empty
+			// range
+
 			return
 		}
 
@@ -309,6 +313,9 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		}
 	}
 
+	// ensures all provided task sets share the same reboot lanes so
+	// transactional essential refreshes can be undone together if one of them
+	// fails.
 	mergeSnapInstallTaskSetLanes := func(stss []snapInstallTaskSet) {
 		rebootLanes := make(map[string][]int)
 		all := make([]int, 0, len(stss))
@@ -328,6 +335,8 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 	}
 
 	if !isUC16 {
+		// merge together all of the essential snaps into the same set of lanes,
+		// with the exception of snapd.
 		var merge []snapInstallTaskSet
 		for _, sts := range essentials {
 			if sts.snapsup.Type == snap.TypeSnapd {
