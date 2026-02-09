@@ -60,6 +60,10 @@ func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 	return b.BackendName
 }
 
+func (b *TestSecurityBackend) Prepare(_ *interfaces.SnapAppSet) error {
+	return nil
+}
+
 // Setup records information about the call and calls the setup callback if one is defined.
 func (b *TestSecurityBackend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	b.SetupCalls = append(b.SetupCalls, TestSetupCall{AppSet: appSet, Options: opts, SetupContext: sctx})
