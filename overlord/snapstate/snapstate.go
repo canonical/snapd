@@ -1654,7 +1654,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// re-refreshes
 	needsRerefreshCheck := false
 
-	var snapInstallTasks []snapInstallTaskSet
+	var snapInstallTSS []snapInstallTaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1708,12 +1708,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		sts.ts.JoinLane(generateLane(st, opts))
 		tss = append(tss, sts.ts)
-		snapInstallTasks = append(snapInstallTasks, sts)
+		snapInstallTSS = append(snapInstallTSS, sts)
 
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	if err := arrangeInstallTasksForSingleReboot(st, nil, snapInstallTasks); err != nil {
+	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS); err != nil {
 		return nil, false, nil, err
 	}
 
