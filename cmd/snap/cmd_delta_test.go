@@ -182,6 +182,17 @@ func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 	c.Check(s.Stdout(), Matches, `(?s)Using snap delta algorithm 'xdelta3'\n.*`)
 }
 
+func (s *SnapSuite) TestDeltaCommandIsHidden(c *C) {
+	parser := snap.Parser(snap.Client())
+	for _, cmd := range parser.Commands() {
+		if cmd.Name == "delta" {
+			c.Check(cmd.Hidden, Equals, true)
+			return
+		}
+	}
+	c.Fatalf("delta command not found in parser")
+}
+
 func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	var gotSource, gotTarget, gotDelta string
 
