@@ -117,16 +117,21 @@ func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraint
 // addRequest adds the given request to the list of requests associated with
 // the receiving prompt if it is not already in the list.
 func (p *Prompt) addRequest(request *listener.Request) {
-	if !p.containsRequest(request.ID) {
+	if !p.containsRequest(requestIDToKey(request.ID)) {
 		p.requests = append(p.requests, request)
 	}
 }
 
+// TODO: delete me once requests have a real field for Key
+func requestIDToKey(id uint64) string {
+	return fmt.Sprintf("kernel:%d", id)
+}
+
 // containsRequest returns true if the receiving prompt contains a request
-// with the given ID in its list of requests.
-func (p *Prompt) containsRequest(requestID uint64) bool {
+// with the given key in its list of requests.
+func (p *Prompt) containsRequest(requestKey string) bool {
 	return slicesContainsFunc(p.requests, func(r *listener.Request) bool {
-		return r.ID == requestID
+		return requestIDToKey(r.ID) == requestKey
 	})
 }
 
@@ -455,7 +460,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// Remove the request mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {
 		for _, request := range p.requests {
-			delete(pdb.requestMap, request.ID)
+			delete(pdb.requestMap, requestIDToKey(request.ID))
 		}
 	}
 	pdb.saveRequestMap()
@@ -499,13 +504,13 @@ type PromptDB struct {
 
 	// The filepath at which the request map is stored on disk.
 	requestMapFilepath string
-	// requestMap is the mapping from request ID to prompt ID/user ID which
+	// requestMap is the mapping from request key to prompt ID/user ID which
 	// is kept updated on disk and re-read when snapd restarts, so that we can
 	// re-associate each request which is re-received with a prompt with the
 	// same ID after snapd restarts. The user ID is required so a notice can be
 	// recorded if the manager readies, causing the prompt ID to be discarded
 	// if no associated request has been re-received for it at time of readying.
-	requestMap map[uint64]requestMapEntry
+	requestMap map[string]requestMapEntry
 }
 
 // New creates and returns a new prompt database.
@@ -539,11 +544,11 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 		notifyPrompt: notifyPrompt,
 		maxIDMmap:    maxIDMmap,
 
-		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json"),
+		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json"),
 	}
 
 	// Load the previous mappings from disk
-	if err := pdb.loadRequestIDPromptIDMapping(); err != nil {
+	if err := pdb.loadRequestKeyPromptIDMapping(); err != nil {
 		return nil, err
 	}
 
@@ -551,13 +556,13 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 }
 
 // requestMappingJSON is the state which is stored on disk, containing the
-// mapping from request ID to prompt ID and user ID.
+// mapping from request key to prompt ID and user ID.
 type requestMappingJSON struct {
-	RequestMap map[uint64]requestMapEntry `json:"id-mapping"` // TODO: change to "request-mapping"
+	RequestMap map[string]requestMapEntry `json:"request-mapping"`
 }
 
-// loadRequestIDPromptIDMapping loads from disk the mapping from request ID to
-// prompt ID, and sets the prompt DB's map to the result.
+// loadRequestKeyPromptIDMapping loads from disk the mapping from request key
+// to prompt ID, and sets the prompt DB's map to the result.
 //
 // This method should only be called once, when the prompt DB is first created.
 //
@@ -565,13 +570,13 @@ type requestMappingJSON struct {
 // for new requests to be added.
 //
 // If the file exists but cannot be read for some reason, returns an error.
-func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
+func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
 	defer func() {
 		if pdb.requestMap == nil {
-			pdb.requestMap = make(map[uint64]requestMapEntry)
+			pdb.requestMap = make(map[string]requestMapEntry)
 		}
 	}()
 
@@ -580,7 +585,7 @@ func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("cannot open mapping from request ID to prompt ID: %w", err)
+		return fmt.Errorf("cannot open mapping from request key to prompt ID: %w", err)
 	}
 	defer f.Close()
 
@@ -592,7 +597,7 @@ func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
 		// fatal. So, we need to either record a `logger.Notice()` here and
 		// return nil, or return a named error and check for it at the call
 		// site.
-		return fmt.Errorf("cannot read stored mapping from request ID to prompt ID: %w", err)
+		return fmt.Errorf("cannot read stored mapping from request key to prompt ID: %w", err)
 	}
 
 	pdb.requestMap = savedState.RequestMap
@@ -600,10 +605,10 @@ func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
 	return nil
 }
 
-// saveRequestMap saves to disk the mapping from request ID to prompt ID and
+// saveRequestMap saves to disk the mapping from request key to prompt ID and
 // user ID.
 //
-// This function should be called whenever the mapping between request ID and
+// This function should be called whenever the mapping between request key and
 // prompt ID changes, such as when a prompt is created for a new request, when
 // a prompt receives a reply, or when the manager readies and pending requests
 // which have not yet been re-received are discarded.
@@ -613,16 +618,16 @@ func (pdb *PromptDB) saveRequestMap() error {
 	b, err := json.Marshal(requestMappingJSON{RequestMap: pdb.requestMap})
 	if err != nil {
 		// Should not occur, marshalling should always succeed
-		logger.Noticef("cannot marshal mapping from request ID to prompt ID: %v", err)
-		return fmt.Errorf("cannot marshal mapping from request ID to prompt ID: %w", err)
+		logger.Noticef("cannot marshal mapping from request key to prompt ID: %v", err)
+		return fmt.Errorf("cannot marshal mapping from request key to prompt ID: %w", err)
 	}
 	if err := osutil.AtomicWriteFile(pdb.requestMapFilepath, b, 0o600, 0); err != nil {
-		return fmt.Errorf("cannot save mapping from request ID to prompt ID: %w", err)
+		return fmt.Errorf("cannot save mapping from request key to prompt ID: %w", err)
 	}
 	return nil
 }
 
-// HandleReadying prunes map entries for request IDs which have not been re-
+// HandleReadying prunes map entries for request keys which have not been re-
 // received since snapd restarted. This function should be called by the manager
 // when it readies, before it closes the ready channel to allow new replies or
 // rules to be handled.
@@ -632,30 +637,30 @@ func (pdb *PromptDB) HandleReadying() error {
 
 	// Keep map of requests which haven't been re-received, and record their
 	// map entries so we can record a notice with the correct prompt/user ID.
-	requestIDsToPrune := make(map[uint64]requestMapEntry)
+	requestKeysToPrune := make(map[string]requestMapEntry)
 	// Keep track of prompt IDs we see so we know what not to notify for.
-	// This is necessary since it's possible for multiple request IDs to be
+	// This is necessary since it's possible for multiple request keys to be
 	// associated with the same prompt.
 	existingPrompts := make(map[prompting.IDType]bool)
 
-	for requestID, entry := range pdb.requestMap {
+	for requestKey, entry := range pdb.requestMap {
 		if udb, ok := pdb.perUser[entry.UserID]; ok {
 			if prompt, err := udb.get(entry.PromptID); err == nil {
 				existingPrompts[entry.PromptID] = true
 				// The corresponding prompt exists, but has this
 				// particular request actually been re-received?
-				if prompt.containsRequest(requestID) {
+				if prompt.containsRequest(requestKey) {
 					continue
 				}
 			}
 		}
 		// Request has not been re-received
-		requestIDsToPrune[requestID] = entry
+		requestKeysToPrune[requestKey] = entry
 	}
 
 	data := map[string]string{"resolved": "expired"}
-	for requestID, entry := range requestIDsToPrune {
-		delete(pdb.requestMap, requestID)
+	for requestKey, entry := range requestKeysToPrune {
+		delete(pdb.requestMap, requestKey)
 		if !existingPrompts[entry.PromptID] {
 			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
 		}
@@ -723,9 +728,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		}
 	}()
 
-	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.ID, metadata, constraints)
+	requestKey := requestIDToKey(request.ID)
+	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, requestKey, metadata, constraints)
 	if result.foundInvalidRequestMapping {
-		delete(pdb.requestMap, request.ID)
+		delete(pdb.requestMap, requestKey)
 		needToSave = true
 	}
 
@@ -733,8 +739,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	if result.foundExistingPrompt {
 		if !result.foundExistingRequestMapping {
 			// Request matched existing prompt but doesn't have an ID mapped,
-			// so map the request ID to the prompt ID.
-			pdb.requestMap[request.ID] = requestMapEntry{
+			// so map the request key to the prompt ID.
+			pdb.requestMap[requestKey] = requestMapEntry{
 				PromptID: existingPrompt.ID,
 				UserID:   metadata.User,
 			}
@@ -765,7 +771,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 
 		// Map the new ID
-		pdb.requestMap[request.ID] = requestMapEntry{
+		pdb.requestMap[requestKey] = requestMapEntry{
 			PromptID: promptID,
 			UserID:   metadata.User,
 		}
@@ -795,9 +801,9 @@ type existingPromptResult struct {
 }
 
 // findExistingPrompt attempts to find an existing prompt or prompt ID which
-// matches the given request ID or contents.
+// matches the given request key or contents.
 //
-// First, check whether there is an existing mapping from the given request ID
+// First, check whether there is an existing mapping from the given request key
 // to a prompt ID. If there is a mapping, then check if a prompt with that ID
 // exists. If so, return it, otherwise return the mapped prompt ID so that the
 // caller can re-create a prompt with that ID.
@@ -813,14 +819,14 @@ type existingPromptResult struct {
 // Returns a result struct indicating whether an existing prompt and/or ID
 // mapping was found.
 //
-// This function does not record a notice, associate the request ID with any
+// This function does not record a notice, associate the request key with any
 // found prompt, or create an ID mapping; the caller is responsible for any of
 // these, as necessary.
-func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestID uint64, metadata *prompting.Metadata, constraints *promptConstraints) (*Prompt, prompting.IDType, existingPromptResult) {
+func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestKey string, metadata *prompting.Metadata, constraints *promptConstraints) (*Prompt, prompting.IDType, existingPromptResult) {
 	var result existingPromptResult
 
 	// First, check for existing prompt ID mapping
-	entry, ok := pdb.requestMap[requestID]
+	entry, ok := pdb.requestMap[requestKey]
 	if ok {
 		result.foundExistingRequestMapping = true
 		promptID := entry.PromptID
@@ -836,6 +842,9 @@ func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestID uint6
 			// Thus, it should be impossible for a request to be received which
 			// has a prompt ID mapping but is identical to an existing prompt
 			// with a different ID.
+			//
+			// TODO: re-evaluate this statement when requests can come from
+			// places other than the kernel.
 			return nil, promptID, result
 		}
 		// The prompt exists, likely because the prompt was associated with
@@ -946,7 +955,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	}
 
 	for _, request := range prompt.requests {
-		delete(pdb.requestMap, request.ID)
+		delete(pdb.requestMap, requestIDToKey(request.ID))
 	}
 	pdb.saveRequestMap() // error should not occur
 
@@ -1047,7 +1056,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 
 		// Remove the ID mappings for the requests associated with the prompt.
 		for _, request := range prompt.requests {
-			delete(pdb.requestMap, request.ID)
+			delete(pdb.requestMap, requestIDToKey(request.ID))
 		}
 		needToSave = true
 
@@ -1063,7 +1072,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 // This should be called when snapd is shutting down.
 //
 // When snapd restarts, it should re-open the max ID mmap and load the mappings
-// from request ID to prompt ID from disk, so that prompts can be re-created
+// from request key to prompt ID from disk, so that prompts can be re-created
 // with the same IDs as were previously associated with the requests when they
 // are re-received from the kernel.
 func (pdb *PromptDB) Close() error {

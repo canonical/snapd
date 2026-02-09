@@ -97,7 +97,7 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 	s.legacyMaxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
 	s.maxIDPath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
-	s.requestMapFilepath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json")
+	s.requestMapFilepath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
@@ -252,7 +252,7 @@ func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id uint64) {
 	c.Assert(writtenID, Equals, id)
 }
 
-func (s *requestpromptsSuite) checkWrittenRequestMap(c *C, requestMap map[uint64]requestprompts.RequestMapEntry) {
+func (s *requestpromptsSuite) checkWrittenRequestMap(c *C, requestMap map[string]requestprompts.RequestMapEntry) {
 	data, err := os.ReadFile(s.requestMapFilepath)
 	c.Assert(err, IsNil)
 	var mapping requestprompts.RequestMappingJSON
@@ -333,7 +333,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt1.Requests()[0].ID, Equals, uint64(1))
 
 	expectedID := uint64(1)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{1: {PromptID: 1, UserID: s.defaultUser}}
+	expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:1": {PromptID: 1, UserID: s.defaultUser}}
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	s.checkWrittenMaxID(c, expectedID)
@@ -375,7 +375,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID++
-	expectedMap[2] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
+	expectedMap["kernel:2"] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -415,7 +415,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt3.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID++
-	expectedMap[3] = requestprompts.RequestMapEntry{PromptID: 3, UserID: s.defaultUser}
+	expectedMap["kernel:3"] = requestprompts.RequestMapEntry{PromptID: 3, UserID: s.defaultUser}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -457,7 +457,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt4.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID++
-	expectedMap[4] = requestprompts.RequestMapEntry{PromptID: 4, UserID: s.defaultUser}
+	expectedMap["kernel:4"] = requestprompts.RequestMapEntry{PromptID: 4, UserID: s.defaultUser}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -501,7 +501,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt5.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID++
-	expectedMap[5] = requestprompts.RequestMapEntry{PromptID: 5, UserID: s.defaultUser}
+	expectedMap["kernel:5"] = requestprompts.RequestMapEntry{PromptID: 5, UserID: s.defaultUser}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -548,7 +548,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt6.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID++
-	expectedMap[6] = requestprompts.RequestMapEntry{PromptID: 6, UserID: s.defaultUser}
+	expectedMap["kernel:6"] = requestprompts.RequestMapEntry{PromptID: 6, UserID: s.defaultUser}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -605,7 +605,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Check(prompt1.Requests()[0].ID, Equals, uint64(1))
 
 	expectedID := uint64(1)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{1: {PromptID: 1, UserID: s.defaultUser}}
+	expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:1": {PromptID: 1, UserID: s.defaultUser}}
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	s.checkWrittenMaxID(c, expectedID)
@@ -625,8 +625,8 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	// Merged prompts should not advance the max ID
 	s.checkWrittenMaxID(c, expectedID)
-	// Merged prompts should create mapping from new request ID to existing prompt ID
-	expectedMap[2] = requestprompts.RequestMapEntry{PromptID: 1, UserID: s.defaultUser}
+	// Merged prompts should create mapping from new request key to existing prompt ID
+	expectedMap["kernel:2"] = requestprompts.RequestMapEntry{PromptID: 1, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Merged prompts should not affect the original timestamp
@@ -667,8 +667,8 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	// Merged prompts should not advance the max ID
 	s.checkWrittenMaxID(c, expectedID)
-	// Merged prompts should create mapping from new request ID to existing prompt ID
-	expectedMap[3] = requestprompts.RequestMapEntry{PromptID: 1, UserID: s.defaultUser}
+	// Merged prompts should create mapping from new request key to existing prompt ID
+	expectedMap["kernel:3"] = requestprompts.RequestMapEntry{PromptID: 1, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
 }
 
@@ -703,7 +703,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	c.Check(prompt1.Requests()[0].ID, Equals, uint64(1))
 
 	expectedID := uint64(1)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{1: {PromptID: 1, UserID: s.defaultUser}}
+	expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:1": {PromptID: 1, UserID: s.defaultUser}}
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 	s.checkWrittenMaxID(c, expectedID)
@@ -936,7 +936,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		c.Check(prompt1.Requests()[0].ID, Equals, uint64(1))
 
 		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
-		expectedMap := map[uint64]requestprompts.RequestMapEntry{1: {PromptID: promptID, UserID: s.defaultUser}}
+		expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:1": {PromptID: promptID, UserID: s.defaultUser}}
 		s.checkWrittenRequestMap(c, expectedMap)
 
 		prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req2)
@@ -949,7 +949,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 		// Merged prompts should re-record notice
 		s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
-		expectedMap[2] = requestprompts.RequestMapEntry{PromptID: promptID, UserID: s.defaultUser}
+		expectedMap["kernel:2"] = requestprompts.RequestMapEntry{PromptID: promptID, UserID: s.defaultUser}
 		s.checkWrittenRequestMap(c, expectedMap)
 
 		// Re-send original request again to make sure we don't get duplicate replies
@@ -1003,8 +1003,8 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 		expectedData := map[string]string{"resolved": "replied"}
 		s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
-		// Reply should have cleared mappings for request IDs associated with replied prompt
-		expectedMap = map[uint64]requestprompts.RequestMapEntry{}
+		// Reply should have cleared mappings for request keys associated with replied prompt
+		expectedMap = map[string]requestprompts.RequestMapEntry{}
 		s.checkWrittenRequestMap(c, expectedMap)
 	}
 }
@@ -1100,7 +1100,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	fakeError := fmt.Errorf("fake reply error")
 
 	req := &listener.Request{
-		ID: 0xabc,
+		ID: 11235,
 		Reply: func(allowedPerms notify.AppArmorPermission) error {
 			return fakeError
 		},
@@ -1111,7 +1111,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{0xabc: {PromptID: 1, UserID: s.defaultUser}}
+	expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:11235": {PromptID: 1, UserID: s.defaultUser}}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	outcome := prompting.OutcomeAllow
@@ -1171,11 +1171,11 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{
-		12: {PromptID: 1, UserID: s.defaultUser},
-		34: {PromptID: 2, UserID: s.defaultUser},
-		56: {PromptID: 3, UserID: s.defaultUser},
-		78: {PromptID: 4, UserID: s.defaultUser},
+	expectedMap := map[string]requestprompts.RequestMapEntry{
+		"kernel:12": {PromptID: 1, UserID: s.defaultUser},
+		"kernel:34": {PromptID: 2, UserID: s.defaultUser},
+		"kernel:56": {PromptID: 3, UserID: s.defaultUser},
+		"kernel:78": {PromptID: 4, UserID: s.defaultUser},
 	}
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -1216,8 +1216,8 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	expectedNotices := []*noticeInfo{e1, e2, e3}
 	s.checkNewNoticesUnordered(c, expectedNotices)
 	// Check that mappings cleaned up for requests associated with resolved prompts
-	delete(expectedMap, 12)
-	delete(expectedMap, 56)
+	delete(expectedMap, "kernel:12")
+	delete(expectedMap, "kernel:56")
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	reply1, reply3 := waitForReplies(c, replyChan1, replyChan3)
@@ -1254,7 +1254,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	expectedData := map[string]string{"resolved": "satisfied"}
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, expectedData)
 	// Check that mappings cleaned up for request associated with resolved prompt
-	delete(expectedMap, 34)
+	delete(expectedMap, "kernel:34")
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	reply2 := waitForReply(c, replyChan2)
@@ -1446,10 +1446,10 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	}
 	c.Check(prompts[2].ID, Equals, prompting.IDType(3))
 
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{
-		0: {PromptID: 1, UserID: s.defaultUser},
-		1: {PromptID: 2, UserID: s.defaultUser},
-		2: {PromptID: 3, UserID: s.defaultUser},
+	expectedMap := map[string]requestprompts.RequestMapEntry{
+		"kernel:0": {PromptID: 1, UserID: s.defaultUser},
+		"kernel:1": {PromptID: 2, UserID: s.defaultUser},
+		"kernel:2": {PromptID: 3, UserID: s.defaultUser},
 	}
 	s.checkWrittenRequestMap(c, expectedMap)
 
@@ -1528,13 +1528,13 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 	req4 := &listener.Request{ID: 5}
 	req5 := &listener.Request{ID: 8}
 
-	// Write initial mappings from request IDs to prompt IDs
+	// Write initial mappings from request keys to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	mapping := requestprompts.RequestMappingJSON{
-		RequestMap: map[uint64]requestprompts.RequestMapEntry{
-			1: {PromptID: 1, UserID: s.defaultUser},
-			2: {PromptID: 2, UserID: s.defaultUser},
-			3: {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
+		RequestMap: map[string]requestprompts.RequestMapEntry{
+			"kernel:1": {PromptID: 1, UserID: s.defaultUser},
+			"kernel:2": {PromptID: 2, UserID: s.defaultUser},
+			"kernel:3": {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
 		},
 	}
 	data, err := json.Marshal(mapping)
@@ -1608,12 +1608,12 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt1.ID, prompt4.ID, prompt2.ID}, nil)
 	// New prompts should advance the max ID
 	expectedID := uint64(3)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{
-		1: {PromptID: 1, UserID: s.defaultUser}, // originally mapped
-		2: {PromptID: 2, UserID: s.defaultUser}, // originally mapped
-		3: {PromptID: 1, UserID: s.defaultUser}, // originally mapped
-		5: {PromptID: 3, UserID: s.defaultUser}, // new, new prompt
-		8: {PromptID: 2, UserID: s.defaultUser}, // new, merged with prompt2
+	expectedMap := map[string]requestprompts.RequestMapEntry{
+		"kernel:1": {PromptID: 1, UserID: s.defaultUser}, // originally mapped
+		"kernel:2": {PromptID: 2, UserID: s.defaultUser}, // originally mapped
+		"kernel:3": {PromptID: 1, UserID: s.defaultUser}, // originally mapped
+		"kernel:5": {PromptID: 3, UserID: s.defaultUser}, // new, new prompt
+		"kernel:8": {PromptID: 2, UserID: s.defaultUser}, // new, merged with prompt2
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
@@ -1630,14 +1630,14 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	req1 := &listener.Request{ID: 1}
 	req2 := &listener.Request{ID: 2}
 
-	// Write initial mappings from request IDs to prompt IDs
+	// Write initial mappings from request keys to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	mapping := requestprompts.RequestMappingJSON{
-		RequestMap: map[uint64]requestprompts.RequestMapEntry{
-			1: {PromptID: 1, UserID: s.defaultUser},
-			2: {PromptID: 2, UserID: s.defaultUser},
-			3: {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
-			4: {PromptID: 3, UserID: s.defaultUser}, // we won't re-receive request 4
+		RequestMap: map[string]requestprompts.RequestMapEntry{
+			"kernel:1": {PromptID: 1, UserID: s.defaultUser},
+			"kernel:2": {PromptID: 2, UserID: s.defaultUser},
+			"kernel:3": {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
+			"kernel:4": {PromptID: 3, UserID: s.defaultUser}, // we won't re-receive request 4
 		},
 	}
 	data, err := json.Marshal(mapping)
@@ -1687,11 +1687,11 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID}, nil)
 	// All received prompts were previously sent, so expected map and max ID
 	// should be unchanged.
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{
-		1: {PromptID: 1, UserID: s.defaultUser},
-		2: {PromptID: 2, UserID: s.defaultUser},
-		3: {PromptID: 1, UserID: s.defaultUser},
-		4: {PromptID: 3, UserID: s.defaultUser},
+	expectedMap := map[string]requestprompts.RequestMapEntry{
+		"kernel:1": {PromptID: 1, UserID: s.defaultUser},
+		"kernel:2": {PromptID: 2, UserID: s.defaultUser},
+		"kernel:3": {PromptID: 1, UserID: s.defaultUser},
+		"kernel:4": {PromptID: 3, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
@@ -1712,9 +1712,9 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	s.checkNewNoticesSimple(c, []prompting.IDType{3}, noticeData)
 	// Handling ready should prune all pending requests which have not been
 	// re-received.
-	expectedMap = map[uint64]requestprompts.RequestMapEntry{
-		1: {PromptID: 1, UserID: s.defaultUser},
-		2: {PromptID: 2, UserID: s.defaultUser},
+	expectedMap = map[string]requestprompts.RequestMapEntry{
+		"kernel:1": {PromptID: 1, UserID: s.defaultUser},
+		"kernel:2": {PromptID: 2, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
@@ -1822,7 +1822,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
-	expectedMap := map[uint64]requestprompts.RequestMapEntry{123: {PromptID: 1, UserID: s.defaultUser}}
+	expectedMap := map[string]requestprompts.RequestMapEntry{"kernel:123": {PromptID: 1, UserID: s.defaultUser}}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Check that prompt has not immediately expired
@@ -1839,7 +1839,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt2.ID, nil)
-	expectedMap[456] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
+	expectedMap["kernel:456"] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Prompt should expire after initialTimeout, but half already elapsed
@@ -1854,7 +1854,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Check(allowedPerms, Equals, expectedPerms)
 	c.Assert(timer.FireCount(), Equals, 1)
 	// ID mappings should have been cleaned up for requests associated with expired prompt
-	expectedMap = map[uint64]requestprompts.RequestMapEntry{}
+	expectedMap = map[string]requestprompts.RequestMapEntry{}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Add prompt again
@@ -1863,7 +1863,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
-	expectedMap[789] = requestprompts.RequestMapEntry{PromptID: 3, UserID: s.defaultUser}
+	expectedMap["kernel:789"] = requestprompts.RequestMapEntry{PromptID: 3, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Retrieve prompts for s.defaultUser, and bump timeout
@@ -1902,7 +1902,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Check(allowedPerms, Equals, expectedPerms)
 	c.Assert(timer.FireCount(), Equals, 2)
 
-	expectedMap = map[uint64]requestprompts.RequestMapEntry{}
+	expectedMap = map[string]requestprompts.RequestMapEntry{}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Add prompt again
@@ -1911,7 +1911,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
-	expectedMap[101112] = requestprompts.RequestMapEntry{PromptID: 4, UserID: s.defaultUser}
+	expectedMap["kernel:101112"] = requestprompts.RequestMapEntry{PromptID: 4, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Check that prompt has not immediately expired
@@ -1934,7 +1934,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	allowedPerms = waitForReply(c, replyChan4)
 	c.Assert(allowedPerms, Equals, expectedPerms)
 	c.Assert(timer.FireCount(), Equals, 3)
-	expectedMap = map[uint64]requestprompts.RequestMapEntry{}
+	expectedMap = map[string]requestprompts.RequestMapEntry{}
 	s.checkWrittenRequestMap(c, expectedMap)
 }
 
