@@ -52,6 +52,8 @@ type setCommand struct {
 	Typed  bool `short:"t" description:"parse the value strictly as JSON document"`
 }
 
+// TODO: add --access-timeout
+
 var shortSetHelp = i18n.G("Set either configuration options or interface connection settings")
 var longSetHelp = i18n.G(`
 The set command sets the provided configuration options as requested.

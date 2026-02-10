@@ -216,10 +216,9 @@ var (
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
-	confdbstateGetView             = confdbstate.GetView
-	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
-	confdbstateSetViaView          = confdbstate.SetViaView
-	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
+	confdbstateGetView          = confdbstate.GetView
+	confdbstateWriteConfdbAsync = confdbstate.WriteConfdbAsync
+	confdbstateReadConfdb       = confdbstate.ReadConfdb
 
 	devicestateSignConfdbControl = (*devicestate.DeviceManager).SignConfdbControl
 )

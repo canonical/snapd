@@ -19,10 +19,12 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -65,7 +67,8 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	vars := muxVars(r)
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
-	keysStr := r.URL.Query().Get("keys")
+	query := r.URL.Query()
+	keysStr := query.Get("keys")
 	var keys []string
 	if keysStr != "" {
 		keys = strutil.CommaSeparatedList(keysStr)
@@ -89,7 +92,19 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
+	ctx := r.Context()
+	if query.Get("timeout") != "" {
+		timeout, err := time.ParseDuration(query.Get("timeout"))
+		if err != nil {
+			return BadRequest("cannot parse timeout: %v", err)
+		}
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	chgID, err := confdbstateReadConfdb(ctx, st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -131,7 +146,8 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	type setAction struct {
-		Values map[string]any `json:"values"`
+		Values  map[string]any `json:"values"`
+		Options client.ConfdbOptions
 	}
 
 	var action setAction
@@ -146,22 +162,19 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	// TODO: apply some size restrictions to the value (so someone can't pass
 	// a massive string, for instance)
 
+	ctx := r.Context()
+	if action.Options.Timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, action.Options.Timeout)
+		defer cancel()
+	}
+
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	tx, commitTxFunc, err := confdbstateGetTransactionToSet(nil, st, view)
-	if err != nil {
-		return toAPIError(err)
-	}
-
-	err = confdbstateSetViaView(tx, view, action.Values)
-	if err != nil {
-		return toAPIError(err)
-	}
-
-	changeID, _, err := commitTxFunc()
+	changeID, err := confdbstateWriteConfdbAsync(ctx, st, view, action.Values)
 	if err != nil {
 		return toAPIError(err)
 	}

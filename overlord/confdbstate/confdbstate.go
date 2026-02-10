@@ -19,6 +19,7 @@
 package confdbstate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -195,6 +197,95 @@ var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, db
 
 type CommitTxFunc func() (changeID string, waitChan <-chan struct{}, err error)
 
+// waitForAccess blocks until the access can be processed or until the context
+// was cancelled/timed out, in which case an error is returned. Caller must hold
+// the state lock.
+func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, access accessType) error {
+	account, schema := view.Schema().Account, view.Schema().Name
+	txs, updateFunc, err := getOngoingTxs(st, account, schema)
+	if err != nil {
+		return fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
+	}
+
+	if (access == readAccess && txs.CanStartReadTx()) || (access == writeAccess && txs.CanStartWriteTx()) {
+		logger.Debugf("access granted")
+		return nil
+	}
+	id := randutil.RandomString(20)
+	logger.Debugf("write: %s read: %v pending: %+v", txs.WriteTxID, txs.ReadTxIDs, txs.pending)
+	logger.Debugf("%s must wait: %s", access, id)
+
+	wait := make(chan struct{})
+	txs.pending = append(txs.pending, pendingAccess{
+		accessType: access,
+		waitChan:   wait,
+		id:         id,
+	})
+	updateFunc(txs)
+	st.Unlock()
+
+	defer func() error {
+		st.Lock()
+
+		txs, updateFunc, err := getOngoingTxs(st, account, schema)
+		if err != nil {
+			return fmt.Errorf("cannot access %s: cannot check ongoing transactions: %v", view.ID(), err)
+		}
+
+		accIndex := -1
+		for i, acc := range txs.pending {
+			if acc.id == id {
+				accIndex = i
+			}
+		}
+
+		if accIndex == -1 {
+			logger.Noticef("cannot find access id %s when updating pending accesses", id)
+		} else {
+			txs.pending = append(txs.pending[:accIndex], txs.pending[accIndex+1:]...)
+		}
+
+		updateFunc(txs)
+		return nil
+	}()
+
+	_, set := ctx.Deadline()
+	if !set {
+		// set a maximum waiting time of 10m to safeguard against this hanging forever
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+	}
+
+	select {
+	case <-wait:
+	case <-ctx.Done():
+		return fmt.Errorf("cannot %s %s: timed out waiting for access", access, view.ID())
+	}
+
+	return nil
+}
+
+func WriteConfdbAsync(ctx context.Context, st *state.State, view *confdb.View, values map[string]any) (changeID string, err error) {
+	err = waitForAccess(ctx, st, view, writeAccess)
+	if err != nil {
+		return "", err
+	}
+
+	tx, commitTxFunc, err := GetTransactionToSet(nil, st, view)
+	if err != nil {
+		return "", err
+	}
+
+	err = SetViaView(tx, view, values)
+	if err != nil {
+		return "", err
+	}
+
+	changeID, _, err = commitTxFunc()
+	return changeID, err
+}
+
 // GetTransactionToSet gets a transaction to change the confdb through the view.
 // The state must be locked by the caller. Returns a transaction through which
 // the confdb can be modified and a CommitTxFunc. The latter is called once the
@@ -202,14 +293,14 @@ type CommitTxFunc func() (changeID string, waitChan <-chan struct{}, err error)
 // allowing the caller to block until commit. If a transaction was already ongoing,
 // CommitTxFunc simply returns that without blocking (changes to it will be
 // saved on ctx.Done()).
-func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.View) (*Transaction, CommitTxFunc, error) {
+func GetTransactionToSet(hookCtx *hookstate.Context, st *state.State, view *confdb.View) (*Transaction, CommitTxFunc, error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	// check if we're already running in the context of a committing transaction
-	if IsConfdbHookCtx(ctx) {
+	if IsConfdbHookCtx(hookCtx) {
 		// running in the context of a transaction, so if the referenced confdb schema
 		// doesn't match that tx, we only allow the caller to read through the other confdb schema
-		t, _ := ctx.Task()
+		t, _ := hookCtx.Task()
 		tx, _, saveTxChanges, err := GetStoredTransaction(t)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot access confdb through view %s: cannot get transaction: %v", view.ID(), err)
@@ -220,7 +311,7 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 		}
 
 		// update the commit task to save transaction changes made by the hook
-		ctx.OnDone(func() error {
+		hookCtx.OnDone(func() error {
 			saveTxChanges()
 			return nil
 		})
@@ -248,17 +339,17 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 
 	commitTx := func() (string, <-chan struct{}, error) {
 		var chg *state.Change
-		if ctx == nil || ctx.IsEphemeral() {
+		if hookCtx == nil || hookCtx.IsEphemeral() {
 			chg = st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
 		} else {
 			// we're running in the context of a non-confdb hook, add the tasks to that change
-			task, _ := ctx.Task()
+			task, _ := hookCtx.Task()
 			chg = task.Change()
 		}
 
 		var callingSnap string
-		if ctx != nil {
-			callingSnap = ctx.InstanceName()
+		if hookCtx != nil {
+			callingSnap = hookCtx.InstanceName()
 		}
 
 		ts, err := createChangeConfdbTasks(st, tx, view, callingSnap)
@@ -555,14 +646,14 @@ func CanHookSetConfdb(ctx *hookstate.Context) bool {
 // schedules tasks to load the confdb as needed, unless no custodian defined
 // relevant hooks. Blocks until the confdb has been loaded into the Transaction.
 // If no tasks need to run to load the confdb, returns without blocking.
-func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, paths []string, constraints map[string]any) (*Transaction, error) {
-	st := ctx.State()
+func GetTransactionForSnapctlGet(hookCtx *hookstate.Context, view *confdb.View, paths []string, constraints map[string]any) (*Transaction, error) {
+	st := hookCtx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
-	if IsConfdbHookCtx(ctx) {
+	if IsConfdbHookCtx(hookCtx) {
 		// running in the context of a transaction, so if the referenced confdb
 		// doesn't match that tx, we only allow the caller to read the other confdb
-		t, _ := ctx.Task()
+		t, _ := hookCtx.Task()
 		tx, _, _, err := GetStoredTransaction(t)
 		if err != nil {
 			return nil, fmt.Errorf("cannot load confdb view %s: cannot get transaction: %v", view.ID(), err)
@@ -577,6 +668,8 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 		return tx, nil
 	}
 
+	// TODO: replace this with the concurrent access logic. Derive timeout from hookstate.Context
+	// if not otherwise set?
 	txs, _, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
@@ -606,11 +699,11 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 	}
 
 	var chg *state.Change
-	if ctx.IsEphemeral() {
+	if hookCtx.IsEphemeral() {
 		chg = st.NewChange(getConfdbChangeKind, fmt.Sprintf("Get confdb through %q", view.ID()))
 	} else {
 		// we're running in the context of a non-confdb hook, add the tasks to that change
-		task, _ := ctx.Task()
+		task, _ := hookCtx.Task()
 		chg = task.Change()
 	}
 
@@ -636,40 +729,51 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 	}
 
 	ensureNow(st)
-	ctx.Unlock()
+	hookCtx.Unlock()
 
 	select {
 	case <-waitChan:
 	case <-time.After(transactionTimeout):
-		ctx.Lock()
+		hookCtx.Lock()
 		return nil, fmt.Errorf("cannot load confdb %s/%s in change %s: timed out after %s", account, schemaName, chg.ID(), transactionTimeout)
 	}
 
-	ctx.Lock()
+	hookCtx.Lock()
 	if err := clearTxTask.Get("confdb-transaction", &tx); err != nil {
 		return nil, err
 	}
 	return tx, nil
 }
 
-// LoadConfdbAsync schedules a change to load a confdb, running any appropriate
-// hooks and fulfilling the requests by reading the view and placing the resulting
+type cachedConfdbReqs struct{}
+
+type accessType string
+
+const (
+	readAccess  accessType = "read"
+	writeAccess accessType = "write"
+)
+
+type pendingAccess struct {
+	// id is a random string identifying this access.
+	id string
+	// accessType denotes whether the access is read or write.
+	accessType accessType
+	// waitChan is closed to unblock the pending access.
+	waitChan chan<- struct{}
+}
+
+// ReadConfdb schedules a change to load a confdb, running any appropriate hooks
+// and fulfilling the requests by reading the view and placing the resulting
 // data in the change's data (so it can be read by the client).
-func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]any) (changeID string, err error) {
-	account, schemaName := view.Schema().Account, view.Schema().Name
-
-	txs, _, err := getOngoingTxs(st, account, schemaName)
+func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any) (changeID string, err error) {
+	err = waitForAccess(ctx, st, view, readAccess)
 	if err != nil {
-		return "", fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
+		return "", err
 	}
 
-	if txs != nil && !txs.CanStartReadTx() {
-		// TODO: eventually we want to queue this load and block until we serve it.
-		// It might also be necessary to have some form of timeout.
-		return "", fmt.Errorf("cannot access confdb view %s: ongoing write transaction", view.ID())
-	}
-
-	tx, err := NewTransaction(st, account, schemaName)
+	account, schema := view.Schema().Account, view.Schema().Name
+	tx, err := NewTransaction(st, account, schema)
 	if err != nil {
 		return "", fmt.Errorf("cannot access confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
@@ -698,7 +802,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, cons
 		loadConfdbTask.WaitFor(clearTxTask)
 		chg.AddAll(ts)
 
-		err = addReadTransaction(st, account, schemaName, clearTxTask.ID())
+		err = addReadTransaction(st, account, schema, clearTxTask.ID())
 		if err != nil {
 			return "", err
 		}
