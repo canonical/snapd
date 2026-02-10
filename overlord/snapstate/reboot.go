@@ -204,7 +204,8 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			}
 
 			// nothing to do with prev here, since the caller added an empty
-			// range
+			// range. this is only allowed to make UC16 handling a bit easier,
+			// since the post-reboot chains for UC16 are empty.
 
 			return
 		}
@@ -216,7 +217,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 	}
 
 	isUC16 := bootBase == "core"
-	beforeBoot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
+	beforeReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
 		// on UC16, everything is before boot
 		if isUC16 {
 			return head(sts.beforeLocalSystemModificationsTasks), tail(sts.afterLinkSnapAndPostReboot)
@@ -225,7 +226,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		return head(sts.beforeLocalSystemModificationsTasks), tail(sts.upToLinkSnapAndBeforeReboot)
 	}
 
-	afterBoot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
+	afterReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
 		// on UC16, nothing is after boot
 		if isUC16 {
 			return nil, nil
@@ -235,8 +236,8 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 
 	// snapd fully goes first
 	if sts, ok := essentials[snap.TypeSnapd]; ok {
-		chain(beforeBoot(sts))
-		chain(afterBoot(sts))
+		chain(beforeReboot(sts))
+		chain(afterReboot(sts))
 	}
 
 	// then all the pre-reboot tasks for essential snaps, in order
@@ -245,7 +246,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		if !ok {
 			continue
 		}
-		chain(beforeBoot(sts))
+		chain(beforeReboot(sts))
 	}
 
 	// then all the post-reboot tasks for essential snaps, in order
@@ -254,7 +255,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		if !ok {
 			continue
 		}
-		chain(afterBoot(sts))
+		chain(afterReboot(sts))
 	}
 
 	// before doing anything else, keep a pointer to the final essential snap
@@ -270,7 +271,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 				continue
 			}
 
-			_, end := beforeBoot(sts)
+			_, end := beforeReboot(sts)
 			if end == nil {
 				return errors.New("internal error: all essential snaps must have before boot tasks")
 			}
