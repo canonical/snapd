@@ -3013,7 +3013,7 @@ func (s *schemaSuite) TestPruneAllSecret(c *C) {
 	c.Assert(data, IsNil)
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{"foo": "data"}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	data, err = schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{}, marshal(c, map[string]any{"foo": "data"}))
 	c.Assert(err, IsNil)
@@ -3066,7 +3066,7 @@ func (s *schemaSuite) TestPruneMap(c *C) {
 	c.Assert(pruned, DeepEquals, data)
 
 	_, err = schema.PruneByVisibility(parsePath(c, "bar.best"), []confdb.Visibility{confdb.SecretVisibility}, data)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	// When attempting to access data that is not present, pruning returns a no-data error
 	_, err = schema.PruneByVisibility(parsePath(c, "bar.eph"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
@@ -3116,7 +3116,7 @@ func (s *schemaSuite) TestPruneMapNested(c *C) {
 	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": map[string]any{"eph": map[string]any{"baz": "data"}}}))
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.baz"), []confdb.Visibility{confdb.SecretVisibility}, data)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (s *schemaSuite) TestPruneMapValSchema(c *C) {
@@ -3183,11 +3183,11 @@ func (s *schemaSuite) TestPruneMapValSchema(c *C) {
 
 	_, err = schema.PruneByVisibility(parsePath(c, "bar.{n}.a"), []confdb.Visibility{confdb.SecretVisibility}, data)
 	c.Assert(err, NotNil)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	_, err = schema.PruneByVisibility(parsePath(c, "bar.one.a"), []confdb.Visibility{confdb.SecretVisibility}, data)
 	c.Assert(err, NotNil)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneVisibilityMapSecretValues(c *C) {
@@ -3220,11 +3220,11 @@ func (*schemaSuite) TestPruneVisibilityMapSecretValues(c *C) {
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), []confdb.Visibility{confdb.SecretVisibility}, data)
 	c.Assert(err, NotNil)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.{n}"), []confdb.Visibility{confdb.SecretVisibility}, data)
 	c.Assert(err, NotNil)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	// If the databag is missing secret data, then pruning will return a NoDataError instead
 
@@ -3257,7 +3257,7 @@ func (*schemaSuite) TestPruneVisibilitySecretMapKeys(c *C) {
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
 		"foo": map[string]any{"bar": false},
 	}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneVisibilityArray(c *C) {
@@ -3287,7 +3287,7 @@ func (*schemaSuite) TestPruneVisibilityArray(c *C) {
 			map[string]any{"bar": "secret0"},
 			map[string]any{"bar": "secret1"},
 		}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo[2]"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
 		"foo": []any{
@@ -3322,7 +3322,7 @@ func (*schemaSuite) TestPruneVisibilityArray(c *C) {
 			map[string]any{"bar": "secret0", "baz": "0"},
 			map[string]any{"bar": "secret1", "baz": "1"},
 		}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	// When providing an index placeholder and path to secret data, it returns an unauthorized error
 	_, err = schema.PruneByVisibility(parsePath(c, "foo[{n}].bar"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
@@ -3330,7 +3330,7 @@ func (*schemaSuite) TestPruneVisibilityArray(c *C) {
 			map[string]any{"bar": "secret0", "baz": "0"},
 			map[string]any{"bar": "secret1", "baz": "1"},
 		}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	// When providing an index placeholder and mixed data, some with secrets, some with not, only secrets are excluded
 	pruned, err = schema.PruneByVisibility(parsePath(c, "foo[{n}]"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
@@ -3363,7 +3363,7 @@ func (*schemaSuite) TestPruneVisibilitySecretArray(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c,
 		map[string]any{"foo": []any{"bar", "baz"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneVisibilityArraySecretValues(c *C) {
@@ -3382,11 +3382,11 @@ func (*schemaSuite) TestPruneVisibilityArraySecretValues(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": []any{"bar", "baz"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo[1]"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": []any{"bar", "baz"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneArrayNotAlongPath(c *C) {
@@ -3448,11 +3448,11 @@ func (*schemaSuite) TestPruneAllAlternatives(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": []any{"a", "b"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": map[string]any{"bar": "a"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneIdenticalAlternativesExceptForValidate(c *C) {
@@ -3482,7 +3482,7 @@ func (*schemaSuite) TestPruneIdenticalAlternativesExceptForValidate(c *C) {
 	c.Assert(err, IsNil)
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": map[string]any{"bar": "data-10"}}))
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 
 	data := marshal(c, map[string]any{"foo": map[string]any{"bar": "data-10b"}})
 	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, data)
@@ -3518,7 +3518,7 @@ func (*schemaSuite) TestPruneVisibilityUserType(c *C) {
 	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"bar": "b"}))
 
 	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, data)
-	c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
 func (*schemaSuite) TestPruneSecretAllTypes(c *C) {
@@ -3544,6 +3544,6 @@ func (*schemaSuite) TestPruneSecretAllTypes(c *C) {
 		c.Assert(err, IsNil, cmt)
 		_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
 			marshal(c, map[string]any{"foo": values[typ]}))
-		c.Assert(err, testutil.ErrorIs, &confdb.UnAuthorizedAccessError{})
+		c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 	}
 }

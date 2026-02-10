@@ -194,18 +194,18 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
-type UnAuthorizedAccessError struct {
+type UnauthorizedAccessError struct {
 	viewID    string
 	operation string
 	request   string
 }
 
-func (e *UnAuthorizedAccessError) Is(err error) bool {
-	_, ok := err.(*UnAuthorizedAccessError)
+func (e *UnauthorizedAccessError) Is(err error) bool {
+	_, ok := err.(*UnauthorizedAccessError)
 	return ok
 }
 
-func (e *UnAuthorizedAccessError) Error() string {
+func (e *UnauthorizedAccessError) Error() string {
 	var reqStr string
 	if e.request != "" {
 		reqStr = "\"" + e.request + "\""
