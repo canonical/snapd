@@ -909,8 +909,10 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 		return nil, err
 	}
 
+	pathKey := ""
 	if len(path) > 0 && path[0].Type() == MapKeyType {
-		_, ok := m[path[0].Name()]
+		pathKey = path[0].Name()
+		_, ok := m[pathKey]
 		if !ok {
 			return nil, &NoDataError{}
 		}
@@ -923,7 +925,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 	pruned := map[string]json.RawMessage{}
 	for key, value := range m {
 		if len(path) > 0 && path[0].Type() == MapKeyType {
-			if path[0].Name() != key {
+			if pathKey != key {
 				// The data is not along the path. Do not prune; simply copy over
 				pruned[key] = value
 				continue
@@ -970,7 +972,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 		}
 	}
 	if len(path) > 0 && path[0].Type() == MapKeyType {
-		if _, ok = pruned[path[0].Name()]; !ok {
+		if _, ok = pruned[pathKey]; !ok {
 			// Before entering in the prune loop, the entry existed.
 			// The only way it no longer exists is if it got pruned away
 			// and so we can consider this unauthorized.
@@ -1679,10 +1681,7 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis []Visibility, data 
 	}
 	arrayIndex := -1
 	if len(path) > 0 && path[0].Type() == ListIndexType {
-		arrayIndex, err = strconv.Atoi(path[0].Name())
-		if err != nil {
-			return nil, err
-		}
+		arrayIndex, _ = strconv.Atoi(path[0].Name())
 		if arrayIndex >= len(array) {
 			return nil, &NoDataError{}
 		}
@@ -1699,7 +1698,6 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis []Visibility, data 
 			continue
 		}
 		res, err := v.elementType.PruneByVisibility(childPath, vis, item)
-
 		if err != nil {
 			if (errors.Is(err, &NoDataError{}) ||
 				errors.Is(err, &UnauthorizedAccessError{})) &&
@@ -1717,11 +1715,11 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis []Visibility, data 
 		}
 	}
 	if len(pruned) > 0 {
-		marshelled, err := json.Marshal(pruned)
+		marshalled, err := json.Marshal(pruned)
 		if err != nil {
 			return nil, err
 		}
-		return marshelled, nil
+		return marshalled, nil
 	} else if len(path) > 0 && len(array) > 0 {
 		// If we are along the path and we pruned away all the data, since
 		// we cannot return an empty container, consider this unauthorized.

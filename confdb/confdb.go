@@ -206,13 +206,11 @@ func (e *UnauthorizedAccessError) Is(err error) bool {
 }
 
 func (e *UnauthorizedAccessError) Error() string {
-	var reqStr string
 	if e.request != "" {
-		reqStr = "\"" + e.request + "\""
-	} else {
-		reqStr = ""
+		reqStr := "\"" + e.request + "\""
+		return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
 	}
-	return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+	return fmt.Sprintf("cannot %s through %s: unauthorized access", e.operation, e.viewID)
 }
 
 // Databag controls access to the confdb data storage.
