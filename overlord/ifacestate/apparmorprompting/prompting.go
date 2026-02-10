@@ -39,7 +39,7 @@ import (
 var (
 	// Allow mocking the listener for tests
 	listenerRegister = func() (listenerBackend, error) {
-		return listener.Register(prompting.NewListenerRequest)
+		return listener.Register(prompting.NewRequestFromListener)
 	}
 
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying

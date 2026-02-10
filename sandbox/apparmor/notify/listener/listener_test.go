@@ -103,7 +103,7 @@ func testRegisterCloseWithPendingCountExpectReady(c *C, pendingCount int, expect
 	})
 	defer restoreTimer()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	checkListenerReady(c, l, expectReady)
@@ -135,7 +135,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	c.Assert(outputOverridePath, Equals, apparmor.NotifySocketPath)
@@ -151,7 +151,7 @@ func (*listenerSuite) TestRegisterOverridePath(c *C) {
 		c.Assert(err, IsNil)
 	}()
 
-	l, err = listener.Register(prompting.NewListenerRequest)
+	l, err = listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	c.Assert(outputOverridePath, Equals, fakePath)
@@ -166,7 +166,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(l, IsNil)
 	c.Assert(err, Equals, listener.ErrNotSupported)
 
@@ -177,7 +177,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreOpen()
 
-	l, err = listener.Register(prompting.NewListenerRequest)
+	l, err = listener.Register(prompting.NewRequestFromListener)
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot open %q: %v", apparmor.NotifySocketPath, customError))
 
@@ -200,7 +200,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err = listener.Register(prompting.NewListenerRequest)
+	l, err = listener.Register(prompting.NewRequestFromListener)
 	c.Assert(l, IsNil)
 	c.Assert(err, Equals, customError)
 
@@ -217,7 +217,7 @@ func (*listenerSuite) TestRegisterErrors(c *C) {
 	})
 	defer restoreRegisterFileDescriptor()
 
-	l, err = listener.Register(prompting.NewListenerRequest)
+	l, err = listener.Register(prompting.NewRequestFromListener)
 	c.Assert(l, IsNil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot register epoll on %q: bad file descriptor", apparmor.NotifySocketPath))
 }
@@ -278,7 +278,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// since pendingCount == 0, should be immediately ready
@@ -421,7 +421,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// The timer isn't created until Run is called
@@ -516,7 +516,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// The timer isn't created until Run is called
@@ -622,7 +622,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// The timer isn't created until Run is called
@@ -711,7 +711,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// since pendingCount == 0, should be immediately ready
@@ -774,7 +774,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// since pendingCount == 0, should be immediately ready
@@ -866,7 +866,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	c.Assert(err, IsNil)
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	t.Go(l.Run)
@@ -908,7 +908,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	runAboutToStart := make(chan struct{})
@@ -942,7 +942,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 	defer restoreIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	checkListenerReady(c, l, true)
@@ -999,7 +999,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// Timer hasn't been created yet
@@ -1082,7 +1082,7 @@ func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
 	defer restoreTimer()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	// Timer hasn't been created yet
@@ -1162,7 +1162,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	t.Go(l.Run)
@@ -1288,7 +1288,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
 		defer restoreEpollIoctl()
 
-		l, err := listener.Register(prompting.NewListenerRequest)
+		l, err := listener.Register(prompting.NewRequestFromListener)
 		c.Assert(err, IsNil)
 
 		var t tomb.Tomb
@@ -1363,7 +1363,7 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 
 	// Allow newRequest to be mocked
 	var (
-		newRequestImpl = prompting.NewListenerRequest
+		newRequestImpl = prompting.NewRequestFromListener
 		newRequest     = func(msg notify.MsgNotificationGeneric, sendResponse listener.SendResponseFunc) (*prompting.Request, error) {
 			return newRequestImpl(msg, sendResponse)
 		}
@@ -1571,7 +1571,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
 	count := 3
@@ -1626,7 +1626,7 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	})
 	defer restoreIoctl()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 	defer func() {
 		c.Assert(l.Close(), Equals, listener.ErrAlreadyClosed)
@@ -1654,7 +1654,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		}
 	}()
 
-	l, err := listener.Register(prompting.NewListenerRequest)
+	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 	defer func() {
 		err = l.Close()
