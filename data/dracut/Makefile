@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 DRACUTDIR := /usr/lib/dracut
-SNAPDFILESDIR := $(DRACUTDIR)/dracut.conf.d/snapd
+FILESDIR := $(DRACUTDIR)/dracut.conf.d
 
 DRACUTFILES_CONF = $(wildcard *.conf)
 
@@ -23,8 +23,8 @@ all: $(DRACUTFILES_CONF)
 
 .PHONY: install
 install: $(DRACUTFILES_CONF)
-	install -d -m 0755 $(DESTDIR)/$(SNAPDFILESDIR)
-	install -m 0644 -t $(DESTDIR)/$(SNAPDFILESDIR) $^
+	install -d -m 0755 $(DESTDIR)/$(FILESDIR)
+	install -m 0644 -t $(DESTDIR)/$(FILESDIR) $^
 
 .PHONY: clean
 clean:
