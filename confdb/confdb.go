@@ -210,7 +210,7 @@ func (e *UnAuthorizedAccessError) Error() string {
 	if e.request != "" {
 		reqStr = "\"" + e.request + "\""
 	} else {
-		reqStr = "empty path"
+		reqStr = ""
 	}
 	return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
 }
@@ -261,10 +261,10 @@ type DatabagSchema interface {
 	// It will only prune along the path, and once it reaches the end, it will prune everything that's left.
 	// It will return error if:
 	// - the data does not conform to the schema
-	// - NoDataError - if the data contains nulls or does not contain data indicated by the path
+	// - NoDataError - if the data does not contain data indicated by the path
 	// - UnAuthorizedAccessError - if the path contains a schema with a visibility contained in the input array
 	//     or if the end of the path contains an empty container due to its contents being pruned away
-	PruneByVisibility(path []Accessor, index int, visToPrune []Visibility, data []byte) (prunedData []byte, err error)
+	PruneByVisibility(path []Accessor, visToPrune []Visibility, data []byte) (prunedData []byte, err error)
 }
 
 type SchemaType uint
@@ -3139,6 +3139,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
-func (v JSONSchema) PruneByVisibility(_ []Accessor, _ int, _ []Visibility, data []byte) ([]byte, error) {
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ []Visibility, data []byte) ([]byte, error) {
 	return data, nil
 }
