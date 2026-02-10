@@ -2983,6 +2983,7 @@ var preinstallAction = &secboot.PreinstallAction{
 
 type suiteWithAddCleanup interface {
 	AddCleanup(func())
+	GetDeviceManager() *devicestate.DeviceManager
 }
 
 type callCounter struct {
@@ -2998,7 +2999,8 @@ type callCounter struct {
 //
 // isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
 // hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSupportedUbuntuHybrid, hasTPM bool) *callCounter {
+// cacheLabel: system label to use to cache check context where "" means do not cache check context
+func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSupportedUbuntuHybrid, hasTPM bool, cacheLabel string) *callCounter {
 	callCnt := &callCounter{}
 
 	releaseInfo := &release.OS{
@@ -3035,6 +3037,15 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		}
 	}
 
+	if isSupportedUbuntuHybrid && cacheLabel != "" {
+		// populate the cache with encryption support information that
+		// includes a check context similar to having performed an
+		// initial preinstall check
+		encInfo := &install.EncryptionSupportInfo{}
+		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
+		s.GetDeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
+	}
+
 	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		callCnt.checkCnt++
 		c.Assert(bootImagePaths, HasLen, 3)
@@ -3051,7 +3062,11 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		callCnt.checkActionCnt++
 		c.Assert(pcc, NotNil)
 		c.Assert(ctx, NotNil)
-		c.Assert(action, DeepEquals, preinstallAction)
+		if cacheLabel != "" {
+			c.Assert(action, DeepEquals, &secboot.PreinstallAction{Action: secboot.ActionNone})
+		} else {
+			c.Assert(action, DeepEquals, preinstallAction)
+		}
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 
 		if hasTPM {
@@ -3160,7 +3175,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 		UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
 	}
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false, "")
 
 	// basic availability check - fill empty info cache
 	encInfoFromCache := false
@@ -3211,7 +3226,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	}
 	expectedEncInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false, "")
 
 	// comprehensive preinstall check - fill empty info cache
 	encInfoFromCache := false
@@ -3298,7 +3313,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 		PassphraseAuthAvailable: hasPassphraseSupport,
 	}
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true, "")
 
 	// refresh empty cache
 	encInfoFromCache := false
@@ -3431,7 +3446,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	isClassic := true
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic, nil)
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true, "")
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
