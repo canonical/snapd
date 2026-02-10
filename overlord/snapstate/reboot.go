@@ -165,16 +165,6 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		return tasks[len(tasks)-1]
 	}
 
-	findUnlink := func(sts snapInstallTaskSet) *state.Task {
-		for _, t := range sts.upToLinkSnapAndBeforeReboot {
-			switch t.Kind() {
-			case "unlink-snap", "unlink-current-snap":
-				return t
-			}
-		}
-		return nil
-	}
-
 	bootBase, err := deviceModelBootBase(st, nil)
 	if err != nil {
 		return err
@@ -218,7 +208,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 
 	isUC16 := bootBase == "core"
 	beforeReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
-		// on UC16, everything is before boot
+		// on UC16, everything is before reboot
 		if isUC16 {
 			return head(sts.beforeLocalSystemModificationsTasks), tail(sts.afterLinkSnapAndPostReboot)
 		}
@@ -227,7 +217,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 	}
 
 	afterReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
-		// on UC16, nothing is after boot
+		// on UC16, nothing is after reboot
 		if isUC16 {
 			return nil, nil
 		}
@@ -263,6 +253,29 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 	// code requires essential snap presence.
 	finalEssential := prev
 
+	// ensure essential snaps that are transactional have their lanes merged.
+	// this will ensure that essential snaps will be undone together, if one
+	// of the updates fails.
+	mergeSnapInstallTaskSetLanes := func(stss []snapInstallTaskSet) {
+		rebootLanes := make(map[string][]int)
+		all := make([]int, 0, len(stss))
+		for _, sts := range stss {
+			lanes := unique(tail(sts.upToLinkSnapAndBeforeReboot).Lanes())
+			rebootLanes[sts.snapsup.InstanceName()] = lanes
+			all = unique(append(all, lanes...))
+		}
+
+		for _, sts := range stss {
+			for _, l := range all {
+				if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
+					sts.ts.JoinLane(l)
+				}
+			}
+		}
+	}
+
+	// UC16 systems enforce different reboot boundaries, which can result in
+	// multiple reboots while refreshing many essential snaps.
 	if !isUC16 {
 		// set the reboot boundary on the final pre-reboot essential snap task
 		for i := len(essentialSnapsRestartOrder) - 1; i >= 0; i-- {
@@ -288,7 +301,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 				continue
 			}
 
-			unlink := findUnlink(sts)
+			unlink := findUnlinkTask(sts.ts)
 			if unlink == nil {
 				continue
 			}
@@ -297,6 +310,17 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 
 			break
 		}
+
+		// since the essential snaps are sharing a reboot, they should also
+		// share lanes so that they're undone together if one fails
+		var merge []snapInstallTaskSet
+		for _, sts := range essentials {
+			if sts.snapsup.Type == snap.TypeSnapd {
+				continue
+			}
+			merge = append(merge, sts)
+		}
+		mergeSnapInstallTaskSetLanes(merge)
 	} else {
 		// legacy behavior, set the do and undo reboot boundaries on all
 		// essential snaps, with the exception of snapd
@@ -307,45 +331,11 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			}
 
 			restart.MarkTaskAsRestartBoundary(tail(sts.upToLinkSnapAndBeforeReboot), restart.RestartBoundaryDirectionDo)
-			unlinkSnap := findUnlink(sts)
+			unlinkSnap := findUnlinkTask(sts.ts)
 			if unlinkSnap != nil {
 				restart.MarkTaskAsRestartBoundary(unlinkSnap, restart.RestartBoundaryDirectionUndo)
 			}
 		}
-	}
-
-	// ensures all provided task sets share the same reboot lanes so
-	// transactional essential refreshes can be undone together if one of them
-	// fails.
-	mergeSnapInstallTaskSetLanes := func(stss []snapInstallTaskSet) {
-		rebootLanes := make(map[string][]int)
-		all := make([]int, 0, len(stss))
-		for _, sts := range stss {
-			lanes := unique(tail(sts.upToLinkSnapAndBeforeReboot).Lanes())
-			rebootLanes[sts.snapsup.InstanceName()] = lanes
-			all = unique(append(all, lanes...))
-		}
-
-		for _, sts := range stss {
-			for _, l := range all {
-				if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
-					sts.ts.JoinLane(l)
-				}
-			}
-		}
-	}
-
-	if !isUC16 {
-		// merge together all of the essential snaps into the same set of lanes,
-		// with the exception of snapd.
-		var merge []snapInstallTaskSet
-		for _, sts := range essentials {
-			if sts.snapsup.Type == snap.TypeSnapd {
-				continue
-			}
-			merge = append(merge, sts)
-		}
-		mergeSnapInstallTaskSetLanes(merge)
 	}
 
 	// make the bases just wait on the final essential snap to finish up
