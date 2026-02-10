@@ -167,7 +167,8 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 }
 
 func parsePath(c *C, path string) []confdb.Accessor {
-	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	opts := confdb.ParseOptions{AllowPlaceholders: true}
+	accs, err := confdb.ParsePathIntoAccessors(path, opts)
 	c.Assert(err, IsNil)
 	return accs
 }
