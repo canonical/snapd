@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
@@ -95,9 +96,9 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	header := map[string]string{}
 
 	if len(supportedFeatures) > 0 {
-		header["X-Snapctl-Features"] = fmt.Sprintf("%v", supportedFeatures)
+		header["X-Snapctl-Features"] = strings.Join(supportedFeatures, ",")
 	} else {
-		header["X-Snapctl-Features"] = "none"
+		header = nil
 	}
 
 	var output snapctlOutput

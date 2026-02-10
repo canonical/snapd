@@ -8,26 +8,15 @@ details: |
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
-    tests.session -u test prepare
 
 restore: |
     snap remove --purge test-snapd-sh-core24
-    tests.session -u test restore
 
 execute: |
-    strace -f -s 2000 -e write -o trace.log test-snapd-sh-core24.sh -c 'snapctl get snapd-release'
+    snap run --strace="-s 10000 -e trace=write" test-snapd-sh.sh -c "snapctl refresh --tracking" > trace.log 2>&1
 
-    if cat trace.log | MATCH "/v2/snapctl"; then
-        echo "ERROR: Trace log did not capture any snapctl API calls."
-        cat trace.log
-        exit 1
-    fi
+    cat trace.log | MATCH "/v2/snapctl"
 
-    if cat trace.log | MATCH "X-Snapctl-Features:"; then
-        echo "SUCCESS: Found feature handshake header."
-        cat trace.log | MATCH "X-Snapctl-Features: none"
-    else
-        echo "FAILURE: The X-Snapctl-Features header was missing."
-        cat trace.log
-        exit 1
-    fi
+    # TODO update this test later to check specific features
+    cat trace.log | MATCH "X-Snapctl-Features:"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   

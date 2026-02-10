@@ -137,6 +137,6 @@ func (cs *clientSuite) TestClientRunSnapctlHeader(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 	_, _, err := cs.cli.RunSnapctl(options, nil)
-	c.Check(cs.req.Header.Get("X-Snapctl-Features"), check.Equals, "none")
+	c.Check(cs.req.Header.Get("X-Snapctl-Features"), check.Equals, "")
 	c.Check(err, check.IsNil)
 }

@@ -70,7 +70,7 @@ func (s *snapctlSuite) TestSnapctlGetFeatures(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
 
-	req.Header.Set("X-Snapctl-Features", "feat1 feat2")
+	req.Header.Set("X-Snapctl-Features", "feat1,feat2")
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 

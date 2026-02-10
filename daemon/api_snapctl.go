@@ -74,8 +74,8 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	var features []string
-	if header := r.Header.Get("X-Snapctl-Features"); header != "" && header != "none" {
-		features = strings.Fields(header)
+	if header := r.Header.Get("X-Snapctl-Features"); header != "" {
+		features = strings.Split(header, ",")
 	}
 
 	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, features)
