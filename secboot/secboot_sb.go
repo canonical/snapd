@@ -164,8 +164,8 @@ func (a *activateContextImpl) State() *ActivateState {
 }
 
 // NewActivateContext creates a activate context with some default options:
-//  * an auth requestor
-//  * 3 passphrase/pin tries
+//   - an auth requestor
+//   - 3 passphrase/pin tries
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
 	if err != nil {
