@@ -22,8 +22,6 @@
 package arch_test
 
 import (
-	"fmt"
-
 	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
@@ -43,28 +41,6 @@ func (s *ValidateEncodeKernelVersion) SetUpTest(c *C) {
 
 func (s *ValidateEncodeKernelVersion) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-}
-
-// Mock Uname behavior, returning the desired release string
-func MockOsutilKernelVersion(release string) (restore func()) {
-	// Do nothing if the test doesn't specify a kernel version to use
-	if release == "" {
-		return func() {}
-	}
-
-	// Create mock returning the desired string
-	var mockOsutilKernelVersion = func() (_ string) {
-		return release
-	}
-
-	// Replace the normal function with the mock one
-	normalOsutilKernelVersion := arch.KernelVersion
-	arch.KernelVersion = mockOsutilKernelVersion
-
-	// And restore the function
-	return func() {
-		arch.KernelVersion = normalOsutilKernelVersion
-	}
 }
 
 func (s *ValidateEncodeKernelVersion) TestEncodeKernelVersion(c *C) {
@@ -93,8 +69,8 @@ func (s *ValidateEncodeKernelVersion) TestEncodeKernelVersion(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock probe function
-		restoreOsutilKernelVersion := MockOsutilKernelVersion(test.kernelVersion)
+		// Mock kernel version
+		restoreOsutilKernelVersion := arch.MockKernelVersion(test.kernelVersion)
 
 		c.Check(arch.KernelVersion(), Equals, test.kernelVersion)
 
@@ -143,40 +119,7 @@ func (s *ISASupportSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-// Mock the Syscall behavior, copying into the 'pairs' argument the bitmasks specified
-// by the test case
-func MockRISCVHWProbe(supportedExtensions []unix.RISCVHWProbePairs, syscallError string) (restore func()) {
-	// Mock probe function that copies the test case's supportedExtensions over the input
-	var mockRISCVHWProbe = func(pairs []unix.RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) {
-		// Mark that we called the function for some tests
-		riscvHWProbeCalled = true
-
-		// Return an error if specified in the test case
-		if syscallError != "" {
-			return fmt.Errorf(syscallError)
-		}
-
-		// Otherwise, behave correctly and mock the syscall
-		pairs[0] = supportedExtensions[0]
-		pairs[1] = supportedExtensions[1]
-
-		return nil
-	}
-
-	// Replace the normal function with the mock one
-	normalRISCVHWProbe := arch.RISCVHWProbe
-	arch.RISCVHWProbe = mockRISCVHWProbe
-
-	// And restore the function and the "called" flag
-	return func() {
-		arch.RISCVHWProbe = normalRISCVHWProbe
-		riscvHWProbeCalled = false
-	}
-}
-
 var minimumRVA23Extensions []unix.RISCVHWProbePairs
-
-var riscvHWProbeCalled = false
 
 func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 	var assumesTests = []struct {
@@ -275,9 +218,9 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock functions
-		restoreRISCVHWProbe := MockRISCVHWProbe(test.supportedExtensions, test.hwprobeSyscallError)
-		restoreOsutilKernelVersion := MockOsutilKernelVersion(test.kernelVersion)
+		// Mock kernel version and riscv_hwprobe
+		restoreRISCVHWProbe := arch.MockRISCVHWProbe(test.supportedExtensions, test.hwprobeSyscallError)
+		restoreOsutilKernelVersion := arch.MockKernelVersion(test.kernelVersion)
 
 		err := arch.IsRISCVISASupported(test.isa)
 
@@ -287,7 +230,7 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			c.Check(err, ErrorMatches, test.expectedError)
 		}
 
-		c.Check(riscvHWProbeCalled, Equals, test.expectedRISCVHWProbeCall)
+		c.Check(arch.CalledMockRISCVHWProbe(), Equals, test.expectedRISCVHWProbeCall)
 
 		// Restore functions
 		restoreRISCVHWProbe()

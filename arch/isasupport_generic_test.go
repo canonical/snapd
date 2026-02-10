@@ -24,7 +24,7 @@ package arch_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,9 +44,9 @@ func (s *ValidateISASuite) TearDownTest(c *C) {
 
 func (s *ValidateISASuite) TestValidateAssumesISARISCVWrongArch(c *C) {
 	// Non-riscv64 built executable is running on riscv64
-	assumes := []string{"isa-riscv64-rva23"}
+	isa := "rva23"
 
-	err := naming.ValidateAssumes(assumes, "", nil, "riscv64")
+	err := arch.IsRISCVISASupported(isa)
 
-	c.Check(err, ErrorMatches, "isa-riscv64-rva23: validation failed: cannot validate RiscV ISA support while running on: linux, amd64")
+	c.Check(err, ErrorMatches, "cannot validate RiscV ISA support while running on: linux, amd64")
 }

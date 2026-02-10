@@ -62,28 +62,6 @@ func (s *ValidateISASuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-// Mock the Syscall behavior, copying into the 'pairs' argument the bitmasks specified
-// by the test case
-func MockRISCVHWProbe(supportedExtensions []unix.RISCVHWProbePairs) (restore func()) {
-	// Mock probe function that copies the test case's supportedExtensions over the input
-	var mockRISCVHWProbe = func(pairs []unix.RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) {
-		// Mock the syscall behavior
-		pairs[0] = supportedExtensions[0]
-		pairs[1] = supportedExtensions[1]
-
-		return nil
-	}
-
-	// Replace the normal function with the mock one
-	normalRISCVHWProbe := arch.RISCVHWProbe
-	arch.RISCVHWProbe = mockRISCVHWProbe
-
-	// And restore the function and the "called" flag
-	return func() {
-		arch.RISCVHWProbe = normalRISCVHWProbe
-	}
-}
-
 var minimumRVA23Extensions []unix.RISCVHWProbePairs
 
 func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
@@ -110,8 +88,8 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock probe function
-		restoreRISCVHWProbe := MockRISCVHWProbe(test.supportedExtensions)
+		// Mock riscv_hwprobe syscall
+		restoreRISCVHWProbe := arch.MockRISCVHWProbe(test.supportedExtensions, "")
 
 		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 

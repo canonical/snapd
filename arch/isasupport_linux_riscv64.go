@@ -191,6 +191,64 @@ var RISCVHWProbe = unix.RISCVHWProbe
 
 var KernelVersion = osutil.KernelVersion
 
+var calledMockRISCVHWProbe = false
+
+// CalledMockRISCVHWProbe returns whether the mocked riscv_hwprobe syscall
+// was executed as part of a test plan.
+func CalledMockRISCVHWProbe() bool {
+	return calledMockRISCVHWProbe
+}
+
+// MockRISCVHWProbe mocks the return value of the riscv_hwprobe syscall
+// and returns a function to restore to the current value.
+func MockRISCVHWProbe(supportedExtensions []unix.RISCVHWProbePairs, syscallError string) (restore func()) {
+	// Mock probe function that copies the test case's supportedExtensions over the input
+	var mockRISCVHWProbe = func(pairs []unix.RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) {
+		// Mark that we called the function for some tests
+		calledMockRISCVHWProbe = true
+
+		// Return an error if specified in the test case
+		if syscallError != "" {
+			return fmt.Errorf(syscallError)
+		}
+
+		// Otherwise, behave correctly and mock the syscall
+		pairs[0] = supportedExtensions[0]
+		pairs[1] = supportedExtensions[1]
+
+		return nil
+	}
+
+	// Replace the normal function with the mock one
+	normalRISCVHWProbe := RISCVHWProbe
+	RISCVHWProbe = mockRISCVHWProbe
+
+	// And restore the function and the "called" flag
+	return func() {
+		RISCVHWProbe = normalRISCVHWProbe
+		calledMockRISCVHWProbe = false
+	}
+}
+
+// MockKernelVersion mocks the running kernel version in the form of the
+// version string, and returns a function to restore to the current value.
+func MockKernelVersion(newKernelVersion string) (restore func()) {
+	// Do nothing if no kernel version specified
+	if newKernelVersion == "" {
+		return func() {}
+	}
+
+	originalKernelVersion := KernelVersion
+	KernelVersion = func() string { return newKernelVersion }
+
+	return func() { KernelVersion = originalKernelVersion }
+}
+
+// EncodedKernelVersion returns the kernel version that is installed on the system
+// encoded as a uin32, with the major kernel version encoded in the most-significant
+// 16 bits, and the minor kernel version encoded in the least-significat 16 bits
+//
+// E.g. 6.14.0 => 0x0006000e
 func EncodedKernelVersion() (version uint32, err error) {
 	release := KernelVersion()
 	// Split the release string on the dot
@@ -215,6 +273,14 @@ func EncodedKernelVersion() (version uint32, err error) {
 	return version, nil
 }
 
+// IsRISCVISASupported takes the name of a RISCV64 ISA, gathers the list of extensions
+// supported by the running platform, and verifies if all extensions required for
+// compliance with the input ISA are supported.
+// If they are, nil is returned. Otherwise, the missing requirement is returned.
+//
+// Currently, only support for [RVA23] can be checked for.
+//
+// [RVA23]: https://github.com/riscv/riscv-profiles/blob/main/src/rva23-profile.adoc#rva23u64-profile
 func IsRISCVISASupported(isa string) error {
 	// Only the RVA23 instruction set is currently supported for RiscV
 	if isa != "rva23" {
