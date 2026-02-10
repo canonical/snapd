@@ -652,15 +652,8 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 func shouldUndoSetupProfiles(task *state.Task) bool {
 	// Check if there is a "prepare-profiles" task in the change.
 	// If there is not, then we should always do the undo of setup-profiles.
-	var hasPrepareProfiles bool
-	for _, t := range task.Change().Tasks() {
-		if t.Kind() == "prepare-profiles" {
-			hasPrepareProfiles = true
-			break
-		}
-	}
-
-	if !hasPrepareProfiles {
+	prepareProfiles := snapstate.FindTaskByKind(task.Change().Tasks(), "prepare-profiles")
+	if prepareProfiles == nil {
 		return true
 	}
 
@@ -1558,17 +1551,12 @@ func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) boo
 	return false
 }
 
-func findSetupProfilesTaskAfterAutoConnect(chg *state.Change) *state.Task {
-	for _, task := range chg.Tasks() {
-		if task.Kind() == "setup-profiles" {
-			for _, waitTask := range task.WaitTasks() {
-				if waitTask.Kind() == "auto-connect" {
-					return task
-				}
-			}
-		}
+func findSetupProfilesTaskAfterAutoConnect(chg *state.Change, instanceName string) *state.Task {
+	t := snapstate.FindTaskByKindForSnap(chg.Tasks(), "auto-connect", instanceName)
+	if t == nil {
+		return nil
 	}
-	return nil
+	return snapstate.FindTaskByKind(t.WaitTasks(), "setup-profiles")
 }
 
 // batchConnectTasks creates connect tasks and interface hooks for
@@ -1586,6 +1574,7 @@ func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snap
 		return nil, false, nil
 	}
 
+	var newConnections []string
 	var injectSetupProfiles bool
 	if setupProfiles == nil {
 		// In old style setup, there will be one setup-profiles task before
@@ -1599,7 +1588,6 @@ func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snap
 		injectSetupProfiles = true
 	}
 
-	var newConnections []string
 	ts = state.NewTaskSet()
 	for connID, conn := range conns {
 		var opts connectOpts
@@ -1639,11 +1627,11 @@ func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snap
 	if len(ts.Tasks()) > 0 {
 		sort.Strings(newConnections)
 		setupProfiles.Set("new-connections", newConnections)
+		if injectSetupProfiles {
+			ts.AddTask(setupProfiles)
+		}
 	}
 
-	if injectSetupProfiles {
-		ts.AddTask(setupProfiles)
-	}
 	return ts, hasInterfaceHooks, nil
 }
 
@@ -1882,7 +1870,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	existingSetupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change())
+	existingSetupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change(), snapsup.InstanceName())
 	autots, hasInterfaceHooks, err := batchConnectTasks(st, existingSetupProfiles, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
