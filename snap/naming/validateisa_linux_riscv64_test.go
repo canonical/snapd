@@ -66,10 +66,11 @@ var minimumRVA23Extensions []unix.RISCVHWProbePairs
 
 func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 	var assumesTests = []struct {
-		assumes             []string
-		arch                string
-		supportedExtensions []unix.RISCVHWProbePairs
-		expectedError       string
+		assumes                  []string
+		arch                     string
+		supportedExtensions      []unix.RISCVHWProbePairs
+		isRISCVISASupportedError string
+		expectedError            string
 	}{
 		// In this test function, we only check the explicit success case, and one failure
 		// case to cover the error path. More detailed tests for the underlying operations are
@@ -81,15 +82,16 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 			supportedExtensions: minimumRVA23Extensions,
 		}, {
 			// ISA not supported
-			assumes:       []string{"isa-riscv64-badisa"},
-			arch:          "riscv64",
-			expectedError: "isa-riscv64-badisa: validation failed: unsupported ISA for riscv64 architecture: badisa",
+			assumes:                  []string{"isa-riscv64-badisa"},
+			arch:                     "riscv64",
+			isRISCVISASupportedError: "unsupported ISA for riscv64 architecture: badisa",
+			expectedError:            "isa-riscv64-badisa: validation failed: unsupported ISA for riscv64 architecture: badisa",
 		},
 	}
 
 	for _, test := range assumesTests {
 		// Mock riscv_hwprobe syscall
-		restoreRISCVHWProbe := arch.MockRISCVHWProbe(test.supportedExtensions, "")
+		restoreIsRISCVISASupported := naming.MockIsRISCVISASupported(test.isRISCVISASupportedError)
 
 		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
@@ -99,6 +101,6 @@ func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
 			c.Check(err, ErrorMatches, test.expectedError)
 		}
 
-		restoreRISCVHWProbe()
+		restoreIsRISCVISASupported()
 	}
 }
