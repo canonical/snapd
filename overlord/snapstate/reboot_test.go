@@ -115,6 +115,10 @@ func (s *rebootSuite) taskSetsToInstallTaskSets(c *C, tss []*state.TaskSet) []sn
 		afterLinkSnapAndPostReboot := append([]*state.Task(nil), tasks[maybeRebootWaitIndex:endIndex+1]...)
 		c.Assert(len(afterLinkSnapAndPostReboot) > 0, DeepEquals, true)
 
+		c.Assert(tasks, HasLen,
+			len(beforeLocalSystemModificationsTasks)+len(upToLinkSnapAndBeforeReboot)+len(afterLinkSnapAndPostReboot),
+		)
+
 		stss = append(stss, snapstate.NewSnapInstallTaskSetForTest(
 			snapsup,
 			ts,
