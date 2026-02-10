@@ -233,7 +233,7 @@ jobs:
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       uses: actions/checkout@v6
       with:
-          repository: canonical/snapd-tests-skip
+          repository: canonical/snapd-testing-skip
           path: snapd-tests-skip
 
     - name: Filter out tests to skip
@@ -256,7 +256,8 @@ jobs:
               expire=$(yq -r '."skip-until"' "$file")
               today=$(date "+%Y-%m-%d")
               system=$(yq -r '."spread-system" // ".*"' "$file")
-              if [[ "$expire" > "$today" ]] && grep -Eq "$system" <<<"${{ inputs.systems }}"; then
+              backend=$(yq -r '."spread-backend" // ".*"' "$file")
+              if [[ "$expire" > "$today" ]] && grep -Eq "$system" <<<"${{ inputs.systems }}" && grep -Eq "^$backend$" <<<"$SPREAD_BACKEND"; then
                   task=$(yq -r '."spread-task"' "$file")
                   SNAPD_TESTS_SKIP="${SNAPD_TESTS_SKIP} $(echo "$spread_list" | tr ' ' '\n' | grep "$task$" | tr '\n' ' ')"
                   spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$task$" | tr '\n' ' ')
