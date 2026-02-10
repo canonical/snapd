@@ -70,7 +70,7 @@ if [ -n "$DPKG_PARSECHANGELOG" ]; then
     if [ ! -e "$changelog" ]; then
         changelog=packaging/ubuntu-16.04/changelog
     fi
-    version_from_changelog="$(cd "$PKG_BUILDDIR"; "$DPKG_PARSECHANGELOG" --file "$changelog" --show-field Version)"
+    version_from_changelog="$(cd "$PKG_BUILDDIR" && "$DPKG_PARSECHANGELOG" --file "$changelog" --show-field Version)"
 fi
 
 # select version based on priority
