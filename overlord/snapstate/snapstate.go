@@ -1525,19 +1525,16 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// revisionSatisfied returns true if the state of the snap on the system matches
-// the state specified in the update. This method checks if the currently
-// installed snap and components match what is specified in the update.
-func (u *update) revisionSatisfied() (bool, error) {
-	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
+func areRevisionsSatisfied(snapst *SnapState, targetRevision snap.Revision, targetComponents []ComponentSetup) (bool, error) {
+	if !snapst.IsInstalled() {
 		return false, nil
 	}
 
-	if u.SnapState.Current != u.Setup.Revision() {
+	if snapst.Current != targetRevision {
 		return false, nil
 	}
 
-	comps, err := u.SnapState.CurrentComponentInfos()
+	comps, err := snapst.CurrentComponentInfos()
 	if err != nil {
 		return false, err
 	}
@@ -1547,13 +1544,24 @@ func (u *update) revisionSatisfied() (bool, error) {
 		currentCompRevs[comp.Component.ComponentName] = comp.Revision
 	}
 
-	for _, comp := range u.Components {
+	for _, comp := range targetComponents {
 		if currentCompRevs[comp.CompSideInfo.Component.ComponentName] != comp.Revision() {
 			return false, nil
 		}
 	}
 
 	return true, nil
+}
+
+// satisfied returns true if the state of the snap on the system matches
+// the state specified in the update. This method checks if the currently
+// installed snap and components match what is specified in the update.
+func (u *update) satisfied() (bool, error) {
+	if u.Setup.AlwaysUpdate {
+		return false, nil
+	}
+
+	return areRevisionsSatisfied(&u.SnapState, u.Setup.Revision(), u.Components)
 }
 
 func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
@@ -1658,7 +1666,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// and bases and then other snaps
 	for _, up := range updates {
 		// if the update is already satisfied, then we can skip it
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -1962,7 +1970,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, up := range updates {
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, nil, nil, err
 		}
