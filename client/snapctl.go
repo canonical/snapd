@@ -53,7 +53,6 @@ type SnapCtlOptions struct {
 // but instead use a real stdin stream
 type SnapCtlPostData struct {
 	SnapCtlOptions
-	Features map[string]string `json:"features,omitempty"`
 	Stdin    []byte            `json:"stdin,omitempty"`
 }
 
@@ -93,12 +92,11 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}
 
-	header := map[string]string{}
+	var header map[string]string
 
 	if len(supportedFeatures) > 0 {
+		header = make(map[string]string)
 		header["X-Snapctl-Features"] = strings.Join(supportedFeatures, ",")
-	} else {
-		header = nil
 	}
 
 	var output snapctlOutput
