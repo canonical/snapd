@@ -89,24 +89,25 @@ type FmtServiceStatusOptions struct {
 // <snap.app>             <enabled> <active> <notes>
 // To keep output persistent between snapctl and snap cmd.
 func FmtServiceStatus(svc *client.AppInfo, opts FmtServiceStatusOptions) string {
-	startup := "disabled"
-	if svc.Enabled {
-		startup = "enabled"
+	i18nG := i18n.G
+	if opts.FromSnapCtl {
+		// Disable translation for snapctl calls so it
+		// machine readable.
+		i18nG = func(s string) string { return s }
 	}
-	if !opts.FromSnapCtl {
-		startup = i18n.G(startup)
+
+	startup := i18nG("disabled")
+	if svc.Enabled {
+		startup = i18nG("enabled")
 	}
 
 	// When requesting global service status, we don't have any active
 	// information available for user daemons.
-	current := "inactive"
+	current := i18nG("inactive")
 	if svc.DaemonScope == snap.UserDaemon && opts.IsUserGlobal {
 		current = "-"
 	} else if svc.Active {
-		current = "active"
-	}
-	if current != "-" && !opts.FromSnapCtl {
-		current = i18n.G(current)
+		current = i18nG("active")
 	}
 
 	snapInstanceName := svc.Snap
