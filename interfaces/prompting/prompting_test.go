@@ -63,7 +63,7 @@ func newMsgNotificationFile(protocolVersion notify.ProtocolVersion, id uint64, l
 	return &msg
 }
 
-func (s *promptingSuite) TestNewListenerRequestSimple(c *C) {
+func (s *promptingSuite) TestNewRequestFromListenerSimple(c *C) {
 	var (
 		protoVersion = notify.ProtocolVersion(2)
 		id           = uint64(123)
@@ -94,7 +94,7 @@ func (s *promptingSuite) TestNewListenerRequestSimple(c *C) {
 
 	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, tagsets)
 
-	result, err := prompting.NewListenerRequest(msg, nil)
+	result, err := prompting.NewRequestFromListener(msg, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 
@@ -108,7 +108,7 @@ func (s *promptingSuite) TestNewListenerRequestSimple(c *C) {
 	c.Check(result.Path, Equals, path)
 }
 
-func (s *promptingSuite) TestNewListenerRequestInterfaceSelection(c *C) {
+func (s *promptingSuite) TestNewRequestFromListenerInterfaceSelection(c *C) {
 	var (
 		protoVersion = notify.ProtocolVersion(2)
 		id           = uint64(123)
@@ -192,7 +192,7 @@ func (s *promptingSuite) TestNewListenerRequestInterfaceSelection(c *C) {
 
 		msg := newMsgNotificationFile(protoVersion, id, label, testCase.path, aBits, dBits, tagsets)
 
-		result, err := prompting.NewListenerRequest(msg, nil)
+		result, err := prompting.NewRequestFromListener(msg, nil)
 
 		c.Assert(err, IsNil, Commentf("testCase %d: %+v", i, testCase))
 		c.Assert(result, NotNil, Commentf("testCase %d: %+v", i, testCase))
@@ -200,7 +200,7 @@ func (s *promptingSuite) TestNewListenerRequestInterfaceSelection(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestNewListenerRequestReply(c *C) {
+func (s *promptingSuite) TestNewRequestFromListenerReply(c *C) {
 	var (
 		id      = uint64(0xabcd)
 		version = notify.ProtocolVersion(43)
@@ -267,7 +267,7 @@ func (s *promptingSuite) TestNewListenerRequestReply(c *C) {
 			return nil
 		}
 
-		req, err := prompting.NewListenerRequest(msg, fakeSendResponse)
+		req, err := prompting.NewRequestFromListener(msg, fakeSendResponse)
 		c.Assert(err, IsNil)
 		c.Assert(req, NotNil)
 
@@ -283,7 +283,7 @@ func (s *promptingSuite) TestNewListenerRequestReply(c *C) {
 		c.Fatalf("should not have attempted to send response")
 		return nil
 	}
-	req, err := prompting.NewListenerRequest(msg, fakeSendResponse)
+	req, err := prompting.NewRequestFromListener(msg, fakeSendResponse)
 	c.Assert(err, IsNil)
 	c.Assert(req, NotNil)
 	c.Check(req.Interface, Equals, iface)
@@ -296,14 +296,14 @@ func (s *promptingSuite) TestNewListenerRequestReply(c *C) {
 	fakeSendResponse = func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {
 		return fmt.Errorf("failed to send response")
 	}
-	req, err = prompting.NewListenerRequest(msg, fakeSendResponse)
+	req, err = prompting.NewRequestFromListener(msg, fakeSendResponse)
 	c.Assert(err, IsNil)
 	c.Assert(req, NotNil)
 	err = req.Reply([]string{"read"})
 	c.Check(err, ErrorMatches, "failed to send response")
 }
 
-func (s *promptingSuite) TestNewListenerRequestErrors(c *C) {
+func (s *promptingSuite) TestNewRequestFromListenerErrors(c *C) {
 	var (
 		aBits = uint32(0b1010) // write (and append)
 		dBits = uint32(0b0101) // read, exec
@@ -417,7 +417,7 @@ func (s *promptingSuite) TestNewListenerRequestErrors(c *C) {
 	} {
 		restore := testCase.prepareFunc()
 		testCase.msg.Tagsets = tagsets
-		result, err := prompting.NewListenerRequest(testCase.msg, nil)
+		result, err := prompting.NewRequestFromListener(testCase.msg, nil)
 		c.Check(result, IsNil)
 		c.Check(err, ErrorMatches, testCase.expectedErr)
 		restore()

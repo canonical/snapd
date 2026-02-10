@@ -69,13 +69,13 @@ type Request struct {
 	Reply func(allowedPermissions []string) error
 }
 
-// NewListenerRequest parses the given [notify.MsgNotificationGeneric] into a
-// [Request]. The request contains a reply closure which can be called by the
+// NewRequestFromListener parses the given [notify.MsgNotificationGeneric] into
+// a [Request]. The request contains a reply closure which can be called by the
 // manager or prompts backend. That reply closure, when called, converts its
 // given abstract permissions to AppArmor permissions and uses the given
 // `sendResponse` function to actually send the resulting response back to the
 // kernel.
-func NewListenerRequest(msg notify.MsgNotificationGeneric, sendResponse listener.SendResponseFunc) (*Request, error) {
+func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse listener.SendResponseFunc) (*Request, error) {
 	pid := msg.PID()
 	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
 	if err != nil {
