@@ -5332,6 +5332,37 @@ func InjectConnectTasks(mainTask *state.Task, extraTasks *state.TaskSet, setupPr
 	extraTasks.WaitFor(mainTask)
 }
 
+// FindTaskByKindForSnap returns the first task with the given kind that has a
+// SnapSetup with the given snap instance name. Returns nil if no such task is found.
+func FindTaskByKindForSnap(tasks []*state.Task, kind string, instanceName string) *state.Task {
+	for _, task := range tasks {
+		if task.Kind() != kind {
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(task)
+		if err != nil {
+			continue
+		}
+
+		if snapsup.InstanceName() == instanceName {
+			return task
+		}
+	}
+	return nil
+}
+
+// FindTaskByKind returns the first task with the given kind.
+// Returns nil if no such task is found.
+func FindTaskByKind(tasks []*state.Task, kind string) *state.Task {
+	for _, task := range tasks {
+		if task.Kind() == kind {
+			return task
+		}
+	}
+	return nil
+}
+
 type dirMigrationOptions struct {
 	// UseHidden states whether the user has requested that the hidden data dir be used
 	UseHidden bool
