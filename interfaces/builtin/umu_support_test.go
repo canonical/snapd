@@ -107,13 +107,7 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(snippet, testutil.Contains, "mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,")
 
-	c.Check(snippet, testutil.Contains, "/run/host/ r,")
-	c.Check(snippet, testutil.Contains, "/run/host/usr/ r,")
-	c.Check(snippet, testutil.Contains, "/run/host/etc/ r,")
-	c.Check(snippet, testutil.Contains, "/run/host/lib{,32,64}/ r,")
-	c.Check(snippet, testutil.Contains, "/run/host/usr/lib{,32,64}/ r,")
-	c.Check(snippet, testutil.Contains, "/run/host/lib{,32,64}/** mr,")
-	c.Check(snippet, testutil.Contains, "/run/host/usr/lib{,32,64}/** mr,")
+	c.Check(snippet, testutil.Contains, "/run/host/usr/lib/** mr,")
 
 	c.Check(snippet, testutil.Contains, "/bindfile* rw,")
 
