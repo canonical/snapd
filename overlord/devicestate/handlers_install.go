@@ -1373,8 +1373,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	var checkAction *secboot.PreinstallAction
 	if m.readCacheEncryptionSupportInfoLocked(systemLabel) != nil {
 		// If a cached context is available, the preinstall check was previously run
-		// and must be repeated. Set an action to signal reuse of the preinstall check.
-		// Use the inert "ActionNone" to repeat the check without any modifications.
+		// and must be repeated. Set an action to signal reuse of the preinstall check
+		// context. Use the inert "ActionNone" to repeat the check without requesting
+		// any modifications.
 		checkAction = &secboot.PreinstallAction{Action: secboot.ActionNone}
 	}
 
