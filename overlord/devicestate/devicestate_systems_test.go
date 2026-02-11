@@ -3052,15 +3052,6 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
 	}
 
-	if isSupportedUbuntuHybrid && cacheLabel != "" {
-		// populate the cache with encryption support information that
-		// includes a check context similar to having performed an
-		// initial preinstall check
-		encInfo := &install.EncryptionSupportInfo{}
-		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
-		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
-	}
-
 	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		callCnt.checkCnt++
 		c.Assert(bootImagePaths, HasLen, 3)
