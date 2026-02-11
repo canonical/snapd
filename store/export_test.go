@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -178,6 +179,14 @@ func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *s
 	}
 }
 
+func MockSquashfsApplySnapDelta(f func(xdelta3Cmd, mksquashfsCmd, unsquashfsCmd squashfs.SquashfsCommand, sourceSnap, deltaFile, targetSnap string) error) (restore func()) {
+	origSquashfsApplySnapDelta := squashfsApplySnapDelta
+	squashfsApplySnapDelta = f
+	return func() {
+		squashfsApplySnapDelta = origSquashfsApplySnapDelta
+	}
+}
+
 func (sto *Store) MockCacher(obs downloadCache) (restore func()) {
 	oldCacher := sto.cacher
 	sto.cacher = obs
@@ -194,8 +203,8 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func (sto *Store) SetDeltaFormat(dfmt string) {
-	sto.deltaFormat = dfmt
+func (sto *Store) SetDeltaFormats(dfmt string) {
+	sto.deltaFormats = dfmt
 }
 
 func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -674,6 +675,11 @@ func (s *downloadSuite) TestDownloadWithDelta(c *C) {
 		defer restore()
 
 		theStore := store.New(&store.Config{}, nil)
+		squasgfsRestore := store.MockSquashfsApplySnapDelta(func(xdelta3Cmd, mksquashfsCmd, unsquashfsCmd squashfs.SquashfsCommand, sourceSnap, deltaFile, targetSnap string) error {
+			return nil
+		})
+		defer squasgfsRestore()
+
 		path := filepath.Join(c.MkDir(), "subdir", "downloaded-file")
 		err := theStore.Download(context.TODO(), "foo", path, &testCase.info, nil, nil, nil)
 
