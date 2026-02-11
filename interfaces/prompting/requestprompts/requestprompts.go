@@ -63,14 +63,14 @@ const (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           prompting.IDType
-	Timestamp    time.Time
-	Snap         string
-	PID          int32
-	Cgroup       string
-	Interface    string
-	Constraints  *promptConstraints
-	listenerReqs []*listener.Request
+	ID          prompting.IDType
+	Timestamp   time.Time
+	Snap        string
+	PID         int32
+	Cgroup      string
+	Interface   string
+	Constraints *promptConstraints
+	requests    []*listener.Request
 }
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
@@ -114,18 +114,18 @@ func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraint
 	return p.Snap == metadata.Snap && p.PID == metadata.PID && p.Cgroup == metadata.Cgroup && p.Interface == metadata.Interface && p.Constraints.equals(constraints)
 }
 
-// addListenerRequest adds the given listener request to the list of requests
-// associated with the receiving prompt if it is not already in the list.
-func (p *Prompt) addListenerRequest(listenerReq *listener.Request) {
-	if !p.containsListenerRequestID(listenerReq.ID) {
-		p.listenerReqs = append(p.listenerReqs, listenerReq)
+// addRequest adds the given request to the list of requests associated with
+// the receiving prompt if it is not already in the list.
+func (p *Prompt) addRequest(request *listener.Request) {
+	if !p.containsRequest(request.ID) {
+		p.requests = append(p.requests, request)
 	}
 }
 
-// containsListenerRequestID returns true if the receiving prompt contains a
-// request with the given ID in its list of listener requests.
-func (p *Prompt) containsListenerRequestID(requestID uint64) bool {
-	return slicesContainsFunc(p.listenerReqs, func(r *listener.Request) bool {
+// containsRequest returns true if the receiving prompt contains a request
+// with the given ID in its list of requests.
+func (p *Prompt) containsRequest(requestID uint64) bool {
+	return slicesContainsFunc(p.requests, func(r *listener.Request) bool {
 		return r.ID == requestID
 	})
 }
@@ -160,18 +160,17 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 }
 
 func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermission) error {
-	for _, listenerReq := range p.listenerReqs {
-		if err := listenerReq.Reply(allowedPermission); err != nil {
+	for _, request := range p.requests {
+		if err := request.Reply(allowedPermission); err != nil {
 			if errors.Is(err, unix.ENOENT) {
 				// If err is ENOENT, then notification with the given ID does not
 				// exist, so it timed out in the kernel.
-				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", listenerReq)
+				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", request)
 			} else {
 				// Other errors should only occur if reply is malformed, and
-				// since these listener requests should be identical, if a
-				// reply is malformed for one, it should be malformed for all.
-				// Malformed replies should leave the listener request
-				// unchanged. Thus, return early.
+				// since these requests should be identical, if a reply is
+				// malformed for one, it should be malformed for all. Malformed
+				// replies should leave the request unchanged. Thus, return early.
 				return err
 			}
 		}
@@ -327,12 +326,11 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 	return affectedByRule, respond, deniedPermissions, nil
 }
 
-// buildResponse creates a listener response to the receiving prompt constraints
-// based on the given interface and list of denied permissions.
+// buildResponse creates the allowed permissions to send in the reply
+// to the receiving prompt constraints.
 //
-// The response is the AppArmor permission which should be allowed. This
-// corresponds to the originally requested permissions from the prompt
-// constraints, except with all denied permissions removed.
+// The allowed permissions are the originally requested permissions from the
+// prompt constraints, except with all denied permissions removed.
 func (pc *promptConstraints) buildResponse(iface string, deniedPermissions []string) notify.AppArmorPermission {
 	allowedPerms := pc.originalPermissions
 	if len(deniedPermissions) > 0 {
@@ -454,13 +452,13 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	udb.prompts = nil
 	udb.ids = make(map[prompting.IDType]int) // TODO:GOVERSION: clear() once we're on Go 1.21+
 
-	// Remove the request ID mappings now before unlocking the prompt DB
+	// Remove the request mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {
-		for _, listenerReq := range p.listenerReqs {
-			delete(pdb.requestIDMap, listenerReq.ID)
+		for _, request := range p.requests {
+			delete(pdb.requestMap, request.ID)
 		}
 	}
-	pdb.saveRequestIDMap()
+	pdb.saveRequestMap()
 
 	// Unlock now so we can record notices without holding the prompt DB lock
 	pdb.mutex.Unlock()
@@ -478,8 +476,8 @@ func (udb *userPromptDB) activityResetExpiration() bool {
 	return udb.expirationTimer.Reset(activityTimeout)
 }
 
-// mapEntry stores the prompt ID and user ID associated with a request.
-type idMapEntry struct {
+// requestMapEntry stores the prompt ID and user ID associated with a request.
+type requestMapEntry struct {
 	PromptID prompting.IDType `json:"prompt-id"`
 	UserID   uint32           `json:"user-id"`
 }
@@ -499,15 +497,15 @@ type PromptDB struct {
 	// prompt is added, merged, modified, or resolved.
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 
-	// The filepath at which the ID map is stored on disk.
-	requestIDMapFilepath string
-	// requestIDMap is the mapping from request ID to prompt ID/user ID which
+	// The filepath at which the request map is stored on disk.
+	requestMapFilepath string
+	// requestMap is the mapping from request ID to prompt ID/user ID which
 	// is kept updated on disk and re-read when snapd restarts, so that we can
 	// re-associate each request which is re-received with a prompt with the
 	// same ID after snapd restarts. The user ID is required so a notice can be
 	// recorded if the manager readies, causing the prompt ID to be discarded
 	// if no associated request has been re-received for it at time of readying.
-	requestIDMap map[uint64]idMapEntry
+	requestMap map[uint64]requestMapEntry
 }
 
 // New creates and returns a new prompt database.
@@ -541,10 +539,10 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 		notifyPrompt: notifyPrompt,
 		maxIDMmap:    maxIDMmap,
 
-		requestIDMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json"),
+		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json"),
 	}
 
-	// Load the previous ID mappings from disk
+	// Load the previous mappings from disk
 	if err := pdb.loadRequestIDPromptIDMapping(); err != nil {
 		return nil, err
 	}
@@ -552,10 +550,10 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 	return &pdb, nil
 }
 
-// idMappingJSON is the state which is stored on disk, containing the mapping
-// from request ID to prompt ID and user ID.
-type idMappingJSON struct {
-	RequestIDMap map[uint64]idMapEntry `json:"id-mapping"`
+// requestMappingJSON is the state which is stored on disk, containing the
+// mapping from request ID to prompt ID and user ID.
+type requestMappingJSON struct {
+	RequestMap map[uint64]requestMapEntry `json:"id-mapping"` // TODO: change to "request-mapping"
 }
 
 // loadRequestIDPromptIDMapping loads from disk the mapping from request ID to
@@ -572,32 +570,37 @@ func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
 	defer pdb.mutex.Unlock()
 
 	defer func() {
-		if pdb.requestIDMap == nil {
-			pdb.requestIDMap = make(map[uint64]idMapEntry)
+		if pdb.requestMap == nil {
+			pdb.requestMap = make(map[uint64]requestMapEntry)
 		}
 	}()
 
-	f, err := os.Open(pdb.requestIDMapFilepath)
+	f, err := os.Open(pdb.requestMapFilepath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("cannot open mapping from request ID to prompt ID: %w", err)
 	}
+	defer f.Close()
 
-	var savedState idMappingJSON
+	var savedState requestMappingJSON
 	err = json.NewDecoder(f).Decode(&savedState)
-	f.Close() // close now since we're done reading
 	if err != nil {
+		// TODO: once we break backwards compatibility, we want this error to
+		// be non-fatal, but the preceding "cannot open mapping" error to be
+		// fatal. So, we need to either record a `logger.Notice()` here and
+		// return nil, or return a named error and check for it at the call
+		// site.
 		return fmt.Errorf("cannot read stored mapping from request ID to prompt ID: %w", err)
 	}
 
-	pdb.requestIDMap = savedState.RequestIDMap
+	pdb.requestMap = savedState.RequestMap
 
 	return nil
 }
 
-// saveRequestIDMap saves to disk the mapping from request ID to prompt ID and
+// saveRequestMap saves to disk the mapping from request ID to prompt ID and
 // user ID.
 //
 // This function should be called whenever the mapping between request ID and
@@ -606,20 +609,20 @@ func (pdb *PromptDB) loadRequestIDPromptIDMapping() error {
 // which have not yet been re-received are discarded.
 //
 // The caller must ensure that the database lock is held.
-func (pdb *PromptDB) saveRequestIDMap() error {
-	b, err := json.Marshal(idMappingJSON{RequestIDMap: pdb.requestIDMap})
+func (pdb *PromptDB) saveRequestMap() error {
+	b, err := json.Marshal(requestMappingJSON{RequestMap: pdb.requestMap})
 	if err != nil {
 		// Should not occur, marshalling should always succeed
 		logger.Noticef("cannot marshal mapping from request ID to prompt ID: %v", err)
 		return fmt.Errorf("cannot marshal mapping from request ID to prompt ID: %w", err)
 	}
-	if err := osutil.AtomicWriteFile(pdb.requestIDMapFilepath, b, 0o600, 0); err != nil {
+	if err := osutil.AtomicWriteFile(pdb.requestMapFilepath, b, 0o600, 0); err != nil {
 		return fmt.Errorf("cannot save mapping from request ID to prompt ID: %w", err)
 	}
 	return nil
 }
 
-// HandleReadying prunes ID mappings for request IDs which have not been re-
+// HandleReadying prunes map entries for request IDs which have not been re-
 // received since snapd restarted. This function should be called by the manager
 // when it readies, before it closes the ready channel to allow new replies or
 // rules to be handled.
@@ -629,19 +632,19 @@ func (pdb *PromptDB) HandleReadying() error {
 
 	// Keep map of requests which haven't been re-received, and record their
 	// map entries so we can record a notice with the correct prompt/user ID.
-	requestIDsToPrune := make(map[uint64]idMapEntry)
+	requestIDsToPrune := make(map[uint64]requestMapEntry)
 	// Keep track of prompt IDs we see so we know what not to notify for.
 	// This is necessary since it's possible for multiple request IDs to be
 	// associated with the same prompt.
 	existingPrompts := make(map[prompting.IDType]bool)
 
-	for requestID, entry := range pdb.requestIDMap {
+	for requestID, entry := range pdb.requestMap {
 		if udb, ok := pdb.perUser[entry.UserID]; ok {
 			if prompt, err := udb.get(entry.PromptID); err == nil {
 				existingPrompts[entry.PromptID] = true
 				// The corresponding prompt exists, but has this
 				// particular request actually been re-received?
-				if prompt.containsListenerRequestID(requestID) {
+				if prompt.containsRequest(requestID) {
 					continue
 				}
 			}
@@ -652,13 +655,13 @@ func (pdb *PromptDB) HandleReadying() error {
 
 	data := map[string]string{"resolved": "expired"}
 	for requestID, entry := range requestIDsToPrune {
-		delete(pdb.requestIDMap, requestID)
+		delete(pdb.requestMap, requestID)
 		if !existingPrompts[entry.PromptID] {
 			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
 		}
 		// No need to send a reply to the kernel, since the request is gone
 	}
-	pdb.saveRequestIDMap()
+	pdb.saveRequestMap()
 	return nil
 }
 
@@ -667,7 +670,7 @@ var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
-// prompt and, if so, merges with it by adding the given listenerReq to it.
+// prompt and, if so, merges with it by adding the given request to it.
 // Otherwise, adds a new prompt with the given contents to the prompt DB.
 // If an error occurs, no change is made to the DB.
 //
@@ -678,7 +681,7 @@ var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, listenerReq *listener.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, request *listener.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -716,29 +719,29 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	needToSave := false
 	defer func() {
 		if needToSave {
-			pdb.saveRequestIDMap()
+			pdb.saveRequestMap()
 		}
 	}()
 
-	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, listenerReq.ID, metadata, constraints)
-	if result.foundInvalidIDMapping {
-		delete(pdb.requestIDMap, listenerReq.ID)
+	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.ID, metadata, constraints)
+	if result.foundInvalidRequestMapping {
+		delete(pdb.requestMap, request.ID)
 		needToSave = true
 	}
 
 	// Handle the cases where the request matches an existing prompt
 	if result.foundExistingPrompt {
-		if !result.foundExistingIDMapping {
+		if !result.foundExistingRequestMapping {
 			// Request matched existing prompt but doesn't have an ID mapped,
 			// so map the request ID to the prompt ID.
-			pdb.requestIDMap[listenerReq.ID] = idMapEntry{
+			pdb.requestMap[request.ID] = requestMapEntry{
 				PromptID: existingPrompt.ID,
 				UserID:   metadata.User,
 			}
 			needToSave = true
 		}
 		// Associate request with prompt
-		existingPrompt.addListenerRequest(listenerReq)
+		existingPrompt.addRequest(request)
 		// Although the prompt itself has not changed from client POV,
 		// re-record a notice to re-notify clients to respond to this request.
 		pdb.notifyPrompt(metadata.User, existingPrompt.ID, nil)
@@ -747,14 +750,14 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// No existing prompt, so we'll need to make a new one.
 	// If there's no existing ID mapping, get a new prompt ID and map it.
-	if !result.foundExistingIDMapping {
+	if !result.foundExistingRequestMapping {
 		// Check if there are too many prompts already (this check doesn't
 		// occur if we're re-creating a prompt from an existing ID)
 		if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 			// Deny all permissions which are not already allowed by existing rules
 			allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
-			listenerReq.Reply(allowedPermission)
+			request.Reply(allowedPermission)
 			return nil, false, prompting_errors.ErrTooManyPrompts
 		}
 
@@ -762,7 +765,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 
 		// Map the new ID
-		pdb.requestIDMap[listenerReq.ID] = idMapEntry{
+		pdb.requestMap[request.ID] = requestMapEntry{
 			PromptID: promptID,
 			UserID:   metadata.User,
 		}
@@ -771,14 +774,14 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	timestamp := time.Now()
 	prompt := &Prompt{
-		ID:           promptID,
-		Timestamp:    timestamp,
-		Snap:         metadata.Snap,
-		PID:          metadata.PID,
-		Cgroup:       metadata.Cgroup,
-		Interface:    metadata.Interface,
-		Constraints:  constraints,
-		listenerReqs: []*listener.Request{listenerReq},
+		ID:          promptID,
+		Timestamp:   timestamp,
+		Snap:        metadata.Snap,
+		PID:         metadata.PID,
+		Cgroup:      metadata.Cgroup,
+		Interface:   metadata.Interface,
+		Constraints: constraints,
+		requests:    []*listener.Request{request},
 	}
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
@@ -786,18 +789,18 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 }
 
 type existingPromptResult struct {
-	foundExistingPrompt    bool
-	foundExistingIDMapping bool
-	foundInvalidIDMapping  bool
+	foundExistingPrompt         bool
+	foundExistingRequestMapping bool
+	foundInvalidRequestMapping  bool
 }
 
 // findExistingPrompt attempts to find an existing prompt or prompt ID which
 // matches the given request ID or contents.
 //
-// First, check whether there is an existing mapping from the given listener
-// request ID to a prompt ID. If there is a mapping, then check if a prompt
-// with that ID exists. If so, return it, otherwise return the mapped prompt ID
-// so that the caller can re-create a prompt with that ID.
+// First, check whether there is an existing mapping from the given request ID
+// to a prompt ID. If there is a mapping, then check if a prompt with that ID
+// exists. If so, return it, otherwise return the mapped prompt ID so that the
+// caller can re-create a prompt with that ID.
 //
 // This should never occur, but if there's an existing mapping to an existing
 // prompt but the prompt contents do not match the request contents, then set
@@ -813,13 +816,13 @@ type existingPromptResult struct {
 // This function does not record a notice, associate the request ID with any
 // found prompt, or create an ID mapping; the caller is responsible for any of
 // these, as necessary.
-func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, listenerReqID uint64, metadata *prompting.Metadata, constraints *promptConstraints) (*Prompt, prompting.IDType, existingPromptResult) {
+func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestID uint64, metadata *prompting.Metadata, constraints *promptConstraints) (*Prompt, prompting.IDType, existingPromptResult) {
 	var result existingPromptResult
 
 	// First, check for existing prompt ID mapping
-	entry, ok := pdb.requestIDMap[listenerReqID]
+	entry, ok := pdb.requestMap[requestID]
 	if ok {
-		result.foundExistingIDMapping = true
+		result.foundExistingRequestMapping = true
 		promptID := entry.PromptID
 		// A mapping exists, but does the prompt currently exist?
 		prompt, err := userEntry.get(promptID)
@@ -847,7 +850,7 @@ func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, listenerReqID u
 		// Record that the existing ID mapping was invalid, and erase previous
 		// flags. Carry on as if there was no mapping in the first place.
 		result = existingPromptResult{
-			foundInvalidIDMapping: true,
+			foundInvalidRequestMapping: true,
 		}
 	}
 
@@ -924,8 +927,8 @@ func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivi
 }
 
 // Reply resolves the prompt with the given ID using the given outcome by
-// sending a reply to all associated listener requests, then removing the
-// prompt from the prompt DB.
+// sending a reply to all associated requests, then removing the prompt from
+// the prompt DB.
 //
 // Records a notice for the prompt, and returns the prompt's former contents.
 //
@@ -942,10 +945,10 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 		return nil, err
 	}
 
-	for _, listenerReq := range prompt.listenerReqs {
-		delete(pdb.requestIDMap, listenerReq.ID)
+	for _, request := range prompt.requests {
+		delete(pdb.requestMap, request.ID)
 	}
-	pdb.saveRequestIDMap() // error should not occur
+	pdb.saveRequestMap() // error should not occur
 
 	userEntry.remove(id)
 
@@ -955,7 +958,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 }
 
 // HandleNewRule checks if any existing prompts are satisfied by the given rule
-// contents and, if so, sends back a decision to their listener requests.
+// contents and, if so, sends back a decision to their requests.
 //
 // A prompt is satisfied by the given rule contents if the user, snap,
 // interface, and path of the prompt match those of the rule, and all
@@ -990,7 +993,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	needToSave := false
 	defer func() {
 		if needToSave {
-			pdb.saveRequestIDMap()
+			pdb.saveRequestMap()
 		}
 	}()
 
@@ -1043,8 +1046,8 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		userEntry.remove(prompt.ID)
 
 		// Remove the ID mappings for the requests associated with the prompt.
-		for _, listenerReq := range prompt.listenerReqs {
-			delete(pdb.requestIDMap, listenerReq.ID)
+		for _, request := range prompt.requests {
+			delete(pdb.requestMap, request.ID)
 		}
 		needToSave = true
 
@@ -1075,7 +1078,7 @@ func (pdb *PromptDB) Close() error {
 		return fmt.Errorf("cannot close max ID mmap: %w", err)
 	}
 
-	if err := pdb.saveRequestIDMap(); err != nil {
+	if err := pdb.saveRequestMap(); err != nil {
 		return err
 	}
 
