@@ -3037,12 +3037,18 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		}
 	}
 
-	if isSupportedUbuntuHybrid && cacheLabel != "" {
+	if cacheLabel != "" {
 		// populate the cache with encryption support information that
-		// includes a check context similar to having performed an
-		// initial preinstall check
+		// mimics what would happen when a preinstall check takes place
+		// as per usual installer flow
 		encInfo := &install.EncryptionSupportInfo{}
-		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
+		if isSupportedUbuntuHybrid {
+			// hybrid installation flow populates the preinstall check context
+			encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
+		}
+		// non-hydrid install flow uses the simple availability check that does not produce
+		// a preinstall check context
+
 		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
 	}
 
