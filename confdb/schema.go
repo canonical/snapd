@@ -924,12 +924,10 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 	}
 	pruned := map[string]json.RawMessage{}
 	for key, value := range m {
-		if len(path) > 0 && path[0].Type() == MapKeyType {
-			if pathKey != key {
-				// The data is not along the path. Do not prune; simply copy over
-				pruned[key] = value
-				continue
-			}
+		if pathKey != "" && pathKey != key {
+			// The data is not along the path. Do not prune; simply copy over
+			pruned[key] = value
+			continue
 		}
 		if v.entrySchemas != nil {
 			valSchema, ok := v.entrySchemas[key]
@@ -971,7 +969,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 			}
 		}
 	}
-	if len(path) > 0 && path[0].Type() == MapKeyType {
+	if pathKey != "" {
 		if _, ok = pruned[pathKey]; !ok {
 			// Before entering in the prune loop, the entry existed.
 			// The only way it no longer exists is if it got pruned away
