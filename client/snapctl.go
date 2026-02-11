@@ -53,7 +53,7 @@ type SnapCtlOptions struct {
 // but instead use a real stdin stream
 type SnapCtlPostData struct {
 	SnapCtlOptions
-	Stdin    []byte            `json:"stdin,omitempty"`
+	Stdin []byte `json:"stdin,omitempty"`
 }
 
 type snapctlOutput struct {
