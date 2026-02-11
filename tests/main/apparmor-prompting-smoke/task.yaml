@@ -1,0 +1,247 @@
+summary: Check that AppArmor Prompting works end-to-end for home interface
+
+details: |
+    Test that AppArmor Prompting is working for the home interface. The test checks for the
+    correct handling of permission prompts as well as rules created by responses to prompts.
+    To do so, it uses the prompt-requester to attempt to read a file which it does not have
+    read permission for triggering a prompt which is allowed or denied for either
+    a single request or some duration lifespan. The test then checks if the rules created as a
+    result of prompt response have the correct effect on the original and following request.
+
+environment:
+    TARGET_FILE/allow_prompt_single_lifespan: "$PWD/test_allow_prompt_single_lifespan/foo"
+    TARGET_FILE/deny_prompt_single_lifespan: "$PWD/test_deny_prompt_single_lifespan/foo"
+    TARGET_FILE/allow_prompt_timespan_lifespan: "$PWD/test_allow_prompt_timespan_lifespan/foo"
+    TARGET_FILE/deny_prompt_timespan_lifespan: "$PWD/test_deny_prompt_timespan_lifespan/foo"
+
+    PROMPT_RESPONSE/allow_prompt_single_lifespan: "allow"
+    PROMPT_RESPONSE/deny_prompt_single_lifespan: "deny"
+    PROMPT_RESPONSE/allow_prompt_timespan_lifespan: "allow"
+    PROMPT_RESPONSE/deny_prompt_timespan_lifespan: "deny"
+
+    LIFESPAN/allow_prompt_single_lifespan: "single"
+    LIFESPAN/deny_prompt_single_lifespan: "single"
+    LIFESPAN/allow_prompt_timespan_lifespan: "timespan"
+    LIFESPAN/deny_prompt_timespan_lifespan: "timespan"
+
+    DURATION: "20s"
+
+systems:
+    - ubuntu-2*
+
+skip:
+    - reason: Requires AppArmor notification protocol v5+ which is only in ubuntu kernels 6.16+
+      if: os.query is-kernel-lt 6.16
+
+prepare: |
+    echo "Check that the system AppArmor supports notification protocol v5"
+    uname -a
+    ls /sys/kernel/security/apparmor/features/policy
+    test -d /sys/kernel/security/apparmor/features/policy/notify_versions
+    ls /sys/kernel/security/apparmor/features/policy/notify_versions
+    test -f /sys/kernel/security/apparmor/features/policy/notify_versions/v5
+
+    # Avoid checking for new release, it could cause lock on apt
+    sed -i 's/^Prompt=.*$/Prompt=never/' /etc/update-manager/release-upgrades
+
+    # Disable daily checks for updates to avoid apt locks
+    sudo systemctl disable --now apt-daily{,-upgrade}.{timer,service}
+
+    # Prerequisite for having a prompts handler service
+    snap set system experimental.user-daemons=true
+
+    dir="$(dirname $TARGET_FILE)"
+    mkdir -p "$dir"
+    echo "hello-foo" > $TARGET_FILE
+
+
+    # Install a snap which identifies itself to snapd as a prompting handler-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
+    snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
+
+    # Install a snap which will trigger prompts
+    "$TESTSTOOLS"/snaps-state install-local prompt-requester
+    snap connect prompt-requester:home
+restore: |
+  # SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Remove any new listener ID file"
+    rm -f /run/snapd/interfaces-requests/listener-id
+
+    echo "Disable AppArmor prompting experimental feature"
+    snap set system experimental.apparmor-prompting=false
+
+    snap remove test-snapd-prompt-handler
+    rm -rf $(dirname $TARGET_FILE)
+
+debug: |
+    uname -a
+    snap debug api /v2/system-info
+
+execute: |
+    echo "Remove any existing listener ID file so snapd will register new listener"
+    rm -f /run/snapd/interfaces-requests/listener-id
+
+    # Enable prompting
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Enable AppArmor prompting experimental feature"
+    snap set system experimental.apparmor-prompting=true
+
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 300 systemctl is-active snapd
+
+    echo "Check that there are no prompts initially"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    echo "$RESULT" | gojq '.result | length' | MATCH 0
+
+    START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
+
+    TMP_STDOUT=$(mktemp)
+    TMP_STDERR=$(mktemp)
+    echo "Trigger prompt by reading $TARGET_FILE"
+
+    tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
+    REQUESTER_PID="$!"
+
+    # To disambiguate prompting vs notice failures, wait for the prompt directly first
+    echo "Wait for notice for first prompt"
+    retry --wait 2 -n 30 sh -c 'tests.session -u test exec snap debug api /v2/interfaces/requests/prompts | gojq ".result | length" | MATCH 1'
+
+    echo "Wait for prompt to appear"
+    RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    NOTICE_ID="$(echo "$RESULT" | gojq .result[0].id)"
+    NOTICE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+
+    echo "Check that the prompt with the ID given by the first notice is present"
+    RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY")"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    echo "$RESULT" | gojq .result.constraints.path | MATCH "${TARGET_FILE}"
+    PROMPT_ID="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+
+    if [[ "$LIFESPAN" == "single" ]]; then
+      echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
+      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"single\", \"constraints\": {\"path-pattern\": \"/**\", \"permissions\": [\"read\"]}}"
+    elif [[ "$LIFESPAN" == "timespan" ]]; then
+      echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
+      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": {\"path-pattern\": \"/**\", \"permissions\": [\"read\"]}}"
+    fi
+
+    echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
+
+    echo "Wait for requester process to finish"
+    wait "$REQUESTER_PID" || true
+    echo "Check the process exited correctly"
+
+    case "$PROMPT_RESPONSE" in
+      "allow") cat "$TMP_STDOUT" | MATCH "hello-foo" ;;
+      "deny")
+        cat "$TMP_STDOUT" | MATCH "failed"
+        cat "$TMP_STDERR" | MATCH "Permission denied"
+        ;;
+    esac
+
+    echo "Wait for notices for replied prompts"
+    RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
+
+    echo "Check that the prompts were resolved"
+    RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    echo "$RESULT" | gojq '.result | length' | MATCH 0
+
+    if [[ "$LIFESPAN" == "timespan" ]]; then
+      echo "Check that there is a notice for rule creation"
+      RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-rule-update&timeout=60s&after='"$START")"
+      echo "$RESULT" | MATCH '"status-code": 200'
+      echo "$RESULT" | gojq '.result | length' | MATCH 1
+      RULE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+
+      echo "Check that the rule with the corresponding ID exists"
+      RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")"
+
+      echo "$RESULT" | gojq .result.interface | MATCH "home"
+      echo "$RESULT" | gojq .result.constraints.permissions.read.outcome | MATCH "$PROMPT_RESPONSE"
+      echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "timespan"
+      echo "$RESULT" | MATCH '"status-code": 200'
+    fi
+
+    START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
+
+    echo "Run command to read /home/test/$TARGET_FILE again"
+
+    tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
+    REQUESTER_PID="$!"
+
+    case "$LIFESPAN" in
+      "timespan")
+        sleep 5
+        echo "Check for notices"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
+
+        echo "Ensure that request is autohandled"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq '.result | length' | MATCH 0
+        ;;
+      "single")
+        echo "Wait for prompt to appear"
+        retry --wait 1 -n 30 sh -c 'tests.session -u test exec snap debug api /v2/interfaces/requests/prompts | gojq ".result | length" | MATCH 1'
+
+        echo "Wait for notice for prompt"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
+
+        echo "Ensure that request is not autohandled"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq '.result | length' | MATCH 1
+
+        NOTICE_ID="$(echo "$RESULT" | gojq .result[0].id)"
+        NOTICE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+
+        echo "Check that the prompt with the ID given by this notice is present"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY")"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq .result.constraints.path | MATCH "${TARGET_FILE}"
+        PROMPT_ID="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+
+        echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"single\", \"constraints\": {\"path-pattern\": \"/**\", \"permissions\": [\"read\"]}}"
+        echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
+
+        echo "Wait for notices for second replied prompt"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq '.result | length' | MATCH 1
+        echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
+
+        echo "Check that the second prompt was resolved"
+        RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq '.result | length' | MATCH 0
+        ;;
+    esac
+
+    echo "Wait for requester process to finish"
+    wait "$REQUESTER_PID" || true
+    echo "Check the process exited correctly"
+
+    case "$PROMPT_RESPONSE" in
+      "allow") cat "$TMP_STDOUT" | MATCH "hello-foo" ;;
+      "deny")
+        cat "$TMP_STDOUT" | MATCH "failed"
+        cat "$TMP_STDERR" | MATCH "Permission denied"
+        ;;
+    esac
+
+    rm -f "$TMP_STDOUT" "$TMP_STDOUT"
+

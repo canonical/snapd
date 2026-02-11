@@ -1,0 +1,7 @@
+name: prompt-requester
+version: 1
+base: core18
+apps:
+  cat:
+    command: bin/cat
+    plugs: [home]
