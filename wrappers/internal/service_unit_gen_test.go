@@ -102,7 +102,7 @@ const expectedGraphicalUserServiceFmt = `[Unit]
 Description=Service for snap application snap.app
 After=graphical-session.target
 Requisite=graphical-session.target
-BindsTo=graphical-session.target
+PartOf=graphical-session.target
 X-Snappy=yes
 
 [Service]

@@ -357,11 +357,7 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 		if appInfo.HasPlug("desktop") {
 			wrapperData.After = append(wrapperData.After, GraphicalSessionTarget)
-			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
-				wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
-			} else {
-				wrapperData.BindsTo = append(wrapperData.BindsTo, GraphicalSessionTarget)
-			}
+			wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
 			wrapperData.ServicesTarget = GraphicalSessionTarget
 			wrapperData.Requisite = append(wrapperData.Requisite, GraphicalSessionTarget)
 		}
