@@ -1370,12 +1370,22 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
+	var checkAction *secboot.PreinstallAction
+	if m.readCacheEncryptionSupportInfoLocked(systemLabel) != nil {
+		// If a cached context is available, the preinstall check was previously run
+		// and must be repeated. Set an action to signal reuse of the preinstall check
+		// context. Use the inert "ActionNone" to repeat the check without requesting
+		// any modifications.
+		checkAction = &secboot.PreinstallAction{Action: secboot.ActionNone}
+	}
+
 	constraints := installLogic.EncryptionConstraints{
 		Model:         systemAndSeeds.Model,
 		Kernel:        systemAndSeeds.InfosByType[snap.TypeKernel],
 		Gadget:        gadgetInfo,
 		TPMMode:       secboot.TPMProvisionFull,
 		SnapdVersions: systemAndSeeds.SystemSnapdVersions,
+		CheckAction:   checkAction,
 	}
 
 	// do not use cached encryption information; perform a fresh encryption
