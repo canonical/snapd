@@ -2983,7 +2983,7 @@ var preinstallAction = &secboot.PreinstallAction{
 
 type suiteWithAddCleanup interface {
 	AddCleanup(func())
-	GetDeviceManager() *devicestate.DeviceManager
+	DeviceManager() *devicestate.DeviceManager
 }
 
 type callCounter struct {
@@ -3043,7 +3043,7 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		// initial preinstall check
 		encInfo := &install.EncryptionSupportInfo{}
 		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
-		s.GetDeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
+		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
 	}
 
 	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {

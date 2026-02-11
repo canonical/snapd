@@ -510,7 +510,7 @@ func (s *deviceMgrBaseSuite) addKeyToManagerInState(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *deviceMgrBaseSuite) GetDeviceManager() *devicestate.DeviceManager {
+func (s *deviceMgrBaseSuite) DeviceManager() *devicestate.DeviceManager {
 	return s.mgr
 }
 
