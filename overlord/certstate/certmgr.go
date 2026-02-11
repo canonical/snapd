@@ -95,7 +95,7 @@ func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb)
 
 	// create a copy of the current certificates in the snapd pki v1 dir
 	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".bak"
+	caCertificateDbBackupPath := caCertificateDbPath + ".old"
 
 	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
 		return err

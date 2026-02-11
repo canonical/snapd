@@ -21,9 +21,10 @@ package certstate
 type Certificate = certificate
 
 var (
-	IsBlocked              = isBlocked
-	ParseCertificateData   = parseCertificateData
-	ParseCertificates      = parseCertificates
-	ReadDigests            = readDigests
-	GenerateCACertificates = generateCACertificates
+	IsBlocked                 = isBlocked
+	ParseCertificateChainData = parseCertificateChainData
+	ParseCertificateData      = parseCertificateData
+	ParseCertificates         = parseCertificates
+	ReadDigests               = readDigests
+	GenerateCACertificates    = generateCACertificates
 )

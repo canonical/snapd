@@ -137,6 +137,17 @@ func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C)
 	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
+func (s *certsTestSuite) TestParseCertificateChainDataDERInput(c *C) {
+	_, cert, err := makeTestCertPEM("Test Certificate Root CA")
+	c.Assert(err, IsNil)
+
+	parsed, chainDER, err := certstate.ParseCertificateChainData(cert.Raw)
+	c.Assert(err, IsNil)
+	c.Check(parsed.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(chainDER, HasLen, 1)
+	c.Check(chainDER[0], DeepEquals, cert.Raw)
+}
+
 func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
 	data := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("junk")})
 	cert, err := certstate.ParseCertificateData(data)
@@ -330,7 +341,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	c.Check(bytes.Contains(out, aPEM), Equals, true)
 	c.Check(bytes.Contains(out, bPEM), Equals, true)
 
-	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.bak"))
+	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
 	c.Assert(err, IsNil)
 	c.Check(bak, DeepEquals, old)
 }

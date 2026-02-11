@@ -76,6 +76,8 @@ func parseCertificateChainData(certData []byte) (*x509.Certificate, [][]byte, er
 		return first, chainDER, nil
 	}
 
+	// The file is not PEM-encoded, so we try to parse it as DER.
+	// We return a single-certificate chain in this case.
 	cert, err := x509.ParseCertificate(certData)
 	if err != nil {
 		return nil, nil, err
@@ -107,9 +109,8 @@ func trimCrtExtension(name string) string {
 	return name
 }
 
-// isBlocked validates the name of the certificate. We only allow certificates
-// with the correct suffix ".crt" except for the ca-certificates.crt,
-// or if the name is in the blockedCerts lists.
+// isBlocked checks whether the given certificate is blocked
+// based on it's name.
 func isBlocked(cert certificate, blockedCerts []string) bool {
 	// Special case for ca-certificates.crt
 	if cert.Name == "ca-certificates.crt" {
@@ -178,6 +179,9 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 	return certsObjects, nil
 }
 
+// readDigests reads the names of all files in the given directory
+// and returns them as a list of strings (with any .crt extension trimmed).
+// It expects that the files in the directory are named by their digest.
 func readDigests(dir string) ([]string, error) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -187,6 +191,8 @@ func readDigests(dir string) ([]string, error) {
 		return nil, fmt.Errorf("cannot read directory %q: %v", dir, err)
 	}
 
+	// Certificates are expected to be named by their digest,
+	// and we trim any .crt extension prior to returning them.
 	var digests []string
 	for _, f := range files {
 		if f.IsDir() {
@@ -256,6 +262,14 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	return nil
 }
 
+// GenerateCertificateDatabase generates the ca-certificates.crt based on the following
+// folders:
+// - /etc/ssl/certs/ (base certificates from the system)
+// - /var/lib/snapd/pki/v1/added/ (user added certificates)
+// - /var/lib/snapd/pki/v1/blocked/ (user blocked certificates)
+//
+// The resulting ca-certificates.crt is written to
+// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
 func GenerateCertificateDatabase() error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
@@ -264,7 +278,7 @@ func GenerateCertificateDatabase() error {
 
 	// create a copy of the current certificates in the snapd pki v1 dir
 	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".bak"
+	caCertificateDbBackupPath := caCertificateDbPath + ".old"
 
 	if err := os.Rename(caCertificateDbPath, caCertificateDbBackupPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot backup existing ca-certificates.crt: %v", err)
