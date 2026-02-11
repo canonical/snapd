@@ -151,7 +151,7 @@ jobs:
           ) > report
 
           if find . -name skipped_tests_list.txt | grep -q .; then
-            echo "## Skipped tests from snapd-tests-skip" >> report
+            echo "## Skipped tests from snapd-testing-skip" >> report
             find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sort -u | awk '{print "- "$1}' >> report
           fi
 

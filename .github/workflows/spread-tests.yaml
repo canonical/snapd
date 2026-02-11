@@ -229,12 +229,12 @@ jobs:
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
 
-    - name: Checkout snapd-tests-skip
+    - name: Checkout snapd-testing-skip
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       uses: actions/checkout@v6
       with:
           repository: canonical/snapd-testing-skip
-          path: snapd-tests-skip
+          path: snapd-testing-skip
 
     - name: Filter out tests to skip
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
@@ -247,12 +247,12 @@ jobs:
               echo RUN_TESTS="$spread_list"  >> $GITHUB_ENV
           fi
 
-          if ! [ -d snapd-tests-skip/skip ]; then
+          if ! [ -d snapd-testing-skip/skip ]; then
               exit 0
           fi
 
           SNAPD_TESTS_SKIP=
-          for file in snapd-tests-skip/skip/*; do
+          for file in snapd-testing-skip/skip/*; do
               expire=$(yq -r '."skip-until"' "$file")
               today=$(date "+%Y-%m-%d")
               system=$(yq -r '."spread-system" // ".*"' "$file")
