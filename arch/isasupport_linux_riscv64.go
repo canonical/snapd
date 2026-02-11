@@ -6,10 +6,9 @@ package arch
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 	"golang.org/x/sys/unix"
 )
 
@@ -104,87 +103,88 @@ const (
 
 // Define extension descriptions
 type extDesc struct {
-	Key      uint64
-	Text     string
+	// Bitmask for the extension support bit
+	Key uint64
+	// Human-readable name of the extension
+	Text string
+	// Declares if the extension is required for RVA23 support
 	Required bool
-	Since    uint32
+	// Declares in which kernel version the key was first introduced. "0" if before 6.11
+	// or not required
+	Since string
 }
 
 // Define extensions list
 //
-// The value of the "Required" field for all the entries comes from the
-// "example implementation" at https://github.com/xypron/hwprobe/blob/main/go/hwprobe.go
-// The comments at the end of the line explain why the item is marked as Required in that implementation.
-// If the comment starts with "required", the extension is explicitly required by the spec, either directly
-// or through implication/shorthands.
-// Otherwise, the item was "Required" only in the example implementation, and a justification was
-// found by looking at the Risc-V ISA specs for dependencies, supersetting, etc.
-// The only explicit change that was done compared to the example implementation is setting the "Zve{32,64}"
-// as "not required", since they are meant to be used by "Embedded Processors", and this would too-restrictive
+// The value of the "Required" field for all the entries is taken from
+// [RVA23 Profiles Specification, Version 1.0, 2024-10-17].
+// The comments at the end of the line explain why the item is marked as Required.
+//
+// [RVA23 Profiles Specification, Version 1.0, 2024-10-17]: https://docs.riscv.org/reference/profiles/rva23/_attachments/rva23-profile.pdf
 var RiscVExtensions = []extDesc{
-	{Key: RISCV_HWPROBE_IMA_FD, Text: "F and D", Required: true, Since: 0},    // required
-	{Key: RISCV_HWPROBE_IMA_C, Text: "C", Required: true, Since: 0},           // required
-	{Key: RISCV_HWPROBE_IMA_V, Text: "V", Required: true, Since: 0},           // required
-	{Key: RISCV_HWPROBE_EXT_ZBA, Text: "Zba", Required: true, Since: 0},       // required, from composite B
-	{Key: RISCV_HWPROBE_EXT_ZBB, Text: "Zbb", Required: true, Since: 0},       // required, from composite B
-	{Key: RISCV_HWPROBE_EXT_ZBS, Text: "Zbs", Required: true, Since: 0},       // required, from composite B
-	{Key: RISCV_HWPROBE_EXT_ZICBOZ, Text: "Zicboz", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZBC, Text: "Zbc", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZBKB, Text: "Zbkb", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZBKC, Text: "Zbkc", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZBKX, Text: "Zbkx", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKND, Text: "Zknd", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKNE, Text: "Zkne", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKNH, Text: "Zknh", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKSED, Text: "Zksed", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKSH, Text: "Zksh", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZKT, Text: "Zkt", Required: true, Since: 0},   // required
-	{Key: RISCV_HWPROBE_EXT_ZVBB, Text: "Zvbb", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZVBC, Text: "Zvbc", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKB, Text: "Zvkb", Required: true, Since: 0}, // supersetted by Zvbb
-	{Key: RISCV_HWPROBE_EXT_ZVKG, Text: "Zvkg", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKNED, Text: "Zvkned", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKNHA, Text: "Zvknha", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKNHB, Text: "Zvknhb", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKSED, Text: "Zvksed", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKSH, Text: "Zvksh", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVKT, Text: "Zvkt", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZFH, Text: "Zfh", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZFHMIN, Text: "Zfhmin", Required: true, Since: 0},       // required
-	{Key: RISCV_HWPROBE_EXT_ZIHINTNTL, Text: "Zihintntl", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZVFH, Text: "Zvfh", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVFHMIN, Text: "Zvfhmin", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZFA, Text: "Zfa", Required: true, Since: 0},         // required
-	{Key: RISCV_HWPROBE_EXT_ZTSO, Text: "Ztso", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZACAS, Text: "Zacas", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZICNTR, Text: "Zicntr", Required: true, Since: 0x0006000f},  // required, since 6.15
-	{Key: RISCV_HWPROBE_EXT_ZICOND, Text: "Zicond", Required: true, Since: 0},           // required
-	{Key: RISCV_HWPROBE_EXT_ZIHINTPAUSE, Text: "Zihintpause", Required: true, Since: 0}, // required
-	{Key: RISCV_HWPROBE_EXT_ZIHPM, Text: "Zihpm", Required: true, Since: 0x0006000f},    // required, since 6.15
-	{Key: RISCV_HWPROBE_EXT_ZVE32X, Text: "Zve32x", Required: true, Since: 0},           // In the kernel, implied by 'V'
-	{Key: RISCV_HWPROBE_EXT_ZVE32F, Text: "Zve32f", Required: true, Since: 0},           // ^
-	{Key: RISCV_HWPROBE_EXT_ZVE64X, Text: "Zve64x", Required: true, Since: 0},           // ^
-	{Key: RISCV_HWPROBE_EXT_ZVE64F, Text: "Zve64f", Required: true, Since: 0},           // ^
-	{Key: RISCV_HWPROBE_EXT_ZVE64D, Text: "Zfe64d", Required: true, Since: 0},           // ^
-	{Key: RISCV_HWPROBE_EXT_ZIMOP, Text: "Zimop", Required: true, Since: 0},             // required
-	{Key: RISCV_HWPROBE_EXT_ZCA, Text: "Zca", Required: true, Since: 0},                 // dependency of Zcmop
-	{Key: RISCV_HWPROBE_EXT_ZCB, Text: "Zcb", Required: true, Since: 0},                 // required
-	{Key: RISCV_HWPROBE_EXT_ZCD, Text: "Zcd", Required: true, Since: 0},                 // implied by C+D
-	{Key: RISCV_HWPROBE_EXT_ZCF, Text: "Zcf", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZCMOP, Text: "Zcmop", Required: true, Since: 0},            // required
-	{Key: RISCV_HWPROBE_EXT_ZAWRS, Text: "Zawrs", Required: true, Since: 0},            // required
-	{Key: RISCV_HWPROBE_EXT_ZAAMO, Text: "Zaamo", Required: true, Since: 0x0006000f},   // component of A extension, since 6.15
-	{Key: RISCV_HWPROBE_EXT_ZALRSC, Text: "Zalrsc", Required: true, Since: 0x0006000f}, // component of A extension, since 6.15
-	{Key: RISCV_HWPROBE_EXT_SUPM, Text: "Supm", Required: true, Since: 0x0006000d},     // required, since 6.13
-	{Key: RISCV_HWPROBE_EXT_ZFBFMIN, Text: "Zfbfmin", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVFBFMIN, Text: "Zvfbfmin", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZVFBFWMA, Text: "Zvfbfwma", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZICBOM, Text: "Zicbom", Required: true, Since: 0x0006000f}, // required, since 6.15
-	{Key: RISCV_HWPROBE_EXT_ZABHA, Text: "Zabha", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZALASR, Text: "Zalasr", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZICBOP, Text: "Zicbop", Required: true, Since: 0x00060013}, // required, since 6.19
-	{Key: RISCV_HWPROBE_EXT_ZILSD, Text: "Zilsd", Required: false, Since: 0},
-	{Key: RISCV_HWPROBE_EXT_ZCLSD, Text: "Zclsd", Required: false, Since: 0},
+	{Key: RISCV_HWPROBE_IMA_FD, Text: "F and D", Required: true, Since: "0"},    // required
+	{Key: RISCV_HWPROBE_IMA_C, Text: "C", Required: true, Since: "0"},           // required
+	{Key: RISCV_HWPROBE_IMA_V, Text: "V", Required: true, Since: "0"},           // required
+	{Key: RISCV_HWPROBE_EXT_ZBA, Text: "Zba", Required: true, Since: "0"},       // required, element of composite extension B
+	{Key: RISCV_HWPROBE_EXT_ZBB, Text: "Zbb", Required: true, Since: "0"},       // required, element of composite extension B
+	{Key: RISCV_HWPROBE_EXT_ZBS, Text: "Zbs", Required: true, Since: "0"},       // required, element of composite extension B
+	{Key: RISCV_HWPROBE_EXT_ZICBOZ, Text: "Zicboz", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZBC, Text: "Zbc", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZBKB, Text: "Zbkb", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZBKC, Text: "Zbkc", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZBKX, Text: "Zbkx", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKND, Text: "Zknd", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKNE, Text: "Zkne", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKNH, Text: "Zknh", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKSED, Text: "Zksed", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKSH, Text: "Zksh", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZKT, Text: "Zkt", Required: true, Since: "0"},   // required
+	{Key: RISCV_HWPROBE_EXT_ZVBB, Text: "Zvbb", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZVBC, Text: "Zvbc", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKB, Text: "Zvkb", Required: true, Since: "0"}, // required, supersetted by Zvbb
+	{Key: RISCV_HWPROBE_EXT_ZVKG, Text: "Zvkg", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKNED, Text: "Zvkned", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKNHA, Text: "Zvknha", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKNHB, Text: "Zvknhb", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKSED, Text: "Zvksed", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKSH, Text: "Zvksh", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVKT, Text: "Zvkt", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZFH, Text: "Zfh", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZFHMIN, Text: "Zfhmin", Required: true, Since: "0"},       // required
+	{Key: RISCV_HWPROBE_EXT_ZIHINTNTL, Text: "Zihintntl", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZVFH, Text: "Zvfh", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVFHMIN, Text: "Zvfhmin", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZFA, Text: "Zfa", Required: true, Since: "0"},         // required
+	{Key: RISCV_HWPROBE_EXT_ZTSO, Text: "Ztso", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZACAS, Text: "Zacas", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZICNTR, Text: "Zicntr", Required: true, Since: "6.15"},        // required, since 6.15
+	{Key: RISCV_HWPROBE_EXT_ZICOND, Text: "Zicond", Required: true, Since: "0"},           // required
+	{Key: RISCV_HWPROBE_EXT_ZIHINTPAUSE, Text: "Zihintpause", Required: true, Since: "0"}, // required
+	{Key: RISCV_HWPROBE_EXT_ZIHPM, Text: "Zihpm", Required: true, Since: "6.15"},          // required, since 6.15
+	{Key: RISCV_HWPROBE_EXT_ZVE32X, Text: "Zve32x", Required: true, Since: "0"},           // In the kernel, implied by 'V'
+	{Key: RISCV_HWPROBE_EXT_ZVE32F, Text: "Zve32f", Required: true, Since: "0"},           // ^
+	{Key: RISCV_HWPROBE_EXT_ZVE64X, Text: "Zve64x", Required: true, Since: "0"},           // ^
+	{Key: RISCV_HWPROBE_EXT_ZVE64F, Text: "Zve64f", Required: true, Since: "0"},           // ^
+	{Key: RISCV_HWPROBE_EXT_ZVE64D, Text: "Zfe64d", Required: true, Since: "0"},           // ^
+	{Key: RISCV_HWPROBE_EXT_ZIMOP, Text: "Zimop", Required: true, Since: "0"},             // required
+	{Key: RISCV_HWPROBE_EXT_ZCA, Text: "Zca", Required: true, Since: "0"},                 // required, dependency of Zcmop
+	{Key: RISCV_HWPROBE_EXT_ZCB, Text: "Zcb", Required: true, Since: "0"},                 // required
+	{Key: RISCV_HWPROBE_EXT_ZCD, Text: "Zcd", Required: true, Since: "0"},                 // implied by C+D
+	{Key: RISCV_HWPROBE_EXT_ZCF, Text: "Zcf", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZCMOP, Text: "Zcmop", Required: true, Since: "0"},      // required
+	{Key: RISCV_HWPROBE_EXT_ZAWRS, Text: "Zawrs", Required: true, Since: "0"},      // required
+	{Key: RISCV_HWPROBE_EXT_ZAAMO, Text: "Zaamo", Required: true, Since: "6.15"},   // required, component of A extension, since 6.15
+	{Key: RISCV_HWPROBE_EXT_ZALRSC, Text: "Zalrsc", Required: true, Since: "6.15"}, // required, component of A extension, since 6.15
+	{Key: RISCV_HWPROBE_EXT_SUPM, Text: "Supm", Required: true, Since: "6.13"},     // required, since 6.13
+	{Key: RISCV_HWPROBE_EXT_ZFBFMIN, Text: "Zfbfmin", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVFBFMIN, Text: "Zvfbfmin", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZVFBFWMA, Text: "Zvfbfwma", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZICBOM, Text: "Zicbom", Required: true, Since: "6.15"}, // required, since 6.15
+	{Key: RISCV_HWPROBE_EXT_ZABHA, Text: "Zabha", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZALASR, Text: "Zalasr", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZICBOP, Text: "Zicbop", Required: true, Since: "6.19"}, // required, since 6.19
+	{Key: RISCV_HWPROBE_EXT_ZILSD, Text: "Zilsd", Required: false, Since: "0"},
+	{Key: RISCV_HWPROBE_EXT_ZCLSD, Text: "Zclsd", Required: false, Since: "0"},
 }
 
 var RISCVHWProbe = unix.RISCVHWProbe
@@ -212,9 +212,11 @@ func MockRISCVHWProbe(supportedExtensions []unix.RISCVHWProbePairs, syscallError
 			return fmt.Errorf(syscallError)
 		}
 
-		// Otherwise, behave correctly and mock the syscall
-		pairs[0] = supportedExtensions[0]
-		pairs[1] = supportedExtensions[1]
+		if len(supportedExtensions) != 0 {
+			// Otherwise, write the requested value
+			pairs[0] = supportedExtensions[0]
+			pairs[1] = supportedExtensions[1]
+		}
 
 		return nil
 	}
@@ -244,35 +246,6 @@ func MockKernelVersion(newKernelVersion string) (restore func()) {
 	return func() { KernelVersion = originalKernelVersion }
 }
 
-// EncodedKernelVersion returns the kernel version that is installed on the system
-// encoded as a uin32, with the major kernel version encoded in the most-significant
-// 16 bits, and the minor kernel version encoded in the least-significat 16 bits
-//
-// E.g. 6.14.0 => 0x0006000e
-func EncodedKernelVersion() (version uint32, err error) {
-	release := KernelVersion()
-	// Split the release string on the dot
-	parts := strings.Split(release, ".")
-	if len(parts) < 2 {
-		return 0, fmt.Errorf("uname returned incorrect value: %s", release)
-	}
-
-	// Convert major and minor parts to uint32
-	major, err := strconv.ParseUint(parts[0], 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("error parsing major kernel version: %s", parts[0])
-	}
-	minor, err := strconv.ParseUint(parts[1], 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("error parsing minor kernel version: %s", parts[1])
-	}
-
-	// Combine major and minor versions into a single uint32 value
-	version = (uint32(major) << 16) | uint32(minor)
-
-	return version, nil
-}
-
 // IsRISCVISASupported takes the name of a RISCV64 ISA, gathers the list of extensions
 // supported by the running platform, and verifies if all extensions required for
 // compliance with the input ISA are supported.
@@ -287,11 +260,6 @@ func IsRISCVISASupported(isa string) error {
 		return fmt.Errorf("unsupported ISA for riscv64 architecture: %s", isa)
 	}
 
-	version, err := EncodedKernelVersion()
-	if err != nil {
-		return fmt.Errorf("error while querying installed kernel version: %s", err)
-	}
-
 	// Initialize probe_items array
 	pairs := []unix.RISCVHWProbePairs{
 		{Key: unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR},
@@ -299,7 +267,7 @@ func IsRISCVISASupported(isa string) error {
 	}
 
 	// Call the hwprobe syscall
-	err = RISCVHWProbe(pairs, nil, 0)
+	err := RISCVHWProbe(pairs, nil, 0)
 	if err != nil {
 		return fmt.Errorf("error while querying RVA23 extensions supported by CPU: %s", err)
 	}
@@ -309,10 +277,23 @@ func IsRISCVISASupported(isa string) error {
 		return fmt.Errorf("missing base RISC-V support")
 	}
 
+	// Retrieve running kernel version
+	kernelVersion := KernelVersion()
+
 	// Check extensions
 	for _, ext := range RiscVExtensions {
-		if pairs[1].Value&ext.Key == 0 && ext.Required && ext.Since <= version {
-			return fmt.Errorf("missing required RVA23 extension: %s", ext.Text)
+		if pairs[1].Value&ext.Key == 0 && ext.Required {
+			// Compare the running kernel version to the required one
+			versionDifference, err := strutil.VersionCompare(kernelVersion, ext.Since)
+			if err != nil {
+				return fmt.Errorf("error comparing kernel versions: %s", err)
+			}
+
+			// If running kernel version is equal (0) to the required one, or more recent (1)
+			// the extension is supposed to be supported and we return the error
+			if versionDifference >= 0 {
+				return fmt.Errorf("missing required RVA23 extension: %s", ext.Text)
+			}
 		}
 	}
 

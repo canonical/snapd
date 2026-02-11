@@ -29,64 +29,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ValidateEncodeKernelVersion struct {
-	testutil.BaseTest
-}
-
-var _ = Suite(&ValidateEncodeKernelVersion{})
-
-func (s *ValidateEncodeKernelVersion) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-}
-
-func (s *ValidateEncodeKernelVersion) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
-func (s *ValidateEncodeKernelVersion) TestEncodeKernelVersion(c *C) {
-	var assumesTests = []struct {
-		kernelVersion  string
-		expectedResult uint32
-		expectedError  string
-	}{
-		{
-			// Success case
-			kernelVersion:  "6.14.0-24-generic",
-			expectedResult: 0x0006000e,
-		}, {
-			// Incorrect value from uname
-			kernelVersion: "6-14-0-24-generic",
-			expectedError: "uname returned incorrect value: 6-14-0-24-generic",
-		}, {
-			// Major number parsing error
-			kernelVersion: "abc.14.0-24-generic",
-			expectedError: "error parsing major kernel version: abc",
-		}, {
-			// Minor number parsing error
-			kernelVersion: "6.abc.0-24-generic",
-			expectedError: "error parsing minor kernel version: abc",
-		},
-	}
-
-	for _, test := range assumesTests {
-		// Mock kernel version
-		restoreOsutilKernelVersion := arch.MockKernelVersion(test.kernelVersion)
-
-		c.Check(arch.KernelVersion(), Equals, test.kernelVersion)
-
-		result, err := arch.EncodedKernelVersion()
-
-		if test.expectedError == "" {
-			c.Check(err, IsNil)
-			c.Check(result, Equals, test.expectedResult)
-		} else {
-			c.Check(err, ErrorMatches, test.expectedError)
-		}
-
-		restoreOsutilKernelVersion()
-	}
-}
-
 type ISASupportSuite struct {
 	testutil.BaseTest
 }
@@ -207,13 +149,6 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			expectedRISCVHWProbeCall: true,
 			kernelVersion:            "6.14.0-24-generic",
 			expectedError:            "missing required RVA23 extension: Supm",
-		}, {
-			// Gracefully handle case where EncodeKernelVersion returns error
-			// due to malformed output of osutil.KernelVersion()
-			isa:           "rva23",
-			arch:          "riscv64",
-			kernelVersion: "6-14-0-24-generic",
-			expectedError: "error while querying installed kernel version: uname returned incorrect value: 6-14-0-24-generic",
 		},
 	}
 
