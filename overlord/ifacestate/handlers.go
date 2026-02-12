@@ -1556,7 +1556,7 @@ func findSetupProfilesTaskAfterAutoConnect(chg *state.Change, instanceName strin
 	if t == nil {
 		return nil
 	}
-	return snapstate.FindTaskByKind(t.WaitTasks(), "setup-profiles")
+	return snapstate.FindTaskByKindForSnap(t.HaltTasks(), "setup-profiles", instanceName)
 }
 
 // batchConnectTasks creates connect tasks and interface hooks for
