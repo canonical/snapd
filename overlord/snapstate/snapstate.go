@@ -1112,8 +1112,8 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
-func currentEssentialSnapNames(st *state.State) ([]string, error) {
-	deviceCtx, err := DeviceCtxFromState(st, nil)
+func currentEssentialSnapNames(st *state.State, providedDeviceCtx DeviceContext) ([]string, error) {
+	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,6 +1127,23 @@ func currentEssentialSnapNames(st *state.State) ([]string, error) {
 	if !strutil.ListContains(names, "snapd") {
 		names = append(names, "snapd")
 	}
+
+	return names, nil
+}
+
+func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]struct{}, error) {
+	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]struct{})
+	for _, sn := range deviceCtx.Model().AllSnaps() {
+		names[sn.SnapName()] = struct{}{}
+	}
+
+	// some models have an implicit snapd, make sure that we account for it here
+	names["snapd"] = struct{}{}
 
 	return names, nil
 }
@@ -1168,7 +1185,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// explicitly.
 	resolved := make(map[string]bool)
 
-	essential, err := currentEssentialSnapNames(st)
+	essential, err := currentEssentialSnapNames(st, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1721,7 +1738,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS); err != nil {
+	earlyDownloads, err := seedRefreshEarlyDownloads(st, opts.DeviceCtx, snapInstallTSS)
+	if err != nil {
+		return nil, false, nil, err
+	}
+
+	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS, earlyDownloads); err != nil {
 		return nil, false, nil, err
 	}
 
