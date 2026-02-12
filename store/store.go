@@ -86,6 +86,9 @@ var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
 	},
 ))
 
+// For testing purposes
+var squashfsSupportedDeltaFormats = squashfs.SupportedDeltaFormats
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -106,8 +109,7 @@ type Config struct {
 	DetailFields []string
 	InfoFields   []string
 	// search v2 fields
-	FindFields   []string
-	DeltaFormats string
+	FindFields []string
 
 	// CachePolicy defines the cache policy for downloaded snaps
 	CachePolicy CachePolicy
@@ -153,7 +155,6 @@ type Store struct {
 	detailFields []string
 	infoFields   []string
 	findFields   []string
-	deltaFormats string
 
 	auth Authorizer
 	// reused http client
@@ -170,10 +171,6 @@ type Store struct {
 	proxyConnectHeader http.Header
 
 	userAgent string
-
-	xdeltaCheckLock sync.Mutex
-	// whether we should use deltas or not
-	shouldUseDeltas *bool
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
@@ -384,11 +381,6 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		series = release.Series
 	}
 
-	deltaFormats := cfg.DeltaFormats
-	if deltaFormats == "" {
-		deltaFormats = squashfs.SupportedDeltaFormats()
-	}
-
 	userAgent := snapdenv.UserAgent()
 	proxyConnectHeader := http.Header{"User-Agent": []string{userAgent}}
 
@@ -402,7 +394,6 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields:         infoFields,
 		findFields:         findFields,
 		dauthCtx:           dauthCtx,
-		deltaFormats:       deltaFormats,
 		proxy:              cfg.Proxy,
 		proxyConnectHeader: proxyConnectHeader,
 		userAgent:          userAgent,
@@ -424,6 +415,16 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	store.SetCachePolicy(cfg.CachePolicy)
 
 	return store
+}
+
+func (s *Store) supportedDeltaFormats() []string {
+	withSnapStoreDelta := false
+	if s.dauthCtx != nil {
+		withSnapStoreDelta = s.dauthCtx.WithSnapStoreDelta()
+	}
+
+	return squashfsSupportedDeltaFormats(
+		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: withSnapStoreDelta})
 }
 
 // SetAssertionMaxFormats allows to change the assertion max formats to send
