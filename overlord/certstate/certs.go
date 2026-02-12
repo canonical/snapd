@@ -268,6 +268,11 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 // - /var/lib/snapd/pki/v1/added/ (user added certificates)
 // - /var/lib/snapd/pki/v1/blocked/ (user blocked certificates)
 //
+// Inside the added/ and blocked/ folders, the certificates are expected to be
+// named by their digest (sha256 hash of the certificate chain).
+// - /var/lib/snapd/pki/v1/added/<digest>.crt
+// - /var/lib/snapd/pki/v1/blocked/<digest>.crt
+//
 // The resulting ca-certificates.crt is written to
 // /var/lib/snapd/pki/v1/merged/ca-certificates.crt
 func GenerateCertificateDatabase() error {
