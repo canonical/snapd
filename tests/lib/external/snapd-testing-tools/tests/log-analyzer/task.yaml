@@ -5,7 +5,7 @@ details: |
     based on the spread log analysis. Also checks it properly retrieves the
     tests by result status and all the executed tasks.
 
-backends: [google]
+backends: [openstack]
 
 # Github actions agents are just running ubuntu jammy
 systems: [ubuntu-22.04-64]

@@ -5,7 +5,7 @@ details: |
     kernel snap to a workspace directory, and then repacks it back
     to a snap
 
-backends: [google]
+backends: [openstack]
 
 # ubuntu-core-initramfs seems to be only available on ubuntu-20.04
 systems: [ubuntu-20.04-64]
