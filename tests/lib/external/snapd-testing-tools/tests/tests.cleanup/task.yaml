@@ -4,7 +4,7 @@ details: |
     Check the tests.cleanup tool allows to defer, pop and
     restore commands in tests.
 
-backends: [google]
+backends: [openstack]
 
 systems: [ubuntu-18.04-64]
 

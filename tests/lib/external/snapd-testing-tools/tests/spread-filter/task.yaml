@@ -5,7 +5,7 @@ details: |
     to execute, following the rules defined for the project and based on a
     set of changes.
 
-backends: [google]
+backends: [openstack]
 
 systems: [ubuntu-22.04-64]
 

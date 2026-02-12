@@ -4,9 +4,9 @@ details: |
     Check the spread-manager tool allows setting a list of tests as manual.
     Also checks manual tag can be removed for a list of tests.
 
-backends: [google]
+backends: [openstack]
 
-systems: [ ubuntu-20.04-64 ]
+systems: [ubuntu-22.04-64]
 
 prepare: |
     wget -qO- wget https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar xvz
