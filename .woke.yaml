@@ -1,6 +1,4 @@
 ignore_files:
-  - build-aux/snap/local/apparmor/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
-  - build-aux/snap/local/apparmor/parser-add-support-for-prompting.patch
   - cmd/Makefile.am
   - cmd/configure.ac
   - cmd/libsnap-confine-private/snap.c
