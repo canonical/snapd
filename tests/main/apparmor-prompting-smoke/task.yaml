@@ -4,25 +4,37 @@ details: |
     Test that AppArmor Prompting is working for the home interface. The test checks for the
     correct handling of permission prompts as well as rules created by responses to prompts.
     To do so, it uses the prompt-requester to attempt to read a file which it does not have
-    read permission for triggering a prompt which is allowed or denied for either
-    a single request or some duration lifespan. The test then checks if the rules created as a
-    result of prompt response have the correct effect on the original and following request.
+    read permission for triggering a prompt which is allowed or denied for either a single
+    request, some duration, a session, or forever. The test then checks if the rules created as
+    a result of prompt response have the correct effect on the original and a following request.
 
 environment:
     TARGET_FILE/allow_prompt_single_lifespan: "/home/test/test_allow_prompt_single_lifespan/foo"
     TARGET_FILE/deny_prompt_single_lifespan: "/home/test/test_deny_prompt_single_lifespan/foo"
     TARGET_FILE/allow_prompt_timespan_lifespan: "/home/test/test_allow_prompt_timespan_lifespan/foo"
     TARGET_FILE/deny_prompt_timespan_lifespan: "/home/test/test_deny_prompt_timespan_lifespan/foo"
+    TARGET_FILE/allow_prompt_session_lifespan: "/home/test/test_allow_prompt_session_lifespan/foo"
+    TARGET_FILE/deny_prompt_session_lifespan: "/home/test/test_deny_prompt_session_lifespan/foo"
+    TARGET_FILE/allow_prompt_forever_lifespan: "/home/test/test_allow_prompt_forever_lifespan/foo"
+    TARGET_FILE/deny_prompt_forever_lifespan: "/home/test/test_deny_prompt_forever_lifespan/foo"
 
     PROMPT_RESPONSE/allow_prompt_single_lifespan: "allow"
     PROMPT_RESPONSE/deny_prompt_single_lifespan: "deny"
     PROMPT_RESPONSE/allow_prompt_timespan_lifespan: "allow"
     PROMPT_RESPONSE/deny_prompt_timespan_lifespan: "deny"
+    PROMPT_RESPONSE/allow_prompt_session_lifespan: "allow"
+    PROMPT_RESPONSE/deny_prompt_session_lifespan: "deny"
+    PROMPT_RESPONSE/allow_prompt_forever_lifespan: "allow"
+    PROMPT_RESPONSE/deny_prompt_forever_lifespan: "deny"
 
     LIFESPAN/allow_prompt_single_lifespan: "single"
     LIFESPAN/deny_prompt_single_lifespan: "single"
     LIFESPAN/allow_prompt_timespan_lifespan: "timespan"
     LIFESPAN/deny_prompt_timespan_lifespan: "timespan"
+    LIFESPAN/allow_prompt_session_lifespan: "session"
+    LIFESPAN/deny_prompt_session_lifespan: "session"
+    LIFESPAN/allow_prompt_forever_lifespan: "forever"
+    LIFESPAN/deny_prompt_forever_lifespan: "forever"
 
     DURATION: "20s"
 
@@ -64,9 +76,9 @@ restore: |
 
     echo "Remove any new listener ID file"
     rm -rf /{run,var/lib}/snapd/insterfaces-requests
+    rm -rf $(dirname $TARGET_FILE)
 
     snap remove test-snapd-prompt-handler
-    rm -rf $(dirname $TARGET_FILE)
 
 debug: |
     uname -a
@@ -95,8 +107,8 @@ execute: |
     echo "$RESULT" | gojq '.result | length' | MATCH 0
 
     START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
-    sleep 1
 
+    # temporary files are used to redirect stdout and stderr from attempts to read the target file
     TMP_STDOUT=$(mktemp)
     TMP_STDERR=$(mktemp)
 
@@ -118,12 +130,12 @@ execute: |
     echo "$RESULT" | gojq .result.constraints.path | MATCH "${TARGET_FILE}"
     PROMPT_ID="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
 
-    if [[ "$LIFESPAN" == "single" ]]; then
-      echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
-      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"single\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
-    elif [[ "$LIFESPAN" == "timespan" ]]; then
+    if [[ "$LIFESPAN" == "timespan" ]]; then
       echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
       RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
+    else
+      echo "Reply to the prompt with $PROMPT_RESPONSE for $LIFESPAN"
+      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
     fi
     echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
 
@@ -139,7 +151,7 @@ execute: |
         ;;
     esac
 
-    if [[ "$LIFESPAN" == "timespan" ]]; then
+    if [[ "$LIFESPAN" != "single" ]]; then
       echo "Check that there is a notice for rule creation"
       RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-rule-update&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
       echo "$RESULT" | MATCH '"status-code": 200'
@@ -170,8 +182,7 @@ execute: |
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
 
-    case "$LIFESPAN" in
-      "timespan")
+    if [[ "$LIFESPAN" != "single" ]]; then
         echo "Check for notices"
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=10s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "Ensure that request is autohandled"
@@ -187,11 +198,10 @@ execute: |
         echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "$LIFESPAN"
 
         echo "Check rule with ID $RULE_KEY has been removed"
-        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")" 
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")"
         echo "$RESULT" | gojq .result.message | MATCH "cannot find rule with the given ID"
         echo "$RESULT" | MATCH '"status-code": 404'
-        ;;
-      "single")
+    else
         echo "Wait for notice for prompt"
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "Ensure that request is not autohandled"
@@ -220,8 +230,7 @@ execute: |
         RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
         echo "$RESULT" | MATCH '"status-code": 200'
         echo "$RESULT" | gojq '.result | length' | MATCH 0
-        ;;
-    esac
+    fi
 
     echo "Wait for requester process to finish"
     wait "$REQUESTER_PID" || true
