@@ -25,9 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -291,6 +294,19 @@ func (s *promptingSuite) TestNewRequestFromListenerReply(c *C) {
 	badPerms := []string{"read", "foo"}
 	err = req.Reply(badPerms)
 	c.Check(err, ErrorMatches, "cannot map abstract permission to AppArmor permissions for the home interface: \"foo\"")
+
+	// Test ENOENT when sending response treated as not error
+	logbuf, restore := logger.MockDebugLogger()
+	fakeSendResponse = func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {
+		return fmt.Errorf("request probably timed out: %w", unix.ENOENT)
+	}
+	req, err = prompting.NewRequestFromListener(msg, fakeSendResponse)
+	c.Assert(err, IsNil)
+	c.Assert(req, NotNil)
+	err = req.Reply([]string{"read"})
+	c.Check(err, IsNil)
+	c.Check(logbuf.String(), testutil.Contains, "kernel returned ENOENT from APPARMOR_NOTIF_SEND")
+	restore()
 
 	// Test error when sending response
 	fakeSendResponse = func(recvID uint64, recvAaAllowed, recvAaRequested, userAllowed notify.AppArmorPermission) error {

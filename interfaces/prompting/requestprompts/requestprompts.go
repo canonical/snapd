@@ -31,8 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
@@ -160,17 +158,11 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 func (p *Prompt) sendReplyWithPermission(allowedPermissions []string) error {
 	for _, request := range p.requests {
 		if err := request.Reply(allowedPermissions); err != nil {
-			if errors.Is(err, unix.ENOENT) {
-				// If err is ENOENT, then notification with the given ID does not
-				// exist, so it timed out in the kernel.
-				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", request)
-			} else {
-				// Other errors should only occur if reply is malformed, and
-				// since these requests should be identical, if a reply is
-				// malformed for one, it should be malformed for all. Malformed
-				// replies should leave the request unchanged. Thus, return early.
-				return err
-			}
+			// Errors should only occur if reply is malformed, and since these
+			// requests should be identical, if a reply is malformed for one,
+			// it should be malformed for all. Malformed replies should leave
+			// the request unchanged. Thus, return early.
+			return err
 		}
 	}
 	return nil
