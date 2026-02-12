@@ -250,24 +250,12 @@ execute: |
     grep -c 'List ' efi-dbx-after-3.log | MATCH "$((initial_dbx_entries_count + 3))"
 
     # get the recovery key first
-    recovery_key=$(remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//')
+    tests.nested vm set-recovery-key "$(remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//')"
 
     boot_id="$(tests.nested boot-id)"
-    remote.exec "sudo reboot" || true
-
-    sent_recovery=0
-    for (( i=0 ; i < 100 ; i++ )); do
-      if [ "${sent_recovery}" -lt "$(tests.nested get serial-log | grep -c "Enter recovery key for")" ]; then
-        sent_recovery=$((sent_recovery+1))
-        echo "${recovery_key}" | nc -q 0 127.0.0.1 7777
-        break
-      fi
-      echo "-- still trying"
-      sleep 10
-    done
-
-    test "${sent_recovery}" -gt 0
-
+    tests.nested vm stop
+    tests.nested vm start
     remote.wait-for reboot "$boot_id"
+
     remote.exec "snap list"
-    remote.exec "sudo journalctl -b0" | MATCH "successfully activated encrypted device .* using a fallback activation method"
+    remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"  | gojq '.result.status' | MATCH "recovery"
