@@ -15,6 +15,7 @@ backends:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
                 image: ubuntu-2004-64
+                storage: 16G
             - ubuntu-22.04-64:
                 image: ubuntu-2204-64
             - ubuntu-24.04-64:
@@ -142,6 +143,31 @@ suites:
     tests/:
         summary: Main test suite for snapd-testing-tools project
         prepare: |
+            # setup snapd proxy if needed
+            if [ "${SNAPD_USE_PROXY:-}" = true ] && [ -n "$(command -v snap)" ]; then
+                mkdir -p /etc/systemd/system/snapd.service.d
+                PROXY_CONF=/etc/systemd/system/snapd.service.d/proxy.conf
+                {
+                echo "[Service]"
+                echo "Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+                } >> "$PROXY_CONF"
+
+                systemctl daemon-reload
+                systemctl restart snapd.service
+            fi
+
+            # setup system proxy if needed
+            if [ -n "${HTTPS_PROXY:-}" ]; then
+                {
+                echo "HTTPS_PROXY=$HTTPS_PROXY"
+                echo "HTTP_PROXY=$HTTP_PROXY"
+                echo "https_proxy=$HTTPS_PROXY"
+                echo "http_proxy=$HTTP_PROXY"
+                echo "NO_PROXY=$NO_PROXY"
+                echo "no_proxy=$NO_PROXY"
+                } >> /etc/environment
+            fi
+
             echo "Preparing snapd-testing-tools main suite"
             # Create users for the tests
             useradd -m tools-user-1

@@ -5,7 +5,7 @@ details: |
     logs and produce a json file with the logs info. This json file contains
     all the information from the log but structured in json format.
 
-backends: [google]
+backends: [openstack]
 
 # Github actions agents are just running ubuntu jammy
 systems: [ubuntu-22.04-64]

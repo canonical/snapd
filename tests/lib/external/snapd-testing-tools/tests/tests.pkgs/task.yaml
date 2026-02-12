@@ -5,7 +5,7 @@ details: |
     of the system being used. Verify that packages can be installed, queried
     and removed among other operations.
 
-backends: [google]
+backends: [openstack]
 
 execute: |
     if os.query is-core; then

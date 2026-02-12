@@ -91,7 +91,7 @@ get_boot_id() {
 }
 
 wait_for_reconnect_ssh() {
-    echo "remote.wait-for: waiting for ssh to reconnect"
+    echo "remote.wait-for: waiting for ssh to be reconnected"
     wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
     wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
 }
@@ -123,7 +123,7 @@ wait_for_reboot() {
     done
 
     echo ""
-    if [ "$last_boot_id" != "$initial_boot_id" ]; then
+    if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
         echo "remote.wait-for: reboot completed"
     else
         echo "remote.wait-for: boot id did not change"
