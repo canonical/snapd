@@ -146,7 +146,7 @@ func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 
 func (v *userDefinedType) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
 	// Secrets are not allowed in user-defined types so this code should never be reached
-	return nil, fmt.Errorf(`interal error: user-defined types cannot be pruned`)
+	return nil, fmt.Errorf(`internal error: user-defined types cannot be pruned`)
 }
 
 // aliasReference represents a reference to a user-defined type in the schema.
@@ -904,7 +904,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 	if err != nil {
 		return nil, err
 	}
-	m, ok := decoded.(map[string]json.RawMessage)
+	mapData, ok := decoded.(map[string]json.RawMessage)
 	if !ok {
 		return nil, err
 	}
@@ -912,70 +912,56 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 	pathKey := ""
 	if len(path) > 0 && path[0].Type() == MapKeyType {
 		pathKey = path[0].Name()
-		_, ok := m[pathKey]
+		_, ok := mapData[pathKey]
 		if !ok {
 			return nil, &NoDataError{}
 		}
 	}
 
-	childPath := []Accessor{}
+	var childPath []Accessor
 	if len(path) > 1 {
 		childPath = path[1:]
 	}
 	pruned := map[string]json.RawMessage{}
-	for key, value := range m {
+	for key, value := range mapData {
 		if pathKey != "" && pathKey != key {
 			// The data is not along the path. Do not prune; simply copy over
 			pruned[key] = value
 			continue
 		}
+		schema := v.valueSchema
 		if v.entrySchemas != nil {
-			valSchema, ok := v.entrySchemas[key]
+			schema, ok = v.entrySchemas[key]
 			if !ok {
 				return nil, fmt.Errorf(`map contains unexpected key "%s"`, key)
 			}
-			if len(path) > 0 && listContains(vis, valSchema.Visibility()) && path[0].Type() == MapKeyType {
+			if len(path) > 0 && listContains(vis, schema.Visibility()) && path[0].Type() == MapKeyType {
 				return nil, &UnauthorizedAccessError{}
 			}
-			res, err := valSchema.PruneByVisibility(childPath, vis, value)
-			if err != nil {
-				if (errors.Is(err, &NoDataError{}) ||
-					errors.Is(err, &UnauthorizedAccessError{})) &&
-					len(path) > 0 && path[0].Type() == KeyPlaceholderType {
-					// The only way for pruning to return these types of errors
-					// is if len(path) > 0. If the current path element is a placeholder,
-					// then we want to collect multiple entries and simply exclude
-					// those with private/no data rather than erroring here.
-					continue
-				}
-				return nil, err
-			}
-			if res != nil {
-				pruned[key] = res
-			}
 		}
-		if v.valueSchema != nil {
-			res, err := v.valueSchema.PruneByVisibility(childPath, vis, value)
-			if err != nil {
-				if (errors.Is(err, &NoDataError{}) ||
-					errors.Is(err, &UnauthorizedAccessError{})) &&
-					len(path) > 0 && path[0].Type() == KeyPlaceholderType {
-					continue
-				}
-				return nil, err
+		res, err := schema.PruneByVisibility(childPath, vis, value)
+		if err != nil {
+			if (errors.Is(err, &NoDataError{}) ||
+				errors.Is(err, &UnauthorizedAccessError{})) &&
+				len(path) > 0 && path[0].Type() == KeyPlaceholderType {
+				continue
 			}
-			if res != nil {
-				pruned[key] = res
-			}
+			return nil, err
+		}
+		if res != nil {
+			pruned[key] = res
 		}
 	}
-	if pathKey != "" {
-		if _, ok = pruned[pathKey]; !ok {
-			// Before entering in the prune loop, the entry existed.
-			// The only way it no longer exists is if it got pruned away
-			// and so we can consider this unauthorized.
-			return nil, &UnauthorizedAccessError{}
-		}
+	if _, ok = pruned[pathKey]; !ok && pathKey != "" ||
+		len(pruned) == 0 && len(path) > 0 && len(mapData) > 0 {
+		// Condition 1:
+		// Before entering in the prune loop, the entry existed.
+		// The only way it no longer exists is if it got pruned away
+		// and so we can consider this unauthorized.
+		// Condition 2:
+		// We are somewhere along the path and there was data in the map, yet it all got pruned.
+		// The data must therefore be unauthorized since a map cannot contain nulls.
+		return nil, &UnauthorizedAccessError{}
 	}
 	if len(pruned) > 0 {
 		marshalled, err := json.Marshal(pruned)
@@ -983,10 +969,6 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 			return nil, err
 		}
 		return marshalled, nil
-	} else if len(path) > 0 && len(m) > 0 {
-		// We are somewhere along the path and there was data in the map, yet it all got pruned.
-		// The data must therefore be unauthorized since a map cannot contain nulls.
-		return nil, &UnauthorizedAccessError{}
 	}
 	return nil, nil
 }
