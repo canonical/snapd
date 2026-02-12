@@ -162,8 +162,8 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.1.4/apparmor-v4.1.4.tar.gz
-    source-checksum: sha256/59d8dbc200bbec6bbbd9cd53c6046ef6017a7ce5e84de17d48a9eefaf5729ebc
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.1.6/apparmor-v4.1.6.tar.gz
+    source-checksum: sha256/a228c629f341008a5ffd044c8ef02ab8f0dcbcf17f77761a4612c0d1c5c26805
     override-build: |
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
