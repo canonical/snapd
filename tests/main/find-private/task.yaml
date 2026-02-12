@@ -38,7 +38,7 @@ execute: |
         echo "$result" | NOMATCH 'test-snapd-public +[0-9]+\.[0-9]+'
 
         echo "And searching for private snaps shows all of them and anything else"
-        result=$(snap find --private)
+        result=$(snap find test-snapd --private)
         echo "$result" | MATCH 'test-snapd-private2 +[0-9]+\.[0-9]+'
         echo "$result" | MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
         echo "$result" | NOMATCH 'test-snapd-public +[0-9]+\.[0-9]+'
