@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -261,6 +263,22 @@ func (sc *storeContext) StoreOffline() (bool, error) {
 	}
 
 	return offline, nil
+}
+
+func (sc *storeContext) WithSnapStoreDelta() bool {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
+	tr := config.NewTransaction(sc.state)
+	enabled, err := features.Flag(tr, features.SnapDeltaFormat)
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("cannot check snap-delta-format feature flag: %v", err)
+
+		// If the flag cannot be checked, assume disabled.
+		return false
+	}
+
+	return enabled
 }
 
 // CloudInfo returns the cloud instance information (if available).
