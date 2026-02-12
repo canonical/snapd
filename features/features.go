@@ -83,6 +83,8 @@ const (
 	RemoteDeviceManagement
 	// SeedRefresh enables experimental seed creation during model snap refresh.
 	SeedRefresh
+	// SnapDeltaFormat enables deltas that use the "snap delta" format
+	SnapDeltaFormat
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -137,6 +139,8 @@ var featureNames = map[SnapdFeature]string{
 	RemoteDeviceManagement: "remote-device-management",
 
 	SeedRefresh: "seed-refresh",
+
+	SnapDeltaFormat: "snap-delta-format",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
