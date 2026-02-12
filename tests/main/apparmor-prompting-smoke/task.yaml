@@ -166,8 +166,6 @@ execute: |
     echo "$RESULT" | MATCH '"status-code": 200'
     echo "$RESULT" | gojq '.result | length' | MATCH 0
 
-    # START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
-    # echo "START: $START"
     echo "Run command to read $TARGET_FILE again"
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
@@ -179,6 +177,19 @@ execute: |
         echo "Ensure that request is autohandled"
         echo "$RESULT" | MATCH '"status-code": 200'
         echo "$RESULT" | gojq '.result | length' | MATCH 0
+
+        echo "Remove rule with ID $RULE_KEY"
+        RESULT="$(echo '{"action":"remove"}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/rules/$RULE_KEY")"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq .result.interface | MATCH "home"
+        echo "$RESULT" | gojq .result.constraints.permissions.read.outcome | MATCH "$PROMPT_RESPONSE"
+        echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
+        echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "$LIFESPAN"
+
+        echo "Check rule with ID $RULE_KEY has been removed"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")" 
+        echo "$RESULT" | gojq .result.message | MATCH "cannot find rule with the given ID"
+        echo "$RESULT" | MATCH '"status-code": 404'
         ;;
       "single")
         echo "Wait for notice for prompt"
