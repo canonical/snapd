@@ -54,29 +54,33 @@ func (s *rebootSuite) taskSetForSnapSetup(snapName, base string, snapType snap.T
 		Type: snapType,
 		Base: base,
 	}
-	t1 := s.state.NewTask("snap-task", "...")
-	t1.Set("snap-setup", snapsup)
-	t2 := s.state.NewTask("unlink-snap", "...")
-	t2.WaitFor(t1)
-	t3 := s.state.NewTask("link-snap", "...")
-	t3.WaitFor(t2)
-	t4 := s.state.NewTask("auto-connect", "...")
-	t4.WaitFor(t3)
-	ts := state.NewTaskSet(t1, t2, t3, t4)
+	prereq := s.state.NewTask("prerequisites", "...")
+	prereq.Set("snap-setup", snapsup)
+	prepareSnap := s.state.NewTask("prepare-snap", "...")
+	prepareSnap.WaitFor(prereq)
+	unlinkSnap := s.state.NewTask("unlink-snap", "...")
+	unlinkSnap.WaitFor(prepareSnap)
+	linkSnap := s.state.NewTask("link-snap", "...")
+	linkSnap.WaitFor(unlinkSnap)
+	autoConnect := s.state.NewTask("auto-connect", "...")
+	autoConnect.WaitFor(linkSnap)
+	startServices := s.state.NewTask("start-snap-services", "...")
+	startServices.WaitFor(autoConnect)
+	ts := state.NewTaskSet(prereq, prepareSnap, unlinkSnap, linkSnap, autoConnect, startServices)
 	// 4 required edges
-	ts.MarkEdge(t1, snapstate.BeginEdge)
-	ts.MarkEdge(t3, snapstate.MaybeRebootEdge)
-	ts.MarkEdge(t4, snapstate.MaybeRebootWaitEdge)
-	ts.MarkEdge(t4, snapstate.EndEdge)
+	ts.MarkEdge(prereq, snapstate.BeginEdge)
+	ts.MarkEdge(linkSnap, snapstate.MaybeRebootEdge)
+	ts.MarkEdge(autoConnect, snapstate.MaybeRebootWaitEdge)
+	ts.MarkEdge(startServices, snapstate.EndEdge)
 	// Assign each TS a lane
 	ts.JoinLane(s.state.NewLane())
 
 	return snapstate.NewSnapInstallTaskSetForTest(
 		snapsup,
 		ts,
-		[]*state.Task{t1},
-		[]*state.Task{t2, t3},
-		[]*state.Task{t4},
+		[]*state.Task{prereq, prepareSnap},
+		[]*state.Task{unlinkSnap, linkSnap},
+		[]*state.Task{autoConnect, startServices},
 	)
 }
 
