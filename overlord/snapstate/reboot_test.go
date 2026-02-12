@@ -44,7 +44,7 @@ func (s *rebootSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-func (s *rebootSuite) taskSetForSnapSetup(snapName, base string, snapType snap.Type) snapstate.SnapInstallTaskSet {
+func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snapType snap.Type) snapstate.SnapInstallTaskSet {
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
@@ -78,9 +78,9 @@ func (s *rebootSuite) taskSetForSnapSetup(snapName, base string, snapType snap.T
 	return snapstate.NewSnapInstallTaskSetForTest(
 		snapsup,
 		ts,
-		[]*state.Task{prereq, prepareSnap},
-		[]*state.Task{unlinkSnap, linkSnap},
-		[]*state.Task{autoConnect, startServices},
+		[]*state.Task{prereq, prepareSnap},  // before local modification tasks
+		[]*state.Task{unlinkSnap, linkSnap}, // modification inducing tasks before reboot
+		[]*state.Task{autoConnect, startServices}, // post reboot tasks
 	)
 }
 
@@ -97,11 +97,11 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsNoBootBase(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("my-base", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("my-os", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("my-base", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("my-os", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	mappedTaskSets, err := snapstate.TaskSetsByTypeForEssentialSnaps(taskSetsFromInstallSets(stss), "")
 	c.Assert(err, IsNil)
@@ -116,11 +116,11 @@ func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsBootBase(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("my-base", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("my-os", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("my-base", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("my-os", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	mappedTaskSets, err := snapstate.TaskSetsByTypeForEssentialSnaps(taskSetsFromInstallSets(stss), "my-base")
 	c.Assert(err, IsNil)
@@ -271,11 +271,11 @@ func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC16(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("core", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, taskSetsFromInstallSets(stss))
 	c.Assert(err, IsNil)
@@ -293,11 +293,11 @@ func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC20(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("core", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, taskSetsFromInstallSets(stss))
 	c.Assert(err, IsNil)
@@ -330,10 +330,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsUC16NoSplits(c *C) {
 
 	// Run without gadget, as that will make it also non-split currently
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("core", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -355,11 +355,11 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssential(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("snapd", "", snap.TypeSnapd),
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -389,8 +389,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -459,8 +459,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -529,8 +529,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -599,9 +599,9 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -685,8 +685,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapd(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("snapd", "", snap.TypeSnapd),
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -709,9 +709,9 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBootBaseAndOtherBases(c *C) 
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("core18", "", snap.TypeBase),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("core18", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -733,9 +733,9 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBaseAndWithout(c 
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("snap-base", "", snap.TypeBase),
-		s.taskSetForSnapSetup("snap-base-app", "snap-base", snap.TypeApp),
-		s.taskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("snap-base", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("snap-base-app", "snap-base", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -763,9 +763,9 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBootBaseAndWithou
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("snap-core20-app", "snap-core20", snap.TypeApp),
-		s.taskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("snap-core20-app", "snap-core20", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("snap-other-app", "other-base", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
@@ -794,12 +794,12 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsAll(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		s.taskSetForSnapSetup("snapd", "", snap.TypeSnapd),
-		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.taskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
-		s.taskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
-		s.taskSetForSnapSetup("core", "", snap.TypeOS),
-		s.taskSetForSnapSetup("my-app", "", snap.TypeApp),
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("brand-gadget", "", snap.TypeGadget),
+		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
+		s.snapInstallTaskSetForSnapSetup("core", "", snap.TypeOS),
+		s.snapInstallTaskSetForSnapSetup("my-app", "", snap.TypeApp),
 	}
 	err := snapstate.ArrangeInstallTasksForSingleReboot(s.state, stss)
 	c.Assert(err, IsNil)
