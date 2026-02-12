@@ -229,6 +229,53 @@ jobs:
           fi
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
 
+    - name: Checkout snapd-testing-skip
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      uses: actions/checkout@v6
+      with:
+          repository: canonical/snapd-testing-skip
+          path: snapd-testing-skip
+
+    - name: Filter out tests to skip
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      run: |
+          spread_list="$(spread -list $RUN_TESTS 2>&1 || true)"
+          if [ -n "${{ inputs.skip-tests }}" ]; then
+              for test in ${{ inputs.skip-tests }}; do
+                  spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
+              done
+              echo RUN_TESTS="$spread_list"  >> $GITHUB_ENV
+          fi
+
+          if ! [ -d snapd-testing-skip/skip ]; then
+              exit 0
+          fi
+
+          SNAPD_TESTS_SKIP=
+          for file in snapd-testing-skip/skip/*; do
+              expire=$(yq -r '."skip-until"' "$file")
+              today=$(date "+%Y-%m-%d")
+              system=$(yq -r '."spread-system" // ".*"' "$file")
+              backend=$(yq -r '."spread-backend" // ".*"' "$file")
+              if [[ "$expire" > "$today" ]] && grep -Eq "$system" <<<"${{ inputs.systems }}" && grep -Eq "^$backend$" <<<"$SPREAD_BACKEND"; then
+                  task=$(yq -r '."spread-task"' "$file")
+                  SNAPD_TESTS_SKIP="${SNAPD_TESTS_SKIP} $(echo "$spread_list" | tr ' ' '\n' | grep "$task$" | tr '\n' ' ')"
+                  spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$task$" | tr '\n' ' ')
+                  echo RUN_TESTS="$spread_list"  >> $GITHUB_ENV
+              fi
+          done
+          
+          if [ -n "$SNAPD_TESTS_SKIP" ]; then
+              echo "$SNAPD_TESTS_SKIP" > skipped_tests_list.txt
+          fi
+
+    - name: Upload skipped tests list
+      uses: actions/upload-artifact@v5
+      with:
+        name: "skipped-tests-list-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: "skipped_tests_list.txt"
+        if-no-files-found: ignore
+
     - name: Check if system is required
       if: always()
       env:
@@ -348,27 +395,17 @@ jobs:
 
           # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
-          if [ -z "$RUN_TESTS" ]; then
+          if [ -z "${RUN_TESTS// /}" ]; then
             echo "No tests to run, exiting..."
             exit 0
           fi
 
-          spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
-          if [ -n "${{ inputs.skip-tests }}" ]; then
-            for test in ${{ inputs.skip-tests }}; do
-              spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
-            done
-            export RUN_TESTS=$spread_list
-            echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
-          fi
-
-          # If all spread tests are skipped, exit
-          if [ -z "${RUN_TESTS// /}" ]; then
-            echo "All tests are skipped, exiting..."
+          if grep -q "nothing matches provider filter" <<< "$RUN_TESTS"; then
+            echo "No tests to run, exiting..."
             exit 0
           fi
 
-          if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
+          if [[ "$RUN_TESTS" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
               # xdelta on a per-target basis as it's used in the repack section
               # of spread.yaml, which is shared by all targets, so all systems
@@ -384,11 +421,6 @@ jobs:
                   export SPREAD_SNAPD_DEB_FROM_REPO=false
                   ;;
           esac
-
-          if grep -q "nothing matches provider filter" <<< "$spread_list"; then
-            echo "No tests to run, exiting..."
-            exit 0
-          fi
 
           SPREAD_FLAGS='-no-debug-output -logs spread-logs -json results.json'
           if [ "${{ inputs.upload-artifacts }}" = true ]; then

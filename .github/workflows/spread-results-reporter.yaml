@@ -77,10 +77,34 @@ jobs:
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
               console.log(`Downloaded artifact: ${artifact.name}.zip`);
             }
+
+            let matchingSkips = allArtifacts.filter((artifact) => {
+              return artifact.name.startsWith(`skipped-tests-list-${context.payload.workflow_run.id}`);
+            });
+
+            for (let artifact of matchingSkips) {
+              let download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              let fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+              console.log(`Downloaded artifact: ${artifact.name}.zip`);
+            }
  
       - name: Unzip spread json files
         run: |
           find . -name "spread-results-${{ github.event.workflow_run.id }}*.zip" | while read filename; do 
+            dir="${filename%.zip}"
+            mkdir "$dir"
+            unzip "$filename" -d "$dir"
+          done
+ 
+      - name: Unzip spread skip files
+        run: |
+          find . -name "skipped-tests-list-${{ github.event.workflow_run.id }}*.zip" | while read filename; do 
             dir="${filename%.zip}"
             mkdir "$dir"
             unzip "$filename" -d "$dir"
@@ -125,6 +149,12 @@ jobs:
             fi
           fi
           ) > report
+
+          if find . -name skipped_tests_list.txt | grep -q .; then
+            echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)" >> report
+            find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sort -u | awk '{print "- "$1}' >> report
+          fi
+
           # display the report
           grep -n '' report
 
