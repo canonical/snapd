@@ -32,15 +32,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
@@ -999,73 +996,6 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		expectedMap = map[string]requestprompts.RequestMapEntry{}
 		s.checkWrittenRequestMap(c, expectedMap)
 	}
-}
-
-func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
-	logbuf, restore := logger.MockDebugLogger()
-	defer restore()
-
-	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
-	c.Assert(err, IsNil)
-	defer pdb.Close()
-
-	metadata := &prompting.Metadata{
-		User:      s.defaultUser,
-		Snap:      "nextcloud",
-		PID:       123,
-		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup-id.scope",
-		Interface: "home",
-	}
-	path := "/home/test/Documents/foo.txt"
-	permissions := []string{"read", "write", "execute"}
-	outcome := prompting.OutcomeAllow
-
-	// call f, then return an error
-	replyWithError := func(f func([]string) error) func([]string) error {
-		return func(allowedPerms []string) error {
-			f(allowedPerms)
-			// Return ENOENT, indicating that the notification does not exist.
-			// If the prompt exists but the notification does not, then the
-			// notification most likely timed out in the kernel.
-			return unix.ENOENT
-		}
-	}
-
-	req1, replyChan1 := newRequestWithReplyChan("fake:1")
-	req1.Reply = replyWithError(req1.Reply)
-	req2, replyChan2 := newRequestWithReplyChan("fake:2")
-	req2.Reply = replyWithError(req2.Reply)
-
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req1)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, false)
-
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
-
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req2)
-	c.Assert(err, IsNil)
-	c.Check(merged, Equals, true)
-	c.Check(prompt2, Equals, prompt1)
-
-	// Merged prompts should re-record notice
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
-
-	clientActivity := true // doesn't matter if it's true or false for this test
-	repliedPrompt, err := pdb.Reply(metadata.User, prompt1.ID, outcome, clientActivity)
-	c.Check(err, IsNil)
-	c.Check(repliedPrompt, Equals, prompt1)
-	for _, replyChan := range []<-chan []string{replyChan1, replyChan2} {
-		allowedPerms := waitForReply(c, replyChan)
-		// Check that permissions in response matches the prompt's permissions
-		c.Check(allowedPerms, DeepEquals, prompt1.Constraints.OutstandingPermissions())
-	}
-
-	expectedData := map[string]string{"resolved": "replied"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
-
-	// Expect two messages containing the following:
-	logMsg := "kernel returned ENOENT from APPARMOR_NOTIF_SEND"
-	c.Check(logbuf.String(), testutil.MatchesWrapped, fmt.Sprintf(".*%s.*%s.*", logMsg, logMsg))
 }
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {

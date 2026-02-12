@@ -28,8 +28,11 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/interfaces/builtin"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -110,14 +113,7 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 	if err != nil {
 		return nil, err
 	}
-	reply := func(allowedPermissions []string) error {
-		userAllowed, err := AbstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
-		if err != nil {
-			return err
-		}
-		return sendResponse(id, aaAllowed, aaRequested, userAllowed)
-	}
-	return &Request{
+	req := &Request{
 		Key:           key,
 		UID:           msg.SubjectUID(),
 		PID:           pid,
@@ -126,8 +122,22 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 		Interface:     iface,
 		Permissions:   requestedPerms,
 		Path:          path,
-		Reply:         reply,
-	}, nil
+	}
+	req.Reply = func(allowedPermissions []string) error {
+		userAllowed, err := AbstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
+		if err != nil {
+			return err
+		}
+		err = sendResponse(id, aaAllowed, aaRequested, userAllowed)
+		if errors.Is(err, unix.ENOENT) {
+			// If err is ENOENT, then notification with the given ID does not
+			// exist, so it timed out in the kernel.
+			logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", req)
+			return nil
+		}
+		return err
+	}
+	return req, nil
 }
 
 func buildListenerRequestKey(iface string, id uint64) string {

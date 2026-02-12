@@ -401,11 +401,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 
 	// Check that constraints matches original requested path.
-	// AppArmor is responsible for pre-vetting that all paths which appear
-	// in requests from the kernel are allowed by the appropriate
-	// interfaces, so we do not assert anything else particular about the
-	// constraints, such as check that the path pattern does not match
-	// any paths not granted by the interface.
+	// We do not assert anything else particular about the constraints, such
+	// as check that the path pattern does not match any paths not granted by
+	// the interface.
 	// TODO: Should this be reconsidered?
 	matches, err := constraints.PathPattern().Match(prompt.Constraints.Path())
 	if err != nil {
