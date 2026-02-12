@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
-//go:build linux && riscv64
+//go:build linux && !riscv64
 
 /*
  * Copyright (C) Canonical Ltd
@@ -22,27 +22,59 @@
 package arch_test
 
 import (
-	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ISASupportSuite struct {
+var oldArch = ""
+
+type NonRISCVISASuite struct {
 	testutil.BaseTest
 }
 
-var _ = Suite(&ISASupportSuite{})
+var _ = Suite(&NonRISCVISASuite{})
 
-func (s *ISASupportSuite) SetUpSuite(c *C) {
+func (s *NonRISCVISASuite) SetUpSuite(c *C) {
+	oldArch = arch.DpkgArchitecture()
+}
+
+func (s *NonRISCVISASuite) TearDownSuite(c *C) {
+	arch.SetArchitecture(arch.ArchitectureType(oldArch))
+}
+
+func (s *NonRISCVISASuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+}
+
+func (s *NonRISCVISASuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
+func (s *NonRISCVISASuite) TestValidateAssumesISARISCVWrongArch(c *C) {
+	// Non-riscv64 built executable is running on riscv64
+	isa := "rva23"
+
+	err := arch.IsRISCVISASupported(isa)
+
+	c.Check(err, ErrorMatches, "cannot validate RiscV ISA support while running on: amd64")
+}
+
+type RISCVISASuite struct {
+	testutil.BaseTest
+}
+
+var _ = Suite(&RISCVISASuite{})
+
+func (s *RISCVISASuite) SetUpSuite(c *C) {
 	// Construct bitmasks with the minimal extensions needed
-	minimumRVA23Extensions = []unix.RISCVHWProbePairs{
+	minimumRVA23Extensions = []arch.RISCVHWProbePairs{
 		{
-			Key:   unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
-			Value: unix.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
+			Key:   arch.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
+			Value: arch.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
 		},
-		{Key: unix.RISCV_HWPROBE_KEY_IMA_EXT_0},
+		{Key: arch.RISCV_HWPROBE_KEY_IMA_EXT_0},
 	}
 
 	// OR all the required extensions' keys
@@ -51,23 +83,30 @@ func (s *ISASupportSuite) SetUpSuite(c *C) {
 			minimumRVA23Extensions[1].Value |= ext.Key
 		}
 	}
+
+	oldArch = arch.DpkgArchitecture()
+	arch.SetArchitecture("riscv64")
 }
 
-func (s *ISASupportSuite) SetUpTest(c *C) {
+func (s *RISCVISASuite) TearDownSuite(c *C) {
+	arch.SetArchitecture(arch.ArchitectureType(oldArch))
+}
+
+func (s *RISCVISASuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 }
 
-func (s *ISASupportSuite) TearDownTest(c *C) {
+func (s *RISCVISASuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-var minimumRVA23Extensions []unix.RISCVHWProbePairs
+var minimumRVA23Extensions []arch.RISCVHWProbePairs
 
-func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
+func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 	var assumesTests = []struct {
 		isa                      string
 		arch                     string
-		supportedExtensions      []unix.RISCVHWProbePairs
+		supportedExtensions      []arch.RISCVHWProbePairs
 		expectedRISCVHWProbeCall bool
 		hwprobeSyscallError      string
 		kernelVersion            string
@@ -90,9 +129,9 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			// Base IMA support missing
 			isa:  "rva23",
 			arch: "riscv64",
-			supportedExtensions: []unix.RISCVHWProbePairs{
+			supportedExtensions: []arch.RISCVHWProbePairs{
 				{
-					Key:   unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
+					Key:   arch.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
 					Value: 0,
 				},
 				minimumRVA23Extensions[1],
@@ -103,10 +142,10 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			// Missing required Zicboz extension, not dependent on kernel version
 			isa:  "rva23",
 			arch: "riscv64",
-			supportedExtensions: []unix.RISCVHWProbePairs{
+			supportedExtensions: []arch.RISCVHWProbePairs{
 				minimumRVA23Extensions[0],
 				{
-					Key:   unix.RISCV_HWPROBE_KEY_IMA_EXT_0,
+					Key:   arch.RISCV_HWPROBE_KEY_IMA_EXT_0,
 					Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_ZICBOZ,
 				},
 			},
@@ -125,10 +164,10 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			// does not generate errors when running on 6.14
 			isa:  "rva23",
 			arch: "riscv64",
-			supportedExtensions: []unix.RISCVHWProbePairs{
+			supportedExtensions: []arch.RISCVHWProbePairs{
 				minimumRVA23Extensions[0],
 				{
-					Key:   unix.RISCV_HWPROBE_KEY_IMA_EXT_0,
+					Key:   arch.RISCV_HWPROBE_KEY_IMA_EXT_0,
 					Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_ZICNTR,
 				},
 			},
@@ -139,10 +178,10 @@ func (s *ISASupportSuite) TestValidateAssumesISARISCV(c *C) {
 			// returns error when running on 6.14
 			isa:  "rva23",
 			arch: "riscv64",
-			supportedExtensions: []unix.RISCVHWProbePairs{
+			supportedExtensions: []arch.RISCVHWProbePairs{
 				minimumRVA23Extensions[0],
 				{
-					Key:   unix.RISCV_HWPROBE_KEY_IMA_EXT_0,
+					Key:   arch.RISCV_HWPROBE_KEY_IMA_EXT_0,
 					Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_SUPM,
 				},
 			},

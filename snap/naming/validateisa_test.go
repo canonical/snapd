@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
-//go:build linux && riscv64
 
 /*
  * Copyright (C) Canonical Ltd
@@ -22,7 +21,6 @@
 package naming_test
 
 import (
-	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -30,20 +28,20 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ValidateISASuite struct {
+type ValidateRISCVISASuite struct {
 	testutil.BaseTest
 }
 
-var _ = Suite(&ValidateISASuite{})
+var _ = Suite(&ValidateRISCVISASuite{})
 
-func (s *ValidateISASuite) SetUpSuite(c *C) {
+func (s *ValidateRISCVISASuite) SetUpSuite(c *C) {
 	// Construct bitmasks with the minimal extensions needed
-	minimumRVA23Extensions = []unix.RISCVHWProbePairs{
+	minimumRVA23Extensions = []arch.RISCVHWProbePairs{
 		{
-			Key:   unix.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
-			Value: unix.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
+			Key:   arch.RISCV_HWPROBE_KEY_BASE_BEHAVIOR,
+			Value: arch.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
 		},
-		{Key: unix.RISCV_HWPROBE_KEY_IMA_EXT_0},
+		{Key: arch.RISCV_HWPROBE_KEY_IMA_EXT_0},
 	}
 
 	// OR all the required extensions' keys
@@ -54,21 +52,21 @@ func (s *ValidateISASuite) SetUpSuite(c *C) {
 	}
 }
 
-func (s *ValidateISASuite) SetUpTest(c *C) {
+func (s *ValidateRISCVISASuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 }
 
-func (s *ValidateISASuite) TearDownTest(c *C) {
+func (s *ValidateRISCVISASuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-var minimumRVA23Extensions []unix.RISCVHWProbePairs
+var minimumRVA23Extensions []arch.RISCVHWProbePairs
 
-func (s *ValidateISASuite) TestValidateAssumesISARISCV(c *C) {
+func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 	var assumesTests = []struct {
 		assumes                  []string
 		arch                     string
-		supportedExtensions      []unix.RISCVHWProbePairs
+		supportedExtensions      []arch.RISCVHWProbePairs
 		isRISCVISASupportedError string
 		expectedError            string
 	}{
