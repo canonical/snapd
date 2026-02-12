@@ -13,18 +13,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-DRACUTDIR := /usr/lib/dracut
-FILESDIR := $(DRACUTDIR)/dracut.conf.d
+DRACUT_DIR := /usr/lib/dracut
+DRACUT_CONF_DIR := $(DRACUT_DIR)/dracut.conf.d
 
-DRACUTFILES_CONF = $(wildcard *.conf)
+DRACUT_CONF_FILES = $(wildcard *.conf)
 
 .PHONY: all
-all: $(DRACUTFILES_CONF)
+all: $(DRACUT_CONF_FILES)
 
 .PHONY: install
-install: $(DRACUTFILES_CONF)
-	install -d -m 0755 $(DESTDIR)/$(FILESDIR)
-	install -m 0644 -t $(DESTDIR)/$(FILESDIR) $^
+install: $(DRACUT_CONF_FILES)
+	install -d -m 0755 $(DESTDIR)/$(DRACUT_CONF_DIR)
+	install -m 0644 -t $(DESTDIR)/$(DRACUT_CONF_DIR) $^
 
 .PHONY: clean
 clean:
