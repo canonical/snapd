@@ -13137,7 +13137,7 @@ func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
-func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[string]bool) {
+func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[string]bool, responseMode throttledRefreshResponseMode) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -13171,15 +13171,22 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 		}
 
 		var actionResult []store.SnapActionResult
+		currentRevisionBySnapID := make(map[string]snap.Revision, len(cs))
+		for _, cur := range cs {
+			currentRevisionBySnapID[cur.SnapID] = cur.Revision
+		}
 		for _, action := range sa {
 			requestSnapToAction[action.InstanceName] = action
-
-			// throttle refresh requests if this is an auto-refresh
-			if isThrottled[action.SnapID] && ro.Scheduled {
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseOmit {
 				continue
 			}
+
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
+
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseEchoCurrent {
+				info.Revision = currentRevisionBySnapID[action.SnapID]
+			}
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
 		}
 
@@ -13338,12 +13345,22 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.testUpdateManyRevOptsOrder(c, nil)
+	s.testUpdateManyRevOptsOrder(c, nil, throttledRefreshResponseEchoCurrent)
 }
 
 func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.testRefreshCandidatesThrottledRevOptsRemap(c, throttledRefreshResponseEchoCurrent)
+}
+
+func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemapOmitted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.testRefreshCandidatesThrottledRevOptsRemap(c, throttledRefreshResponseOmit)
+}
+
+func (s *snapmgrTestSuite) testRefreshCandidatesThrottledRevOptsRemap(c *C, responseMode throttledRefreshResponseMode) {
 
 	// simulate existing monitored refresh hint from older refresh
 	cands := map[string]*snapstate.RefreshCandidate{
@@ -13358,7 +13375,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemap(c *C) {
 		"snap-c-id":          true,
 	}
 
-	s.testUpdateManyRevOptsOrder(c, isThrottled)
+	s.testUpdateManyRevOptsOrder(c, isThrottled, responseMode)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyFilteredForSnapsNotInOldHints(c *C) {
@@ -13478,16 +13495,21 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
 		storeCalled++
 
 		var actionResult []store.SnapActionResult
+		currentRevisionBySnapID := make(map[string]snap.Revision, len(cs))
+		for _, cur := range cs {
+			currentRevisionBySnapID[cur.SnapID] = cur.Revision
+		}
 		for _, action := range sa {
 			storeSnapIDs[action.SnapID] = true
 
-			// throttle some-other-snap to trigger retry
-			if action.SnapID == "some-other-snap-id" {
-				continue
-			}
-
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
+
+			// throttle some-other-snap by returning the revision from the request
+			// context.
+			if action.SnapID == "some-other-snap-id" {
+				info.Revision = currentRevisionBySnapID[action.SnapID]
+			}
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
 		}
 

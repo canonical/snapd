@@ -340,9 +340,11 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 
 // storeUpdatePlan is a wrapper for storeUpdatePlanCore.
 //
-// It addresses the case where the store doesn't return refresh candidates for
-// snaps with already existing monitored refresh-candidates due to inconsistent
-// store return being caused by the throttling.
+// It addresses the case where store throttling causes inconsistent refresh
+// candidates for snaps with already existing monitored refresh-candidates.
+// Throttled results currently include the same revision as in the input
+// context, which means there is no effective update and those snaps need to be
+// retried.
 // A second request is sent for eligible snaps that might have been throttled
 // with the RevisionOptions.Scheduled option turned off.
 //
@@ -365,30 +367,76 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 		return plan, nil
 	}
 
-	var oldHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// do nothing
-			return plan, nil
-		}
-
-		return updatePlan{}, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	needsRetry, err := detectThrottledUpdatesToRetry(st, requested, plan)
+	if err != nil {
+		return updatePlan{}, err
 	}
 
-	missingRequests := make(map[string]StoreUpdate)
+	if len(needsRetry) > 0 {
+		if err := validateAndInitStoreUpdates(st, allSnaps, needsRetry, opts); err != nil {
+			return updatePlan{}, err
+		}
+
+		// drop anything from the plan that we're about to retry. we'll add them
+		// back after we get the non-throttled responses from the store.
+		if err := plan.filter(func(t target) (bool, error) {
+			_, retrying := needsRetry[t.info.InstanceName()]
+			return !retrying, nil
+		}); err != nil {
+			return updatePlan{}, err
+		}
+
+		// mimic manual refresh to avoid throttling.
+		// context: snaps may be throttled by the store to balance load
+		// and therefore may not always receive an update (even if one was
+		// returned before). forcing a manual refresh should be fine since
+		// we already started a pre-download for this snap, so no extra
+		// load is being exerted on the store.
+		retryOpts := *refreshOpts
+		retryOpts.Scheduled = false
+		retryPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, needsRetry, user, &retryOpts, opts)
+		if err != nil {
+			return updatePlan{}, err
+		}
+		plan.targets = append(plan.targets, retryPlan.targets...)
+	}
+
+	return plan, nil
+}
+
+func detectThrottledUpdatesToRetry(st *state.State, requested map[string]StoreUpdate, plan updatePlan) (retry map[string]StoreUpdate, err error) {
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		// no refresh-candidates, nothing to do
+		if errors.Is(err, &state.NoStateError{}) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	targetByName := make(map[string]target, len(plan.targets))
+	for _, update := range plan.targets {
+		targetByName[update.info.InstanceName()] = update
+	}
+
+	retry = make(map[string]StoreUpdate)
 	for name, hint := range oldHints {
 		if !hint.Monitored {
 			continue
 		}
-		hasUpdate := false
-		for _, update := range plan.targets {
-			if update.info.InstanceName() == name {
-				hasUpdate = true
-				break
+
+		if update, ok := targetByName[name]; ok {
+			// if we are monitoring the snap for refresh and get back the same
+			// revision from the store, treat it as throttled and retry
+			satisfied, err := areRevisionsSatisfied(&update.snapst, update.info.Revision, update.components)
+			if err != nil {
+				return nil, err
 			}
-		}
-		if hasUpdate {
-			continue
+
+			if !satisfied {
+				continue
+			}
 		}
 
 		req, ok := requested[name]
@@ -399,29 +447,9 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 			req = StoreUpdate{InstanceName: name}
 		}
 
-		missingRequests[name] = req
+		retry[name] = req
 	}
-
-	if len(missingRequests) > 0 {
-		if err := validateAndInitStoreUpdates(st, allSnaps, missingRequests, opts); err != nil {
-			return updatePlan{}, err
-		}
-
-		// mimic manual refresh to avoid throttling.
-		// context: snaps may be throttled by the store to balance load
-		// and therefore may not always receive an update (even if one was
-		// returned before). forcing a manual refresh should be fine since
-		// we already started a pre-download for this snap, so no extra
-		// load is being exerted on the store.
-		refreshOpts.Scheduled = false
-		extraPlan, err := storeUpdatePlanCore(ctx, st, allSnaps, missingRequests, user, refreshOpts, opts)
-		if err != nil {
-			return updatePlan{}, err
-		}
-		plan.targets = append(plan.targets, extraPlan.targets...)
-	}
-
-	return plan, nil
+	return retry, nil
 }
 
 func storeUpdatePlanCore(

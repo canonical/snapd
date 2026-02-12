@@ -947,7 +947,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 
 	changes := make([]*snap.Info, 0, len(updates))
 	for _, up := range updates {
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, err
 		}
