@@ -240,6 +240,11 @@ jobs:
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       run: |
           spread_list="$(spread -list $RUN_TESTS 2>&1 || true)"
+          if grep -q "nothing matches provider filter" <<< "$spread_list"; then
+            echo "No tests to run"
+            echo RUN_TESTS=""  >> $GITHUB_ENV
+            exit 0
+          fi
           if [ -n "${{ inputs.skip-tests }}" ]; then
               for test in ${{ inputs.skip-tests }}; do
                   spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
@@ -396,11 +401,6 @@ jobs:
           # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
           if [ -z "${RUN_TESTS// /}" ]; then
-            echo "No tests to run, exiting..."
-            exit 0
-          fi
-
-          if grep -q "nothing matches provider filter" <<< "$RUN_TESTS"; then
             echo "No tests to run, exiting..."
             exit 0
           fi
