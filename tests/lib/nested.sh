@@ -1041,6 +1041,12 @@ nested_create_core_vm() {
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
                 $EXTRA_SNAPS |& tee "$NESTED_LOGS_DIR/ubuntu-image.log"
 
+            return_code="${PIPESTATUS[0]}"
+            if [ "$return_code" -ne 0 ]; then
+                echo "ERROR: ubuntu-image failed with exit code $return_code (see $NESTED_LOGS_DIR/ubuntu-image.log)"
+                exit "$return_code"
+            fi
+
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
