@@ -33,6 +33,9 @@ skip:
     - if: |
         [[ "$SPREAD_BACKEND" =~ google ]] && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
       reason: The nis and windbind variants are not supported on google due to lack of virtualization
+    - if: |
+        [[ "$SPREAD_SYSTEM" =~ ubuntu-18 ]] && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
+      reason: The nis and windbind variants are not supported on ubuntu 18.04 due to a lack of a support of LXD VMs
 
 prepare: |
     backup_if_exists() {
