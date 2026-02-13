@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: account
+    in: path
+    required: true
+    schema:
+      type: string
+  - name: confdb-schema
+    in: path
+    required: true
+    schema:
+      type: string
+  - name: view
+    in: path
+    required: true
+    schema:
+      type: string
+
+get:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Experimental
+  summary: Get configurations from confdb
+  description: |-
+    Retrieves configuration values from confdb.
+  operationId: getConfdb
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: keys
+      in: query
+      description: |-
+        A comma-separated list of configuration paths to read from. These paths
+        refer to rules defined in the view specified in the URL. If no list is
+        provided, the GET will match with all readable view rules and return any
+        stored values for those. If there are no stored configuration values for
+        a subset of the fields, those fields will be omitted from the result
+        object.
+      schema:
+        type: string
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+put:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Experimental
+  summary: Set configurations in confdb
+  description: |-
+    Sets configuration values in confdb.
+  operationId: setConfdb
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          description: |-
+            A map of configuration paths to their values. Use null to
+            unset a value.
+          additionalProperties: true
+          example:
+            office.ssid: foo
+            password: null
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

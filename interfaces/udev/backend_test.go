@@ -159,7 +159,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
 		s.udevadmCmd.ForgetCalls()
-		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// rules are not re-loaded when nothing changes
 		c.Check(s.udevadmCmd.Calls(), HasLen, 0)

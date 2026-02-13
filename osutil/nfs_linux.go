@@ -21,7 +21,11 @@ package osutil
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+	"syscall"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 var etcFstab = "/etc/fstab"
@@ -56,5 +60,38 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 			}
 		}
 	}
+	return false, nil
+}
+
+var dirsAllDataHomeGlobs = dirs.AllDataHomeGlobs
+
+// snapDirsUnderNFSMounts checks if there are any snap user data directories
+// in NFS filesystems.
+var snapDirsUnderNFSMounts = func() (bool, error) {
+	var ds []string
+	for _, entry := range dirsAllDataHomeGlobs() {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return false, err
+		}
+		ds = append(ds, entryPaths...)
+	}
+
+	const (
+		NFS = 0x6969
+	)
+
+	for _, d := range ds {
+		var info syscall.Statfs_t
+		err := syscallStatfs(d, &info)
+		if err != nil {
+			return false, err
+		}
+
+		if info.Type == NFS {
+			return true, nil
+		}
+	}
+
 	return false, nil
 }

@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+properties:
+  timestamp:
+    type: string
+    format: date-time
+    description: The timestamp of the log entry in RFC3339 UTC format.
+    example: 2025-09-11T15:10:22.264675Z
+  message:
+    type: string
+    description: The content of the log message.
+    example: Failed to get https://cloud-images.ubuntu.com/releases/streams/v1/index.json
+  sid:
+    type: string
+    description: The service identifier for the log entry.
+    example: multipassd
+  pid:
+    type: string
+    description: The process ID associated with the log entry.
+    example: '2062'

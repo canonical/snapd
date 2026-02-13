@@ -10956,12 +10956,12 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		SnapType: string(snap.TypeApp),
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
 
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+	ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 
 	var busyErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -10971,7 +10971,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 	})
 
-	tasks := ts.Tasks()
+	tasks := ts.TaskSet().Tasks()
 	c.Assert(tasks, HasLen, 1)
 	c.Assert(tasks[0].Kind(), Equals, "pre-download-snap")
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
@@ -11633,7 +11633,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 		SnapType: string(snap.TypeApp),
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
-	snapsup := snapstate.SnapSetup{
+	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
@@ -11648,7 +11648,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	// don't create a pre-download task if one exists w/ these statuses
 	for _, status := range []state.Status{state.DoStatus, state.DoingStatus} {
 		task.SetStatus(status)
-		ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+		_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 
 		var busyErr *snapstate.TimedBusySnapError
 		c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -11657,7 +11657,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 			InstanceName:  "some-snap",
 			TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 		})
-		c.Assert(ts, IsNil)
 
 		// reset modified state to avoid conflicts
 		snapst.RefreshInhibitedTime = nil
@@ -11666,9 +11665,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 
 	// a "Done" pre-download is ignored since the auto-refresh it causes might also be done
 	task.SetStatus(state.DoneStatus)
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
+	ts, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
-	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.TaskSet().Tasks(), HasLen, 1)
 }
 
 func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
@@ -13138,7 +13137,7 @@ func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
-func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[string]bool) {
+func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[string]bool, responseMode throttledRefreshResponseMode) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -13172,15 +13171,22 @@ func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[stri
 		}
 
 		var actionResult []store.SnapActionResult
+		currentRevisionBySnapID := make(map[string]snap.Revision, len(cs))
+		for _, cur := range cs {
+			currentRevisionBySnapID[cur.SnapID] = cur.Revision
+		}
 		for _, action := range sa {
 			requestSnapToAction[action.InstanceName] = action
-
-			// throttle refresh requests if this is an auto-refresh
-			if isThrottled[action.SnapID] && ro.Scheduled {
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseOmit {
 				continue
 			}
+
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
+
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseEchoCurrent {
+				info.Revision = currentRevisionBySnapID[action.SnapID]
+			}
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
 		}
 
@@ -13339,12 +13345,22 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.testUpdateManyRevOptsOrder(c, nil)
+	s.testUpdateManyRevOptsOrder(c, nil, throttledRefreshResponseEchoCurrent)
 }
 
 func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.testRefreshCandidatesThrottledRevOptsRemap(c, throttledRefreshResponseEchoCurrent)
+}
+
+func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemapOmitted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.testRefreshCandidatesThrottledRevOptsRemap(c, throttledRefreshResponseOmit)
+}
+
+func (s *snapmgrTestSuite) testRefreshCandidatesThrottledRevOptsRemap(c *C, responseMode throttledRefreshResponseMode) {
 
 	// simulate existing monitored refresh hint from older refresh
 	cands := map[string]*snapstate.RefreshCandidate{
@@ -13359,7 +13375,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemap(c *C) {
 		"snap-c-id":          true,
 	}
 
-	s.testUpdateManyRevOptsOrder(c, isThrottled)
+	s.testUpdateManyRevOptsOrder(c, isThrottled, responseMode)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyFilteredForSnapsNotInOldHints(c *C) {
@@ -13479,16 +13495,21 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
 		storeCalled++
 
 		var actionResult []store.SnapActionResult
+		currentRevisionBySnapID := make(map[string]snap.Revision, len(cs))
+		for _, cur := range cs {
+			currentRevisionBySnapID[cur.SnapID] = cur.Revision
+		}
 		for _, action := range sa {
 			storeSnapIDs[action.SnapID] = true
 
-			// throttle some-other-snap to trigger retry
-			if action.SnapID == "some-other-snap-id" {
-				continue
-			}
-
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
+
+			// throttle some-other-snap by returning the revision from the request
+			// context.
+			if action.SnapID == "some-other-snap-id" {
+				info.Revision = currentRevisionBySnapID[action.SnapID]
+			}
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
 		}
 
@@ -16172,7 +16193,13 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Check(finishRestart, Equals, false)
 	} else {
 		c.Check(preRebootTask.Kind(), Equals, "link-snap")
-		c.Check(postRebootTask.Kind(), Equals, "auto-connect")
+		// if non-kernel module components are present, component linking is the
+		// first post-reboot task. otherwise, it is auto-connect.
+		if len(opts.postRefreshComponents) > 0 {
+			c.Check(postRebootTask.Kind(), Equals, "link-component")
+		} else {
+			c.Check(postRebootTask.Kind(), Equals, "auto-connect")
+		}
 		c.Check(findKindInTaskSet(ts, "prepare-kernel-modules-components"), IsNil)
 		if opts.snapType == snap.TypeKernel {
 			discardTask := findKindInTaskSet(ts, "discard-old-kernel-snap-setup")
@@ -16182,8 +16209,23 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	}
 	c.Check(preRebootTask.Get("set-next-boot", &setNextBoot), IsNil)
 	c.Check(setNextBoot, Equals, true)
-	c.Check(postRebootTask.Get("finish-restart", &finishRestart), IsNil)
-	c.Check(finishRestart, Equals, true)
+
+	// the first post-reboot task will always have finish-restart when there are
+	// kernel module components present.
+	//
+	// however, when there are components present that are not kernel module
+	// components, the auto-connect task will have finish-restart, despite it
+	// not being the actual first task after the reboot. this maintains
+	// compatibility with the current behavior.
+	if withKMods {
+		c.Check(postRebootTask.Get("finish-restart", &finishRestart), IsNil)
+		c.Check(finishRestart, Equals, true)
+	} else {
+		autoConnTask := findKindInTaskSet(ts, "auto-connect")
+		c.Assert(autoConnTask, NotNil)
+		c.Check(autoConnTask.Get("finish-restart", &finishRestart), IsNil)
+		c.Check(finishRestart, Equals, true)
+	}
 
 	chg := s.state.NewChange("refresh", "refresh a snap")
 	chg.AddAll(ts)

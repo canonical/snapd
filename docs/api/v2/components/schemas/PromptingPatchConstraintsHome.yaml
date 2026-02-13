@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: |-
+  Details about the applicability of the modified rule to requests.
+
+  Any fields which are omitted are left unchanged from the existing rule.
+properties:
+  path-pattern:
+    type: string
+    description: Path glob matching filepaths for which the rule applies.
+  permissions:
+    type: object
+    description: |-
+      A map from permission name to the information about that permission.
+
+      Any permissions omitted from this map are left unchanged from the existing rule.
+
+      To remove a permission from the existing rule, map the permission name to null.
+    additionalProperties:
+      nullable: true
+      $ref: './PromptingPermissionEntry.yaml'

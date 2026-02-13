@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Snaps
+    - Synchronous
+  summary: Run snapctl command
+  description: |-
+    Executes a 'snapctl' command within a given context. This route uses the
+    socket /run/snapd-snap.socket. This is intended to be used only from within
+    a snap itself.
+  operationId: runSnapctl
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: |-
+      The context and arguments for the snapctl command.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - context-id
+            - args
+          properties:
+            context-id:
+              type: string
+              description: |-
+                The context ID for this call. The context ID is passed to hooks
+                through the $SNAP_COOKIE environment variable. The 'snapctl'
+                command passes this automatically. For hooks that are calling
+                the endpoint manually, the responsibility falls on the binary to
+                retrieve the context ID itself.
+              example: ABCDEF
+            args:
+              type: array
+              description: A list of arguments to pass to snapctl.
+              items:
+                type: string
+              example: [get, username]
+            stdin:
+              type: string
+              description: |-
+                If args is fde-setup-result, provides stdin to the context.
+            
+  responses:
+    200:
+      description: The output from the snapctl command.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              stdout:
+                type: string
+                description: Data written to stdout by the command.
+              stderr:
+                type: string
+                description: Data written to stderr by the command.
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

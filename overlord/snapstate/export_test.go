@@ -48,9 +48,12 @@ type (
 	TooSoonError = tooSoonError
 
 	Target = target
+
+	InstallContext = installContext
 )
 
 var ComponentSetupTask = componentSetupTask
+var RemoveComponentTasks = removeComponentTasks
 
 const (
 	None         = none
@@ -118,7 +121,7 @@ var (
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshScheduleStr
-	DoInstall              = doInstall
+	DoInstallOrPreDownload = doInstallOrPreDownload
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
@@ -131,22 +134,15 @@ var (
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts                  = getDirMigrationOpts
-	WriteSeqFile                         = writeSeqFile
-	TriggeredMigration                   = triggeredMigration
-	TaskSetsByTypeForEssentialSnaps      = taskSetsByTypeForEssentialSnaps
-	SetDefaultRestartBoundaries          = setDefaultRestartBoundaries
-	DeviceModelBootBase                  = deviceModelBootBase
-	SplitTaskSetByRebootEdges            = splitTaskSetByRebootEdges
-	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
-	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
-	ReRefreshSummary                     = reRefreshSummary
+	GetDirMigrationOpts             = getDirMigrationOpts
+	WriteSeqFile                    = writeSeqFile
+	TriggeredMigration              = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
+	DeviceModelBootBase             = deviceModelBootBase
+	ReRefreshSummary                = reRefreshSummary
 
 	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
-)
-
-const (
-	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -154,7 +150,18 @@ func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 }
 
 // helpers
-var InstallSize = installSize
+var (
+	InstallSize          = installSize
+	ResealingTaskBlocked = resealingTaskBlocked
+)
+
+func ResealingTaskKinds() []string {
+	kinds := make([]string, 0, len(resealingTaskKindCheckers))
+	for kind := range resealingTaskKindCheckers {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
 
 // aliases v2
 var (
@@ -609,3 +616,25 @@ type CustomInstallGoal struct {
 func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	return c.ToInstall(ctx, st, opts)
 }
+
+func (sts *snapInstallTaskSet) TaskSet() *state.TaskSet {
+	return sts.ts
+}
+
+type SnapInstallTaskSet = snapInstallTaskSet
+
+func NewSnapInstallTaskSetForTest(
+	snapsup *SnapSetup,
+	ts *state.TaskSet,
+	beforeLocalSystemModificationsTasks, upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
+) SnapInstallTaskSet {
+	return SnapInstallTaskSet{
+		ts:                                  ts,
+		snapsup:                             snapsup,
+		beforeLocalSystemModificationsTasks: beforeLocalSystemModificationsTasks,
+		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
+		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
+	}
+}
+
+var ArrangeInstallTasksForSingleReboot = arrangeInstallTasksForSingleReboot

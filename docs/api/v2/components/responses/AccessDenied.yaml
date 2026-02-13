@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  Access Denied. The daemon/store cannot or will not process the request because 
+  the user does not have the correct authorization from the system.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          description: The HTTP status code.
+          enum:
+            - 401
+        status:
+          type: string
+          description: The textual representation of the status code.
+          enum:
+            - Unauthorized
+        type:
+          type: string
+          description: The type of response.
+          enum:
+            - error
+        result:
+          type: object
+          properties:
+            kind:
+              type: string
+              description: A machine-readable string identifying the error type.
+              enum:
+                - login-required
+            message:
+              type: string
+              description: A human-readable error message.
+              enum:
+                - access denied

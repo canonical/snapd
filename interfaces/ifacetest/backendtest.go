@@ -211,8 +211,7 @@ version: 1
 
 // Support code for tests
 
-// InstallSnap "installs" a snap from YAML.
-func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int) *snap.Info {
+func (s *BackendSuite) AddSnap(c *C, instanceName, snapYaml string, revision int) *interfaces.SnapAppSet {
 	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
@@ -228,10 +227,17 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
+	return appSet
+}
 
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+// InstallSnap "installs" a snap from YAML.
+func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int) *snap.Info {
+	appSet := s.AddSnap(c, instanceName, snapYaml, revision)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	err := s.Backend.Setup(appSet, opts, sctx, s.Repo, s.meas)
 	c.Assert(err, IsNil)
-	return snapInfo
+	return appSet.Info()
 }
 
 func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.ConfinementOptions, instanceName, snapYaml string, revision int, componentYamls []string) *snap.Info {
@@ -258,7 +264,8 @@ func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.Confineme
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	err = s.Backend.Setup(appSet, opts, sctx, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -285,7 +292,8 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate}
+	err = s.Backend.Setup(appSet, opts, sctx, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -314,7 +322,8 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 
-	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	err = s.Backend.Setup(appSet, opts, sctx, s.Repo, s.meas)
 	return newSnapInfo, err
 }
 

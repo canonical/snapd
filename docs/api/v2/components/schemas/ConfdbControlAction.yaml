@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: |-
+  Request to delegate or withdraw an operator's remote access to confdb views.
+required:
+  - action
+  - operator-id
+properties:
+  action:
+    type: string
+    enum:
+      - delegate
+      - undelegate
+    description: |-
+      The action to perform.
+
+      Use `delegate` to grant access, or `undelegate` to withdraw it.
+  operator-id:
+    type: string
+    description: The account ID of the operator.
+    example: alice
+  authentications:
+    type: array
+    description: |-
+      Determines how request messages are signed. With `operator-key`, the
+      operator signs messages directly. With `store`, the Store signs on their
+      behalf.
+
+      Required for `delegate`. For `undelegate`, omit to withdraw all
+      authentication methods.
+    items:
+      type: string
+      enum:
+        - operator-key
+        - store
+    example:
+      - operator-key
+  views:
+    type: array
+    description: |-
+      The confdb views, specified in the format `<account-id>/<schema>/<view-name>`.
+
+      Required for `delegate`. For `undelegate`, omit to withdraw access from
+      all views.
+    items:
+      type: string
+    example:
+      - bob/network/control-wifi
+      - bob/network/observe-wifi

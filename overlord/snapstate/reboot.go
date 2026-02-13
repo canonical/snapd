@@ -21,26 +21,11 @@ package snapstate
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-// only useful for procuring a buggy behavior in the tests
-var enforcedSingleRebootForGadgetKernelBase = false
-
-func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
-	osutil.MustBeTestBinary("mocking can be done only in tests")
-
-	old := enforcedSingleRebootForGadgetKernelBase
-	enforcedSingleRebootForGadgetKernelBase = val
-	return func() {
-		enforcedSingleRebootForGadgetKernelBase = old
-	}
-}
 
 // essentialSnapsRestartOrder describes the essential snaps that
 // need restart boundaries in order.
@@ -75,11 +60,11 @@ func maybeTaskSetSnapSetup(ts *state.TaskSet) *SnapSetup {
 
 func isEssentialSnap(snapName string, snapType snap.Type, bootBase string) bool {
 	switch snapType {
-	case snap.TypeBase:
+	case snap.TypeBase, snap.TypeOS:
 		if snapName == bootBase {
 			return true
 		}
-	case snap.TypeSnapd, snap.TypeOS, snap.TypeGadget, snap.TypeKernel:
+	case snap.TypeSnapd, snap.TypeGadget, snap.TypeKernel:
 		return true
 	}
 	return false
@@ -100,27 +85,6 @@ func taskSetsByTypeForEssentialSnaps(tss []*state.TaskSet, bootBase string) (map
 		}
 	}
 	return avail, nil
-}
-
-func nonEssentialSnapTaskSets(tss []*state.TaskSet, bootBase string) (bases, apps map[string]*state.TaskSet) {
-	bases = make(map[string]*state.TaskSet)
-	apps = make(map[string]*state.TaskSet)
-	for _, ts := range tss {
-		snapsup := maybeTaskSetSnapSetup(ts)
-		if snapsup == nil {
-			continue
-		}
-
-		switch snapsup.Type {
-		case snap.TypeBase:
-			if snapsup.SnapName() != bootBase {
-				bases[snapsup.SnapName()] = ts
-			}
-		case snap.TypeApp:
-			apps[snapsup.SnapName()] = ts
-		}
-	}
-	return bases, apps
 }
 
 func findUnlinkTask(ts *state.TaskSet) *state.Task {
@@ -165,162 +129,7 @@ func deviceModelBootBase(st *state.State, providedDeviceCtx DeviceContext) (stri
 	return bootBase, nil
 }
 
-func tasksBefore(task *state.Task) *state.TaskSet {
-	ts := state.NewTaskSet()
-	for _, t := range task.WaitTasks() {
-		ts.AddTask(t)
-		ts.AddAll(tasksBefore(t))
-	}
-	return ts
-}
-
-func tasksAfter(task *state.Task) *state.TaskSet {
-	ts := state.NewTaskSet()
-	for _, t := range task.HaltTasks() {
-		ts.AddTask(t)
-		ts.AddAll(tasksAfter(t))
-	}
-	return ts
-}
-
-// splitTaskSetByRebootEdges makes use of the following edges on a task-set:
-// - BeginEdge (marks the first task of a task-set)
-// - EndEdge (marks the last task of a task-set)
-// - MaybeRebootEdge (marks the last task that needs to run before the reboot)
-// - MaybeRebootWaitEdge (marks the first task that needs to run after the reboot)
-// and from these edges, constructs two new task-sets, one before reboot, and one
-// after reboot.
-func splitTaskSetByRebootEdges(ts *state.TaskSet) (before, after *state.TaskSet, err error) {
-	// TaskSets must have edges set, so we can detect the first and last tasks
-	// of a task-set.
-	firstTask := ts.MaybeEdge(BeginEdge)
-	lastTask := ts.MaybeEdge(EndEdge)
-	if firstTask == nil || lastTask == nil {
-		return nil, nil, fmt.Errorf("internal error: task-set is missing required edges (%q/%q)", BeginEdge, EndEdge)
-	}
-
-	// TaskSets must also have the reboot edges set.
-	linkSnap := ts.MaybeEdge(MaybeRebootEdge)
-	if linkSnap == nil {
-		return nil, nil, fmt.Errorf("internal error: task-set is missing required edge %q", MaybeRebootEdge)
-	}
-	autoConnect := ts.MaybeEdge(MaybeRebootWaitEdge)
-	if autoConnect == nil {
-		return nil, nil, fmt.Errorf("internal error: task-set is missing required edge %q", MaybeRebootWaitEdge)
-	}
-
-	// Create the before task-set, which is the one before reboot, and
-	// setup new edges for the task-set. In this task-set, we expect
-	// the original start task (i.e prerequisites) to be first, and link-snap
-	// to be the last
-	before = state.NewTaskSet(linkSnap)
-	before.AddAll(tasksBefore(linkSnap))
-	before.MarkEdge(firstTask, BeginEdge)
-	before.MarkEdge(linkSnap, EndEdge)
-
-	// Create the after task-set, which is the post-reboot tasks, and setup
-	// new begin/end edges. In this one, we expect auto-connect to be first, and
-	// whatever was last before, is last again.
-	after = state.NewTaskSet(autoConnect)
-	after.AddAll(tasksAfter(autoConnect))
-	after.MarkEdge(autoConnect, BeginEdge)
-	after.MarkEdge(lastTask, EndEdge)
-	return before, after, nil
-}
-
-func bootBaseSnapType(byTypeTss map[snap.Type]*state.TaskSet) snap.Type {
-	if ts := byTypeTss[snap.TypeBase]; ts != nil {
-		return snap.TypeBase
-	}
-	// On UC16 it's the TypeOS
-	return snap.TypeOS
-}
-
-// arrangeSingleRebootForSplitTaskSets sets up restart boundaries for task-sets that have been
-// split into two. It uses the first part of the task-set (i.e the one containing the reboot edges)
-// to set a restart boundary along the 'Do' path for the last task-set, and one along the 'Undo' path
-// for the first task-set, to introduce only one reboot along each direction.
-func arrangeSingleRebootForSplitTaskSets(beforeTss map[snap.Type]*state.TaskSet) error {
-	// Set reboot boundary along the do path for the last essential
-	for i := len(essentialSnapsRestartOrder) - 1; i >= 0; i-- {
-		o := essentialSnapsRestartOrder[i]
-		if beforeTss[o] == nil {
-			continue
-		}
-
-		linkSnap := beforeTss[o].MaybeEdge(EndEdge)
-		if linkSnap == nil {
-			return fmt.Errorf("internal error: no %q edge set in task-set for %q", EndEdge, o)
-		}
-		restart.MarkTaskAsRestartBoundary(linkSnap, restart.RestartBoundaryDirectionDo)
-		break
-	}
-
-	// Set reboot boundary along the undo path for the first essential
-	for _, o := range essentialSnapsRestartOrder {
-		if beforeTss[o] == nil {
-			continue
-		}
-		if unlinkSnap := findUnlinkTask(beforeTss[o]); unlinkSnap != nil {
-			restart.MarkTaskAsRestartBoundary(unlinkSnap, restart.RestartBoundaryDirectionUndo)
-			break
-		}
-	}
-	return nil
-}
-
-// waitForLastTask makes the first task of 'ts' wait for the last task of the 'dep' task-set.
-func waitForLastTask(ts, dep *state.TaskSet) error {
-	last, err := dep.Edge(EndEdge)
-	if err != nil {
-		return err
-	}
-	first, err := ts.Edge(BeginEdge)
-	if err != nil {
-		return err
-	}
-	first.WaitFor(last)
-	return nil
-}
-
-// arrangeSnapToWaitForBaseIfPresent sets up dependency on the base of a snap, if the base is
-// also being updated. The boot-base is ignored here, as the boot-base is handled separately
-// as a part of the essential snaps.
-func arrangeSnapToWaitForBaseIfPresent(snapTs *state.TaskSet, bases map[string]*state.TaskSet) error {
-	snapsup := maybeTaskSetSnapSetup(snapTs)
-	if snapsup == nil {
-		return fmt.Errorf("internal error: failed to get the SnapSetup instance from snap task-set")
-	}
-
-	if baseTs := bases[snapsup.Base]; baseTs != nil {
-		return waitForLastTask(snapTs, baseTs)
-	}
-	return nil
-}
-
-func taskSetLanesByRebootEdge(ts *state.TaskSet) ([]int, error) {
-	linkSnap := ts.MaybeEdge(MaybeRebootEdge)
-	if linkSnap == nil {
-		return nil, fmt.Errorf("internal error: no %q edge set in task-set", MaybeRebootEdge)
-	}
-	return linkSnap.Lanes(), nil
-}
-
-func mergeTaskSetLanes(lanesByTs map[*state.TaskSet][]int) {
-	var allLanes []int
-	for _, lanes := range lanesByTs {
-		allLanes = append(allLanes, lanes...)
-	}
-	for ts, tsLanes := range lanesByTs {
-		for _, l := range allLanes {
-			if !listContains(tsLanes, l) {
-				ts.JoinLane(l)
-			}
-		}
-	}
-}
-
-func listContains(items []int, item int) bool {
+func contains[T comparable](items []T, item T) bool {
 	for _, i := range items {
 		if i == item {
 			return true
@@ -329,178 +138,225 @@ func listContains(items []int, item int) bool {
 	return false
 }
 
-// arrangeSnapTaskSetsLinkageAndRestart arranges the correct link-order between all
-// the provided snap task-sets, and sets up restart boundaries for essential snaps (base, gadget, kernel).
+// arrangeInstallTasksForSingleReboot arranges the correct link-order between all the
+// provided snap install task-sets, and sets up restart boundaries for essential
+// snaps (base, gadget, kernel).
+//
 // Under normal circumstances link-order that will be configured is:
 // snapd => boot-base (reboot) => gadget (reboot) => kernel (reboot) => bases => apps.
 //
-// However this may be configured into the following if conditions are right for single-reboot
+// However this may be configured into the following if conditions are right for single-reboot:
 // snapd => boot-base (up to auto-connect) => gadget(up to auto-connect) =>
 // -  kernel (up to auto-connect, then reboot) => boot-base => gadget => kernel => bases => apps.
-func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx DeviceContext, tss []*state.TaskSet) error {
-	bootBase, err := deviceModelBootBase(st, providedDeviceCtx)
+func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskSet) error {
+	for _, sts := range stss {
+		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
+			len(sts.upToLinkSnapAndBeforeReboot) == 0 ||
+			len(sts.afterLinkSnapAndPostReboot) == 0 {
+			return errors.New("internal error: snap install task set has empty slices")
+		}
+	}
+
+	head := func(tasks []*state.Task) *state.Task {
+		return tasks[0]
+	}
+
+	tail := func(tasks []*state.Task) *state.Task {
+		return tasks[len(tasks)-1]
+	}
+
+	bootBase, err := deviceModelBootBase(st, nil)
 	if err != nil {
 		return err
 	}
 
-	byTypeTss, err := taskSetsByTypeForEssentialSnaps(tss, bootBase)
-	if err != nil {
-		return err
+	essentials := make(map[snap.Type]snapInstallTaskSet)
+	nonEssentialBases := make(map[string]snapInstallTaskSet)
+	apps := make(map[string]snapInstallTaskSet)
+
+	// categorize our snaps into a few different buckets
+	for _, sts := range stss {
+		switch {
+		case isEssentialSnap(sts.snapsup.InstanceName(), sts.snapsup.Type, bootBase):
+			essentials[sts.snapsup.Type] = sts
+		case sts.snapsup.Type == snap.TypeBase || sts.snapsup.Type == snap.TypeOS:
+			nonEssentialBases[sts.snapsup.InstanceName()] = sts
+		case sts.snapsup.Type == snap.TypeApp:
+			apps[sts.snapsup.InstanceName()] = sts
+		}
 	}
 
-	// If the boot-base is 'core', then we don't allow splitting the task-sets to set up
-	// for single-reboot, as we don't support this behavior on UC16.
+	var prev *state.Task
+	chain := func(begin, end *state.Task) {
+		if begin == nil || end == nil {
+			if begin != end {
+				panic("internal error: use of chain on partially empty range")
+			}
+
+			// nothing to do with prev here, since the caller added an empty
+			// range. this is only allowed to make UC16 handling a bit easier,
+			// since the post-reboot chains for UC16 are empty.
+
+			return
+		}
+
+		if prev != nil {
+			begin.WaitFor(prev)
+		}
+		prev = end
+	}
+
 	isUC16 := bootBase == "core"
-	var lastEssentialTs *state.TaskSet
-	lanesByTsToMerge := make(map[*state.TaskSet][]int)
-	beforeTss := make(map[snap.Type]*state.TaskSet)
-	afterTss := make(map[snap.Type]*state.TaskSet)
-	// chainEssentialTs takes a task-set that needs to be 'chained' unto the previous (unless it's the first),
-	// a snap type to specify which type of snap is being chained, and two operational flags.
-	// <transactional>: If set, means that the task-set should be part of the essential snap transaction. Lanes
-	// from the task-set will be merged. This behaviour is disabled for UC16 to not introduce any new changes.
-	// <split>: If set, the task-set will be split up into two parts. One pre-reboot part, and one post-reboot part.
-	// All chained task-sets that have <split> set will have their pre-reboot part run before the reboot, and then all
-	// post-reboot parts run after the reboot. They will run in the order they are chained.
-	// ts1-pre-reboot => ts2-pre-reboot => [reboot] => ts1-post-reboot => ts2-post-reboot
-	chainEssentialTs := func(ts *state.TaskSet, snapType snap.Type, transactional, split bool) error {
-		if transactional && !isUC16 {
-			lanes, err := taskSetLanesByRebootEdge(ts)
-			if err != nil {
-				return err
-			}
-			lanesByTsToMerge[ts] = lanes
+	beforeReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
+		// on UC16, everything is before reboot
+		if isUC16 {
+			return head(sts.beforeLocalSystemModificationsTasks), tail(sts.afterLinkSnapAndPostReboot)
 		}
 
-		nextTs := ts
-		if split && !isUC16 {
-			before, after, err := splitTaskSetByRebootEdges(ts)
-			if err != nil {
-				return err
-			}
-			beforeTss[snapType] = before
-			afterTss[snapType] = after
-			nextTs = before
-		}
-		if lastEssentialTs != nil {
-			if err := waitForLastTask(nextTs, lastEssentialTs); err != nil {
-				return err
-			}
-		}
-		lastEssentialTs = nextTs
-		return nil
+		return head(sts.beforeLocalSystemModificationsTasks), tail(sts.upToLinkSnapAndBeforeReboot)
 	}
 
-	// Snapd always run first if present.
-	if ts := byTypeTss[snap.TypeSnapd]; ts != nil {
-		// Snapd does not need to be part of the transaction, as
-		// it's not really necessary to undo snapd should base/kernel/gadget
-		// fail.
-		const transactional = false
-		const split = false
-		if err := chainEssentialTs(ts, snap.TypeSnapd, transactional, split); err != nil {
-			return err
+	afterReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
+		// on UC16, nothing is after reboot
+		if isUC16 {
+			return nil, nil
 		}
+		return head(sts.afterLinkSnapAndPostReboot), tail(sts.afterLinkSnapAndPostReboot)
 	}
 
-	bootSnapType := bootBaseSnapType(byTypeTss)
-
-	// Then we link in the boot-base, to run after snapd, it could run in its
-	// entirety before a reboot, as we expect boot-bases to be 'simple' and not
-	// have any hooks.
-	if ts := byTypeTss[bootSnapType]; ts != nil {
-		const transactional = true
-		const split = true
-		if err := chainEssentialTs(ts, bootSnapType, transactional, split); err != nil {
-			return err
-		}
+	// snapd fully goes first
+	if sts, ok := essentials[snap.TypeSnapd]; ok {
+		chain(beforeReboot(sts))
+		chain(afterReboot(sts))
 	}
 
-	// Next we link in the gadget, and it needs to be part of the transaction
-	// so it will be undone in the event of failures.
-	if ts := byTypeTss[snap.TypeGadget]; ts != nil {
-		const transactional = true
-		split := !enforcedSingleRebootForGadgetKernelBase // keep this to be able to induce a buggy change
-		if err := chainEssentialTs(ts, snap.TypeGadget, transactional, split); err != nil {
-			return err
-		}
-	}
-
-	// Then we link in the kernel, it needs to run latest, but before other bases and apps.
-	if ts := byTypeTss[snap.TypeKernel]; ts != nil {
-		const transactional = true
-		const split = true
-		if err := chainEssentialTs(ts, snap.TypeKernel, transactional, split); err != nil {
-			return err
-		}
-	}
-
-	// Now link in all the after task-sets that have been split, which should run
-	// post-reboot.
-	for _, o := range essentialSnapsRestartOrder {
-		if afterTss[o] == nil {
+	// then all the pre-reboot tasks for essential snaps, in order
+	for _, t := range essentialSnapsRestartOrder {
+		sts, ok := essentials[t]
+		if !ok {
 			continue
 		}
-		const transactional = false
-		const split = false
-		if err := chainEssentialTs(afterTss[o], o, transactional, split); err != nil {
-			return err
-		}
+		chain(beforeReboot(sts))
 	}
 
-	// Ensure restart boundaries are set, for the task-sets that have been
-	// split, we ensure that boundaries are set *only* for the last of those, to allow
-	// them all to run before the reboot.
-	if len(beforeTss) > 0 {
-		if err := arrangeSingleRebootForSplitTaskSets(beforeTss); err != nil {
-			return err
-		}
-	}
-
-	// Ensure essential snaps that are transactional have their lanes merged. This will effectively
-	// ensure that essential snaps will be undone together should one of the updates fail. So if we
-	// are updating both gadget and kernel, and kernel fails, the gadget will also be undone.
-	mergeTaskSetLanes(lanesByTsToMerge)
-
-	// For the task-sets that have not been split, they must have boundaries set for
-	// each of them. Reuse the restart order list here, so we go through the correct
-	// list of snap types that needs restart boundaries set.
-	for _, o := range essentialSnapsRestartOrder {
-		// Make sure that the core snap is actually the boot-base
-		if o == snap.TypeOS && bootBase != "core" {
+	// then all the post-reboot tasks for essential snaps, in order
+	for _, t := range essentialSnapsRestartOrder {
+		sts, ok := essentials[t]
+		if !ok {
 			continue
 		}
-		// If the snap type was not split (i.e no task-set in "beforeTss"), and
-		// the snap is actually present in this update, then set default restart
-		// boundaries.
-		if beforeTss[o] == nil && byTypeTss[o] != nil {
-			setDefaultRestartBoundaries(byTypeTss[o])
-		}
+		chain(afterReboot(sts))
 	}
 
-	// Now we ensure that all other non-essential bases depend on the last
-	// essential task-set.
-	bases, apps := nonEssentialSnapTaskSets(tss, bootBase)
-	if lastEssentialTs != nil {
-		for _, ts := range bases {
-			if err := waitForLastTask(ts, lastEssentialTs); err != nil {
-				return err
+	// before doing anything else, keep a pointer to the final essential snap
+	// task. we'll use this later. note, this might be nil! nothing about this
+	// code requires essential snap presence.
+	finalEssential := prev
+
+	// ensure essential snaps that are transactional have their lanes merged.
+	// this will ensure that essential snaps will be undone together, if one
+	// of the updates fails.
+	mergeSnapInstallTaskSetLanes := func(stss []snapInstallTaskSet) {
+		rebootLanes := make(map[string][]int)
+		all := make([]int, 0, len(stss))
+		for _, sts := range stss {
+			lanes := unique(tail(sts.upToLinkSnapAndBeforeReboot).Lanes())
+			rebootLanes[sts.snapsup.InstanceName()] = lanes
+			all = unique(append(all, lanes...))
+		}
+
+		for _, sts := range stss {
+			for _, l := range all {
+				if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
+					sts.ts.JoinLane(l)
+				}
 			}
 		}
 	}
 
-	// And last, we ensure apps wait for any non-essential base it needs, and the last task-set
-	// of any essential-snap that is also being updated.
-	for _, appTs := range apps {
-		if lastEssentialTs != nil {
-			if err := waitForLastTask(appTs, lastEssentialTs); err != nil {
-				return err
+	// UC16 systems enforce different reboot boundaries, which can result in
+	// multiple reboots while refreshing many essential snaps.
+	if !isUC16 {
+		// set the reboot boundary on the final pre-reboot essential snap task
+		for i := len(essentialSnapsRestartOrder) - 1; i >= 0; i-- {
+			sts, ok := essentials[essentialSnapsRestartOrder[i]]
+			if !ok {
+				continue
+			}
+
+			_, end := beforeReboot(sts)
+			if end == nil {
+				return errors.New("internal error: all essential snaps must have before boot tasks")
+			}
+			restart.MarkTaskAsRestartBoundary(end, restart.RestartBoundaryDirectionDo)
+
+			break
+		}
+
+		// set the reboot undo boundary on the first post-reboot essential
+		// unlink-snap task
+		for i := 0; i < len(essentialSnapsRestartOrder); i++ {
+			sts, ok := essentials[essentialSnapsRestartOrder[i]]
+			if !ok {
+				continue
+			}
+
+			unlink := findUnlinkTask(sts.ts)
+			if unlink == nil {
+				continue
+			}
+
+			restart.MarkTaskAsRestartBoundary(unlink, restart.RestartBoundaryDirectionUndo)
+
+			break
+		}
+
+		// since the essential snaps are sharing a reboot, they should also
+		// share lanes so that they're undone together if one fails
+		var merge []snapInstallTaskSet
+		for _, sts := range essentials {
+			if sts.snapsup.Type == snap.TypeSnapd {
+				continue
+			}
+			merge = append(merge, sts)
+		}
+		mergeSnapInstallTaskSetLanes(merge)
+	} else {
+		// legacy behavior, set the do and undo reboot boundaries on all
+		// essential snaps, with the exception of snapd
+		for _, o := range essentialSnapsRestartOrder {
+			sts, ok := essentials[o]
+			if !ok {
+				continue
+			}
+
+			restart.MarkTaskAsRestartBoundary(tail(sts.upToLinkSnapAndBeforeReboot), restart.RestartBoundaryDirectionDo)
+			unlinkSnap := findUnlinkTask(sts.ts)
+			if unlinkSnap != nil {
+				restart.MarkTaskAsRestartBoundary(unlinkSnap, restart.RestartBoundaryDirectionUndo)
 			}
 		}
-		if err := arrangeSnapToWaitForBaseIfPresent(appTs, bases); err != nil {
-			return err
+	}
+
+	// make the bases just wait on the final essential snap to finish up
+	for _, sts := range nonEssentialBases {
+		if finalEssential != nil {
+			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalEssential)
 		}
 	}
+
+	// make the apps wait on the final essential snap to finish up and their
+	// base, if it is being refreshed too
+	for _, sts := range apps {
+		if finalEssential != nil {
+			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalEssential)
+		}
+
+		if baseSTS, ok := nonEssentialBases[sts.snapsup.Base]; ok {
+			head(sts.beforeLocalSystemModificationsTasks).WaitFor(tail(baseSTS.afterLinkSnapAndPostReboot))
+		}
+	}
+
 	return nil
 }
 

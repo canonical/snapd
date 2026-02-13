@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionDo
+description: Payload to perform a custom action defined by the system.
+required:
+  - action
+  - mode
+properties:
+  action:
+    type: string
+    enum:
+      - do
+  mode:
+    type: string
+    description: The mode of the action to perform (e.g., 'recover', 'run').
+  title:
+    type: string
+    description: The title of the custom action to perform.

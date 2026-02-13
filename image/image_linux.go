@@ -366,11 +366,12 @@ func newImageSeeder(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opti
 	}
 
 	wOpts := &seedwriter.Options{
-		SeedDir:        s.seedDir,
-		Label:          s.label,
-		DefaultChannel: opts.Channel,
-		Manifest:       opts.SeedManifest,
-		ManifestPath:   opts.SeedManifestPath,
+		SeedDir:           s.seedDir,
+		Label:             s.label,
+		DefaultChannel:    opts.Channel,
+		Manifest:          opts.SeedManifest,
+		ManifestPath:      opts.SeedManifestPath,
+		EnforceValidation: opts.Customizations.Validation != "ignore",
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
 
@@ -890,10 +891,8 @@ func (s *imageSeeder) finish() error {
 
 	// run validation-set checks, this is also done by store but
 	// we double-check for the seed.
-	if s.customizations.Validation != "ignore" {
-		if err := s.w.CheckValidationSets(); err != nil {
-			return err
-		}
+	if err := s.w.CheckValidationSets(); err != nil {
+		return err
 	}
 
 	copySnap := func(name, src, dst string) error {

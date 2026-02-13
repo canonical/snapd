@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Store
+    - Synchronous
+  summary: Authenticate user with snapd and store
+  description: |-
+    Authenticates a user with Snapd and the store using their credentials.
+    Credentials are saved to the ~/.snap/auth.json file and further
+    communication is made with these credentials.
+  operationId: loginUser
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              description: The email associated with the desired account.
+              pattern: .@.*\..
+              example: random.user@emailaddr.com
+            password:
+              type: string
+              format: password
+              description: The password associated with the email address.
+              example: password1234!
+            otp:
+              type: string
+              description: A one-time password for two-factor authentication.
+              example: '123456'
+  responses:
+    200:
+      description: A synchronous response containing the result of the login information.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum: 
+                  - sync
+              result:
+                type: object
+                required:
+                  - id
+                  - email
+                  - macaroon
+                properties:
+                  id:
+                    type: integer
+                  email:
+                    type: string
+                    format: email
+                    description: The email used to authenticate with the store.
+                  macaroon:
+                    type: string
+                    description: The macaroon returned by the store after successful authentication.
+                  discharges:
+                    type: array
+                    items:
+                      type: string
+                    example: [discharge-for-macaroon-authentication]
+                  username:
+                    type: string
+                    description: Local username associated with the account.
+                    example: user-name
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'

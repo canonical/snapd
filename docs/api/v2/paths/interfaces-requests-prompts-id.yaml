@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Retrieve a prompt by ID
+  description: |-
+    Retrieves the details of a single prompt specified by its unique ID.
+  operationId: getPromptById
+  security: []
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: The unique identifier of the prompt to retrieve.
+      schema:
+        type: string
+    - $ref: '../components/parameters/UserId.yaml'
+  responses:
+    200:
+      description: The details of the requested prompt.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/PromptingPrompt.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Reply to a prompt
+  description: |-
+    Submit a reply (allow or deny) to an outstanding prompt, potentially
+    creating a new rule.
+  operationId: replyToPrompt
+  security: []
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: The unique identifier of the prompt to which to reply.
+      schema:
+        type: string
+    - $ref: '../components/parameters/UserId.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/PromptingReply.yaml'
+  responses:
+    200:
+      description: An array of prompt IDs that were also satisfied by this reply.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: string
+    404:
+      $ref: '../components/responses/NotFound.yaml'

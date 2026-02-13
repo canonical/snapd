@@ -203,7 +203,7 @@ func MockConfdbstateGetView(f func(st *state.State, account, confdbName, viewNam
 	}
 }
 
-func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, []string, map[string]string) (*confdbstate.Transaction, error)) (restore func()) {
+func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error)) (restore func()) {
 	old := confdbstateTransactionForGet
 	confdbstateTransactionForGet = f
 	return func() {

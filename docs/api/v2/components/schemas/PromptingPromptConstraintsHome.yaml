@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents the constraints associated with a prompt for the home interface.
+required:
+  - path
+  - requested-permissions
+  - available-permissions
+properties:
+  path:
+    type: string
+    description: The path for which access is requested.
+    example: /home/ubuntu/Downloads/image.png
+  requested-permissions:
+    type: array
+    description: The permissions for which access is requested.
+    items:
+      type: string
+      enum:
+        - read
+        - write
+        - execute
+  available-permissions:
+    type: array
+    description: The complete list of permissions for the home interface.
+    items:
+      type: string
+      enum:
+        - read
+        - write
+        - execute

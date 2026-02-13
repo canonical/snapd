@@ -5,15 +5,39 @@
 	"name": "network",
 	"views": {
 		"wifi-setup": {
+			"parameters": {
+				"to": {
+					"presence": "optional"
+				},
+				"via": {
+					"presence": "optional"
+				},
+				"type": {
+					"presence": "optional"
+				},
+				"metric": {
+					"presence": "optional"
+				},
+				"on-link": {
+					"presence": "optional"
+				}
+			},
 			"rules": [
 				{"request": "ssids", "storage": "wifi.ssids", "content": [{"request": "[{n}]", "storage": "[{n}]"}]},
 				{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
 				{"request": "password", "storage": "wifi.psk", "access": "write"},
 				{"request": "status", "storage": "wifi.status", "access": "read"},
-				{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"}
+				{"request": "private.{placeholder}", "storage": "wifi.private.{placeholder}"},
+				{"request": "routes[{n}]", "storage": "wifi.routes[{n}][.to={to}][.via={via}][.type={type}][.metric={metric}][.on-link={on-link}]", "content": [
+					{ "request": "to", "storage": "to"},
+					{ "request": "via", "storage": "via"},
+					{ "request": "type", "storage": "type"},
+					{ "request": "metric", "storage": "metric"},
+					{ "request": "on-link", "storage": "on-link"}
+				]}
 			]
 		}
 	},
 	"body": "{\n  \"storage\": {\n    \"schema\": {\n      \"wifi\": {\n        \"values\": \"any\"\n      }\n    }\n  }\n}",
-	"timestamp": "2024-02-09T17:11:32Z"
+	"timestamp": "2026-01-22T17:11:32Z"
 }

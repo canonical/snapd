@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - action
+  - names
+properties:
+  action:
+    type: string
+    description: The action to perform.
+  names:
+    type: array
+    description: A list of names of snaps (e.g. "lxd") or specific apps (e.g. "lxd.daemon") to operate on.
+    items:
+      type: string
+      example: multipass
+  scope:
+    type: array
+    items:
+      type: string
+  users:
+    type: object
+    properties:
+      names:
+        type: array
+        items:
+          type: string
+      selector:
+        type: string
+        description: |-
+          Internally converted to an integer by the servers marshalling/unmarshalling process
+        enum:
+          - userX
+          - self
+          - all
+

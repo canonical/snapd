@@ -1,0 +1,176 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Snaps
+    - Synchronous
+  summary: List installed snaps
+  description: |-
+    Lists snaps installed on the system, including their components.
+  operationId: listInstalledSnaps
+  security: []
+  parameters:
+    - name: select
+      in: query
+      description: Filter which revisions of snaps are returned.
+      schema:
+        type: string
+        enum:
+          - all
+          - enabled
+          - refresh-inhibited
+        default: enabled
+    - name: snaps
+      in: query
+      description: A comma-separated list of snap names to filter by.
+      schema:
+        type: string
+  responses:
+    200:
+      description: A list of installed snaps matching the query.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/InstalledSnap.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Snaps
+  summary: Manage snaps
+  description: |-
+    Install, refresh, revert, remove, enable, disable, or perform other actions on snaps.
+    This endpoint supports both standard JSON requests for store operations and multipart/form-data for sideloading snaps.
+  operationId: manageSnaps
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The body of the JSON request.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+          properties:
+            action:
+              type: string
+              enum:
+                - install
+                - refresh
+                - remove
+                - revert
+                - hold
+                - unhold
+                - enable
+                - disable
+                - switch
+                - snapshot
+            snaps:
+              type: array
+              items:
+                type: string
+            quota-group:
+              type: string
+              description: The quota group the snap belongs to.
+            unaliased:
+              type: boolean
+            prefer:
+              type: boolean
+              description: Cannot be used with 'unaliased'
+            classic:
+              type: boolean
+              description: Whether the snap uses classic confinement or not.
+            devmode:
+              type: boolean
+              description: |-
+                Whether the snap should be installed in developer mode or not.
+            jailmode:
+              type: boolean
+              description: |-
+                Set to true to install the snap in jail mode. Only non-classic
+                snaps can be placed in jail mode.
+            ignore-running:
+              type: boolean
+            components:
+              type: string
+              description: |-
+                This parameter is a mapping of a string to a string array. If a
+                snap is installed, it will install the requested components for
+                it. If the snap is not installed, the snap will be installed
+                along with requested components.
+              format: map[string][]string
+              example: '{ "firefox": ["firefox+comp"]}'
+            transaction:
+              type: string
+              enum:
+                - per-snap
+                - all-snaps
+      multipart/form-data:
+        schema:
+          type: object
+          properties:
+            action:
+              type: string
+              enum:
+                - install
+                - try
+              default: install
+            snap:
+              type: string
+              format: binary
+              description: |-
+                The content of a .snap file. This field may because repeated
+                many times to act on multiple snaps.
+            snap-path:
+              type: string
+              description: |-
+                The path to install the snap to. This parameter may only be used
+                with a single 'snap' field.
+            name:
+              type: string
+              description: |-
+                This parameter may only be used with a single 'snap' field.
+            component-name:
+              type: string
+              description: |-
+                This parameter may only be used with a single 'snap' field.
+            transaction:
+              type: string
+              enum:
+                - per-snap
+                - all-snaps
+            dangerous:
+              type: boolean
+              description: |-
+                Whether to install the snap with the '--dangerous' flag or not.
+            devmode:
+              type: boolean
+              description: |-
+                Whether the snap should be installed in developer mode or not.
+            quota-group:
+              type: string
+              description: The quota group the snap belongs to.
+            ignore-running:
+              type: boolean
+            jailmode:
+              type: boolean
+              description: |-
+                Set to true to install the snap in jail mode. Only non-classic
+                snaps can be placed in jail mode.
+            classic:
+              type: boolean
+              description: Whether the snap uses classic confinement or not.
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

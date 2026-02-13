@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: account-id
+    in: path
+    required: true
+    description: The developer account ID for the validation set.
+    schema:
+      type: string
+    example: ABCDEF12345678900987654321FEDCBA
+  - name: name
+    in: path
+    required: true
+    description: The name of the validation set.
+    schema:
+      type: string
+    example: myset1
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - Validation Sets
+  summary: Get a specific validation set
+  description: |-
+    Retrieves a single validation set by its account ID and name.
+  operationId: getValidationSet
+  security:
+    - PeerAuth: []
+  responses:
+    200:
+      description: A single validation set object.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ValidationSet.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - AuthenticationRequired
+    - Synchronous
+    - Validation Sets
+  summary: Manage a specific validation set
+  description: |-
+    Apply or forget a specific validation set.
+  operationId: applyValidationSet               # TODO, ensure operationId matches SnapD Daemon codebase
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+          properties:
+            action:
+              type: string
+              description: The operation to perform on the validation set.
+              enum:
+                - apply
+                - forget
+            mode:
+              type: string
+              description: |-
+                The mode to enable for the validation set. Required when action is 'apply'.
+              enum:
+                - monitor
+                - enforce
+            sequence:
+              type: integer
+              description: |-
+                When using 'apply': an optional sequence number to pin. When
+                using 'forget': an optional sequence number to match before
+                forgetting.
+        example:
+          action: "apply"
+          mode: "monitor"
+          sequence: 1
+  responses:
+    200:
+      description: The validation set was successfully updated. The updated resource is returned.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ValidationSet.yaml'
+          example:
+            account-id: ABCDEF12345678900987654321FEDCBA
+            mode: monitor
+            name: myset1
+            pinned-at: 1
+            sequence: 1
+            valid: true
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

@@ -117,7 +117,8 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	var deltas []pathValuePair
 	for _, delta := range mt.Deltas {
 		for path, value := range delta {
-			accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+			opts := confdb.ParseOptions{AllowPlaceholders: true}
+			accs, err := confdb.ParsePathIntoAccessors(path, opts)
 			if err != nil {
 				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
 			}
@@ -168,7 +169,7 @@ func (t *Transaction) Unset(path []confdb.Accessor) error {
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]string) (any, error) {
+func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

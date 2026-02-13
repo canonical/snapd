@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - AuthenticationRequired
+    - Snaps
+    - Synchronous
+  summary: Get snap configuration
+  description: Retrieve configuration details for an installed snap. Use 'system' as the name to get system options.
+  operationId: getSnapConfig
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: name
+      in: path
+      required: true
+      description: The name of the snap or the reserved name 'system'.
+      schema:
+        type: string
+    - name: keys
+      in: query
+      required: false
+      description: A comma-separated list of keys to retrieve. Dotted keys can be used for nested values.
+      schema:
+        type: string
+  responses:
+    200:
+      description: A JSON map of configuration keys and their values.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+put:
+  tags:
+    - Asynchronous
+    - AuthenticationRequired
+    - Snaps
+  summary: Set snap configuration
+  description: Set the configuration details for an installed snap. Use 'system' as the name to set system options.
+  operationId: setSnapConfig
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: name
+      in: path
+      required: true
+      description: The name of the snap or the reserved name 'system'.
+      schema:
+        type: string
+  requestBody:
+    required: true
+    description: A JSON map of configuration keys and values. Dotted keys can be used. Use a null value to unset an option.
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: true
+        example:
+          conf-key1: conf-value1
+          dotted.key: conf-value2
+          key-to-unset: null
+  responses:
+    202:
+      description: The configuration update has been accepted and is being processed in the background.
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

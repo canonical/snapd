@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The schema the API uses for the 'patch' action of /v2/interfaces/rules/{id}.
+required:
+  - action
+  - rule
+properties:
+  action:
+    type: string
+    description: The action to perform on the rule with the given ID.
+    enum:
+      - patch
+  rule:
+    type: object
+    properties:
+      constraints:
+        oneOf:
+          - $ref: ./PromptingPatchConstraintsCamera.yaml
+          - $ref: ./PromptingPatchConstraintsHome.yaml

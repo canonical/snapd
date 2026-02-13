@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -41,20 +40,21 @@ import (
 
 var (
 	// Allow mocking the listener for tests
-	listenerRegister = listener.Register
-	listenerClose    = (*listener.Listener).Close
-	listenerRun      = (*listener.Listener).Run
-	listenerReady    = (*listener.Listener).Ready
-	listenerReqs     = (*listener.Listener).Reqs
-
-	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
-		return req.Reply(allowedPermission)
+	listenerRegister = func() (listenerBackend, error) {
+		return listener.Register(listener.NewListenerRequest)
 	}
 
 	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
 
 	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
+
+type listenerBackend interface {
+	Close() error
+	Run() error
+	Ready() <-chan struct{}
+	Reqs() <-chan *listener.Request
+}
 
 // A Manager holds outstanding prompts and mediates their replies, further it
 // stores and applies persistent rules.
@@ -80,7 +80,7 @@ type InterfacesRequestsManager struct {
 	// or when removing those databases. The lock can be held for reading when
 	// acting on just one or the other, as each has an internal mutex as well.
 	lock     sync.RWMutex
-	listener *listener.Listener
+	listener listenerBackend
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
 
@@ -129,7 +129,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			listenerClose(listenerBackend)
+			listenerBackend.Close()
 		}
 	}()
 
@@ -177,7 +177,7 @@ func (m *InterfacesRequestsManager) run() error {
 		// returns, which only occurs when the manager tomb is dying. So we
 		// don't need to worry about the listener returning nil when we don't
 		// already expect to be exiting.
-		return listenerRun(m.listener)
+		return m.listener.Run()
 	})
 
 	defer func() {
@@ -214,7 +214,7 @@ run_loop:
 			m.lock.RUnlock()
 			// Close the ready channel to unblock method calls.
 			close(m.ready)
-		case req, ok := <-listenerReqs(m.listener):
+		case req, ok := <-m.listener.Reqs():
 			if !ok {
 				// Reqs() closed, so an error occurred in the listener. In
 				// production, the listener does not close itself on error, so
@@ -253,7 +253,7 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 		return nil
 	default:
 		// We haven't handled a ready signal yet, so return the real thing.
-		return listenerReady(m.listener)
+		return m.listener.Ready()
 	}
 }
 
@@ -261,7 +261,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	userID := uint32(req.SubjectUID)
 	if userID == 0 {
 		// Deny any request for the root user
-		return requestReply(req, nil)
+		return req.Reply(nil)
 	}
 	snap := req.Label // Default to apparmor label, in case process is not a snap
 	if tag, err := naming.ParseSecurityTag(req.Label); err == nil {
@@ -286,7 +286,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 			// none which applied to all requested permissions. Since we can't
 			// decide which interface to use, automatically deny this request.
 			logger.Noticef("error while selecting interface from metadata tags: %v", err)
-			return requestReply(req, nil)
+			return req.Reply(nil)
 		}
 	}
 
@@ -295,7 +295,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	permissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission)
 	if err != nil {
 		logger.Noticef("error while parsing AppArmor permissions: %v", err)
-		return requestReply(req, nil)
+		return req.Reply(nil)
 	}
 
 	// we're done with early checks, serious business starts now, and we can
@@ -320,7 +320,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 		// Error should not occur, but if it does, allowedPermission is set to
 		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		return req.Reply(allowedPermission)
 	}
 
 	// Request not satisfied by any of existing rules, record a prompt for the user
@@ -343,7 +343,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		allowedPermission, _ := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 		// Error should not occur, but if it does, allowedPermission is set to
 		// empty, leaving it to the listener to default deny all permissions.
-		return requestReply(req, allowedPermission)
+		return req.Reply(allowedPermission)
 	}
 
 	if merged {
@@ -361,7 +361,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 
 	var errs []error
 	if m.listener != nil {
-		errs = append(errs, listenerClose(m.listener))
+		errs = append(errs, m.listener.Close())
 	}
 	if m.prompts != nil {
 		errs = append(errs, m.prompts.Close())
@@ -490,7 +490,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		}
 
 		defer func() {
-			if retErr != nil || lifespan == prompting.LifespanSingle {
+			if retErr != nil {
 				m.rules.RemoveRule(userID, newRule.ID)
 			}
 		}()

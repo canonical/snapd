@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -1190,6 +1191,24 @@ type testGadgetCommandlineUpdateOpts struct {
 	cmdlineAppendDanger string
 }
 
+func checkCmdlineAppendCoreConfig(c *C, st *state.State, cmdlineAppend, cmdlineAppendDanger string) {
+	tr := config.NewTransaction(st)
+
+	value := ""
+	err := tr.Get("core", "system.kernel.cmdline-append", &value)
+	if !config.IsNoOption(err) {
+		c.Assert(err, IsNil)
+	}
+	c.Assert(value, Equals, cmdlineAppend)
+
+	value = ""
+	err = tr.Get("core", "system.kernel.dangerous-cmdline-append", &value)
+	if !config.IsNoOption(err) {
+		c.Assert(err, IsNil)
+	}
+	c.Assert(value, Equals, cmdlineAppendDanger)
+}
+
 func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, toFiles [][]string, errMatch, logMatch string, opts testGadgetCommandlineUpdateOpts) {
 	restore := release.MockOnClassic(opts.isClassic)
 	defer restore()
@@ -1226,6 +1245,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		tsk.Set("dangerous-cmdline-append", opts.cmdlineAppendDanger)
 		argsAppended = true
 	}
+	checkCmdlineAppendCoreConfig(c, s.state, "", "")
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
 		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
@@ -1298,11 +1318,18 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			var restartRequired bool
 			c.Check(chg.Get("gadget-restart-required", &restartRequired), FitsTypeOf, &state.NoStateError{})
 		}
+		// Check that configuration transaction is committed on success
+		checkCmdlineAppendCoreConfig(c, s.state, opts.cmdlineAppend, opts.cmdlineAppendDanger)
 	} else {
 		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
+		// Check that configuration transaction is not committed on error
+		checkCmdlineAppendCoreConfig(c, s.state, "", "")
 	}
+
+	// Reset any system.kernel.* configs that might have been set by the task.
+	s.state.Set("config", nil)
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C) {

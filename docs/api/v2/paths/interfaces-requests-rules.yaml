@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Retrieve all rules
+  description: Retrieves a list of all prompting rules, with optional filtering.
+  operationId: getRules
+  security: []
+  parameters:
+    - name: snap
+      in: query
+      required: false
+      description: Only retrieve rules which apply to the given snap.
+      schema:
+        type: string
+    - name: interface
+      in: query
+      required: false
+      description: Only retrieve rules which apply to the given interface.
+      schema:
+        type: string
+    - $ref: '../components/parameters/UserId.yaml'
+  responses:
+    200:
+      description: An array of rule objects.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/PromptingRule.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Create or remove rules
+  description: Create a new access rule or remove a set of existing rules based on a selector.
+  operationId: manageRules
+  security: []
+  parameters:
+    - $ref: '../components/parameters/UserId.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/PromptingRuleActionAdd.yaml'
+            - $ref: '../components/schemas/PromptingRuleActionRemove.yaml'
+  responses:
+    200:
+      description: The created rule (for 'add' action) or an array of removed rules (for 'remove' action).
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '../components/schemas/PromptingRule.yaml'
+              - type: array
+                items:
+                  $ref: '../components/schemas/PromptingRule.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

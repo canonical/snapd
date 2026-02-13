@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Synchronous
+    - Systems
+  summary: Get system information
+  description: |-
+    Retrieves a dictionary of server configuration and environment information.
+  operationId: getSystemInfo
+  security: []
+  responses:
+    200:
+      description: A synchronous response containing detailed system information.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum: 
+                  - sync
+              result:
+                $ref: '../components/schemas/SystemInfo.yaml'
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'

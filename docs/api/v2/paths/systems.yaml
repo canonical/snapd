@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Systems
+    - Synchronous
+  summary: Get the list of recovery systems
+  description: Retrieves a list of all available recovery systems on the device.
+  operationId: getSystems
+  security: []
+  responses:
+    200:
+      description: A list of recovery systems.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              systems:
+                type: array
+                items:
+                  $ref: '../components/schemas/System.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+post:
+  tags:
+    - AuthenticationRequired
+    - Systems
+    - Asynchronous # Actions like 'create' and 'install' are async
+    - Synchronous
+  summary: Perform an action on the current recovery system or create a new one
+  description: |-
+    Perform an action such as 'reboot', 'install' on the current active recovery
+    system, or 'create' a new recovery system.
+  operationId: performSystemAction
+  security:
+    - PeerAuth: [] # TODO This was originally designated as root auth, investigate
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/SystemActionCreate.yaml'
+            - $ref: '../components/schemas/SystemActionInstall.yaml'
+            - $ref: '../components/schemas/SystemActionReboot.yaml'
+      # TODO document multipart/form-data
+  responses:
+    200:
+      description: The action was successfully initiated (for synchronous actions like reboot).
+    202:
+      description: The asynchronous action (e.g., create, install) was accepted and is in progress.
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

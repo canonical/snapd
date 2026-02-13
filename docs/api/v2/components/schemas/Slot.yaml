@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Detailed information about a slot.
+properties:
+  snap:
+    type: string
+    description: The name of the snap providing the slot.
+  slot:
+    type: string
+    description: The name of the slot itself.
+  interface:
+    type: string
+    description: The interface name for the slot.
+  attrs:
+    type: object
+    additionalProperties: true
+    description: |-
+      A static map of the slot's attributes.
+      These are attributes that belong to the slot
+  apps:
+    type: array
+    items:
+      type: string
+    description: A list of apps associated with this slot.
+  label:
+    type: string
+    description: The display label for the slot.
+  connections:
+    type: array
+    items:
+      $ref: './PlugRef.yaml'
+    description: A list of plugs connected to this slot.

@@ -1,0 +1,5 @@
+#!/bin/sh -e
+
+dbus-send --system --print-reply \
+    --dest=com.canonical.UbuntuAdvantage \
+    / org.freedesktop.DBus.ObjectManager.GetManagedObjects

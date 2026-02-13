@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: Conflict. The request conflicts with the current state of the server.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          description: The HTTP status code.
+          enum:
+            - 409
+        status:
+          type: string
+          description: The textual representation of the status code.
+          enum:
+            - Conflict
+        type:
+          type: string
+          description: The type of response.
+          enum:
+            - error
+        result:
+          $ref: '../errors/ConflictError.yaml'

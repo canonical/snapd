@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  Not Found. The requested resource could not be found.
+  Can refer to either a local or remote resource
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum:
+            - 404
+        status:
+          type: string
+          enum:
+            - Not Found
+        type:
+          type: string
+          enum:
+            - error
+        result:
+          oneOf:
+            - $ref: '../errors/NoModelAssertionError.yaml'
+            - $ref: '../errors/NoSerialAssertionError.yaml'
+            - $ref: '../errors/NotFoundError.yaml'
+            - $ref: '../errors/UserNotFoundError.yaml'
+            - $ref: '../errors/SnapNotInstalledError.yaml'

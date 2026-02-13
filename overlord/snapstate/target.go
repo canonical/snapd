@@ -756,19 +756,18 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
-		var instFlags int
-		if opts.Flags.SkipConfigure {
-			instFlags |= skipConfigure
-		}
-
-		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
+		installTS, err := doInstallOrPreDownload(st, &t.snapst, &snapsup, compsups, installContext{
+			FromChange:    opts.FromChange,
+			DeviceCtx:     opts.DeviceCtx,
+			SkipConfigure: opts.Flags.SkipConfigure,
+		})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		ts.JoinLane(generateLane(st, opts))
+		installTS.ts.JoinLane(generateLane(st, opts))
 
-		tasksets = append(tasksets, ts)
+		tasksets = append(tasksets, installTS.ts)
 		infos = append(infos, t.info)
 	}
 
@@ -948,7 +947,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 
 	changes := make([]*snap.Info, 0, len(updates))
 	for _, up := range updates {
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, err
 		}

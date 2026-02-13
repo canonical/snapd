@@ -14,10 +14,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Download snapd snap
+      uses: ./.github/actions/download-snapd-snap
+      with:
+        use-master-push: true
+        is-amd64: true
+        is-arm64: false
+        is-fips: false
+
     - name: Install dependencies
       run: |
-        wget https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
-        sudo snap install snapd_master_amd64.snap --dangerous
+        sudo snap install built-snap/snapd_1337.*.snap.keep --dangerous
         sudo snap install firefox
         sudo apt install xvfb
 

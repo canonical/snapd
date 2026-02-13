@@ -123,7 +123,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
+		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]any) (string, error) {
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
 			return "123", nil
@@ -153,7 +153,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Name, Equals, "wifi-setup")
 		return "123", nil
@@ -247,7 +247,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 	}
 }
 
-func (s *confdbSuite) TestGetTxError(c *C) {
+func (s *confdbSuite) TestGetErrorHandling(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
@@ -267,14 +267,16 @@ func (s *confdbSuite) TestGetTxError(c *C) {
 		{name: "no data", err: confdb.NewNoDataError(view, nil), status: 400, kind: client.ErrorKindConfigNoSuchOption},
 		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
+		{name: "unmatched constraints", err: &confdb.UnmatchedConstraintsError{}, status: 400},
+		{name: "unconstrained filter params", err: &confdb.UnconstrainedParamsError{}, status: 400},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
-		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]string) (string, error) {
+		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]any) (string, error) {
 			return "", t.err
 		})
 
 		cmt := Commentf("%s test", t.name)
-		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
@@ -296,7 +298,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Check(requests, DeepEquals, []string{"foo.bar", "[1].foo", "foo"})
 		return "123", nil
 	})
@@ -568,7 +570,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Assert(requests, IsNil)
 		return "123", nil
 	})
@@ -590,9 +592,9 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, constraints map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, constraints map[string]any) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid"})
-		c.Assert(constraints, DeepEquals, map[string]string{
+		c.Assert(constraints, DeepEquals, map[string]any{
 			"foo": "bar",
 			"baz": "abc",
 		})
@@ -623,25 +625,53 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, constraints map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]any) (string, error) {
 		c.Error("unexpected call to LoadConfdbAsync")
 		return "", errors.New("unexpected call to LoadConfdbAsync")
 	})
 	defer restore()
 
-	badConstraints := []string{
-		"not-json",
-		"null",
-		"{invalid}",
-		"[]",
-		`{"key": 123}`, // values must be strings (for now)
+	type testcase struct {
+		constraint string
+		err        string
 	}
 
-	for i, cstr := range badConstraints {
-		cmt := Commentf("failed test %d/%d", i+1, len(badConstraints))
+	tcs := []testcase{
+		{
+			constraint: `not-json`,
+			err:        `"constraints" must be a JSON object`,
+		},
+		{
+			constraint: `null`,
+			err:        `"constraints" must be a JSON object`,
+		},
+		{
+			constraint: `{invalid}`,
+			err:        `"constraints" must be a JSON object`,
+		},
+		{
+			constraint: `["foo"]`,
+			err:        `"constraints" must be a JSON object`,
+		},
+		{
+			constraint: `{"foo": ["bar"]}`,
+			err:        `constraint value must be non-null scalar but parameter "foo" has array constraint`,
+		},
+		{
+			constraint: `{"foo": {"bar": "baz"}}`,
+			err:        `constraint value must be non-null scalar but parameter "foo" has map constraint`,
+		},
+		{
+			constraint: `{"foo": null}`,
+			err:        `constraint value must be non-null scalar but parameter "foo" has null constraint`,
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("failed test %d/%d", i+1, len(tcs))
 		query := url.Values{}
 		query.Add("keys", "ssid")
-		query.Add("constraints", cstr)
+		query.Add("constraints", tc.constraint)
 		endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
 
 		req, err := http.NewRequest("GET", endpoint, nil)
@@ -649,7 +679,7 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400, cmt)
-		c.Check(rspe.Message, Matches, `"constraints" must be a JSON object`, cmt)
+		c.Check(rspe.Message, Matches, tc.err, cmt)
 	}
 }
 

@@ -20,6 +20,7 @@
 package squashfs
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"time"
@@ -30,6 +31,10 @@ import (
 var (
 	FromRaw                   = fromRaw
 	NewUnsquashfsStderrWriter = newUnsquashfsStderrWriter
+
+	SetupPipes                      = setupPipesImpl
+	CompIdToMksquashfsArgs          = compIdToMksquashfsArgs
+	SuperBlockFlagsToMksquashfsArgs = superBlockFlagsToMksquashfsArgs
 )
 
 const (
@@ -53,6 +58,39 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	snapdtoolCommandFromSystemSnap = f
 	return func() {
 		snapdtoolCommandFromSystemSnap = oldCommandFromSystemSnap
+	}
+}
+
+func MockCommandFromSystemSnapWithContext(f func(context.Context, string, ...string) (*exec.Cmd, error)) (restore func()) {
+	oldCommand := snapdtoolCommandFromSystemSnapWithContext
+	snapdtoolCommandFromSystemSnapWithContext = f
+	return func() {
+		snapdtoolCommandFromSystemSnapWithContext = oldCommand
+	}
+}
+
+func MockCmdRun(f func(c *exec.Cmd) error) (restore func()) {
+	oldCmdRun := cmdRun
+	cmdRun = f
+	return func() {
+		cmdRun = oldCmdRun
+	}
+}
+
+func MockOsutilRunManyWithContext(f func(context.Context, func(context.Context) (
+	cmds []*exec.Cmd, tasks []func() error, err error)) error) (restore func()) {
+	oldOsutilRunManyWithContext := osutilRunManyWithContext
+	osutilRunManyWithContext = f
+	return func() {
+		osutilRunManyWithContext = oldOsutilRunManyWithContext
+	}
+}
+
+func MockSetupPipes(f func(pipeNames ...string) (string, []string, error)) (restore func()) {
+	oldSetupPipes := setupPipes
+	setupPipes = f
+	return func() {
+		setupPipes = oldSetupPipes
 	}
 }
 

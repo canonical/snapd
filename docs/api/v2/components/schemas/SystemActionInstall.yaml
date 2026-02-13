@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionInstall
+description: Payload to perform a step in the system installation process.
+required:
+  - action
+  - step
+properties:
+  action:
+    type: string
+    enum:
+      - install
+  step:
+    type: string
+    description: The specific step of the installation process to execute.
+    enum:
+      - setup-storage-encryption
+      - generate-recovery-key
+      - finish
+oneOf:
+  - type: object
+    required:
+      - step
+    properties:
+      step:
+        type: string
+        enum:
+          - setup-storage-encryption
+      on-volumes:
+        type: array
+        items:
+          type: string
+        description: A list of volume labels to operate on.
+      volumes-auth:
+        type: object
+        additionalProperties:
+          type: string
+        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
+  - type: object
+    required:
+      - step
+    properties:
+      step:
+        type: string
+        enum:
+          - generate-recovery-key
+  - type: object
+    required:
+      - step
+    properties:
+      step:
+        type: string
+        enum:
+          - finish
+      on-volumes:
+        type: array
+        items:
+          type: string
+        description: A list of volume labels to operate on.
+      optional-install:
+        type: object
+        properties:
+          all:
+            type: boolean
+            description: If true, install all optional snaps and components. Cannot be used if 'snaps' or 'components' are specified.
+          snaps:
+            type: array
+            items:
+              type: string
+            description: A list of specific optional snaps to install.
+          components:
+            type: array
+            items:
+              type: string
+            description: A list of specific optional components to install.

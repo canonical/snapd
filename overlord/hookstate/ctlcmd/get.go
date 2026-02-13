@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -112,8 +113,10 @@ that invoked the hook.
 The --default flag can be used to provide a default value to be returned if no
 value is stored.
 
-The --with flag can be used to provide constraints in the form of param=constraint
-pairs.
+The --with flag can be used to provide constraints in the form of 
+<param>=<constraint> pairs. Constraints are parsed as JSON values. If they
+cannot be interpreted as non-null JSON scalars, snapctl defaults to 
+interpreting values as strings unless -t is also provided.
 `)
 
 func init() {
@@ -438,7 +441,8 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	constraints, err := c.parseConstraints()
+	opts := clientutil.ConfdbOptions{Typed: c.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(c.With, opts)
 	if err != nil {
 		return err
 	}
@@ -487,22 +491,6 @@ func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) 
 	}
 
 	return map[string]any{request: defaultVal}, nil
-}
-
-func (c *getCommand) parseConstraints() (map[string]string, error) {
-	if len(c.With) == 0 {
-		return nil, nil
-	}
-
-	constraints := make(map[string]string, len(c.With))
-	for _, constraint := range c.With {
-		parts := strings.SplitN(constraint, "=", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return nil, fmt.Errorf(`--with constraints must be in the form <param>=<constraint> but got %q instead`, constraint)
-		}
-		constraints[parts[0]] = parts[1]
-	}
-	return constraints, nil
 }
 
 func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {

@@ -21,10 +21,13 @@
 package install_test
 
 import (
+	"context"
 	"errors"
 	"os"
 
 	. "gopkg.in/check.v1"
+
+	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
@@ -33,6 +36,21 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type simpleMockActivateContext struct {
+}
+
+func (m *simpleMockActivateContext) ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error {
+	return nil
+}
+
+func (m *simpleMockActivateContext) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return nil
+}
+
+func (m *simpleMockActivateContext) State() *secboot.ActivateState {
+	return nil
+}
 
 type encryptSuite struct {
 	testutil.BaseTest
@@ -77,15 +95,15 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 			expectedErr:     "cannot open encrypted device on /dev/node1: open error",
 		},
 	} {
-		defer install.MockCryptsetupOpen(func(key secboot.DiskUnlockKey, node, name string) error {
-			if tc.mockedOpenErr != "" {
-				return errors.New(tc.mockedOpenErr)
-			}
-			return nil
+		defer install.MockSecbootNewSimpleActivateContext(func(ctx context.Context) (secboot.ActivateContext, error) {
+			return &simpleMockActivateContext{}, nil
 		})()
 
-		defer install.MockCryptsetupClose(func(name string) error {
-			return nil
+		defer install.MockSecbootUnlockEncryptedVolumeUsingKey(func(activation secboot.ActivateContext, devNode string, name string, key []byte) (secboot.StorageContainer, error) {
+			if tc.mockedOpenErr != "" {
+				return nil, errors.New(tc.mockedOpenErr)
+			}
+			return nil, nil
 		})()
 
 		calls := 0

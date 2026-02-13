@@ -378,28 +378,14 @@ type profilePathsResults struct {
 	removed   []string
 }
 
-func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
+func (b *Backend) setupHostAppArmorForCoreAndSnapd(appSet *interfaces.SnapAppSet) error {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
-	}
-
 	snapInfo := appSet.Info()
-
-	// Add snippets for parallel snap installation mapping
-	spec.(*Specification).AddOvername(snapInfo)
-
-	// Add snippets derived from the layout definition.
-	spec.(*Specification).AddLayout(appSet)
-
-	// Add additional mount layouts rules for the snap.
-	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
-			return nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -408,7 +394,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 	// systems but /etc/apparmor.d is not writable on core18 systems
 	if snapInfo.Type() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
-			return nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -427,6 +413,37 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (b *Backend) Prepare(appSet *interfaces.SnapAppSet) error {
+	// Perform any host-specific setup needed for core and snapd snaps.
+	return b.setupHostAppArmorForCoreAndSnapd(appSet)
+}
+
+func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
+	snapName := appSet.InstanceName()
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
+	}
+
+	snapInfo := appSet.Info()
+
+	// Add snippets for parallel snap installation mapping
+	spec.(*Specification).AddOvername(snapInfo)
+
+	// Add snippets derived from the layout definition.
+	spec.(*Specification).AddLayout(appSet)
+
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
+
+	// Perform any host-specific setup needed for core and snapd snaps.
+	// TODO: Remove this once Prepare is being called.
+	if err := b.setupHostAppArmorForCoreAndSnapd(appSet); err != nil {
+		return nil, err
 	}
 
 	// Get the files that this snap should have
@@ -476,7 +493,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	prof, err := b.prepareProfiles(appSet, opts, repo)
 	if err != nil {
 		return err
@@ -525,7 +542,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // collects and returns them all.
 //
 // This method is useful mainly for regenerating profiles.
-func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, sctx func(snapName string) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
@@ -580,7 +597,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 		for _, set := range appSets {
 			instanceName := set.InstanceName()
 			opts := confinement(instanceName)
-			if err := b.Setup(set, opts, repo, tm); err != nil {
+			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))
 			}
 		}

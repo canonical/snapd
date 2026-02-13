@@ -207,6 +207,8 @@ The CI tooling will check and enforce the order and required sections when a spr
 
 * Whenever reasonable, avoid spurious differences between the code in master and the new code.
 
+* If a change affects the REST API implemented in ./daemon, the REST API documentation needs to be updated in the same PR. If the ./docs/api folder has changes, the OpenAPI workflow will trigger automatically.
+
 * Large mechanical refactoring and changes should be done as separate PRs. Try to separate behaviour changes and refactoring into different PRs and not mix the two.
 
 * Refactoring should not touch preexisting tests. If changing a test is unavoidable, changes must be minimal. To ensure a refactor can be anchored, it's a good idea to check the coverage before starting, both in terms of lines of codes and in the features and behaviors that may be affected. Checking the coverage afterwards can also reveal whether there is old code that now can be dropped.

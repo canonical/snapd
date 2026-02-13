@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints map[string]string) (changeID string, err error) {
+func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints map[string]any) (changeID string, err error) {
 	query := url.Values{}
 	query.Add("keys", strings.Join(requests, ","))
 

@@ -1,0 +1,64 @@
+<style>
+@media (prefers-color-scheme: dark) {
+  /* Fix most body and heading text */
+  body[data-theme="dark"] h1,
+  body[data-theme="dark"] h2,
+  body[data-theme="dark"] h3,
+  body[data-theme="dark"] h5,
+  body[data-theme="dark"] p,
+  body[data-theme="dark"] div,
+  body[data-theme="dark"] tr:has(td[kind="field"]) span {
+    color: #f0f0f0 !important;
+  }
+
+  /* Fix embedded tables */
+  body[data-theme="dark"] table {
+    background-color: #202020 !important;
+    color: #f0f0f0 !important;
+  }
+
+  /* Fix dropdowns and selectable elements */
+  body[data-theme="dark"] input,
+  body[data-theme="dark"] select,
+  body[data-theme="dark"] textarea {
+    background-color: #303030 !important;
+    color: #f0f0f0 !important;
+    border: 1px solid #505050 !important;
+  }
+
+  /* Fix SVG icons (arrows) */
+  body[data-theme="dark"] svg,
+  body[data-theme="dark"] svg polygon,
+  body[data-theme="dark"] svg path {
+    fill: #f0f0f0 !important;
+    stroke: #f0f0f0 !important;
+  }
+
+  /* Override CSS variables for dark theme */
+  body[data-theme="dark"] {
+    background-color: #1c1c1c !important;
+    --color-code-background: #202020 !important;
+    --color-code-foreground: #808080 !important;
+    --color-foreground-secondary: var(--color-foreground-primary) !important;
+    --color-foreground-muted: #CDCDCD !important;
+    --color-background-secondary: var(--color-background-primary) !important;
+    --color-background-hover: #606060 !important;
+    --color-brand-primary: #fff !important;
+    --color-brand-content: #6090C0 !important;
+    --color-sidebar-link-text: #f7f7f7 !important;
+    --color-sidebar-item-background--current: #606060 !important;
+    --color-sidebar-item-background--hover: #303030 !important;
+    --color-admonition-background: transparent !important;
+    --color-admonition-title-background--note: var(--color-background-primary) !important;
+    --color-admonition-title-background--tip: var(--color-background-primary) !important;
+    --color-admonition-title-background--important: var(--color-background-primary) !important;
+    --color-admonition-title-background--caution: var(--color-background-primary) !important;
+    --color-admonition-title--note: #24598F !important;
+    --color-admonition-title--tip: #24598F !important;
+    --color-admonition-title--important: #C7162B !important;
+    --color-admonition-title--caution: #F99B11 !important;
+    --color-highlighted-background: #606060 !important;
+    --color-version-popup: #F29879 !important;
+  }
+}
+</style>

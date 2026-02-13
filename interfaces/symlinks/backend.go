@@ -52,8 +52,13 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySymlinks
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup will make the symlinks backend generate the specified symlinks.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	symlinkDirs := map[string]bool{}
 	for _, iface := range repo.AllInterfaces() {
 		if symlnIface, ok := iface.(interfaces.SymlinksUser); ok {

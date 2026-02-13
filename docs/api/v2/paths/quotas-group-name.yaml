@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+parameters:
+  - name: group-name
+    in: path
+    required: true
+    description: The name of the quota group.
+    schema:
+      type: string
+
+get:
+  tags:
+    - OpenAccess
+    - Quotas
+    - Synchronous
+  summary: Get a specific quota group
+  description: |-
+    Retrieves the details for a single quota group by its name, or returns an error.
+  operationId: getQuotaGroupByName
+  security: []
+  responses:
+    200:
+      description: Details for the specified quota group.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/QuotaGroup.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

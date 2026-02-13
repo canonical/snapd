@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  operationId: getAliases
+  summary: Get the available app aliases
+  tags:
+    - Apps
+    - OpenAccess
+    - Synchronous
+  security: []
+  responses:
+    200:
+      description: A dictionary containing the aliases for each snap.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                description: |
+                  The status-code property contains the HTTP response value.
+                enum:
+                  - 200
+              status:
+                type: string
+                description: |
+                  The status property contains the textual representation of the 'status-code' property.
+                  For the 'status-code' equal to 200, the 'status' is always 'OK'
+                enum:
+                  - OK
+              type:
+                type: string
+                description: |
+                  The type property indicates that this is a synchronous API response and the whole content
+                  is now available. The result of the API call is in the result object. The value is always
+                  'sync'.
+                enum:
+                  - sync
+              result:
+                type: object
+                description: |
+                  The result object contains information about all the aliases in the system.
+                additionalProperties:
+                  type: object
+                  description: |
+                    Each top-level property is a snap instance name. Typically snap instance is
+                    the name of the snap, except when parallel-instances as used and the snap name
+                    is followed by an underscore and then the instance key.
+                  additionalProperties:
+                      type: object
+                      description: |
+                        Each top-level property under the snap name above, is the name of the actual alias.
+                        The alias is visible as a top-level command and is exposed on PATH in the system.
+                      required:
+                        - command
+                        - status
+                      properties:
+                        command:
+                          type: string
+                          description: |
+                            The name of the snap entry-point executable invoked by this alias.
+                            This is typically the name of the snap followed by dot and then the name
+                            of the application within the snap. It may also be just the name of the snap.
+                        status:
+                          type: string
+                          description: |
+                            Status describes the status of the alias. The value 'manual' indicates that the
+                            status was created manually by the user. The status 'disabled' indicates the user
+                            manually removed the alias (it will not be re-created automatically by snapd).
+                            The status 'auto' indicates that the alias was created automatically by snapd.
+                          enum:
+                            - auto
+                            - manual
+                            - disabled
+                        auto:
+                          type: string
+                          description: |
+                            The app the alias is for as assigned by an assertion
+                        manual:
+                          type: string
+                          description: |
+                            The app the alias is for if status is manual.
+                            Overrides auto
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - Apps
+    - Asynchronous
+    - AuthenticationRequired
+  summary: Modify aliases
+  description: |-
+    Modify aliases by performing an 'alias', 'unalias', or 'prefer' action.
+  operationId: modifyAliases
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The action to perform on an alias.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+            - alias
+          properties:
+            action:
+              type: string
+              description: The action to perform on the alias.
+              enum:
+                - alias
+                - unalias
+                - prefer
+            snap:
+              type: string
+              description: The snap name to modify (optional for unalias).
+              example: moon-buggy
+            app:
+              type: string
+              description: The app to modify (optional).
+            alias:
+              type: string
+              description: The alias to modify.
+              example: foo
+  responses:
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'

@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - outcome
+  - lifespan
+properties:
+  outcome:
+    type: string
+    enum:
+      - allow
+      - deny
+  lifespan:
+    type: string
+    description: |-
+      The lifespan for which the permission applies.
+
+      timespan: the permission applies for the given duration specified by the
+      duration field or until it is deleted
+
+      session: the permission applies until the user logs out (specifically,
+      until the systemd user session ends)
+
+      forever: the permission applies until it is deleted
+    enum:
+      - timespan
+      - session
+      - forever
+  expiration:
+    type: string
+    format: date-time
+    description: |-
+      The timestamp at which the permission will expire. Required if lifespan
+      is timespan, otherwise must be omitted.
+  session-id:
+    type: string
+    description: |-
+      The opaque session ID used for session-based permissions. Required if
+      lifespan is session, otherwise must be omitted.

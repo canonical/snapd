@@ -82,6 +82,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityUDev
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // snapRulesFileName returns the path of the snap udev rules file.
 func snapRulesFilePath(snapName string) string {
 	rulesFileName := fmt.Sprintf("70-%s.rules", snap.SecurityTag(snapName))
@@ -99,7 +104,7 @@ func snapDeviceCgroupSelfManageFilePath(snapName string) string {
 // UDev has no concept of a complain mode so confinement options are ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

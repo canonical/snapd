@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionCreate
+required:
+  - action
+  - label
+properties:
+  action:
+    type: string
+    enum:
+      - create
+  label:
+    type: string
+    description: A unique label for the new recovery system.
+  validation-sets:
+    type: array
+    items:
+      type: string
+    description: A list of validation set strings to use for creating the system.
+  test-system:
+    type: boolean
+    default: false
+    description: If true, creates the system as a test system.
+  mark-default:
+    type: boolean
+    default: false
+    description: If true, marks the new system as the default recovery system.
+  offline:
+    type: boolean
+    default: false
+    description: If true, performs the creation in offline mode.

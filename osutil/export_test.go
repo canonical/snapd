@@ -243,3 +243,11 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 func ReadGoBuildID(fname string) (string, error) {
 	return readGenericBuildID(fname, goElfNote, goHdrType)
 }
+
+func MockAllDataHomeGlobs(f func() []string) func() {
+	oldAllDataHomeGlobs := dirsAllDataHomeGlobs
+	dirsAllDataHomeGlobs = f
+	return func() {
+		dirsAllDataHomeGlobs = oldAllDataHomeGlobs
+	}
+}

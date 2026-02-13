@@ -111,7 +111,7 @@ func (s *backendSuite) TestInstallingSnapWritesRuleFilesNoRuleDirectory(c *C) {
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 	for _, opts := range testedConfinementOpts {
-		err = s.Backend.Setup(appSet, opts, s.Repo, nil)
+		err = s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 		c.Assert(err, ErrorMatches, `cannot synchronize polkit rule files for snap "samba":.*: no such file or directory`)
 	}
 }
@@ -130,7 +130,7 @@ func (s *backendSuite) TestInstallingSnapWritesRuleFilesBadNameSuffix(c *C) {
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 	for _, opts := range testedConfinementOpts {
-		err = s.Backend.Setup(appSet, opts, s.Repo, nil)
+		err = s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 		c.Assert(err, ErrorMatches, `cannot obtain polkit specification for snap "samba": "--" does not match ".*"`)
 	}
 }

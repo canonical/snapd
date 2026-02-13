@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: string
+description: The type of the notice.
+enum:
+  - change-update
+  - warning
+  - refresh-inhibit
+  - snap-run-inhibit
+  - interfaces-requests-prompt
+  - interfaces-requests-rule-update

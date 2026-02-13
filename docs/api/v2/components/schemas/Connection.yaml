@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents a connection between a specific plug and slot.
+properties:
+  slot:
+    $ref: './SlotRef.yaml'
+  plug:
+    $ref: './PlugRef.yaml'
+  interface:
+    type: string
+    description: The name of the interface governing the connection.
+  manual:
+    type: boolean
+    description: True if the connection was established manually.
+  gadget:
+    type: boolean
+    description: True if the connection is defined by the gadget snap.
+  slot-attrs:
+    type: object
+    additionalProperties: true
+    description: |-
+      A map of the slot's attributes.
+      These are negotiated by and belong to the connection.
+  plug-attrs:
+    type: object
+    additionalProperties: true
+    description: |-
+      A map of the plug's attributes.
+      These are negotiated by and belong to the connection.

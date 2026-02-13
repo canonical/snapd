@@ -105,6 +105,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecuritySecComp
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 func bpfSrcPath(srcName string) string {
 	return filepath.Join(dirs.SnapSeccompDir, srcName)
 }
@@ -198,7 +203,7 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)

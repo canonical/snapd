@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Store
+    - Synchronous
+  summary: Get store sections
+  description: |-
+    Retrieves the list of available sections in the Snap Store.
+  operationId: getStoreSections
+  security: []
+  responses:
+    200:
+      description: A synchronous response containing the names of the store sections.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: array
+                description: An array containing the names of the store sections.
+                items:
+                  type: string
+                example:
+                  - featured
+                  - development
+                  - social
+                  - utilities
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'

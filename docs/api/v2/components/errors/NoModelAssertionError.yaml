@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The model assertion has not been created yet.
+properties:
+  kind:
+    type: string
+    description: machine-readable definition of the error.
+    enum:
+      - assertion-not-found  # TODO Need follow up PR focusing only on errors
+  message:
+    type: string
+    description: Human-readable string describing the error.
+    enum:
+      - no model assertion yet
+
+  value:
+    type: string
+    description: Value passed that triggered the error.
+    enum:
+      - model

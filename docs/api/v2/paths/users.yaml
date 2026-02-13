@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Root
+    - Synchronous
+    - Users
+  summary: Get user accounts
+  description: |-
+    Get information on user accounts on the system.
+  operationId: getUsers
+  security:
+    - PeerAuth: []
+  responses:
+    200:
+      description: An array of user account information.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/User.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
+
+post:
+  tags:
+    - Root
+    - Synchronous
+    - Users
+  summary: Manage users
+  description: |-
+    Create or remove local users on the system.
+  operationId: manageUsers
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - action
+          properties:
+            action:
+              type: string
+              enum:
+                - create
+                - remove
+            email:
+              type: string
+              format: email
+            username:
+              type: string
+            sudoer:
+              type: boolean
+              default: false
+              description: |-
+                Whether the user can escalate to root privileges or not.
+            known:
+              type: boolean
+              default: false
+  responses:
+    200:
+      description: A list of objects with the created user details.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                username:
+                  type: string
+                ssh-keys:
+                  type: array
+                  items:
+                    type: string
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    405:
+      $ref: '../components/responses/MethodNotAllowed.yaml'

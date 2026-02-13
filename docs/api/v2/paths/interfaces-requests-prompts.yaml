@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Sync
+  summary: Retrieve all outstanding prompts
+  description: Retrieves a list of all outstanding access request prompts.
+  operationId: getPrompts
+  security: []
+  parameters:
+    - $ref: '../components/parameters/UserId.yaml'
+  responses:
+    200:
+      description: An array of prompt objects.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../components/schemas/PromptingPrompt.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'

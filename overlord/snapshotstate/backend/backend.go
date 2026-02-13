@@ -474,7 +474,7 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 	var sz osutil.Sizer
 	hasher := crypto.SHA3_384.New()
 
-	cmd := tarAsUser(username, tarArgs...)
+	cmd := tarAsUser(ctx, username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
 
 	// keep (at most) the last 5 non-empty lines of what 'tar' writes to stderr
@@ -490,7 +490,8 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 		cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
 	}
 
-	if err := osutil.RunWithContext(ctx, cmd); err != nil {
+	// cmd is cancellable if ctx in a cancellable context
+	if err := cmd.Run(); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
 			note := ""

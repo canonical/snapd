@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
@@ -76,6 +77,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	}
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -795,7 +797,7 @@ exec /bin/tar "$@"
 	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // validity check: task 2 is tri-snap's
 	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
 	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
-	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
+	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? signal: killed`)
 
 	// no zips left behind, not for errors, not for undos \o/
 	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
@@ -1379,7 +1381,8 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 			// finished and needed to be undone (UndoneStatus); it's
 			// a race, but either is fine.
 			if task.Status() == state.ErrorStatus {
-				c.Check(strings.Join(task.Log(), "\n"), check.Matches, `\S+ ERROR.* context canceled`)
+				c.Check(strings.Join(task.Log(), "\n"), check.Matches,
+					`\S+ ERROR.* (context canceled|signal: killed)`)
 			} else {
 				c.Check(task.Status(), check.Equals, state.UndoneStatus)
 			}

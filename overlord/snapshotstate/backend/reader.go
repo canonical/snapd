@@ -322,7 +322,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		// resist the temptation of using archive/tar unless it's proven
 		// that calling out to tar has issues -- there are a lot of
 		// special cases we'd need to consider otherwise
-		cmd := tarAsUser(username,
+		cmd := tarAsUser(ctx, username,
 			"--extract",
 			"--preserve-permissions", "--preserve-order", "--gunzip",
 			"--directory", tempdir)
@@ -336,7 +336,8 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
 		}
 
-		if err = osutil.RunWithContext(ctx, cmd); err != nil {
+		// cmd is cancellable if ctx is a cancellable context
+		if err = cmd.Run(); err != nil {
 			matches, count := matchCounter.Matches()
 			if count > 0 {
 				return rs, fmt.Errorf("cannot unpack archive: %s (and %d more)", matches[0], count-1)

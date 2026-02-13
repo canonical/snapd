@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: A notice recorded by snapd, such as a warning or change update.
+properties:
+  id:
+    type: string
+    description: The unique ID of the notice.
+    example: '67'
+  user-id:
+    type: integer
+    nullable: true
+    description: |-
+      The UID of the user who may view the notice, or null if public.
+    example: 0xFFEE1122
+  type:
+    $ref: './NoticeType.yaml'
+  key:
+    type: string
+    description: |-
+      An identifier which differentiates notices of this type. Notices recorded
+      with the type and key of an existing notice count as an occurrence of that
+      notice. Notice keys can take the form of the following:
+
+      - 63
+      - '-'
+      - 'libreoffice'
+      - 'ABCDABCDABCDABCD'
+    example: ABCDABCDABCDABCD
+  first-occurred:
+    type: string
+    format: date-time
+    description: |-
+      The timestamp of the first time this notice occurred (RFC3339 UTC format).
+    example: 2025-09-08T17:29:40.829324752Z
+  last-occurred:
+    type: string
+    format: date-time
+    description: |-
+      The timestamp of the last time this notice occurred (RFC3339 UTC format).
+    example: 2025-09-10T14:30:23.055109521Z
+  last-repeated:
+    type: string
+    format: date-time
+    description: |-
+      The timestamp of the last time this notice was repeated (RFC3339 UTC
+      format).
+    example: 2025-09-10T14:30:23.055109521Z
+  occurrences:
+    type: integer
+    description: The number of times this notice has occurred.
+    example: 4
+  last-data:
+    type: object
+    description: Additional data captured from the last occurrence.
+    additionalProperties: true
+    example:
+      kind: alias
+  repeat-after:
+    type: string
+    description: |-
+      A duration string after which the notice may be repeated (optional).
+    example: 1h30m
+  expire-after:
+    type: string
+    description: A duration string after which the notice may be deleted.
+    example: 168h0m0s

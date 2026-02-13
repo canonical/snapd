@@ -188,7 +188,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
 		s.modprobeCmd.ForgetCalls()
-		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)

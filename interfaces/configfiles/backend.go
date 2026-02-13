@@ -47,11 +47,16 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "configfiles"
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup will make the configfiles backend generate the specified
 // configuration files.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	cfgPatterns := []string{}
 	for _, iface := range repo.AllInterfaces() {
 		if cfgIface, ok := iface.(interfaces.ConfigfilesUser); ok {

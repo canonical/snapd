@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents the state and progress of a background operation.
+properties:
+  id:
+    type: string
+    description: A unique ID for this change.
+    example: "73"
+  kind:
+    type: string
+    description: A code describing what type of change this is.
+    example: auto-refresh
+  summary:
+    type: string
+    description: Human-readable description of the change.
+    example: "Auto-refresh snaps \"core22\", \"firefox\""
+  status:
+    type: string
+    description: Summary status of the current combined task statuses.
+    enum: 
+      - Abort
+      - Do
+      - Doing
+      - Done
+      - Error
+      - Hold
+      - Undo
+      - Undoing
+      - Wait
+  tasks:
+    type: array
+    description: An array of objects describing tasks in this change.
+    items:
+      $ref: './Task.yaml'
+  ready:
+    type: boolean
+    description: True if this change has completed.
+  spawn-time:
+    type: string
+    format: date-time
+    description: The time this change started.
+  ready-time:
+    type: string
+    format: date-time
+    description: The time this change completed (omitted if not completed).
+  err:
+    type: string
+    description: A human-readable error description if the transaction fails.
+  data:
+    type: object
+    description: Result of the change, structure depends on the 'kind'.
+    additionalProperties: true
+  log:
+    type: array
+    items:
+      type: string
+    description: A log of events that occurred during the change.

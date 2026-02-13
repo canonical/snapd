@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Assertions
+    - OpenAccess
+    - Synchronous
+  summary: Get the list of assertion types
+  description: |-
+    Retrieves a list of all known assertion types in the system.
+  operationId: listAssertionTypes
+  security: []
+  responses:
+    200:
+      description: A list of available assertion types.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: object
+                properties:
+                  types:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - account
+                        - account-key
+                        - account-key-request
+                        - base-declaration
+                        - confdb-control
+                        - confdb-schema
+                        - cluster
+                        - device-session-request
+                        - model
+                        - pressed
+                        - repair
+                        - serial
+                        - serial-request
+                        - snap-build
+                        - snap-declaration
+                        - snap-developer
+                        - snap-resource-pair
+                        - snap-resource-revision
+                        - snap-revision
+                        - store
+                        - system-user-validation
+                        - validation-set
+                    
+    4XX:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - Assertions
+    - AuthenticationRequired
+    - Synchronous
+  summary: Attempt to add or replace an assertion
+  description: |-
+    Requires a valid assertion with a signature signed by a verifiable public
+    key. The body of the request provides the assertion to add. If replacing an
+    existing assertion the new must be consistent with and its prerequisite.
+  operationId: addAssertion
+  security:
+    - PeerAuth: []
+  requestBody:
+    description: The raw assertion text to add to the database.
+    required: true
+    content:
+      application/x.ubuntu.assertion:
+        schema:
+          type: string
+          format: binary
+          description: A raw assertion string.
+          example: |
+            type: system-user
+            authority-id: canonical
+            series: 16
+            brand-id: canonical
+            ...
+            sign-key-sha3-384: <key>
+
+            <signature>
+  responses:
+    200:
+      description: The assertion was successfully added.
+    400:
+      $ref: '../components/responses/BadRequest.yaml'

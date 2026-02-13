@@ -1,0 +1,25 @@
+{
+	"routes": [
+		{
+			"to": "default",
+			"via": "10.0.0.1",
+			"type": "broadcast",
+			"metric": 200,
+			"on-link": false
+		},
+		{
+			"to": "default",
+			"via": "cf02:de:ad:be:ef::2",
+			"type": "local",
+			"metric": 100,
+			"on-link": false
+		},
+		{
+			"to": "192.168.5.0/24",
+			"via": "192.168.5.1",
+			"type": "local",
+			"metric": 100,
+			"on-link": true
+		}
+	]
+}

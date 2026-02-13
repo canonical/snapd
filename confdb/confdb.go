@@ -124,6 +124,40 @@ func NewNoMatchError(view *View, operation string, requests []string) *NoMatchEr
 	}
 }
 
+type UnmatchedConstraintsError struct {
+	view        string
+	requests    []string
+	constraints []string
+}
+
+func (e *UnmatchedConstraintsError) Error() string {
+	var requestsStr string
+	if (len(e.requests) == 1 && e.requests[0] != "") || len(e.requests) > 1 {
+		requestsStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(e.requests))
+	}
+	var constraintsStr string
+	if len(e.constraints) > 1 {
+		constraintsStr = i18n.G("constraints ")
+	} else {
+		constraintsStr = i18n.G("constraint ")
+	}
+	constraintsStr += strutil.Quoted(e.constraints)
+	return fmt.Sprintf(i18n.G("cannot get%s %s: no placeholder for %s"), requestsStr, e.view, constraintsStr)
+}
+
+func (e *UnmatchedConstraintsError) Is(err error) bool {
+	_, ok := err.(*UnmatchedConstraintsError)
+	return ok
+}
+
+func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+	return &UnmatchedConstraintsError{
+		view:        view.ID(),
+		requests:    requests,
+		constraints: constraints,
+	}
+}
+
 type BadRequestError struct {
 	viewID    string
 	operation string
@@ -136,14 +170,14 @@ func (e *BadRequestError) Error() string {
 	if e.request != "" {
 		reqStr = "\"" + e.request + "\""
 	} else {
-		reqStr = "empty path"
+		reqStr = i18n.G("empty path")
 	}
 
 	var causeSuffix string
 	if e.cause != "" {
 		causeSuffix = ": " + e.cause
 	}
-	return fmt.Sprintf("cannot %s %s through confdb view %s%s", e.operation, reqStr, e.viewID, causeSuffix)
+	return fmt.Sprintf(i18n.G("cannot %s %s through confdb view %s%s"), e.operation, reqStr, e.viewID, causeSuffix)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -162,7 +196,7 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 
 // Databag controls access to the confdb data storage.
 type Databag interface {
-	Get(path []Accessor, constraints map[string]string) (any, error)
+	Get(path []Accessor, constraints map[string]any) (any, error)
 	Set(path []Accessor, value any) error
 	Unset(path []Accessor) error
 	Data() ([]byte, error)
@@ -707,9 +741,16 @@ func checkForMatchingPlaceholders(request, storage string, reqPlaceholders, stor
 }
 
 type ParseOptions struct {
+	// AllowPlaceholders allows the path to have placeholders. Input paths supplied
+	// by the user are not expected to have them.
 	AllowPlaceholders bool
-	ForbidIndexes     bool
-	AllowPartialPath  bool
+	// ForbidIndexes forbids the path from containing a literal index (e.g., [1]).
+	// Unlike user supplied paths, paths specified in confdb-schemas can only have
+	// index placeholders, never index literals.
+	ForbidIndexes bool
+	// AllowPathSuffix allows the parsed path to be a suffix of a regular path.
+	// The parsing won't reject paths not starting with a map key.
+	AllowPathSuffix bool
 }
 
 // ParsePathIntoAccessors validates that the path is composed of (some of these
@@ -818,7 +859,7 @@ func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
 
 	finishSubkey := func() error {
 		if sb.Len() == 0 {
-			if len(subkeys) == 0 && opts.AllowPartialPath {
+			if len(subkeys) == 0 && opts.AllowPathSuffix {
 				// we may be parsing a suffix of a path 'foo[2].bar' so allow a path to
 				// start with a separator '[2].bar'
 				return nil
@@ -1035,7 +1076,8 @@ func validateSetValue(initial any) error {
 	return nil
 }
 
-// Set sets the named view to a specified non-nil value.
+// Set sets the named view to a specified non-nil value. Matches that cannot
+// extract their data from the provided value will be considered as being unset.
 func (v *View) Set(databag Databag, request string, value any) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
@@ -1073,6 +1115,14 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	for _, match := range matches {
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
+			if errors.Is(err, &NoDataError{}) {
+				// match has no corresponding data in value, so treat it as removing value.
+				expandedMatches = append(expandedMatches, expandedMatch{
+					storagePath: match.storagePath,
+					value:       nil,
+				})
+				continue
+			}
 			return badRequestErrorFrom(v, "set", request, err.Error())
 		}
 
@@ -1341,7 +1391,9 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
+				// matched a write path that doesn't have corresponding data in the value
+				// so signal that scenario, such that Set() can interpret it as unsetting the path
+				return nil, &NoDataError{}
 			}
 
 		case IndexPlaceholderType:
@@ -1407,7 +1459,7 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		var pathParts []Accessor
 
 		if path != "" {
-			opts := ParseOptions{AllowPlaceholders: true, AllowPartialPath: true}
+			opts := ParseOptions{AllowPlaceholders: true, AllowPathSuffix: true}
 			pathParts, err = ParsePathIntoAccessors(path, opts)
 			if err != nil {
 				return err
@@ -1613,11 +1665,52 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 	}
 }
 
-func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]string) error {
+type UnconstrainedParamsError struct {
+	operation     string
+	unconstrained map[string][]string
+}
+
+func (e *UnconstrainedParamsError) Error() string {
+	var sb strings.Builder
+	reqs := keys(e.unconstrained)
+	sort.Strings(reqs)
+
+	for i, req := range reqs {
+		params := e.unconstrained[req]
+		if i > 0 {
+			sb.WriteRune('\n')
+		}
+
+		paramStr := i18n.G("parameter ")
+		if len(params) > 1 {
+			paramStr = i18n.G("parameters ")
+		}
+		paramStr += strutil.Quoted(params)
+
+		sb.WriteString(fmt.Sprintf(i18n.G("cannot %s %q: filter %s must be constrained"), e.operation, req, paramStr))
+	}
+
+	return sb.String()
+}
+
+func (e *UnconstrainedParamsError) Is(err error) bool {
+	_, ok := err.(*UnconstrainedParamsError)
+	return ok
+}
+
+func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
+	return &UnconstrainedParamsError{
+		operation:     op,
+		unconstrained: unconstrained,
+	}
+}
+
+func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
 	if op != "get" && op != "set" {
 		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
 	}
 
+	unconstrainedReqs := make(map[string][]string)
 	for _, m := range matches {
 		for _, acc := range m.storagePath {
 			if acc.FieldFilters() == nil {
@@ -1628,7 +1721,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				pres, ok := v.params[param]
 				if !ok {
 					// we checked this at schema creation so this shouldn't happen
-					return fmt.Errorf(`filter parameter %q must be declared in "parameters" stanza`, param)
+					return fmt.Errorf(`internal error: filter parameter %q must be declared in "parameters" stanza`, param)
 				}
 
 				if _, ok := constraints[param]; ok {
@@ -1642,20 +1735,77 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 				case pres == requiredOnRead && op == "get":
 					fallthrough
 				case pres == requiredOnWrite && op == "set":
-					return fmt.Errorf(`unconstrained filter parameter %q is set as %s in "parameters" stanza`, param, pres)
+					params := unconstrainedReqs[m.request]
+					params = append(params, param)
+					unconstrainedReqs[m.request] = params
 				}
 			}
 		}
 	}
 
+	if len(unconstrainedReqs) != 0 {
+		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+	}
 	return nil
+}
+
+// CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any constraints are unused across all the matching
+// rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
+func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]any) error {
+	if len(constraints) == 0 {
+		return nil
+	}
+	if len(requests) == 0 {
+		requests = []string{""}
+	}
+
+	constraintPlaceholders := make(map[string]struct{}, len(constraints))
+	for k := range constraints {
+		constraintPlaceholders[k] = struct{}{}
+	}
+
+	opts := ParseOptions{AllowPlaceholders: false}
+	for _, request := range requests {
+		accessors, err := ParsePathIntoAccessors(request, opts)
+		if err != nil {
+			return badRequestErrorFrom(v, "get", request, err.Error())
+		}
+
+		matches, err := v.matchGetRequest(accessors)
+		if err != nil {
+			return err
+		}
+
+		for _, match := range matches {
+			// check against storage path as field filters are specified
+			// only in storage path
+			for _, acc := range match.storagePath {
+				if acc.Type() == KeyPlaceholderType {
+					delete(constraintPlaceholders, acc.Name())
+					if len(constraintPlaceholders) == 0 {
+						return nil
+					}
+				}
+				for _, param := range acc.FieldFilters() {
+					delete(constraintPlaceholders, param)
+					if len(constraintPlaceholders) == 0 {
+						return nil
+					}
+				}
+			}
+		}
+	}
+
+	unusedConstraints := keys(constraintPlaceholders)
+	sort.Strings(unusedConstraints)
+	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 // Get returns the view value identified by the request after the constraints
 // have been applied to any matching filter in the storage path. If the request
 // cannot be matched against any rule, it returns a NoMatchError, and if no data
 // is stored for the request, a NoDataError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
+func (v *View) Get(databag Databag, request string, constraints map[string]any) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1781,7 +1931,7 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
-func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]string) (bool, error) {
+func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]any) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
 		requests = []string{""}
@@ -1819,7 +1969,12 @@ func (v *View) ReadAffectsEphemeral(requests []string, constraints map[string]st
 						continue
 					}
 
-					match.storagePath[i] = newKey(val, acc.FieldFilters())
+					valStr, ok := val.(string)
+					if !ok {
+						continue
+					}
+
+					match.storagePath[i] = newKey(valStr, acc.FieldFilters())
 				}
 			}
 
@@ -2170,7 +2325,7 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]string) (any, error) {
+func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]any) (any, error) {
 	// TODO: create this in the return below as well?
 	var value any
 	if err := get(accessors, 0, s, constraints, &value); err != nil {
@@ -2185,7 +2340,7 @@ func (s JSONDatabag) Get(accessors []Accessor, constraints map[string]string) (a
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(accessors []Accessor, index int, node any, constraints map[string]string, result *any) error {
+func get(accessors []Accessor, index int, node any, constraints map[string]any, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2210,7 +2365,7 @@ func get(accessors []Accessor, index int, node any, constraints map[string]strin
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]string, result *any) error {
+func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]any, result *any) error {
 	acc := accessors[index]
 
 	var matchAll bool
@@ -2328,7 +2483,7 @@ func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, co
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]string, result *any) error {
+func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constraints map[string]any, result *any) error {
 	acc := accessors[keyIndex]
 
 	var matchAll bool
@@ -2443,15 +2598,15 @@ type entry struct {
 	value json.RawMessage
 }
 
-func matchesConstraints(acc Accessor, e entry, constraints map[string]string) (bool, error) {
-	if !constrainSubkeyPlaceholders(acc, e.key, constraints) {
+func matchesConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
+	if !constrainSubkeyPlaceholder(acc, e.key, constraints) {
 		return false, nil
 	}
 
 	return fieldFiltersMatchConstraints(acc, e.value, constraints)
 }
 
-func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[string]string) bool {
+func constrainSubkeyPlaceholder(acc Accessor, key string, constraints map[string]any) bool {
 	if acc.Type() != KeyPlaceholderType {
 		// filter doesn't apply
 		return true
@@ -2463,12 +2618,13 @@ func constrainSubkeyPlaceholders(acc Accessor, key string, constraints map[strin
 		return true
 	}
 
-	return key == constrained
+	strVal, isStr := constrained.(string)
+	return isStr && key == strVal
 }
 
 // fieldFiltersMatchConstraints returns true only if the object should not be
 // filtered out, either because it matches the constraints or they're not applicable.
-func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]string) (bool, error) {
+func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]any) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
@@ -2496,17 +2652,15 @@ func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints
 			return false, nil
 		}
 
-		// only allow constraining strings for now
-		var fieldVal string
+		// unmarshal the field value based on the constraint type
+		var fieldVal any
 		if err := json.Unmarshal(mapVal[field], &fieldVal); err != nil {
-			if _, ok := err.(*json.UnmarshalTypeError); ok {
-				// can't compare this field to constraints
-				return false, nil
-			}
 			return false, fmt.Errorf(`internal error: %w`, err)
 		}
 
-		if fieldVal != constrVal {
+		// non-scalar constraints should've been rejected before this but use
+		// DeepEqual anyway to be defensive
+		if !reflect.DeepEqual(fieldVal, constrVal) {
 			// the filtered field doesn't match the provided constraint, filter out the map
 			return false, nil
 		}

@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Detailed information about a single snap.
+properties:
+  id:
+    type: string
+    description: The unique identifier for the snap.
+  name:
+    type: string
+    description: The name of the snap.
+  base:
+    type: string
+    description: The base snap this snap is built on.
+    example: core20
+  channel:
+    type: string
+    description: The default channel for this snap.
+  common-ids:
+    type: array
+    items:
+      type: string
+      example: code.desktop
+  confinement:
+    type: string
+    enum:
+      - classic
+      - devmode
+      - strict
+  contact:
+    type: string
+    description: The primary contact URL or email for the developer.
+  description:
+    type: string
+    description: A detailed description of the snap.
+  developer:
+    type: string
+    description: The username of the snap developer.
+  devmode:
+    type: boolean
+    description: |-
+      If set to true, the snap needs to be installed with devmode confinement
+      and doesn't, yet, work with strict confinement due to sandbox limitations
+      or developer unfamiliarity.
+  download-size:
+    type: integer
+    format: int64
+    description: The size of the snap package in bytes.
+  icon:
+    type: string
+    format: uri
+    description: A URL to the snap's icon image.
+  license:
+    type: string
+  private:
+    type: boolean
+    description: Whether the snap is private.
+  revision:
+    type: string
+    description: The latest revision number of the snap in this channel.
+  status:
+    type: string
+    example: available
+  store-url:
+    type: string
+    format: uri
+    description: The URL to the snap's page in the Snap Store.
+  summary:
+    type: string
+    description: A short, one-line summary of the snap.
+  title:
+    type: string
+  type:
+    type: string
+    description: |-
+      The type of the snap. 'os' is deprecated, and is left for compatibility
+      with the 'core' and 'ubuntu-core' snaps.
+    enum:
+      - app
+      - kernel
+      - os
+      - gadget
+      - base
+  version:
+    type: string
+    description: The version string of the latest revision.
+  website:
+    type: string
+    format: uri
+    description: The official website for the snap or application.
+  categories:
+    type: array
+    items:
+      $ref: './StoreCategory.yaml'
+  links:
+    $ref: './Links.yaml'
+  media:
+    type: array
+    items:
+      $ref: './Media.yaml'
+  publisher:
+    $ref: './Publisher.yaml'

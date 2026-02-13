@@ -95,6 +95,31 @@ func taskKinds(tasks []*state.Task) []string {
 	return kinds
 }
 
+// taskTransitivelyWaitsFor returns true if task transitively depends on target,
+// i.e., there is a path from task to target following WaitTasks links.
+func taskTransitivelyWaitsFor(task, target *state.Task) bool {
+	visited := make(map[string]bool)
+	stack := []*state.Task{task}
+
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if visited[current.ID()] {
+			continue
+		}
+		visited[current.ID()] = true
+
+		for _, wt := range current.WaitTasks() {
+			if wt.ID() == target.ID() {
+				return true
+			}
+			stack = append(stack, wt)
+		}
+	}
+	return false
+}
+
 func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 	ctlcmd.AddHiddenMockCommand("mock-hidden")
 	ctlcmd.AddMockCommand("mock-shown")

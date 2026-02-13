@@ -315,6 +315,16 @@ func DataHomeGlobs(opts *SnapDirOptions) []string {
 	return snapDataHomeGlob
 }
 
+func AllDataHomeGlobs() []string {
+	snapHomeDirsMu.Lock()
+	defer snapHomeDirsMu.Unlock()
+
+	globs := make([]string, len(hiddenSnapDataHomeGlob)+len(snapDataHomeGlob))
+	copy(globs, hiddenSnapDataHomeGlob)
+	copy(globs[len(hiddenSnapDataHomeGlob):], snapDataHomeGlob)
+	return globs
+}
+
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
 	// Core systems don't support classic confinement as a policy decision.

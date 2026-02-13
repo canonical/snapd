@@ -438,7 +438,8 @@ func (s *backendSuite) TestTimings(c *C) {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
-		c.Assert(s.Backend.Setup(appSet, opts, s.Repo, meas), IsNil)
+		c.Assert(s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+			s.Repo, meas), IsNil)
 
 		st := state.New(nil)
 		st.Lock()
@@ -469,7 +470,8 @@ func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
-		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+			s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -727,7 +729,12 @@ func (s *backendSuite) TestSetupManyProfilesAreAlwaysLoaded(c *C) {
 		s.loadProfilesCalls = nil
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		c.Assert(errs, IsNil)
 		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -762,7 +769,12 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		c.Assert(errs, IsNil)
 
 		// expect two batch executions - one for changed profiles, second for unchanged profiles.
@@ -810,7 +822,12 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 
 		// mock apparmor_parser again with a failing one (and restore immediately for the next iteration of the test)
 		s.loadProfilesReturn = errors.New("apparmor_parser crash")
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		s.loadProfilesReturn = nil
 
 		s.checkSetupManyCallsWithFallback(c, s.loadProfilesCalls)
@@ -856,7 +873,12 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 			}
 			return nil
 		})
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		r()
 
 		s.checkSetupManyCallsWithFallback(c, s.loadProfilesCalls)
@@ -905,7 +927,12 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 			}
 			return nil
 		})
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		r()
 
 		s.checkSetupManyCallsWithFallback(c, s.loadProfilesCalls)
@@ -997,7 +1024,9 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 		c.Assert(err, IsNil)
 		// NOTE: we don't call apparmor.MockTemplate()
 		err = s.Backend.Setup(appSet,
-			interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
+			interfaces.ConfinementOptions{KernelSnap: "mykernel"},
+			interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+			s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := os.ReadFile(profile)
@@ -1041,7 +1070,9 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
 	err = s.Backend.Setup(appSet,
-		interfaces.ConfinementOptions{KernelSnap: "mykernel"}, s.Repo, s.meas)
+		interfaces.ConfinementOptions{KernelSnap: "mykernel"},
+		interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+		s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := os.ReadFile(profile)
@@ -1755,6 +1786,30 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	c.Check(canary, testutil.FileAbsent)
 }
 
+func (s *backendSuite) TestPrepareHostSnapConfineApparmorForReexecCleans(c *C) {
+	restorer := release.MockOnClassic(true)
+	defer restorer()
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restorer()
+
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+
+	canaryName := "snap-confine.core.2718"
+	canary := filepath.Join(dirs.SnapAppArmorDir, canaryName)
+	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(coreInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Backend.Prepare(appSet)
+	c.Assert(err, IsNil)
+
+	c.Check(canary, testutil.FileAbsent)
+}
+
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
@@ -1795,6 +1850,72 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	c.Check(err, IsNil)
 }
 
+func (s *backendSuite) TestPrepareHostSnapConfineApparmorForReexecWritesNew(c *C) {
+	restorer := release.MockOnClassic(true)
+	defer restorer()
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restorer()
+
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+
+	appSet, err := interfaces.NewSnapAppSet(coreInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Backend.Prepare(appSet)
+	c.Assert(err, IsNil)
+
+	newAA, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(newAA, HasLen, 1)
+	c.Check(newAA[0], Matches, `.*/var/lib/snapd/apparmor/profiles/snap-confine.core.111`)
+
+	// This is the key, rewriting "/usr/lib/snapd/snap-confine
+	c.Check(newAA[0], testutil.FileContains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
+	// No other changes other than that to the input
+	c.Check(newAA[0], testutil.FileEquals, fmt.Sprintf(`#include <tunables/global>
+%s/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {
+    #include "%s/var/lib/snapd/apparmor/snap-confine"
+
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, dirs.SnapMountDir, dirs.GlobalRootDir))
+
+	c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+		{[]string{newAA[0]}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+	})
+
+	// snap-confine directory was created
+	_, err = os.Stat(apparmor_sandbox.SnapConfineAppArmorDir)
+	c.Check(err, IsNil)
+}
+
+func (s *backendSuite) TestPrepareSnapdTriggersSnapConfineReexec(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restorer()
+
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+
+	appSet, err := interfaces.NewSnapAppSet(snapdInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Backend.Prepare(appSet)
+	c.Assert(err, IsNil)
+
+	newAA, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(newAA, HasLen, 1)
+	c.Check(newAA[0], Matches, `.*/var/lib/snapd/apparmor/profiles/snap-confine.snapd.222`)
+	c.Check(newAA[0], testutil.FileContains, "/snap/snapd/222/usr/lib/snapd/snap-confine (attach_disconnected) {")
+
+	c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+		{[]string{newAA[0]}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+	})
+}
+
 func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
@@ -1805,7 +1926,8 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(snapdInfo, nil)
 	c.Assert(err, IsNil)
 	s.writeVanillaSnapConfineProfile(c, snapdInfo)
-	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.perf)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{},
+		interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, s.perf)
 	c.Assert(err, IsNil)
 	// precondition
 	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
@@ -1828,10 +1950,81 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, coreYaml)
 }
 
+func (s *backendSuite) TestPrepareCoreOnCoreCleansApparmorCache(c *C) {
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+	s.testPrepareCoreOrSnapdOnCoreCleansApparmorCache(c, coreInfo)
+}
+
 func (s *backendSuite) TestSnapdOnCoreCleansApparmorCache(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(111)})
 	s.writeVanillaSnapConfineProfile(c, snapdInfo)
 	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, snapdYaml)
+}
+
+func (s *backendSuite) TestPrepareSnapdOnCoreCleansApparmorCache(c *C) {
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	s.testPrepareCoreOrSnapdOnCoreCleansApparmorCache(c, snapdInfo)
+}
+
+func (s *backendSuite) testPrepareCoreOrSnapdOnCoreCleansApparmorCache(c *C, coreOrSnapdInfo *snap.Info) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	err := os.MkdirAll(apparmor_sandbox.SystemCacheDir, 0755)
+	c.Assert(err, IsNil)
+	// the canary file in the cache will be removed
+	canaryPath := filepath.Join(apparmor_sandbox.SystemCacheDir, "meep")
+	err = os.WriteFile(canaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	// and the snap-confine profiles are removed
+	scCanaryPath := filepath.Join(apparmor_sandbox.SystemCacheDir, "usr.lib.snapd.snap-confine.real")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(apparmor_sandbox.SystemCacheDir, "usr.lib.snapd.snap-confine")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(apparmor_sandbox.SystemCacheDir, "snap-confine.core.6405")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(apparmor_sandbox.SystemCacheDir, "snap-confine.snapd.6405")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(apparmor_sandbox.SystemCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(apparmor_sandbox.SystemCacheDir, "var.lib.snapd.snap.core.1234.usr.lib.snapd.snap-confine")
+	err = os.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	// but non-regular entries in the cache dir are kept
+	dirsAreKept := filepath.Join(apparmor_sandbox.SystemCacheDir, "dir")
+	err = os.MkdirAll(dirsAreKept, 0755)
+	c.Assert(err, IsNil)
+	symlinksAreKept := filepath.Join(apparmor_sandbox.SystemCacheDir, "symlink")
+	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
+	// and the snap profiles are kept
+	snapCanaryKept := filepath.Join(apparmor_sandbox.SystemCacheDir, "snap.canary.meep")
+	err = os.WriteFile(snapCanaryKept, nil, 0644)
+	c.Assert(err, IsNil)
+	sunCanaryKept := filepath.Join(apparmor_sandbox.SystemCacheDir, "snap-update-ns.canary")
+	err = os.WriteFile(sunCanaryKept, nil, 0644)
+	c.Assert(err, IsNil)
+	// and the .features file is kept
+	dotKept := filepath.Join(apparmor_sandbox.SystemCacheDir, ".features")
+	err = os.WriteFile(dotKept, nil, 0644)
+	c.Assert(err, IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(coreOrSnapdInfo, nil)
+	c.Assert(err, IsNil)
+	err = s.Backend.Prepare(appSet)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(apparmor_sandbox.SystemCacheDir, "*"))
+	c.Assert(err, IsNil)
+	// canary is gone, extra stuff is kept
+	c.Check(l, DeepEquals, []string{dotKept, dirsAreKept, sunCanaryKept, snapCanaryKept, symlinksAreKept})
 }
 
 func (s *backendSuite) testCoreOrSnapdOnCoreCleansApparmorCache(c *C, coreOrSnapdYaml string) {
@@ -2672,7 +2865,8 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
 		c.Assert(err, IsNil)
 
-		err = s.Backend.Setup(appSet, tc.opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, tc.opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+			s.Repo, s.meas)
 		c.Assert(err, IsNil)
 
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -2924,7 +3118,12 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
-		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
+			func(snapName string) interfaces.ConfinementOptions { return opts },
+			func(snapName string) interfaces.SetupContext {
+				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+			},
+			s.Repo, s.meas)
 		c.Assert(errs, IsNil)
 
 		// expect two batch executions - one for changed profiles, second for unchanged profiles.

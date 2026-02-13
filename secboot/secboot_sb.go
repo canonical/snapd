@@ -49,9 +49,7 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbActivateVolumeWithKey      = sb.ActivateVolumeWithKey
 	sbFindStorageContainer       = sb.FindStorageContainer
-	sbDeactivateVolume           = sb.DeactivateVolume
 	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
 	sbRenameLUKS2ContainerKey    = sb.RenameLUKS2ContainerKey
 	sbNewLUKS2KeyDataReader      = sbNewLUKS2KeyDataReaderImpl
@@ -84,7 +82,6 @@ func init() {
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
-type ActivateVolumeOptions sb.ActivateVolumeOptions
 
 const platformTpm2 = "tpm2"
 const platformTpm2Legacy = "tpm2-legacy"
@@ -111,8 +108,42 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+// ActivateStateHasDegradedErrors looks for any error that is not
+// ignorable and should be reported on an ActivateState.
+// This function assumes all activations have been unlocked using
+// platform key. The caller should call this function only in this
+// case.
+func ActivateStateHasDegradedErrors(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncompatibleRoleParams:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			case sb.KeyslotErrorInvalidKeyData:
+				// FIXME: specs this is degraded. But we
+				// have this case where we use external
+				// key data files. Maybe secboot should
+				// provide a different error code.
+
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return true
+			case sb.KeyslotErrorPlatformFailure:
+				return true
+			case sb.KeyslotErrorUnknown:
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// ActivateContext is a sub set interface of ActivateContext from secboot
 type ActivateContext interface {
 	ActivateContainer(ctx context.Context, container sb.StorageContainer, opts ...sb.ActivateOption) error
+	DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error
 	State() *ActivateState
 }
 
@@ -124,12 +155,28 @@ func (a *activateContextImpl) ActivateContainer(ctx context.Context, container s
 	return a.ActivateContext.ActivateContainer(ctx, container, opts...)
 }
 
+func (a *activateContextImpl) DeactivateContainer(ctx context.Context, container sb.StorageContainer, reason sb.DeactivationReason) error {
+	return a.ActivateContext.DeactivateContainer(ctx, container, reason)
+}
+
 func (a *activateContextImpl) State() *ActivateState {
 	return a.ActivateContext.State()
 }
 
+// NewActivateContext creates a activate context with some default options:
+//   - an auth requestor
+//   - 3 passphrase/pin tries
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
+	if err != nil {
+		return nil, err
+	}
+	return &activateContextImpl{ActivateContext: context}, nil
+}
+
+// NewSimpleActivateContext creates a activate context with no default options.
+func NewSimpleActivateContext(ctx context.Context) (ActivateContext, error) {
+	context, err := sbNewActivateContext(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +193,7 @@ func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disks.Disk, name string, sealedEncryptionKeyFiles []*LegacyKeyFile, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk Disk, name string, sealedEncryptionKeyFiles []*LegacyKeyFile, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// TODO:FDEM: this function is big. We need to split it.
 
 	res := UnlockResult{}
@@ -156,31 +203,25 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err == nil {
 		res.IsEncrypted = true
 	} else {
-		var errNotFound disks.PartitionNotFoundError
-		if !errors.As(err, &errNotFound) {
-			// some other kind of catastrophic error searching
-			return res, fmt.Errorf("error enumerating partitions for disk to find encrypted device %q: %v", name, err)
-		}
-		// otherwise it is an error not found and we should search for the
-		// unencrypted device
-		part, err = disk.FindMatchingPartitionWithFsLabel(name)
+		// Partition not found, we search for the unencrypted device
+		part, err = disk.PartitionWithFsLabel(name)
 		if err != nil {
 			return res, fmt.Errorf("error enumerating partitions for disk to find unencrypted device %q: %v", name, err)
 		}
 	}
 
-	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID)
+	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID())
 
 	if !res.IsEncrypted {
 		// if we didn't find an encrypted device just return, don't try to
 		// unlock it the filesystem device for the unencrypted case is the
 		// same as the partition device
 		res.PartDevice = partDevice
-		res.FsDevice = res.PartDevice
+		res.FsDevice = part.PartitionNode()
 		return res, nil
 	}
 
@@ -194,7 +235,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 
 	// make up a new name for the mapped device
 	mapperName := name + "-" + uuid
-	sourceDevice := fmt.Sprintf("/dev/disk/by-uuid/%s", part.FilesystemUUID)
+	sourceDevice := fmt.Sprintf("/dev/disk/by-uuid/%s", part.FilesystemUUID())
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	res.PartDevice = partDevice
@@ -240,7 +281,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
-	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
+	container, err := sbFindStorageContainer(context.Background(), part.PartitionNode())
 	if err != nil {
 		return res, err
 	}
@@ -248,7 +289,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(activation ActivateContext, disk disk
 	options = append(options,
 		sbWithVolumeName(mapperName),
 		sbWithLegacyKeyringKeyDescriptionPaths(partDevice, sourceDevice),
-		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.Model(), part.PartitionLabel)),
+		sbWithAuthRequestorUserVisibleName(fmt.Sprintf("%s (%s)", disk.DiskModel(), part.PartitionLabel())),
 	)
 	if opts.AllowRecoveryKey {
 		options = append(options, sbWithRecoveryKeyTries(3))
@@ -307,7 +348,7 @@ func deviceHasPlainKey(device string) (bool, error) {
 // given plain key. Depending on how then encrypted device was set up, the key
 // is either used to unlock the device directly, or it is used to decrypt the
 // encrypted unlock key stored in LUKS2 tokens in the device.
-func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk Disk, name string, key []byte) (UnlockResult, error) {
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -317,13 +358,13 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	// looking for the encrypted device to unlock, later on in the boot
 	// process we will look for the decrypted device to ensure it matches
 	// what we expected
-	part, err := disk.FindMatchingPartitionWithFsLabel(EncryptedPartitionName(name))
+	part, err := disk.PartitionWithFsLabel(EncryptedPartitionName(name))
 	if err != nil {
 		return unlockRes, err
 	}
 	unlockRes.IsEncrypted = true
 	// we have a device
-	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID)
+	encdev := filepath.Join("/dev/disk/by-uuid", part.FilesystemUUID())
 	unlockRes.PartDevice = encdev
 
 	uuid, err := randutilRandomKernelUUID()
@@ -338,7 +379,7 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 
 	// Use the partition device node, we do not want to rely on udevd
 	// having created the symlinks at this point in the boot process.
-	foundPlainKey, err := deviceHasPlainKey(part.KernelDeviceNode)
+	foundPlainKey, err := deviceHasPlainKey(part.PartitionNode())
 	if err != nil {
 		return unlockRes, err
 	}
@@ -361,7 +402,7 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 		options = append(options, sbWithExternalUnlockKey("protector", key, sb.ExternalUnlockKeyFromStorageContainer))
 	}
 
-	container, err := sbFindStorageContainer(context.Background(), part.KernelDeviceNode)
+	container, err := sbFindStorageContainer(context.Background(), part.PartitionNode())
 	if err != nil {
 		return unlockRes, err
 	}
@@ -374,14 +415,22 @@ func UnlockEncryptedVolumeUsingProtectorKey(activation ActivateContext, disk dis
 	return unlockRes, nil
 }
 
-// ActivateVolumeWithKey is a wrapper for secboot.ActivateVolumeWithKey
-func ActivateVolumeWithKey(volumeName, sourceDevicePath string, key []byte, options *ActivateVolumeOptions) error {
-	return sb.ActivateVolumeWithKey(volumeName, sourceDevicePath, key, (*sb.ActivateVolumeOptions)(options))
-}
+type StorageContainer = sb.StorageContainer
 
-// DeactivateVolume is a wrapper for secboot.DeactivateVolume
-func DeactivateVolume(volumeName string) error {
-	return sb.DeactivateVolume(volumeName)
+// UnlockEncryptedVolumeUsingKey unlocks a volume using raw keyslot
+// key. This is typically used to lock a fresh encrypted volume with
+// only a bootstrap key.
+func UnlockEncryptedVolumeUsingKey(activation ActivateContext, devNode string, name string, key []byte) (StorageContainer, error) {
+	container, err := sbFindStorageContainer(context.Background(), devNode)
+	if err != nil {
+		return container, err
+	}
+
+	options := []sb.ActivateOption{
+		sbWithVolumeName(name),
+		sbWithExternalUnlockKey("key", key, sb.ExternalUnlockKeyFromStorageContainer),
+	}
+	return container, activation.ActivateContainer(context.Background(), container, options...)
 }
 
 // AddBootstrapKeyOnExistingDisk will add a new bootstrap key to on an

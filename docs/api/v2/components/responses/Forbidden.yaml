@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  Forbidden. The server understood the request but refuses to authorize it
+  because the authenticated user lacks the necessary permissions for the target
+  resource.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum:
+            - 403
+        status:
+          type: string
+          enum:
+            - Forbidden
+        type:
+          type: string
+          enum:
+            - error
+        result:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - auth-cancelled    # TODO follow up PR looking into kind enum
+            message:
+              type: string
+              enum:
+                - cancelled

@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Retrieve a rule by ID
+  description: Retrieves the details of a single rule specified by its unique ID.
+  operationId: getRuleById
+  security: []
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: The unique identifier of the rule to retrieve.
+      schema:
+        type: string
+    - $ref: '../components/parameters/UserId.yaml'
+  responses:
+    200:
+      description: The details of the requested rule.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/PromptingRule.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+
+post:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Synchronous
+  summary: Patch or remove a rule by ID
+  description: Update or remove an existing rule specified by its unique ID.
+  operationId: updateRuleById
+  security: []
+  parameters:
+    - name: id
+      in: path
+      required: true
+      description: The unique identifier of the rule to patch or remove.
+      schema:
+        type: string
+    - $ref: '../components/parameters/UserId.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/PromptingRuleActionPatch.yaml'
+            - $ref: '../components/schemas/PromptingRuleActionRemoveById.yaml'
+  responses:
+    200:
+      description: The updated state of the rule, or its last state before deletion.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/PromptingRule.yaml'
+    404:
+      $ref: '../components/responses/NotFound.yaml'
+

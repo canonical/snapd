@@ -61,10 +61,15 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityPolkit
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup installs the polkit policy and rule files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the policies and rules that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)

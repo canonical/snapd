@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: Represents a user account on the system.
+required:
+  - id
+  - email
+properties:
+  id:
+    type: integer
+    description: |-
+      The unique numeric ID for this user account. This is not related to the
+      user's linux UID.
+    example: 1
+  username:
+    type: string
+    description: The local username associated with this account.
+    example: local-username
+  email:
+    type: string
+    format: email
+    description: The email address associated with the launchpad account.
+    example: first-name.last-name@example.com
