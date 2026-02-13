@@ -8,6 +8,9 @@ details: |
     request, some duration, a session, or forever. The test then checks if the rules created as
     a result of prompt response have the correct effect on the original and a following request.
 
+systems:
+    - ubuntu-2*
+
 environment:
     TARGET_FILE/allow_lifespan_single: "/home/test/test_allow_lifespan_single/foo"
     TARGET_FILE/deny_lifespan_single: "/home/test/test_deny_lifespan_single/foo"
@@ -42,9 +45,6 @@ environment:
     # temporary files are used to redirect stdout and stderr from attempts to read the target file
     TMP_STDOUT: $(mktemp)
     TMP_STDERR: $(mktemp)
-
-systems:
-    - ubuntu-2*
 
 skip:
    - if: os.query is-ubuntu 20.04
