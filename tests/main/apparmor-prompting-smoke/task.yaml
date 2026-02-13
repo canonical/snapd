@@ -50,13 +50,6 @@ skip:
      reason: Ubuntu 22.04 AppArmor parser doesn't support prompting without reexec
 
 prepare: |
-    # Avoid checking for new release, it could cause lock on apt
-    sed -i 's/^Prompt=.*$/Prompt=never/' /etc/update-manager/release-upgrades
-
-    # Disable daily checks for updates to avoid apt locks
-    sudo systemctl disable --now apt-daily{,-upgrade}.{timer,service}
-
-    # Prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 
     dir="$(dirname $TARGET_FILE)"
@@ -70,6 +63,7 @@ prepare: |
     # Install a snap which will trigger prompts
     "$TESTSTOOLS"/snaps-state install-local prompt-requester
     snap connect prompt-requester:home
+
 restore: |
     echo "Disable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=false
@@ -77,8 +71,6 @@ restore: |
     echo "Remove any new listener ID file"
     rm -rf /{run,var/lib}/snapd/insterfaces-requests
     rm -rf $(dirname $TARGET_FILE)
-
-    snap remove test-snapd-prompt-handler
 
 debug: |
     uname -a
