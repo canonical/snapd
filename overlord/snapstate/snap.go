@@ -477,11 +477,6 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 		s.UpdateEdgeIfUnset(autoConnect, MaybeRebootWaitEdge)
 	}
 
-	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
-		i18n.G("Setup snap %q%s security profiles"),
-		sc.snapsup.InstanceName(), sc.revisionString()))
-	s.Append(setupSecurity)
-
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(
 		i18n.G("Set automatic aliases for snap %q"), sc.snapsup.InstanceName()))

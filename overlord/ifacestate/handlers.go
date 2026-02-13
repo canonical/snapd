@@ -1551,14 +1551,6 @@ func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) boo
 	return false
 }
 
-func findSetupProfilesTaskAfterAutoConnect(chg *state.Change, instanceName string) *state.Task {
-	t := snapstate.FindTaskByKindForSnap(chg.Tasks(), "auto-connect", instanceName)
-	if t == nil {
-		return nil
-	}
-	return snapstate.FindTaskByKindForSnap(t.HaltTasks(), "setup-profiles", instanceName)
-}
-
 // batchConnectTasks creates connect tasks and interface hooks for
 // conns and sets their wait chain with regard to the setupProfiles
 // task.
@@ -1569,25 +1561,14 @@ func findSetupProfilesTaskAfterAutoConnect(chg *state.Change, instanceName strin
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
-	if len(conns) == 0 {
-		return nil, false, nil
-	}
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
+	setupProfiles := st.NewTask("setup-profiles",
+		fmt.Sprintf(
+			i18n.G("Setup snap %q (%s) security profiles"),
+			snapsup.InstanceName(), snapsup.Revision()))
+	setupProfiles.Set("snap-setup", snapsup)
 
 	var newConnections []string
-	var injectSetupProfiles bool
-	if setupProfiles == nil {
-		// In old style setup, there will be one setup-profiles task before
-		// the "link-snap" task. In the new style, the setup-profiles task will be
-		// located after "auto-connect" task.
-		// If we don't find the new style setup-profiles task, we fall back
-		// to old style behaviour and inject our own setup-profiles task.
-		setupProfiles = st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
-		setupProfiles.Set("snap-setup", snapsup)
-		logger.Noticef("new \"setup-profiles\" task not found, falling back on prior behaviour")
-		injectSetupProfiles = true
-	}
-
 	ts = state.NewTaskSet()
 	for connID, conn := range conns {
 		var opts connectOpts
@@ -1627,10 +1608,12 @@ func batchConnectTasks(st *state.State, setupProfiles *state.Task, snapsup *snap
 	if len(ts.Tasks()) > 0 {
 		sort.Strings(newConnections)
 		setupProfiles.Set("new-connections", newConnections)
-		if injectSetupProfiles {
-			ts.AddTask(setupProfiles)
-		}
 	}
+
+	// always inject setupProfiles, we no longer generate profiles prior to making the
+	// snap available on the system, so we should always make sure to do this after
+	// connections, even if none needs to be made.
+	ts.AddTask(setupProfiles)
 
 	return ts, hasInterfaceHooks, nil
 }
@@ -1869,9 +1852,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	}
-
-	existingSetupProfiles := findSetupProfilesTaskAfterAutoConnect(task.Change(), snapsup.InstanceName())
-	autots, hasInterfaceHooks, err := batchConnectTasks(st, existingSetupProfiles, snapsup, newconns, connOpts)
+	autots, hasInterfaceHooks, err := batchConnectTasks(st, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
@@ -1914,16 +1895,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if autots != nil && len(autots.Tasks()) > 0 {
-		if existingSetupProfiles == nil {
-			// Backward compatibility: old style setup where setup-profiles
-			// does not wait for auto-connect
-			snapstate.InjectTasks(task, autots)
-		} else {
-			// New style setup where setup-profiles waits for auto-connect, we must
-			// do this to avoid cycles in the wait graph.
-			snapstate.InjectConnectTasks(task, autots, existingSetupProfiles)
-		}
-
+		snapstate.InjectTasks(task, autots)
 		st.EnsureBefore(0)
 	}
 
