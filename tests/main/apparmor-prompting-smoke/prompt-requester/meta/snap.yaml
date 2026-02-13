@@ -1,6 +1,6 @@
 name: prompt-requester
 version: 1
-base: core18
+base: core24
 apps:
   cat:
     command: bin/cat
