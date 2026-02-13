@@ -1,13 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
 
-//go:build linux && !riscv64
+//go:build !linux || !riscv64
 
 package arch
-
-import (
-	"golang.org/x/sys/unix"
-)
 
 // Re-defined like this because Mock functions have been moved to export_test.go
 type RISCVHWProbePairs struct {
@@ -16,7 +12,7 @@ type RISCVHWProbePairs struct {
 }
 
 // Re-defined to allow mocking this
-var RISCVHWProbe = func(pairs []RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) { return nil }
+var RISCVHWProbe = func(pairs []RISCVHWProbePairs, set *CPUSet, flags uint) (err error) { return nil }
 
 // Re-defined and assigned values matching the unix.* constants for tests
 const (
@@ -24,3 +20,5 @@ const (
 	RISCV_HWPROBE_KEY_IMA_EXT_0     int64  = 0x4
 	RISCV_HWPROBE_BASE_BEHAVIOR_IMA uint64 = 0x1
 )
+
+type CPUSet [0]uint64

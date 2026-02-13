@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/testutil"
-	"golang.org/x/sys/unix"
 )
 
 func MockRuntimeGOARCH(arch string) (restore func()) {
@@ -44,7 +43,7 @@ func CalledMockRISCVHWProbe() bool {
 // and returns a function to restore to the current value.
 func MockRISCVHWProbe(supportedExtensions []RISCVHWProbePairs, syscallError string) (restore func()) {
 	// Mock probe function that copies the test case's supportedExtensions over the input
-	var mockRISCVHWProbe = func(pairs []RISCVHWProbePairs, set *unix.CPUSet, flags uint) (err error) {
+	var mockRISCVHWProbe = func(pairs []RISCVHWProbePairs, set *CPUSet, flags uint) (err error) {
 		// Mark that we called the function for some tests
 		calledMockRISCVHWProbe = true
 

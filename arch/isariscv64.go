@@ -1,12 +1,11 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
 
-//go:build linux
-
 package arch
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -199,8 +198,8 @@ var KernelVersion = osutil.KernelVersion
 // [RVA23]: https://github.com/riscv/riscv-profiles/blob/main/src/rva23-profile.adoc#rva23u64-profile
 func IsRISCVISASupported(isa string) error {
 	// If the architecture is not riscv64 we exit immediately
-	if runningArch := DpkgArchitecture(); runningArch != "riscv64" {
-		return fmt.Errorf("cannot validate RiscV ISA support while running on: %s", runningArch)
+	if runtime.GOOS != "linux" || DpkgArchitecture() != "riscv64" {
+		return fmt.Errorf("cannot validate RiscV ISA support while running on: %s, %s. Need linux, riscv64.", runtime.GOOS, DpkgArchitecture())
 	}
 
 	// Only the RVA23 instruction set is currently supported for RiscV
