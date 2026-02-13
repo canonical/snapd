@@ -1358,7 +1358,6 @@ type AppInfo struct {
 	// before
 	After     []string
 	Before    []string
-	BindsTo   []string
 	PartOf    []string
 	Requisite []string
 

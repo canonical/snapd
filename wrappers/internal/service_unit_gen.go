@@ -152,9 +152,6 @@ Requisite={{ stringsJoin .Requisite " " }}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
-{{- if .BindsTo}}
-BindsTo={{ stringsJoin .BindsTo " " }}
-{{- end}}
 {{- if .PartOf}}
 PartOf={{ stringsJoin .PartOf " " }}
 {{- end}}
@@ -296,7 +293,6 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		Requires                 []string
-		BindsTo                  []string
 		PartOf                   []string
 		Requisite                []string
 		InterfaceServiceSnippets string
@@ -335,7 +331,6 @@ WantedBy={{.ServicesTarget}}
 
 		Before:    generateServiceNames(appInfo.Snap, appInfo.Before),
 		After:     generateServiceNames(appInfo.Snap, appInfo.After),
-		BindsTo:   generateServiceNames(appInfo.Snap, appInfo.BindsTo),
 		PartOf:    generateServiceNames(appInfo.Snap, appInfo.PartOf),
 		Requisite: generateServiceNames(appInfo.Snap, appInfo.Requisite),
 
@@ -357,11 +352,7 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 		if appInfo.HasPlug("desktop") {
 			wrapperData.After = append(wrapperData.After, GraphicalSessionTarget)
-			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
-				wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
-			} else {
-				wrapperData.BindsTo = append(wrapperData.BindsTo, GraphicalSessionTarget)
-			}
+			wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
 			wrapperData.ServicesTarget = GraphicalSessionTarget
 			wrapperData.Requisite = append(wrapperData.Requisite, GraphicalSessionTarget)
 		}

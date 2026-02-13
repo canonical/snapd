@@ -27,7 +27,6 @@ execute: |
     MATCH "WantedBy=graphical-session\.target" < "${DESKTOP_SERVICE}"
     MATCH "After=graphical-session\.target" < "${DESKTOP_SERVICE}"
     MATCH "Requisite=graphical-session\.target" < "${DESKTOP_SERVICE}"
-    MATCH "BindsTo=graphical-session\.target" < "${DESKTOP_SERVICE}"
 
     MATCH "After=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
     MATCH "Requisite=graphical-session\.target" < "${DESKTOP_DBUS_SERVICE}"
