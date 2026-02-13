@@ -44,7 +44,6 @@ execute: |
     echo "snap remove-user needs root and snap login is not enough"
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         snap install expect --devmode
-        tests.cleanup defer snap remove --purge expect
         echo "Checking successful login"
         expect -d -f "$TESTSLIB"/successful_login.exp
 
