@@ -241,7 +241,7 @@ func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0, nil)
 	c.Check(err, ErrorMatches, "insufficient permissions to get model assertion for snap \"snap1\"")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": must be either a gadget or a kernel snap, from the same publisher as the model or have the snapd-control interface\n")
@@ -277,7 +277,7 @@ func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0, nil)
 
 	// For this test we just check that no error is returned, we have other testsw
 	// that verifies formats for each case. So make sure that stderr is empty and that
@@ -321,7 +321,7 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	})
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(len(string(stdout)) > 0, Equals, true)
 	c.Check(string(stderr), Equals, "")
@@ -356,7 +356,7 @@ func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      canonical
 model:         pc-model
@@ -407,7 +407,7 @@ func (s *modelSuite) testHappyModelCommandForSnap(c *C, snapName, snapYaml strin
 	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      my-brand
 model:         pc-model
@@ -448,7 +448,7 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
@@ -490,7 +490,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, string(asserts.Encode(current)))
 	c.Check(string(stderr), Equals, "")
@@ -523,7 +523,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion", "--json"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--assertion", "--json"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "headers": {
@@ -569,7 +569,7 @@ func (s *modelSuite) TestRunWithoutHook(c *C) {
 	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
 	s.state.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
