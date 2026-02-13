@@ -1072,9 +1072,12 @@ func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]strin
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a map
-// of validation set keys to validation sets, pinned sequence numbers (if any),
-// installed snaps and ignored snaps. It fetches any pre-requisites necessary.
+// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a
+// map of validation set keys to validation sets, pinned sequence numbers (if
+// any), installed snaps and ignored snaps. It persists the supplied
+// validation-set assertions and required prerequisites. Prerequisites are
+// resolved from the local assertions database and only fetched from the store
+// when missing locally.
 func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1083,13 +1086,37 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 
 	db := cachedDB(st)
 	batch := asserts.NewBatch(handleUnsupported(db))
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return err
+	}
+	sto := snapstate.Store(st, deviceCtx)
 
 	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := ref.Resolve(db.Find)
+		if err == nil {
+			return a, nil
+		}
+		if !errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, err
+		}
+
+		st.Unlock()
+		a, err = sto.Assertion(ref.Type, ref.PrimaryKey, user)
+		st.Lock()
+		if err != nil {
+			return nil, err
+		}
+
+		return a, nil
+	}
+
+	err = batch.Fetch(db, retrieve, func(f asserts.Fetcher) error {
 		for vsKey, vs := range valsets {
 			if err := f.Save(vs); err != nil {
 				return fmt.Errorf("cannot save assertion %q to batch: %v", vsKey, err)

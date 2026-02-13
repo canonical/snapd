@@ -4733,6 +4733,53 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 	})
 }
 
+func (s *assertMgrSuite) TestEnforceValidationSetsWithLocalPrerequisitesDoesNotNeedStore(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.ReplaceStore(st, s.fakeStore)
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	// prepopulate the local DB with the validation set prereqs to verify
+	// local-first prerequisite resolution
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+
+	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		},
+	})
+
+	vsKey := fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())
+	valSets := map[string]*asserts.ValidationSet{
+		vsKey: vs,
+	}
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
+	}
+
+	s.fakeStore.(*fakeStore).assertionErr = store.ErrStoreOffline
+
+	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
+	c.Assert(err, IsNil)
+
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+}
+
 func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) {
 	st := s.state
 	st.Lock()
