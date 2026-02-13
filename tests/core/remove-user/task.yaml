@@ -43,6 +43,7 @@ execute: |
 
     echo "snap remove-user needs root and snap login is not enough"
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
+        snap install expect --devmode
         echo "Checking successful login"
         expect -d -f "$TESTSLIB"/successful_login.exp
 
@@ -51,6 +52,8 @@ execute: |
             echo "remove-user command should have failed"
         fi
         [ "$obtained" = "$expected" ]
+
+        snap logout
     fi
 
     echo "snap remove-user succeeds when run as non-root user with sudo"
