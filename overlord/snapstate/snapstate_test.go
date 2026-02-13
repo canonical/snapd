@@ -720,7 +720,6 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
-		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -834,7 +833,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
-		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -1711,11 +1709,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			revno: snap.R(2),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(2),
-		},
-		{
 			op: "update-aliases",
 		},
 	}
@@ -1992,11 +1985,6 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				revno: snap.R(1),
 			},
 			{
-				op:    "setup-profiles:Doing",
-				name:  "snap-core18-to-core22",
-				revno: snap.R(1),
-			},
-			{
 				op: "update-aliases",
 			},
 		}
@@ -2095,11 +2083,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap_instance",
-			revno: snap.R(2),
-		},
-		{
 			op: "update-aliases",
 		},
 	}
@@ -2163,7 +2146,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2240,11 +2223,6 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap",
-			revno: snap.R(7),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -2347,22 +2325,12 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(1),
-		},
-		{
 			op: "update-aliases",
 		},
 		// undoing everything from here down...
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
-		{
-			op:    "setup-profiles:Undoing",
-			name:  "some-snap",
-			revno: snap.R(1),
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -5991,11 +5959,6 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "core",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -8342,11 +8305,6 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "snapd",
-			revno: snap.R(11),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "snapd",
 			revno: snap.R(11),
 		},

@@ -152,11 +152,6 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -295,7 +290,6 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"link-snap",
 		"maybe-set-next-boot",
 		"auto-connect:Doing",
-		"setup-profiles:Doing",
 		"update-aliases",
 		"cleanup-trash",
 	}, comment)
@@ -449,11 +443,6 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap",
-			revno: snap.R(7),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -988,7 +977,6 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	}
 	ops = append(ops, []string{
 		"auto-connect:Doing",
-		"setup-profiles:Doing",
 		"update-aliases",
 	}...)
 	if len(currentKmodComps) > 0 {
@@ -1259,11 +1247,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "services-snap",
-			revno: snap.R(11),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
@@ -1654,11 +1637,6 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "services-snap_instance",
-			revno: snap.R(11),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "services-snap_instance",
 			revno: snap.R(11),
 		},
@@ -2935,11 +2913,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -2956,11 +2929,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 		})
 	}
 	expected = append(expected, fakeOps{
-		{
-			op:    "setup-profiles:Undoing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
 		{
 			op:    "auto-connect:Undoing",
 			name:  "some-snap",
@@ -4525,7 +4493,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 20
+			j += 19
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -9246,7 +9214,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	// per-snap. Keep the strict ordering checks per operation type.
 	linkOps := make([]string, 0, 2)
 	autoConnectOps := make([]string, 0, 2)
-	setupProfilesOps := make([]string, 0, 2)
 	cleanupOps := make([]string, 0, 2)
 	for _, op := range ops {
 		switch {
@@ -9254,19 +9221,15 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			linkOps = append(linkOps, op)
 		case strings.HasPrefix(op, "auto-connect:"):
 			autoConnectOps = append(autoConnectOps, op)
-		case strings.HasPrefix(op, "setup-profiles:"):
-			setupProfilesOps = append(setupProfilesOps, op)
 		case strings.HasPrefix(op, "cleanup-trash-"):
 			cleanupOps = append(cleanupOps, op)
 		}
 	}
 	c.Assert(linkOps, HasLen, 2)
 	c.Assert(autoConnectOps, HasLen, 2)
-	c.Assert(setupProfilesOps, HasLen, 2)
 	c.Assert(cleanupOps, HasLen, 2)
 	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "core18/11"})
 	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11"})
-	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-core18/11", "setup-profiles:Doing-kernel/11"})
 	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-core18", "cleanup-trash-kernel"})
 }
 
@@ -9450,7 +9413,6 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 	// per-snap. Keep the strict ordering checks per operation type.
 	linkOps := make([]string, 0, 2)
 	autoConnectOps := make([]string, 0, 2)
-	setupProfilesOps := make([]string, 0, 2)
 	cleanupOps := make([]string, 0, 2)
 	for _, op := range ops {
 		switch {
@@ -9458,19 +9420,15 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 			linkOps = append(linkOps, op)
 		case strings.HasPrefix(op, "auto-connect:"):
 			autoConnectOps = append(autoConnectOps, op)
-		case strings.HasPrefix(op, "setup-profiles:"):
-			setupProfilesOps = append(setupProfilesOps, op)
 		case strings.HasPrefix(op, "cleanup-trash-"):
 			cleanupOps = append(cleanupOps, op)
 		}
 	}
 	c.Assert(linkOps, HasLen, 2)
 	c.Assert(autoConnectOps, HasLen, 2)
-	c.Assert(setupProfilesOps, HasLen, 2)
 	c.Assert(cleanupOps, HasLen, 2)
 	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "gadget/11"})
 	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-gadget/11", "auto-connect:Doing-kernel/11"})
-	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-gadget/11", "setup-profiles:Doing-kernel/11"})
 	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-kernel"})
 }
 
@@ -9653,7 +9611,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 	// per-snap. Keep the strict ordering checks per operation type.
 	linkOps := make([]string, 0, 2)
 	autoConnectOps := make([]string, 0, 2)
-	setupProfilesOps := make([]string, 0, 2)
 	cleanupOps := make([]string, 0, 2)
 	for _, op := range ops {
 		switch {
@@ -9661,19 +9618,15 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 			linkOps = append(linkOps, op)
 		case strings.HasPrefix(op, "auto-connect:"):
 			autoConnectOps = append(autoConnectOps, op)
-		case strings.HasPrefix(op, "setup-profiles:"):
-			setupProfilesOps = append(setupProfilesOps, op)
 		case strings.HasPrefix(op, "cleanup-trash-"):
 			cleanupOps = append(cleanupOps, op)
 		}
 	}
 	c.Assert(linkOps, HasLen, 2)
 	c.Assert(autoConnectOps, HasLen, 2)
-	c.Assert(setupProfilesOps, HasLen, 2)
 	c.Assert(cleanupOps, HasLen, 2)
 	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"core18/11", "gadget/11"})
 	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-gadget/11"})
-	c.Check(setupProfilesOps, DeepEquals, []string{"setup-profiles:Doing-core18/11", "setup-profiles:Doing-gadget/11"})
 	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-core18"})
 }
 
@@ -14830,11 +14783,6 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 			revno: prevSnapRev,
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  instanceName,
-			revno: prevSnapRev,
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -15076,11 +15024,6 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			revno: prevSnapRev,
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  instanceName,
-			revno: prevSnapRev,
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -15090,11 +15033,6 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			{
 				op:   "remove-snap-aliases",
 				name: instanceName,
-			},
-			{
-				op:    "setup-profiles:Undoing",
-				name:  instanceName,
-				revno: prevSnapRev,
 			},
 			{
 				op:    "auto-connect:Undoing",
@@ -15515,11 +15453,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			revno: prevSnapRev,
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  instanceName,
-			revno: prevSnapRev,
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -15880,11 +15813,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
-			name:  instanceName,
-			revno: prevSnapRev,
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -16607,11 +16535,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			revno: newSnapRev,
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  instanceName,
-			revno: newSnapRev,
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -17119,11 +17042,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 			revno: newSnapRev,
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  snapName,
-			revno: newSnapRev,
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -17390,7 +17308,6 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		"prepare-profiles",
 		"link-snap",
 		"auto-connect",
-		"setup-profiles",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
@@ -17868,11 +17785,6 @@ components:
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  instanceName,
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 	}...)
@@ -18262,11 +18174,6 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
-			name:  instanceName,
-			revno: oldSnapRev,
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: oldSnapRev,
 		},
@@ -18758,11 +18665,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Doing",
-			name:  instanceName,
-			revno: currentSnapRev,
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: currentSnapRev,
 		},

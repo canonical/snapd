@@ -153,7 +153,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 
 	expected = append(expected, "prepare-profiles", "link-snap")
 	expected = append(expected, tasksAfterLinkSnap...)
-	expected = append(expected, "auto-connect", "setup-profiles")
+	expected = append(expected, "auto-connect")
 	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
@@ -1493,11 +1493,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -1719,11 +1714,6 @@ func (s *snapmgrTestSuite) TestInstallRunThroughInCloudNoIcons(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -1859,11 +1849,6 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap_instance",
-			revno: snap.R(11),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(11),
 		},
@@ -2081,20 +2066,10 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
 			op: "update-aliases",
-		},
-		{
-			op:    "setup-profiles:Undoing",
-			name:  "some-snap",
-			revno: snap.R(11),
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -2246,11 +2221,6 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap",
-			revno: snap.R(666),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(666),
 		},
@@ -2455,11 +2425,6 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  snapName,
-			revno: snap.R(42),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: snap.R(42),
 		},
@@ -2669,11 +2634,6 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -2809,11 +2769,6 @@ epoch: 1*
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "mock",
-			revno: snap.R("x3"),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x3"),
 		},
@@ -2964,11 +2919,6 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "mock",
-			revno: snap.R("x1"),
-		},
-		{
 			op: "update-aliases",
 		},
 		{
@@ -3019,7 +2969,7 @@ version: 1.0`)
 	s.settle(c)
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 12)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -3216,11 +3166,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:    "setup-profiles:Doing",
-			name:  "core",
-			revno: snap.R(11),
-		},
-		{
 			op: "update-aliases",
 		},
 		// after core is in place continue with the snap
@@ -3285,11 +3230,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
-			name:  "some-snap",
-			revno: snap.R(42),
-		},
-		{
-			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
 		},
@@ -3367,8 +3307,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 31)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 16)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 29)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 15)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -3689,10 +3629,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		name:  "snap-content-slot",
 		revno: snap.R(11),
 	}, {
-		op:    "setup-profiles:Doing",
-		name:  "snap-content-slot",
-		revno: snap.R(11),
-	}, {
 		op: "update-aliases",
 	}, {
 		op:   "storesvc-download",
@@ -3744,10 +3680,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op: "maybe-set-next-boot",
 	}, {
 		op:    "auto-connect:Doing",
-		name:  "snap-content-plug",
-		revno: snap.R(42),
-	}, {
-		op:    "setup-profiles:Doing",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
 	}, {
@@ -6857,10 +6789,6 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 	ops = append(ops, []fakeOp{{
 		op: "update-aliases",
 	}, {
-		op:    "setup-profiles:Undoing",
-		name:  instanceName,
-		revno: snapRevision,
-	}, {
 		op:    "auto-connect:Undoing",
 		name:  instanceName,
 		revno: snapRevision,
@@ -7261,10 +7189,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	// ops that follow linking components
 	expected = append(expected, []fakeOp{{
 		op:    "auto-connect:Doing",
-		name:  instanceName,
-		revno: snapRevision,
-	}, {
-		op:    "setup-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {
@@ -7683,10 +7607,6 @@ components:
 
 	expected = append(expected, []fakeOp{{
 		op:    "auto-connect:Doing",
-		name:  instanceName,
-		revno: snapRevision,
-	}, {
-		op:    "setup-profiles:Doing",
 		name:  instanceName,
 		revno: snapRevision,
 	}, {

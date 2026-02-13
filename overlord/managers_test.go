@@ -5040,21 +5040,8 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	// New task layout has prepare-profiles before link-snap (summary: "Restore ..."),
-	// and setup-profiles after auto-connect (summary: "Setup ...").
-	// Legacy task layout may have only setup-profiles here.
-	newProfilesTasks := false
-	switch tasks[i].Kind() {
-	case "prepare-profiles":
-		newProfilesTasks = true
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
-		i++
-	case "setup-profiles":
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-		i++
-	default:
-		c.Fatalf("unexpected task kind %q, expected prepare-profiles or setup-profiles", tasks[i].Kind())
-	}
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
+	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
@@ -5063,10 +5050,8 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
-	if newProfilesTasks {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-		i++
-	}
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
@@ -5118,26 +5103,14 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	newProfilesTasks := false
-	switch tasks[i].Kind() {
-	case "prepare-profiles":
-		newProfilesTasks = true
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
-		i++
-	case "setup-profiles":
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-		i++
-	default:
-		c.Fatalf("unexpected task kind %q, expected prepare-profiles or setup-profiles", tasks[i].Kind())
-	}
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
+	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
-	if newProfilesTasks {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
-		i++
-	}
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Discard kernel driver tree for "%s" (%s)`, name, revno))
 		i++
