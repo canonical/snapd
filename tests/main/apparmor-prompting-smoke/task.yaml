@@ -9,34 +9,39 @@ details: |
     a result of prompt response have the correct effect on the original and a following request.
 
 environment:
-    TARGET_FILE/allow_prompt_single_lifespan: "/home/test/test_allow_prompt_single_lifespan/foo"
-    TARGET_FILE/deny_prompt_single_lifespan: "/home/test/test_deny_prompt_single_lifespan/foo"
-    TARGET_FILE/allow_prompt_timespan_lifespan: "/home/test/test_allow_prompt_timespan_lifespan/foo"
-    TARGET_FILE/deny_prompt_timespan_lifespan: "/home/test/test_deny_prompt_timespan_lifespan/foo"
-    TARGET_FILE/allow_prompt_session_lifespan: "/home/test/test_allow_prompt_session_lifespan/foo"
-    TARGET_FILE/deny_prompt_session_lifespan: "/home/test/test_deny_prompt_session_lifespan/foo"
-    TARGET_FILE/allow_prompt_forever_lifespan: "/home/test/test_allow_prompt_forever_lifespan/foo"
-    TARGET_FILE/deny_prompt_forever_lifespan: "/home/test/test_deny_prompt_forever_lifespan/foo"
+    TARGET_FILE/allow_lifespan_single: "/home/test/test_allow_lifespan_single/foo"
+    TARGET_FILE/deny_lifespan_single: "/home/test/test_deny_lifespan_single/foo"
+    TARGET_FILE/allow_lifespan_timespan: "/home/test/test_allow_lifespan_timespan/foo"
+    TARGET_FILE/deny_lifespan_timespan: "/home/test/test_deny_lifespan_timespan/foo"
+    TARGET_FILE/allow_lifespan_session: "/home/test/test_allow_lifespan_session/foo"
+    TARGET_FILE/deny_lifespan_session: "/home/test/test_deny_lifespan_session/foo"
+    TARGET_FILE/allow_lifespan_forever: "/home/test/test_allow_lifespan_forever/foo"
+    TARGET_FILE/deny_lifespan_forever: "/home/test/test_deny_lifespan_forever/foo"
 
-    PROMPT_RESPONSE/allow_prompt_single_lifespan: "allow"
-    PROMPT_RESPONSE/deny_prompt_single_lifespan: "deny"
-    PROMPT_RESPONSE/allow_prompt_timespan_lifespan: "allow"
-    PROMPT_RESPONSE/deny_prompt_timespan_lifespan: "deny"
-    PROMPT_RESPONSE/allow_prompt_session_lifespan: "allow"
-    PROMPT_RESPONSE/deny_prompt_session_lifespan: "deny"
-    PROMPT_RESPONSE/allow_prompt_forever_lifespan: "allow"
-    PROMPT_RESPONSE/deny_prompt_forever_lifespan: "deny"
+    PROMPT_RESPONSE/allow_lifespan_single: "allow"
+    PROMPT_RESPONSE/deny_lifespan_single: "deny"
+    PROMPT_RESPONSE/allow_lifespan_timespan: "allow"
+    PROMPT_RESPONSE/deny_lifespan_timespan: "deny"
+    PROMPT_RESPONSE/allow_lifespan_session: "allow"
+    PROMPT_RESPONSE/deny_lifespan_session: "deny"
+    PROMPT_RESPONSE/allow_lifespan_forever: "allow"
+    PROMPT_RESPONSE/deny_lifespan_forever: "deny"
 
-    LIFESPAN/allow_prompt_single_lifespan: "single"
-    LIFESPAN/deny_prompt_single_lifespan: "single"
-    LIFESPAN/allow_prompt_timespan_lifespan: "timespan"
-    LIFESPAN/deny_prompt_timespan_lifespan: "timespan"
-    LIFESPAN/allow_prompt_session_lifespan: "session"
-    LIFESPAN/deny_prompt_session_lifespan: "session"
-    LIFESPAN/allow_prompt_forever_lifespan: "forever"
-    LIFESPAN/deny_prompt_forever_lifespan: "forever"
+    LIFESPAN/allow_lifespan_single: "single"
+    LIFESPAN/deny_lifespan_single: "single"
+    LIFESPAN/allow_lifespan_timespan: "timespan"
+    LIFESPAN/deny_lifespan_timespan: "timespan"
+    LIFESPAN/allow_lifespan_session: "session"
+    LIFESPAN/deny_lifespan_session: "session"
+    LIFESPAN/allow_lifespan_forever: "forever"
+    LIFESPAN/deny_lifespan_forever: "forever"
 
+    # The duration for the lifespan timespan response to the prompt
     DURATION: "20s"
+
+    # temporary files are used to redirect stdout and stderr from attempts to read the target file
+    TMP_STDOUT: $(mktemp)
+    TMP_STDERR: $(mktemp)
 
 systems:
     - ubuntu-2*
@@ -52,6 +57,7 @@ skip:
 prepare: |
     snap set system experimental.user-daemons=true
 
+    # create and add text to the target file
     dir="$(dirname $TARGET_FILE)"
     mkdir -p "$dir"
     echo "hello-foo" > $TARGET_FILE
@@ -65,12 +71,15 @@ prepare: |
     snap connect prompt-requester:home
 
 restore: |
+    echo "Remove temporary files"
+    rm -f "$TMP_STDOUT" "$TMP_STDERR"
+
     echo "Disable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=false
 
-    echo "Remove any new listener ID file"
-    rm -rf /{run,var/lib}/snapd/insterfaces-requests
-    rm -rf $(dirname $TARGET_FILE)
+    echo "Remove any listener ID, request mappings, prompts, and rules"
+    rm -rf /{run,var/lib}/snapd/interfaces-requests
+    rm -rf "$(dirname $TARGET_FILE)"
 
 debug: |
     uname -a
@@ -96,13 +105,9 @@ execute: |
     echo "Check that there are no prompts initially"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | gojq '.result | length' | MATCH 0
+    echo "$RESULT" | gojq '.result | length' | MATCH '^0$'
 
     START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
-
-    # temporary files are used to redirect stdout and stderr from attempts to read the target file
-    TMP_STDOUT=$(mktemp)
-    TMP_STDERR=$(mktemp)
 
     echo "Trigger prompt by reading $TARGET_FILE"
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
@@ -111,23 +116,23 @@ execute: |
     echo "Wait for notice for first prompt"
     RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$START")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    echo "$RESULT" | gojq '.result | length' | MATCH '^1$'
 
-    NOTICE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+    PROMPT_ID="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
     LAST_NOTICE_TIMESTAMP="$(echo "$RESULT" | gojq '.result[0]."last-repeated"' | tr -d '"')"
 
     echo "Check that the prompt with the ID given by the first notice is present"
-    RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY")"
+    RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | gojq .result.constraints.path | MATCH "${TARGET_FILE}"
-    PROMPT_ID="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+    echo "$RESULT" | gojq .result.constraints.path | MATCH "$TARGET_FILE"
+    echo "$RESULT" | gojq .result.id | tr -d '"' | MATCH "$PROMPT_ID"
 
-    if [[ "$LIFESPAN" == "timespan" ]]; then
-      echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
-      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
+    if [ "$LIFESPAN" = "timespan" ]; then
+        echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
     else
-      echo "Reply to the prompt with $PROMPT_RESPONSE for $LIFESPAN"
-      RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
+        echo "Reply to the prompt with $PROMPT_RESPONSE for $LIFESPAN"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
     fi
     echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
 
@@ -136,61 +141,63 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-      "allow") cat "$TMP_STDOUT" | MATCH "hello-foo" ;;
-      "deny")
-        cat "$TMP_STDOUT" | MATCH "failed"
-        cat "$TMP_STDERR" | MATCH "Permission denied"
-        ;;
+        "allow") MATCH "hello-foo" < "$TMP_STDOUT";;
+        "deny")
+            MATCH "failed" < "$TMP_STDOUT"
+            MATCH "Permission denied" < "$TMP_STDERR"
+            ;;
     esac
 
-    if [[ "$LIFESPAN" != "single" ]]; then
-      echo "Check that there is a notice for rule creation"
-      RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-rule-update&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
-      echo "$RESULT" | MATCH '"status-code": 200'
-      echo "$RESULT" | gojq '.result | length' | MATCH 1
-      RULE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+    if [ "$LIFESPAN" != "single" ]; then
+        echo "Check that there is a notice for rule creation"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-rule-update&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
+        echo "$RESULT" | MATCH '"status-code": 200'
+        echo "$RESULT" | gojq '.result | length' | MATCH '^1$'
+        RULE_ID="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
 
-      echo "Check that the rule with the corresponding ID exists"
-      RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")"
-      echo "$RESULT" | gojq .result.interface | MATCH "home"
-      echo "$RESULT" | gojq .result.constraints.permissions.read.outcome | MATCH "$PROMPT_RESPONSE"
-      echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "$LIFESPAN"
-      echo "$RESULT" | MATCH '"status-code": 200'
+        echo "Check that the rule with the corresponding ID exists"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_ID")"
+        echo "$RESULT" | gojq .result.interface | MATCH "home"
+        echo "$RESULT" | gojq .result.constraints.permissions.read.outcome | MATCH "$PROMPT_RESPONSE"
+        echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "$LIFESPAN"
+        echo "$RESULT" | MATCH '"status-code": 200'
     fi
 
     echo "Wait for notices for replied prompts"
     RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    echo "$RESULT" | gojq '.result | length' | MATCH '^1$'
     echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
     LAST_NOTICE_TIMESTAMP="$(echo "$RESULT" | gojq '.result[0]."last-repeated"' | tr -d '"')"
 
     echo "Check that the prompts were resolved"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | gojq '.result | length' | MATCH 0
+    echo "$RESULT" | gojq '.result | length' | MATCH '^0$'
 
     echo "Run command to read $TARGET_FILE again"
+    echo "" > "$TMP_STDOUT"
+    echo "" > "$TMP_STDERR"
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
 
     if [[ "$LIFESPAN" != "single" ]]; then
-        echo "Check for notices"
+        echo "Check for notices -- we don't expect any, as the request should be handled by the rule"
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=10s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "Ensure that request is autohandled"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq '.result | length' | MATCH 0
+        echo "$RESULT" | gojq '.result | length' | MATCH '^0$'
 
-        echo "Remove rule with ID $RULE_KEY"
-        RESULT="$(echo '{"action":"remove"}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/rules/$RULE_KEY")"
+        echo "Remove rule with ID $RULE_ID"
+        RESULT="$(echo '{"action":"remove"}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/rules/$RULE_ID")"
         echo "$RESULT" | MATCH '"status-code": 200'
         echo "$RESULT" | gojq .result.interface | MATCH "home"
         echo "$RESULT" | gojq .result.constraints.permissions.read.outcome | MATCH "$PROMPT_RESPONSE"
         echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
         echo "$RESULT" | gojq .result.constraints.permissions.read.lifespan | MATCH "$LIFESPAN"
 
-        echo "Check rule with ID $RULE_KEY has been removed"
-        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_KEY")"
+        echo "Check rule with ID $RULE_ID has been removed"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_ID")"
         echo "$RESULT" | gojq .result.message | MATCH "cannot find rule with the given ID"
         echo "$RESULT" | MATCH '"status-code": 404'
     else
@@ -198,15 +205,15 @@ execute: |
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "Ensure that request is not autohandled"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq '.result | length' | MATCH 1
-        NOTICE_KEY="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
+        echo "$RESULT" | gojq '.result | length' | MATCH '^1$'
+        PROMPT_ID="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
         LAST_NOTICE_TIMESTAMP="$(echo "$RESULT" | gojq '.result[0]."last-repeated"' | tr -d '"')"
 
         echo "Check that the prompt with the ID given by this notice is present"
-        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY")"
+        RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID")"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq .result.constraints.path | MATCH "${TARGET_FILE}"
-        PROMPT_ID="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+        echo "$RESULT" | gojq .result.constraints.path | MATCH "$TARGET_FILE"
+        echo "$RESULT" | gojq .result.id | tr -d '"' | MATCH "$PROMPT_ID"
 
         echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
         RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"single\", \"constraints\": {\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"read\"]}}"
@@ -215,13 +222,13 @@ execute: |
         echo "Wait for notices for second replied prompt"
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=60s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq '.result | length' | MATCH 1
+        echo "$RESULT" | gojq '.result | length' | MATCH '^1$'
         echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
 
         echo "Check that the second prompt was resolved"
         RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq '.result | length' | MATCH 0
+        echo "$RESULT" | gojq '.result | length' | MATCH '^0$'
     fi
 
     echo "Wait for requester process to finish"
@@ -229,12 +236,10 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-      "allow") cat "$TMP_STDOUT" | MATCH "hello-foo" ;;
-      "deny")
-        cat "$TMP_STDOUT" | MATCH "failed"
-        cat "$TMP_STDERR" | MATCH "Permission denied"
-        ;;
+        "allow") MATCH "hello-foo" < "$TMP_STDOUT";;
+        "deny")
+            MATCH "failed" < "$TMP_STDOUT"
+            MATCH "Permission denied" < "$TMP_STDERR"
+            ;;
     esac
-
-    rm -f "$TMP_STDOUT" "$TMP_STDOUT"
 
