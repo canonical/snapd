@@ -507,7 +507,14 @@
     @{PROC}/@{pid}/mountinfo r,
     capability sys_chroot,
     capability sys_admin,
+    #  sigint: this is the signal we get if snap-confine dies (we subscribe to it with prctl)
     signal (send, receive) set=(int, abrt, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+    # This is just like exists above but we cannot know if the parent process
+    # is still alive and hence has the appropriate label or is already dead and
+    # hence has no label.
+    signal (send) set=(exists) peer=unconfined,
+    # This allows snap-confine to be killed from the outside.
+    signal (receive) peer=unconfined,
 
     # workaround for linux 4.13/upstream, see
     # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
@@ -535,19 +542,8 @@
     /run/snapd/ns/*.mnt rw,
     # NOTE: the source name is / even though we map /proc/123/ns/mnt
     mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
-    # Those two rules are exactly the same but we don't know if the parent process is still alive
-    # and hence has the appropriate label or is already dead and hence has no label.
-    signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
-    signal (send) set=(exists) peer=unconfined,
-    #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
-    signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
-    # This allows snap-confine to be killed from the outside.
-    signal (receive) peer=unconfined,
     # This allows snap-confine to wait for us
     ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
-
-    # Allow snap-confine to be killed
-    signal (receive) peer=unconfined,
 
     # Allow switching to snap-update-ns with a per-snap profile.
     change_profile -> snap-update-ns.*,
