@@ -1,0 +1,9 @@
+name: wayland-client
+version: 1.0
+summary: Fake wayland client
+description: Fake wayland client
+
+apps:
+  wayland-client:
+    command: bin/wclient.sh
+    plugs: [wayland, network]
