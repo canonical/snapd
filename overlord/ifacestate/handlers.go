@@ -147,9 +147,9 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 	return nil
 }
 
-func delayedEffectsTask(tasks []*state.Task) *state.Task {
-	for _, t := range tasks {
-		if t.Kind() == "delayed-backend-effects" {
+func delayedEffectsTask(chg *state.Change) *state.Task {
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "process-delayed-backend-effects" {
 			return t
 		}
 	}
@@ -176,7 +176,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 	logger.Debugf("new connections: %v", newConns)
 
-	delayedTask := delayedEffectsTask(task.Change().Tasks())
+	delayedTask := delayedEffectsTask(task.Change())
 	// we can only delay side effects if we have the delay task
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
@@ -2388,8 +2388,8 @@ func DelayedBackendEffectsFor(deferTask *state.Task, snapWithSlot triggeringSnap
 	return nil
 }
 
-// delayedSnapsWork returns delayed backend effects.
-func delayedSnapsWork(deferTask *state.Task) (delayed delayedEffects, err error) {
+// getDelayedEffectsForSnaps returns delayed backend effects.
+func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, err error) {
 	if err := deferTask.Get("delayed-effects-for-snaps", &delayed); err != nil && !errors.Is(err, state.ErrNoState) {
 		return delayedEffects{}, err
 	}
@@ -2398,7 +2398,7 @@ func delayedSnapsWork(deferTask *state.Task) (delayed delayedEffects, err error)
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
-func (m *InterfaceManager) doDelayedBackendSideEffects(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doProcessDelayedBackendSideEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Single catch all task handler for all delayed side effects for snaps.
 	// Looks through all the tasks to identify which snaps are affected, and
 	// whether the snaps that triggered the side effect were successfully
@@ -2413,7 +2413,7 @@ func (m *InterfaceManager) doDelayedBackendSideEffects(task *state.Task, _ *tomb
 	logger.Debugf("delayed effects coordination")
 
 	var snapLanes []int
-	if err := task.Get("monitor-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -2431,8 +2431,15 @@ func (m *InterfaceManager) doDelayedBackendSideEffects(task *state.Task, _ *tomb
 	laneLoop:
 		for _, tsk := range chg.LaneTasks(lane) {
 			switch {
-			case tsk.ID() == task.ID() || tsk.Kind() == "check-refrefresh":
-				// unlikely, we are not present in any lane, neither is re-refresh
+			case tsk.ID() == task.ID():
+				// our task should only be present in the default '0' lane, not a dedicated one
+				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
+					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
+				}
+				continue
+			case tsk.Kind() == "check-rerefresh":
+				// same thing applies to check-rerefresh, although lane
+				// verification should be done in snapstate
 				continue
 			case !tsk.Status().Ready():
 				logger.Debugf("not yet ready")
@@ -2459,7 +2466,7 @@ func (m *InterfaceManager) doDelayedBackendSideEffects(task *state.Task, _ *tomb
 
 	logger.Debugf("happy snaps: %v", successfulTriggeringSnaps)
 
-	delayed, err := delayedSnapsWork(task)
+	delayed, err := getDelayedEffectsForSnaps(task)
 	if err != nil {
 		return err
 	}
@@ -2509,7 +2516,7 @@ func (m *InterfaceManager) doDelayedBackendSideEffects(task *state.Task, _ *tomb
 		logger.Debugf("scheduling delayed effects for snap %q", affectedSnap)
 
 		// One task per connected snap instance
-		updateTask := st.NewTask("delayed-snap-backend-effects",
+		updateTask := st.NewTask("process-delayed-snap-backend-effects",
 			fmt.Sprintf("Delayed side effects for snap %q", affectedSnap))
 		updateTask.Set("effects-data", delayedEffectsForSnapData{
 			AffectedSnapInstance: affectedSnap,
@@ -2538,8 +2545,8 @@ type delayedEffectsForSnapData struct {
 	Effects              map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect `json:"effects"`
 }
 
-func (m *InterfaceManager) doDelayedBackendSideEffectsForSnap(task *state.Task, _ *tomb.Tomb) error {
-	// Applies actual effects to a snap
+func (m *InterfaceManager) doProcessDelayedBackendSideEffectsForSnap(task *state.Task, _ *tomb.Tomb) error {
+	// Process and apply delayed effects to a snap
 
 	st := task.State()
 

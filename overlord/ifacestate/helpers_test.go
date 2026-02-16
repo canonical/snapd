@@ -544,7 +544,7 @@ func (s *helpersSuite) TestProfileRegenerationDoesNotDelay(c *C) {
 	ovld := overlord.Mock()
 	st := ovld.State()
 
-	// Mocks 2 snaps internall
+	// Mocks 2 snaps internally
 	mockSnaps(c, st)
 
 	// Pretend that security profiles are out of date.
