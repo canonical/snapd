@@ -599,7 +599,6 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	// Setup all affected snaps, start with the most important security
 	// backend and run it for all snaps. See LP: 1802581
 	for _, backend := range m.repo.Backends() {
-		logger.Debugf("setup %v for snaps: %v", backend.Name(), appSets)
 		errs := interfaces.SetupMany(m.repo, backend, appSets, func(snapName string) interfaces.ConfinementOptions {
 			return confOpts[snapName]
 		}, func(snapName string) interfaces.SetupContext {
