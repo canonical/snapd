@@ -906,7 +906,7 @@ func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []
 	}
 	mapData, ok := decoded.(map[string]json.RawMessage)
 	if !ok {
-		return nil, err
+		return nil, fmt.Errorf("internal error: expected level %q to be map but got %T", path, decoded)
 	}
 
 	pathKey := ""
@@ -1657,7 +1657,7 @@ func (v *arraySchema) PruneByVisibility(path []Accessor, vis []Visibility, data 
 	}
 	array, ok := decoded.([]json.RawMessage)
 	if !ok {
-		return nil, fmt.Errorf(`data must be an array`)
+		return nil, fmt.Errorf("internal error: expected level %q to be list but got %T", path, decoded)
 	}
 	arrayIndex := -1
 	if len(path) > 0 && path[0].Type() == ListIndexType {
