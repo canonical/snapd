@@ -871,8 +871,9 @@ var (
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
 	interfacePermissionsAvailable = map[string][]string{
-		"home":   {"read", "write", "execute"},
-		"camera": {"access"},
+		"home":         {"read", "write", "execute"},
+		"camera":       {"access"},
+		"audio-record": {"access"},
 	}
 
 	// A mapping from interfaces which support AppArmor file permissions to
@@ -889,6 +890,11 @@ var (
 		},
 		"camera": {
 			"access": notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
+		},
+		"audio-record": {
+			// audio-record is a marker interface which never triggers requests
+			// from AppArmor, so it does not map to any AppArmor permissions
+			"access": 0,
 		},
 	}
 )
