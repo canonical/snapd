@@ -54,7 +54,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 	c.Check(gotTarget, Equals, "target.snap")
 	c.Check(gotDelta, Equals, "out.delta")
 	c.Check(gotFormat, Equals, squashfs.SnapXdelta3Format)
-	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm.*`)
+	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm 'snap-1-1-xdelta3'\n.*`)
 	c.Check(s.Stdout(), Matches, `(?s).*Generating delta\.\.\..*`)
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -81,8 +81,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 	c.Check(gotSource, Equals, "source.snap")
 	c.Check(gotDelta, Equals, "patch.delta")
 	c.Check(gotTarget, Equals, "target.snap")
-	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm.*`)
-	c.Check(s.Stdout(), Matches, `(?s).*Applying delta\.\.\..*`)
+	c.Check(s.Stdout(), Equals, "Applying delta...\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -179,8 +178,7 @@ func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 		"--delta", "out.delta",
 	})
 	c.Assert(err, IsNil)
-	// formats[1] from SupportedDeltaFormats is "xdelta3"
-	c.Check(s.Stdout(), Matches, `(?s)Using snap delta algorithm 'xdelta3'\n.*`)
+	c.Check(s.Stdout(), Matches, `(?s)Using snap delta algorithm 'snap-1-1-xdelta3'\n.*`)
 }
 
 func (s *SnapSuite) TestDeltaCommandIsHidden(c *C) {
@@ -216,4 +214,37 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	c.Check(gotSource, Equals, "source.snap")
 	c.Check(gotTarget, Equals, "target.snap")
 	c.Check(gotDelta, Equals, "diff.delta")
+}
+
+func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
+	var gotFormat squashfs.DeltaFormat
+
+	restore := snap.MockSquashfsGenerateDelta(
+		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+			gotFormat = format
+			return nil
+		})
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "generate",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+		"--format", "xdelta3",
+	})
+	c.Assert(err, IsNil)
+	c.Check(gotFormat, Equals, squashfs.Xdelta3Format)
+	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm 'xdelta3'\n.*`)
+}
+
+func (s *SnapSuite) TestDeltaCommandUnsupportedFormat(c *C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "generate",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+		"--format", "bogus",
+	})
+	c.Assert(err, ErrorMatches, `unsupported delta format "bogus".*`)
 }
