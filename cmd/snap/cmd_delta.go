@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -37,9 +38,14 @@ Operations:
   generate : generate delta between source and target
   apply    : apply delta on the source
 
+Formats:
+  xdelta3          : raw xdelta3 binary diff
+  snap-1-1-xdelta3 : snap-aware xdelta3 delta (default)
+
 Examples:
-  $ snap delta generate --source <source snap file>  --target <output file> --delta <delta file>
-  $ snap delta apply    --source <source snap file>  --target <output file> --delta <delta file>
+  $ snap delta generate --source <source snap file> --target <target snap file> --delta <delta file>
+  $ snap delta generate --source <source snap file> --target <target snap file> --delta <delta file> --format xdelta3
+  $ snap delta apply --delta <delta file> --source <source snap file> --target <target snap file>
 `)
 
 type cmdDelta struct {
@@ -51,6 +57,13 @@ type cmdDelta struct {
 	Source string `long:"source" short:"s" required:"yes"`
 	Target string `long:"target" short:"t" required:"yes"`
 	Delta  string `long:"delta" short:"d" required:"yes"`
+	Format string `long:"format" short:"f" default:"snap-1-1-xdelta3"`
+}
+
+// deltaFormatIDs maps format store strings to DeltaFormat values.
+var deltaFormatIDs = map[string]squashfs.DeltaFormat{
+	"xdelta3":          squashfs.Xdelta3Format,
+	"snap-1-1-xdelta3": squashfs.SnapXdelta3Format,
 }
 
 // override for testing
@@ -68,6 +81,8 @@ func init() {
 			"target": i18n.G("Target snap package"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"delta": i18n.G("Delta between source and target snap package"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"format": i18n.G("Delta format algorithm, one of: xdelta3, snap-1-1-xdelta3"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -80,17 +95,17 @@ func init() {
 }
 
 func (x *cmdDelta) Execute(args []string) error {
-	// TODO: use correct delta format algorithm when multiple are supported
-	formats := squashfs.SupportedDeltaFormats()
-	if len(formats) == 0 {
-		return fmt.Errorf(i18n.G("snap delta not supported: no supported formats"))
-	}
-	fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), formats[1])
 
 	switch x.Positional.Operation {
 	case "generate":
+		deltaFormat, ok := deltaFormatIDs[x.Format]
+		if !ok {
+			return fmt.Errorf(i18n.G("unsupported delta format %q, supported formats: %s"),
+				x.Format, strings.Join(squashfs.SupportedDeltaFormats(), ", "))
+		}
+		fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), x.Format)
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfsGenerateDelta(context.TODO(), x.Source, x.Target, x.Delta, squashfs.SnapXdelta3Format)
+		return squashfsGenerateDelta(context.TODO(), x.Source, x.Target, x.Delta, deltaFormat)
 	case "apply":
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
 		return squashfsApplyDelta(context.TODO(), x.Source, x.Delta, x.Target)
