@@ -687,10 +687,10 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 }
 
 // This function expects to be called with the state locked
-func shouldUndoSetupProfiles(task *state.Task) bool {
+func shouldUndoSetupProfiles(task *state.Task, snapName string) bool {
 	// Check if there is a "prepare-profiles" task in the change.
 	// If there is not, then we should always do the undo of setup-profiles.
-	prepareProfiles := snapstate.FindTaskByKind(task.Change().Tasks(), "prepare-profiles")
+	prepareProfiles := snapstate.FindTaskMatchingKindAndSnap(task.Change().Tasks(), "prepare-profiles", snapName)
 	if prepareProfiles == nil {
 		return true
 	}
@@ -717,16 +717,16 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		return nil
 	}
 
-	if !shouldUndoSetupProfiles(task) {
-		logger.Debugf("skipping undo of setup-profiles for task %q", task.ID())
-		return nil
-	}
-
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
+
 	snapName := snapsup.InstanceName()
+	if !shouldUndoSetupProfiles(task, snapName) {
+		logger.Debugf("skipping undo of setup-profiles for task %q", task.ID())
+		return nil
+	}
 
 	// The previous task's undo (link-snap) may have triggered a restart, if this
 	// is the case we can only proceed once the restart has happened or we
