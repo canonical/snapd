@@ -21,6 +21,7 @@
 package arch_test
 
 import (
+	"fmt"
 	"runtime"
 
 	. "gopkg.in/check.v1"
@@ -199,7 +200,23 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 
 		for _, test := range assumesTests {
 			// Mock kernel version and riscv_hwprobe
-			restoreRISCVHWProbe := arch.MockRISCVHWProbe(test.supportedExtensions, test.hwprobeSyscallError)
+			restoreRISCVHWProbe := arch.MockRISCVHWProbe(func(pairs []arch.RISCVHWProbePairs, set *arch.CPUSet, flags uint) (err error) {
+				// Check if this function should be running
+				c.Check(test.expectedRISCVHWProbeCall, Equals, true)
+
+				// Return an error if specified in the test case
+				if test.hwprobeSyscallError != "" {
+					return fmt.Errorf(test.hwprobeSyscallError)
+				}
+
+				if len(test.supportedExtensions) != 0 {
+					// Otherwise, write the requested value
+					pairs[0] = test.supportedExtensions[0]
+					pairs[1] = test.supportedExtensions[1]
+				}
+
+				return nil
+			})
 			restoreOsutilKernelVersion := arch.MockKernelVersion(test.kernelVersion)
 
 			err := arch.IsRISCVISASupported(test.isa)
@@ -209,8 +226,6 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 			} else {
 				c.Check(err, ErrorMatches, test.expectedError)
 			}
-
-			c.Check(arch.CalledMockRISCVHWProbe(), Equals, test.expectedRISCVHWProbeCall)
 
 			// Restore functions
 			restoreRISCVHWProbe()
