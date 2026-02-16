@@ -403,6 +403,8 @@ type Systemd interface {
 	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonReEnable disables a daemon and re-enables it again
+	DaemonReEnable([]string) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
@@ -411,6 +413,8 @@ type Systemd interface {
 	EnableNoReload(services []string) error
 	// DisableNoReload the given services, do not reload system.
 	DisableNoReload(services []string) error
+	// GetServicePath returns the path of the .service file
+	GetServicePath(service string) (string, error)
 	// Start the given service or services.
 	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
@@ -695,6 +699,23 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 		args = append(args, "--no-reload")
 	}
 	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
+	return err
+}
+
+func (s *systemd) DaemonReEnable(serviceNames []string) error {
+	if len(serviceNames) == 0 {
+		return nil
+	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "reenable")
 	args = append(args, serviceNames...)
 	_, err := s.systemctl(args...)
 	return err
@@ -1690,6 +1711,10 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 		}
 	}
 	return originModule, nil
+}
+
+func (s *systemd) GetServicePath(service string) (string, error) {
+	return s.getPropertyStringValue(service, "FragmentPath")
 }
 
 func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
