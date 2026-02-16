@@ -22,6 +22,8 @@ package main_test
 import (
 	"context"
 	"errors"
+	"os"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -247,4 +249,87 @@ func (s *SnapSuite) TestDeltaCommandUnsupportedFormat(c *C) {
 		"--format", "bogus",
 	})
 	c.Assert(err, ErrorMatches, `unsupported delta format "bogus".*`)
+}
+
+func (s *SnapSuite) TestDeltaCommandGenerateListensForSignals(c *C) {
+	var gotSignals []os.Signal
+	sigCh := make(chan os.Signal, 1)
+	restoreSignal := snap.MockSignalNotify(func(sig ...os.Signal) (chan os.Signal, func()) {
+		gotSignals = sig
+		return sigCh, func() {}
+	})
+	defer restoreSignal()
+
+	var ctxErrDuringExec error
+	restoreGenerate := snap.MockSquashfsGenerateDelta(
+		func(ctx context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+			// Capture ctx.Err() here, before Execute returns and
+			// defer cancel() fires.
+			ctxErrDuringExec = ctx.Err()
+			return nil
+		})
+	defer restoreGenerate()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "generate",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+	})
+	c.Assert(err, IsNil)
+	c.Check(gotSignals, DeepEquals, []os.Signal{syscall.SIGINT, syscall.SIGTERM})
+	// Context should not be cancelled when no signal was sent
+	c.Check(ctxErrDuringExec, IsNil)
+}
+
+func (s *SnapSuite) TestDeltaCommandGenerateCancelledOnSignal(c *C) {
+	sigCh := make(chan os.Signal, 1)
+	restoreSignal := snap.MockSignalNotify(func(sig ...os.Signal) (chan os.Signal, func()) {
+		return sigCh, func() {}
+	})
+	defer restoreSignal()
+
+	restoreGenerate := snap.MockSquashfsGenerateDelta(
+		func(ctx context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+			// Simulate SIGINT while the operation is in progress
+			sigCh <- syscall.SIGINT
+			// Wait for context cancellation
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	defer restoreGenerate()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "generate",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+	})
+	c.Assert(err, ErrorMatches, "context canceled")
+}
+
+func (s *SnapSuite) TestDeltaCommandApplyCancelledOnSignal(c *C) {
+	sigCh := make(chan os.Signal, 1)
+	restoreSignal := snap.MockSignalNotify(func(sig ...os.Signal) (chan os.Signal, func()) {
+		return sigCh, func() {}
+	})
+	defer restoreSignal()
+
+	restoreApply := snap.MockSquashfsApplyDelta(
+		func(ctx context.Context, source, delta, target string) error {
+			// Simulate SIGTERM while the operation is in progress
+			sigCh <- syscall.SIGTERM
+			// Wait for context cancellation
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	defer restoreApply()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "apply",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "patch.delta",
+	})
+	c.Assert(err, ErrorMatches, "context canceled")
 }
