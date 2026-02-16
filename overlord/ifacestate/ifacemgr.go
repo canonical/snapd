@@ -115,10 +115,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 	addHandler("regenerate-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
-	addHandler("delayed-backend-effects", m.doDelayedBackendSideEffects, nil)
-	addHandler("delayed-snap-backend-effects", m.doDelayedBackendSideEffectsForSnap, nil)
+	addHandler("process-delayed-backend-effects", m.doProcessDelayedBackendSideEffects, nil)
+	addHandler("process-delayed-snap-backend-effects", m.doProcessDelayedBackendSideEffectsForSnap, nil)
 	// Explicitly add "mark-preseeded" as a task which cannot run in parallel
-	// with other ifacestate tasks, as they and mark-preeseded may touch or
+	// with other ifacestate tasks, as they and mark-preseeded may touch or
 	// modify system-key
 	exclusiveTaskKinds["mark-preseeded"] = true
 

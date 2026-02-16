@@ -2336,10 +2336,10 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 }
 
 type setupSnapSecurityChangeOptions struct {
-	active          bool
-	install         bool
-	components      []*snapstate.ComponentSetup
-	useLinkSnapTask bool
+	active              bool
+	install             bool
+	components          []*snapstate.ComponentSetup
+	useRealLinkSnapTask bool
 }
 
 func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
@@ -2461,7 +2461,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	}
 
 	linkSnapTask := "mock-link-snap-n-witness"
-	if opts.useLinkSnapTask {
+	if opts.useRealLinkSnapTask {
 		linkSnapTask = "link-snap"
 	}
 
@@ -11701,12 +11701,14 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			return nil
 		},
 	}
-	delayingSetupCalled := 0
+	setupCalled := 0
 	secDelaying := &ifacetest.TestSecurityBackendDelayedEffects{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{
 			BackendName: "delaying",
 			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
-				delayingSetupCalled++
+				setupCalled++
+				// expecting calls to Setup() but none of them allow delaying
+				// effects
 				c.Check(sctx.CanDelayEffects, Equals, false)
 				c.Check(sctx.DelayEffect, IsNil)
 				return nil
@@ -11764,7 +11766,7 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 	c.Check(setupCalls, Equals, 2)
 	c.Check(reinitCalls, Equals, 1)
-	c.Check(delayingSetupCalled, Equals, 4)
+	c.Check(setupCalled, Equals, 4)
 }
 
 type regenerateSecurityTestCase struct {
@@ -12391,14 +12393,14 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	})
 	c.Assert(err, IsNil)
 	change.AddTask(tsup)
-	ts := ifacestate.DelayedBackendEffects(s.state, tsup.Lanes())
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, tsup.Lanes())
 	c.Assert(ts.Tasks(), HasLen, 1)
 
 	// verify everything is set in order
 	det := ts.Tasks()[0]
-	c.Check(det.Kind(), Equals, "delayed-backend-effects")
+	c.Check(det.Kind(), Equals, "process-delayed-backend-effects")
 	var monitorLanes []int
-	c.Assert(det.Get("monitor-lanes", &monitorLanes), IsNil)
+	c.Assert(det.Get("monitored-lanes", &monitorLanes), IsNil)
 	c.Check(monitorLanes, DeepEquals, []int{0})
 
 	de := ifacestate.NewDelayedEffectsForSnaps()
@@ -12426,12 +12428,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	tasks := change.Tasks()
 	// we have 3 tasks now, 2 from before, 1 injected by delayed effects execution
 	c.Assert(len(tasks), Equals, 3)
-	c.Check(tasks[1].Kind(), Equals, "delayed-backend-effects")
+	c.Check(tasks[1].Kind(), Equals, "process-delayed-backend-effects")
 	// does not wait for anything
 	c.Check(tasks[1].WaitTasks(), HasLen, 0)
 	c.Check(tasks[1].HaltTasks(), HasLen, 1)
 	// per snap apply effects
-	c.Check(tasks[2].Kind(), Equals, "delayed-snap-backend-effects")
+	c.Check(tasks[2].Kind(), Equals, "process-delayed-snap-backend-effects")
 	// waits for the coordination task
 	c.Assert(tasks[2].WaitTasks(), HasLen, 1)
 	c.Assert(tasks[2].WaitTasks()[0].ID(), Equals, tasks[1].ID())
@@ -12488,6 +12490,7 @@ func dumpTasks(c *C, when string, tasks []*state.Task) {
 type testDelayedEffectsSetupProfilesRunThrough struct {
 	AlreadyConnected bool
 	DelayEffects     bool
+	AddRerefresh     bool
 }
 
 func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, opts testDelayedEffectsSetupProfilesRunThrough) {
@@ -12568,6 +12571,10 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 		return nil
 	}, nil)
 
+	s.o.TaskRunner().AddHandler("check-rerefresh", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
 	if opts.AlreadyConnected {
 		s.state.Lock()
 		s.state.Set("conns", map[string]any{
@@ -12593,12 +12600,17 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	}
 
 	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
-		useLinkSnapTask: true,
-		active:          false,
+		useRealLinkSnapTask: true,
+		active:              false,
 	})
 	s.state.Lock()
 
-	ts := ifacestate.DelayedBackendEffects(s.state, lanesFromChange(chg))
+	if opts.AddRerefresh {
+		rerefresh := s.state.NewTask("check-rerefresh", "mock rerefresh")
+		chg.AddTask(rerefresh)
+	}
+
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, lanesFromChange(chg))
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -12635,10 +12647,17 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	if opts.AlreadyConnected && opts.DelayEffects {
 		c.Logf("expecting delayed call")
 		c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
-		c.Check(chg.Tasks(), HasLen, 5)
+		// already connected scenario so at most the following list of tasks:
+		// setup-profiles, link-snap, auto-connect, delayed-effects, delayed-snap-effects
+		expectingTasks := 5
+		if opts.AddRerefresh {
+			// and optionally check-rerefresh
+			expectingTasks++
+		}
+		c.Check(chg.Tasks(), HasLen, expectingTasks)
 		tsks := chg.Tasks()
 		delForSnap := tsks[len(tsks)-1]
-		c.Check(delForSnap.Kind(), Equals, "delayed-snap-backend-effects")
+		c.Check(delForSnap.Kind(), Equals, "process-delayed-snap-backend-effects")
 		var effData ifacestate.DelayedEffectsForSnapData
 		c.Assert(delForSnap.Get("effects-data", &effData), IsNil)
 		c.Check(effData, DeepEquals, ifacestate.DelayedEffectsForSnapData{
@@ -12653,7 +12672,11 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	} else {
 		for _, t := range chg.Tasks() {
 			switch t.Kind() {
-			case "setup-profiles", "run-hook", "link-snap", "delayed-backend-effects", "auto-connect", "connect":
+			case "setup-profiles", "run-hook", "link-snap", "process-delayed-backend-effects", "auto-connect", "connect":
+			case "check-rerefresh":
+				if !opts.AddRerefresh {
+					c.Errorf("unexpected task %v", t.Kind())
+				}
 			default:
 				c.Errorf("unexpected task %v", t.Kind())
 			}
@@ -12670,17 +12693,28 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughNewConn
 }
 
 func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughAlreadyConnectedNoDelayed(c *C) {
-	// a consumer snap is already connected, but the backend schedules no delayed side effects
+	// a consumer snap is already connected, the backend chooses not to schedule any
+	// delayed side effects
 	s.testDelayedEffectsSetupProfilesRunThrough(c, testDelayedEffectsSetupProfilesRunThrough{
 		AlreadyConnected: true,
 	})
 }
 
 func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughAlreadyConnectedAddDelayed(c *C) {
+	// a consumer snap is already connected, the backend schedules some side
+	// effects which are applied at the end
+	s.testDelayedEffectsSetupProfilesRunThrough(c, testDelayedEffectsSetupProfilesRunThrough{
+		AlreadyConnected: true,
+		DelayEffects:     true,
+	})
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughDelayedAndRerefresh(c *C) {
 	// a consumer snap is already connected, but the backend schedules some side effects
 	s.testDelayedEffectsSetupProfilesRunThrough(c, testDelayedEffectsSetupProfilesRunThrough{
 		AlreadyConnected: true,
 		DelayEffects:     true,
+		AddRerefresh:     true,
 	})
 }
 
@@ -12797,12 +12831,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	}
 
 	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
-		useLinkSnapTask: true,
-		active:          false,
+		useRealLinkSnapTask: true,
+		active:              false,
 	})
 	s.state.Lock()
 
-	ts := ifacestate.DelayedBackendEffects(s.state, lanesFromChange(chg))
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, lanesFromChange(chg))
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -12834,7 +12868,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	tsks := chg.Tasks()
 	delForSnap := tsks[len(tsks)-2:]
 	for _, t := range delForSnap {
-		c.Check(t.Kind(), Equals, "delayed-snap-backend-effects")
+		c.Check(t.Kind(), Equals, "process-delayed-snap-backend-effects")
 		var effData ifacestate.DelayedEffectsForSnapData
 		c.Assert(t.Get("effects-data", &effData), IsNil)
 		c.Check([]string{"consumer1", "consumer2"}, testutil.Contains, string(effData.AffectedSnapInstance))
@@ -12877,10 +12911,10 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOwnUpdate)
 					case name == "consumer1" || name == "consumer2":
 						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
-						// in do path effects are delayeyd, but not in undo
+						// in do path effects are delayed, but not in undo
 						if sctx.CanDelayEffects {
 							c.Assert(sctx.DelayEffect, NotNil)
-							// test scenario wasts to delay some effects
+							// test scenario wants to delay some effects
 							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
 								ID:          interfaces.DelayedEffect("effect"),
 								Description: fmt.Sprintf("mock effect for %s", name),
@@ -12995,7 +13029,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 		},
 	})
 
-	ts := ifacestate.DelayedBackendEffects(s.state, lanesFromChange(chg))
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, lanesFromChange(chg))
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -13015,18 +13049,18 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* maybe inject error for "producer2".*$`)
 
-	// only effects for "consumer1" are epplied
+	// only effects for "consumer1" are applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 	c.Assert(chg.Tasks(), HasLen, 10)
 	tsks := chg.Tasks()
 	effectsTasks := tsks[len(tsks)-2:]
 
-	c.Check(effectsTasks[0].Kind(), Equals, "delayed-backend-effects")
+	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-backend-effects")
 	logs := strings.Join(effectsTasks[0].Log(), "\n")
 	c.Check(logs, testutil.Contains, `skipping effects triggered by failed snap "producer2"`)
 	c.Check(logs, testutil.Contains, `scheduling delayed effects for snap "consumer1"`)
 
-	c.Check(effectsTasks[1].Kind(), Equals, "delayed-snap-backend-effects")
+	c.Check(effectsTasks[1].Kind(), Equals, "process-delayed-snap-backend-effects")
 	var effData ifacestate.DelayedEffectsForSnapData
 	c.Assert(effectsTasks[1].Get("effects-data", &effData), IsNil)
 	c.Check(string(effData.AffectedSnapInstance), Equals, "consumer1")
@@ -13037,7 +13071,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsNoLanes(c *C) {
 
 	s.state.Lock()
 	chg := s.state.NewChange("test", "")
-	ts := ifacestate.DelayedBackendEffects(s.state, nil)
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, nil)
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -13056,7 +13090,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsLaneNoWork(c *C) {
 
 	s.state.Lock()
 	chg := s.state.NewChange("test", "")
-	ts := ifacestate.DelayedBackendEffects(s.state, []int{0})
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, []int{0})
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -13103,10 +13137,10 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOwnUpdate)
 					case "consumer":
 						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
-						// in do path effects are delayeyd, but not in undo
+						// in do path effects are delayed, but not in undo
 						if sctx.CanDelayEffects {
 							c.Assert(sctx.DelayEffect, NotNil)
-							// test scenario wasts to delay some effects
+							// test scenario wants to delay some effects
 							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
 								ID:          interfaces.DelayedEffect("effect"),
 								Description: fmt.Sprintf("mock effect for %s", name),
@@ -13151,8 +13185,8 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 	}
 
 	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
-		useLinkSnapTask: true,
-		active:          false,
+		useRealLinkSnapTask: true,
+		active:              false,
 	})
 	s.state.Lock()
 
@@ -13164,7 +13198,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 		},
 	})
 
-	ts := ifacestate.DelayedBackendEffects(s.state, lanesFromChange(chg))
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, lanesFromChange(chg))
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
@@ -13185,14 +13219,14 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 	c.Check(chg.Err(), ErrorMatches,
 		`(?ms)cannot perform .* Delayed side effects for snap "consumer" \(mock error\).*$`)
 
-	// only effects for "consumer1" are epplied
+	// only effects for "consumer1" are applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 	c.Assert(chg.Tasks(), HasLen, 5)
 	tsks := chg.Tasks()
 	effectsTasks := tsks[len(tsks)-2:]
 
-	c.Check(effectsTasks[0].Kind(), Equals, "delayed-backend-effects")
-	c.Check(effectsTasks[1].Kind(), Equals, "delayed-snap-backend-effects")
+	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-backend-effects")
+	c.Check(effectsTasks[1].Kind(), Equals, "process-delayed-snap-backend-effects")
 	var effData ifacestate.DelayedEffectsForSnapData
 	c.Assert(effectsTasks[1].Get("effects-data", &effData), IsNil)
 	c.Check(string(effData.AffectedSnapInstance), Equals, "consumer")
