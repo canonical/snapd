@@ -905,6 +905,9 @@ func (v *mapSchema) pruneByVisibilityPath(path []Accessor, vis []Visibility, dat
 	if !ok {
 		return nil, fmt.Errorf("internal error: expected level %q to be map but got %T", path, decoded)
 	}
+	if len(mapData) == 0 {
+		return nil, fmt.Errorf(`internal error: expected map to contain data`)
+	}
 
 	pathKey := ""
 	if path[0].Type() == MapKeyType {
@@ -944,25 +947,23 @@ func (v *mapSchema) pruneByVisibilityPath(path []Accessor, vis []Visibility, dat
 			pruned[key] = res
 		}
 	}
-	if _, ok = pruned[pathKey]; !ok && pathKey != "" ||
-		len(pruned) == 0 && len(mapData) > 0 {
-		// Condition 1:
+	if _, ok = pruned[pathKey]; !ok && pathKey != "" {
 		// Before entering in the prune loop, the entry existed.
 		// The only way it no longer exists is if it got pruned away
 		// and so we can consider this unauthorized.
-		// Condition 2:
-		// We are somewhere along the path and there was data in the map, yet it all got pruned.
+		return nil, &UnauthorizedAccessError{}
+	}
+	if len(pruned) == 0 {
+		// Because containers cannot be empty, we know that there was data in mapData.
+		// Because len(pruned) == 0, we know that all the data got pruned away.
 		// The data must therefore be unauthorized since a map cannot contain nulls.
 		return nil, &UnauthorizedAccessError{}
 	}
-	if len(pruned) > 0 {
-		marshalled, err := json.Marshal(pruned)
-		if err != nil {
-			return nil, err
-		}
-		return marshalled, nil
+	marshalled, err := json.Marshal(pruned)
+	if err != nil {
+		return nil, err
 	}
-	return nil, nil
+	return marshalled, nil
 }
 
 func (v *mapSchema) pruneByVisibilityNoPath(vis []Visibility, data []byte) ([]byte, error) {
@@ -1698,6 +1699,9 @@ func (v *arraySchema) pruneByVisibilityPath(path []Accessor, vis []Visibility, d
 	if !ok {
 		return nil, fmt.Errorf("internal error: expected level %q to be list but got %T", path, decoded)
 	}
+	if len(array) == 0 {
+		return nil, fmt.Errorf(`internal error: expected list to contain data`)
+	}
 	arrayIndex := -1
 	if key.Type() == ListIndexType {
 		arrayIndex, _ = strconv.Atoi(key.Name())
@@ -1729,18 +1733,16 @@ func (v *arraySchema) pruneByVisibilityPath(path []Accessor, vis []Visibility, d
 			pruned = append(pruned, res)
 		}
 	}
-	if len(pruned) > 0 {
-		marshalled, err := json.Marshal(pruned)
-		if err != nil {
-			return nil, err
-		}
-		return marshalled, nil
-	} else if len(array) > 0 {
+	if len(pruned) == 0 {
 		// If we are along the path and we pruned away all the data, since
 		// we cannot return an empty container, consider this unauthorized.
 		return nil, &UnauthorizedAccessError{}
 	}
-	return nil, nil
+	marshalled, err := json.Marshal(pruned)
+	if err != nil {
+		return nil, err
+	}
+	return marshalled, nil
 }
 
 func (v *arraySchema) pruneByVisibilityNoPath(vis []Visibility, data []byte) ([]byte, error) {
