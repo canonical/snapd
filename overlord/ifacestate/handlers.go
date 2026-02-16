@@ -249,7 +249,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 // setupPendingProfilesSideInfo helps updating information about any
 // revision for which security profiles are set up while the snap is
 // not yet active.
-func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *interfaces.SnapAppSet) error {
+func setPendingProfilesSideInfo(st *state.State, instanceName string, affectedSnaps, affectedConns []string, appSet *interfaces.SnapAppSet) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -270,8 +270,10 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 		}
 
 		snapst.PendingSecurity = &snapstate.PendingSecurityState{
-			SideInfo:   &appSet.Info().SideInfo,
-			Components: csis,
+			SideInfo:            &appSet.Info().SideInfo,
+			Components:          csis,
+			AffectedSnaps:       affectedSnaps,
+			AffectedConnections: affectedConns,
 		}
 	} else {
 		snapst.PendingSecurity = &snapstate.PendingSecurityState{}
@@ -357,6 +359,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	if err != nil {
 		return nil, err
 	}
+
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
 	if err := m.repo.RemoveSnap(snapName); err != nil {
@@ -365,6 +368,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	if err := m.repo.AddAppSet(appSet); err != nil {
 		return nil, err
 	}
+
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
@@ -397,15 +401,6 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		affectedSet[connRef.PlugRef.Snap] = true
 		affectedSet[connRef.SlotRef.Snap] = true
-
-		// Snaps on the plug or slot side, other than the current one, are
-		// indirectly affected.
-		if connRef.PlugRef.Snap != snapName {
-			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
-		}
-		if connRef.SlotRef.Snap != snapName {
-			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
-		}
 	}
 
 	for _, connId := range newConns {
@@ -427,12 +422,58 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
 	affectedNames = append([]string{snapName}, affectedNames...)
+	return affectedNames, affectedConnections, nil
+}
+
+func (m *InterfaceManager) setupProfilesForAppSet(
+	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	tm timings.Measurer,
+) error {
+	st := task.State()
+
+	snapName := appSet.InstanceName()
+
+	var snapst snapstate.SnapState
+	var affectedNames []string
+	var affectedConnections []string
+	var err error
+	if err := snapstate.Get(st, snapName, &snapst); err == nil && snapst.PendingSecurity != nil {
+		affectedNames = snapst.PendingSecurity.AffectedSnaps
+		affectedConnections = snapst.PendingSecurity.AffectedConnections
+	}
+
+	// fallback if the new method was not used to set the pending security state
+	if len(affectedNames) == 0 {
+		affectedNames, affectedConnections, err = m.prepareAppSetInterfaces(task, appSet)
+		if err != nil {
+			return err
+		}
+	}
+
+	snapsWithConnectedPlugs := make(map[string]bool)
+	snapsWithConnectedSlots := make(map[string]bool)
+	// Identify affected snaps on either side of the connection.
+	for _, connID := range affectedConnections {
+		connRef, err := interfaces.ParseConnRef(connID)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
+		}
+
+		// Snaps on the plug or slot side, other than the current one, are
+		// indirectly affected.
+		if connRef.PlugRef.Snap != snapName {
+			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
+		}
+		if connRef.SlotRef.Snap != snapName {
+			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
+		}
+	}
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
-	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
-	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
-	setupContexts := make(map[string]interfaces.SetupContext, len(affectedSet))
+	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedNames))
+	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedNames))
+	setupContexts := make(map[string]interfaces.SetupContext, len(affectedNames))
 
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
@@ -574,7 +615,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 
 	// no pending profiles on disk
-	return setPendingProfilesSideInfo(task.State(), snapName, nil)
+	return setPendingProfilesSideInfo(task.State(), snapName, nil, nil, nil)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
@@ -604,16 +645,6 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	return nil
 }
 
-func isSnapInstalled(st *state.State, snapName string) (bool, error) {
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
-	} else if errors.Is(err, state.ErrNoState) {
-		return false, nil
-	}
-	return snapst.IsInstalled(), nil
-}
-
 func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -629,12 +660,19 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 
+	// For non-installed snaps, we just need to add the app set to the
+	// repo, to ensure auto-connect can find plugs/slots by the snap.
+	if err := addImplicitInterfaces(st, snapInfo); err != nil {
+		return err
+	}
+
 	appSet, err := appSetForTask(task, snapInfo)
 	if err != nil {
 		return err
 	}
 
-	if err := m.prepareAppSetInterfaces(st, appSet); err != nil {
+	affectedSnaps, affectedConns, err := m.prepareAppSetInterfaces(task, appSet)
+	if err != nil {
 		return err
 	}
 
@@ -645,7 +683,7 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 		}
 	}
 
-	return nil
+	return setPendingProfilesSideInfo(st, appSet.InstanceName(), affectedSnaps, affectedConns, appSet)
 }
 
 // This function expects to be called with the state locked
@@ -741,7 +779,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(st, snapsup.InstanceName(), appSet)
+		return setPendingProfilesSideInfo(st, snapsup.InstanceName(), nil, nil, appSet)
 	}
 }
 
