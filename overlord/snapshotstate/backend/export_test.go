@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"time"
@@ -83,7 +84,7 @@ func MockSysGeteuid(newGeteuid func() sys.UserID) (restore func()) {
 	}
 }
 
-func MockTarAsUser(f func(string, ...string) *exec.Cmd) (restore func()) {
+func MockTarAsUser(f func(context.Context, string, ...string) *exec.Cmd) (restore func()) {
 	r := testutil.Backup(&tarAsUser)
 	tarAsUser = f
 	return r

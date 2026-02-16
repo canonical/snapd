@@ -89,8 +89,11 @@ WantedBy=multi-user.target
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsInstallModeHappy(c *C, opts *testSnapOpts) {
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		s.nodeMount("ubuntu-seed", "install"),
 		opts.snaps[snap.TypeKernel],
 		opts.snaps[snap.TypeBase],
 		opts.snaps[snap.TypeGadget],
@@ -108,8 +111,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeHappy(c *C, opts *t
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsInstallModeError(c *C, expErr error) {
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
+
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.nodeMount("ubuntu-seed", "recover"),
 	}, nil)
 	defer restore()
 
@@ -216,6 +223,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true})
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
@@ -378,7 +388,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	})()
 
 	mounts := []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		s.nodeMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
@@ -408,7 +418,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		}}
 	if failMount {
 		mounts = []systemdMount{
-			s.ubuntuLabelMount("ubuntu-seed", "install"),
+			s.nodeMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
@@ -556,9 +566,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 		},
 	}
 
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
+
 	for _, t := range tt {
 		restore := s.mockSystemdMountSequence(c, []systemdMount{
-			s.ubuntuLabelMount("ubuntu-seed", "install"),
+			s.nodeMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -594,6 +608,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
+
 	for _, tc := range s.timeTestCases() {
 		comment := Commentf(tc.comment)
 		cleanups := []func(){}
@@ -624,7 +642,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 		cleanups = append(cleanups, restore)
 
 		restore = s.mockSystemdMountSequence(c, []systemdMount{
-			s.ubuntuLabelMount("ubuntu-seed", "install"),
+			s.nodeMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -668,9 +686,12 @@ defaults:
 		[][]string{{"meta/gadget.yaml", gadgetYamlDefaults}}, setupSeedOpts{})
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
 
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		s.nodeMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -723,12 +744,19 @@ grade=signed
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
+	s.mockBlkidDisk("gpt", 2)
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-seed-partuuid")
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda2")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		{
-			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			"/dev/sda2",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
@@ -766,6 +794,9 @@ grade=signed
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTimesOutNoMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
 
 	testStart := time.Now()
 	timeCalls := 0
@@ -806,13 +837,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTim
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1m30s waiting for mount %s on %s", filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"), boot.InitramfsUbuntuSeedDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1m30s waiting for mount /dev/sda1 on %s",
+		boot.InitramfsUbuntuSeedDir))
 	c.Check(s.Stdout.String(), Equals, "")
 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMount(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+	})
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
@@ -900,7 +935,7 @@ Wants=%[1]s
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
+			"/dev/sda1",
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -966,6 +1001,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataFound(c *C) {
+	c.Skip("skip until dm-verity for bases is re-enabled")
 	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",

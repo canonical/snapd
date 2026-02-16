@@ -61,6 +61,8 @@ var (
 	sbPreinstallRunChecks           = (*sb_preinstall.RunChecksContext).Run
 )
 
+const ActionNone = string(sb_preinstall.ActionNone)
+
 // PreinstallCheck runs preinstall checks using default check configuration and
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. The

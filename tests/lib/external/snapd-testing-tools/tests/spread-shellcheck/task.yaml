@@ -6,9 +6,9 @@ details: |
     tool can run in a directory tree and skips checks when
     it finds "shellcheck disable".
 
-backends: [google]
+backends: [openstack]
 
-systems: [ ubuntu-20.04-64 ]
+systems: [ubuntu-22.04-64]
 
 prepare: |
     snap install shellcheck
@@ -47,4 +47,8 @@ execute: |
     # Check that files can be excluded
     cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
     spread-shellcheck "$PROJECT_PATH/tests" "$PWD/tasks/task.yaml" -e "$PWD/tasks"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task5" "$PWD/tasks/task.yaml"
+    spread-shellcheck "$PWD/tasks" 2>&1 | MATCH "SC1035"
     rm "$PWD/tasks/task.yaml"

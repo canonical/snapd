@@ -102,6 +102,20 @@ type ModelForSealing interface {
 	SignKeyID() string
 }
 
+type KeyDatabase int
+
+const (
+	KeyDatabasePK KeyDatabase = iota
+	KeyDatabaseKEK
+	KeyDatabaseDB
+	KeyDatabaseDBX
+)
+
+type DbUpdate struct {
+	Database KeyDatabase
+	Payload  []byte
+}
+
 // TODO:FDEM: rename and drop Model from the name?
 type SealKeyModelParams struct {
 	// The snap model
@@ -113,7 +127,7 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 	// TODO:FDEM: move this somewhere else?
 	// The content of an update to EFI DBX
-	EFISignatureDbxUpdate []byte
+	EFISignatureDbxUpdates []DbUpdate
 }
 
 type TPMProvisionMode int
@@ -337,4 +351,18 @@ type LegacyKeyFile struct {
 	Name string
 	// Path is the absolute path to the key file
 	Path string
+}
+
+// Partition implementations return partition information required by secboot.
+type Partition interface {
+	PartitionNode() string
+	PartitionUUID() string
+	PartitionLabel() string
+	FilesystemUUID() string
+}
+
+// Disk implementations provide disk information required by secboot.
+type Disk interface {
+	PartitionWithFsLabel(string) (Partition, error)
+	DiskModel() string
 }

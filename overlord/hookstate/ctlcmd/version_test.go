@@ -54,7 +54,7 @@ func (s *versionSuite) SetUpTest(c *C) {
 
 func (s *setSuite) TestVersion(c *C) {
 	snapdtool.MockVersion("2.71+g123123-happy")
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"version"}, 0)
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"version"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), DeepEquals,
 		"snapd   2.71+g123123-happy\n"+

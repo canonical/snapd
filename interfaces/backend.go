@@ -169,6 +169,10 @@ type SecurityBackend interface {
 	// This is intended for diagnostic messages.
 	Name() SecuritySystem
 
+	// Prepare performs any preparation required by the backend before
+	// making the given snap available to the system.
+	Prepare(appSet *SnapAppSet) error
+
 	// Setup creates and loads security artefacts specific to a given snap.
 	// The snap can be in one of three kids onf confinement (strict mode,
 	// developer mode or classic mode). In the last two security violations

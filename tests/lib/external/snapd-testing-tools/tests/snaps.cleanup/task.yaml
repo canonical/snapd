@@ -5,7 +5,7 @@ details: |
     removal of the installed snaps in the current system.
     The test also verifies the fundamental snaps are not removed
 
-backends: [google]
+backends: [openstack]
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 

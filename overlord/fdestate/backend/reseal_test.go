@@ -2548,7 +2548,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 		c.Assert(modelParams, HasLen, 1)
 		// same DBX update paylad is included for both run and recovery keys
-		c.Assert(modelParams[0].EFISignatureDbxUpdate, DeepEquals, []byte("dbx-payload"))
+		c.Assert(modelParams[0].EFISignatureDbxUpdates, DeepEquals, []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-payload")}})
 
 		return []byte(`"serialized-pcr-profile-with-dbx"`), nil
 	})
@@ -2591,7 +2591,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	}
 
 	err = backend.ResealKeysForSignaturesDBUpdate(myState, device.SealingMethodTPM, dirs.GlobalRootDir,
-		&boot.ResealKeyForBootChainsParams{BootChains: bootChains}, []byte("dbx-payload"))
+		&boot.ResealKeyForBootChainsParams{BootChains: bootChains}, []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-payload")}})
 	c.Assert(err, IsNil)
 
 	// reseal was called

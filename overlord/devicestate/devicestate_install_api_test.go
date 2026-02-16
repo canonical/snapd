@@ -864,7 +864,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM, label)
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
@@ -934,7 +934,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 
 	// ensure the expected encryption availability check was used
 	if isSupportedHybrid {
-		c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
+		c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 1, sealingSupportedCnt: 0})
 	} else {
 		c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	}
@@ -1170,7 +1170,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true, "")
 
 	restore := devicestate.MockInstallEncryptPartitions(func(
 		onVolumes map[string]*gadget.Volume,

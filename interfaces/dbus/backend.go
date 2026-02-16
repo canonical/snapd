@@ -57,6 +57,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
 	// Only copy config files on classic distros
 	if !release.OnClassic {

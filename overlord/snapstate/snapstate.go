@@ -1525,19 +1525,16 @@ type update struct {
 	Components []ComponentSetup
 }
 
-// revisionSatisfied returns true if the state of the snap on the system matches
-// the state specified in the update. This method checks if the currently
-// installed snap and components match what is specified in the update.
-func (u *update) revisionSatisfied() (bool, error) {
-	if u.Setup.AlwaysUpdate || !u.SnapState.IsInstalled() {
+func areRevisionsSatisfied(snapst *SnapState, targetRevision snap.Revision, targetComponents []ComponentSetup) (bool, error) {
+	if !snapst.IsInstalled() {
 		return false, nil
 	}
 
-	if u.SnapState.Current != u.Setup.Revision() {
+	if snapst.Current != targetRevision {
 		return false, nil
 	}
 
-	comps, err := u.SnapState.CurrentComponentInfos()
+	comps, err := snapst.CurrentComponentInfos()
 	if err != nil {
 		return false, err
 	}
@@ -1547,13 +1544,24 @@ func (u *update) revisionSatisfied() (bool, error) {
 		currentCompRevs[comp.Component.ComponentName] = comp.Revision
 	}
 
-	for _, comp := range u.Components {
+	for _, comp := range targetComponents {
 		if currentCompRevs[comp.CompSideInfo.Component.ComponentName] != comp.Revision() {
 			return false, nil
 		}
 	}
 
 	return true, nil
+}
+
+// satisfied returns true if the state of the snap on the system matches
+// the state specified in the update. This method checks if the currently
+// installed snap and components match what is specified in the update.
+func (u *update) satisfied() (bool, error) {
+	if u.Setup.AlwaysUpdate {
+		return false, nil
+	}
+
+	return areRevisionsSatisfied(&u.SnapState, u.Setup.Revision(), u.Components)
 }
 
 func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
@@ -1593,8 +1601,8 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 }
 
 func doUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, bool, *UpdateTaskSets, error) {
-	var installTasksets []*state.TaskSet
-	var preDlTasksets []*state.TaskSet
+	var tss []*state.TaskSet
+	var predownloadTSS []*state.TaskSet
 
 	refreshAll := len(requested) == 0
 
@@ -1624,7 +1632,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		if err != nil {
 			return nil, false, nil, err
 		}
-		installTasksets = append(installTasksets, pruningAutoAliasesTs)
+		tss = append(tss, pruningAutoAliasesTs)
 	}
 
 	// wait for the auto-alias prune tasks as needed
@@ -1654,11 +1662,15 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// re-refreshes
 	needsRerefreshCheck := false
 
+	var snapInstallTSS []snapInstallTaskSet
+
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, up := range updates {
+		up := up
+
 		// if the update is already satisfied, then we can skip it
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -1682,16 +1694,16 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
+		sts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
 			FromChange:          opts.FromChange,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
 		})
 		if err != nil {
-			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
+			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
 				// snap is busy and pre-download tasks were made for it
-				ts.JoinLane(st.NewLane())
-				preDlTasksets = append(preDlTasksets, ts)
+				sts.ts.JoinLane(st.NewLane())
+				predownloadTSS = append(predownloadTSS, sts.ts)
 				continue
 			}
 
@@ -1702,15 +1714,14 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			return nil, false, nil, err
 		}
 
-		ts.JoinLane(generateLane(st, opts))
+		sts.ts.JoinLane(generateLane(st, opts))
+		tss = append(tss, sts.ts)
+		snapInstallTSS = append(snapInstallTSS, sts)
 
-		scheduleUpdate(up.Setup.InstanceName(), ts)
-		installTasksets = append(installTasksets, ts)
+		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	// Make sure each of them are marked with default restart-boundaries to maintain the previous
-	// reboot-behaviour prior to new restart logic.
-	if err := arrangeSnapTaskSetsLinkageAndRestart(st, nil, installTasksets); err != nil {
+	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS); err != nil {
 		return nil, false, nil, err
 	}
 
@@ -1719,7 +1730,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		if err != nil {
 			return nil, false, nil, err
 		}
-		installTasksets = append(installTasksets, addAutoAliasesTs)
+		tss = append(tss, addAutoAliasesTs)
 	}
 
 	for _, up := range alreadySatisfied {
@@ -1733,12 +1744,12 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			continue
 		}
 
-		if len(installTasksets) != 0 {
-			switchTs.WaitAll(installTasksets[len(installTasksets)-1])
+		if len(tss) != 0 {
+			switchTs.WaitAll(tss[len(tss)-1])
 		}
 
 		switchTs.JoinLane(generateLane(st, opts))
-		installTasksets = append(installTasksets, switchTs)
+		tss = append(tss, switchTs)
 		reportUpdated[up.Setup.InstanceName()] = true
 	}
 
@@ -1748,8 +1759,8 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	}
 
 	updateTss := &UpdateTaskSets{
-		Refresh:     installTasksets,
-		PreDownload: preDlTasksets,
+		Refresh:     tss,
+		PreDownload: predownloadTSS,
 	}
 
 	return updated, needsRerefreshCheck, updateTss, nil
@@ -1962,7 +1973,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	// snaps with updates
 	updating := make(map[string]bool, len(updates))
 	for _, up := range updates {
-		ok, err := up.revisionSatisfied()
+		ok, err := up.satisfied()
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -3639,7 +3650,11 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	installTS, err := doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	if err != nil {
+		return nil, err
+	}
+	return installTS.ts, nil
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -3687,7 +3702,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		newInfo := result.Info
 
 		// start by installing the new snap
-		tsInst, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
+		installTS, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
@@ -3697,7 +3712,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, tsInst)
+		all = append(all, installTS.ts)
 	}
 
 	// then transition the interface connections over

@@ -5,7 +5,7 @@ details: |
     and filter the log following a set of rules. It is also checked that the
     output of the log-filter tool is the same than spread.
 
-backends: [google]
+backends: [openstack]
 
 # Github actions agents are just running ubuntu jammy
 systems: [ubuntu-22.04-64]

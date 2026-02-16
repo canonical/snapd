@@ -67,6 +67,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // setupModules creates a conf file with list of kernel modules required by
 // given snap, writes it in /etc/modules-load.d/ directory and immediately
 // loads the modules using /sbin/modprobe. The devMode is ignored.
