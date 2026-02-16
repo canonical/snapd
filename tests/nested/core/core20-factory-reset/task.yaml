@@ -14,6 +14,9 @@ environment:
     NESTED_ENABLE_TPM/nofde: false
     FDE/nofde: "disabled"
 
+    # FIXME: make the test also able to backup/restore tokens
+    NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
+
 execute: |
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"

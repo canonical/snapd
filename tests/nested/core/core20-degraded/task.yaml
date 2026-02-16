@@ -9,6 +9,8 @@ systems: [ubuntu-2*]
 
 environment:
   DEGRADED_JSON: /run/snapd/snap-bootstrap/degraded.json
+  # FIXME: make the test also able to backup/restore tokens
+  NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
 
 execute: |
   # wait for the system to be seeded first
