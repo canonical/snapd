@@ -178,6 +178,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 	delayedTask := delayedEffectsTask(task.Change())
 	// we can only delay side effects if we have the delay task
+	// TODO:delayed-mount-ns-update: add relevant delayed processing task in snapstate
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
