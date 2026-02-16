@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	ReadyTimeout                 = readyTimeout
 	InitialTimeout               = initialTimeout
 	ActivityTimeout              = activityTimeout
 	MaxOutstandingPromptsPerUser = maxOutstandingPromptsPerUser

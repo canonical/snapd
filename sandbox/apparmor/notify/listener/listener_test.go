@@ -42,9 +42,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/timeutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -96,12 +94,6 @@ func testRegisterCloseWithPendingCountExpectReady(c *C, pendingCount int, expect
 		return make([]byte, 0), nil
 	})
 	defer restoreIoctl()
-
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		c.Fatalf("unexpectedly called timeutil.AfterFunc without calling Run")
-		return nil
-	})
-	defer restoreTimer()
 
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
@@ -284,7 +276,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	ids := []uint64{0xdead, 0xbeef}
 	requests := make([]*prompting.Request, 0, len(ids))
@@ -407,28 +399,13 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
 	defer restoreEpollIoctl()
 
-	var timer *testtime.TestTimer
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			f()
-			c.Fatalf("should not have timed out; receiving final pending RESENT message should have explicitly triggered ready")
-		})
-		return timer
-	})
-	defer restoreTimer()
-
 	var t tomb.Tomb
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	// The timer isn't created until Run is called
-	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -449,7 +426,6 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		// message, the listener doesn't ready until the message has been
 		// received.
 		checkListenerReady(c, l, false)
-		c.Check(timer.Active(), Equals, true)
 
 		select {
 		case req := <-l.Reqs():
@@ -461,7 +437,6 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 
 	// We received the final RESENT message, so should be ready now.
 	checkListenerReadyWithTimeout(c, l, true, time.Second)
-	c.Check(timer.Active(), Equals, false)
 
 	// Send one more message for good measure, without UNOTIF_RESENT
 	id++
@@ -478,7 +453,6 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	}
 
 	checkListenerReady(c, l, true)
-	c.Check(timer.Active(), Equals, false)
 
 	c.Check(logbuf.String(), Equals, "")
 
@@ -502,28 +476,13 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
 	defer restoreEpollIoctl()
 
-	var timer *testtime.TestTimer
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			f()
-			c.Fatalf("should not have timed out; receiving non-RESENT message should have explicitly triggered ready")
-		})
-		return timer
-	})
-	defer restoreTimer()
-
 	var t tomb.Tomb
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	// The timer isn't created until Run is called
-	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -544,7 +503,6 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 		// message, the listener doesn't ready until the message has been
 		// received.
 		checkListenerReady(c, l, false)
-		c.Check(timer.Active(), Equals, true)
 
 		select {
 		case req := <-l.Reqs():
@@ -556,7 +514,6 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 
 	// We have still not received the final RESENT message, so should not be ready.
 	checkListenerReady(c, l, false)
-	c.Check(timer.Active(), Equals, true)
 
 	// Send a message without UNOTIF_RESENT
 	id++
@@ -569,8 +526,6 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	// for it to ready up, since this indicates the kernel is done resending
 	// previously-sent requests. We don't need to have received it yet.
 	checkListenerReadyWithTimeout(c, l, true, time.Second)
-	// Readiness stops the timer
-	c.Check(timer.Active(), Equals, false)
 
 	// Now receive it
 	select {
@@ -591,7 +546,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 
 func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	// Somewhat rare case:
-	// Pending count 3, send 1 RESENT message, then time out.
+	// Pending count 3, send 1 RESENT message, then prompts backend times out.
 	// This should only occur if snapd or the kernel is exceptionally slow, or
 	// if the kernel times out/drops a pending message but then never sends any
 	// new messages (at least until after the timeout).
@@ -607,29 +562,14 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
 	defer restoreEpollIoctl()
 
-	var timer *testtime.TestTimer
-	callbackDone := make(chan struct{})
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			f()
-			close(callbackDone)
-		})
-		return timer
-	})
-	defer restoreTimer()
-
 	var t tomb.Tomb
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	// The timer isn't created until Run is called
-	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(l.Run)
+	promptTimedOut := make(chan struct{})
+	t.Go(func() error { return l.Run(promptTimedOut) })
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -646,7 +586,13 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	recvChan <- buf
 
 	checkListenerReady(c, l, false)
-	c.Check(timer.Active(), Equals, true)
+
+	// Fake a timeout from the prompts backend now, before the req is received,
+	// so we're sure the prompt timeout will be picked up on the next iteration
+	close(promptTimedOut)
+
+	// The listener should not ready until it sees the prompt backend is ready
+	checkListenerReady(c, l, false)
 
 	select {
 	case req := <-l.Reqs():
@@ -655,22 +601,8 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
-	// We have still not received the final RESENT message, so should not be ready.
-	checkListenerReady(c, l, false)
-	c.Check(timer.Active(), Equals, true)
-
-	// Time out the ready timer
-	timer.Elapse(listener.ReadyTimeout)
-	c.Assert(timer.Active(), Equals, false)
-	c.Assert(timer.FireCount(), Equals, 1)
-
-	// Wait for callback to finish readying and recording logger.Notice
-	<-callbackDone
-
-	// Expect the callback to mark the listener as ready
-	checkListenerReady(c, l, true)
-
-	// Now, for good measure, send a message with UNOTIF_RESENT
+	// To ensure we've made it to the next run loop iteration, and because it
+	// should have no effect on readiness, send a message with UNOTIF_RESENT
 	id++
 	msg = newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
 	msg.Flags = notify.UNOTIF_RESENT
@@ -678,7 +610,9 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	c.Assert(err, IsNil)
 	recvChan <- buf
 
-	// We're still ready
+	// Expect the listener to now be ready since we should have observed the
+	// prompts backend readiness by now. Seeing a second (of three expected)
+	// resent messages should not itself cause the listener to ready.
 	checkListenerReady(c, l, true)
 
 	// Now receive it
@@ -689,6 +623,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
+	// As evidence, the message should say "expected 2 more resent messages"
 	c.Check(logbuf.String(), testutil.Contains, "timeout waiting for resent messages from apparmor: still expected 2 more resent messages")
 
 	// We're still ready
@@ -745,7 +680,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	select {
 	case req, ok := <-l.Reqs():
@@ -780,7 +715,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	label := "snap.foo.bar"
 	paths := []string{"/home/Documents/foo", "/path/to/bar", "/baz"}
@@ -869,7 +804,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	_, err = unix.Write(kernelSocket, recvBuf)
 	c.Check(err, IsNil)
@@ -914,7 +849,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	runAboutToStart := make(chan struct{})
 	t.Go(func() error {
 		close(runAboutToStart)
-		return l.Run()
+		return l.Run(nil)
 	})
 
 	// Make sure Run() starts before error triggers Close()
@@ -947,7 +882,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 
 	checkListenerReady(c, l, true)
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -988,24 +923,11 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	ioctlDone, restoreIoctl := listener.SynchronizeNotifyIoctl()
 	defer restoreIoctl()
 
-	var timer *testtime.TestTimer
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, f)
-		return timer
-	})
-	defer restoreTimer()
-
 	var t tomb.Tomb
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	// Timer hasn't been created yet
-	c.Check(timer, IsNil)
-
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	checkListenerReady(c, l, false)
 
@@ -1035,116 +957,10 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	// No receiver read this request, so we're still not ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
 
-	c.Check(timer.Active(), Equals, true)
-
 	c.Check(l.Close(), IsNil)
 
 	// Close() doesn't cause the listener to signal that it's ready
 	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
-
-	c.Check(t.Wait(), IsNil)
-
-	// Closing the listener should have stopped the timer without firing it
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 0)
-}
-
-// Test that if there is no read from Reqs(), listener closing does not cause
-// a panic if it races with the ready timeout expiring.
-func (*listenerSuite) TestRunNoReceiverWithPendingTimeout(c *C) {
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	protoVersion := notify.ProtocolVersion(5)
-	pendingCount := 1
-
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
-	defer restoreEpollIoctl()
-
-	ioctlDone, restoreIoctl := listener.SynchronizeNotifyIoctl()
-	defer restoreIoctl()
-
-	var timer *testtime.TestTimer
-	startCallback := make(chan struct{})
-	callbackDone := make(chan struct{})
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			// timer fired, but don't run callback until we get the signal
-			<-startCallback
-			f()
-			close(callbackDone)
-		})
-		return timer
-	})
-	defer restoreTimer()
-
-	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewRequestFromListener)
-	c.Assert(err, IsNil)
-
-	// Timer hasn't been created yet
-	c.Check(timer, IsNil)
-
-	t.Go(l.Run)
-
-	checkListenerReady(c, l, false)
-
-	id := uint64(0x1234)
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
-	// Set UNOTIF_RESENT so this message doesn't trigger ready as soon as it
-	// is seen by the listener. Since there's no reader, it should not ready.
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err := msg.MarshalBinary()
-	c.Check(err, IsNil)
-	recvChan <- buf
-
-	// wait for the ioctl to finish before closing, so that the listener will
-	// be waiting, trying to send the request, when the close occurs
-	select {
-	case req := <-ioctlDone:
-		c.Check(req, Equals, notify.APPARMOR_NOTIF_RECV)
-	case <-time.After(100 * time.Millisecond):
-		c.Errorf("failed to synchronize on ioctl call")
-	}
-
-	// No receiver read this request, so we're still not ready
-	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
-
-	c.Check(timer.Active(), Equals, true)
-	// Time out the ready timer
-	timer.Elapse(listener.ReadyTimeout)
-	c.Check(timer.Active(), Equals, false)
-	c.Check(timer.FireCount(), Equals, 1)
-	// Callback is now running, but waiting
-	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
-
-	c.Check(l.Close(), IsNil)
-
-	// Close() doesn't cause the listener to signal that it's ready
-	checkListenerReadyWithTimeout(c, l, false, 10*time.Millisecond)
-
-	// Run loop stops the timer (which has already fired) and then immediately
-	// closes reqs
-	select {
-	case <-l.Reqs():
-		// all good
-	case <-time.After(10 * time.Millisecond):
-		c.Fatalf("reqs failed to close once listener closed")
-	}
-
-	// Let the callback run and wait for it to finish
-	close(startCallback)
-	<-callbackDone
-	// The callback marks the listener as ready
-	checkListenerReady(c, l, true)
 
 	c.Check(t.Wait(), IsNil)
 }
@@ -1165,7 +981,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -1292,7 +1108,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		c.Assert(err, IsNil)
 
 		var t tomb.Tomb
-		t.Go(l.Run)
+		t.Go(func() error { return l.Run(nil) })
 
 		buf := testCase.msg.MarshalBinary(c)
 		select {
@@ -1348,19 +1164,6 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
 	defer restoreEpollIoctl()
 
-	var timer *testtime.TestTimer
-	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
-		if timer != nil {
-			c.Fatalf("created more than one timer")
-		}
-		timer = testtime.AfterFunc(d, func() {
-			f()
-			c.Fatalf("should not have timed out; receiving non-RESENT message should have explicitly triggered ready")
-		})
-		return timer
-	})
-	defer restoreTimer()
-
 	// Allow newRequest to be mocked
 	var (
 		newRequestImpl = prompting.NewRequestFromListener
@@ -1373,11 +1176,9 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	l, err := listener.Register(newRequest)
 	c.Assert(err, IsNil)
 
-	// The timer isn't created until Run is called
-	c.Check(timer, IsNil)
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(l.Run)
+	t.Go(func() error { return l.Run(nil) })
 
 	msgTemplate := msgNotificationFile{
 		Length:           58,
@@ -1447,7 +1248,6 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 
 		// We have still not received the final RESENT message, so should not be ready.
 		checkListenerReady(c, l, false)
-		c.Check(timer.Active(), Equals, true)
 
 		restoreStep()
 	}
@@ -1497,8 +1297,6 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 	// The listener should ready up regardless of whether UNOTIF_RESENT is set,
 	// since either way the kernel is done resending previously-sent requests.
 	checkListenerReadyWithTimeout(c, l, true, time.Second)
-	// Readiness stops the timer
-	c.Check(timer.Active(), Equals, false)
 
 	// Check that we don't receive a request
 	select {
@@ -1581,7 +1379,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		wg.Add(1)
 		go func() {
 			wg.Done() // mark that Run has started
-			returnChan <- l.Run()
+			returnChan <- l.Run(nil)
 		}()
 	}
 
@@ -1635,7 +1433,7 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	err = l.Close()
 	c.Assert(err, IsNil)
 
-	err = l.Run()
+	err = l.Run(nil)
 	c.Assert(err, Equals, nil)
 }
 
@@ -1719,7 +1517,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 
 	// Start all the tomb-tracked goroutines
 	t.Go(func() error {
-		t.Go(l.Run)
+		t.Go(func() error { return l.Run(nil) })
 		t.Go(creator)
 		t.Go(replier)
 		return nil
