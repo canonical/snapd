@@ -30,6 +30,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	sb "github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
@@ -944,7 +946,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		},
 		{
 			authMode: device.AuthModePassphrase, recoveryMode: true,
-			expectedErr: "cannot add platform keys if the system was unlocked with a recovery key during boot",
+			expectedErr: `cannot add platform keys if FDE is not active \(current state: recovery\)`,
 		},
 		{
 			authMode:    device.AuthModePassphrase,
@@ -1002,12 +1004,27 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			roles[ref.String()] = tc.roles[idx]
 		}
 
+		diskStatus := sb.ActivationSucceededWithPlatformKey
 		if tc.recoveryMode {
-			unlockState := boot.DiskUnlockState{
-				UbuntuData: boot.PartitionState{UnlockKey: "recovery"},
-			}
-			c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+			diskStatus = sb.ActivationSucceededWithRecoveryKey
 		}
+
+		activateState := &secboot.ActivateState{}
+		activateState.Activations = map[string]*sb.ContainerActivateState{
+			"data-cred-id": {
+				Status: diskStatus,
+			},
+			"save-cred-id": {
+				Status: diskStatus,
+			},
+		}
+
+		unlockState := boot.DiskUnlockState{
+			State: activateState,
+		}
+
+		c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+		s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
 
 		var volumesAuth *device.VolumesAuthOptions
 		if !tc.noVolumesAuth {
@@ -1099,6 +1116,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 
 		// clean up
 		c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil, cmt)
+		s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
 		s.st.Cache(fdestate.VolumesAuthOptionsKey(), nil)
 		var fdeState fdestate.FdeState
 		c.Assert(s.st.Get("fde", &fdeState), IsNil)
@@ -1165,6 +1183,20 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeysIdempotence(c *C) {
 	}
 
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	activateState := &secboot.ActivateState{}
+	activateState.Activations = map[string]*sb.ContainerActivateState{
+		"data-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+		"save-cred-id": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+		},
+	}
+	unlockState := boot.DiskUnlockState{
+		State: activateState,
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
 
 	chg := s.st.NewChange("sample", "...")
 
