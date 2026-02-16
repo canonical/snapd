@@ -241,6 +241,10 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
 	}
+
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+		return state.NewTaskSet()
+	}))
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -720,7 +724,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	c.Assert(taskKinds(tts[0].Tasks()), DeepEquals, installTaskKinds)
 	c.Assert(taskKinds(tts[1].Tasks()), DeepEquals, installTaskKinds)
 	chg.AddAll(tts[0])
@@ -728,7 +732,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 
 	s.st.Unlock()
 
-	for _, ts := range tts {
+	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]
@@ -773,7 +777,7 @@ func (s *servicectlSuite) testQueuedCommandsOrdering(c *C, hook string, singleTr
 	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, nil, 0, &snapstate.Flags{Transaction: transaction})
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	c.Assert(taskKinds(tts[0].Tasks()), DeepEquals, installTaskKinds)
 	c.Assert(taskKinds(tts[1].Tasks()), DeepEquals, installTaskKinds)
 	chg.AddAll(tts[0])
@@ -807,7 +811,7 @@ apps:
 	s.st.Unlock()
 
 	hookTasks := make([]*state.Task, 2)
-	for i, ts := range tts {
+	for i, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
 		switch hook {
 		case "default-configure":
@@ -1083,11 +1087,11 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
-	c.Assert(tts, HasLen, 3)
+	c.Assert(tts, HasLen, 4)
 	c.Assert(taskKinds(tts[0].Tasks()), DeepEquals, refreshTaskKinds)
 	c.Assert(taskKinds(tts[1].Tasks()), DeepEquals, refreshTaskKinds)
 	c.Assert(taskKinds(tts[2].Tasks()), DeepEquals, []string{"check-rerefresh"})
-	c.Assert(tts[2].Tasks()[0].Kind(), Equals, "check-rerefresh")
+	c.Assert(taskKinds(tts[3].Tasks()), HasLen, 0) // mocked stub produces an empty taskset
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
@@ -1095,8 +1099,8 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 
 	for _, ts := range tts[:2] {
 		tsTasks := ts.Tasks()
-		// assumes configure task is last
-		task := tsTasks[len(tsTasks)-1]
+		// assumes configure task is second to last
+		task := tsTasks[len(tsTasks)-2]
 		c.Assert(task.Kind(), Equals, "run-hook")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
 		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
