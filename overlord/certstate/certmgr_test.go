@@ -237,6 +237,9 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C) {
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
 
@@ -252,6 +255,14 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 
 	c.Check(chg.Err(), NotNil)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	// verify the status of the tasks
+	tasks := chg.Tasks()
+	c.Check(len(tasks), Equals, 2)
+	c.Check(tasks[0].Kind(), Equals, "update-cert-db")
+	c.Check(tasks[0].Status(), Equals, state.UndoneStatus)
+	c.Check(tasks[1].Kind(), Equals, "error-trigger")
+	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
