@@ -21,6 +21,8 @@
 package naming_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -89,7 +91,13 @@ func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 
 	for _, test := range assumesTests {
 		// Mock riscv_hwprobe syscall
-		restoreIsRISCVISASupported := naming.MockIsRISCVISASupported(test.isRISCVISASupportedError)
+		restoreIsRISCVISASupported := naming.MockIsRISCVISASupported(func(isa string) error {
+			if test.isRISCVISASupportedError == "" {
+				return nil
+			} else {
+				return fmt.Errorf(test.isRISCVISASupportedError)
+			}
+		})
 
 		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
