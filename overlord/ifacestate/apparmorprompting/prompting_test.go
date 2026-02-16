@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -1348,57 +1349,36 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+	listenerReady, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	handleStarted := make(chan struct{})
-	finishHandle := make(chan struct{})
-	restore = apparmorprompting.MockPromptsHandleReadying(func(pdb *requestprompts.PromptDB) error {
-		close(handleStarted)
-		<-finishHandle
-		return nil
-	})
-	defer restore()
+	// Write a mapping from kernel request to prompt ID so the prompts backend
+	// will not immediately be ready
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
-	// Check that the callback has not started yet
+	// Check that the prompts are not ready yet
 	select {
-	case <-handleStarted:
-		c.Errorf("HandleReadying started before ready was signalled")
+	case <-mgr.Ready():
+		c.Errorf("manager readied before listener signalled ready")
 	case <-time.After(10 * time.Millisecond):
 		// all good
 	}
 
-	// Signal ready
-	close(readyChan)
+	// Signal ready from the listener
+	close(listenerReady)
 
-	// Check that the callback has now started
-	select {
-	case <-handleStarted:
-		// all good
-	case <-time.After(time.Second):
-		c.Errorf("HandleReadying failed to start after ready was signalled")
-	}
-
-	// Check that the manager is not yet ready
-	select {
-	case <-mgr.Ready():
-		c.Errorf("manager is ready before HandleReadying returned")
-	case <-time.After(10 * time.Millisecond):
-		// all good
-	}
-
-	// Tell the HandleReadying to return
-	close(finishHandle)
-
-	// Check that the manager is now ready
+	// Check that the prompts backend is now ready
 	select {
 	case <-mgr.Ready():
 		// all good
 	case <-time.After(time.Second):
-		c.Errorf("manager failed to become ready after HandleReadying returned")
+		c.Errorf("manager failed to become ready after listener readied")
 	}
 
 	c.Assert(mgr.Stop(), IsNil)
@@ -1446,6 +1426,13 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorprompting.InterfacesRequestsManager)) {
 	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Write a mapping from kernel request to prompt ID so the prompts backend
+	// will not immediately be ready
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
