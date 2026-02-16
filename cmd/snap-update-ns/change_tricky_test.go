@@ -231,11 +231,11 @@ func withDetachOption(e osutil.MountEntry) osutil.MountEntry {
 }
 
 func showCurrentDesiredAndChanges(c *C, current, desired *osutil.MountProfile, changes []*update.Change) {
-	c.Logf("Number of current entires: %d", len(current.Entries))
+	c.Logf("Number of current entries: %d", len(current.Entries))
 	for i, entry := range current.Entries {
 		c.Logf("- current[%d] : %v", i, entry)
 	}
-	c.Logf("Number of desired entires: %d", len(desired.Entries))
+	c.Logf("Number of desired entries: %d", len(desired.Entries))
 	for i, entry := range desired.Entries {
 		c.Logf("- desired[%d]: %v", i, entry)
 	}

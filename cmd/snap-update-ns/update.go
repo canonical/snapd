@@ -71,7 +71,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	var changesMade []*Change
 	changeErr := make([]error, len(changesNeeded))
-	// In the first pass we fully apply keep and umount changes
+	// In the first pass we fully apply keep and unmount changes
 	for i, change := range changesNeeded {
 		if change.Action == Mount {
 			// This is done in 2nd and 3rd passes.
