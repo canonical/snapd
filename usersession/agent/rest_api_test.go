@@ -34,6 +34,8 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
@@ -206,6 +208,9 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		if cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
@@ -226,7 +231,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind": "service-control", "message": "some user services failed to start",
 		"value": map[string]any{
-			"start-errors": map[string]any{"snap.bar.service": "mock systemctl error"},
+			"start-errors": map[string]any{"snap.bar.service": "mock systemctl error\ncannot load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory"},
 			"stop-errors":  map[string]any{},
 		},
 	})
@@ -240,6 +245,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 		// Game is rigged, this will fail, and we should stop the first service
 		// we managed to start
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 
@@ -275,6 +281,9 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return nil, fmt.Errorf("start failure")
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
@@ -294,7 +303,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "start failure\ncannot load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory",
 			},
 			"stop-errors": map[string]any{},
 		},
@@ -303,6 +312,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
@@ -318,6 +328,9 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
 			return nil, fmt.Errorf("stop failure")
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
@@ -337,7 +350,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "start failure\ncannot load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory",
 			},
 			"stop-errors": map[string]any{
 				"snap.foo.service": "stop failure",
@@ -348,6 +361,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
@@ -570,6 +584,9 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
@@ -592,7 +609,7 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "mock systemctl error\ncannot load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory",
 			},
 		},
 	})
@@ -645,6 +662,9 @@ func (s *restSuite) TestServicesRestartOrReloadNonSnap(c *C) {
 func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		// Ignore "show" spam
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
@@ -671,7 +691,7 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "mock systemctl error\ncannot load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory",
 			},
 		},
 	})
@@ -1398,4 +1418,235 @@ func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyWithDesktop
 		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
+}
+
+type systemdMock struct {
+	services map[string]string
+	tmpdir   string
+}
+
+func (s *systemdMock) addService(c *C, service, contents string) error {
+	if s.tmpdir == "" {
+		s.tmpdir = c.MkDir()
+	}
+	if s.services == nil {
+		s.services = make(map[string]string)
+	}
+	f, err := os.CreateTemp(s.tmpdir, "*.service")
+	if err != nil {
+		return err
+	}
+	f.Write([]byte(contents))
+	f.Close()
+	s.services[service] = f.Name()
+	return nil
+}
+
+func (s *systemdMock) GetServicePath(service string) (string, error) {
+	if p, ok := s.services[service]; ok {
+		return p, nil
+	}
+	return "", fmt.Errorf("Unknown service %s", service)
+}
+
+type objectPath struct {
+	path    dbus.ObjectPath
+	hasPath bool
+}
+
+func (op *objectPath) compare(path string) bool {
+	return op.path == dbus.ObjectPath(path)
+}
+
+type dbusMsg struct {
+	path        objectPath
+	iface       string
+	member      string
+	errorName   string
+	replySerial string
+	destination string
+	sender      string
+}
+
+func parseDbusMsg(msg *dbus.Message) (*dbusMsg, []string) {
+	retval := dbusMsg{}
+	body := []string{}
+
+	for dbustype, value := range msg.Headers {
+		switch dbustype {
+		case dbus.FieldPath:
+			retval.path.path = value.Value().(dbus.ObjectPath)
+			retval.path.hasPath = true
+		case dbus.FieldInterface:
+			retval.iface = value.Value().(string)
+		case dbus.FieldMember:
+			retval.member = value.Value().(string)
+		case dbus.FieldDestination:
+			retval.destination = value.Value().(string)
+		}
+	}
+	for _, b := range msg.Body {
+		body = append(body, b.(string))
+	}
+	return &retval, body
+}
+
+func (dbm *dbusMsg) ToString() string {
+	retval := ""
+	if dbm.path.hasPath {
+		retval += fmt.Sprintln("Path:", dbm.path.path)
+	}
+	if dbm.iface != "" {
+		retval += fmt.Sprintln("Interface:", dbm.iface)
+	}
+	if dbm.member != "" {
+		retval += fmt.Sprintln("Member:", dbm.member)
+	}
+	if dbm.errorName != "" {
+		retval += fmt.Sprintln("Error Name:", dbm.errorName)
+	}
+	if dbm.destination != "" {
+		retval += fmt.Sprintln("Destination:", dbm.destination)
+	}
+	if dbm.sender != "" {
+		retval += fmt.Sprintln("Sender:", dbm.sender)
+	}
+	if dbm.replySerial != "" {
+		retval += fmt.Sprintln("Reply Serial:", dbm.replySerial)
+	}
+	return retval
+}
+
+func sendObjectAnswer(msg *dbus.Message, obj string) []*dbus.Message {
+	responseSig := dbus.SignatureOf(dbus.ObjectPath(""))
+	return []*dbus.Message{{
+		Type: dbus.TypeMethodReply,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+			// dbus.FieldDestination is provided automatically by DBus test helper.
+			dbus.FieldSignature: dbus.MakeVariant(responseSig),
+		},
+		// The object path returned in the body is not used by snap run yet.
+		Body: []any{dbus.ObjectPath(obj)},
+	}}
+}
+
+func sendStringAnswer(msg *dbus.Message, val string) []*dbus.Message {
+	responseSig := dbus.SignatureOf(dbus.MakeVariant(val))
+	return []*dbus.Message{{
+		Type: dbus.TypeMethodReply,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+			// dbus.FieldDestination is provided automatically by DBus test helper.
+			dbus.FieldSignature: dbus.MakeVariant(responseSig),
+		},
+		Body: []any{dbus.MakeVariant(val)},
+	}}
+}
+
+func (s *restSuite) TestCheckWantedForService(c *C) {
+	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		// no dbus messages expected
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+	c.Assert(err, IsNil)
+	defer stub.Close()
+	restore := dbusutil.MockOnlySessionBusAvailable(stub)
+	defer restore()
+
+	sysmock := systemdMock{}
+	err = sysmock.addService(c, "service1", `[Unit]
+description=service
+
+[Install]
+WantedBy=default.target`)
+	c.Assert(err, IsNil)
+	err = agent.CheckWantedByForService(&sysmock, fmt.Errorf("Test error"), "service1")
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Test error")
+}
+
+func (s *restSuite) TestCheckWantedForService2(c *C) {
+	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		header, body := parseDbusMsg(msg)
+		if header.path.compare("/org/freedesktop/systemd1") &&
+			header.iface == "org.freedesktop.systemd1.Manager" &&
+			header.destination == "org.freedesktop.systemd1" &&
+			header.member == "GetUnit" {
+			c.Assert(len(body), Equals, 1)
+			if body[0] == "graphical-session.target" {
+				return sendObjectAnswer(msg, "/org/freedesktop/systemd1/unit/graphical_2dsession_2etarget"), nil
+			}
+		}
+
+		if header.path.compare("/org/freedesktop/systemd1/unit/graphical_2dsession_2etarget") &&
+			header.iface == "org.freedesktop.DBus.Properties" &&
+			header.destination == "org.freedesktop.systemd1" &&
+			header.member == "Get" {
+			c.Assert(len(body), Equals, 2)
+			if body[0] == "org.freedesktop.systemd1.Unit" && body[1] == "ActiveState" {
+				return sendStringAnswer(msg, "inactive"), nil
+			}
+		}
+
+		return nil, fmt.Errorf("Unexpected DBus message\n%s", header.ToString())
+	})
+	c.Assert(err, IsNil)
+	defer stub.Close()
+	restore := dbusutil.MockOnlySessionBusAvailable(stub)
+	defer restore()
+
+	sysmock := systemdMock{}
+	err = sysmock.addService(c, "service1", `[Unit]
+description=service
+
+[Install]
+WantedBy=graphical-session.target`)
+	c.Assert(err, IsNil)
+	err = agent.CheckWantedByForService(&sysmock, fmt.Errorf("Test error"), "service1")
+	c.Assert(err, IsNil)
+}
+
+func (s *restSuite) TestCheckWantedForService3(c *C) {
+	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		header, body := parseDbusMsg(msg)
+		if header.path.compare("/org/freedesktop/systemd1") &&
+			header.iface == "org.freedesktop.systemd1.Manager" &&
+			header.destination == "org.freedesktop.systemd1" &&
+			header.member == "GetUnit" {
+			c.Assert(len(body), Equals, 1)
+			if body[0] == "graphical-session.target" {
+				return sendObjectAnswer(msg, "/org/freedesktop/systemd1/unit/graphical_2dsession_2etarget"), nil
+			}
+		}
+
+		if header.path.compare("/org/freedesktop/systemd1/unit/graphical_2dsession_2etarget") &&
+			header.iface == "org.freedesktop.DBus.Properties" &&
+			header.destination == "org.freedesktop.systemd1" &&
+			header.member == "Get" {
+			c.Assert(len(body), Equals, 2)
+			if body[0] == "org.freedesktop.systemd1.Unit" && body[1] == "ActiveState" {
+				return sendStringAnswer(msg, "active"), nil
+			}
+		}
+
+		return nil, fmt.Errorf("Unexpected DBus message\n%s", header.ToString())
+	})
+	c.Assert(err, IsNil)
+	defer stub.Close()
+	restore := dbusutil.MockOnlySessionBusAvailable(stub)
+	defer restore()
+
+	sysmock := systemdMock{}
+	err = sysmock.addService(c, "service1", `[Unit]
+description=service
+
+[Install]
+WantedBy=graphical-session.target`)
+	c.Assert(err, IsNil)
+	err = agent.CheckWantedByForService(&sysmock, fmt.Errorf("Test error"), "service1")
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Test error")
 }

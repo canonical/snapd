@@ -38,8 +38,13 @@ require (
 )
 
 require (
+<<<<<<< HEAD
 	github.com/cilium/ebpf v0.9.1
 	go.etcd.io/bbolt v1.3.9
+=======
+	go.etcd.io/bbolt v1.3.9
+	gopkg.in/ini.v1 v1.67.1
+>>>>>>> c5a5aaea75 (wrappers/internal: Disable and re-enable daemons to refresh XXX.wants)
 )
 
 require (
