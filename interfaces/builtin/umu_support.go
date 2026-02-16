@@ -93,8 +93,6 @@ owner /home/*/.local/share/icons/{,**} rw,
 # For UMU launcher
 /usr/bin/zenity ixr,
 /run/host/usr/sbin/ldconfig* ixr,
-# For Heroic Games Launcher
-/usr/bin/df ixr,
 
 # Allow basic operations needed by pressure-vessel
 capability sys_admin,
