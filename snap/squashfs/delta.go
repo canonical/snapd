@@ -290,6 +290,21 @@ func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
 	return formats
 }
 
+// growToMinSize pads a file to minSize with zero bytes if it is smaller.
+func growToMinSize(path string, minSize int64) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot stat snap: %w", err)
+	}
+	if fi.Size() >= minSize {
+		return nil
+	}
+	if err := os.Truncate(path, minSize); err != nil {
+		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
+	}
+	return nil
+}
+
 // GenerateDelta creates a delta file called delta from sourceSnap and
 // targetSnap, using deltaFormat.
 func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
@@ -398,7 +413,15 @@ func applySnapDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFil
 	mksqfsArgs = append(mksqfsArgs, "-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10))
 
 	// run delta apply for given delta tool - DeltaToolXdelta3 is the only supported one atm
-	return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs)
+	if err := applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs); err != nil {
+		return err
+	}
+
+	// mksquashfs does not know about snap minimum size requirements, so
+	// we need to pad the reconstructed snap to MinimumSnapSize, same as
+	// snap pack does in Build(). Without this, small snaps would be
+	// shorter than the original target because snap pack pads them.
+	return growToMinSize(targetSnap, MinimumSnapSize)
 }
 
 // generatePlainXdelta3Delta generates a delta between compressed snaps
