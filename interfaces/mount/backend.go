@@ -33,9 +33,11 @@ package mount
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -225,6 +227,8 @@ func (b *Backend) SandboxFeatures() []string {
 
 var _ interfaces.DelayedSideEffectsBackend = (*Backend)(nil)
 
+var runningApplicationsError = errors.New("snap has running applications")
+
 func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []interfaces.DelayedSideEffect, tm timings.Measurer) error {
 	seen := map[interfaces.DelayedEffect]bool{}
 	var deduped []interfaces.DelayedSideEffect
@@ -251,7 +255,16 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 		snapName := appSet.InstanceName()
 		snapInfo := appSet.Info()
 
-		// TODO mask the errors?
+		err := opportunisticDiscard(appSet)
+		switch {
+		case err == nil:
+			// we're done
+			return nil
+		case errors.Is(err, runningApplicationsError):
+			logger.Noticef("snap has running applications: %v", err)
+		default:
+			logger.Noticef("cannot discard mount namespace: %v", err)
+		}
 
 		logger.Debugf("setup delayed for %v", snapName)
 		// Assuming all non-deferred work was done in Setup(), perform only the
@@ -259,4 +272,29 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 		return b.updateOrDiscard(snapName, snapInfo)
 	}
 	return nil
+}
+
+func opportunisticDiscard(appSet *interfaces.SnapAppSet) error {
+	instanceName := appSet.InstanceName()
+	return snaplock.WithTryLock(instanceName, func() error {
+		paths, err := cgroup.InstancePathsOfSnap(instanceName, cgroup.InstancePathsOptions{
+			ReturnCGroupPath: true,
+		})
+		if err != nil {
+			return err
+		}
+
+		if len(paths) != 0 {
+			return fmt.Errorf("cannot discard when %v instances of snap are running: %w",
+				len(paths), runningApplicationsError)
+		}
+
+		logger.Debugf("no running applications belonging to snap %q, proceeding to discard the snap's mount namespace",
+			instanceName)
+		if err = DiscardLockedSnapNamespace(instanceName); err != nil {
+			return fmt.Errorf("cannot discard mount namespace of snap %q: %w", instanceName, err)
+		}
+
+		return nil
+	})
 }
