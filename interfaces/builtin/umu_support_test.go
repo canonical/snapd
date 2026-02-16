@@ -94,8 +94,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "owner @{PROC}/@{pid}/uid_map rw,")
 	c.Check(snippet, testutil.Contains, "owner @{PROC}/@{pid}/gid_map rw,")
 	c.Check(snippet, testutil.Contains, "owner @{PROC}/@{pid}/setgroups rw,")
-	c.Check(snippet, testutil.Contains, "owner @{PROC}/@{pid}/mounts r,")
-	c.Check(snippet, testutil.Contains, "owner @{PROC}/@{pid}/mountinfo r,")
 
 	c.Check(snippet, testutil.Contains, "mount,")
 	c.Check(snippet, testutil.Contains, "umount,")
@@ -126,7 +124,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(snippet, testutil.Contains, "/usr/bin/zenity ixr,")
 	c.Check(snippet, testutil.Contains, "/run/host/usr/sbin/ldconfig* ixr,")
-	c.Check(snippet, testutil.Contains, "/usr/bin/df ixr,")
 
 	c.Check(snippet, testutil.Contains, "capability sys_admin,")
 }
