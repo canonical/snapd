@@ -2527,9 +2527,14 @@ func (m *InterfaceManager) doProcessDelayedBackendSideEffects(task *state.Task, 
 	}
 
 	if len(perSnapTasks) > 0 {
+		// place each task in a dedicated lane, such that their errors are not
+		// affecting anything else (neither the default lane, nor any other
+		// lanes where the triggering snaps are being processed)
+		for _, tsk := range perSnapTasks {
+			tsk.JoinLane(st.NewLane())
+		}
+
 		ts := state.NewTaskSet(perSnapTasks...)
-		// TODO:deferred-mount-ns-update: tasks not joining any lane
-		// TODO:deferred-mount-ns-update: inherit HaltTasks? there shouldn't be any
 		ts.WaitFor(task)
 		task.Change().AddAll(ts)
 	}
