@@ -5303,12 +5303,21 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
-// FindTaskByKind returns the first task with the given kind.
-// Returns nil if no such task is found.
-func FindTaskByKind(tasks []*state.Task, kind string) *state.Task {
-	for _, task := range tasks {
-		if task.Kind() == kind {
-			return task
+// FindTaskMatchingKindAndSnap returns a task in the given list of tasks that has the given kind matching
+// the given snap name in its SnapSetup, or nil if there is no such task.
+func FindTaskMatchingKindAndSnap(tasks []*state.Task, kind string, snapName string) *state.Task {
+	for _, t := range tasks {
+		if t.Kind() != kind {
+			continue
+		}
+
+		snapsup, _, err := snapSetupAndState(t)
+		if err != nil {
+			continue
+		}
+
+		if snapsup.InstanceName() == snapName {
+			return t
 		}
 	}
 	return nil
