@@ -2475,10 +2475,9 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			snapst.Current = snapsup.SideInfo.Revision
 			snapst.Sequence = snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{snapsup.SideInfo})
 		} else {
-			c.Check(snapst.PendingSecurity, DeepEquals, &snapstate.PendingSecurityState{
-				SideInfo:   snapsup.SideInfo,
-				Components: csis,
-			})
+			c.Check(snapst.PendingSecurity, NotNil)
+			c.Check(snapst.PendingSecurity.SideInfo, DeepEquals, snapsup.SideInfo)
+			c.Check(snapst.PendingSecurity.Components, DeepEquals, csis)
 		}
 		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
@@ -4529,6 +4528,83 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// The OS snap was setup (because it was affected).
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, coreSnapInfo.Revision)
+}
+
+// prepare-profiles stores affected snaps and connections so setup-profiles can reuse them.
+func (s *interfaceManagerSuite) TestPrepareProfilesStoresAffectedDataForSetupProfiles(c *C) {
+	s.MockModel(c, nil)
+
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// prepare-profiles should only set pending data for inactive snaps
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+	snapst.Active = false
+	snapstate.Set(s.state, "consumer", &snapst)
+	s.state.Unlock()
+
+	s.state.Lock()
+	prepareChange := s.state.NewChange("prepare-profiles", "")
+	prepareTask := s.state.NewTask("prepare-profiles", "")
+	prepareTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: consumerInfo.SnapName(),
+			Revision: consumerInfo.Revision,
+		},
+	})
+	prepareChange.AddTask(prepareTask)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	c.Assert(prepareChange.Status(), Equals, state.DoneStatus)
+	c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+	c.Assert(snapst.PendingSecurity, NotNil)
+	c.Check(snapst.PendingSecurity.AffectedSnaps, DeepEquals, []string{"consumer", "producer"})
+	c.Check(snapst.PendingSecurity.AffectedConnections, DeepEquals, []string{"consumer:plug producer:slot"})
+	s.state.Unlock()
+
+	// Clear connections so setup-profiles must rely on stored pending data.
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{})
+	s.state.Unlock()
+	_, err := mgr.Repository().DisconnectSnap("consumer")
+	c.Assert(err, IsNil)
+
+	s.secBackend.SetupCalls = nil
+
+	s.state.Lock()
+	setupChange := s.state.NewChange("setup-profiles", "")
+	setupTask := s.state.NewTask("setup-profiles", "")
+	setupTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: consumerInfo.SnapName(),
+			Revision: consumerInfo.Revision,
+		},
+	})
+	setupChange.AddTask(setupTask)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(setupChange.Status(), Equals, state.DoneStatus)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "producer")
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
