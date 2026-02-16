@@ -7,16 +7,25 @@ parameters:
     required: true
     schema:
       type: string
+    example: system
   - name: confdb-schema
     in: path
     required: true
     schema:
       type: string
+    example: network
   - name: view
     in: path
     required: true
     schema:
       type: string
+    examples:
+      admin:
+        value: wifi-admin
+        summary: Write/control access
+      state:
+        value: wifi-state
+        summary: Read-only access
 
 get:
   tags:
