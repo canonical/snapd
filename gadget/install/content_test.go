@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -261,6 +262,8 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint
 	dirs.SetRootDir(c.MkDir())
 	restore := osutil.MockMountInfo(``)
 	defer restore()
+	restore = squashfs.MockNeedsFuse(false)
+	defer restore()
 
 	kMntPoint = filepath.Join(dirs.GlobalRootDir, kMntPoint)
 
@@ -450,6 +453,8 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeIdempotent(c *C)
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(c.MkDir())
 	restore := osutil.MockMountInfo("")
+	defer restore()
+	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	kMntPoint := filepath.Join(dirs.SnapMountDir, "pc-kernel/111")
