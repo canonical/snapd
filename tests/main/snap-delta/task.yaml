@@ -5,27 +5,21 @@ details: |
     between two snap files and then apply that delta to reconstruct the
     target snap from the source and the generated delta file. The test
     creates two slightly different snaps, generates a delta, applies it,
-    and verifies the result matches the original target.
-
-systems:
-    - ubuntu-2*
-    - ubuntu-core-2*
-
-skip:
-    # We need xdelta3, unsquashfs and mksquashfs tools available.
-    # These are bundled in the snapd snap but may also be on the host.
-    - reason: xdelta3 not available
-      if: |
-          ! command -v xdelta3 && ! test -f /snap/snapd/current/usr/bin/xdelta3
-    - reason: unsquashfs not available
-      if: |
-          ! command -v unsquashfs && ! test -f /snap/snapd/current/usr/bin/unsquashfs
-    - reason: mksquashfs not available
-      if: |
-          ! command -v mksquashfs && ! test -f /snap/snapd/current/usr/bin/mksquashfs
+    and verifies the result matches the original target bit-for-bit.
+    Both xdelta3 and snap-1-1-xdelta3 formats are tested.
 
 prepare: |
-    # Create a source snap
+    # Ensure required tools are available - these should always be
+    # installed as dependencies. Fail the test if they are not, as this
+    # indicates a packaging issue.
+    for tool in xdelta3 unsquashfs mksquashfs; do
+        if ! command -v "$tool" > /dev/null 2>&1 && ! test -f "/snap/snapd/current/usr/bin/$tool"; then
+            echo "ERROR: $tool not available, it should be installed as a dependency"
+            exit 1
+        fi
+    done
+
+    # Create a source snap with deterministic content
     SOURCE_DIR="$PWD/source-snap"
     mkdir -p "$SOURCE_DIR/meta"
     cat > "$SOURCE_DIR/meta/snap.yaml" << 'SNAPEOF'
@@ -37,7 +31,8 @@ prepare: |
     type: app
     SNAPEOF
     mkdir -p "$SOURCE_DIR/data"
-    dd if=/dev/urandom of="$SOURCE_DIR/data/payload.bin" bs=1024 count=64
+    # Use deterministic data so we can compare hashes across runs and systems
+    for i in $(seq 1 1024); do printf "source-snap-data-line-%04d\n" "$i"; done > "$SOURCE_DIR/data/payload.bin"
 
     snap pack "$SOURCE_DIR" --filename="source.snap"
 
@@ -53,22 +48,23 @@ prepare: |
     type: app
     SNAPEOF
     mkdir -p "$TARGET_DIR/data"
-    # Copy the same payload and append some bytes to make it different
+    # Copy the same payload and add deterministic extra data
     cp "$SOURCE_DIR/data/payload.bin" "$TARGET_DIR/data/payload.bin"
-    dd if=/dev/urandom of="$TARGET_DIR/data/extra.bin" bs=1024 count=8
+    for i in $(seq 1 128); do printf "extra-target-data-line-%04d\n" "$i"; done > "$TARGET_DIR/data/extra.bin"
 
     snap pack "$TARGET_DIR" --filename="target.snap"
 
 restore: |
-    rm -rf source-snap target-snap target-extracted reconstructed-extracted
+    rm -rf source-snap target-snap
     rm -f source.snap target.snap out.delta reconstructed.snap
 
 execute: |
     echo "Check snap delta help output"
     snap delta --help 2>&1 | MATCH "Generate / apply"
 
-    echo "Generate a delta between source and target snaps"
-    snap delta generate --source source.snap --target target.snap --delta out.delta
+    # Test snap-1-1-xdelta3 format (default)
+    echo "Generate a delta between source and target snaps using snap-1-1-xdelta3 format"
+    snap delta generate --source source.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3
     test -f out.delta
 
     echo "Check that the delta file is smaller than the target snap"
@@ -76,19 +72,35 @@ execute: |
     TARGET_SIZE=$(stat -c%s target.snap)
     test "$DELTA_SIZE" -lt "$TARGET_SIZE"
 
-    echo "Apply the delta to reconstruct the target snap"
+    echo "Apply the snap-1-1-xdelta3 delta to reconstruct the target snap"
     snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
     test -f reconstructed.snap
 
-    echo "Verify the reconstructed snap matches the original target"
-    # Use unsquashfs to compare content rather than binary comparison,
-    # as mksquashfs may produce slightly different binary output depending
-    # on host-level tooling versions.
-    mkdir -p target-extracted reconstructed-extracted
-    unsquashfs -d target-extracted/root target.snap
-    unsquashfs -d reconstructed-extracted/root reconstructed.snap
-    diff -r target-extracted/root reconstructed-extracted/root
-    rm -rf target-extracted reconstructed-extracted
+    echo "Verify the reconstructed snap is bit-for-bit identical to the original target"
+    cmp target.snap reconstructed.snap
+
+    echo "Verify using hash comparison"
+    TARGET_HASH=$(md5sum target.snap | cut -d' ' -f1)
+    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
+    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
+
+    # Test plain xdelta3 format
+    rm -f out.delta reconstructed.snap
+
+    echo "Generate a delta using plain xdelta3 format"
+    snap delta generate --source source.snap --target target.snap --delta out.delta --format xdelta3
+    test -f out.delta
+
+    echo "Apply the xdelta3 delta to reconstruct the target snap"
+    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the xdelta3-reconstructed snap is bit-for-bit identical"
+    cmp target.snap reconstructed.snap
+
+    echo "Verify xdelta3 format using hash comparison"
+    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
+    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
 
     echo "Test snap delta with short flags"
     rm -f out.delta reconstructed.snap
