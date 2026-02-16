@@ -546,6 +546,8 @@ func delayedCrossMgrInit() {
 
 		// hook into snap linking/unlinking and activation state changes
 		snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(OnSnapLinkageChanged))
+
+		snapstate.ProcessDelayedSecurityBackendEffects = ProcessDelayedSecurityBackendEffects
 	})
 }
 
