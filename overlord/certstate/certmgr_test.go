@@ -76,6 +76,139 @@ func (s *certMgrTestSuite) settle(c *C) {
 	s.state.Lock()
 }
 
+func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
+	var called bool
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Mark the system as seeded to trigger certificate generation.
+	s.state.Set("seeded", true)
+
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
+	var called bool
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
+func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
+	var called bool
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), []byte("existing"), 0o644), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
+func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
+	var called bool
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
+func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
+	var calls int
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		calls++
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(calls, Equals, 1)
+}
+
+func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
+	restore := certstate.MockGenerateCertificateDatabase(func() error {
+		return errors.New("boom")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Check(err, ErrorMatches, ".*boom.*")
+}
+
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) {
 	certA, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)
@@ -129,6 +262,9 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
 
@@ -144,6 +280,14 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError
 
 	c.Check(chg.Err(), NotNil)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	// verify the status of the tasks
+	tasks := chg.Tasks()
+	c.Check(len(tasks), Equals, 2)
+	c.Check(tasks[0].Kind(), Equals, "update-cert-db")
+	c.Check(tasks[0].Status(), Equals, state.UndoneStatus)
+	c.Check(tasks[1].Kind(), Equals, "error-trigger")
+	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)

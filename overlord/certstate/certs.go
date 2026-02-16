@@ -121,7 +121,7 @@ func isBlocked(cert certificate, blockedCerts []string) bool {
 	if !strings.HasSuffix(cert.RealPath, ".crt") {
 		return true
 	}
-	return strutil.ListContains(blockedCerts, cert.Name)
+	return strutil.ListContains(blockedCerts, cert.Digest)
 }
 
 // parseCertificates retrieves a list of files in the directory path and returns
@@ -231,14 +231,9 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	digests := make(map[string]bool)
 
 	for _, cert := range certs {
-		if digests[cert.Digest] {
+		if digests[cert.Digest] || isBlocked(cert, blocked) {
 			continue
 		}
-
-		if isBlocked(cert, blocked) {
-			continue
-		}
-
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
@@ -246,14 +241,9 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	}
 
 	for _, cert := range extras {
-		if digests[cert.Digest] {
+		if digests[cert.Digest] || isBlocked(cert, blocked) {
 			continue
 		}
-
-		if isBlocked(cert, blocked) {
-			continue
-		}
-
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
 		}
@@ -261,6 +251,8 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	}
 	return nil
 }
+
+var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
 
 // GenerateCertificateDatabase generates the ca-certificates.crt based on the following
 // folders:
@@ -275,7 +267,9 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 //
 // The resulting ca-certificates.crt is written to
 // /var/lib/snapd/pki/v1/merged/ca-certificates.crt
-func GenerateCertificateDatabase() error {
+// If a previous version of the ca-certificates.crt exists, it is backed up to
+// /var/lib/snapd/pki/v1/merged/ca-certificates.crt.old
+func GenerateCertificateDatabaseImpl() error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)

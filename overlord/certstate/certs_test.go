@@ -94,9 +94,22 @@ func makeTestCertPEM(commonName string) ([]byte, *x509.Certificate, error) {
 	return pemBytes, cert, nil
 }
 
+func digestForPEM(c *C, pemBytes []byte) string {
+	dir := c.MkDir()
+	path := filepath.Join(dir, "one.crt")
+	c.Assert(os.WriteFile(path, pemBytes, 0o644), IsNil)
+
+	certs, err := certstate.ParseCertificates(dir)
+	c.Assert(err, IsNil)
+	c.Assert(certs, HasLen, 1)
+
+	return certs[0].Digest
+}
+
 func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
 		Name:     "blocked-cert",
+		Digest:   "blocked-cert",
 		RealPath: "blocked-cert.crt",
 	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, true)
 }
@@ -106,6 +119,14 @@ func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
 		Name:     "not-blocked-cert",
 		RealPath: "not-blocked-cert.crt",
 	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, false)
+}
+
+func (s *certsTestSuite) TestIsBlockedReturnsBlockedByDigest(c *C) {
+	c.Check(certstate.IsBlocked(certstate.Certificate{
+		Name:     "not-blocked-cert",
+		RealPath: "not-blocked-cert.crt",
+		Digest:   "digest-123",
+	}, []string{"digest-123"}), Equals, true)
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsTrueOnMissingSuffix(c *C) {
@@ -266,7 +287,8 @@ func (s *certsTestSuite) TestGenerateCACertificatesDeduplicatesAndBlocks(c *C) {
 	extras, err := certstate.ParseCertificates(extraDir)
 	c.Assert(err, IsNil)
 
-	err = certstate.GenerateCACertificates(base, extras, []string{"b"}, outDir)
+	blockedDigest := digestForPEM(c, cert2)
+	err = certstate.GenerateCACertificates(base, extras, []string{blockedDigest}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -344,4 +366,30 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
 	c.Assert(err, IsNil)
 	c.Check(bak, DeepEquals, old)
+}
+
+func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), aPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), bPEM, 0o644), IsNil)
+
+	blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
+	c.Assert(os.MkdirAll(blockedDir, 0o755), IsNil)
+	blockedDigest := digestForPEM(c, aPEM)
+	c.Assert(os.WriteFile(filepath.Join(blockedDir, blockedDigest+".crt"), []byte("x"), 0o644), IsNil)
+
+	err = certstate.GenerateCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	mergedPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
+	out, err := os.ReadFile(mergedPath)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(out, aPEM), Equals, false)
+	c.Check(bytes.Contains(out, bPEM), Equals, true)
 }
