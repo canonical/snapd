@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Download vendor
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -50,7 +50,7 @@ jobs:
       run: echo "CACHE_KEY=mock-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
 
     - name: Cache mock dependencies
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /tmp/mock
         key: ${{ env.CACHE_KEY }}
@@ -87,7 +87,7 @@ jobs:
           -exec mv {} /tmp/uploads \;
 
     - name: upload packages
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: package-${{ inputs.system }}
         path: /tmp/uploads

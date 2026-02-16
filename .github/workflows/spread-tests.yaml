@@ -123,7 +123,7 @@ jobs:
 
     - name: Download previous test results
       if: ${{ github.run_attempt > 1 }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       continue-on-error: true
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
@@ -150,7 +150,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+      uses: tj-actions/changed-files@8cba46e29c11878d930bca7870bb54394d3e8b21 # v47.0.2
 
     - name: Save changes files
       run: |
@@ -275,7 +275,7 @@ jobs:
           fi
 
     - name: Upload skipped tests list
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: "skipped-tests-list-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "skipped_tests_list.txt"
@@ -450,7 +450,7 @@ jobs:
 
     - name: Upload spread logs
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
@@ -458,7 +458,7 @@ jobs:
   
     - name: Upload spread results file
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
@@ -536,7 +536,7 @@ jobs:
 
     - name: Upload artifacts
       if: always() && fromJSON(inputs.upload-artifacts)
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
@@ -544,7 +544,7 @@ jobs:
 
     - name: Upload failed tests
       if: always() && env.TEST_FAILED == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
