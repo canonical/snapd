@@ -37,7 +37,7 @@ execute: |
     # Install a test snap running a service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
 
-    echo "Check for presence of a the example snap service"
+    echo "Check for presence of the example snap service"
     api-apps-client --url="/v2/apps" > response.txt
     gojq . < response.txt
 
