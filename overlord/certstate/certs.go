@@ -110,8 +110,9 @@ func trimCrtExtension(name string) string {
 }
 
 // isBlocked checks whether the given certificate is blocked
-// based on it's name.
-func isBlocked(cert certificate, blockedCerts []string) bool {
+// based on it's name (special names or its path not being a .crt), or
+// based on its digest being in the list of blocked digests.
+func isBlocked(cert certificate, blockedCertDigests []string) bool {
 	// Special case for ca-certificates.crt
 	if cert.Name == "ca-certificates.crt" {
 		return true
@@ -121,7 +122,7 @@ func isBlocked(cert certificate, blockedCerts []string) bool {
 	if !strings.HasSuffix(cert.RealPath, ".crt") {
 		return true
 	}
-	return strutil.ListContains(blockedCerts, cert.Digest)
+	return strutil.ListContains(blockedCertDigests, cert.Digest)
 }
 
 // parseCertificates retrieves a list of files in the directory path and returns

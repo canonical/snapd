@@ -108,33 +108,29 @@ func digestForPEM(c *C, pemBytes []byte) string {
 
 func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Name:     "blocked-cert",
-		Digest:   "blocked-cert",
+		Digest:   "digest-123",
 		RealPath: "blocked-cert.crt",
-	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, true)
+	}, []string{"digest-123", "digest-789"}), Equals, true)
+}
+
+func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSpecialNamings(c *C) {
+	c.Check(certstate.IsBlocked(certstate.Certificate{
+		Name: "ca-certificates.crt",
+	}, nil), Equals, true)
+}
+
+func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSuffix(c *C) {
+	// RealPath must end with .crt, otherwise it returns true
+	c.Check(certstate.IsBlocked(certstate.Certificate{
+		RealPath: "blocked-cert.pem",
+	}, nil), Equals, true)
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Name:     "not-blocked-cert",
-		RealPath: "not-blocked-cert.crt",
-	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, false)
-}
-
-func (s *certsTestSuite) TestIsBlockedReturnsBlockedByDigest(c *C) {
-	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Name:     "not-blocked-cert",
-		RealPath: "not-blocked-cert.crt",
 		Digest:   "digest-123",
-	}, []string{"digest-123"}), Equals, true)
-}
-
-func (s *certsTestSuite) TestIsBlockedReturnsTrueOnMissingSuffix(c *C) {
-	// RealPath must end with .crt, otherwise it returns true
-	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Name:     "not-blocked-cert",
-		RealPath: "not-blocked-cert",
-	}, []string{"blocked-cert", "other-blocked-cert"}), Equals, true)
+		RealPath: "not-blocked-cert.crt",
+	}, []string{"digest-789"}), Equals, false)
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSimpleHappy(c *C) {
