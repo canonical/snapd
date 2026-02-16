@@ -29,8 +29,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/mvo5/goconfigparser"
+	"gopkg.in/ini.v1"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -82,11 +85,95 @@ var (
 	}
 )
 
+type systemdService interface {
+	GetServicePath(service string) (string, error)
+}
+
 func sessionInfo(c *Command, r *http.Request) Response {
 	m := map[string]any{
 		"version": c.s.Version,
 	}
 	return SyncResponse(m)
+}
+
+// checkWantedByForService is called if starting an user service
+// fails. It checks if the WantedBy entry for that service belongs to a target
+// that is not active. If that's the case (for example, when installing an user
+// daemon that uses the Desktop interface, and thus has the `graphical-session`
+// target, but doing it from a SSH connection or from a text console, where no
+// graphical session is running) it won't fail. It also won't fail if the WantedBy
+// entry points to a non-existent target, because it can happens that a system
+// lacks a graphical system, but still wants to install a snap that has a daemon
+// that is designed for it (for example, because it contains other tools that
+// are useful in a text-only system; another case is for spread tests).
+
+func checkWantedByForService(sysd systemdService, originalError error, service string) error {
+	// first, get the path where the .target file of this service is, load it as an INI file,
+	// and read the `WantedBy` section to get in which target this service should be launched.
+	servicePath, err := sysd.GetServicePath(service)
+	if err != nil {
+		newError := fmt.Errorf("cannot get the systemd service file path for %s: %w", service, err)
+		return strutil.JoinErrors(originalError, newError)
+	}
+	serviceFileIni, err := ini.Load(servicePath)
+	if err != nil {
+		newError := fmt.Errorf("cannot load the systemd service file for %s: %w", service, err)
+		return strutil.JoinErrors(originalError, newError)
+	}
+	target := ""
+	if section := serviceFileIni.Section("Install"); section != nil {
+		target = section.Key("WantedBy").String()
+	}
+
+	// if the desired target is the `default.target`, then the service should have been
+	// launched without errors, because that target is always available and enabled. So
+	// we return the original error, because the cause of the failure to launch the
+	// service isn't that the desired target isn't active, so the operation must fail.
+	if target == "default.target" || target == "" || !strings.HasSuffix(target, ".target") {
+		return originalError
+	}
+
+	// Now that we know in which target this service wants to run, we must get the
+	// state of that target. For this, first we ask systemd what DBus object refers
+	// to the desired target by using the `GetUnit()`` method, and then we check in
+	// that object the `ActiveState` property, to know if that desired target is
+	// currently active or not.
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		newError := fmt.Errorf("cannot connect to the session bus: %w", err)
+		return strutil.JoinErrors(originalError, newError)
+	}
+	defer conn.Close()
+
+	obj := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
+	var targetObject dbus.ObjectPath
+	err = obj.Call("org.freedesktop.systemd1.Manager.GetUnit", 0, target).Store(&targetObject)
+	if err != nil {
+		logger.Noticef("cannot get unit name for %s target: %s; original error: %s", target, err, originalError)
+		return nil
+	}
+
+	targetObjectIface := conn.Object("org.freedesktop.systemd1", dbus.ObjectPath(targetObject))
+	var state string
+	err = targetObjectIface.Call("org.freedesktop.DBus.Properties.Get", 0, "org.freedesktop.systemd1.Unit", "ActiveState").Store(&state)
+	if err != nil {
+		newError := fmt.Errorf("cannot get unit state for %s target: %w", target, err)
+		return strutil.JoinErrors(originalError, newError)
+	}
+
+	// If the desired target is active, the service failed during activation due
+	// another problem, so we return the original error to ensure that snapd fails
+	// as expected.
+	if state == "active" {
+		return originalError
+	}
+	// Instead, if the target is inactive, we will presume that it is the reason
+	// why activating this service failed (specifically, because we are installing
+	// an user service that requires the `graphical-session` target, but we are in
+	// a non-graphical session, like the installer or an SSH session). In this
+	// case, we return nil to make snapd ignore this problem, assuming that the
+	// only reason why the service failed to launch is because of this.
+	return nil
 }
 
 func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
@@ -127,8 +214,10 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	var started []string
 	for _, service := range inst.Services {
 		if err := sysd.Start([]string{service}); err != nil {
-			startErrors[service] = err.Error()
-			break
+			if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+				startErrors[service] = err2.Error()
+				break
+			}
 		}
 		started = append(started, service)
 	}
@@ -172,11 +261,15 @@ func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respo
 	for _, service := range inst.Services {
 		if inst.Reload {
 			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+					restartErrors[service] = err2.Error()
+				}
 			}
 		} else {
 			if err := sysd.Restart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+					restartErrors[service] = err2.Error()
+				}
 			}
 		}
 	}

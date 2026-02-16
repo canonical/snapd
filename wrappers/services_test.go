@@ -3591,6 +3591,7 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		{"--user", "daemon-reload"},
 		{"--user", "start", "snap.hello-snap.svc2.sock1.socket"},
 		{"--user", "start", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "show", "--property", "FragmentPath", "snap.hello-snap.svc2.sock2.socket"},
 
 		// It failed, we attempt to stop all started user services again
 		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
@@ -4226,13 +4227,14 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	opts := &wrappers.StartServicesOptions{Enable: true}
 	err := wrappers.StartServices(svcs, nil, opts, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
 		{"--user", "--no-reload", "enable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
 		{"--user", "daemon-reload"},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
+		{"--user", "show", "--property", "FragmentPath", "snap.hello-snap.svc2.service"},
 		// session agent attempts to stop the non-failed services
 		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
@@ -5215,6 +5217,7 @@ NeedDaemonReload=no
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"--user", "reload-or-restart", srvFile},
+		{"--user", "show", "--property", "FragmentPath", "snap.test-snap.foo.service"},
 	})
 }
 
