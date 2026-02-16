@@ -54,6 +54,10 @@ func (s *emulation) DaemonReload() error {
 	return nil
 }
 
+func (s *emulation) DaemonDisableEnable([]string) error {
+	return nil
+}
+
 func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
