@@ -12402,6 +12402,8 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	var monitorLanes []int
 	c.Assert(det.Get("monitored-lanes", &monitorLanes), IsNil)
 	c.Check(monitorLanes, DeepEquals, []int{0})
+	// only in the default lane
+	c.Check(det.Lanes(), DeepEquals, []int{0})
 
 	de := ifacestate.NewDelayedEffectsForSnaps()
 	de.EnqueueFor("consumer", interfaces.SecuritySystem("test"), interfaces.DelayedSideEffect{
@@ -13008,11 +13010,11 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	}
 
 	ts1 := tasksForOne(snapsup1)
-	ts1.JoinLane(1)
+	ts1.JoinLane(s.state.NewLane())
 	chg.AddAll(ts1)
 
 	ts2 := tasksForOne(snapsup2)
-	ts2.JoinLane(2)
+	ts2.JoinLane(s.state.NewLane())
 	chg.AddAll(ts2)
 
 	s.state.Set("conns", map[string]any{
@@ -13102,6 +13104,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsLaneNoWork(c *C) {
 	s.state.Lock()
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
+}
+
+func checkSuccessfulTasks(c *C, tasks []*state.Task) {
+	for _, tsk := range tasks {
+		c.Check(tsk.Status(), Equals, state.DoneStatus)
+	}
 }
 
 func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnapErr(c *C) {
@@ -13224,6 +13232,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 	c.Assert(chg.Tasks(), HasLen, 5)
 	tsks := chg.Tasks()
 	effectsTasks := tsks[len(tsks)-2:]
+	otherTasks := tsks[0 : len(tsks)-2]
 
 	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-backend-effects")
 	c.Check(effectsTasks[1].Kind(), Equals, "process-delayed-snap-backend-effects")
@@ -13231,4 +13240,190 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 	c.Assert(effectsTasks[1].Get("effects-data", &effData), IsNil)
 	c.Check(string(effData.AffectedSnapInstance), Equals, "consumer")
 	c.Check(effectsTasks[1].Status(), Equals, state.ErrorStatus)
+	// all other tasks were completed successfully
+	checkSuccessfulTasks(c, otherTasks)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipleOneSnapErr(c *C) {
+	// multiple consumers and producers, producer2 fails on applying delayed effects
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer1"))
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer2"))
+	prod1 := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer1"))
+	prod2 := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer2"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+	var setupCalls []string
+	var b interfaces.SecurityBackend
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				// bulk of the logic checks
+				// the handler is called in both do and undo paths
+				name := appSet.InstanceName()
+				c.Logf("Setup() for %q init done %v sctx %+v", name, initDone, sctx)
+				if initDone {
+					// past the point of initial Setup() calls, this is
+					// called for each snap that is affected by a connection, producer and consumer
+					setupCalls = append(setupCalls, name)
+
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						// nothing is delayed for the producer
+						c.Check(sctx.CanDelayEffects, Equals, false)
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOwnUpdate)
+					case name == "consumer1" || name == "consumer2":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						// in do path effects are delayed, but not in undo
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							// test scenario wants to delay some effects
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+						}
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				} else {
+					initSetupCalls++
+					c.Check(sctx.CanDelayEffects, Equals, false)
+					c.Check(sctx.DelayEffect, IsNil)
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			switch appSet.InstanceName() {
+			case "consumer1":
+				c.Check(effs, DeepEquals, []interfaces.DelayedSideEffect{
+					{
+						ID:          interfaces.DelayedEffect("effect"),
+						Description: "mock effect for consumer1",
+					},
+				})
+				return nil
+			case "consumer2":
+				return fmt.Errorf("mock error")
+			default:
+				c.Errorf("unexpected call for snap %q", appSet.InstanceName())
+				return fmt.Errorf("unexpected call for %q", appSet.InstanceName())
+			}
+		},
+	}
+	s.mockSecBackend(secBackend)
+	b = secBackend
+
+	s.o.TaskRunner().AddHandler("link-snap", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 4)
+
+	snapsup1 := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod1.RealName,
+			Revision: prod1.Revision,
+		},
+	}
+
+	snapsup2 := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod2.RealName,
+			Revision: prod2.Revision,
+		},
+	}
+
+	s.state.Lock()
+
+	chg := s.state.NewChange("test", "")
+
+	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
+		name := snapsup.InstanceName()
+		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", name))
+		setupProfiles.Set("snap-setup", snapsup)
+
+		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
+		linkSnap.Set("snap-setup-task", setupProfiles.ID())
+		linkSnap.WaitFor(setupProfiles)
+
+		autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", name))
+		autoconnect.Set("snap-setup", snapsup)
+		autoconnect.WaitFor(linkSnap)
+		return state.NewTaskSet(setupProfiles, linkSnap, autoconnect)
+	}
+
+	ts1 := tasksForOne(snapsup1)
+	ts1.JoinLane(s.state.NewLane())
+	chg.AddAll(ts1)
+
+	ts2 := tasksForOne(snapsup2)
+	ts2.JoinLane(s.state.NewLane())
+	chg.AddAll(ts2)
+
+	s.state.Set("conns", map[string]any{
+		// all consumers are connected
+		"consumer1:plug producer1:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+		"consumer2:plug producer2:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	ts := ifacestate.ProcessDelayedBackendEffects(s.state, lanesFromChange(chg))
+	c.Assert(ts.Tasks(), HasLen, 1)
+	chg.AddAll(ts)
+
+	dumpTasks(c, "before", chg.Tasks())
+	s.state.EnsureBefore(0)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	dumpTasks(c, "after", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* Delayed side effects for snap "consumer2" \(mock error\).*$`)
+
+	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 2)
+	// 2 * (link-snap, auto-connect, setup-profiles),
+	// process-delayed-backend-effects, 2 * process-snap-delayed-backend-effects
+	c.Assert(chg.Tasks(), HasLen, 9)
+	tsks := chg.Tasks()
+	effectsTasks := tsks[len(tsks)-2:]
+	otherTasks := tsks[0 : len(tsks)-2]
+
+	// one of side effects tasks failed, other was successful
+	for _, tsk := range effectsTasks {
+		c.Check(tsk.Kind(), Equals, "process-delayed-snap-backend-effects")
+		var effData ifacestate.DelayedEffectsForSnapData
+		c.Assert(tsk.Get("effects-data", &effData), IsNil)
+		affSnap := string(effData.AffectedSnapInstance)
+		c.Check([]string{"consumer1", "consumer2"}, testutil.Contains, affSnap)
+		if affSnap == "consumer2" {
+			c.Check(tsk.Status(), Equals, state.ErrorStatus)
+		} else {
+			c.Check(tsk.Status(), Equals, state.DoneStatus)
+		}
+	}
+	// all other tasks were completed successfully
+	checkSuccessfulTasks(c, otherTasks)
 }
