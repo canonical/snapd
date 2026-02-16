@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
@@ -95,6 +96,20 @@ func init() {
 }
 
 func (x *cmdDelta) Execute(args []string) error {
+	// Listen for SIGINT/SIGTERM and cancel the context so that
+	// subprocesses (xdelta3, unsquashfs, mksquashfs) are stopped.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh, sigStop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
+	defer sigStop()
+	go func() {
+		select {
+		case <-sigCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	switch x.Positional.Operation {
 	case "generate":
@@ -105,10 +120,10 @@ func (x *cmdDelta) Execute(args []string) error {
 		}
 		fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), x.Format)
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfsGenerateDelta(context.TODO(), x.Source, x.Target, x.Delta, deltaFormat)
+		return squashfsGenerateDelta(ctx, x.Source, x.Target, x.Delta, deltaFormat)
 	case "apply":
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
-		return squashfsApplyDelta(context.TODO(), x.Source, x.Delta, x.Target)
+		return squashfsApplyDelta(ctx, x.Source, x.Delta, x.Target)
 	}
 
 	return fmt.Errorf(i18n.G("unknown operation: %s"), x.Positional.Operation)
