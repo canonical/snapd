@@ -682,7 +682,7 @@ hooks:
 		switch ctx.HookName() {
 		case "install":
 			installHook = true
-			_, _, err := ctlcmd.Run(ctx, []string{"set", "installed=true"}, 0)
+			_, _, err := ctlcmd.Run(ctx, []string{"set", "installed=true"}, 0, nil)
 			c.Assert(err, IsNil)
 			return nil, nil
 		case "configure":

@@ -4,9 +4,9 @@ details: |
     Verify that the check-test-format tool checks properly the desired
     order and mandatory keys in spread tasks.
 
-backends: [google]
+backends: [openstack]
 
-systems: [ ubuntu-20.04-64 ]
+systems: [ubuntu-22.04-64]
 
 prepare: |
     apt install -y python3-yamlordereddictloader

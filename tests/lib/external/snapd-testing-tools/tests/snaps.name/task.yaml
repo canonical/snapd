@@ -5,7 +5,7 @@ details: |
     gadget and kernel snaps installed in the system. Also verifies
     the snap-suffix command works properly.
 
-backends: [google]
+backends: [openstack]
 
 execute: |
     snaps.name --help | MATCH 'usage: snaps.name gadget, kernel, core'

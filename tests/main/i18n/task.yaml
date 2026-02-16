@@ -7,7 +7,7 @@ details: |
 systems: [-debian-sid-*]
 
 skip:
-  - if: os.query is_resolute
+  - if: os.query is_resolute || os.query is_noble
     reason: The Latvian translation is missing <> and causing the test to fail. Once that is fixed, the test should be renabled (in SNAPDENG-36202).
 
 restore: |

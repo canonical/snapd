@@ -4,7 +4,7 @@ details: |
     Check the tests.backup tool properly backs up and
     restores a specific directory.
 
-backends: [google]
+backends: [openstack]
 
 execute: |
     # Without any arguments a help message is printed.

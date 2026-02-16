@@ -4,7 +4,7 @@ details: |
     Check the retry tool allows retrying a command. Verify that on
     failure the exit code from the final attempt is returned
 
-backends: [google]
+backends: [openstack]
 
 execute: |
     # Retry runs the command that was passed as argument and returns the exit

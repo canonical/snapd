@@ -47,6 +47,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "configfiles"
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// No preparation required.
+	return nil
+}
+
 // Setup will make the configfiles backend generate the specified
 // configuration files.
 //

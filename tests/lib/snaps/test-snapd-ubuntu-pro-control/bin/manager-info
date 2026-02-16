@@ -1,0 +1,24 @@
+#!/bin/sh -e
+
+case "${1:-}" in
+    attached)
+        dbus-send --system --print-reply \
+            --dest=com.canonical.UbuntuAdvantage \
+            /com/canonical/UbuntuAdvantage/Manager \
+            org.freedesktop.DBus.Properties.Get \
+            string:com.canonical.UbuntuAdvantage.Manager \
+            string:Attached
+        ;;
+    daemon-version)
+        dbus-send --system --print-reply \
+            --dest=com.canonical.UbuntuAdvantage \
+            /com/canonical/UbuntuAdvantage/Manager \
+            org.freedesktop.DBus.Properties.Get \
+            string:com.canonical.UbuntuAdvantage.Manager \
+            string:DaemonVersion
+        ;;
+    *)
+        echo "usage: $0 {attached|daemon-version}" >&2
+        exit 1
+        ;;
+esac

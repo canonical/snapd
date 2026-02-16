@@ -92,38 +92,38 @@ version: gadget
 	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		if ctx.HookName() == "prepare-device" {
 			// snapctl set the registration params
-			_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", pDBhv.DeviceSvcURL)}, 0)
+			_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", pDBhv.DeviceSvcURL)}, 0, nil)
 			c.Assert(err, IsNil)
 
 			if len(pDBhv.Headers) != 0 {
 				h, err := json.Marshal(pDBhv.Headers)
 				c.Assert(err, IsNil)
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0, nil)
 				c.Assert(err, IsNil)
 			}
 
 			if pDBhv.ProposedSerial != "" {
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", pDBhv.ProposedSerial)}, 0)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", pDBhv.ProposedSerial)}, 0, nil)
 				c.Assert(err, IsNil)
 			}
 
 			if len(pDBhv.RegBody) != 0 {
 				d, err := yaml.Marshal(pDBhv.RegBody)
 				c.Assert(err, IsNil)
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0, nil)
 				c.Assert(err, IsNil)
 			}
 
 			return nil, nil
 		} else if ctx.HookName() == "prepare-serial-request" {
 			// check registration id is present in config
-			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "registration.request-id"}, 0)
+			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "registration.request-id"}, 0, nil)
 			c.Assert(err, IsNil)
 			c.Assert(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
 
 			// snapctl set the registration params
 			if pSRBhv.RegBody != "" {
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%s", pSRBhv.RegBody)}, 0)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%s", pSRBhv.RegBody)}, 0, nil)
 				c.Assert(err, IsNil)
 			}
 

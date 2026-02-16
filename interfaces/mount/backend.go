@@ -58,6 +58,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityMount
 }
 
+func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
+	// no special preparation required
+	return nil
+}
+
 const (
 	// DelayedConsumerMountNsUpdate identifies an effect of updating the mount
 	// namespace of a connected consumer.
