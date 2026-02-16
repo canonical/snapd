@@ -23,7 +23,7 @@ media_dir() {
 }
 
 libexec_dir() {
-    if os.query is-fedora || os.query is-amazon-linux || os.query is-centos || os.query is-opensuse tumbleweed; then
+    if os.query is-fedora || os.query is-amazon-linux || os.query is-centos || os.query is-opensuse tumbleweed || os.query is-opensuse 16.0; then
         echo "/usr/libexec"
     else
         echo "/usr/lib"
