@@ -45,7 +45,7 @@ execute: |
   stat "${dir}/${binary}.real" || true
   stat "/snap/snapd/current/usr/lib/snapd/${binary}.real" || true
   if ! [ "${dir}/${binary}.real" -ef "/snap/snapd/current/usr/lib/snapd/${binary}.real" ]; then
-    echo "Trying to execute the binary '${binary}' before it is available at the the right place" 1>&2
+    echo "Trying to execute the binary '${binary}' before it is available at the right place" 1>&2
     exit 1
   fi
   exec "${dir}/${binary}.real" "$@"
