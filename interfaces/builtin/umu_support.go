@@ -49,8 +49,6 @@ const umuSupportConnectedPlugAppArmor = `
 owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
 owner @{PROC}/@{pid}/setgroups rw,
-owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
 
 # Allow mounting operations
 mount,
