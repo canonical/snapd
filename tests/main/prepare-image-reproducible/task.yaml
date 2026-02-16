@@ -81,7 +81,7 @@ execute: |
     echo Installing required snaps we will need
     snap install core
 
-    echo Download snaps needed for the the model
+    echo Download snaps needed for the model
     snap download core
     snap download pc
     snap download pc-kernel

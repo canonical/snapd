@@ -83,7 +83,7 @@ execute: |
         not test-snapd-cups-consumer.cups-control -c "head /run/cups/cups.sock"
     fi
 
-    echo "When the the cups interface is connected"
+    echo "When the cups interface is connected"
     snap connect test-snapd-cups-consumer:cups test-snapd-cups-provider:cups
 
     if [ "$(snap debug confinement)" = "strict" ]; then
@@ -105,7 +105,7 @@ execute: |
     #shellcheck disable=SC2016
     test-snapd-cups-consumer.cups -c 'echo $CUPS_SERVER' | MATCH /var/cups/cups.sock
 
-    echo "And the the cups interface can be disconnected again"
+    echo "And the cups interface can be disconnected again"
     snap disconnect test-snapd-cups-consumer:cups
 
     if [ "$(snap debug confinement)" = "strict" ]; then
