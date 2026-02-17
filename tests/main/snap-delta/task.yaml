@@ -1,0 +1,164 @@
+summary: Check that the snap delta command generates and applies deltas
+
+details: |
+    This test verifies that the snap delta command can generate a delta
+    between two snap files and then apply that delta to reconstruct the
+    target snap from the source and the generated delta file. The test
+    creates two slightly different snaps, generates a delta, applies it,
+    and verifies the result matches the original target bit-for-bit.
+    Both xdelta3 and snap-1-1-xdelta3 formats are tested.
+
+    Additionally, the test downloads two real snapd snap revisions from
+    the store and verifies that delta generate/apply works end-to-end
+    on real-world snaps.
+
+prepare: |
+    # Ensure required tools are available - these should always be
+    # installed as dependencies. Fail the test if they are not, as this
+    # indicates a packaging issue.
+    for tool in xdelta3 unsquashfs mksquashfs; do
+        if ! command -v "$tool" > /dev/null 2>&1 && ! test -f "/snap/snapd/current/usr/bin/$tool"; then
+            echo "ERROR: $tool not available, it should be installed as a dependency"
+            exit 1
+        fi
+    done
+
+    # Create a source snap with deterministic content
+    SOURCE_DIR="$PWD/source-snap"
+    mkdir -p "$SOURCE_DIR/meta"
+    cat > "$SOURCE_DIR/meta/snap.yaml" << 'SNAPEOF'
+    name: test-delta-source
+    version: 1.0
+    summary: Source snap for delta testing
+    description: A snap used as source for delta generation
+    grade: devel
+    type: app
+    SNAPEOF
+    mkdir -p "$SOURCE_DIR/data"
+    # Use deterministic data so we can compare hashes across runs and systems
+    for i in $(seq 1 1024); do printf "source-snap-data-line-%04d\n" "$i"; done > "$SOURCE_DIR/data/payload.bin"
+
+    snap pack "$SOURCE_DIR" --filename="source.snap"
+
+    # Create a target snap (slightly different content)
+    TARGET_DIR="$PWD/target-snap"
+    mkdir -p "$TARGET_DIR/meta"
+    cat > "$TARGET_DIR/meta/snap.yaml" << 'SNAPEOF'
+    name: test-delta-target
+    version: 2.0
+    summary: Target snap for delta testing
+    description: A snap used as target for delta generation
+    grade: devel
+    type: app
+    SNAPEOF
+    mkdir -p "$TARGET_DIR/data"
+    # Copy the same payload and add deterministic extra data
+    cp "$SOURCE_DIR/data/payload.bin" "$TARGET_DIR/data/payload.bin"
+    for i in $(seq 1 128); do printf "extra-target-data-line-%04d\n" "$i"; done > "$TARGET_DIR/data/extra.bin"
+
+    snap pack "$TARGET_DIR" --filename="target.snap"
+
+    # Download two real snapd snap revisions for end-to-end testing
+    snap download snapd --revision=25585 --basename=snapd-old
+    snap download snapd --revision=25839 --basename=snapd-new
+
+restore: |
+    rm -rf source-snap target-snap
+    rm -f source.snap target.snap out.delta reconstructed.snap
+    rm -f snapd-old.snap snapd-old.assert snapd-new.snap snapd-new.assert
+
+execute: |
+    echo "Check snap delta help output"
+    snap delta --help 2>&1 | MATCH "Generate / apply"
+
+    # --- Test with synthetic snaps ---
+
+    # Test snap-1-1-xdelta3 format (default)
+    echo "Generate a delta between source and target snaps using snap-1-1-xdelta3 format"
+    snap delta generate --source source.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3
+    test -f out.delta
+
+    echo "Check that the delta file is smaller than the target snap"
+    DELTA_SIZE=$(stat -c%s out.delta)
+    TARGET_SIZE=$(stat -c%s target.snap)
+    test "$DELTA_SIZE" -lt "$TARGET_SIZE"
+
+    echo "Apply the snap-1-1-xdelta3 delta to reconstruct the target snap"
+    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the reconstructed snap is bit-for-bit identical to the original target"
+    cmp target.snap reconstructed.snap
+
+    echo "Verify using hash comparison"
+    TARGET_HASH=$(md5sum target.snap | cut -d' ' -f1)
+    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
+    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
+
+    # Test plain xdelta3 format
+    rm -f out.delta reconstructed.snap
+
+    echo "Generate a delta using plain xdelta3 format"
+    snap delta generate --source source.snap --target target.snap --delta out.delta --format xdelta3
+    test -f out.delta
+
+    echo "Apply the xdelta3 delta to reconstruct the target snap"
+    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the xdelta3-reconstructed snap is bit-for-bit identical"
+    cmp target.snap reconstructed.snap
+
+    echo "Verify xdelta3 format using hash comparison"
+    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
+    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
+
+    echo "Test snap delta with short flags"
+    rm -f out.delta reconstructed.snap
+    snap delta generate -s source.snap -t target.snap -d out.delta
+    test -f out.delta
+    snap delta apply -s source.snap -t reconstructed.snap -d out.delta
+    test -f reconstructed.snap
+
+    echo "Test error on unknown operation"
+    not snap delta compress --source source.snap --target target.snap --delta out.delta 2>&1 | MATCH "unknown operation"
+
+    echo "Test error when source file does not exist"
+    not snap delta generate --source nonexistent.snap --target target.snap --delta out.delta 2>&1
+
+    # --- Test with real snapd snaps ---
+    rm -f out.delta reconstructed.snap
+
+    echo "Generate a snap-1-1-xdelta3 delta between two real snapd revisions"
+    snap delta generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format snap-1-1-xdelta3
+    test -f out.delta
+
+    echo "Check that the delta is smaller than the target snapd snap"
+    DELTA_SIZE=$(stat -c%s out.delta)
+    TARGET_SIZE=$(stat -c%s snapd-new.snap)
+    test "$DELTA_SIZE" -lt "$TARGET_SIZE"
+
+    echo "Apply the snap-1-1-xdelta3 delta to reconstruct the target snapd snap"
+    snap delta apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the reconstructed snapd snap is bit-for-bit identical"
+    cmp snapd-new.snap reconstructed.snap
+
+    SNAPD_TARGET_HASH=$(md5sum snapd-new.snap | cut -d' ' -f1)
+    SNAPD_RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
+    test "$SNAPD_TARGET_HASH" = "$SNAPD_RECONSTRUCTED_HASH"
+
+    # Test plain xdelta3 on real snapd snaps
+    rm -f out.delta reconstructed.snap
+
+    echo "Generate a plain xdelta3 delta between two real snapd revisions"
+    snap delta generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format xdelta3
+    test -f out.delta
+
+    echo "Apply the plain xdelta3 delta to reconstruct the target snapd snap"
+    snap delta apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
+    test -f reconstructed.snap
+
+    echo "Verify the xdelta3-reconstructed snapd snap is bit-for-bit identical"
+    cmp snapd-new.snap reconstructed.snap
