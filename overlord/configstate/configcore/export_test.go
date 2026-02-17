@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
@@ -106,4 +107,20 @@ func MockEnvPath(newEnvPath string) func() {
 	oldEnvPath := envFilePath
 	envFilePath = newEnvPath
 	return func() { envFilePath = oldEnvPath }
+}
+
+func MockOsMkdirAll(f func(string, os.FileMode) error) func() {
+	return testutil.Mock(&osMkdirAll, f)
+}
+
+func MockOsReadFile(f func(name string) ([]byte, error)) func() {
+	return testutil.Mock(&osReadFile, f)
+}
+
+func MockOsRemove(f func(string) error) func() {
+	return testutil.Mock(&osRemove, f)
+}
+
+func MockOsutilAtomicWriteFile(f func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error) func() {
+	return testutil.Mock(&osutilAtomicWriteFile, f)
 }
