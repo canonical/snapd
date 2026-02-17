@@ -11,6 +11,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -1211,4 +1212,123 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataApplicationSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.IntegrityDataInfo, IsNil)
+}
+
+func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() != "some-base" {
+			return nil
+		}
+
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+			},
+		}
+
+		return nil
+	}
+	s.AddCleanup(func() { s.fakeStore.mutateSnapInfo = nil })
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: "some-base",
+		SnapID:   "some-base-id",
+		Revision: snap.R(1),
+	}})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        seq,
+		Current:         snap.R(1),
+		SnapType:        "base",
+	})
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{InstanceName: "some-base"})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	var setup *snapstate.SnapSetup
+	for _, task := range ts.Tasks() {
+		cand, err := snapstate.TaskSnapSetup(task)
+		if err == nil && cand.InstanceName() == "some-base" {
+			setup = cand
+			break
+		}
+	}
+
+	c.Check(setup.IntegrityDataInfo, Not(IsNil))
+}
+
+func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() != "some-snap" {
+			return nil
+		}
+
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+			},
+		}
+
+		return nil
+	}
+	s.AddCleanup(func() { s.fakeStore.mutateSnapInfo = nil })
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}})
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        seq,
+		Current:         snap.R(1),
+		SnapType:        "app",
+	})
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{InstanceName: "some-snap"})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	var setup *snapstate.SnapSetup
+	for _, task := range ts.Tasks() {
+		cand, err := snapstate.TaskSnapSetup(task)
+		if err == nil && cand.InstanceName() == "some-snap" {
+			setup = cand
+			break
+		}
+	}
+
+	c.Assert(setup, NotNil)
+	c.Check(setup.IntegrityDataInfo, IsNil)
 }

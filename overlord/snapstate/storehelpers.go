@@ -588,9 +588,10 @@ func storeUpdatePlanCore(
 			info:   sar.Info,
 			snapst: *snapst,
 			setup: SnapSetup{
-				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
-				CohortKey:    up.RevOpts.CohortKey,
+				DownloadInfo:      &sar.DownloadInfo,
+				Channel:           up.RevOpts.Channel,
+				CohortKey:         up.RevOpts.CohortKey,
+				IntegrityDataInfo: sar.IntegrityData,
 			},
 			components: compTargets,
 		})
