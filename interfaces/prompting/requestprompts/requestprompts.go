@@ -710,16 +710,31 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) {
 	}
 	pdb.saveRequestMap()
 
-	if len(pdb.pendingUnreceivedRequests) == 0 {
-		pdb.readyTimer.Stop() // not necessary, but for good measure
-		close(pdb.ready)
-	}
+	pdb.readyIfPendingAllReceived()
 
 	return
 }
 
 var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 	return timeutil.AfterFunc(d, f)
+}
+
+// readyIfPendingAllReceived checks whether all pending unreceived requests
+// have been re-received, and if so, ensures that the ready channel is closed.
+// The caller must ensure that the prompt DB mutex is locked.
+func (pdb *PromptDB) readyIfPendingAllReceived() {
+	if len(pdb.pendingUnreceivedRequests) == 0 {
+		select {
+		case <-pdb.ready:
+			// already readied
+		default:
+			// Stop the timer. This is not strictly necessary, as HandleRequests
+			// will return early if already ready, but by stopping it we avoid
+			// starting a goroutine in the future when the timer expires.
+			pdb.readyTimer.Stop()
+			close(pdb.ready)
+		}
+	}
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -774,15 +789,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		if needToSave {
 			pdb.saveRequestMap()
 		}
-		if len(pdb.pendingUnreceivedRequests) == 0 {
-			select {
-			case <-pdb.ready:
-				// already readied
-			default:
-				pdb.readyTimer.Stop() // not necessary, but for good measure
-				close(pdb.ready)
-			}
-		}
+		pdb.readyIfPendingAllReceived()
 	}()
 
 	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key, metadata, constraints)
