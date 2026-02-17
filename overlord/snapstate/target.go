@@ -290,20 +290,13 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		var channel string
-		switch {
-		case r.RedirectChannel != "":
-			channel = r.RedirectChannel
-		case sn.RevOpts.Channel != "":
-			channel = sn.RevOpts.Channel
-		default:
-			// this should only ever happen if the caller requested a specific
-			// revision to be installed (without specifying a channel). note
-			// that we won't actually end up tracking "stable", it will get
-			// mapped to "latest/stable" by SnapState.SetTrackingChannel in
-			// doLinkSnap
-			channel = "stable"
-		}
+		channel := firstNonEmpty(
+			r.RedirectChannel,
+			sn.RevOpts.Channel,
+			// fallback to "stable" should only happen if the caller requested a
+			// specific revision to be installed, without specifying a channel.
+			"stable",
+		)
 
 		comps, err := componentTargetsFromActionResult("install", r, sn.Components)
 		if err != nil {
