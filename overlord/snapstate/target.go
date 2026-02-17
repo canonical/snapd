@@ -1015,7 +1015,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 
 	ignoreValidation := make(map[string]bool, len(p.targets))
 	for _, t := range p.targets {
-		if t.snapst.IgnoreValidation {
+		if t.snapst.IgnoreValidation || !t.snapst.IsInstalled() {
 			ignoreValidation[t.info.InstanceName()] = true
 		}
 	}
@@ -1209,6 +1209,9 @@ type StoreUpdate struct {
 	// AdditionalComponents is a list of additional components to install during
 	// the refresh.
 	AdditionalComponents []string
+	// InstallIfMissing indicates that the snap should be installed when it is
+	// not currently installed.
+	InstallIfMissing bool
 }
 
 // StoreUpdateGoal creates a new UpdateGoal to update snaps from the store.
@@ -1267,16 +1270,22 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 	for _, sn := range updates {
 		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
-			return snap.NotInstalledError{Snap: sn.InstanceName}
+			if !sn.InstallIfMissing {
+				return snap.NotInstalledError{Snap: sn.InstanceName}
+			}
+			snapst = &SnapState{}
+		}
+
+		// for new installations, we default to "stable" if the caller didn't
+		// specify a specific revision or channel. if a revision is provided, we
+		// skip this since the revision might not be in "stable".
+		if !snapst.IsInstalled() && sn.RevOpts.Revision.Unset() {
+			sn.RevOpts.Channel = firstNonEmpty(sn.RevOpts.Channel, "stable")
 		}
 
 		// default to existing cohort key if we don't have a provided one
 		if sn.RevOpts.CohortKey == "" && !sn.RevOpts.LeaveCohort {
 			sn.RevOpts.CohortKey = snapst.CohortKey
-		}
-
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, snapst.TrackingChannel, opts.DeviceCtx); err != nil {
-			return err
 		}
 
 		additional := make([]string, 0, len(sn.AdditionalComponents))
@@ -1289,6 +1298,15 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			}
 		}
 		sn.AdditionalComponents = additional
+
+		fallback := snapst.TrackingChannel
+		if !snapst.IsInstalled() {
+			fallback = "stable"
+		}
+
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
+			return err
+		}
 
 		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {
 			return err

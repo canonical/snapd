@@ -401,6 +401,114 @@ func (s *targetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
 }
 
+func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:     "some-snap",
+		InstallIfMissing: true,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Check(op.action, DeepEquals, store.SnapAction{
+		Action:       "install",
+		InstanceName: "some-snap",
+		Channel:      "stable",
+	})
+}
+
+func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissingWithComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const compName = "standard-component"
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.SnapName(), Equals, "some-snap")
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{DownloadURL: "http://example.com/some-snap"},
+			Name:         compName,
+			Revision:     1,
+			Type:         fmt.Sprintf("component/%s", snap.StandardComponent),
+			Version:      "1.0",
+			CreatedAt:    "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         "some-snap",
+		InstallIfMissing:     true,
+		AdditionalComponents: []string{compName},
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "channel-for-components",
+		},
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Check(op.action.Action, Equals, "install")
+
+	hasDownloadComponentTask := false
+	hasLinkComponentTask := false
+	for _, kind := range taskKinds(ts.Tasks()) {
+		if kind == "download-component" {
+			hasDownloadComponentTask = true
+		}
+		if kind == "link-component" {
+			hasLinkComponentTask = true
+		}
+	}
+
+	c.Check(hasDownloadComponentTask, Equals, true)
+	c.Check(hasLinkComponentTask, Equals, true)
+}
+
+func (s *targetTestSuite) TestUpdateWithGoalMixesRefreshAndInstallIfMissing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: "some-other-snap",
+		SnapID:   "some-other-snap-id",
+		Revision: snap.R(1),
+	}})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        seq,
+		Current:         snap.R(1),
+		SnapType:        "app",
+	})
+
+	goal := snapstate.StoreUpdateGoal(
+		snapstate.StoreUpdate{InstanceName: "some-other-snap"},
+		snapstate.StoreUpdate{InstanceName: "some-snap", InstallIfMissing: true},
+	)
+
+	_, _, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	gotActions := make(map[string]string)
+	for _, op := range s.fakeBackend.ops {
+		if op.op != "storesvc-snap-action:action" {
+			continue
+		}
+		gotActions[op.action.InstanceName] = op.action.Action
+	}
+
+	c.Check(gotActions, DeepEquals, map[string]string{
+		"some-other-snap": "refresh",
+		"some-snap":       "install",
+	})
+}
+
 func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
