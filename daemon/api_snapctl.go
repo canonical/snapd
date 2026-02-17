@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"encoding/json"
 	"net/http"
+	"slices"
 
 	"strings"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var (
@@ -76,6 +79,44 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var features []string
 	if header := r.Header.Get("X-Snapctl-Features"); header != "" {
 		features = strings.Split(header, ",")
+	}
+
+	if slices.Contains(features, "async") {
+		decoder := json.NewDecoder(r.Body)
+		var inst snapInstruction
+		if err := decoder.Decode(&inst); err != nil {
+			return BadRequest("cannot decode request body into snap instruction: %v", err)
+		}
+
+		st := c.d.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+
+		if err := inst.validate(); err != nil {
+			return BadRequest("%s", err)
+		}
+
+		impl := inst.dispatch()
+		if impl == nil {
+			return BadRequest("unknown action %s", inst.Action)
+		}
+
+		res, err := impl(r.Context(), &inst, st)
+		if err != nil {
+			return inst.errToResponse(err)
+		}
+
+		changeKind, ok := changeKind(inst.Action)
+		if !ok {
+			return BadRequest("unknown action %s", inst.Action)
+		}
+
+		chg := newChange(st, changeKind, res.Summary, res.Tasksets, res.Affected)
+		if len(res.Tasksets) == 0 {
+			chg.SetStatus(state.DoneStatus)
+		}
+
+		return AsyncResponse(nil, chg.ID())
 	}
 
 	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, features)

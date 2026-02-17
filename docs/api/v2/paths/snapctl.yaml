@@ -3,6 +3,7 @@
 
 post:
   tags:
+    - Aynchronous
     - AuthenticationRequired
     - Snaps
     - Synchronous
@@ -24,6 +25,7 @@ post:
       required: false
       schema:
         type: string
+        enum: [async]
   requestBody:
     description: |-
       The context and arguments for the snapctl command.

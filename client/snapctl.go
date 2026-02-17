@@ -62,7 +62,7 @@ type snapctlOutput struct {
 }
 
 var supportedFeatures = []string{
-	// "async",
+	"async",
 }
 
 // protect against too much data via stdin

@@ -1,0 +1,34 @@
+summary: Check that `snapctl` asynchronous functionality works correctly
+
+details: |
+    This test verifies that `snapctl` can function correctly when the client
+    supports the 'async' feature. The daemon should recognize the 'async' header,
+    and return a nil result along with a change ID that can be queried for the status
+    of the change.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snap
+
+execute: |
+    echo "Run snapctl command with async feature"
+    result=$(curl -sS -X POST --unix-socket /run/snapd-snap.socket \
+        -H "Content-Type: application/json" \
+        -H "X-Snapctl-Features: async" \
+        -d '{"context-id": "test-context", "args": ["refresh", "test-snap"]}' \
+        http://localhost/v2/snapctl)
+    
+    change_id=$(echo "$result" | gojq -r '.data["change-id"]')
+    if [ -z "$change_id" ]; then
+        echo "Expected change ID in response, got: $result"
+        exit 1
+    fi
+
+    echo "Querying change status for change ID: $change_id"
+    change_status=$(curl -sS --unix-socket /run/snapd-snap.socket \
+        http://localhost/v2/changes/"$change_id")
+    
+    status=$(echo "$change_status" | gojq -r '.data.status')
+    if [ "$status" != "Done" ]; then
+        echo "Expected change status to be 'Done', got: $status"
+        exit 1
+    fi
