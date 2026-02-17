@@ -61,17 +61,11 @@ userns,
 # Permission for the new root
 /newroot/** rwkl,
 
-# Specific pressure-vessel assemblies
-mount options=(rw, rbind) /oldroot/usr/ -> /newroot/run/host/usr/,
-
 # Restrictive host access
 /run/host/usr/lib/** mr,
 
 # Permission for bwrap temporary files
 /bindfile* rw,
-
-# Mounting temporary files
-mount options=(rw, rbind) /bindfile* -> /newroot/**,
 
 # Broad execution permissions for container binaries
 /usr/bin/steam-runtime-launcher-interface-* ixr,
