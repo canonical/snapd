@@ -10,11 +10,13 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -399,6 +401,236 @@ func (s *targetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 
 	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
+}
+
+func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		name               string
+		update             snapstate.StoreUpdate
+		expectedActionChan string
+		expectedSetupChan  string
+	}{
+		{
+			name: "defaults to stable channel",
+			update: snapstate.StoreUpdate{
+				InstanceName:     "some-snap",
+				InstallIfMissing: true,
+			},
+			expectedActionChan: "stable",
+			expectedSetupChan:  "stable",
+		},
+		{
+			name: "uses caller channel when set",
+			update: snapstate.StoreUpdate{
+				InstanceName:     "some-snap",
+				InstallIfMissing: true,
+				RevOpts:          snapstate.RevisionOptions{Channel: "edge"},
+			},
+			expectedActionChan: "edge",
+			expectedSetupChan:  "edge",
+		},
+		{
+			name: "prefers redirect channel over requested channel",
+			update: snapstate.StoreUpdate{
+				InstanceName:     "some-snap-with-default-track",
+				InstallIfMissing: true,
+				RevOpts:          snapstate.RevisionOptions{Channel: "stable"},
+			},
+			expectedActionChan: "stable",
+			expectedSetupChan:  "2.0/stable",
+		},
+		{
+			name: "revision-only request falls back to stable tracking",
+			update: snapstate.StoreUpdate{
+				InstanceName:     "some-snap",
+				InstallIfMissing: true,
+				RevOpts:          snapstate.RevisionOptions{Revision: snap.R(7)},
+			},
+			expectedActionChan: "",
+			expectedSetupChan:  "stable",
+		},
+	}
+
+	for _, tc := range tests {
+		s.fakeBackend.ops = nil
+
+		goal := snapstate.StoreUpdateGoal(tc.update)
+		ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+		c.Assert(err, IsNil, Commentf(tc.name))
+		c.Assert(ts, NotNil, Commentf(tc.name))
+
+		op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+		c.Check(op.action.Action, Equals, "install", Commentf(tc.name))
+		c.Check(op.action.InstanceName, Equals, tc.update.InstanceName, Commentf(tc.name))
+		c.Check(op.action.Channel, Equals, tc.expectedActionChan, Commentf(tc.name))
+
+		if tc.update.RevOpts.Revision.Unset() {
+			c.Check(op.action.Revision.Unset(), Equals, true, Commentf(tc.name))
+		} else {
+			c.Check(op.action.Revision, Equals, tc.update.RevOpts.Revision, Commentf(tc.name))
+		}
+
+		var snapsup *snapstate.SnapSetup
+		for _, task := range ts.Tasks() {
+			cand, setupErr := snapstate.TaskSnapSetup(task)
+			if setupErr == nil && cand.InstanceName() == tc.update.InstanceName {
+				snapsup = cand
+				break
+			}
+		}
+
+		c.Assert(snapsup, NotNil, Commentf(tc.name))
+		c.Check(snapsup.Channel, Equals, tc.expectedSetupChan, Commentf(tc.name))
+	}
+}
+
+func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissingWithComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const compName = "standard-component"
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.SnapName(), Equals, "some-snap")
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{DownloadURL: "http://example.com/some-snap"},
+			Name:         compName,
+			Revision:     1,
+			Type:         fmt.Sprintf("component/%s", snap.StandardComponent),
+			Version:      "1.0",
+			CreatedAt:    "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         "some-snap",
+		InstallIfMissing:     true,
+		AdditionalComponents: []string{compName},
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "channel-for-components",
+		},
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Check(op.action.Action, Equals, "install")
+
+	kinds := taskKinds(ts.Tasks())
+	c.Check(kinds, testutil.Contains, "download-component")
+	c.Check(kinds, testutil.Contains, "link-component")
+}
+
+func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissingWithMissingComponent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const missingComp = "missing-component"
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName:         "some-snap",
+		InstallIfMissing:     true,
+		AdditionalComponents: []string{missingComp},
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "channel-for-components",
+		},
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, ErrorMatches, `cannot extract components from snap resources: cannot find component "missing-component" in snap resources`)
+}
+
+func (s *targetTestSuite) TestUpdateWithGoalMixesRefreshAndInstallIfMissing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	validateCalled := false
+	snapstate.ValidateRefreshes = func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+		validateCalled = true
+		c.Assert(refreshes, HasLen, 2)
+
+		names := make(map[string]bool)
+		for _, info := range refreshes {
+			names[info.InstanceName()] = true
+		}
+
+		c.Check(names, DeepEquals, map[string]bool{
+			"some-other-snap": true,
+			"some-snap":       true,
+		})
+
+		c.Check(ignoreValidation, DeepEquals, map[string]bool{
+			"some-snap": true,
+		})
+
+		return refreshes, nil
+	}
+	defer func() { snapstate.ValidateRefreshes = nil }()
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: "some-other-snap",
+		SnapID:   "some-other-snap-id",
+		Revision: snap.R(1),
+	}})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        seq,
+		Current:         snap.R(1),
+		SnapType:        "app",
+	})
+
+	goal := snapstate.StoreUpdateGoal(
+		snapstate.StoreUpdate{InstanceName: "some-other-snap"},
+		snapstate.StoreUpdate{InstanceName: "some-snap", InstallIfMissing: true},
+	)
+
+	_, _, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	actions := make(map[string]string)
+	for _, op := range s.fakeBackend.ops {
+		if op.op != "storesvc-snap-action:action" {
+			continue
+		}
+		actions[op.action.InstanceName] = op.action.Action
+	}
+
+	c.Check(actions, DeepEquals, map[string]string{
+		"some-other-snap": "refresh",
+		"some-snap":       "install",
+	})
+	c.Check(validateCalled, Equals, true)
+}
+
+func (s *targetTestSuite) TestUpdateWithGoalInstallIfMissingStoreNoResult(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: "some-other-snap",
+		SnapID:   "some-other-snap-id",
+		Revision: snap.R(1),
+	}})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        seq,
+		Current:         snap.R(1),
+		SnapType:        "app",
+	})
+
+	goal := snapstate.StoreUpdateGoal(
+		snapstate.StoreUpdate{InstanceName: "some-other-snap"},
+		snapstate.StoreUpdate{InstanceName: "snap-unknown", InstallIfMissing: true},
+	)
+
+	_, _, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, testutil.ErrorIs, store.ErrSnapNotFound)
 }
 
 func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
