@@ -121,6 +121,9 @@ func init() {
 	// system.coredump
 	addFSOnlyHandler(validateCoredumpSettings, handleCoredumpConfiguration, coreOnly)
 
+	// system.motd
+	addFSOnlyHandler(validateMotdConfiguration, handleMotdConfiguration, coreOnly)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
