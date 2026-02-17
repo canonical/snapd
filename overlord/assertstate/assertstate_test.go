@@ -4186,6 +4186,71 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 }
 
+func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationErrorCommitsOnlyPrerequisites(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+
+	dev2PrivKey, _ := assertstest.GenerateKey(752)
+	dev2Acct := assertstest.NewAccount(s.storeSigning, "developer2", nil, "")
+	c.Assert(s.storeSigning.Add(dev2Acct), IsNil)
+	dev2AcctKey := assertstest.NewAccountKey(s.storeSigning, dev2Acct, nil, dev2PrivKey.PublicKey(), "")
+	c.Assert(s.storeSigning.Add(dev2AcctKey), IsNil)
+	dev2Signing := assertstest.NewSigningDB(dev2Acct.AccountID(), dev2PrivKey)
+
+	vsetHeaders := map[string]any{
+		"series":       "16",
+		"account-id":   dev2Acct.AccountID(),
+		"authority-id": dev2Acct.AccountID(),
+		"publisher-id": dev2Acct.AccountID(),
+		"name":         "bar",
+		"sequence":     "1",
+		"snaps": []any{map[string]any{
+			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
+			"name":     "other-snap",
+			"presence": "required",
+		}},
+		"timestamp": time.Now().Format(time.RFC3339),
+		"revision":  "1",
+	}
+	vset, err := dev2Signing.Sign(asserts.ValidationSetType, vsetHeaders, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.storeSigning.Add(vset), IsNil)
+
+	err = assertstate.TryEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", dev2Acct.AccountID())}, 0, nil, nil)
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	c.Assert(ok, Equals, true)
+	c.Check(verr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"other-snap": {
+			snap.R(0): []string{fmt.Sprintf("%s/bar", dev2Acct.AccountID())},
+		},
+	})
+
+	// validation-set assertion should still not be committed
+	_, err = assertstate.DB(st).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": dev2Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "1",
+	})
+	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+
+	// but its prerequisite assertions should be committed
+	_, err = assertstate.DB(st).Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": dev2AcctKey.PublicKeyID(),
+	})
+	c.Assert(err, IsNil)
+	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+		"account-id": dev2Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+}
+
 func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	st := s.state
 	st.Lock()
