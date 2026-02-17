@@ -938,7 +938,7 @@ func serviceUnitsFromApps(apps []*snap.AppInfo, includeActivatedServices bool) [
 //
 // The result is then two lists of snap service apps, separated by system/user type
 // that are valid for being stopped.
-func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
+func filterAppsForStop(apps []*snap.AppInfo, newApps map[string]*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -951,8 +951,10 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
 			switch app.RefreshMode {
 			case "endure":
-				// skip this service
-				continue
+				if _, kept := newApps[app.Name]; kept {
+					// skip this service
+					continue
+				}
 			}
 		}
 		// Verify that scope covers this service
@@ -982,7 +984,7 @@ type StopServicesOptions struct {
 
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
-func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
+func StopServices(apps []*snap.AppInfo, newApps map[string]*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	if opts == nil {
 		opts = &StopServicesOptions{}
 	}
@@ -1005,7 +1007,7 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	// doing this on a 'static' service is a no-op anyway, so no harm here.
 	const includeActivatedServices = true
 
-	sysApps, userApps := filterAppsForStop(apps, reason, opts)
+	sysApps, userApps := filterAppsForStop(apps, newApps, reason, opts)
 	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
 	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
 

@@ -259,8 +259,8 @@ func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.Disa
 	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, nil, reason, meter, tm)
+func (b Backend) StopServices(apps []*snap.AppInfo, newApps map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StopServices(apps, newApps, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) (wrappers.SnapdRestart, error) {

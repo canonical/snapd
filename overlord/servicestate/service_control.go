@@ -135,7 +135,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err := wrappers.StopServices(services, opts, snap.StopReasonOther, meter, perfTimings)
+		err := wrappers.StopServices(services, nil, opts, snap.StopReasonOther, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
