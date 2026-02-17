@@ -31,16 +31,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -70,7 +66,7 @@ type Prompt struct {
 	Cgroup      string
 	Interface   string
 	Constraints *promptConstraints
-	requests    []*listener.Request
+	requests    []*prompting.Request
 }
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
@@ -116,27 +112,22 @@ func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraint
 
 // addRequest adds the given request to the list of requests associated with
 // the receiving prompt if it is not already in the list.
-func (p *Prompt) addRequest(request *listener.Request) {
-	if !p.containsRequest(requestIDToKey(request.ID)) {
+func (p *Prompt) addRequest(request *prompting.Request) {
+	if !p.containsRequest(request.Key) {
 		p.requests = append(p.requests, request)
 	}
-}
-
-// TODO: delete me once requests have a real field for Key
-func requestIDToKey(id uint64) string {
-	return fmt.Sprintf("kernel:%d", id)
 }
 
 // containsRequest returns true if the receiving prompt contains a request
 // with the given key in its list of requests.
 func (p *Prompt) containsRequest(requestKey string) bool {
-	return slicesContainsFunc(p.requests, func(r *listener.Request) bool {
-		return requestIDToKey(r.ID) == requestKey
+	return slicesContainsFunc(p.requests, func(r *prompting.Request) bool {
+		return r.Key == requestKey
 	})
 }
 
 // TODO:GOVERSION: replace this with slices.ContainsFunc once on go 1.21+
-func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
+func slicesContainsFunc(s []*prompting.Request, f func(r *prompting.Request) bool) bool {
 	for _, element := range s {
 		if f(element) {
 			return true
@@ -160,24 +151,18 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 	if !allow {
 		deniedPermissions = p.Constraints.outstandingPermissions
 	}
-	allowedPermission := p.Constraints.buildResponse(p.Interface, deniedPermissions)
-	return p.sendReplyWithPermission(allowedPermission)
+	allowedPermissions := p.Constraints.buildResponse(deniedPermissions)
+	return p.sendReplyWithPermission(allowedPermissions)
 }
 
-func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermission) error {
+func (p *Prompt) sendReplyWithPermission(allowedPermissions []string) error {
 	for _, request := range p.requests {
-		if err := request.Reply(allowedPermission); err != nil {
-			if errors.Is(err, unix.ENOENT) {
-				// If err is ENOENT, then notification with the given ID does not
-				// exist, so it timed out in the kernel.
-				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", request)
-			} else {
-				// Other errors should only occur if reply is malformed, and
-				// since these requests should be identical, if a reply is
-				// malformed for one, it should be malformed for all. Malformed
-				// replies should leave the request unchanged. Thus, return early.
-				return err
-			}
+		if err := request.Reply(allowedPermissions); err != nil {
+			// Errors should only occur if reply is malformed, and since these
+			// requests should be identical, if a reply is malformed for one,
+			// it should be malformed for all. Malformed replies should leave
+			// the request unchanged. Thus, return early.
+			return err
 		}
 	}
 	return nil
@@ -203,9 +188,9 @@ type promptConstraints struct {
 	// original request. A prompt's permissions may be partially satisfied over
 	// time as new rules are added, but we need to keep track of the originally
 	// requested permissions so that we can still send back a response to the
-	// kernel with all of the originally requested permissions which were
-	// explicitly allowed by the user, even if some of those permissions were
-	// allowed by rules instead of by the direct reply to the prompt.
+	// request originator with all of the originally requested permissions which
+	// were explicitly allowed by the user, even if some of those permissions
+	// were allowed by rules instead of by the direct reply to the prompt.
 	originalPermissions []string
 }
 
@@ -324,19 +309,19 @@ func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleCon
 
 	if len(pc.outstandingPermissions) == 0 || len(deniedPermissions) > 0 {
 		// All permissions allowed or at least one permission denied, so tell
-		// the caller to send a response back to the kernel.
+		// the caller to send a response back to the request originator.
 		respond = true
 	}
 
 	return affectedByRule, respond, deniedPermissions, nil
 }
 
-// buildResponse creates the allowed permissions to send in the reply
+// buildResponse creates the list of allowed permissions to send in the reply
 // to the receiving prompt constraints.
 //
 // The allowed permissions are the originally requested permissions from the
 // prompt constraints, except with all denied permissions removed.
-func (pc *promptConstraints) buildResponse(iface string, deniedPermissions []string) notify.AppArmorPermission {
+func (pc *promptConstraints) buildResponse(deniedPermissions []string) []string {
 	allowedPerms := pc.originalPermissions
 	if len(deniedPermissions) > 0 {
 		allowedPerms = make([]string, 0, len(pc.originalPermissions)-len(deniedPermissions))
@@ -346,13 +331,7 @@ func (pc *promptConstraints) buildResponse(iface string, deniedPermissions []str
 			}
 		}
 	}
-	allowedPermission, err := prompting.AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
-	if err != nil {
-		// This should not occur, but if so, permission should be set to the
-		// empty value for its corresponding permission type.
-		logger.Noticef("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
-	}
-	return allowedPermission
+	return allowedPerms
 }
 
 // Path returns the path associated with the request to which the receiving
@@ -460,7 +439,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// Remove the request mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {
 		for _, request := range p.requests {
-			delete(pdb.requestMap, requestIDToKey(request.ID))
+			delete(pdb.requestMap, request.Key)
 		}
 	}
 	pdb.saveRequestMap()
@@ -592,11 +571,9 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	var savedState requestMappingJSON
 	err = json.NewDecoder(f).Decode(&savedState)
 	if err != nil {
-		// TODO: once we break backwards compatibility, we want this error to
-		// be non-fatal, but the preceding "cannot open mapping" error to be
-		// fatal. So, we need to either record a `logger.Notice()` here and
-		// return nil, or return a named error and check for it at the call
-		// site.
+		// XXX: currently, a decode error causes prompt DB startup to fail,
+		// thus preventing the prompting system from starting. Do we want to
+		// instead record a logger.Notice and re-initialize an empty map?
 		return fmt.Errorf("cannot read stored mapping from request key to prompt ID: %w", err)
 	}
 
@@ -664,7 +641,8 @@ func (pdb *PromptDB) HandleReadying() error {
 		if !existingPrompts[entry.PromptID] {
 			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
 		}
-		// No need to send a reply to the kernel, since the request is gone
+		// No need to send a reply to the request originator, since the request
+		// is gone. Also we can't, since there's no request to call Reply() on.
 	}
 	pdb.saveRequestMap()
 	return nil
@@ -686,7 +664,7 @@ var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 //
 // The caller must ensure that the given permissions are in the order in which
 // they appear in the available permissions list for the given interface.
-func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, request *listener.Request) (*Prompt, bool, error) {
+func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, requestedPermissions []string, outstandingPermissions []string, request *prompting.Request) (*Prompt, bool, error) {
 	availablePermissions, err := prompting.AvailablePermissions(metadata.Interface)
 	if err != nil {
 		// Error should be impossible, since caller has already validated that
@@ -728,10 +706,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		}
 	}()
 
-	requestKey := requestIDToKey(request.ID)
-	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, requestKey, metadata, constraints)
+	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key, metadata, constraints)
 	if result.foundInvalidRequestMapping {
-		delete(pdb.requestMap, requestKey)
+		delete(pdb.requestMap, request.Key)
 		needToSave = true
 	}
 
@@ -740,7 +717,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		if !result.foundExistingRequestMapping {
 			// Request matched existing prompt but doesn't have an ID mapped,
 			// so map the request key to the prompt ID.
-			pdb.requestMap[requestKey] = requestMapEntry{
+			pdb.requestMap[request.Key] = requestMapEntry{
 				PromptID: existingPrompt.ID,
 				UserID:   metadata.User,
 			}
@@ -762,8 +739,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 			// Deny all permissions which are not already allowed by existing rules
-			allowedPermission := constraints.buildResponse(metadata.Interface, constraints.outstandingPermissions)
-			request.Reply(allowedPermission)
+			allowedPermissions := constraints.buildResponse(constraints.outstandingPermissions)
+			request.Reply(allowedPermissions)
 			return nil, false, prompting_errors.ErrTooManyPrompts
 		}
 
@@ -771,7 +748,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 
 		// Map the new ID
-		pdb.requestMap[requestKey] = requestMapEntry{
+		pdb.requestMap[request.Key] = requestMapEntry{
 			PromptID: promptID,
 			UserID:   metadata.User,
 		}
@@ -787,7 +764,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		Cgroup:      metadata.Cgroup,
 		Interface:   metadata.Interface,
 		Constraints: constraints,
-		requests:    []*listener.Request{request},
+		requests:    []*prompting.Request{request},
 	}
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
@@ -836,15 +813,13 @@ func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestKey stri
 			// Prompt with the mapped ID hasn't yet been re-created, so return
 			// the ID. The caller should create a new prompt with that ID.
 			// It is theoretically possible that there could be an existing
-			// prompt which matches but has a different ID, but the kernel
+			// prompt which matches but has a different ID. However, the kernel
 			// guarantees that previously-sent requests are re-sent before any
-			// new requests and in the same order they were originally sent.
-			// Thus, it should be impossible for a request to be received which
+			// new requests and in the same order they were originally sent, and
+			// equivalent requests from the API should generally have the same
+			// key. Thus, it should not occur that a request is received which
 			// has a prompt ID mapping but is identical to an existing prompt
 			// with a different ID.
-			//
-			// TODO: re-evaluate this statement when requests can come from
-			// places other than the kernel.
 			return nil, promptID, result
 		}
 		// The prompt exists, likely because the prompt was associated with
@@ -852,6 +827,7 @@ func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, requestKey stri
 		// re-received. Confirm that the prompt contents match the request.
 		if prompt.matchesRequestContents(metadata, constraints) {
 			result.foundExistingPrompt = true
+
 			return prompt, promptID, result
 		}
 		// Contents don't match. This should never occur in practice.
@@ -955,7 +931,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	}
 
 	for _, request := range prompt.requests {
-		delete(pdb.requestMap, requestIDToKey(request.ID))
+		delete(pdb.requestMap, request.Key)
 	}
 	pdb.saveRequestMap() // error should not occur
 
@@ -1030,7 +1006,8 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 
 		// A response is necessary, so either all permissions were allowed or
 		// at least one permission was denied. Construct a response and send it
-		// back to the kernel, and record a notice that the prompt was satisfied.
+		// back to the request originator, and record a notice that the prompt
+		// was satisfied.
 		if len(deniedPermissions) > 0 {
 			// At least one permission was denied by new rule, and we want to
 			// send a response immediately, so include any outstanding
@@ -1048,15 +1025,15 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		}
 		// Build and send a response with any permissions which were allowed,
 		// either by this new rule or by previous rules.
-		allowedPermission := prompt.Constraints.buildResponse(metadata.Interface, deniedPermissions)
-		prompt.sendReplyWithPermission(allowedPermission)
+		allowedPermissions := prompt.Constraints.buildResponse(deniedPermissions)
+		prompt.sendReplyWithPermission(allowedPermissions)
 		// Now that a response has been sent, remove the rule from the rule DB
 		// and record a notice indicating that it has been satisfied.
 		userEntry.remove(prompt.ID)
 
 		// Remove the ID mappings for the requests associated with the prompt.
 		for _, request := range prompt.requests {
-			delete(pdb.requestMap, requestIDToKey(request.ID))
+			delete(pdb.requestMap, request.Key)
 		}
 		needToSave = true
 
@@ -1074,7 +1051,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 // When snapd restarts, it should re-open the max ID mmap and load the mappings
 // from request key to prompt ID from disk, so that prompts can be re-created
 // with the same IDs as were previously associated with the requests when they
-// are re-received from the kernel.
+// are re-received from the request originators.
 func (pdb *PromptDB) Close() error {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()

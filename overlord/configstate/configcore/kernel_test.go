@@ -457,16 +457,15 @@ func (s *kernelSuite) TestConfigureKernelCmdlineNotSeeded(c *C) {
 		"dangerous", isClassic)
 }
 
-func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
+func (s *kernelSuite) TestConfigureKernelCmdlineExclusiveKindConflict(c *C) {
 	isClassic := false
 	s.mockModelWithModeenv("dangerous", isClassic)
 
 	cmdline := "param1=val1"
 	s.state.Lock()
 
-	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
-	chgUpd := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
-	chgUpd.AddTask(tugc)
+	chgExclusive := s.state.NewChange("remodel", "...")
+	chgExclusive.SetStatus(state.DoingStatus)
 
 	ts := s.state.NewTask("hook-task", "system hook task")
 	chg := s.state.NewChange("system-option", "...")
@@ -478,7 +477,7 @@ func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {
 	rt.Set("core", "system.kernel.dangerous-cmdline-append", cmdline)
 
 	err := configcore.Run(core20Dev, rt)
-	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
+	c.Assert(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }
 
 func (s *kernelSuite) testConfigureKernelCmdlineSignedGradeNotAllowed(c *C, cmdline string) {

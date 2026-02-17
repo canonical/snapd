@@ -47,5 +47,5 @@ properties:
     items:
       type: string
     example:
-      - bob/network/control-wifi
-      - bob/network/observe-wifi
+      - bob/network/wifi-admin
+      - bob/network/wifi-state
