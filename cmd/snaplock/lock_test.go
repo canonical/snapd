@@ -20,6 +20,7 @@
 package snaplock_test
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {
@@ -56,4 +59,60 @@ func (s *lockSuite) TestOpenLock(c *C) {
 
 	comment := Commentf("wrong prefix for %q, want %q", lock.Path(), dirs.SnapRunLockDir)
 	c.Check(strings.HasPrefix(lock.Path(), dirs.SnapRunLockDir), Equals, true, comment)
+}
+
+func (s *lockSuite) TestWithLock(c *C) {
+	lock, err := snaplock.OpenLock("name")
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil) // lock is not held
+	lock.Unlock()
+
+	err = snaplock.WithLock("name", func() error {
+		c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked) // lock is held
+		return errors.New("error-is-propagated")
+	})
+	c.Check(err, ErrorMatches, "error-is-propagated")
+
+	c.Assert(lock.TryLock(), IsNil) // lock was not held and we took it
+	lock.Unlock()
+}
+
+func (s *lockSuite) TestWithTryLock(c *C) {
+	lock, err := snaplock.OpenLock("name")
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil) // lock is not held
+	lock.Unlock()
+
+	err = snaplock.WithTryLock("name", func() error {
+		c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked) // lock is held
+		return errors.New("error-is-propagated")
+	})
+	c.Check(err, ErrorMatches, "error-is-propagated")
+
+	c.Assert(lock.TryLock(), IsNil) // lock was not held and we took it
+	lock.Unlock()
+
+	// so far this was identical to snaplock.WithLock(), now check the Try part
+
+	called := false
+	err = snaplock.WithTryLock("name", func() error {
+		called = true
+		// try nesting the lock
+		internalErr := snaplock.WithTryLock("name", func() error {
+			panic("unexpected call")
+		})
+		c.Assert(internalErr, testutil.ErrorIs, osutil.ErrAlreadyLocked)
+		return nil
+	})
+	c.Assert(called, Equals, true)
+
+	// take the lock
+	c.Check(lock.TryLock(), IsNil)
+	err = snaplock.WithTryLock("name", func() error {
+		panic("unexpected call")
+	})
+	c.Assert(err, testutil.ErrorIs, osutil.ErrAlreadyLocked)
+	lock.Unlock()
 }
