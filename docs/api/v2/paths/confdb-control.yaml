@@ -36,8 +36,8 @@ post:
                 - operator-key
                 - store
               views:
-                - bob/network/control-wifi
-                - bob/network/observe-wifi
+                - bob/network/wifi-admin
+                - bob/network/wifi-state
           undelegate:
             summary: Withdraw all access from an operator
             value:
@@ -51,7 +51,7 @@ post:
               authentications:
                 - store
               views:
-                - bob/network/control-wifi
+                - bob/network/wifi-admin
   responses:
     200:
       description: The confdb-control assertion was updated successfully.
