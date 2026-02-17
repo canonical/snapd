@@ -91,8 +91,16 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
-	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
+
+	chg, rm, err := osutil.EnsureDirState(dir, glob, content)
+	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
+	}
+
+	mutated := len(chg) != 0 || len(rm) != 0
+	if !mutated {
+		// no changes in mount profiles, nothing to do
+		return nil
 	}
 
 	// The snap's mount namespace update can either be immediate or be delayed.
