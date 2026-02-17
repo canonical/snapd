@@ -2923,8 +2923,8 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		return nil, err
 	}
 
-	// make sure no other active changes are changing the kernel command line
-	if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
+	// check whether there are other changes that need to run exclusively
+	if err := CheckChangeConflictExclusiveKinds(st, fromChange); err != nil {
 		return nil, err
 	}
 
