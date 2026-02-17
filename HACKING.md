@@ -45,6 +45,8 @@ the `snapd` project, please see [Contributing to snapd](./CONTRIBUTING.md).
 
 Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 
+<!-- test:ubuntu-deps -->
+
     cd ~/snapd
     ln -sfn packaging/ubuntu-16.04 debian
     sudo apt build-dep .
@@ -55,10 +57,12 @@ Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 Package build dependencies for other distributions can be found under the
 [./packaging/](./packaging/) directory. Eg. for Fedora use:
 
+<!-- test:fedora-deps -->
+
     cd packaging/fedora
     sudo dnf install -y rpmdevtools
     sudo dnf install -y $(rpmspec -q --buildrequires snapd.spec)
-    sudo dnf install glibc-static.i686 glibc-devel.i686
+    sudo dnf install -y glibc-static.i686 glibc-devel.i686
 
 Source dependencies are automatically retrieved at build time.
 Sometimes, it might be useful to pull them without building:
@@ -185,6 +189,7 @@ to identify which snap file is which.
 
 To build the `snap` command line client:
 
+<!-- test:build-snap -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -193,6 +198,7 @@ go build -o /tmp/build/snap ./cmd/snap
 
 To build the `snapd` REST API daemon:
 
+<!-- test:build-snapd -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -201,6 +207,7 @@ go build -o /tmp/build/snapd ./cmd/snapd
 
 To build all the `snapd` Go components:
 
+<!-- test:build-all -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -477,24 +484,28 @@ Hey, welcome to the nice, low-level world of snap-confine
 
 To get started from a pristine tree you want to do this:
 
-```
-./mkversion.sh
+<!-- test:c-build -->
+```bash
+# overriding the version to 1337, or leave empty to let the script figure
+# the version out automatically (on Ubuntu/Debian)
+./mkversion.sh 1337
 cd cmd/
-autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+./autogen.sh
+make
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
 target, available in [./cmd/](./cmd/) handy `(cd cmd; make hack)`. It installs the locally built
 version on your system and reloads the [AppArmor](https://apparmor.net/) profile.
 
->The above configure options assume you are on Ubuntu and are generally
-necessary to run/test graphical applications with your local version of
-snap-confine. The `--with-host-arch-triplet` option sets your specific 
-architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
-and libraries to be shared with snaps. If you are on a distro other than
-Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
-system-specific options too).
+>The `autogen.sh` script automatically detects your distribution (from `/etc/os-release`)
+and applies the appropriate configure options. On Ubuntu it uses `--enable-nvidia-multiarch`
+with the host architecture triplet, while on Fedora it uses `--enable-nvidia-biarch` with
+SELinux support. The script also handles running `autoreconf -i -f` and calling `mkversion.sh`
+if needed.
+>
+>If you need manual control over configure options, you can run `autoreconf -i -f` followed
+by `./configure` with your desired flags. See `./configure --help` for available options.
 
 ## Testing your changes locally 
 
