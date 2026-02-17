@@ -774,6 +774,18 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
+func (s *SystemdTestSuite) TestDaemonDisableEnable(c *C) {
+	sysd := New(SystemMode, s.rep)
+	err := sysd.DaemonDisableEnable([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}, {"--no-reload", "enable", "foo"}})
+
+	s.argses = nil
+	err = sysd.DaemonDisableEnable([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}, {"--no-reload", "enable", "foo", "bar"}})
+}
+
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
