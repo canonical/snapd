@@ -2194,10 +2194,13 @@ type RevisionOptions struct {
 	LeaveCohort    bool
 }
 
-func (r *RevisionOptions) setChannelIfUnset(channel string) {
-	if r.Channel == "" {
-		r.Channel = channel
+func firstNonEmpty(strs ...string) string {
+	for _, s := range strs {
+		if s != "" {
+			return s
+		}
 	}
+	return ""
 }
 
 // resolveChannel conditionally resolves the channel for the given snap. If the

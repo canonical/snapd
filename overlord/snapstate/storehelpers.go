@@ -582,7 +582,7 @@ func storeUpdatePlanCore(
 		// if we still have no channel here, this means that we refreshed
 		// by-revision without specifying a channel. make sure we continue to
 		// track the channel that the snap is currently on
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
+		up.RevOpts.Channel = firstNonEmpty(up.RevOpts.Channel, snapst.TrackingChannel)
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
@@ -642,7 +642,7 @@ func storeUpdatePlanCore(
 		// this must happen after the call to componentSetupsForInstall, since
 		// we can't set the channel to the tracking channel if we don't know
 		// that the requested revision is part of this channel
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
+		up.RevOpts.Channel = firstNonEmpty(up.RevOpts.Channel, snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
