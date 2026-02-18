@@ -98,7 +98,7 @@ func sessionInfo(c *Command, r *http.Request) Response {
  * daemon that uses the Desktop interface, and thus has the `graphical-session`
  * target, but doing it from a SSH connection or from a text console, where no
  * graphical session is running) it won't fail. It also won't fail if the WantedBy
- * entry points to a non-existant target, because it can happens that a system
+ * entry points to a non-existent target, because it can happens that a system
  * lacks a graphical system, but still wants to install a snap that has a daemon
  * that is designed for it (for example, because it contains other tools that
  * are useful in a text-only system; another case is for spread tests).
