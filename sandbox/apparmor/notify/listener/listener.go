@@ -69,17 +69,15 @@ type Listener[R any] struct {
 	// Only the main run loop may close this channel.
 	reqs chan *R
 
-	// readyOnce ensures that the listener only readies once, either because
-	// all pending requests were re-received, or because the requestprompts
-	// backend signalled that it timed out waiting.
+	// readyOnce should always be used to call `signalReady` to ensure that the
+	// listener only readies once.
 	readyOnce sync.Once
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
-	// over the reqs channel. This occurs once pendingCount reaches 0, snapd
-	// receives a message which does not have the UNOTIF_RESENT flag, or the
-	// requestprompts backend times out waiting. This channel must only be
-	// closed by the signalReady method, and that should only be called via
-	// readyOnce.
+	// over the reqs channel. This occurs once pendingCount reaches 0 or snapd
+	// receives a message which does not have the UNOTIF_RESENT flag. This
+	// channel must only be closed by the signalReady method, and that should
+	// only be called via readyOnce.
 	ready chan struct{}
 	// pendingMu is a mutex which protects pendingCount.
 	pendingMu sync.Mutex
@@ -197,11 +195,6 @@ func (l *Listener[R]) Close() error {
 	// which won't be received.
 	err1 := l.notifyFile.Close()
 
-	// Consume readyOnce so that a readiness signal from the requestprompts
-	// backend due to the manager shutting down does not get treated as a
-	// timeout by the run loop.
-	l.readyOnce.Do(func() {})
-
 	// Close the close channel so that the the run loop knows to stop trying
 	// to send requests over the request channel, and so that once the epoll
 	// FD is closed (causing the syscall to error), it can check the closeChan
@@ -225,14 +218,11 @@ func (l *Listener[R]) Reqs() <-chan *R {
 
 // Ready returns a read-only channel which will be closed once all requests
 // which were pending when the listener was registered have been re-received
-// from the kernel and sent over the reqs channel. No non-resent requests will
-// be sent until all originally-pending requests have been resent.
+// from the kernel and sent over the reqs channel.
 //
-// The channel will close automatically after a timeout even if not all pending
-// requests have been re-received.
-//
-// The caller may wish to block new prompt replies or rules until after the
-// ready channel has been closed.
+// The kernel guarantees that no non-resent requests will be sent until all
+// originally-pending requests have been resent, so if a non-resent request is
+// received, then this channel will be closed to signal readiness.
 func (l *Listener[R]) Ready() <-chan struct{} {
 	return l.ready
 }
@@ -394,12 +384,11 @@ func (l *Listener[R]) decodeAndDispatchRequest(buf []byte) error {
 
 		// Handle whether the message was resent prior to attempting to parse
 		// it into a Request or send it to the manager. This way, API calls
-		// won't block unnecessarily and any potential ready timeout message
-		// will report the correct pending count. If this is the final pending
-		// request, then we want to signal readiness only if we find it to be
-		// malformed or after the request has been received, to make sure the
-		// manager handles the request (if valid) prior to observing the
-		// listener readiness.
+		// won't block unnecessarily. If this is the final pending request,
+		// then we want to signal readiness only if we find it to be malformed
+		// or after the request has been received, to make sure the manager
+		// handles the request (if valid) prior to observing the listener
+		// readiness.
 		isFinalPendingReq := l.handlePotentialResentMessage(omsg.Resent())
 
 		req, err := l.parseRequest(omsg.Class, first)
@@ -517,7 +506,7 @@ func (l *Listener[R]) signalReady() (pendingCount int) {
 	l.pendingMu.Lock()
 	defer l.pendingMu.Unlock()
 	pendingCount = l.pendingCount
-	l.pendingCount = 0 // if timed out, tell the run loop we're ready
+	l.pendingCount = 0 // tell the run loop we're ready
 	close(l.ready)
 	return pendingCount
 }
