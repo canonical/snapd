@@ -1165,8 +1165,24 @@ func (pdb *PromptDB) Close() error {
 		return err
 	}
 
+	// Stop all timers
+	pdb.readyTimer.Stop()
+	for _, userEntry := range pdb.perUser {
+		userEntry.expirationTimer.Stop()
+	}
+
 	// Clear all outstanding prompts
 	pdb.perUser = nil
+
+	// Signal readiness to unblock API calls, but don't call HandleReady, as
+	// that would purge the request map we want to use on next restart.
+	select {
+	case <-pdb.ready:
+		// already readied
+	default:
+		close(pdb.ready)
+	}
+
 	return nil
 }
 

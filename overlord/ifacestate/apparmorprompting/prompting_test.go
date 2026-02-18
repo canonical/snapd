@@ -1380,6 +1380,10 @@ func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsNotReady(c *C) {
 	})
 
 	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
+	})
 }
 
 func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfNoOtherRequests(c *C) {
@@ -1418,13 +1422,13 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfN
 		c.Errorf("manager failed to become ready after listener readied")
 	}
 
+	c.Assert(mgr.Stop(), IsNil)
+
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "requests timed out in the kernel while snapd was restarting: \"kernel:0000000000000001\"\n")
 		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
 		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
 	})
-
-	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadyingIfOtherRequests(c *C) {
@@ -1487,6 +1491,10 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	})
 
 	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
+	})
 }
 
 func (s *apparmorpromptingSuite) TestPromptsReadyBlocksRepliesNewRules(c *C) {
