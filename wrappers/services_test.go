@@ -3588,6 +3588,7 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		{"--user", "daemon-reload"},
 		{"--user", "start", "snap.hello-snap.svc2.sock1.socket"},
 		{"--user", "start", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "show", "--property", "FragmentPath", "snap.hello-snap.svc2.sock2.socket"},
 
 		// It failed, we attempt to stop all started user services again
 		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
@@ -4230,6 +4231,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "daemon-reload"},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
+		{"--user", "show", "--property", "FragmentPath", "snap.hello-snap.svc2.service"},
 		// session agent attempts to stop the non-failed services
 		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
@@ -5193,6 +5195,7 @@ NeedDaemonReload=no
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"--user", "reload-or-restart", srvFile},
+		{"--user", "show", "--property", "FragmentPath", "snap.test-snap.foo.service"},
 	})
 }
 
