@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -81,82 +81,6 @@ func init() {
 			logger.Noticef("Cannot parse SNAPD_DOWNLOAD_MEAS_WINDOW as time.Duration")
 		}
 	}
-}
-
-// Deltas enabled by default on classic, but allow opting in or out on both classic and core.
-func (s *Store) useDeltas() (use bool) {
-	s.xdeltaCheckLock.Lock()
-	defer s.xdeltaCheckLock.Unlock()
-
-	// check the cached value if available
-	if s.shouldUseDeltas != nil {
-		return *s.shouldUseDeltas
-	}
-
-	defer func() {
-		// cache whatever value we return for next time
-		s.shouldUseDeltas = &use
-	}()
-
-	// check if deltas were disabled by the environment
-	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
-		// then the env var is explicitly false, we can't use deltas
-		logger.Debugf("delta usage disabled by environment variable")
-		return false
-	}
-
-	// TODO: have a per-format checker instead, we currently only support
-	// xdelta3 as a format for deltas
-
-	// check if the xdelta3 config command works from the system snap
-	cmd, err := commandFromSystemSnap("/usr/bin/xdelta3", "config")
-	if err == nil {
-		// we have a xdelta3 from the system snap, make sure it works
-		if runErr := cmd.Run(); runErr == nil {
-			// success using the system snap provided one, setup the callback to
-			// use the cmd we got from CommandFromSystemSnap, but with a small
-			// tweak - this cmd to run xdelta3 from the system snap will likely
-			// have other arguments and a different main exe usually, so
-			// use it exactly as we got it from CommandFromSystemSnap,
-			// but drop the last arg which we know is "config"
-			exe := cmd.Path
-			args := cmd.Args[:len(cmd.Args)-1]
-			env := cmd.Env
-			dir := cmd.Dir
-			s.xdelta3CmdFunc = func(xDelta3args ...string) *exec.Cmd {
-				return &exec.Cmd{
-					Path: exe,
-					Args: append(args, xDelta3args...),
-					Env:  env,
-					Dir:  dir,
-				}
-			}
-			return true
-		} else {
-			logger.Noticef("unable to use system snap provided xdelta3, running config command failed: %v", runErr)
-		}
-	}
-
-	// we didn't have one from a system snap or it didn't work, fallback to
-	// trying xdelta3 from the system
-	loc, err := exec.LookPath("xdelta3")
-	if err != nil {
-		// no xdelta3 in the env, so no deltas
-		logger.Noticef("no host system xdelta3 available to use deltas")
-		return false
-	}
-
-	if err := exec.Command(loc, "config").Run(); err != nil {
-		// xdelta3 in the env failed to run, so no deltas
-		logger.Noticef("unable to use host system xdelta3, running config command failed: %v", err)
-		return false
-	}
-
-	// the xdelta3 in the env worked, so use that one
-	s.xdelta3CmdFunc = func(args ...string) *exec.Cmd {
-		return exec.Command(loc, args...)
-	}
-	return true
 }
 
 func (s *Store) cdnHeader() (string, error) {
@@ -211,11 +135,10 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return nil
 	}
 
-	if s.useDeltas() {
+	if len(s.supportedDeltaFormats()) > 0 {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
-
-		if len(downloadInfo.Deltas) == 1 {
-			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts)
+		if len(downloadInfo.Deltas) > 0 {
+			err := s.downloadAndApplyDelta(ctx, name, targetPath, downloadInfo, pbar, user, dlOpts)
 			if err == nil {
 				// try to place the file in the cacher
 				if err = s.cacher.Put(downloadInfo.Sha3_384, targetPath); err == nil {
@@ -856,30 +779,39 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	return s.doRequest(ctx, cli, reqOptions, user)
 }
 
-// downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-
-	if len(downloadInfo.Deltas) != 1 {
-		return errors.New("store returned more than one download delta")
+// selectDelta selects the preferred delta format amongst the options in downloadInfo.
+func (s *Store) selectDelta(downloadInfo *snap.DownloadInfo) (*snap.DeltaInfo, error) {
+	var deltaInfo snap.DeltaInfo
+	deltaFormats := s.supportedDeltaFormats()
+	idx := len(deltaFormats)
+	for _, info := range downloadInfo.Deltas {
+		// Priority is determined by the order returned by
+		// squashfsSupportedDeltaFormats(): lower index is higher priority. So
+		// once we find one at position idx, we do not want to look to higher
+		// indexes in the strings returned by the store.
+		for i := 0; i < idx; i++ {
+			if deltaFormats[i] == info.Format {
+				deltaInfo = info
+				idx = i
+				break
+			}
+		}
 	}
 
-	deltaInfo := downloadInfo.Deltas[0]
-
-	if deltaInfo.Format != s.deltaFormat {
-		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
+	if idx == len(deltaFormats) {
+		return nil, fmt.Errorf("store does not support any of our snap delta formats")
 	}
-
-	url := deltaInfo.DownloadURL
-
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
+	return &deltaInfo, nil
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
-var applyDelta = func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
-	return s.applyDeltaImpl(name, deltaPath, deltaInfo, targetPath, targetSha3_384)
+var applyDelta = func(ctx context.Context, s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+	return s.applyDeltaImpl(ctx, name, deltaPath, deltaInfo, targetPath, targetSha3_384)
 }
 
-func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+var squashfsApplyDelta = squashfs.ApplyDelta
+
+func (s *Store) applyDeltaImpl(ctx context.Context, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
@@ -887,22 +819,15 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
-	if deltaInfo.Format != "xdelta3" {
-		return fmt.Errorf("cannot apply unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
-	}
-
 	partialTargetPath := targetPath + ".partial"
-
-	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
 
 	// validity check that deltas are available and that the path for the xdelta3
 	// command is set
-	if ok := s.useDeltas(); !ok {
+	if ok := len(s.supportedDeltaFormats()) > 0; !ok {
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 
-	// run the xdelta3 command, cleaning up if we fail and logging about it
-	if runErr := s.xdelta3CmdFunc(xdelta3Args...).Run(); runErr != nil {
+	if runErr := squashfsApplyDelta(ctx, snapPath, deltaPath, partialTargetPath); runErr != nil {
 		logger.Noticef("encountered error applying delta: %v", runErr)
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)
@@ -934,11 +859,14 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 }
 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-	deltaInfo := &downloadInfo.Deltas[0]
+func (s *Store) downloadAndApplyDelta(ctx context.Context, name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
+	deltaInfo, err := s.selectDelta(downloadInfo)
+	if err != nil {
+		return err
+	}
 
-	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
-	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
+	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath,
+		deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
 
 	w, err := os.OpenFile(deltaPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
@@ -951,17 +879,20 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 		os.Remove(deltaPath)
 	}()
 
-	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
+	deltaName := fmt.Sprintf(i18n.G("%s (delta)"), name)
+	err = download(ctx, deltaName, deltaInfo.Sha3_384,
+		deltaInfo.DownloadURL, user, s, w, 0, pbar, dlOpts)
 	if err != nil {
 		return err
 	}
 
 	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	if err := applyDelta(s, name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
+	if err := applyDelta(ctx, s, name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
 		return err
 	}
 
-	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
+	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.",
+		name, deltaPath, downloadInfo.Size-deltaInfo.Size)
 	return nil
 }
 

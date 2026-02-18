@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -538,11 +539,11 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 }
 
 var downloadDeltaTests = []struct {
-	info        snap.DownloadInfo
-	withUser    bool
-	format      string
-	expectedURL string
-	expectError bool
+	info             snap.DownloadInfo
+	withUser         bool
+	supportedFormats []string
+	expectedURL      string
+	expectError      bool
 }{{
 	// No user delta download.
 	info: snap.DownloadInfo{
@@ -551,9 +552,9 @@ var downloadDeltaTests = []struct {
 			{DownloadURL: "delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	format:      "xdelta3",
-	expectedURL: "delta-url",
-	expectError: false,
+	supportedFormats: []string{"xdelta3"},
+	expectedURL:      "delta-url",
+	expectError:      false,
 }, {
 	// With user detla download.
 	info: snap.DownloadInfo{
@@ -562,23 +563,21 @@ var downloadDeltaTests = []struct {
 			{DownloadURL: "delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	withUser:    true,
-	format:      "xdelta3",
-	expectedURL: "delta-url",
-	expectError: false,
+	withUser:         true,
+	supportedFormats: []string{"xdelta3"},
+	expectedURL:      "delta-url",
+	expectError:      false,
 }, {
-	// An error is returned if more than one matching delta is returned by the store,
-	// though this may be handled in the future.
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
 			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 25},
-			{DownloadURL: "bsdiff-delta-url", Format: "xdelta3", FromRevision: 25, ToRevision: 26},
+			{DownloadURL: "bsdiff-delta-url", Format: "bsdiff", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	format:      "xdelta3",
-	expectedURL: "",
-	expectError: true,
+	supportedFormats: []string{"bsdiff"},
+	expectedURL:      "bsdiff-delta-url",
+	expectError:      false,
 }, {
 	// If the supported format isn't available, an error is returned.
 	info: snap.DownloadInfo{
@@ -587,10 +586,35 @@ var downloadDeltaTests = []struct {
 			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
 		},
+		DownloadURL: "full-snap-url",
 	},
-	format:      "bsdiff",
-	expectedURL: "",
-	expectError: true,
+	supportedFormats: []string{"bsdiff"},
+	expectedURL:      "full-snap-url",
+	expectError:      true,
+}, {
+	// Order of supported formats is honored
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "snap-delta-url", Format: "snap-1-1-xdelta3", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	supportedFormats: []string{"snap-1-1-xdelta3", "xdelta3"},
+	expectedURL:      "snap-delta-url",
+	expectError:      false,
+}, {
+	// Order of supported formats is honored
+	info: snap.DownloadInfo{
+		Sha3_384: "sha3",
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "snap-delta-url", Format: "snap-1-1-xdelta3", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	supportedFormats: []string{"xdelta3", "snap-1-1-xdelta3"},
+	expectedURL:      "xdelta3-delta-url",
+	expectError:      false,
 }}
 
 func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
@@ -601,37 +625,73 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 	dauthCtx := &testDauthContext{c: c}
 	sto := store.New(nil, dauthCtx)
 
-	for _, testCase := range downloadDeltaTests {
-		sto.SetDeltaFormat(testCase.format)
-		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{Scheduled: true})
-			expectedUser := s.user
-			if !testCase.withUser {
-				expectedUser = nil
-			}
-			c.Check(user, Equals, expectedUser)
-			c.Check(url, Equals, testCase.expectedURL)
-			w.Write([]byte("I was downloaded"))
-			return nil
+	currentSnapName := fmt.Sprintf("%s_24.snap", "snapname")
+	currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+	err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(currentSnapPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	for i, testCase := range downloadDeltaTests {
+		c.Log("tc:", i)
+		path := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("downloaded-file-%d", i))
+		defer os.Remove(path)
+
+		restore := store.MockSupportedDeltaFormats(func(squashfs.DeltaFormatOpts) []string {
+			return testCase.supportedFormats
 		})
 		defer restore()
+		restore = store.MockDownload(
+			func(ctx context.Context, name, sha3, url string, user *auth.UserState,
+				_ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter,
+				dlOpts *store.DownloadOptions,
+			) error {
+				c.Check(dlOpts, DeepEquals, &store.DownloadOptions{Scheduled: true})
+				expectedUser := s.user
+				if !testCase.withUser {
+					expectedUser = nil
+				}
+				c.Check(user, Equals, expectedUser)
+				// Checking the url checks that we have selected the right delta format
+				c.Check(url, Equals, testCase.expectedURL)
 
-		w, err := os.CreateTemp("", "")
-		c.Assert(err, IsNil)
-		defer os.Remove(w.Name())
+				if testCase.expectError {
+					// download is called for the full snap after we could not
+					// select a delta, error out as we are not testing that code
+					// path here
+					c.Check(name, Equals, "snapname")
+					return errors.New("won't download full snap")
+				}
+				c.Check(name, Equals, "snapname (delta)")
+				w.Write([]byte("delta content"))
+				return nil
+			})
+		defer restore()
+		restore = store.MockApplyDelta(
+			func(_ context.Context, _ *store.Store, name string, deltaPath string,
+				deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string,
+			) error {
+				c.Check(deltaPath, testutil.FileEquals, "delta content")
+				c.Check(targetPath, Equals, path)
+				err := os.WriteFile(targetPath, []byte("snap content via delta"), 0644)
+				c.Assert(err, IsNil)
+				return nil
+			})
+		defer restore()
 
 		authedUser := s.user
 		if !testCase.withUser {
 			authedUser = nil
 		}
 
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{Scheduled: true})
+		err := sto.Download(context.Background(), "snapname", path, &testCase.info, nil,
+			authedUser, &store.DownloadOptions{Scheduled: true})
 
 		if testCase.expectError {
-			c.Assert(err, NotNil)
+			c.Assert(err, ErrorMatches, "won't download full snap")
 		} else {
 			c.Assert(err, IsNil)
-			c.Assert(w.Name(), testutil.FileEquals, "I was downloaded")
+			c.Assert(path, testutil.FileEquals, "snap content via delta")
 		}
 	}
 }
@@ -646,15 +706,15 @@ var applyDeltaTests = []struct {
 	currentRevision: 24,
 	error:           "",
 }, {
+	// A supported delta format can be applied.
+	deltaInfo:       snap.DeltaInfo{Format: "snap-1-1-xdelta3", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "",
+}, {
 	// An error is returned if the expected current snap does not exist on disk.
 	deltaInfo:       snap.DeltaInfo{Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 	currentRevision: 23,
 	error:           "snap \"foo\" revision 24 not found",
-}, {
-	// An error is returned if the format is not supported.
-	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
-	currentRevision: 24,
-	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta3 currently)",
 }}
 
 func (s *storeDownloadSuite) TestApplyDelta(c *C) {
@@ -679,30 +739,28 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		// make a fresh store object to circumvent the caching of xdelta3 info
-		// between test cases
-		sto := &store.Store{}
-		err = store.ApplyDelta(sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+		// make a fresh store object
+		sto := store.New(nil, nil)
+		applyDeltaCalls := 0
+		restore := store.MockSquashfsApplyDelta(
+			func(ctx context.Context, sourceSnap, deltaFile, targetSnap string) error {
+				applyDeltaCalls++
+				c.Check(sourceSnap, Equals, currentSnapPath)
+				c.Check(deltaFile, Equals, deltaPath)
+				c.Check(targetSnap, Equals, targetSnapPath+".partial")
+				return nil
+			})
+		defer restore()
+
+		err = store.ApplyDelta(context.Background(), sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
 
 		if testCase.error == "" {
 			c.Assert(err, IsNil)
-			c.Assert(s.mockXDelta.Calls(), DeepEquals, [][]string{
-				// since we don't cache xdelta3 in this test, we always check if
-				// xdelta3 config is successful before using xdelta3 (and at
-				// that point cache xdelta3 and don't call config again)
-				{"xdelta3", "config"},
-				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
-			})
-			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			st, err := os.Stat(targetSnapPath)
-			c.Assert(err, IsNil)
-			c.Check(st.Mode(), Equals, os.FileMode(0600))
-			c.Assert(os.Remove(targetSnapPath), IsNil)
+			c.Assert(applyDeltaCalls, Equals, 1)
 		} else {
 			c.Assert(err, NotNil)
 			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
-			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
+			c.Assert(applyDeltaCalls, Equals, 0)
 		}
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		c.Assert(os.Remove(deltaPath), IsNil)
@@ -815,31 +873,14 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 
 		switch url {
 		case "http://delta.download.url/get":
-			// equivalent to `echo "foo"``
-			_, err := w.Write([]byte("foo\n"))
+			// Must be magic xdelta3 number (0x00c4c3d6, little endian)
+			_, err := w.Write([]byte{0xd6, 0xc3, 0xc4, 00})
+			c.Assert(err, IsNil)
 			return err
 		}
 		panic(fmt.Sprintf("unexpected URL %v", url))
 	})
 	defer restore()
-
-	// mock xdelta to create an output file with a known checksum
-	//
-	mockXDelta := testutil.MockCommand(c, "xdelta3", `
-case "$@" in
-config)
-    ;;
--d\ -s*)
-    # -d -s <prev-rev>.snap <delta.file> <out.file>
-    # fake reconstructed content:
-    echo "foo" > "$5"
-    ;;
-*)
-    exit 123
-    ;;
-esac
-`)
-	defer mockXDelta.Restore()
 
 	// mock a previous revision of the snap
 	oldRevBlob := filepath.Join(dirs.SnapBlobDir, "foo_0.snap")
@@ -848,7 +889,7 @@ esac
 
 	// sha3-384256 of: foo\n
 	foo_sha3 := "a4d62fdfee48479a8951de809d9f3604309e8783d754d94c0842c89ddb544ee963bf64063644251e0521ca44aca97350"
-	snap := &snap.Info{
+	snapInfo := &snap.Info{
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(1),
 		},
@@ -869,32 +910,35 @@ esac
 	downDir := c.MkDir()
 	path := filepath.Join(downDir, "downloaded-file")
 	pathDeltaPartial := filepath.Join(downDir, "downloaded-file.xdelta3-0-to-1.partial")
-	pathPartial := filepath.Join(downDir, "downloaded-file.partial")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+
+	applyDeltaCalls := 0
+	restore = store.MockApplyDelta(func(_ context.Context, s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+		applyDeltaCalls++
+		c.Check(deltaPath, Equals, pathDeltaPartial)
+		return nil
+	})
+	defer restore()
+
+	err := s.store.Download(s.ctx, "foo", path, &snapInfo.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(downloadURLs, DeepEquals, []string{"http://delta.download.url/get"})
-	c.Check(mockXDelta.Calls(), DeepEquals, [][]string{
-		{"xdelta3", "config"},
-		{"xdelta3", "-d", "-s", oldRevBlob, pathDeltaPartial, pathPartial},
-	})
-
-	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
-	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
+	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
+	c.Check(applyDeltaCalls, Equals, 1)
 
 	// subsequent download pulls the file from the cache
-	mockXDelta.ForgetCalls()
 	downloadURLs = nil
-	err = s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+	err = s.store.Download(s.ctx, "foo", path, &snapInfo.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(downloadURLs, HasLen, 0)
-	c.Check(mockXDelta.Calls(), HasLen, 0)
+	c.Check(applyDeltaCalls, Equals, 1)
 
 	// we have another get
 	c.Check(obs.gets, DeepEquals, []string{
-		fmt.Sprintf("%s:%s", snap.Sha3_384, path),
-		fmt.Sprintf("%s:%s", snap.Sha3_384, path),
+		fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path),
+		fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path),
 	})
-	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
+	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
 	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
@@ -923,7 +967,7 @@ func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
 
 	// mock xdelta to create an output file with a known checksum
 	applyDeltaCalls := 0
-	restore = store.MockApplyDelta(func(s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+	restore = store.MockApplyDelta(func(_ context.Context, s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 		applyDeltaCalls++
 		return os.WriteFile(targetPath, []byte("foo\n"), 0644)
 	})
