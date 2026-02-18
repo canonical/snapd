@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -80,10 +81,9 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	//  - listed as Driver#### load options
 	//  - referenced in the DriverOrder UEFI variable
 	//  - loaded from PCI device option ROMs (e.g. network card PXE ROMs)
-	//TODO:FDEM: remove once secboot provides an action to apply this configuration
 	checkFlags := sb_preinstall.PermitAddonDrivers
-	if systemd.IsVirtualMachine() {
-		// when running in Virtual Machine, allow it
+	// For nested tests: muinstaller does not support interactions to ignore errors.
+	if systemd.IsVirtualMachine() && snapdenv.Testing() {
 		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
