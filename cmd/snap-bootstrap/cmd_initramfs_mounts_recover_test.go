@@ -566,7 +566,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
 	c.Assert(err, IsNil)
-	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true})
+	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true, release: 24})
 
 	s.testInitramfsMountsRecoverModeHappy(c, &testSnapOpts{
 		snaps: snaps,
