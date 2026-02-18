@@ -372,11 +372,15 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 	defer restore()
 
 	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
 	restore = requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
-		timer = testtime.AfterFunc(d, f)
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
 		return timer
 	})
 	defer restore()
@@ -428,6 +432,8 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 
 	noticeData := map[string]string{"resolved": "expired"}
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	<-callbackDone
 
 	c.Check(logbuf.String(), testutil.Contains, `timed out waiting for requests to be re-received after snap restart: "foo:1", "foo:2"`)
 }
