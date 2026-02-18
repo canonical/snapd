@@ -324,13 +324,14 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 
 	// Write initial mappings from request keys to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	mapping := requestprompts.RequestMappingJSON{
-		RequestMap: map[string]requestprompts.RequestMapEntry{
-			"foo:1": {PromptID: 1, UserID: s.defaultUser},
-			"foo:2": {PromptID: 2, UserID: s.defaultUser},
-		},
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
 	}
-	data, err := json.Marshal(mapping)
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
 
@@ -351,6 +352,9 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 	c.Check(timer, NotNil)
 	c.Check(timer.Active(), Equals, true)
 
+	// ID map on still disk
+	s.checkWrittenRequestMap(c, mapping)
+
 	result := pdb.HandleReadying("")
 	c.Check(result, DeepEquals, []string{"foo:1", "foo:2"})
 
@@ -365,6 +369,9 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
 
 	c.Check(timer.Active(), Equals, false)
+
+	// ID map empty
+	s.checkWrittenRequestMap(c, map[string]requestprompts.RequestMapEntry{})
 }
 
 func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
@@ -1536,19 +1543,72 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
 
-	// Sense check that the timer is still active, though this is not part of
-	// any contract, and there's no reason that closing the timer shouldn't be
-	// allowed to stop the expiration timers. We don't at the moment because
-	// doing so is racy and unnecessary, though there's no harm in closing them.
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
+	c.Check(timer.Active(), Equals, false)
+
+	// Check that no new notices were recorded
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(timer, NotNil)
 	c.Check(timer.Active(), Equals, true)
 
-	// Elapse time as if the prompt timer expired
-	timer.Elapse(requestprompts.InitialTimeout + requestprompts.ActivityTimeout)
-	// Check that timer expiration did not result in new notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
-	// Check that the timer is no longer active. Since the DB is closed, the
-	// expiration callback should not reset the timer as it usually would.
+	pdb.Close()
+
+	// Closing the prompts DB should ready so that API calls aren't left blocked
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should now be ready")
+	}
+
+	s.checkNewNoticesSimple(c, nil, nil)
+
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
 	c.Check(timer.Active(), Equals, false)
+
+	// ID map still on disk
+	s.checkWrittenRequestMap(c, mapping)
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
