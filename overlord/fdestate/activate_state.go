@@ -94,7 +94,7 @@ type FDESystemState struct {
 	Status FDEStatus `json:"status"`
 
 	// AutoRepairResult is the status of the auto-repair attempt
-	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
+	AutoRepairResult AutoRepairResult `json:"auto-repair-result,omitempty",`
 }
 
 // SystemState returns a json serializable FDE state of the booted
@@ -107,8 +107,7 @@ func SystemState(st *state.State) (*FDESystemState, error) {
 		return nil, err
 	}
 	if repairResult == nil {
-		// FIXME: should there be a difference between "not attempted" and "not attempted yet"?
-		ret.AutoRepairResult = AutoRepairNotAttempted
+		ret.AutoRepairResult = AutoRepairNotInitialized
 	} else {
 		ret.AutoRepairResult = repairResult.Result
 	}

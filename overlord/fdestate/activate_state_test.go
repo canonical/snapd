@@ -97,8 +97,7 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "active",
-		"auto-repair-result": "not-attempted",
+		"status": "active",
 	})
 
 	// Let's check the file is cached
@@ -138,8 +137,7 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "degraded",
-		"auto-repair-result": "not-attempted",
+		"status": "degraded",
 	})
 
 	// Let's check the file is cached
@@ -167,8 +165,7 @@ func (s *activateStateSuite) TestActivateStateInactive(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "inactive",
-		"auto-repair-result": "not-attempted",
+		"status": "inactive",
 	})
 }
 
@@ -198,8 +195,7 @@ func (s *activateStateSuite) TestActivateStateRecovery(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "recovery",
-		"auto-repair-result": "not-attempted",
+		"status": "recovery",
 	})
 }
 
@@ -217,8 +213,7 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "indeterminate",
-		"auto-repair-result": "not-attempted",
+		"status": "indeterminate",
 	})
 }
 
@@ -236,8 +231,7 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSON(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status":             "indeterminate",
-		"auto-repair-result": "not-attempted",
+		"status": "indeterminate",
 	})
 }
 

@@ -43,6 +43,7 @@ var (
 type AutoRepairResult string
 
 const (
+	AutoRepairNotInitialized          AutoRepairResult = ""
 	AutoRepairNotAttempted            AutoRepairResult = "not-attempted"
 	AutoRepairFailedPlatformInit      AutoRepairResult = "failed-platform-init"
 	AutoRepairFailedKeyslots          AutoRepairResult = "failed-keyslots"

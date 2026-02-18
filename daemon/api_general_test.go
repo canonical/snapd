@@ -1237,9 +1237,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 	s.expectSystemInfoStorageEncReadAccess()
 
 	expectedStatus := ""
-	expectedResponse := map[string]any{
-		"auto-repair-result": "",
-	}
+	expectedResponse := map[string]any{}
 
 	setExpectedStatus := func(status string) {
 		expectedStatus = status
