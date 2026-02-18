@@ -59,7 +59,7 @@ func (l *fakeListener) Close() error {
 	return nil
 }
 
-func (l *fakeListener) Run(requestpromptsReady <-chan struct{}) error {
+func (l *fakeListener) Run() error {
 	<-l.closeChan
 	// In production, listener.Run() does not return on error, and when
 	// the listener is closed, it returns nil. So it should always return

@@ -28,6 +28,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -608,7 +609,8 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 
 	if len(pdb.requestMap) > 0 {
 		pdb.readyTimer = timeAfterFunc(readyTimeout, func() {
-			pdb.HandleReadying("")
+			pruned := pdb.HandleReadying("")
+			logger.Noticef("timed out waiting for requests to be re-received after snap restart: %s", strutil.Quoted(pruned))
 		})
 	}
 
@@ -648,6 +650,8 @@ func (pdb *PromptDB) Ready() <-chan struct{} {
 // received since snapd restarted. If the given `keyNamespace` is not the empty
 // string, then only requests with keys matching this namespace are pruned.
 //
+// Returns the list of request keys which were pruned.
+//
 // If there are no outstanding prompts left after pruning entries matching the
 // key namespace (or the namespace is the empty string), then signal that the
 // prompt DB is ready. If the prompt DB already signalled readiness, then the
@@ -656,7 +660,7 @@ func (pdb *PromptDB) Ready() <-chan struct{} {
 // This function should be called by the manager when a request originator
 // knows that all previously-pending requests have been re-sent. It should also
 // be called if the prompt DB times out waiting for requests to be re-received.
-func (pdb *PromptDB) HandleReadying(keyNamespace string) {
+func (pdb *PromptDB) HandleReadying(keyNamespace string) []string {
 	prefix := keyNamespace
 	if prefix != "" && !strings.HasSuffix(prefix, ":") {
 		prefix = prefix + ":"
@@ -667,14 +671,14 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) {
 	select {
 	case <-pdb.ready:
 		// already ready, so by definition there cannot be outstanding requests
-		return
+		return nil
 	default:
 		// no-op
 	}
 
 	// Keep map of requests which haven't been re-received, and record their
 	// map entries so we can record a notice with the correct prompt/user ID.
-	requestKeysToPrune := make(map[string]requestMapEntry)
+	requestsToPrune := make(map[string]requestMapEntry)
 	// Keep track of prompt IDs we see so we know what not to notify for.
 	// This is necessary since it's possible for multiple request keys to be
 	// associated with the same prompt.
@@ -695,11 +699,13 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) {
 		if prefix != "" && !strings.HasPrefix(requestKey, prefix) {
 			continue
 		}
-		requestKeysToPrune[requestKey] = entry
+		requestsToPrune[requestKey] = entry
 	}
 
+	requestKeysPruned := make([]string, 0, len(requestsToPrune))
 	data := map[string]string{"resolved": "expired"}
-	for requestKey, entry := range requestKeysToPrune {
+	for requestKey, entry := range requestsToPrune {
+		requestKeysPruned = append(requestKeysPruned, requestKey)
 		delete(pdb.requestMap, requestKey)
 		delete(pdb.pendingUnreceivedRequests, requestKey)
 		if !existingPrompts[entry.PromptID] {
@@ -712,7 +718,8 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) {
 
 	pdb.readyIfPendingAllReceived()
 
-	return
+	sort.Strings(requestKeysPruned)
+	return requestKeysPruned
 }
 
 var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {

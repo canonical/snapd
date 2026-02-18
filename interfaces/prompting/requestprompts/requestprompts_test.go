@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
@@ -296,7 +297,8 @@ func (s *requestpromptsSuite) TestNewHandleReadying(c *C) {
 	// No notices
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	pdb.HandleReadying("")
+	result := pdb.HandleReadying("")
+	c.Check(result, HasLen, 0)
 
 	select {
 	case <-pdb.Ready():
@@ -349,7 +351,8 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 	c.Check(timer, NotNil)
 	c.Check(timer.Active(), Equals, true)
 
-	pdb.HandleReadying("")
+	result := pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"foo:1", "foo:2"})
 
 	select {
 	case <-pdb.Ready():
@@ -365,8 +368,11 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	var timer *testtime.TestTimer
-	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+	restore = requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -404,6 +410,8 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 	// No notices
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
+	c.Check(logbuf.String(), Equals, "")
+
 	c.Check(timer.Active(), Equals, true)
 
 	// Elapse time as if the timer expired
@@ -420,6 +428,8 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 
 	noticeData := map[string]string{"resolved": "expired"}
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	c.Check(logbuf.String(), testutil.Contains, `timed out waiting for requests to be re-received after snap restart: "foo:1", "foo:2"`)
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
@@ -1804,7 +1814,8 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	c.Check(stored[3], Equals, prompt4)
 
 	// Signal that all requests with namespace "bar" have been re-received
-	pdb.HandleReadying("bar")
+	result := pdb.HandleReadying("bar")
+	c.Check(result, DeepEquals, []string{"bar:2", "bar:3"})
 
 	// Check that prompt DB is still not yet ready
 	select {
@@ -1834,7 +1845,8 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	// Signal that the manager is readying all unreceived requests (no namespace)
-	pdb.HandleReadying("")
+	result = pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"baz:1", "foo:3", "foo:4"})
 
 	// Check that prompt DB is now ready
 	select {
@@ -1861,7 +1873,8 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 
 	// Check that subsequent calls to HandleReadying do nothing and cause no problems
 	for _, namespace := range []string{"foo", "", "kernel"} {
-		pdb.HandleReadying(namespace)
+		result = pdb.HandleReadying(namespace)
+		c.Check(result, HasLen, 0)
 
 		// Check that prompt DB is still ready
 		select {
