@@ -1006,35 +1006,29 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 
 func commitValidationSetPrerequisites(db, source *asserts.Database, valsets []*asserts.ValidationSet) error {
 	batch := asserts.NewBatch(handleUnsupported(db))
-
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(source.Find)
 	}
-
-	err := batch.Fetch(source, retrieve, func(f asserts.Fetcher) error {
-		for _, vs := range valsets {
-			for _, pref := range vs.Prerequisites() {
-				if err := f.Fetch(pref); err != nil {
-					return err
-				}
-			}
-
-			keyRef := &asserts.Ref{
-				Type:       asserts.AccountKeyType,
-				PrimaryKey: []string{vs.SignKeyID()},
-			}
-			if err := f.Fetch(keyRef); err != nil {
-				return err
-			}
+	save := func(a asserts.Assertion) error {
+		// ignore validation sets, only save the prereqs
+		if a.Type() == asserts.ValidationSetType {
+			return nil
 		}
+		return batch.Add(a)
+	}
+	f := asserts.NewFetcher(source, retrieve, save)
 
-		return nil
-	})
-	if err != nil {
+	for _, vs := range valsets {
+		if err := f.Save(vs); err != nil {
+			return err
+		}
+	}
+
+	if err := batch.CommitTo(db, nil); err != nil {
 		return err
 	}
 
-	return batch.CommitTo(db, nil)
+	return nil
 }
 
 func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string) (map[string]*asserts.ValidationSet, error) {
@@ -1152,17 +1146,10 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 			return nil, err
 		}
 
-		st.Unlock()
-		a, err = sto.Assertion(ref.Type, ref.PrimaryKey, user)
-		st.Lock()
-		if err != nil {
-			return nil, err
-		}
-
-		return a, nil
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
-	err = batch.Fetch(db, retrieve, func(f asserts.Fetcher) error {
+	err = doFetchWithRetrieve(st, batch, retrieve, func(f asserts.Fetcher) error {
 		for vsKey, vs := range valsets {
 			if err := f.Save(vs); err != nil {
 				return fmt.Errorf("cannot save assertion %q to batch: %v", vsKey, err)
