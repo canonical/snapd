@@ -267,9 +267,27 @@ func formatStoreString(id DeltaFormat) string {
 	return "unexpected"
 }
 
-// Supported delta formats
-func SupportedDeltaFormats() []string {
-	return []string{formatStoreString(SnapXdelta3Format), formatStoreString(Xdelta3Format)}
+type DeltaFormatOpts struct {
+	WithSnapDeltaFormat bool
+}
+
+// Supported delta formats. The order here is determines the preferred formats,
+// with lower indexes being preferred. This might become eventually
+// compatibility labels if necessary.
+func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
+	// check if deltas were disabled by the environment
+	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
+		// then the env var is explicitly false, we can't use deltas
+		logger.Noticef("delta usage disabled by environment variable")
+		return nil
+	}
+
+	var formats []string
+	if opts.WithSnapDeltaFormat {
+		formats = append(formats, formatStoreString(SnapXdelta3Format))
+	}
+	formats = append(formats, formatStoreString(Xdelta3Format))
+	return formats
 }
 
 // GenerateDelta creates a delta file called delta from sourceSnap and
