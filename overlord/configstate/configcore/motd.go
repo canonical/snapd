@@ -64,7 +64,7 @@ func validateMotdConfiguration(tr ConfGetter) error {
 	// See `man 8 pam_motd`
 	motdBytes := []byte(motd + "\n")
 	if len(motdBytes) > 64*1024 {
-		return fmt.Errorf("cannot set message of the day: size %d KiB exceeds limit of 64 KiB", len(motdBytes))
+		return fmt.Errorf("cannot set message of the day: size %d bytes exceeds limit of 65536 bytes", len(motdBytes))
 	}
 	return nil
 }
@@ -76,19 +76,39 @@ func isMotdConfigurationSupported(rootDir string) bool {
 }
 
 func handleMotdConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
-	rootDir := dirs.GlobalRootDir
-	if opts != nil {
+	var motd, rootDir string
+	if opts == nil {
+		// runtime system
+		// if there is no change in MOTD configuration, then do nothing
+		currentMotd, err := getMotdFromSystem()
+		if err != nil {
+			return err
+		}
+		// here coreCfg returns current value (always exists) overridden by changed value (if exists)
+		motd, err = coreCfg(tr, motdOptionKey)
+		if err != nil {
+			return err
+		}
+		if currentMotd == motd {
+			return nil
+		}
+		rootDir = dirs.GlobalRootDir
+	} else {
+		// here tr.Get returns changed value (if exists), otherwise returns NoOptionError
+		err := tr.Get("core", motdOptionKey, &motd)
+		if config.IsNoOption(err) {
+			// there is no change in MOTD configuration, so do nothing
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		rootDir = opts.RootDir
 	}
 
 	// Check if MOTD configuration is supported on this system
 	if !isMotdConfigurationSupported(rootDir) {
 		return errors.New("cannot set message of the day: unsupported on this system, requires UC24+")
-	}
-
-	motd, err := coreCfg(tr, motdOptionKey)
-	if err != nil {
-		return err
 	}
 
 	// coreCfg() returns an empty string if the config key was unset

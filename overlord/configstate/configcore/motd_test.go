@@ -114,7 +114,7 @@ func (s *motdSuite) TestValidateMotdConfigurationValid(c *C) {
 }
 
 func (s *motdSuite) TestValidateMotdConfigurationInvalid(c *C) {
-	// MOTD that is exceeds 64 KiB
+	// MOTD that exceeds 64 KiB
 	conf := &mockConf{
 		state: s.state,
 		conf: map[string]any{
@@ -122,7 +122,7 @@ func (s *motdSuite) TestValidateMotdConfigurationInvalid(c *C) {
 		},
 	}
 	err := configcore.FilesystemOnlyRun(coreDev, conf)
-	c.Assert(err, ErrorMatches, `cannot set message of the day: size .* KiB exceeds limit of 64 KiB`)
+	c.Assert(err, ErrorMatches, `cannot set message of the day: size .* bytes exceeds limit of 65536 bytes`)
 }
 
 func (s *motdSuite) TestIsMotdConfigurationSupportedTrue(c *C) {
@@ -310,6 +310,44 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetFileDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) {
+	// Mock osReadFile to return an error
+	restore := configcore.MockOsReadFile(func(string) ([]byte, error) {
+		return nil, errors.New("permission denied")
+	})
+	defer restore()
+
+	conf := &mockConf{
+		state: s.state,
+		conf: map[string]any{
+			motdOptionKey: "Test MOTD",
+		},
+	}
+	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	c.Assert(err, ErrorMatches, `cannot get message of the day: .*permission denied`)
+}
+
+func (s *motdSuite) TestHandleMotdConfigurationSameMotdAsCurrent(c *C) {
+	// Setting motd to same as current value should not create the writable file
+	// Ensure the writable file does not exist
+	_, err := os.Lstat(s.writableFilePath)
+	c.Assert(errors.Is(err, fs.ErrNotExist), Equals, true)
+
+	// "\n" needs to be added here as mockConf doesn't mock the calling of externalConfig getters
+	conf := &mockConf{
+		state: s.state,
+		conf: map[string]any{
+			motdOptionKey: "Default MOTD\n",
+		},
+	}
+	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	c.Assert(err, IsNil)
+
+	// Verify that the writable file was not created
+	_, err = os.Lstat(s.writableFilePath)
+	c.Assert(errors.Is(err, fs.ErrNotExist), Equals, true)
+}
+
 func (s *motdSuite) TestFilesystemOnlyApplySuccess(c *C) {
 	// Create the readonly motd file in tmpDir
 	tmpDir := c.MkDir()
@@ -328,6 +366,30 @@ func (s *motdSuite) TestFilesystemOnlyApplySuccess(c *C) {
 
 	writableFilePath := filepath.Join(tmpDir, defaultMotdFilePathWritable)
 	c.Check(writableFilePath, testutil.FileEquals, motd+"\n")
+}
+
+func (s *motdSuite) TestFilesystemOnlyApplyNoMotdChange(c *C) {
+	// Create the readonly and writable motd files in tmpDir
+	tmpDir := c.MkDir()
+	readonlyFilePath := filepath.Join(tmpDir, defaultMotdFilePathReadonly)
+	err := os.MkdirAll(filepath.Dir(readonlyFilePath), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(readonlyFilePath, []byte("Default MOTD\n"), 0644)
+	c.Assert(err, IsNil)
+	writableFilePath := filepath.Join(tmpDir, defaultMotdFilePathWritable)
+	err = os.MkdirAll(filepath.Dir(writableFilePath), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(writableFilePath, []byte("Test MOTD\n"), 0644)
+	c.Assert(err, IsNil)
+
+	conf := configcore.PlainCoreConfig(map[string]any{
+		"non.motd.key": "value",
+	})
+	err = configcore.FilesystemOnlyApply(coreDev, tmpDir, conf)
+	c.Assert(err, IsNil)
+
+	// Verify that the writable file was not modified
+	c.Check(writableFilePath, testutil.FileEquals, "Test MOTD\n")
 }
 
 func (s *motdSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
