@@ -21,6 +21,7 @@
 package fdestate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -28,12 +29,15 @@ import (
 
 	sb "github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,6 +55,58 @@ func (s *autoRepairSuite) SetUpTest(c *C) {
 	s.bootId = "547730db-9e31-4c33-b418-1bce4e03f467"
 	s.AddCleanup(fdestate.MockOsutilBootID(func() (string, error) {
 		return s.bootId, nil
+	}))
+}
+
+func (s *autoRepairSuite) mockPostInstallChecks(c *C) {
+	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
+	recoveryBl.TrustedAssetsMap = map[string]string{
+		"EFI/ubuntu/shim.efi": "ubuntu:shim",
+		"EFI/ubuntu/grub.efi": "ubuntu:grub",
+	}
+	recoveryBl.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile("some-kernel", "kernel.efi", bootloader.RoleRunMode)
+	}
+	recoveryBl.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "EFI/ubuntu/shim.efi", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRunMode),
+	}
+
+	runBl := bootloadertest.Mock("run", "").WithExtractedRunKernelImage()
+	runBl.SetEnabledKernel(&snap.Info{SuggestedName: "some-kernel", InstanceKey: "x1", SnapType: snap.TypeKernel})
+
+	s.AddCleanup(fdestate.MockBootloaderFind(func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error) {
+		if opts.Role == bootloader.RoleRecovery {
+			return recoveryBl, nil
+		} else if opts.Role == bootloader.RoleRunMode {
+			return runBl, nil
+		} else {
+			c.Errorf("unexpected")
+			return nil, fmt.Errorf("unexpected")
+		}
+	}))
+
+	s.AddCleanup(fdestate.MockBootReadModeenv(func(rootdir string) (*boot.Modeenv, error) {
+		return &boot.Modeenv{
+			CurrentTrustedBootAssets: map[string][]string{
+				"ubuntu:grub": {
+					"hash-grub-run",
+				},
+			},
+			CurrentTrustedRecoveryBootAssets: map[string][]string{
+				"ubuntu:shim": {
+					"hash-shim-recovery",
+				},
+				"ubuntu:grub": {
+					"hash-grub-recovery",
+				},
+			},
+		}, nil
+	}))
+
+	s.AddCleanup(fdestate.MockSecbootPostinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		return nil, nil, nil
 	}))
 }
 
@@ -85,7 +141,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 		return nil
 	})()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	s.mockPostInstallChecks(c)
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	c.Check(reprovisioned, Equals, 1)
@@ -97,7 +156,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("success"))
 
 	// Try again it should do nothing
-	err = fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	err = fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	c.Check(reprovisioned, Equals, 1)
@@ -137,7 +196,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 		return fmt.Errorf("Unexpected call")
 	})()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	result, err := fdestate.GetRepairAttemptResult(s.st)
@@ -174,7 +234,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 		return fmt.Errorf("Unexpected call")
 	})()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	s.mockPostInstallChecks(c)
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	c.Check(reprovisioned, Equals, 1)
@@ -202,7 +265,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateState(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	result, err := fdestate.GetRepairAttemptResult(s.st)
@@ -251,10 +315,13 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateStateRecovery(c *C
 		}, nil
 	})()
 
+	s.mockPostInstallChecks(c)
+
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	result, err := fdestate.GetRepairAttemptResult(s.st)
@@ -285,7 +352,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorActivateState(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	result, err := fdestate.GetRepairAttemptResult(s.st)
@@ -313,7 +381,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoFileActivateState(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	result, err := fdestate.GetRepairAttemptResult(s.st)
@@ -355,7 +424,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 		return fmt.Errorf("some error")
 	})()
 
-	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
+	s.mockPostInstallChecks(c)
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
 	c.Assert(err, IsNil)
 
 	c.Check(reprovisioned, Equals, 1)
@@ -389,4 +461,109 @@ func (s *autoRepairSuite) TestIgnoreOldAutoRepairResult(c *C) {
 	result, err = fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+}
+
+func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
+	const onClassic = false
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	s.createUnlockedState(c, sb.ActivationSucceededWithPlatformKey)
+
+	defer fdestate.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
+		return true
+	})()
+
+	s.mockBootAssetsStateForModeenv(c)
+
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	s.mockPostInstallChecks(c)
+	defer fdestate.MockSecbootPostinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		return nil, nil, fmt.Errorf("some error")
+	})()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
+	c.Assert(err, IsNil)
+
+	result, err := fdestate.GetRepairAttemptResult(s.st)
+	c.Assert(err, IsNil)
+
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+
+	c.Check(logbuf.String(), testutil.Contains, `WARNING: could not auto repair keyslots due to failed platform initialization: some error`)
+}
+
+func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetails(c *C) {
+	const onClassic = false
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	s.createUnlockedState(c, sb.ActivationSucceededWithPlatformKey)
+
+	defer fdestate.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
+		return true
+	})()
+
+	s.mockBootAssetsStateForModeenv(c)
+
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	s.mockPostInstallChecks(c)
+	defer fdestate.MockSecbootPostinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		var details = []secboot.PreinstallErrorDetails{
+			{
+				Kind:    "kind-1",
+				Message: "error-1",
+			},
+			{
+				Kind:    "kind-2",
+				Message: "error-2",
+			},
+		}
+
+		return nil, details, nil
+	})()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
+	c.Assert(err, IsNil)
+
+	result, err := fdestate.GetRepairAttemptResult(s.st)
+	c.Assert(err, IsNil)
+
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+
+	c.Check(logbuf.String(), testutil.Contains, "WARNING: could not auto repair keyslots due to failed platform initialization:\n- error-1\n- error-2\n")
 }
