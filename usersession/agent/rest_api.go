@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -104,11 +103,11 @@ func sessionInfo(c *Command, r *http.Request) Response {
  * are useful in a text-only system; another case is for spread tests).
  */
 
-func checkWantedByForService(originalError error, service string) error {
+func checkWantedByForService(sysd systemd.Systemd, originalError error, service string) error {
 	// If the service fails, check if it is wanted by a target that isn't active
-	servicePath := path.Join("/etc/systemd/user", service)
-	if !strings.HasSuffix(servicePath, ".service") {
-		servicePath += ".service"
+	servicePath, err := sysd.GetServicePath(service)
+	if err != nil {
+		return fmt.Errorf("Failed to get the systemd service file path for %s: %s\n%s", service, err, originalError)
 	}
 	serviceFileIni, err := ini.Load(servicePath)
 	if err != nil {
@@ -190,7 +189,7 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	var started []string
 	for _, service := range inst.Services {
 		if err := sysd.Start([]string{service}); err != nil {
-			if err2 := checkWantedByForService(err, service); err2 != nil {
+			if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
 				startErrors[service] = err2.Error()
 				break
 			}
@@ -237,13 +236,13 @@ func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respo
 	for _, service := range inst.Services {
 		if inst.Reload {
 			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-				if err2 := checkWantedByForService(err, service); err2 != nil {
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
 					restartErrors[service] = err2.Error()
 				}
 			}
 		} else {
 			if err := sysd.Restart([]string{service}); err != nil {
-				if err2 := checkWantedByForService(err, service); err2 != nil {
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
 					restartErrors[service] = err2.Error()
 				}
 			}

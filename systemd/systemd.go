@@ -387,6 +387,8 @@ type Systemd interface {
 	EnableNoReload(services []string) error
 	// DisableNoReload the given services, do not reload system.
 	DisableNoReload(services []string) error
+	// GetServicePath returns the path of the .service file
+	GetServicePath(service string) (string, error)
 	// Start the given service or services.
 	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
@@ -1660,6 +1662,10 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 		}
 	}
 	return originModule, nil
+}
+
+func (s *systemd) GetServicePath(service string) (string, error) {
+	return s.getPropertyStringValue(service, "FragmentPath")
 }
 
 func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {

@@ -72,6 +72,10 @@ func (s *emulation) DisableNoReload(services []string) error {
 	return err
 }
 
+func (s *emulation) GetServicePath(service string) (string, error) {
+	return "", nil
+}
+
 func (s *emulation) Start(services []string) error {
 	return nil
 }
