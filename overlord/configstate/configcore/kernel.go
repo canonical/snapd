@@ -124,8 +124,8 @@ func createApplyCmdlineChange(c RunTransaction, kernelOpts []string) (*state.Cha
 	st.Lock()
 	defer st.Unlock()
 
-	// error out if some other change is touching the kernel command line
-	if err := snapstate.CheckUpdateKernelCommandLineConflict(st, ""); err != nil {
+	// check whether there are other changes that need to run exclusively
+	if err := snapstate.CheckChangeConflictExclusiveKinds(st, ""); err != nil {
 		return nil, err
 	}
 

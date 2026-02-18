@@ -168,7 +168,7 @@ version: 1
 		}
 		s.st.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0)
+		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0, nil)
 		comment := Commentf("%s", test.args)
 		if test.exitCode > 0 {
 			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
@@ -210,7 +210,7 @@ version: 1
 
 	s.st.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "hold: 48h0m0s\n")
 	c.Check(string(stderr), Equals, "")
@@ -254,7 +254,7 @@ version: 1
 	mockContext.Set("affecting-snaps", []string{"foo"})
 	mockContext.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -276,7 +276,7 @@ version: 1
 	defer mockContext.Lock()
 
 	// refresh --pending --proceed is the same as just saying --proceed.
-	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0)
+	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
@@ -297,7 +297,7 @@ func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 0)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 0, nil)
 	c.Check(err, ErrorMatches, `can only be used from gate-auto-refresh hook`)
 }
 
@@ -334,7 +334,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
@@ -353,7 +353,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
 }
@@ -373,7 +373,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0, nil)
 	c.Assert(err, IsNil)
 	// cohort is not printed if snap-refresh-control isn't connected
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
@@ -384,7 +384,7 @@ version: 1
 	})
 	s.st.Unlock()
 
-	stdout, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	stdout, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0, nil)
 	c.Assert(err, IsNil)
 	// cohort is printed
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
@@ -410,7 +410,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0, nil)
 	c.Assert(err, IsNil)
 	// cohort is printed
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
@@ -445,7 +445,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0, nil)
 	c.Assert(err, ErrorMatches, "boom")
 }
 
@@ -482,7 +482,7 @@ version: 1
 	s.st.Unlock()
 	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
 	c.Assert(called, Equals, false)
 
@@ -494,7 +494,7 @@ version: 1
 	})
 	s.st.Unlock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0, nil)
 	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
 	c.Assert(called, Equals, false)
 }
@@ -524,7 +524,7 @@ func (s *refreshSuite) testRefreshTracking(c *C, uid uint32) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, uid)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, uid, nil)
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 
@@ -569,7 +569,7 @@ func (s *refreshSuite) TestRefreshTrackingUnasserted(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--tracking"}, 0, nil)
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, IsNil)
 
@@ -591,7 +591,7 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 1000, nil)
 	c.Assert(err, DeepEquals, &ctlcmd.ForbiddenCommandError{Message: `non-root users can only use --tracking with the refresh command`})
 }
 
@@ -611,7 +611,7 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), IsNil)
 	lock.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "refresh")
 	c.Check(string(stderr), Equals, "")
@@ -625,7 +625,7 @@ func (s *refreshSuite) TestRefreshPrintInhibitHintEmpty(c *C) {
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")

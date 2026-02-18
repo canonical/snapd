@@ -226,7 +226,7 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 	}
 
 	if markedSuccessful {
-		autoRepair, err := IsUnlockedWithRecoveryKey()
+		autoRepair, err := isUnlockedWithRecoveryKey()
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return err

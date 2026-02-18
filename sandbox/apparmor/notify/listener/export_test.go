@@ -35,7 +35,6 @@ import (
 
 var (
 	ReadyTimeout = readyTimeout
-	BuildKey     = buildKey
 )
 
 func ExitOnError() (restore func()) {
@@ -123,7 +122,7 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion, pendingCount 
 			select {
 			case internalRecvChan <- request:
 				// all good
-			case <-time.NewTimer(time.Second).C:
+			case <-time.After(time.Second):
 				panic("timed out trying to send request to internalRecvChan")
 			}
 			events := []epoll.Event{
@@ -143,14 +142,14 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion, pendingCount 
 			select {
 			case request := <-internalRecvChan:
 				return request, nil
-			case <-time.NewTimer(time.Second).C:
+			case <-time.After(time.Second):
 				panic("timed out waiting for request from internalRecvChan")
 			}
 		case notify.APPARMOR_NOTIF_SEND:
 			select {
 			case sendChanRW <- buf:
 				// all good
-			case <-time.NewTimer(time.Second).C:
+			case <-time.After(time.Second):
 				panic("timed out trying to send response to sendChan")
 			}
 		default:
@@ -188,10 +187,6 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 		return ret, err
 	})
 	return ioctlDoneRW, restore
-}
-
-func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
-	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
 }
 
 func MockTimeAfterFunc(f func(d time.Duration, callback func()) timeutil.Timer) (restore func()) {

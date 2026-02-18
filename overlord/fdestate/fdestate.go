@@ -22,13 +22,11 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io/fs"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
@@ -857,14 +855,15 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		}
 	}
 
-	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	activateState, err := SystemState(st)
+	if err != nil {
 		return nil, err
 	}
-	if unlockedWithRecoveryKey {
+	if !RunningWithPlatformKeys(activateState.Status) {
 		// Primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
-		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
+		// We need to allow degraded state, as this function might be part of fixing.
+		return nil, fmt.Errorf("cannot replace platform keys if FDE is not active (current state: %v)", activateState.Status)
 	}
 
 	// Note: Checking that there are no ongoing conflicting changes and that the

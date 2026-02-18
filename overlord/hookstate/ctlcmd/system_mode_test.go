@@ -126,7 +126,7 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 			systemEncrypted = test.systemEncrypted
 			systemEncryptedErr = test.systemEncryptedErr
 
-			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uid)
+			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uid, nil)
 			comment := Commentf("%v", test)
 			if test.exitCode > 0 {
 				c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)

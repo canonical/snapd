@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -56,7 +55,7 @@ func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface stri
 	}
 }
 
-func (p *Prompt) Requests() []*listener.Request {
+func (p *Prompt) Requests() []*prompting.Request {
 	return p.requests
 }
 
