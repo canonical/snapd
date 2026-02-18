@@ -3797,12 +3797,62 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {
+	s.setHybridModelInState(c)
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "26.04"})()
+	defer release.MockOnClassic(true)()
+
 	defer devicestate.MockSecbootMarkSuccessful(func() error {
 		return fmt.Errorf("MarkSuccessful did not work")
 	})()
 
 	called := 0
-	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		c.Check(runPostInstallChecks, Equals, true)
+		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+		called++
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEClassicNoPostInstallChecks(c *C) {
+	s.setHybridModelInState(c)
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "25.04"})()
+	defer release.MockOnClassic(true)()
+
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return fmt.Errorf("MarkSuccessful did not work")
+	})()
+
+	called := 0
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		c.Check(runPostInstallChecks, Equals, false)
+		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+		called++
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDENoPostInstallChecks(c *C) {
+	s.setUC20PCModelInState(c)
+	defer release.MockOnClassic(false)()
+
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return fmt.Errorf("MarkSuccessful did not work")
+	})()
+
+	called := 0
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		c.Check(runPostInstallChecks, Equals, false)
 		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
 		called++
 		return nil
@@ -3820,7 +3870,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEInstall(c *C) {
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})()
