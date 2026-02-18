@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -125,6 +126,11 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
 	t.AddCleanup(r)
+
+	t.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+		// no reason for devicestate to set up tasks for delayed effects
+		panic("unexpected call")
+	}))
 }
 
 // startOverlord will setup and create a new overlord, note that it will not
