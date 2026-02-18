@@ -535,7 +535,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			DeviceCtx:     r.deviceCtx,
 			FromChange:    r.fromChange,
 			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, Required: true},
+			Flags:         snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -621,7 +621,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			DeviceCtx:     r.deviceCtx,
 			FromChange:    r.fromChange,
 			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true},
+			Flags:         snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
