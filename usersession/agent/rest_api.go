@@ -92,12 +92,16 @@ func sessionInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
-/* startUserServiceAndCheckWantedBy tries to start an user service, but if it
- * fails, it checks if the WantedBy entry for that service belongs to a target
+/* startUserServiceAndCheckWantedBy is called if starting an user service
+ * fails. It checks if the WantedBy entry for that service belongs to a target
  * that is not active. If that's the case (for example, when installing an user
  * daemon that uses the Desktop interface, and thus has the `graphical-session`
  * target, but doing it from a SSH connection or from a text console, where no
- * graphical session is running) it won't fail.
+ * graphical session is running) it won't fail. It also won't fail if the WantedBy
+ * entry points to a non-existant target, because it can happens that a system
+ * lacks a graphical system, but still wants to install a snap that has a daemon
+ * that is designed for it (for example, because it contains other tools that
+ * are useful in a text-only system; another case is for spread tests).
  */
 
 func checkWantedByForService(originalError error, service string) error {
