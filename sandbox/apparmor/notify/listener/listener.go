@@ -246,7 +246,7 @@ var exitOnError = false
 // Run should only be called once per listener object, and it runs until the
 // listener is closed or errors (if exitOnError is true), and returns the cause.
 // If the listener was intentionally stopped via the Close() method, returns nil.
-func (l *Listener[R]) Run(requestpromptsReady <-chan struct{}) error {
+func (l *Listener[R]) Run() error {
 	var err error
 	l.runOnce.Do(func() {
 		// Run should only be called once, so this runOnce.Do is really only an
@@ -259,27 +259,6 @@ func (l *Listener[R]) Run(requestpromptsReady <-chan struct{}) error {
 			// receiving requests by now anyway.
 		}()
 		for {
-			select {
-			case <-requestpromptsReady:
-				// XXX: check this in the run loop, rather than in a goroutine
-				// or within handleRequests, so that handling a request will
-				// not cause the requestprompts backend to ready up and send a
-				// signal back to the listener before handleRequests has the
-				// chance to call signalReady itself. That signal would be
-				// misinterpreted as a timeout.
-				//
-				// So wait for handleRequest to return, then check this
-				// channel, and then the call to readyOnce.Do will do nothing.
-				//
-				// On subsequent loops after requestpromptsReady has signalled,
-				// we'll again call this readyOnce.Do, again doing nothing.
-				l.readyOnce.Do(func() {
-					pendingCount := l.signalReady()
-					logger.Noticef("timeout waiting for resent messages from apparmor: still expected %d more resent messages", pendingCount)
-				})
-			default:
-				// no-op, requestprompts backend not ready yet
-			}
 			err = l.handleRequests()
 			if err != nil {
 				if errors.Is(err, ErrClosed) {

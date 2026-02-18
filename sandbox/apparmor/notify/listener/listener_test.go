@@ -276,7 +276,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	ids := []uint64{0xdead, 0xbeef}
 	requests := make([]*prompting.Request, 0, len(ids))
@@ -405,7 +405,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -482,7 +482,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
@@ -544,95 +544,6 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	c.Check(t.Wait(), IsNil)
 }
 
-func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
-	// Somewhat rare case:
-	// Pending count 3, send 1 RESENT message, then prompts backend times out.
-	// This should only occur if snapd or the kernel is exceptionally slow, or
-	// if the kernel times out/drops a pending message but then never sends any
-	// new messages (at least until after the timeout).
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	protoVersion := notify.ProtocolVersion(12345)
-	pendingCount := 3
-
-	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl(protoVersion, pendingCount)
-	defer restoreEpollIoctl()
-
-	var t tomb.Tomb
-	l, err := listener.Register(prompting.NewRequestFromListener)
-	c.Assert(err, IsNil)
-
-	checkListenerReady(c, l, false) // not ready
-
-	promptTimedOut := make(chan struct{})
-	t.Go(func() error { return l.Run(promptTimedOut) })
-
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	id := uint64(0xabc0)
-
-	id++
-	msg := newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-
-	checkListenerReady(c, l, false)
-
-	// Fake a timeout from the prompts backend now, before the req is received,
-	// so we're sure the prompt timeout will be picked up on the next iteration
-	close(promptTimedOut)
-
-	// The listener should not ready until it sees the prompt backend is ready
-	checkListenerReady(c, l, false)
-
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
-	case <-time.After(time.Second):
-		c.Fatalf("failed to receive request 0x%x", id)
-	}
-
-	// To ensure we've made it to the next run loop iteration, and because it
-	// should have no effect on readiness, send a message with UNOTIF_RESENT
-	id++
-	msg = newMsgNotificationFile(protoVersion, id, label, path, aBits, dBits, nil)
-	msg.Flags = notify.UNOTIF_RESENT
-	buf, err = msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-
-	// Expect the listener to now be ready since we should have observed the
-	// prompts backend readiness by now. Seeing a second (of three expected)
-	// resent messages should not itself cause the listener to ready.
-	checkListenerReady(c, l, true)
-
-	// Now receive it
-	select {
-	case req := <-l.Reqs():
-		c.Assert(req.Key, Equals, fmt.Sprintf("kernel:home:%016X", msg.KernelNotificationID))
-	case <-time.After(time.Second):
-		c.Fatalf("failed to receive request 0x%x", id)
-	}
-
-	// As evidence, the message should say "expected 2 more resent messages"
-	c.Check(logbuf.String(), testutil.Contains, "timeout waiting for resent messages from apparmor: still expected 2 more resent messages")
-
-	// We're still ready
-	checkListenerReady(c, l, true)
-
-	c.Check(l.Close(), IsNil)
-	c.Check(t.Wait(), IsNil)
-}
-
 // Check that if a request is written between when the listener is registered
 // and when Run() is called, that request will still be handled correctly.
 func (*listenerSuite) TestRegisterWriteRun(c *C) {
@@ -680,7 +591,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	select {
 	case req, ok := <-l.Reqs():
@@ -715,7 +626,7 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	// since pendingCount == 0, should be immediately ready
 	checkListenerReady(c, l, true)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	label := "snap.foo.bar"
 	paths := []string{"/home/Documents/foo", "/path/to/bar", "/baz"}
@@ -804,7 +715,7 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	_, err = unix.Write(kernelSocket, recvBuf)
 	c.Check(err, IsNil)
@@ -849,7 +760,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	runAboutToStart := make(chan struct{})
 	t.Go(func() error {
 		close(runAboutToStart)
-		return l.Run(nil)
+		return l.Run()
 	})
 
 	// Make sure Run() starts before error triggers Close()
@@ -882,7 +793,7 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 
 	checkListenerReady(c, l, true)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -927,7 +838,7 @@ func (*listenerSuite) TestRunNoReceiverWithPending(c *C) {
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	checkListenerReady(c, l, false)
 
@@ -981,7 +892,7 @@ func (*listenerSuite) TestRunNoReply(c *C) {
 	l, err := listener.Register(prompting.NewRequestFromListener)
 	c.Assert(err, IsNil)
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	id := uint64(0x1234)
 	label := "snap.foo.bar"
@@ -1108,7 +1019,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		c.Assert(err, IsNil)
 
 		var t tomb.Tomb
-		t.Go(func() error { return l.Run(nil) })
+		t.Go(l.Run)
 
 		buf := testCase.msg.MarshalBinary(c)
 		select {
@@ -1178,7 +1089,7 @@ func testRunMalformedMessage(c *C, finalResent bool) {
 
 	checkListenerReady(c, l, false) // not ready
 
-	t.Go(func() error { return l.Run(nil) })
+	t.Go(l.Run)
 
 	msgTemplate := msgNotificationFile{
 		Length:           58,
@@ -1379,7 +1290,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		wg.Add(1)
 		go func() {
 			wg.Done() // mark that Run has started
-			returnChan <- l.Run(nil)
+			returnChan <- l.Run()
 		}()
 	}
 
@@ -1433,7 +1344,7 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	err = l.Close()
 	c.Assert(err, IsNil)
 
-	err = l.Run(nil)
+	err = l.Run()
 	c.Assert(err, Equals, nil)
 }
 
@@ -1517,7 +1428,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 
 	// Start all the tomb-tracked goroutines
 	t.Go(func() error {
-		t.Go(func() error { return l.Run(nil) })
+		t.Go(l.Run)
 		t.Go(creator)
 		t.Go(replier)
 		return nil

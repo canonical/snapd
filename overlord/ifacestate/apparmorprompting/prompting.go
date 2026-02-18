@@ -41,13 +41,11 @@ var (
 	listenerRegister = func() (listenerBackend, error) {
 		return listener.Register(prompting.NewRequestFromListener)
 	}
-
-	promptsHandleReadying = (*requestprompts.PromptDB).HandleReadying
 )
 
 type listenerBackend interface {
 	Close() error
-	Run(<-chan struct{}) error
+	Run() error
 	Ready() <-chan struct{}
 	Reqs() <-chan *prompting.Request
 }
@@ -79,6 +77,13 @@ type InterfacesRequestsManager struct {
 	listener listenerBackend
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
+
+	// listenerAlreadySignalled is closed when the listener readiness is first
+	// observed. If there are still pending unreceived requests from outside
+	// the listener, then listener readiness will not cause the prompts backend
+	// to ready. Thus, this channel is used to avoid repeatedly observing the
+	// listener readiness.
+	listenerAlreadySignalled chan struct{}
 
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -139,11 +144,12 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 	}()
 
 	m = &InterfacesRequestsManager{
-		listener:     listenerBackend,
-		prompts:      promptsBackend,
-		rules:        rulesBackend,
-		notifyPrompt: notifyPrompt,
-		notifyRule:   notifyRule,
+		listener:                 listenerBackend,
+		prompts:                  promptsBackend,
+		rules:                    rulesBackend,
+		listenerAlreadySignalled: make(chan struct{}),
+		notifyPrompt:             notifyPrompt,
+		notifyRule:               notifyRule,
 	}
 
 	m.tomb.Go(m.run)
@@ -161,7 +167,7 @@ func (m *InterfacesRequestsManager) run() error {
 		// returns, which only occurs when the manager tomb is dying. So we
 		// don't need to worry about the listener returning nil when we don't
 		// already expect to be exiting.
-		return m.listener.Run(m.prompts.Ready())
+		return m.listener.Run()
 	})
 
 run_loop:
@@ -170,6 +176,7 @@ run_loop:
 		select {
 		case <-m.listenerReadyForTheFirstTime():
 			logger.Debugf("received ready signal from the listener")
+			close(m.listenerAlreadySignalled)
 			// Tell the requestprompts backend that the listener is ready, so
 			// it can discard ID mappings for requests which have not been
 			// re-received from the kernel. For completeness, acquire the lock,
@@ -179,7 +186,12 @@ run_loop:
 			// since no synchronization is required between the rules and
 			// prompts backends, and the prompts backend has an internal mutex.
 			m.lock.RLock()
-			promptsHandleReadying(m.prompts, "kernel")
+			prunedRequestKeys := m.prompts.HandleReadying("kernel")
+			if len(prunedRequestKeys) > 0 {
+				logger.Noticef("requests timed out in the kernel while snapd was restarting: %s", strutil.Quoted(prunedRequestKeys))
+			} else {
+				logger.Debugf("listener signalled readiness and no outstanding requests were pruned")
+			}
 			// If there are no pending un-received requests from outside the
 			// kernel, then this will unblock API method calls.
 			m.lock.RUnlock()
@@ -223,6 +235,9 @@ func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct
 		// prompts backend timed out waiting for requests to be re-received.
 		// Either way, the listener readying doesn't matter anymore, so return
 		// something which will never signal.
+		return nil
+	case <-m.listenerAlreadySignalled:
+		// Listener already signalled ready and we already observed it.
 		return nil
 	default:
 		// We haven't handled a ready signal yet, so return the real thing.
@@ -298,9 +313,6 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	defer m.lock.Unlock()
 
 	var errs []error
-	// Important: close listener before prompts so that the prompts signalling
-	// readiness does not cause the listener backend to record a log notice
-	// about timing out while still expecting more messages.
 	if m.listener != nil {
 		errs = append(errs, m.listener.Close())
 	}
