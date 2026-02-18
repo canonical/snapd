@@ -2130,10 +2130,14 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
+func dotPrecedesAccessorType(acc Accessor) bool {
+	return acc.Type() != IndexPlaceholderType && acc.Type() != ListIndexType
+}
+
 func JoinAccessors(parts []Accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
-		if !(part.Type() == IndexPlaceholderType || part.Type() == ListIndexType || i == 0) {
+		if dotPrecedesAccessorType(part) && i != 0 {
 			sb.WriteRune('.')
 		}
 

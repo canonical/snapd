@@ -888,6 +888,13 @@ func (v *mapSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
+func preappendFirstPathAccessorToString(path []Accessor, stringedPath string) string {
+	if len(path) > 1 && dotPrecedesAccessorType(path[1]) {
+		return fmt.Sprintf(`%s.%s`, path[0].Access(), stringedPath)
+	}
+	return fmt.Sprintf(`%s%s`, path[0].Access(), stringedPath)
+}
+
 func (v *mapSchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
 	if path[0].Type() != KeyPlaceholderType && path[0].Type() != MapKeyType {
 		return nil, schemaAtErrorf(path, `cannot use %q as key in map`, path[0].Access())
@@ -941,6 +948,10 @@ func (v *mapSchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data 
 				path[0].Type() == KeyPlaceholderType {
 				continue
 			}
+			noContainer, ok := err.(*noContainerError)
+			if ok {
+				return nil, newNoContainerError(preappendFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+			}
 			return nil, err
 		}
 		if res != nil {
@@ -968,7 +979,7 @@ func (v *mapSchema) pruneAllByVisibility(vis []Visibility, data []byte) ([]byte,
 		(v.valueSchema != nil && listContains(vis, v.valueSchema.Visibility())) {
 		return nil, nil
 	}
-	decoded, err := unmarshalLevel(nil, 0, data)
+	decoded, err := unmarshalLevel(nil, -1, data)
 	if err != nil {
 		return nil, err
 	}
@@ -1719,6 +1730,10 @@ func (v *arraySchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, dat
 				// those with private/no data rather than erroring here.
 				continue
 			}
+			noContainer, ok := err.(*noContainerError)
+			if ok {
+				return nil, newNoContainerError(preappendFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+			}
 			return nil, err
 		}
 		if res != nil {
@@ -1737,7 +1752,7 @@ func (v *arraySchema) pruneAllByVisibility(vis []Visibility, data []byte) ([]byt
 	if listContains(vis, v.Visibility()) || listContains(vis, v.elementType.Visibility()) {
 		return nil, nil
 	}
-	decoded, err := unmarshalLevel(nil, 0, data)
+	decoded, err := unmarshalLevel(nil, -1, data)
 	if err != nil {
 		return nil, err
 	}

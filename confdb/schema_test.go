@@ -3424,6 +3424,36 @@ func (*schemaSuite) TestPruneArrayNotAlongPath(c *C) {
 	}))
 }
 
+func (*schemaSuite) TestPruneArrayNoContainerError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "array",
+						"values": {
+							"schema": {
+								"eph": {
+									"type": "string",
+									"visibility": "secret"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[0].bar"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{map[string]any{"bar": ""}}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo[0].bar": expected container type but got string`)
+}
+
 func (*schemaSuite) TestPruneAllAlternatives(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
