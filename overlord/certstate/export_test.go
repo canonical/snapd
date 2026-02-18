@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2024 Canonical Ltd
  *
@@ -17,25 +16,23 @@
  *
  */
 
-package prompting
+package certstate
 
-import (
-	"github.com/snapcore/snapd/testutil"
-)
+import "github.com/snapcore/snapd/testutil"
+
+type Certificate = certificate
 
 var (
-	BuildListenerRequestKey = buildListenerRequestKey
-
-	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
-
-	InterfaceSpecificConstraintsPathPattern = InterfaceSpecificConstraints.pathPattern
-
-	InterfaceFromTagsets = interfaceFromTagsets
-
-	InterfacePermissionsAvailable = interfacePermissionsAvailable
-	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
+	IsBlocked                 = isBlocked
+	ParseCertificateChainData = parseCertificateChainData
+	ParseCertificateData      = parseCertificateData
+	ParseCertificates         = parseCertificates
+	ReadDigests               = readDigests
+	GenerateCACertificates    = generateCACertificates
 )
 
-func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
-	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
+func MockGenerateCertificateDatabase(f func() error) func() {
+	restore := testutil.Backup(&GenerateCertificateDatabase)
+	GenerateCertificateDatabase = f
+	return restore
 }

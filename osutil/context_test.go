@@ -24,12 +24,14 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -100,13 +102,20 @@ func (ctxSuite) TestRunMany(c *check.C) {
 	c.Assert(cmds[1].ProcessState.Success(), check.Equals, true)
 }
 
-func (ctxSuite) TestRunManyCmdError(c *check.C) {
+func (s ctxSuite) TestRunManyCmdError(c *check.C) {
 	var cmds []*exec.Cmd
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
 	buildExec := func(ctx context.Context) ([]*exec.Cmd, []func() error, error) {
-		// One command will fail
+		// One command will fail. We use a file to ensure both
+		// processes have started before exiting any.
+		startedPath := filepath.Join(dirs.GlobalRootDir, "started")
 		cmds = []*exec.Cmd{
-			exec.CommandContext(ctx, "false"), // Returns exit status 1
-			exec.CommandContext(ctx, "sleep", "10"),
+			// Returns exit status 1
+			exec.CommandContext(ctx, "sh", "-c",
+				"while [ ! -f "+startedPath+" ]; do sleep 0.01; done; false"),
+			exec.CommandContext(ctx, "sh", "-c", "touch "+startedPath+"; sleep 10"),
 		}
 		return cmds, nil, nil
 	}
@@ -114,7 +123,7 @@ func (ctxSuite) TestRunManyCmdError(c *check.C) {
 	err := osutil.RunManyWithContext(context.Background(), buildExec)
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, ".*exit status 1")
-	// ProcessState exists only if the process finished
+	// ProcessState exists only if the process was ever started and has finished
 	c.Assert(cmds[0].ProcessState, check.NotNil)
 	c.Assert(cmds[1].ProcessState, check.NotNil)
 	c.Assert(cmds[0].ProcessState.Success(), check.Equals, false)
@@ -137,8 +146,10 @@ func (ctxSuite) TestRunManyCmdCannotStart(c *check.C) {
 	c.Assert(err.Error(), check.Matches, "fork/exec /non/existing/command: no such file or directory")
 	// First command never started
 	c.Assert(cmds[0].ProcessState, check.IsNil)
-	c.Assert(cmds[1].ProcessState, check.NotNil)
-	c.Assert(cmds[1].ProcessState.Success(), check.Equals, false)
+	// If the second had the time to start, it must have been cancelled
+	if cmds[1].ProcessState != nil {
+		c.Assert(cmds[1].ProcessState.Success(), check.Equals, false)
+	}
 }
 
 func (ctxSuite) TestRunManyTaskError(c *check.C) {

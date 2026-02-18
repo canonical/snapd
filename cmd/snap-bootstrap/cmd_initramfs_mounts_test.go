@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -421,6 +422,9 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	restore = main.MockWaitFile(func(string, time.Duration, int) error {
 		return nil
 	})
+	s.AddCleanup(restore)
+
+	restore = squashfs.MockNeedsFuse(false)
 	s.AddCleanup(restore)
 
 	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {

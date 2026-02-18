@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -170,11 +171,19 @@ func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader 
 	}
 }
 
-func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
+func MockApplyDelta(f func(ctx context.Context, s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f
 	return func() {
 		applyDelta = origApplyDelta
+	}
+}
+
+func MockSquashfsApplyDelta(f func(ctx context.Context, sourceSnap, deltaFile, targetSnap string) error) (restore func()) {
+	origSquashfsApplySnapDelta := squashfsApplyDelta
+	squashfsApplyDelta = f
+	return func() {
+		squashfsApplyDelta = origSquashfsApplySnapDelta
 	}
 }
 
@@ -194,12 +203,12 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func (sto *Store) SetDeltaFormat(dfmt string) {
-	sto.deltaFormat = dfmt
-}
-
-func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-	return sto.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
+func MockSupportedDeltaFormats(f func(squashfs.DeltaFormatOpts) []string) (restore func()) {
+	old := squashfsSupportedDeltaFormats
+	squashfsSupportedDeltaFormats = f
+	return func() {
+		squashfsSupportedDeltaFormats = old
+	}
 }
 
 func (sto *Store) DoRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
@@ -228,14 +237,6 @@ func (sto *Store) SessionUnlock() {
 
 func (sto *Store) FindFields() []string {
 	return sto.findFields
-}
-
-func (sto *Store) UseDeltas() bool {
-	return sto.useDeltas()
-}
-
-func (sto *Store) Xdelta3Cmd(args ...string) *exec.Cmd {
-	return sto.xdelta3CmdFunc(args...)
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {
