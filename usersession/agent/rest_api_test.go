@@ -226,7 +226,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind": "service-control", "message": "some user services failed to start",
 		"value": map[string]any{
-			"start-errors": map[string]any{"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error"},
+			"start-errors": map[string]any{"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open inactive: no such file or directory\nmock systemctl error"},
 			"stop-errors":  map[string]any{},
 		},
 	})
