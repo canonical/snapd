@@ -54,7 +54,7 @@ func (s *emulation) DaemonReload() error {
 	return nil
 }
 
-func (s *emulation) DaemonDisableEnable([]string) error {
+func (s *emulation) DaemonReEnable([]string) error {
 	return nil
 }
 

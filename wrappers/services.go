@@ -402,7 +402,7 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
-func userDaemonDisableEnable(services []string) error {
+func userDaemonReEnable(services []string) error {
 	userGlobalSysd := systemd.New(systemd.GlobalUserMode, nil)
 	enabledServices := []string{}
 	for _, service := range services {
@@ -415,7 +415,7 @@ func userDaemonDisableEnable(services []string) error {
 			enabledServices = append(enabledServices, service)
 		}
 	}
-	return userGlobalSysd.DaemonDisableEnable(enabledServices)
+	return userGlobalSysd.DaemonReEnable(enabledServices)
 }
 
 func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileState, modified bool, err error) {
@@ -522,8 +522,8 @@ type ensureSnapServicesContext struct {
 	// updated and some may have been rolled back, higher level tasks/changes
 	// should have do/undo handlers to properly handle the case where this
 	// function is interrupted midway
-	modifiedUnits      map[string]*osutil.MemoryFileState
-	disableEnableUnits []string
+	modifiedUnits map[string]*osutil.MemoryFileState
+	reEnableUnits []string
 }
 
 // restore is a helper function which should be called in case any errors happen
@@ -565,8 +565,8 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	if es.opts.Preseeding {
 		return nil
 	}
-	if len(es.disableEnableUnits) != 0 {
-		if err := userDaemonDisableEnable(es.disableEnableUnits); err != nil {
+	if len(es.reEnableUnits) != 0 {
+		if err := userDaemonReEnable(es.reEnableUnits); err != nil {
 			es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
 		}
 	}
@@ -629,7 +629,7 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 				if oldKey != newKey {
 					// the daemon must be disabled and re-enabled to ensure that the
 					// .service file is placed in the right wanted-by folder
-					es.disableEnableUnits = append(es.disableEnableUnits, filepath.Base(path))
+					es.reEnableUnits = append(es.reEnableUnits, filepath.Base(path))
 				}
 			}
 		}

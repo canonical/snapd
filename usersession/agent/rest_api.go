@@ -129,7 +129,9 @@ func checkWantedByForService(originalError error, service string) error {
 	var targetObject dbus.ObjectPath
 	err = obj.Call("org.freedesktop.systemd1.Manager.GetUnit", 0, target).Store(&targetObject)
 	if err != nil {
-		return fmt.Errorf("Failed to get unit name for %s target: %s\n%s", target, err, originalError)
+		// it's not an error if the desired unit isn't in the system.
+		logger.Noticef("Failed to get unit name for %s target: %s\n%s", target, err, originalError)
+		return nil
 	}
 
 	targetObjectIface := conn.Object("org.freedesktop.systemd1", dbus.ObjectPath(targetObject))
