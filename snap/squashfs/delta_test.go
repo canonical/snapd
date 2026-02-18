@@ -667,7 +667,8 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 			c.Check(cmds[2].Args[4], Matches, `/tmp/snap-delta-.*/src`)
 			c.Check(cmds[2].Args[5], Matches, `/tmp/snap-delta-.*/delta`)
 
-			return nil
+			// Create the target file so that growToMinSize can stat it.
+			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
 		})()
 
 	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
@@ -763,7 +764,8 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 			pipeData := <-readResult
 			c.Check(string(pipeData), Equals, string(expectedData))
 
-			return nil
+			// Create the target file so that growToMinSize can stat it.
+			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
 		})()
 
 	// Execute
@@ -895,6 +897,66 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 	_, err = os.Stat(capturedTempDir)
 	c.Check(os.IsNotExist(err), Equals, true,
 		Commentf("Temp dir %s was not cleaned up", capturedTempDir))
+}
+
+func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3PadsToMinSize(c *C) {
+	deltaPath := s.createDeltaFile(c, "valid.delta", 5000, 1, 0x0040)
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	err := os.WriteFile(sourceSnap, []byte("mock source"), 0644)
+	c.Assert(err, IsNil)
+
+	targetSnap := filepath.Join(dirs.GlobalRootDir, "target.snap")
+
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
+
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			_, _, err := buildWithContext(ctx)
+			c.Assert(err, IsNil)
+			// Simulate mksquashfs creating a small squashfs (smaller
+			// than MinimumSnapSize).
+			return os.WriteFile(targetSnap, make([]byte, 4096), 0644)
+		})()
+
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap)
+	c.Assert(err, IsNil)
+
+	fi, err := os.Stat(targetSnap)
+	c.Assert(err, IsNil)
+	c.Check(fi.Size(), Equals, squashfs.MinimumSnapSize)
+}
+
+func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3NoPadIfLargeEnough(c *C) {
+	deltaPath := s.createDeltaFile(c, "valid.delta", 5000, 1, 0x0040)
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	err := os.WriteFile(sourceSnap, []byte("mock source"), 0644)
+	c.Assert(err, IsNil)
+
+	targetSnap := filepath.Join(dirs.GlobalRootDir, "target.snap")
+	largeSize := int64(squashfs.MinimumSnapSize * 2)
+
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
+
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			_, _, err := buildWithContext(ctx)
+			c.Assert(err, IsNil)
+			// Simulate mksquashfs creating a snap already larger than MinimumSnapSize.
+			return os.WriteFile(targetSnap, make([]byte, largeSize), 0644)
+		})()
+
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap)
+	c.Assert(err, IsNil)
+
+	fi, err := os.Stat(targetSnap)
+	c.Assert(err, IsNil)
+	c.Check(fi.Size(), Equals, largeSize)
 }
 
 func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
