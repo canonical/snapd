@@ -139,7 +139,7 @@ func (s *certsTestSuite) TestParseCertificateDataSimpleHappy(c *C) {
 
 	cert, err := certstate.ParseCertificateData(bytes)
 	c.Assert(err, IsNil)
-	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C) {
@@ -151,18 +151,16 @@ func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C)
 
 	cert, err := certstate.ParseCertificateData(data)
 	c.Assert(err, IsNil)
-	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
-func (s *certsTestSuite) TestParseCertificateChainDataDERInput(c *C) {
+func (s *certsTestSuite) TestParseCertificateDataDERInput(c *C) {
 	_, cert, err := makeTestCertPEM("Test Certificate Root CA")
 	c.Assert(err, IsNil)
 
-	parsed, chainDER, err := certstate.ParseCertificateChainData(cert.Raw)
+	parsed, err := certstate.ParseCertificateData(cert.Raw)
 	c.Assert(err, IsNil)
-	c.Check(parsed.Subject.CommonName, Equals, "Test Certificate Root CA")
-	c.Check(chainDER, HasLen, 1)
-	c.Check(chainDER[0], DeepEquals, cert.Raw)
+	c.Check(parsed.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
 func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
