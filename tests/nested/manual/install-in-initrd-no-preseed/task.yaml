@@ -1,0 +1,94 @@
+summary: Check installation in initrd when there is no preseed tarball
+
+details: |
+  This test checks that we perform a single-boot installation when there is no preseed tarball
+  for UC26+.
+
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*, -ubuntu-24*]
+
+environment:
+  # encrypted and unencrypted cases
+  NESTED_ENABLE_TPM/encrypted: true
+  NESTED_ENABLE_SECURE_BOOT/encrypted: true
+  NESTED_ENABLE_TPM/plain: false
+  NESTED_ENABLE_SECURE_BOOT/plain: false
+
+  # ensure we use our latest code
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
+
+  # create a kernel-modules component for efi-pstore
+  NESTED_KERNEL_MODULES_COMP: efi-pstore
+  NESTED_COMP_KERNEL_MODULE_NAME: efi-pstore
+
+prepare: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=install"
+  remote.exec "cat /var/lib/snapd/modeenv" > modeenv
+  MATCH "mode=run" < modeenv
+
+  check_efi_pstore() {
+      # Compare times to check that drivers tree was created on
+      # installation, not on seeding
+      # shellcheck disable=SC2016
+      tree_birth=$(remote.exec 'date -d"$(stat --printf="%w\n" /var/lib/snapd/kernel/pc-kernel)" +%s')
+      reboot_time=$(remote.exec 'last reboot --time-format full | sed -n "s/wtmp begins //p"')
+      reboot_time=$(date -d"$reboot_time" +%s)
+      test "$reboot_time" -gt "$tree_birth"
+
+      # check that the component is in place
+      kern_ver=$(remote.exec uname -r)
+      comp_install_dir=/var/lib/snapd/kernel/pc-kernel/x1/lib/modules/"$kern_ver"/updates/"$NESTED_KERNEL_MODULES_COMP"
+      comp_dir=/snap/pc-kernel/components/mnt/"$NESTED_KERNEL_MODULES_COMP"/x1/modules/"$kern_ver"
+      test "$(remote.exec readlink -f "$comp_install_dir")" = "$comp_dir"
+
+      # module comes from a component
+      remote.exec modinfo -F filename efi_pstore | MATCH updates/"$NESTED_KERNEL_MODULES_COMP"/kmod/efi-pstore.ko
+      # module should have been loaded (pulled by systemd-pstore.service)
+      remote.exec lsmod | MATCH efi_pstore
+
+      # Check that the mount files were created
+      remote.exec stat /run/systemd/system/'sysroot-writable-system\\x2ddata-snap-pc\\x2dkernel-x1.mount'
+      remote.exec stat /run/systemd/system/'sysroot-writable-system\\x2ddata-snap-pc\\x2dkernel-components-mnt-efi\\x2dpstore-x1.mount'
+  }
+
+  check_efi_pstore
+
+  if [ "$NESTED_ENABLE_TPM" = true ]; then
+    # TODO: in a normal run, ubuntu-data-<someid> is used instead of
+    # just "ubuntu-data". We need to figure out if this is OK.
+    remote.exec "ls /dev/mapper/ubuntu-data*"
+    remote.exec "ls /dev/mapper/ubuntu-save*"
+
+    boot_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+
+    boot_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" |
+                                        "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" |
+                                        "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_asset_sha3="$(remote.exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" |
+                                        "$TESTSLIB"/tools/sha3-384)"
+
+    [ "${boot_grub_sha3}" = "${boot_grub_asset_sha3}" ]
+    [ "${seed_grub_sha3}" = "${seed_grub_asset_sha3}" ]
+    [ "${seed_shim_sha3}" = "${seed_shim_asset_sha3}" ]
+  fi
+
+  if [ "$NESTED_ENABLE_TPM" = true ]; then
+      remote.exec test -f /var/lib/snapd/device/fde/boot-chains
+  else
+      remote.exec not test -f /var/lib/snapd/device/fde/boot-chains
+  fi
