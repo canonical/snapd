@@ -108,23 +108,20 @@ func checkWantedByForService(originalError error, service string) error {
 	}
 	serviceFileIni, err := ini.Load(servicePath)
 	if err != nil {
-		logger.Noticef("Failed to load the systemd service file for %s: %s", service, err)
-		return originalError
+		return fmt.Errorf("Failed to load the systemd service file for %s: %s\n%s", service, err, originalError)
 	}
 	target := ""
 	if section := serviceFileIni.Section("Install"); section != nil {
 		target = section.Key("WantedBy").String()
 	}
 	if target == "default.target" || target == "" || !strings.HasSuffix(target, ".target") {
-		logger.Noticef("Target is %s. Returning", target)
 		return originalError // if it uses the default target, return the original error
 	}
 
 	// Check if the target is active
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		logger.Noticef("Failed to connect to the session bus: %s", err)
-		return originalError
+		return fmt.Errorf("Failed to connect to the session bus: %s\n%s", err, originalError)
 	}
 	defer conn.Close()
 
@@ -132,16 +129,14 @@ func checkWantedByForService(originalError error, service string) error {
 	var targetObject dbus.ObjectPath
 	err = obj.Call("org.freedesktop.systemd1.Manager.GetUnit", 0, target).Store(&targetObject)
 	if err != nil {
-		logger.Noticef("Failed to get unit name for %s target: %s", target, err)
-		return originalError
+		return fmt.Errorf("Failed to get unit name for %s target: %s\n%s", target, err, originalError)
 	}
 
 	targetObjectIface := conn.Object("org.freedesktop.systemd1", dbus.ObjectPath(targetObject))
 	var state string
 	err = targetObjectIface.Call("org.freedesktop.DBus.Properties.Get", 0, "org.freedesktop.systemd1.Unit", "ActiveState").Store(&state)
 	if err != nil {
-		logger.Noticef("Failed to get unit state for %s target: %s", target, err)
-		return originalError
+		return fmt.Errorf("Failed to get unit state for %s target: %s\n%s", target, err, originalError)
 	}
 
 	if state == "active" {
