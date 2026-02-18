@@ -226,7 +226,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind": "service-control", "message": "some user services failed to start",
 		"value": map[string]any{
-			"start-errors": map[string]any{"snap.bar.service": "mock systemctl error"},
+			"start-errors": map[string]any{"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error"},
 			"stop-errors":  map[string]any{},
 		},
 	})
@@ -294,7 +294,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nstart failure",
 			},
 			"stop-errors": map[string]any{},
 		},
@@ -337,7 +337,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nstart failure",
 			},
 			"stop-errors": map[string]any{
 				"snap.foo.service": "stop failure",
@@ -592,7 +592,7 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error",
 			},
 		},
 	})
@@ -671,7 +671,7 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error",
 			},
 		},
 	})
