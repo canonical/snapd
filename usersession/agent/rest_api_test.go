@@ -206,8 +206,8 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if cmd[1] == "--user" && cmd[2] == "show" && cmd[3] == "--property" && cmd[4] == "FragmentPath" {
-			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[5])), nil
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[4])), nil
 		}
 		if cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
@@ -279,8 +279,8 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return nil, fmt.Errorf("start failure")
 		}
-		if cmd[1] == "--user" && cmd[2] == "show" && cmd[3] == "--property" && cmd[4] == "FragmentPath" {
-			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[5])), nil
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[4])), nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -326,8 +326,8 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
 			return nil, fmt.Errorf("stop failure")
 		}
-		if cmd[1] == "--user" && cmd[2] == "show" && cmd[3] == "--property" && cmd[4] == "FragmentPath" {
-			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[5])), nil
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[4])), nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -582,8 +582,8 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
-		if cmd[1] == "--user" && cmd[2] == "show" && cmd[3] == "--property" && cmd[4] == "FragmentPath" {
-			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[5])), nil
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[4])), nil
 		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
@@ -660,8 +660,8 @@ func (s *restSuite) TestServicesRestartOrReloadNonSnap(c *C) {
 func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if cmd[1] == "--user" && cmd[2] == "show" && cmd[3] == "--property" && cmd[4] == "FragmentPath" {
-			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[5])), nil
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("/etc/systemd/user/%s", cmd[4])), nil
 		}
 		// Ignore "show" spam
 		if cmd[1] != "show" {
