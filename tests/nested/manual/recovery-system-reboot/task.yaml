@@ -162,7 +162,7 @@ execute: |
     fi
 
     # should be back into run mode since we reset the device
-    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec cat /var/lib/snapd/modeenv | grep '^mode=run$';
 
     # new system should be the default recovery system and the current system
     remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'

@@ -10,7 +10,10 @@ details: |
     with an old save. This test covers that case.
 
 systems:
-  # FIXME: make it work on 26
+  # FIXME: on 26 we get a boot loop. Error is:
+  # chroot: can't execute '/usr/lib/core/handle-writable-paths': No such file or directory
+  # Not unexpected as the base we start with should be core24-, as core26 does
+  # not have handle-writable-paths.
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
@@ -23,19 +26,26 @@ environment:
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   REMOTE_SAS_URL: http://10.0.2.2:11028
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
   # We will sign manually because we need to move files around
   NESTED_SIGN_SNAPS_FAKESTORE: false
 
-  # 2.63
-  OLD_SNAPD_REVISION: 21759
-  OLD_SNAPD_COMMIT: 40efd81c2f35213eabf2df83fb9efabe88fa124e
+  # 2.67.1
+  OLD_SNAPD_REVISION: 23771
+  # matches core-initrd from kernel rev 2247
+  OLD_SNAPD_COMMIT: 98d9ab686560565b4c943723d1df1ba35f6436b1
 
   NESTED_KERNEL_REMOVE_COMPONENTS: true
 
   NESTED_CORE_CHANNEL: ""
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/prepare.sh
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/nested.sh
+
     # Install what is needed before using the fake store
     snap install test-snapd-swtpm --edge
 
@@ -85,7 +95,7 @@ prepare: |
                 "type": "gadget"
             },
             {
-                "default-channel": "${VERSION}/edge",
+                "default-channel": "${model_version}/edge",
                 "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
                 "name": "pc-kernel",
                 "type": "kernel"
@@ -110,6 +120,24 @@ prepare: |
     extra="$(tests.nested get extra-snaps-path)"
     tests.nested prepare-essential-snaps
 
+    # Save modern kernel, use old one for the seed so it does not install from
+    # the initramfs
+    mv "${extra}"/pc-kernel.snap pc-kernel_new.snap
+    old_unmkinitramfs=true
+    if [ "$VERSION" -eq 20 ]; then
+        kernel_rev=2332
+    elif [ "$VERSION" -eq 22 ]; then
+        kernel_rev=2423
+    elif [ "$VERSION" -eq 24 ]; then
+        kernel_rev=2247
+    else
+        # This one does not install by default from the initramfs, which is
+        # relevant when doing the factory reset.
+        kernel_rev=2247
+        old_unmkinitramfs=false
+    fi
+    snap download pc-kernel --revision="${kernel_rev}" --basename=pc-kernel_old
+
     # Now we want to start with the old snap for snapd, and keep the
     # prepared snap (containing new code), for the new model
     mv "${extra}"/snapd_*.snap snapd_new.snap
@@ -122,12 +150,43 @@ prepare: |
     git -C snapd_old_source checkout "${OLD_SNAPD_COMMIT}"
     pushd snapd_old_source
     ./get-deps.sh --skip-unused-check
-    ./mkversion.sh "2.63"
+    ./mkversion.sh "2.67.1"
     CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys -o ../snapd_old/usr/lib/snapd/snapd github.com/snapcore/snapd/cmd/snapd
+    CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys,nomanagers -o ../snap-bootstrap ./cmd/snap-bootstrap
     popd
     rm -rf snapd_old_source
     snap pack snapd_old --filename="${extra}/snapd_old.snap"
     rm -rf snapd_old
+
+    # Insert rebuilt snap-bootstrap in old kernel, so it supports testrootorg
+    # TODO cleanups missing in uc24_build_initramfs_kernel_snap
+    rm -rf pc-kernel initrd
+    unsquashfs -d pc-kernel pc-kernel_old.snap
+    rm pc-kernel_old.snap
+    kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
+    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img-"$kernelver"
+    unmkinitramfs initrd.img-"$kernelver" initrd
+    rm initrd.img-"$kernelver"
+    # unmkinitramfs has changed its behavior on 26.04, it does not create a folder
+    # per cpio file like it the past.
+    initrd_d=initrd/main
+    if [ "$old_unmkinitramfs" = false ]
+    then initrd_d=initrd
+    fi
+    cp snap-bootstrap "$initrd_d"/usr/lib/snapd/
+    test_d=$PWD
+    pushd "$initrd_d"
+    compress_prog="zstd -1 -T0"
+    if [ "$VERSION" -eq 20 ]; then
+        compress_prog="lz4 -9 -l"
+    fi
+    sh -c "find . | cpio --create --quiet --format='newc' --owner=0:0 | $compress_prog > $test_d/initrd.img-$kernelver"
+    popd
+    # This will also sign the kernel with snakeoil keys
+    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
+    snap pack --filename="${extra}"/pc-kernel_old.snap pc-kernel
 
     # We need to set the serial to match fakedevicesvc
     unsquashfs -d pc "${extra}"/pc.snap
@@ -150,29 +209,29 @@ prepare: |
     "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc.snap" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
     "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc.snap" "${VERSION}/edge"
 
-    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc-kernel.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
-    "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc-kernel.snap" "${VERSION}/edge"
-
     "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/${core_name}.snap" "${core_id}"
     "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/${core_name}.snap" "${VERSION}/edge"
 
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc-kernel_old.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+    "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/pc-kernel_old.snap" "old/edge"
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "pc-kernel_new.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+    "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "pc-kernel_new.snap" "new/edge"
 
     "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 1 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/snapd_old.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
     "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${extra}/snapd_old.snap" "old/edge"
-
     "${TESTSTOOLS}/store-state" make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "snapd_new.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
     "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "snapd_new.snap" "new/edge"
 
     systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
-    NESTED_BUILD_SNAPD_FROM_CURRENT=false tests.nested build-image core
+    NESTED_REPACK_KERNEL_SNAP=false NESTED_BUILD_SNAPD_FROM_CURRENT=false tests.nested build-image core
 
     tests.nested create-vm core
 
 restore: |
     systemctl stop fakedevicesvc || true
     "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
-    rm -f model-{old,new}.model snapd_{old,new}.snap
+    rm -f model-{old,new}.model snapd_{old,new}.* pc-kernel_{old,new}.*
     rm -rf pc core snapd_old_source snapd_old
 
 debug: |
@@ -183,7 +242,7 @@ debug: |
 
 execute: |
     remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-old$'
-    remote.exec "snap version" | MATCH "^snapd *2.63$"
+    remote.exec "snap version" | MATCH "^snapd *2.67.1$"
 
     remote.push model-new.model
 
@@ -196,7 +255,7 @@ execute: |
 
     remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-new$'
     remote.exec "snap model --assertion" | NOMATCH '^model: update-snapd-seed-and-factory-reset-old$'
-    remote.exec "snap version" | NOMATCH "^snapd *2.63$"
+    remote.exec "snap version" | NOMATCH "^snapd *2.67.1$"
 
     boot_id="$(tests.nested boot-id)"
     remote.exec "sudo snap reboot --factory-reset" || true
@@ -211,7 +270,7 @@ execute: |
 
     remote.exec "snap model --assertion" | MATCH '^model: update-snapd-seed-and-factory-reset-new$'
     remote.exec "snap model --assertion" | NOMATCH '^model: update-snapd-seed-and-factory-reset-old$'
-    remote.exec "snap version" | NOMATCH "^snapd *2.63$"
+    remote.exec "snap version" | NOMATCH "^snapd *2.67.1$"
 
     if os.query is-ubuntu-ge 22.04; then
       # --dump-json-metadata does not work on 20.04

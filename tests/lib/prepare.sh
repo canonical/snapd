@@ -735,7 +735,13 @@ EOF
 #!/bin/sh
 set -ex
 # ensure we don't enable ssh in install mode or spread will get confused
-if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
+# We look at modeenv as that is authoritative if installing from the initramfs.
+if [ -f /var/lib/snapd/modeenv ]; then
+    if ! grep -E '^mode=(run|recover)$' /var/lib/snapd/modeenv; then
+        echo "not in run or recovery mode - script not running"
+        exit 0
+    fi
+elif ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
     echo "not in run or recovery mode - script not running"
     exit 0
 fi
@@ -1145,7 +1151,7 @@ description: kernel component for testing purposes
 EOF
     # Replace _ or - with [_-], as it can be any of these
     glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
-    module_path=$(find pc-kernel -name "${glob_mod_name}.ko*")
+    module_path=$(find pc-kernel/modules/ -name "${glob_mod_name}.ko*")
     cp "$module_path" "$comp_ko_dir"
     snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
 

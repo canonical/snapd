@@ -32,7 +32,8 @@ execute: |
     remote.wait-for reboot "${boot_id}"
 
     # check that we are back in run mode
-    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+    MATCH 'mode=run' < modeenv
 
     # wait for the system to get setup and finish seeding
     remote.wait-for snap-command
