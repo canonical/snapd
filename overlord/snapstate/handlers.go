@@ -3462,8 +3462,16 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	rmSvcs := make(map[string]*snap.AppInfo)
+	for _, svc := range svcs {
+		app, ok := newInfo.Apps[svc.Name]
+		if !ok || !app.IsService() {
+			rmSvcs[svc.Name] = svc
+		}
+	}
+
 	// stop the services
-	err = m.backend.StopServices(svcs, newInfo.Apps, stopReason, pb, perfTimings)
+	err = m.backend.StopServices(svcs, rmSvcs, stopReason, pb, perfTimings)
 	if err != nil {
 		return err
 	}

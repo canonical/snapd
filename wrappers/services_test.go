@@ -4414,9 +4414,7 @@ apps:
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, [][]string{{"daemon-reload"}})
 	s.sysdLog = nil
 
 	apps := []*snap.AppInfo{info.Apps["survivor"]}
@@ -4430,19 +4428,38 @@ apps:
 		{"start", filepath.Base(survivorFile)},
 	})
 
-	s.sysdLog = nil
-	err = wrappers.StopServices(info.Services(), apps[0].Snap.Apps, nil, snap.StopReasonRefresh, progress.Null, s.perfTimings)
-	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 0)
+	stoppedSvc := [][]string{
+		{"stop", filepath.Base(survivorFile)},
+		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
+	}
+	type testcase struct {
+		reason      snap.ServiceStopReason
+		removedSvcs map[string]*snap.AppInfo
+		sysdLog     [][]string
+	}
 
-	for _, reason := range []snap.ServiceStopReason{snap.StopReasonRefresh, snap.StopReasonRemove} {
+	tcs := []testcase{
+		{
+			reason: snap.StopReasonRefresh,
+		},
+		{
+			// stops endure service if not present in new snap revision
+			reason:      snap.StopReasonRefresh,
+			removedSvcs: apps[0].Snap.Apps,
+			sysdLog:     stoppedSvc,
+		},
+		{
+			// stops endure service if removing the snap
+			reason:  snap.StopReasonRemove,
+			sysdLog: stoppedSvc,
+		},
+	}
+
+	for _, tc := range tcs {
 		s.sysdLog = nil
-		err = wrappers.StopServices(info.Services(), nil, nil, reason, progress.Null, s.perfTimings)
+		err = wrappers.StopServices(info.Services(), tc.removedSvcs, nil, tc.reason, progress.Null, s.perfTimings)
 		c.Assert(err, IsNil)
-		c.Check(s.sysdLog, DeepEquals, [][]string{
-			{"stop", filepath.Base(survivorFile)},
-			{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
-		})
+		c.Assert(s.sysdLog, DeepEquals, tc.sysdLog)
 	}
 }
 
