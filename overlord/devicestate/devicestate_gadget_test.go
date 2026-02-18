@@ -1248,9 +1248,8 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 	checkCmdlineAppendCoreConfig(c, s.state, "", "")
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
+		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
-		c.Check(updated, Equals, true)
 	}
 	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
 		checkPendingExtraSnapdFragments(c, s.state, false)

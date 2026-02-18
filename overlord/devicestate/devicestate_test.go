@@ -2605,11 +2605,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	})
 	defer restore()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	c.Check(logbuf.String(), Equals, "")
-
 	for i := 0; i < 10; i++ {
 		err := devicestate.EnsureEarlyBootXKBConfigUpdated(s.mgr)
 		c.Assert(err, IsNil)
@@ -2624,8 +2619,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, true)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="uk,pc105,,")`)
-	logbuf.Reset()
 
 	mockConf.Model = "pc104"
 	mockConf.Layouts = []string{"us"}
@@ -2635,8 +2628,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, true)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="us,pc104,,")`)
-	logbuf.Reset()
 
 	// Run one more time with args unchanged, nothing should be logged
 	ensureCallback(&mockConf)
@@ -2645,11 +2636,116 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), Equals, "")
-	logbuf.Reset()
 
 	// Double check that initialization ran once.
 	c.Assert(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(logbuf.String(), Equals, "")
+
+	s.state.Unlock()
+	err := devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// no pending fragments, no changes created
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(logbuf.String(), Equals, "")
+
+	// now set pending fragments that need to be applied
+	err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, "xkb", "some fragment")
+	c.Assert(err, IsNil)
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(logbuf.String(), Equals, "")
+
+	// but there are in-progress tasks that will apply the changes anyway
+	// i.e. update-gadget-cmdline and update-managed-boot-config
+	chg := s.state.NewChange("", "")
+
+	t1 := s.state.NewTask("update-gadget-cmdline", "")
+	chg.AddTask(t1)
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// pending fragments, but no change created (except our mock change)
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(logbuf.String(), Equals, "")
+
+	t2 := s.state.NewTask("update-managed-boot-config", "")
+	chg.AddTask(t2)
+	t1.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// pending fragments, but no change created
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(logbuf.String(), Equals, "")
+
+	t2.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// now that above tasks are not in-progress next ensure call should
+	// create a change
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// no actual task ran to unset pending state
+	checkPendingExtraSnapdFragments(c, s.state, true)
+
+	c.Check(s.state.Changes(), HasLen, 2)
+	chg = nil
+	for _, chg = range s.state.Changes() {
+		if chg.Kind() == "apply-extra-snapd-kcmdline-fragments" {
+			break
+		}
+	}
+	c.Check(chg.Tasks(), HasLen, 1)
+	t := chg.Tasks()[0]
+	c.Check(t.Kind(), Equals, "update-managed-boot-config")
+	var noRestart bool
+	err = t.Get("no-restart", &noRestart)
+	c.Assert(err, IsNil)
+	c.Check(noRestart, Equals, true)
+	c.Check(logbuf.String(), testutil.Contains, "Applying pending extra snapd kernel cmdline fragments")
+}
+
+func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedConflictError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, "xkb", "some fragment")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }
 
 func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
