@@ -16,6 +16,7 @@ environment:
     # 2.63 release
     OLD_SNAPD_REVISION: "21759"
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
+    NESTED_REPACK_KERNEL_SNAP: false
     NESTED_FORCE_SNAKEOIL_KEYS: true
 
     # hook
@@ -31,20 +32,71 @@ environment:
     NESTED_KERNEL_REMOVE_COMPONENTS: true
 
 prepare: |
-    if [ "${ENCRYPTION}" = hook ]; then
-       mkdir -p ./extra-initrd/usr/bin/
-       go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
-       mkdir -p ./extra-kernel-snap/meta/hooks
-       go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
-    fi
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/nested.sh
 
     snap download snapd --revision="${OLD_SNAPD_REVISION}" --basename=snapd_old
 
-    unsquashfs -d snapd_old snapd_old.snap
-    rm -f snapd_old.snap
-    touch snapd_old/force_modfication
-    snap pack snapd_old --filename="$(tests.nested get extra-snaps-path)/snapd_old.snap"
-    rm -rf snapd_old
+    version="$(nested_get_version)"
+    if [ "$version" -eq 20 ] || [ "$version" -eq 22 ] || [ "$version" -eq 24 ]; then
+        export NESTED_REPACK_KERNEL_SNAP=true
+
+        if [ "${ENCRYPTION}" = hook ]; then
+            mkdir -p ./extra-initrd/usr/bin/
+            go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+            mkdir -p ./extra-kernel-snap/meta/hooks
+            go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
+        fi
+
+        unsquashfs -d snapd_old snapd_old.snap
+        rm -f snapd_old.snap
+        touch snapd_old/force_modfication
+        snap pack snapd_old --filename="$(tests.nested get extra-snaps-path)/snapd_old.snap"
+        rm -rf snapd_old
+    else
+        # Use also old kernel for UC26+. This one does not install by default from the
+        # initramfs, which is relevant when doing the factory reset.
+        kernel_rev=2247
+        snap download pc-kernel --revision="${kernel_rev}" --basename=pc-kernel_old
+
+        for name in snapd_old pc-kernel_old; do
+            unsquashfs -d "$name" "$name".snap
+            rm -f "$name".snap
+            touch "$name"/force_modification
+        done
+
+        if [ "${ENCRYPTION}" = hook ]; then
+            # Copy fde-reveal-key hook to initramfs
+            kernelver=$(find pc-kernel_old/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
+            objcopy -O binary -j .linux pc-kernel_old/kernel.efi linux-"$kernelver"
+            objcopy -O binary -j .initrd pc-kernel_old/kernel.efi initrd.img-"$kernelver"
+            unmkinitramfs initrd.img-"$kernelver" initrd
+            rm initrd.img-"$kernelver"
+            mkdir -p initrd/main/usr/bin/
+            go build -o initrd/main/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
+
+            pushd initrd/main
+            compress_prog=zstd
+            if [ "$version" -eq 20 ]; then
+                compress_prog=lz4
+            fi
+            sh -c "find . | cpio --create --quiet --format='newc' --owner=0:0 | $compress_prog -1 -T0 > ../../initrd.img-$kernelver"
+            popd
+
+            # This will also sign the kernel with snakeoil keys
+            ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+            cp kernel.efi-"$kernelver" pc-kernel_old/kernel.efi
+
+            # Copy fde-setup hook
+            mkdir -p pc-kernel_old/meta/hooks
+            go build -o pc-kernel_old/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
+        fi
+
+        for name in snapd_old pc-kernel_old; do
+            snap pack "$name" --filename="$(tests.nested get extra-snaps-path)"/"$name".snap
+            rm -rf "$name"
+        done
+    fi
 
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -65,7 +117,7 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    rm -f snapd_old.snap snapd.snap
+    rm -f pc-kernel_old.* snapd_old.* snapd.snap
     rm -rf snapd_old snap-output
 
 execute: |

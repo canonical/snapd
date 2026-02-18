@@ -735,7 +735,13 @@ EOF
 #!/bin/sh
 set -ex
 # ensure we don't enable ssh in install mode or spread will get confused
-if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
+# We look at modeenv as that is authoritative if installing from the initramfs.
+if [ -f /var/lib/snapd/modeenv ]; then
+    if ! grep -E '^mode=(run|recover)$' /var/lib/snapd/modeenv; then
+        echo "not in run or recovery mode - script not running"
+        exit 0
+    fi
+elif ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
     echo "not in run or recovery mode - script not running"
     exit 0
 fi
