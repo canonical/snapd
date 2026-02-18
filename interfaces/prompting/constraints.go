@@ -891,12 +891,12 @@ var (
 		"camera": {
 			"access": notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
 		},
-		"audio-record": {
-			// audio-record is a marker interface which never triggers requests
-			// from AppArmor, so it does not map to any AppArmor permissions
-			"access": 0,
-		},
 	}
+
+	// Some interfaces do not define AppArmor rules, and thus requests for that
+	// interface are not created by the listener, and permissions do not map to
+	// AppArmor permissions.
+	nonAppArmorInterfaces = []string{"audio-record"}
 )
 
 // availableInterfaces returns the list of supported interfaces.
