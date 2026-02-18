@@ -124,6 +124,9 @@ func shouldAttemptRepairOnFailure(a *ActivateState) bool {
 				return false
 			case sb.KeyslotErrorUnknown:
 				return false
+			// FIXME: add this case after updating secboot when we have this error
+			//case sb.KeyslotErrorIncorrectRoleParams:
+			//	return false
 			case sb.KeyslotErrorIncompatibleRoleParams:
 			}
 		}
@@ -131,13 +134,20 @@ func shouldAttemptRepairOnFailure(a *ActivateState) bool {
 	return true
 }
 
+// ShouldAttemptRepair reads an activate state and decides whether
+// a repair should be attempted.
 func ShouldAttemptRepair(a *ActivateState) bool {
+	// First case: recovery. We do attempt repair if all keyslots
+	// of any disk unlocked with recovery key failed with
+	// IncompatibleRoleParams
 	for _, activation := range a.Activations {
 		if activation.Status == sb.ActivationSucceededWithRecoveryKey || activation.Status == sb.ActivationFailed {
 			return shouldAttemptRepairOnFailure(a)
 		}
 	}
 
+	// Second case: degraded. All disk were unlocked
+	// successfully. But we check for some specific errors.
 	for _, activation := range a.Activations {
 		for _, errorType := range activation.KeyslotErrors {
 			switch errorType {
@@ -157,7 +167,12 @@ func ShouldAttemptRepair(a *ActivateState) bool {
 
 			// Repair
 			case sb.KeyslotErrorIncompatibleRoleParams:
+				// FIXME: we need to verify the keyslot is expected to work in the current mode.
+				// For now, it is likely we attempted the "default" keyslots first and we are in run mode.
 				return true
+				// FIXME: add this case after updating secboot when we have this error
+				//case sb.KeyslotErrorIncorrectRoleParams:
+				//      return true
 			}
 		}
 	}

@@ -96,7 +96,7 @@ func getRepairAttemptResult(st *state.State) (*repairState, error) {
 	return rs.State, nil
 }
 
-func AutoRepair(st *state.State) (AutoRepairResult, error) {
+func autoRepair(st *state.State) (AutoRepairResult, error) {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
 		return AutoRepairNotAttempted, err
@@ -131,7 +131,6 @@ func AutoRepair(st *state.State) (AutoRepairResult, error) {
 	}, method)
 
 	if err != nil {
-		fmt.Printf("WARNING: could not auto repair keyslots: %v\n", err)
 		logger.Noticef("WARNING: could not auto repair keyslots: %v", err)
 		return AutoRepairFailedKeyslots, nil
 	}
@@ -139,6 +138,8 @@ func AutoRepair(st *state.State) (AutoRepairResult, error) {
 	return AutoRepairSuccess, nil
 }
 
+// AttemptAutoRepairIfNeeded looks at the activation state and status
+// of lockout reset and may attempt to repair keyslots.
 func AttemptAutoRepairIfNeeded(st *state.State, locktoutResetErr error) error {
 	if locktoutResetErr != nil {
 		// FIXME: we need to either try repair in some cases and save the
@@ -182,7 +183,7 @@ func AttemptAutoRepairIfNeeded(st *state.State, locktoutResetErr error) error {
 		}
 	}
 
-	result, err := AutoRepair(st)
+	result, err := autoRepair(st)
 	if err != nil {
 		return err
 	}

@@ -1244,6 +1244,9 @@ func (m *DeviceManager) ensureFDE() error {
 		// more status that we will need to react to and
 		// provide to the status API.
 
+		// FIXME: we need to check that a try kernel was attempted here and not attempt
+		// repair in that case.
+
 		if err := fdestateAttemptAutoRepairIfNeeded(m.state, locktoutResetErr); err != nil {
 			return err
 		}
@@ -1271,6 +1274,9 @@ func (m *DeviceManager) ensureBootOk() error {
 			return err
 		}
 		if err == nil && deviceCtx.Model().KernelSnap() != nil {
+			// FIXME: we should check if we recovery keys
+			// were used and in that case do not mark the
+			// boot successful.
 			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
 				return err
 			}

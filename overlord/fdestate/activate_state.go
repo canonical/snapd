@@ -93,7 +93,7 @@ type FDESystemState struct {
 	// activated and whether any recovery key was used.
 	Status FDEStatus `json:"status"`
 
-	// AutoRepairResult is the start
+	// AutoRepairResult is the status of the auto-repair attempt
 	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 }
 
