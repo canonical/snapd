@@ -2727,10 +2727,10 @@ func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c
 	err = t.Get("no-restart", &noRestart)
 	c.Assert(err, IsNil)
 	c.Check(noRestart, Equals, true)
-	c.Check(logbuf.String(), testutil.Contains, "Applying pending extra snapd kernel cmdline fragments")
+	c.Check(logbuf.String(), testutil.Contains, "applying pending extra snapd kernel cmdline fragments")
 }
 
-func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedConflictError(c *C) {
+func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedConflictCheck(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2742,10 +2742,16 @@ func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedCo
 	chg := s.state.NewChange("remodel", "...")
 	chg.SetStatus(state.DoingStatus)
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(logbuf.String(), Equals, "")
+
 	s.state.Unlock()
 	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
 	s.state.Lock()
-	c.Assert(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
+	c.Assert(err, IsNil)
+	c.Check(logbuf.String(), testutil.Contains, "cannot apply extra snapd kernel command line fragments: remodeling in progress, no other changes allowed until this is done")
 }
 
 func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
