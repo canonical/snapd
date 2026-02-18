@@ -20,11 +20,14 @@
 package fdestate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
@@ -34,8 +37,13 @@ import (
 )
 
 var (
+	bootloaderFind = bootloader.Find
+
+	bootReadModeenv = boot.ReadModeenv
+
 	secbootProvisionTPM        = secboot.ProvisionTPM
 	secbootShouldAttemptRepair = secboot.ShouldAttemptRepair
+	secbootPreinstallCheck     = secboot.PreinstallCheck
 
 	osutilBootID = osutil.BootID
 )
@@ -97,6 +105,96 @@ func getRepairAttemptResult(st *state.State) (*repairState, error) {
 	return rs.State, nil
 }
 
+func getBootChain() ([]bootloader.BootFile, error) {
+	modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read modeenv: %w", err)
+	}
+
+	rbl, err := bootloaderFind(boot.InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find recovery bootloader: %w", err)
+	}
+
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: recovery bootloader does not support trusted assets")
+	}
+
+	bl, err := bootloaderFind(boot.InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find run bootloader: %w", err)
+	}
+
+	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: run bootloader does not support kernel extraction")
+	}
+
+	info, err := ebl.TryKernel()
+	if err != nil {
+		if err == bootloader.ErrNoTryKernelRef {
+			info, err = ebl.Kernel()
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	trustedAssets, err := tbl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	kernelPath := info.MountFile()
+
+	runModeBootChains, err := tbl.BootChains(bl, kernelPath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, runModeBootChain := range runModeBootChains {
+		var chain []bootloader.BootFile
+
+		if len(runModeBootChain) == 0 {
+			return nil, fmt.Errorf("internal error: no file in boot chain")
+		}
+
+		ignoreChain := false
+		for _, bf := range runModeBootChain[:len(runModeBootChain)-1] {
+			path := bf.Path
+			name, ok := trustedAssets[path]
+			if !ok {
+				return nil, fmt.Errorf("internal error: unknown trusted asset %s from boot chain", path)
+			}
+			var hashes []string
+			if bf.Role == bootloader.RoleRecovery {
+				hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
+			} else {
+				hashes, ok = modeenv.CurrentTrustedBootAssets[name]
+			}
+			if !ok {
+				ignoreChain = true
+				break
+			}
+
+			hash := hashes[len(hashes)-1]
+			p := filepath.Join(dirs.SnapBootAssetsDir, bl.Name(), fmt.Sprintf("%s-%s", name, hash))
+			chain = append(chain, bootloader.NewBootFile("", p, bf.Role))
+		}
+		if !ignoreChain {
+			return append(chain, runModeBootChain[len(runModeBootChain)-1]), nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find the active boot chain")
+}
+
 func autoRepair(st *state.State) (AutoRepairResult, error) {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
@@ -106,8 +204,17 @@ func autoRepair(st *state.State) (AutoRepairResult, error) {
 	switch method {
 	case device.SealingMethodFDESetupHook:
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		// FIXME: re-run platform checks (post install checks?)
-		// Then maybe return AutoRepairFailedEncryptionSupport
+		images, err := getBootChain()
+		if err != nil {
+			return AutoRepairNotAttempted, err
+		}
+		const postInstall = true
+		_, _, err = secbootPreinstallCheck(context.Background(), postInstall, images)
+
+		if err != nil {
+			logger.Noticef("WARNING: could not auto repair keyslots due to failed platform initialization: %v", err)
+			return AutoRepairFailedPlatformInit, nil
+		}
 
 		lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
 		if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {

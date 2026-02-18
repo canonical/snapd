@@ -21,17 +21,21 @@
 package fdestate_test
 
 import (
+	"context"
 	"fmt"
 
 	. "gopkg.in/check.v1"
 
 	sb "github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snap"
 )
 
 type autoRepairSuite struct {
@@ -48,6 +52,58 @@ func (s *autoRepairSuite) SetUpTest(c *C) {
 	s.bootId = "547730db-9e31-4c33-b418-1bce4e03f467"
 	s.AddCleanup(fdestate.MockOsutilBootID(func() (string, error) {
 		return s.bootId, nil
+	}))
+}
+
+func (s *autoRepairSuite) mockPostInstallChecks(c *C) {
+	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
+	recoveryBl.TrustedAssetsMap = map[string]string{
+		"EFI/ubuntu/shim.efi": "ubuntu:shim",
+		"EFI/ubuntu/grub.efi": "ubuntu:grub",
+	}
+	recoveryBl.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
+		return bootloader.NewBootFile("some-kernel", "kernel.efi", bootloader.RoleRunMode)
+	}
+	recoveryBl.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "EFI/ubuntu/shim.efi", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRunMode),
+	}
+
+	runBl := bootloadertest.Mock("run", "").WithExtractedRunKernelImage()
+	runBl.SetEnabledKernel(&snap.Info{SuggestedName: "some-kernel", InstanceKey: "x1", SnapType: snap.TypeKernel})
+
+	s.AddCleanup(fdestate.MockBootloaderFind(func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error) {
+		if opts.Role == bootloader.RoleRecovery {
+			return recoveryBl, nil
+		} else if opts.Role == bootloader.RoleRunMode {
+			return runBl, nil
+		} else {
+			c.Errorf("unexpected")
+			return nil, fmt.Errorf("unexpected")
+		}
+	}))
+
+	s.AddCleanup(fdestate.MockBootReadModeenv(func(rootdir string) (*boot.Modeenv, error) {
+		return &boot.Modeenv{
+			CurrentTrustedBootAssets: map[string][]string{
+				"ubuntu:grub": []string{
+					"hash-grub-run",
+				},
+			},
+			CurrentTrustedRecoveryBootAssets: map[string][]string{
+				"ubuntu:shim": []string{
+					"hash-shim-recovery",
+				},
+				"ubuntu:grub": []string{
+					"hash-grub-recovery",
+				},
+			},
+		}, nil
+	}))
+
+	s.AddCleanup(fdestate.MockSecbootPreinstallCheck(func(ctx context.Context, postInstall bool, bootImagePaths []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		return nil, nil, nil
 	}))
 }
 
@@ -81,6 +137,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 		c.Check(params.Options.Force, Equals, true)
 		return nil
 	})()
+
+	s.mockPostInstallChecks(c)
 
 	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
 	c.Assert(err, IsNil)
@@ -158,6 +216,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 		return fmt.Errorf("Unexpected call")
 	})()
 
+	s.mockPostInstallChecks(c)
+
 	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
 	c.Assert(err, IsNil)
 
@@ -199,6 +259,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 		c.Check(params.Options.Force, Equals, true)
 		return fmt.Errorf("some error")
 	})()
+
+	s.mockPostInstallChecks(c)
 
 	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil)
 	c.Assert(err, IsNil)
