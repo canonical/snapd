@@ -369,6 +369,20 @@ func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
 	c.Assert(b.Path, Equals, "other/path")
 }
 
+func (s *bootenvTestSuite) TestForGadgetWithSystemBootState(c *C) {
+	// When a gadget has ubootpart.conf, ForGadget should return ubootpart
+	gadgetDir := c.MkDir()
+	rootDir := c.MkDir()
+
+	// Create ubootpart.conf marker
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	bl, err := bootloader.ForGadget(gadgetDir, rootDir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bl, NotNil)
+	c.Check(bl.Name(), Equals, "ubootpart")
+}
 
 // Shared test helpers for bootloader implementations
 
