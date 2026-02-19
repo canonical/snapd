@@ -603,9 +603,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
 
-	if s.useDeltas() {
-		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
-		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
+	deltaFormats := s.supportedDeltaFormats()
+	if len(deltaFormats) > 0 {
+		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", deltaFormats)
+		reqOptions.addHeader("Snap-Accept-Delta-Format", strings.Join(deltaFormats, ","))
 	}
 	if opts.RefreshManaged {
 		reqOptions.addHeader("Snap-Refresh-Managed", "true")

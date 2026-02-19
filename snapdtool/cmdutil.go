@@ -110,8 +110,8 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 // accepts a context for command cancellation.
 func CommandFromSystemSnapWithContext(ctx context.Context, name string, cmdArgs ...string) (*exec.Cmd, error) {
 	return CommandFromSystemSnapWithCmdBuilder(
-		func(name string, arg ...string) *exec.Cmd {
-			return exec.CommandContext(ctx, name, cmdArgs...)
+		func(name string, args ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, name, args...)
 		},
 		name, cmdArgs...)
 }

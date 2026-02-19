@@ -246,8 +246,6 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 		}
 	}
 
-	// TODO opportunistically discard the mount namespace
-
 	switch {
 	case len(deduped) > 1:
 		return fmt.Errorf("internal error: expecting at most one delayed effect to apply")

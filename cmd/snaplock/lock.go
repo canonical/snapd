@@ -52,7 +52,7 @@ func OpenLock(snapName string) (*osutil.FileLock, error) {
 	return flock, nil
 }
 
-// WithLock execute a given function while holding the snap lock.
+// WithLock executes a given function while holding the snap lock.
 //
 // Errors returned by f are passed directly to the caller.
 func WithLock(instanceName string, f func() error) error {

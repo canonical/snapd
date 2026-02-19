@@ -106,6 +106,7 @@ func (s *lockSuite) TestWithTryLock(c *C) {
 		c.Assert(internalErr, testutil.ErrorIs, osutil.ErrAlreadyLocked)
 		return nil
 	})
+	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 
 	// take the lock
