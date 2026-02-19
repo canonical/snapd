@@ -214,6 +214,13 @@ type promptConstraintsJSONCamera struct {
 	AvailablePermissions []string `json:"available-permissions"`
 }
 
+// promptConstraintsJSONAudioRecord defines the marshalled json structure of
+// promptConstraints for the audio-record interface.
+type promptConstraintsJSONAudioRecord struct {
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
 func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
 	panic("programmer error: cannot marshal promptConstraints directly; must use marshalForInterface with a given interface")
 }
@@ -231,6 +238,12 @@ func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
 		return json.Marshal(constraintsJSON)
 	case "camera":
 		constraintsJSON := &promptConstraintsJSONCamera{
+			RequestedPermissions: pc.outstandingPermissions,
+			AvailablePermissions: pc.availablePermissions,
+		}
+		return json.Marshal(constraintsJSON)
+	case "audio-record":
+		constraintsJSON := &promptConstraintsJSONAudioRecord{
 			RequestedPermissions: pc.outstandingPermissions,
 			AvailablePermissions: pc.availablePermissions,
 		}
