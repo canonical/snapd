@@ -1,0 +1,128 @@
+summary: Check that prepare-image works for uc20 ubootpart systems
+
+details: |
+    The `snap prepare-image` command performs some of the steps necessary for
+    creating device images.
+
+    This test verifies that prepare-image correctly handles a gadget with a
+    system-boot-state partition (the ubootpart bootloader). It builds a minimal
+    ubootpart gadget snap locally, runs prepare-image with it, and checks that
+    the redundant U-Boot environment image is created at the expected path with
+    the correct size (2 x 8 KiB = 16 KiB).
+
+# running this on one machine is enough
+systems: [ubuntu-18.04-64]
+
+environment:
+    ROOT: /home/test/tmp/
+    IMAGE: /home/test/tmp/image
+    GADGET: /home/test/tmp/gadget
+    STORE_ADDR: localhost:11028
+    STORE_DIR: $(pwd)/fake-store-blobdir
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: Cannot run with staging store
+      if: |
+        [ "$REMOTE_STORE" = "staging" ]
+
+prepare: |
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+    mkdir "$ROOT"
+    chown -R test:test "$ROOT"
+
+    # sign the model assertion
+    gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-ubootpart-20.model.json > "$ROOT/model.assertion"
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+    rm -rf "$ROOT"
+
+execute: |
+    echo Expose the needed assertions through the fakestore
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+    # have snap use the fakestore for assertions (but nothing else)
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+    echo Building a minimal ubootpart gadget snap
+    gadget_dir="$ROOT/gadget-build"
+    mkdir -p "$gadget_dir/meta"
+
+    cat > "$gadget_dir/meta/snap.yaml" <<'EOF'
+    name: test-qemu-ubootpart-gadget
+    version: 1.0
+    type: gadget
+    base: core20
+    EOF
+
+    cat > "$gadget_dir/meta/gadget.yaml" <<'EOF'
+    volumes:
+      ubootpart-vol:
+        bootloader: u-boot
+        structure:
+          - name: ubuntu-boot-state
+            role: system-boot-state
+            type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+            size: 1M
+          - name: ubuntu-seed
+            role: system-seed
+            filesystem: vfat
+            type: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+            size: 1200M
+          - name: ubuntu-boot
+            role: system-boot
+            filesystem: ext4
+            type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            size: 750M
+            content:
+              - source: $kernel:dtbs/dtbs/
+                target: /
+          - name: ubuntu-save
+            role: system-save
+            filesystem: ext4
+            type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            size: 32M
+          - name: ubuntu-data
+            role: system-data
+            filesystem: ext4
+            type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            size: 1500M
+    EOF
+
+    # ubootpart.conf marker file selects the ubootpart bootloader
+    touch "$gadget_dir/ubootpart.conf"
+
+    snap pack "$gadget_dir" "$ROOT"
+
+    echo Running prepare-image
+    #shellcheck disable=SC2086
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --snap $ROOT/test-qemu-ubootpart-gadget_*.snap --channel edge $ROOT/model.assertion $ROOT" test
+
+    systemid="$(date +%Y%m%d)"
+
+    echo Verifying the result
+    find "$ROOT/system-seed/" -ls
+
+    echo Verify the boot state environment image
+    # The image should be in resolved-content/<vol>/part<N>/<partname>.img
+    img=$(find "$ROOT/resolved-content/" -name "ubuntu-boot-state.img" -print -quit)
+    test -n "$img"
+    # Size must be 2 x 8192 = 16384 bytes (two redundant env copies)
+    img_size=$(stat -c %s "$img")
+    test "$img_size" -eq 16384
+
+    echo Verify kernel files
+    test -e "$ROOT/system-seed/systems/$systemid/model"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/initrd.img"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/kernel.img"
+    test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
+
+    echo Verify snaps are present
+    test -e "$ROOT"/system-seed/snaps/core20_*.snap
+    test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
+    test -e "$ROOT"/system-seed/snaps/snapd_*.snap
