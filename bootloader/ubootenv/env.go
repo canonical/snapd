@@ -459,21 +459,30 @@ func (env *Env) Import(r io.Reader) error {
 	return scanner.Err()
 }
 
-// CreateRedundant creates a new redundant U-Boot environment image with two copies.
-// This is used at prepare-image time to create an image that will be written to
-// a raw partition. The image will be 2*size bytes total, with two environment copies.
+// CreateRedundant initialises a redundant U-Boot environment with two copies.
+// For regular files (prepare-image time) it creates and pre-allocates the
+// file.  For block devices (install time) the partition already exists at
+// the correct size so Create/Truncate are skipped.
 // Both copies are initialized as empty with the first copy marked active.
 func CreateRedundant(fname string, size int) (*Env, error) {
-	f, err := os.Create(fname)
-	if err != nil {
+	fi, err := os.Stat(fname)
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	// Pre-allocate file to full size (2 copies)
-	if err := f.Truncate(int64(size * 2)); err != nil {
+	isBlock := err == nil && fi.Mode()&os.ModeDevice != 0
+
+	if !isBlock {
+		f, err := os.Create(fname)
+		if err != nil {
+			return nil, err
+		}
+		// Pre-allocate file to full size (2 copies)
+		if err := f.Truncate(int64(size * 2)); err != nil {
+			f.Close()
+			return nil, err
+		}
 		f.Close()
-		return nil, err
 	}
-	f.Close()
 
 	env := &Env{
 		fname:          fname,
