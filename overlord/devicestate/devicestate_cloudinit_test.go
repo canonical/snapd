@@ -43,7 +43,7 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
-	s.AddCleanup(devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, locktoutResetErr error) error {
+	s.AddCleanup(devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
 		return nil
 	}))
 

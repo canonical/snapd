@@ -128,9 +128,13 @@ func shouldAttemptRepairOnFailure(a *ActivateState) bool {
 			//case sb.KeyslotErrorIncorrectRoleParams:
 			//	return false
 			case sb.KeyslotErrorIncompatibleRoleParams:
+				// FIXME: we should ignore this case only if the given keyslot is not expected
+				// to work for the boot mode. For now we just ignore it for every keyslot.
 			}
 		}
 	}
+	// We only encountered IncompatibleRoleParams errors. That
+	// means it could be repaired.
 	return true
 }
 

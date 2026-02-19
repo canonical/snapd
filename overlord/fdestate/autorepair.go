@@ -141,11 +141,11 @@ func autoRepair(st *state.State) (AutoRepairResult, error) {
 
 // AttemptAutoRepairIfNeeded looks at the activation state and status
 // of lockout reset and may attempt to repair keyslots.
-func AttemptAutoRepairIfNeeded(st *state.State, locktoutResetErr error) error {
-	if locktoutResetErr != nil {
+func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error) error {
+	if lockoutResetErr != nil {
 		// FIXME: we need to either try repair in some cases and save the
 		// error for the status API
-		return locktoutResetErr
+		return lockoutResetErr
 	}
 
 	previousResult, err := getRepairAttemptResult(st)
@@ -156,7 +156,7 @@ func AttemptAutoRepairIfNeeded(st *state.State, locktoutResetErr error) error {
 		return nil
 	}
 
-	s, err := GetActivateState(st)
+	s, err := getActivateState(st)
 
 	if err == errNoActivateState {
 		logger.Noticef("WARNING: the system booted with an old initrd without using activation API")

@@ -3159,8 +3159,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {
 	})()
 
 	called := 0
-	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, locktoutResetErr error) error {
-		c.Check(locktoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
 		called++
 		return nil
 	})()
@@ -3177,7 +3177,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEInstall(c *C) {
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, locktoutResetErr error) error {
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})()

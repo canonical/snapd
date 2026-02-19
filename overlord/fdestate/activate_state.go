@@ -47,7 +47,7 @@ func loadActivateState() (*secboot.ActivateState, error) {
 
 type cachedActivateStateKey struct{}
 
-func GetActivateState(st *state.State) (*secboot.ActivateState, error) {
+func getActivateState(st *state.State) (*secboot.ActivateState, error) {
 	stateRaw := st.Cached(cachedActivateStateKey{})
 	if stateRaw != nil {
 		return stateRaw.(*secboot.ActivateState), nil
@@ -112,7 +112,7 @@ func SystemState(st *state.State) (*FDESystemState, error) {
 		ret.AutoRepairResult = repairResult.Result
 	}
 
-	s, err := GetActivateState(st)
+	s, err := getActivateState(st)
 	if err == errNoActivateState {
 		// We are probably in a case where snap-bootstrap is
 		// new enough to have unlocked.json, but too old to provide

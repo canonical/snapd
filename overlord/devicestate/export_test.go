@@ -735,6 +735,6 @@ func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceC
 	return testutil.Mock(&snapstateGadgetInfo, f)
 }
 
-func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, lockoutResetErr error) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
 }
