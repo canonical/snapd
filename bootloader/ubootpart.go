@@ -170,7 +170,12 @@ func (u *ubootpart) envDevice() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partUUID), nil
+		partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partUUID)
+		resolved, err := filepath.EvalSymlinks(partPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve boot state partition %q: %v", partPath, err)
+		}
+		return resolved, nil
 	}
 
 	// Neither EFI nor snapd_system_disk available: fall back to
