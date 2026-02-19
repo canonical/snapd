@@ -2530,6 +2530,9 @@ func (m *InterfaceManager) doProcessDelayedBackendSideEffects(task *state.Task, 
 		// place each task in a dedicated lane, such that their errors are not
 		// affecting anything else (neither the default lane, nor any other
 		// lanes where the triggering snaps are being processed)
+
+		// TODO in case some effects would need to be able to trigger undo, this
+		// may need additional task sharing the same lane as the snap
 		for _, tsk := range perSnapTasks {
 			tsk.JoinLane(st.NewLane())
 		}
@@ -2604,7 +2607,6 @@ func (m *InterfaceManager) doProcessDelayedBackendSideEffectsForSnap(task *state
 			continue
 		}
 
-		// TODO:deferred-mount-ns-update: mount ns backend would drop & log the errors?
 		if err := interfaces.ApplyDelayedEffects(m.repo, backend, appSet, effects, perfTimings); err != nil {
 			return err
 		}
