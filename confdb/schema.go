@@ -648,7 +648,7 @@ func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis []Visibility
 		}
 		return schema.PruneByVisibility(path, vis, data)
 	}
-	return nil, fmt.Errorf(`intneral error: found no matching alternative`)
+	return nil, fmt.Errorf(`internal error: found no matching alternative`)
 }
 
 type mapSchema struct {
@@ -888,11 +888,11 @@ func (v *mapSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
-func preappendFirstPathAccessorToString(path []Accessor, stringedPath string) string {
+func prependFirstPathAccessorToString(path []Accessor, stringedPath string) string {
 	if len(path) > 1 && dotPrecedesAccessorType(path[1]) {
-		return fmt.Sprintf(`%s.%s`, path[0].Access(), stringedPath)
+		return path[0].Access() + "." + stringedPath
 	}
-	return fmt.Sprintf(`%s%s`, path[0].Access(), stringedPath)
+	return path[0].Access() + stringedPath
 }
 
 func (v *mapSchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
@@ -950,7 +950,7 @@ func (v *mapSchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data 
 			}
 			noContainer, ok := err.(*noContainerError)
 			if ok {
-				return nil, newNoContainerError(preappendFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+				return nil, newNoContainerError(prependFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
 			}
 			return nil, err
 		}
@@ -1732,7 +1732,7 @@ func (v *arraySchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, dat
 			}
 			noContainer, ok := err.(*noContainerError)
 			if ok {
-				return nil, newNoContainerError(preappendFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+				return nil, newNoContainerError(prependFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
 			}
 			return nil, err
 		}
