@@ -667,7 +667,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 			c.Check(cmds[2].Args[4], Matches, `/tmp/snap-delta-.*/src`)
 			c.Check(cmds[2].Args[5], Matches, `/tmp/snap-delta-.*/delta`)
 
-			// Create the target file so that growToMinSize can stat it.
+			// Create the target file so that growSnapToMinSize can stat it.
 			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
 		})()
 
@@ -764,7 +764,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 			pipeData := <-readResult
 			c.Check(string(pipeData), Equals, string(expectedData))
 
-			// Create the target file so that growToMinSize can stat it.
+			// Create the target file so that growSnapToMinSize can stat it.
 			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
 		})()
 
