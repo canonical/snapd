@@ -172,10 +172,9 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	c.Assert(env.Redundant(), Equals, true)
 }
 
-func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) {
-	// The environment size is a U-Boot compile option, so InstallBootConfig
-	// should honour the size from the gadget's reference ubootpart.sel rather
-	// than always using the default.
+func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigRejectsMismatchedSize(c *C) {
+	// InstallBootConfig should reject a gadget ubootpart.sel whose size
+	// does not match DefaultRedundantEnvSize.
 	opts := &bootloader.Options{PrepareImageTime: true}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
@@ -183,7 +182,7 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) 
 	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	// Create a reference ubootpart.sel in the gadget with a non-default size
+	// Create a reference ubootpart.sel with a non-default size
 	customSize := 16384
 	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "ubootpart.sel"), customSize,
 		ubootenv.CreateOptions{HeaderFlagByte: true})
@@ -192,14 +191,35 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigSizeFromGadget(c *C) 
 	c.Assert(err, IsNil)
 
 	err = u.InstallBootConfig(gadgetDir, opts)
+	c.Assert(err, ErrorMatches, `gadget ubootpart.sel has env size 16384, expected 8192`)
+}
+
+func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigMatchingSize(c *C) {
+	// InstallBootConfig should accept a gadget ubootpart.sel that
+	// matches DefaultRedundantEnvSize.
+	opts := &bootloader.Options{PrepareImageTime: true}
+	u := bootloader.NewUbootPart(s.rootdir, opts)
+
+	gadgetDir := c.MkDir()
+	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	// Verify the installed environment uses the gadget-specified size
+	// Create a reference ubootpart.sel with the default size
+	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "ubootpart.sel"),
+		ubootenv.DefaultRedundantEnvSize, ubootenv.CreateOptions{HeaderFlagByte: true})
+	c.Assert(err, IsNil)
+	err = ref.Save()
+	c.Assert(err, IsNil)
+
+	err = u.InstallBootConfig(gadgetDir, opts)
+	c.Assert(err, IsNil)
+
+	// Verify the installed environment uses the default size
 	envPath := filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img")
-	env, err := ubootenv.OpenRedundant(envPath, customSize)
+	env, err := ubootenv.OpenRedundant(envPath, ubootenv.DefaultRedundantEnvSize)
 	c.Assert(err, IsNil)
 	c.Assert(env.Redundant(), Equals, true)
-	c.Assert(env.Size(), Equals, customSize)
+	c.Assert(env.Size(), Equals, ubootenv.DefaultRedundantEnvSize)
 }
 
 func (s *ubootpartTestSuite) TestUbootPartSetBootVarsNoUselessWrites(c *C) {
@@ -305,11 +325,21 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeWithKernelCmdline(c *C) {
 	})
 	defer restoreDisk()
 
+	// Create a by-partuuid symlink so EvalSymlinks succeeds
+	byPartUUID := filepath.Join(s.rootdir, "/dev/disk/by-partuuid")
+	err = os.MkdirAll(byPartUUID, 0755)
+	c.Assert(err, IsNil)
+	mockPartDev := filepath.Join(s.rootdir, "/dev/mmcblk0p5")
+	err = os.WriteFile(mockPartDev, nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(mockPartDev, filepath.Join(byPartUUID, "boot-state-partuuid"))
+	c.Assert(err, IsNil)
+
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	envPath, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, IsNil)
-	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-partuuid"))
+	c.Assert(envPath, Equals, mockPartDev)
 }
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeGetSetEnvVar(c *C) {
@@ -427,11 +457,21 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeWithDevicePath(c *C) {
 	})
 	defer restoreDisk()
 
+	// Create a by-partuuid symlink so EvalSymlinks succeeds
+	byPartUUID := filepath.Join(s.rootdir, "/dev/disk/by-partuuid")
+	err = os.MkdirAll(byPartUUID, 0755)
+	c.Assert(err, IsNil)
+	mockPartDev := filepath.Join(s.rootdir, "/dev/mmcblk0p7")
+	err = os.WriteFile(mockPartDev, nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(mockPartDev, filepath.Join(byPartUUID, "boot-state-path-partuuid"))
+	c.Assert(err, IsNil)
+
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	envPath, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, IsNil)
-	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-path-partuuid"))
+	c.Assert(envPath, Equals, mockPartDev)
 }
 
 func (s *ubootpartTestSuite) TestUbootPartRuntimeWithEFI(c *C) {
@@ -471,9 +511,16 @@ func (s *ubootpartTestSuite) TestUbootPartRuntimeWithEFI(c *C) {
 	})
 	defer restoreDisk()
 
+	// Create a by-partuuid symlink for the boot-state partition
+	mockBootStateDev := filepath.Join(s.rootdir, "/dev/mmcblk0p5")
+	err = os.WriteFile(mockBootStateDev, nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(mockBootStateDev, filepath.Join(byPartUUID, "boot-state-efi-partuuid"))
+	c.Assert(err, IsNil)
+
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	envPath, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, IsNil)
-	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/dev/disk/by-partuuid/boot-state-efi-partuuid"))
+	c.Assert(envPath, Equals, mockBootStateDev)
 }

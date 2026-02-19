@@ -208,20 +208,29 @@ func (u *ubootpart) Present() (bool, error) {
 	return osutil.FileExists(partPath), nil
 }
 
-// envSizeFromGadget reads the environment size from the gadget's reference
-// ubootpart.sel file. The environment size is a U-Boot compile option, so
-// the gadget must specify it. Falls back to DefaultRedundantEnvSize if no
-// reference file is present.
-func (u *ubootpart) envSizeFromGadget(gadgetDir string) int {
+// checkGadgetEnvSize checks that the gadget's reference ubootpart.sel (if
+// present) uses the expected DefaultRedundantEnvSize.  A mismatch would mean
+// the gadget was compiled with a different CONFIG_ENV_SIZE, which is not
+// currently supported.
+func checkGadgetEnvSize(gadgetDir string) error {
 	ref, err := ubootenv.OpenWithFlags(filepath.Join(gadgetDir, "ubootpart.sel"), ubootenv.OpenBestEffort)
 	if err != nil {
-		return ubootenv.DefaultRedundantEnvSize
+		// No reference file is fine — use the default size
+		return nil
 	}
-	return ref.Size()
+	if ref.Size() != ubootenv.DefaultRedundantEnvSize {
+		return fmt.Errorf("gadget ubootpart.sel has env size %d, expected %d",
+			ref.Size(), ubootenv.DefaultRedundantEnvSize)
+	}
+	return nil
 }
 
 func (u *ubootpart) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	u.processBlOpts(blOpts)
+
+	if err := checkGadgetEnvSize(gadgetDir); err != nil {
+		return err
+	}
 
 	envPath, err := u.envDevice()
 	if err != nil {
@@ -235,10 +244,7 @@ func (u *ubootpart) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		}
 	}
 
-	// Create a new redundant environment, honouring the size from the
-	// gadget's reference ubootpart.sel (the env size is a U-Boot compile option)
-	envSize := u.envSizeFromGadget(gadgetDir)
-	_, err = ubootenv.CreateRedundant(envPath, envSize)
+	_, err = ubootenv.CreateRedundant(envPath, ubootenv.DefaultRedundantEnvSize)
 	return err
 }
 
