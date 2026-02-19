@@ -610,7 +610,12 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	if len(pdb.requestMap) > 0 {
 		pdb.readyTimer = timeAfterFunc(readyTimeout, func() {
 			pruned := pdb.HandleReadying("")
-			logger.Noticef("timed out waiting for requests to be re-received after snap restart: %s", strutil.Quoted(pruned))
+			// Avoid a race between the timer firing and something else calling
+			// `HandleReadying()`, which could cause this `HandleReadying` to
+			// return nil.
+			if len(pruned) > 0 {
+				logger.Noticef("timed out waiting for requests to be re-received after snap restart: %s", strutil.Quoted(pruned))
+			}
 		})
 	}
 
