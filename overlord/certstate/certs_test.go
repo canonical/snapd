@@ -282,7 +282,11 @@ func (s *certsTestSuite) TestGenerateCACertificatesDeduplicatesAndBlocks(c *C) {
 	c.Assert(err, IsNil)
 
 	blockedDigest := digestForPEM(c, cert2)
-	err = certstate.GenerateCACertificates(base, extras, []string{blockedDigest}, outDir)
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+		AddedCertificates:  extras,
+		BlockedDigests:     []string{blockedDigest},
+	}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -319,7 +323,10 @@ func (s *certsTestSuite) TestGenerateCACertificatesDoesNotDeduplicateDifferentCh
 	extras, err := certstate.ParseCertificates(extraDir)
 	c.Assert(err, IsNil)
 
-	err = certstate.GenerateCACertificates(base, extras, nil, outDir)
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+		AddedCertificates:  extras,
+	}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -339,7 +346,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	bPEM, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), aPEM, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), bPEM, 0o644), IsNil)
@@ -368,7 +375,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c
 	bPEM, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), aPEM, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), bPEM, 0o644), IsNil)

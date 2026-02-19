@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -211,7 +212,7 @@ func readDigests(dir string) ([]string, error) {
 // generateCACertificates generates the ca-certificates.crt to the output path
 // The ca-certificates.crt is a concatenation of all the certs in the
 // output path.
-func generateCACertificates(certs, extras []certificate, blocked []string, outputPath string) error {
+func generateCACertificates(certs *certificates, outputPath string) error {
 	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
 	certsFile, err := os.Create(certsPath)
 	if err != nil {
@@ -234,8 +235,8 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 	// avoid adding digests twice
 	digests := make(map[string]bool)
 
-	for _, cert := range certs {
-		if digests[cert.Digest] || isBlocked(cert, blocked) {
+	for _, cert := range certs.SystemCertificates {
+		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
@@ -244,8 +245,8 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 		digests[cert.Digest] = true
 	}
 
-	for _, cert := range extras {
-		if digests[cert.Digest] || isBlocked(cert, blocked) {
+	for _, cert := range certs.AddedCertificates {
+		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
@@ -257,9 +258,9 @@ func generateCACertificates(certs, extras []certificate, blocked []string, outpu
 }
 
 type certificates struct {
-	systemCertificates []certificate
-	addedCertificates  []certificate
-	blockedDigests     []string
+	SystemCertificates []certificate
+	AddedCertificates  []certificate
+	BlockedDigests     []string
 }
 
 // loadCertificates retrieves the system certificates, user added certificates
@@ -270,41 +271,32 @@ func loadCertificates() (*certificates, error) {
 	// We will be using the certificates from the rootfs as a starting point,
 	// meaning we need to go into /etc/ssl/certs/ and read
 	// all the certificates from there.
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
-	systemCerts, err := parseCertificates(baseCertsDir)
+	systemCerts, err := parseCertificates(dirs.SystemCertsDir)
 	if err != nil {
 		return nil, err
 	}
-	certs.systemCertificates = systemCerts
+	certs.SystemCertificates = systemCerts
 
 	// If the added directory exists, parse it
-	if _, err := os.Stat(filepath.Join(dirs.SnapdPKIV1Dir, "added")); err == nil {
+	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "added")); err == nil && exists && isDir {
 		addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
-		if err := os.MkdirAll(addedDir, 0o755); err != nil {
-			return nil, fmt.Errorf("cannot create added certificates directory: %v", err)
-		}
-
 		a, err := parseCertificates(addedDir)
 		if err != nil {
 			return nil, err
 		}
 
-		certs.addedCertificates = a
+		certs.AddedCertificates = a
 	}
 
 	// If the blocked directory exists, read the digests
-	if _, err := os.Stat(filepath.Join(dirs.SnapdPKIV1Dir, "blocked")); err == nil {
+	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "blocked")); err == nil && exists && isDir {
 		blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
-		if err := os.MkdirAll(blockedDir, 0o755); err != nil {
-			return nil, fmt.Errorf("cannot create blocked certificates directory: %v", err)
-		}
-
 		b, err := readDigests(blockedDir)
 		if err != nil {
 			return nil, err
 		}
 
-		certs.blockedDigests = b
+		certs.BlockedDigests = b
 	}
 
 	return certs, nil
@@ -387,6 +379,6 @@ func GenerateCertificateDatabaseImpl() error {
 	}
 
 	// make sure we catch any error here and restore the backup
-	err = generateCACertificates(certs.systemCertificates, certs.addedCertificates, certs.blockedDigests, mergedDir)
+	err = generateCACertificates(certs, mergedDir)
 	return err
 }
