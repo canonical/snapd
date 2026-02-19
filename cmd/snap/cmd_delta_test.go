@@ -28,15 +28,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 	var gotSource, gotTarget, gotDelta string
-	var gotFormat squashfs.DeltaFormat
+	var gotFormat string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format string) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta
@@ -50,12 +49,13 @@ func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, IsNil)
 	c.Check(gotSource, Equals, "source.snap")
 	c.Check(gotTarget, Equals, "target.snap")
 	c.Check(gotDelta, Equals, "out.delta")
-	c.Check(gotFormat, Equals, squashfs.SnapXdelta3Format)
+	c.Check(gotFormat, Equals, "snap-1-1-xdelta3")
 	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm 'snap-1-1-xdelta3'\n.*`)
 	c.Check(s.Stdout(), Matches, `(?s).*Generating delta\.\.\..*`)
 	c.Check(s.Stderr(), Equals, "")
@@ -89,7 +89,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format string) error {
 			return errors.New("cannot generate delta: xdelta3 not found")
 		})
 	defer restore()
@@ -99,6 +99,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, ErrorMatches, "cannot generate delta: xdelta3 not found")
 }
@@ -156,6 +157,22 @@ func (s *SnapSuite) TestDeltaCommandMissingDelta(c *C) {
 	c.Assert(err, ErrorMatches, `the required flag .*--delta.* was not specified`)
 }
 
+func (s *SnapSuite) TestDeltaCommandMissingFormat(c *C) {
+	restore := snap.MockSquashfsGenerateDelta(
+		func(_ context.Context, source, target, delta string, format string) error {
+			return nil
+		})
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta", "generate",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+	})
+	c.Assert(err, ErrorMatches, `the --format flag is required for generate.*`)
+}
+
 func (s *SnapSuite) TestDeltaCommandMissingOperation(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
 		"delta",
@@ -168,7 +185,7 @@ func (s *SnapSuite) TestDeltaCommandMissingOperation(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format string) error {
 			return nil
 		})
 	defer restore()
@@ -178,6 +195,7 @@ func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Matches, `(?s)Using snap delta algorithm 'snap-1-1-xdelta3'\n.*`)
@@ -198,7 +216,7 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	var gotSource, gotTarget, gotDelta string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format string) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta
@@ -211,6 +229,7 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 		"-s", "source.snap",
 		"-t", "target.snap",
 		"-d", "diff.delta",
+		"-f", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, IsNil)
 	c.Check(gotSource, Equals, "source.snap")
@@ -219,10 +238,10 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 }
 
 func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
-	var gotFormat squashfs.DeltaFormat
+	var gotFormat string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(_ context.Context, source, target, delta string, format string) error {
 			gotFormat = format
 			return nil
 		})
@@ -236,7 +255,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
 		"--format", "xdelta3",
 	})
 	c.Assert(err, IsNil)
-	c.Check(gotFormat, Equals, squashfs.Xdelta3Format)
+	c.Check(gotFormat, Equals, "xdelta3")
 	c.Check(s.Stdout(), Matches, `(?s).*Using snap delta algorithm 'xdelta3'\n.*`)
 }
 
@@ -262,7 +281,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateListensForSignals(c *C) {
 
 	var ctxErrDuringExec error
 	restoreGenerate := snap.MockSquashfsGenerateDelta(
-		func(ctx context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(ctx context.Context, source, target, delta string, format string) error {
 			// Capture ctx.Err() here, before Execute returns and
 			// defer cancel() fires.
 			ctxErrDuringExec = ctx.Err()
@@ -275,6 +294,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateListensForSignals(c *C) {
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, IsNil)
 	c.Check(gotSignals, DeepEquals, []os.Signal{syscall.SIGINT, syscall.SIGTERM})
@@ -290,7 +310,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateCancelledOnSignal(c *C) {
 	defer restoreSignal()
 
 	restoreGenerate := snap.MockSquashfsGenerateDelta(
-		func(ctx context.Context, source, target, delta string, format squashfs.DeltaFormat) error {
+		func(ctx context.Context, source, target, delta string, format string) error {
 			// Simulate SIGINT while the operation is in progress
 			sigCh <- syscall.SIGINT
 			// Wait for context cancellation
@@ -304,6 +324,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateCancelledOnSignal(c *C) {
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
 	})
 	c.Assert(err, ErrorMatches, "context canceled")
 }
