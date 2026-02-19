@@ -320,6 +320,58 @@ func LayoutKernelAssetsToDir(b Bootloader, snapf snap.Container, dstDir string) 
 	return p.layoutKernelAssetsToDir(snapf, dstDir)
 }
 
+func NewUbootPart(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
+	return newUbootPart(rootdir, blOpts).(ExtractedRecoveryKernelImageBootloader)
+}
+
+func MockUbootPartFiles(c *C, rootdir string, blOpts *Options) func() {
+	// Create the ubootpart.conf marker file that indicates ubootpart bootloader
+	confDir := filepath.Join(rootdir, "/boot/uboot")
+	err := os.MkdirAll(confDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(rootdir, "ubootpart.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	if blOpts == nil || blOpts.PrepareImageTime {
+		// At prepare-image time, create the environment file
+		envFile := filepath.Join(confDir, "ubuntu-boot-state.img")
+		env, err := ubootenv.CreateRedundant(envFile, ubootenv.DefaultRedundantEnvSize)
+		c.Assert(err, IsNil)
+		err = env.Save()
+		c.Assert(err, IsNil)
+	} else {
+		// At runtime, create the partition symlink
+		partDir := filepath.Join(rootdir, "/dev/disk/by-partlabel")
+		err := os.MkdirAll(partDir, 0755)
+		c.Assert(err, IsNil)
+
+		// Create a mock device file
+		devDir := filepath.Join(rootdir, "/dev")
+		err = os.MkdirAll(devDir, 0755)
+		c.Assert(err, IsNil)
+		mockDev := filepath.Join(devDir, "mock-bootstate")
+
+		// Create the redundant environment on the mock device
+		env, err := ubootenv.CreateRedundant(mockDev, ubootenv.DefaultRedundantEnvSize)
+		c.Assert(err, IsNil)
+		err = env.Save()
+		c.Assert(err, IsNil)
+
+		// Symlink from by-partlabel to mock device
+		err = os.Symlink(mockDev, filepath.Join(partDir, ubuntuBootStateLabel))
+		c.Assert(err, IsNil)
+	}
+
+	return func() {
+		// cleanup is handled by the temporary directory
+	}
+}
+
+func UbootPartEnvDevice(b Bootloader) (string, error) {
+	u := b.(*ubootpart)
+	return u.envDevice()
+}
+
 var (
 	EditionFromDiskConfigAsset           = editionFromDiskConfigAsset
 	EditionFromConfigAsset               = editionFromConfigAsset
