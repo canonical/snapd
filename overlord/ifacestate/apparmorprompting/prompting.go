@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -41,6 +42,8 @@ var (
 	listenerRegister = func() (listenerBackend, error) {
 		return listener.Register(prompting.NewRequestFromListener)
 	}
+
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 )
 
 type listenerBackend interface {
@@ -84,6 +87,8 @@ type InterfacesRequestsManager struct {
 	// to ready. Thus, this channel is used to avoid repeatedly observing the
 	// listener readiness.
 	listenerAlreadySignalled chan struct{}
+
+	apiRequests chan *prompting.Request
 
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -148,6 +153,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		prompts:                  promptsBackend,
 		rules:                    rulesBackend,
 		listenerAlreadySignalled: make(chan struct{}),
+		apiRequests:              make(chan *prompting.Request),
 		notifyPrompt:             notifyPrompt,
 		notifyRule:               notifyRule,
 	}
@@ -215,6 +221,11 @@ run_loop:
 			}
 
 			logger.Debugf("received from kernel requests channel: %+v", req)
+			if err := m.handleRequest(req); err != nil {
+				logger.Noticef("error while handling request: %+v", err)
+			}
+		case req := <-m.apiRequests:
+			logger.Debugf("received from API request channel: %+v", req)
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
@@ -325,6 +336,73 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	}
 
 	return strutil.JoinErrors(errs...)
+}
+
+// Query creates a request with the given contents and feeds it into the
+// prompting manager, either matching it against an existing rule or creating
+// a prompt and waiting for a reply.
+func (m *InterfacesRequestsManager) Query(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
+	if err != nil {
+		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
+	permissions, err := prompting.AvailablePermissions(iface)
+	if err != nil {
+		return prompting.OutcomeUnset, err
+	}
+	key := fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, apparmorLabel)
+	// We need a placeholder path until we can work with requests/prompts/rules
+	// for interfaces which don't care about paths. This placeholder path will
+	// not be included in prompts, and path patterns for rules for interfaces
+	// with requests from the API will always match it.
+	// TODO: once paths are not necessary for all interfaces, remove this.
+	const path = "/api-request-placeholder"
+
+	replyChan := make(chan []string)
+
+	req := &prompting.Request{
+		Key:           key,
+		UID:           uid,
+		PID:           pid,
+		Cgroup:        cgroup,
+		AppArmorLabel: apparmorLabel,
+		Interface:     iface,
+		Permissions:   permissions,
+		Path:          path,
+		Reply: func(allowedPerms []string) error {
+			select {
+			case replyChan <- allowedPerms:
+				return nil
+			case <-m.tomb.Dying():
+				return prompting_errors.ErrPromptingClosed
+			}
+		},
+	}
+
+	// Send request to manager
+	select {
+	case m.apiRequests <- req:
+		// request received and being processed
+	case <-m.tomb.Dying():
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	}
+
+	// Wait for reply
+	var allowedPermissions []string
+	select {
+	case allowedPermissions = <-replyChan:
+		// received reply
+	case <-m.tomb.Dying():
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	}
+
+	// If any requested permissions are not allowed, then reply with OutcomeDeny
+	for _, perm := range permissions {
+		if !strutil.ListContains(allowedPermissions, perm) {
+			return prompting.OutcomeDeny, nil
+		}
+	}
+	return prompting.OutcomeAllow, nil
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and

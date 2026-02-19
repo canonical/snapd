@@ -64,6 +64,11 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 
 	s.st = state.New(nil)
 	s.defaultUser = 1000
+
+	restore := apparmorprompting.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "some-cgroup-path", nil
+	})
+	s.AddCleanup(restore)
 }
 
 func requestWithReplyChan(req *prompting.Request) (*prompting.Request, chan []string) {
@@ -502,6 +507,121 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Check(result, IsNil)
 
 	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestQueryAllow(c *C) {
+	s.testQueryWithOutcome(c, prompting.OutcomeAllow)
+}
+
+func (s *apparmorpromptingSuite) TestQueryDeny(c *C) {
+	s.testQueryWithOutcome(c, prompting.OutcomeDeny)
+}
+
+func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.OutcomeType) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+	defer func() {
+		c.Check(mgr.Stop(), IsNil)
+	}()
+
+	// Check that the manager is ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	default:
+		c.Fatal("manager not ready")
+	}
+
+	const (
+		uid           uint32 = 1234
+		pid           int32  = 5678
+		apparmorLabel string = "snap.foo.bar"
+		iface         string = "audio-record"
+	)
+
+	// There should be no prompts at first
+	prompts, err := mgr.Prompts(uid, false)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Query in the background so we can see and respond to the prompt
+	whenSent := time.Now()
+	outcomeChan := make(chan prompting.OutcomeType)
+	errChan := make(chan error)
+	go func() {
+		out, err := mgr.Query(uid, pid, apparmorLabel, iface)
+		c.Check(err, IsNil, Commentf(logbuf.String()))
+		outcomeChan <- out
+		errChan <- err
+	}()
+
+	// Wait for a notice
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	c.Check(err, IsNil, Commentf(logbuf.String()))
+	c.Check(n, HasLen, 1)
+
+	// Retrieve prompt
+	prompts, err = mgr.Prompts(uid, true)
+	c.Check(err, IsNil)
+	c.Assert(prompts, HasLen, 1)
+	prompt := prompts[0]
+
+	// Check its contents
+	c.Check(prompt.ID, Equals, prompting.IDType(1))
+	c.Check(prompt.Snap, Equals, "foo")
+	c.Check(prompt.PID, Equals, pid)
+	c.Check(prompt.Cgroup, Equals, "some-cgroup-path")
+	c.Check(prompt.Interface, Equals, iface)
+	c.Check(prompt.Constraints.Path(), Equals, "/api-request-placeholder")
+	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"access"})
+
+	// Check the request mapping
+	expected := fmt.Sprintf(`{"request-mapping":{"api:%s:%d:%d:%s":{"prompt-id":"0000000000000001","user-id":%d}}}`, iface, uid, pid, apparmorLabel, uid)
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Check(requestMapFilepath, testutil.FileEquals, expected)
+
+	// Verify that the goroutine is still waiting
+	select {
+	case result := <-outcomeChan:
+		c.Fatalf("received outcome before replying: %v", result)
+	case err := <-errChan:
+		c.Fatalf("received error from query before replying: %v", err)
+	default:
+		// all good
+	}
+
+	// Reply
+	constraintsJSON := prompting.ConstraintsJSON{
+		"permissions": json.RawMessage(`["access"]`),
+	}
+	satisfied, err := mgr.HandleReply(uid, prompt.ID, constraintsJSON, outcome, prompting.LifespanSingle, "", true)
+	c.Check(err, IsNil)
+	c.Check(satisfied, HasLen, 0)
+
+	// See that reply was received
+	select {
+	case result := <-outcomeChan:
+		c.Check(result, Equals, outcome)
+	case <-time.After(time.Second):
+		c.Fatalf("failed to receive outcome after replying")
+	}
+	select {
+	case err := <-errChan:
+		c.Check(err, IsNil)
+	case <-time.After(time.Second):
+		c.Fatalf("failed to receive error value after replying")
+	}
 }
 
 func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
