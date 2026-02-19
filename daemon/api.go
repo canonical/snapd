@@ -88,6 +88,7 @@ var api = []*Command{
 	confdbControlCmd,
 	noticesCmd,
 	noticeCmd,
+	requestsQueryCmd,
 	requestsPromptsCmd,
 	requestsPromptCmd,
 	requestsRulesCmd,

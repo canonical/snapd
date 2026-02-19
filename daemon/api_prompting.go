@@ -37,6 +37,12 @@ import (
 )
 
 var (
+	requestsQueryCmd = &Command{
+		Path:       "/v2/interfaces/requests/query",
+		GET:        getQuery,
+		ReadAccess: openAccess{},
+	}
+
 	requestsPromptsCmd = &Command{
 		Path:       "/v2/interfaces/requests/prompts",
 		GET:        getPrompts,
@@ -303,6 +309,17 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 	return c.d.overlord.InterfaceManager()
 }
 
+type getQueryBody struct {
+	Interface     string `json:"interface"`
+	UID           uint32 `json:"uid"`
+	PID           int32  `json:"pid"`
+	AppArmorLabel string `json:"label"`
+}
+
+type getQueryResponse struct {
+	Outcome prompting.OutcomeType `json:"outcome"`
+}
+
 type postPromptBody struct {
 	Outcome     prompting.OutcomeType     `json:"action"`
 	Lifespan    prompting.LifespanType    `json:"lifespan"`
@@ -335,6 +352,35 @@ type postRulesRequestBody struct {
 type postRuleRequestBody struct {
 	Action    string             `json:"action"`
 	PatchRule *patchRuleContents `json:"rule,omitempty"`
+}
+
+func getQuery(c *Command, r *http.Request, user *auth.UserState) Response {
+	if !getInterfaceManager(c).AppArmorPromptingRunning() {
+		return promptingNotRunningError()
+	}
+
+	var params getQueryBody
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&params); err != nil {
+		return promptingError(fmt.Errorf("cannot decode request body into prompting query: %w", err))
+	}
+
+	// TODO: validate all fields
+
+	// TODO: validate that the request originator has permission to query for
+	// this interface. E.g. if originator is WirePlumber, it may query for the
+	// "audio-record" interface.
+
+	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Query(params.UID, params.PID, params.AppArmorLabel, params.Interface)
+	if err != nil {
+		return promptingError(err)
+	}
+
+	result := getQueryResponse{
+		Outcome: outcome,
+	}
+
+	return SyncResponse(result)
 }
 
 func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
