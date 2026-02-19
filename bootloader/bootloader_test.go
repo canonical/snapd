@@ -32,7 +32,10 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -340,6 +343,7 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		{name: "grub", gadgetFile: "grub.conf", expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true}, expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRecovery}, expName: "grub"},
+		{name: "ubootpart", gadgetFile: "ubootpart.conf", expName: "ubootpart"},
 		{name: "uboot", gadgetFile: "uboot.conf", expName: "uboot"},
 		{name: "androidboot", gadgetFile: "androidboot.conf", expName: "androidboot"},
 		{name: "lk", gadgetFile: "lk.conf", expName: "lk"},
@@ -363,4 +367,112 @@ func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
 	b := a.WithPath("other/path")
 	c.Assert(a.Path, Equals, "some/path")
 	c.Assert(b.Path, Equals, "other/path")
+}
+
+
+// Shared test helpers for bootloader implementations
+
+// testBootloaderGetSetEnvVar tests that a bootloader can set and get environment variables.
+func testBootloaderGetSetEnvVar(c *C, bl bootloader.Bootloader) {
+	err := bl.SetBootVars(map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
+	c.Assert(err, IsNil)
+
+	m, err := bl.GetBootVars("snap_mode", "snap_core")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
+}
+
+// testBootloaderSetBootVarFwEnv tests setting and getting a single boot variable.
+func testBootloaderSetBootVarFwEnv(c *C, bl bootloader.Bootloader) {
+	err := bl.SetBootVars(map[string]string{"key": "value"})
+	c.Assert(err, IsNil)
+
+	content, err := bl.GetBootVars("key")
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
+}
+
+// testBootloaderExtractKernelAssetsAndRemove tests extracting and removing kernel assets.
+func testBootloaderExtractKernelAssetsAndRemove(c *C, bl bootloader.Bootloader, kernelAssetsDir string) {
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = bl.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+
+	// remove
+	err = bl.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+// testBootloaderExtractRecoveryKernelAssets tests extracting recovery kernel assets.
+func testBootloaderExtractRecoveryKernelAssets(c *C, bl bootloader.ExtractedRecoveryKernelImageBootloader, kernelAssetsDir string) {
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	// try with empty recovery dir first to check the errors
+	err = bl.ExtractRecoveryKernelAssets("", info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+
+	// now the expected behavior
+	err = bl.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
+	c.Assert(err, IsNil)
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
 }
