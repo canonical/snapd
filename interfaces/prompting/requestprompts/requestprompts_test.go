@@ -334,6 +334,11 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -403,6 +408,11 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -969,12 +979,16 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		Interface: "home",
 	}
 
+	reqCount := 0
+
 	permissions := []string{"read", "write", "execute"}
 	clientActivity := false // doesn't matter if it's true or false for this test
 
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request := &prompting.Request{Key: "fake:1"}
+		key := fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
+		request := &prompting.Request{Key: key}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -987,7 +1001,6 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
 
 	req := &prompting.Request{
-		Key: "fake:1",
 		Reply: func(allowedPerms []string) error {
 			c.Assert(allowedPerms, DeepEquals, []string{})
 			return nil
@@ -996,6 +1009,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
+		req.Key = fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Check(err, Equals, prompting_errors.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
@@ -1014,7 +1029,9 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	// Check that new requests can still merge into existing prompts
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request := &prompting.Request{Key: "fake:1"}
+		key := fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
+		request := &prompting.Request{Key: key}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -1574,6 +1591,11 @@ func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
 	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -1966,6 +1988,8 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	timestamp, err := time.Parse(time.RFC3339Nano, timestampStr)
 	c.Assert(err, IsNil)
 
+	reqCount := 0
+
 	for _, testCase := range []struct {
 		metadata         *prompting.Metadata
 		path             string
@@ -2000,7 +2024,8 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
 		},
 	} {
-		fakeRequest := &prompting.Request{Key: "fake:1234"}
+		fakeRequest := &prompting.Request{Key: fmt.Sprintf("fake:%d", reqCount)}
+		reqCount++
 
 		prompt, merged, err := pdb.AddOrMerge(testCase.metadata, testCase.path, testCase.requestedPerms, testCase.outstandingPerms, fakeRequest)
 		c.Assert(err, IsNil)
