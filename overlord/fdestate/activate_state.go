@@ -94,7 +94,7 @@ type FDESystemState struct {
 	Status FDEStatus `json:"status"`
 
 	// AutoRepairResult is the status of the auto-repair attempt
-	AutoRepairResult AutoRepairResult `json:"auto-repair-result,omitempty"`
+	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 }
 
 // SystemState returns a json serializable FDE state of the booted
