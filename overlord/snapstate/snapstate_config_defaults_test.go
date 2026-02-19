@@ -59,6 +59,8 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]any{"key": "value"})
 
+	snapstate.MockGadgetSetFallbackDefaults(func(values map[string]any) {})
+
 	snapstate.Set(s.state, "local-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -175,6 +177,8 @@ defaults:
 
 	makeInstalledMockCoreSnap(c)
 
+	snapstate.MockGadgetSetFallbackDefaults(func(values map[string]any) {})
+
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
 	c.Assert(defls, DeepEquals, map[string]any{"foo": "bar"})
@@ -222,6 +226,8 @@ defaults:
 		RealName: "snapd",
 		Revision: snap.R(1),
 	})
+
+	snapstate.MockGadgetSetFallbackDefaults(func(values map[string]any) {})
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
