@@ -97,7 +97,7 @@ execute: |
 
     echo "Wait for snapd to begin restart"
     #shellcheck disable=SC2016
-    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+    retry --wait 1 -n 300 --env SNAPD_PID=$SNAPD_PID sh -c 'test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"'
 
     echo "Wait until snapd is active"
     retry --wait 1 -n 300 systemctl is-active snapd
@@ -181,7 +181,7 @@ execute: |
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
 
-    if [[ "$LIFESPAN" != "single" ]]; then
+    if [ "$LIFESPAN" != "single" ]; then
         echo "Check for notices -- we don't expect any, as the request should be handled by the rule"
         RESULT="$(tests.session -u test exec snap debug api "/v2/notices?types=interfaces-requests-prompt&timeout=10s&after=$LAST_NOTICE_TIMESTAMP")"
         echo "Ensure that request is autohandled"
