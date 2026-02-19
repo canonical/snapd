@@ -802,6 +802,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key, metadata, constraints)
 	if result.foundInvalidRequestMapping {
 		delete(pdb.requestMap, request.Key)
+		delete(pdb.pendingUnreceivedRequests, request.Key)
 		needToSave = true
 	}
 

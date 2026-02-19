@@ -916,6 +916,128 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	c.Check(stored[0], Equals, prompt1)
 }
 
+func (s *requestpromptsSuite) TestAddOrMergeInvalidMapping(c *C) {
+	// Write initial mappings from request keys to prompt IDs.
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"fake:1": {PromptID: 1, UserID: s.defaultUser},
+		"fake:2": {PromptID: 1, UserID: s.defaultUser}, // map to the same prompt
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(1)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	metadataTemplate := prompting.Metadata{
+		User:      s.defaultUser,
+		PID:       1234,
+		Cgroup:    "some-cgroup-path",
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+
+	metadata1 := metadataTemplate
+	metadata1.Snap = "firefox"
+	metadata2 := metadataTemplate
+	metadata2.Snap = "thunderbird"
+
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
+
+	clientActivity := false // doesn't matter if it's true or false for this test
+	stored, err := pdb.Prompts(metadata1.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, IsNil)
+
+	// Add first request
+	prompt1, merged, err := pdb.AddOrMerge(&metadata1, path, permissions, permissions, req1)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// Should be one prompt now
+	stored, err = pdb.Prompts(metadata1.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 1)
+	c.Assert(stored[0], Equals, prompt1)
+
+	// Request was added to the requests list
+	c.Assert(prompt1.Requests(), HasLen, 1)
+	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
+
+	// Still expect both requests to map to prompt 1, since second hasn't been
+	// re-received yet
+	expectedMap := mapping
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+	s.checkWrittenRequestMap(c, expectedMap)
+	// Since no new prompt with new ID has been created, max ID should not have
+	// advanced.
+	s.checkWrittenMaxID(c, 1)
+
+	// Add second request with different content but which has mapping to same prompt
+	prompt2, merged, err := pdb.AddOrMerge(&metadata2, path, permissions, permissions, req2)
+	c.Assert(err, IsNil)
+
+	// Because content didn't match, new prompt should be created and assigned
+	// a new prompt ID
+	c.Assert(merged, Equals, false)
+	c.Assert(prompt2, Not(Equals), prompt1)
+	c.Assert(prompt2.ID, Equals, prompting.IDType(2))
+
+	// Now second request key should map to a different prompt ID, since the
+	// original mapping was invalid
+	expectedMap["fake:2"] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
+	s.checkWrittenRequestMap(c, expectedMap)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready after receiving second request")
+	}
+
+	// Both prompts should now exist
+	stored, err = pdb.Prompts(metadata2.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 2)
+	c.Assert(stored[1], Equals, prompt2)
+
+	// And second prompt should have second request
+	c.Assert(prompt2.Requests(), HasLen, 1)
+	c.Check(prompt2.Requests()[0].Key, Equals, "fake:2")
+
+	// Should record new notice and advance max prompt ID
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+}
+
 func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
 	s.checkNewNotices(c, applyNotices(expectedPromptIDs, expectedData))
 }
