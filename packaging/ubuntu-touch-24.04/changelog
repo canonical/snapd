@@ -1,0 +1,7 @@
+snapd (2.67+ubports) focal; urgency=medium
+
+  [ Alfred Neumayer ]
+  * Initial packaging for building for Ubuntu Touch
+  * Based on Debian from Salsa
+
+ -- Alfred Neumayer <alfred@ubports.com>  Mon, 09 Dec 2024 19:15:28 +0100
