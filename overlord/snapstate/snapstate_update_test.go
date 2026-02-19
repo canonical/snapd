@@ -57,6 +57,7 @@ import (
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/dot"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -64,7 +65,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -9527,7 +9527,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 		restart.RestartSystem,
 	})
 
-	g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "TestUpdateBaseKernelSingleRebootHappy")
+	g, err := dot.NewChangeGraph(chg, "TestUpdateBaseKernelSingleRebootHappy")
 	c.Assert(err, IsNil)
 	// XXX Show is here to demonstrate how it can be used to prepare/debug tests, should be removed before landing
 	g.Show(c)

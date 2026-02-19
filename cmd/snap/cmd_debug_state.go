@@ -34,10 +34,9 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/dot"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -145,7 +144,7 @@ func (c *cmdDebugState) writeDotOutput(st *state.State, changeID string) error {
 		return fmt.Errorf("no such change: %s", changeID)
 	}
 
-	g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "")
+	g, err := dot.NewChangeGraph(chg, "")
 	if err != nil {
 		return fmt.Errorf("cannot create dot graph: %w", err)
 	}
