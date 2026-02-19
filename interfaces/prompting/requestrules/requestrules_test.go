@@ -856,10 +856,10 @@ func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
 
 	c.Check(rdb.Close(), IsNil)
 
-	// Check that closing repeatedly results in ErrClosed
-	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
-	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
-	c.Check(rdb.Close(), Equals, prompting_errors.ErrRulesClosed)
+	// Check that closing repeatedly results in ErrPromptingClosed
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrPromptingClosed)
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrPromptingClosed)
+	c.Check(rdb.Close(), Equals, prompting_errors.ErrPromptingClosed)
 }
 
 func (s *requestrulesSuite) TestCloseErrors(c *C) {
@@ -1331,7 +1331,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
 	s.checkNewNoticesSimple(c, nil)
 	result, err = addRuleFromTemplate(c, rdb, template, &addRuleContents{Permissions: []string{"execute"}})
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 	// Failure should result in no changes to written rules and no notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
@@ -2884,17 +2884,17 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	removed, err = rdb.RemoveRulesForSnap(s.defaultUser, "amberol")
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
 	removed, err = rdb.RemoveRulesForInterface(s.defaultUser, "audio-playback")
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
 	removed, err = rdb.RemoveRulesForSnapInterface(s.defaultUser, "amberol", "audio-playback")
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(removed, IsNil)
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, rules[:4])
 
@@ -3212,7 +3212,7 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	// DB Closed
 	c.Assert(rdb.Close(), IsNil)
 	result, err = rdb.PatchRule(rule.User, rule.ID, nil)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
