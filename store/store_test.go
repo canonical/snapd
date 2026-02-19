@@ -321,6 +321,10 @@ func (dac *testDauthContext) StoreOffline() (bool, error) {
 	return dac.storeOffline, nil
 }
 
+func (sc *testDauthContext) WithSnapStoreDelta() bool {
+	return true
+}
+
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
 	return dac.cloudInfo, nil
 }

@@ -920,20 +920,19 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
-func (s *snapmgrTestSuite) TestGadgetInstallConflict(c *C) {
+func (s *snapmgrTestSuite) TestGadgetInstallConflictExclusiveKind(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
-	chg := s.state.NewChange("snapd-update", "snapd update")
-	chg.AddTask(tugc)
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
 
 	_, err := snapstate.Install(context.Background(), s.state, "brand-gadget",
 		nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "boot config is being updated, no change in kernel command line is allowed meanwhile")
+	c.Assert(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }
 
 func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
@@ -957,22 +956,22 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 
 	// Ensure that restart boundaries were set on 'link-snap' as a part of doInstall
 	// when NoRestartBoundaries is false
-	ts1, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{})
+	installTS, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 
-	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
-	c.Assert(linkSnap1, NotNil)
+	linkSnap := installTS.TaskSet().MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap, NotNil)
 
 	var boundary restart.RestartBoundaryDirection
-	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+	c.Check(linkSnap.Get("restart-boundary", &boundary), IsNil)
 
 	// Ensure that restart boundaries are not set when we provide NoRestartBoundaries=true
-	ts2, err := snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{NoRestartBoundaries: true})
+	installTS, err = snapstate.DoInstallOrPreDownload(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.InstallContext{NoRestartBoundaries: true})
 	c.Assert(err, IsNil)
 
-	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
-	c.Assert(linkSnap2, NotNil)
-	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
+	linkSnap = installTS.TaskSet().MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap, NotNil)
+	c.Check(linkSnap.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
@@ -1009,7 +1008,7 @@ func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
 	c.Check(snapPath, testutil.FileAbsent)
 }
 
-func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapdConflictExclusiveKind(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -1019,13 +1018,12 @@ func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
 	// remove snapd snap added for snapmgrBaseTest
 	snapstate.Set(s.state, "snapd", nil)
 
-	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
-	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
-	chg.AddTask(tugc)
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
 
 	_, err := snapstate.Install(context.Background(), s.state, "snapd",
 		nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
+	c.Assert(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }
 
 func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {

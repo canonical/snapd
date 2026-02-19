@@ -1041,6 +1041,12 @@ nested_create_core_vm() {
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
                 $EXTRA_SNAPS |& tee "$NESTED_LOGS_DIR/ubuntu-image.log"
 
+            return_code="${PIPESTATUS[0]}"
+            if [ "$return_code" -ne 0 ]; then
+                echo "ERROR: ubuntu-image failed with exit code $return_code (see $NESTED_LOGS_DIR/ubuntu-image.log)"
+                exit "$return_code"
+            fi
+
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
@@ -1234,6 +1240,7 @@ nested_print_serial_log() {
 
 nested_force_stop_vm() {
     systemctl stop "$NESTED_VM"
+    systemctl stop "${NESTED_VM}-flush-serial" || true
 }
 
 nested_ensure_ovmf() {
@@ -1251,6 +1258,11 @@ nested_ensure_ovmf() {
 }
 
 nested_force_start_vm() {
+    if [ -e "${NESTED_WORK_DIR}"/serial.in ]; then
+        rm -f "${NESTED_WORK_DIR}"/serial.{in,out}
+        mkfifo "${NESTED_WORK_DIR}"/serial.{in,out}
+        systemctl start "${NESTED_VM}-flush-serial"
+    fi
     # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
     if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
@@ -1303,17 +1315,16 @@ nested_create_vm_service() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
-    # Open port 7777 on the host so that failures in the nested VM (e.g. to
-    # create users) can be debugged interactively via
-    # "telnet localhost 7777". Also keeps the logs
-    #
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        rm -f "${NESTED_WORK_DIR}"/serial.{in,out}
+        mkfifo "${NESTED_WORK_DIR}"/serial.{in,out}
+        tests.systemd create-and-start-unit "${NESTED_VM}-flush-serial" "$(command -v cat) ${NESTED_WORK_DIR}/serial.out" "[Service]\nStandardOutput=null\n"
+        PARAM_SERIAL="-chardev pipe,id=char0,path=${NESTED_WORK_DIR}/serial,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
 
     # save logs from previous runs

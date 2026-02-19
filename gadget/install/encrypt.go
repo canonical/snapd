@@ -21,6 +21,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/device"
@@ -28,7 +29,9 @@ import (
 )
 
 var (
-	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
+	secbootFormatEncryptedDevice         = secboot.FormatEncryptedDevice
+	secbootNewSimpleActivateContext      = secboot.NewSimpleActivateContext
+	secbootUnlockEncryptedVolumeUsingKey = secboot.UnlockEncryptedVolumeUsingKey
 )
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
@@ -39,9 +42,11 @@ type encryptedDevice interface {
 
 // encryptedDeviceLUKS represents a LUKS-backed encrypted block device.
 type encryptedDeviceLUKS struct {
-	parent string
-	name   string
-	node   string
+	context   secboot.ActivateContext
+	container secboot.StorageContainer
+	parent    string
+	name      string
+	node      string
 }
 
 // expected interface is implemented
@@ -59,13 +64,22 @@ func newEncryptedDeviceLUKS(devNode string, encType device.EncryptionType, key s
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 
-	if err := cryptsetupOpen(key, devNode, name); err != nil {
+	ctxt, err := secbootNewSimpleActivateContext(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	container, err := secbootUnlockEncryptedVolumeUsingKey(ctxt, devNode, name, key)
+
+	if err != nil {
 		return nil, fmt.Errorf("cannot open encrypted device on %s: %s", devNode, err)
 	}
 
 	dev := &encryptedDeviceLUKS{
-		parent: devNode,
-		name:   name,
+		context:   ctxt,
+		container: container,
+		parent:    devNode,
+		name:      name,
 		// A new block device is used to access the encrypted data. Note that
 		// you can't open an encrypted device under different names and a name
 		// can't be used in more than one device at the same time.
@@ -79,17 +93,5 @@ func (dev *encryptedDeviceLUKS) Node() string {
 }
 
 func (dev *encryptedDeviceLUKS) Close() error {
-	return cryptsetupClose(dev.name)
+	return dev.context.DeactivateContainer(context.Background(), dev.container, "normal closing")
 }
-
-func cryptsetupOpenImpl(key secboot.DiskUnlockKey, node, name string) error {
-	return secboot.ActivateVolumeWithKey(name, node, key, nil)
-}
-
-var cryptsetupOpen = cryptsetupOpenImpl
-
-func cryptsetupCloseImpl(name string) error {
-	return secboot.DeactivateVolume(name)
-}
-
-var cryptsetupClose = cryptsetupCloseImpl

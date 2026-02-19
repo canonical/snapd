@@ -220,6 +220,24 @@ func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
 	c.Check(storeID, Equals, "env-store-id")
 }
 
+func (s *storeCtxSuite) TestWithSnapStoreDelta(c *C) {
+	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
+
+	hasSnapDeltaFormat := storeCtx.WithSnapStoreDelta()
+	c.Check(hasSnapDeltaFormat, Equals, false)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.snap-delta-format", true)
+	tr.Commit()
+
+	s.state.Unlock()
+	hasSnapDeltaFormat = storeCtx.WithSnapStoreDelta()
+	s.state.Lock()
+	c.Check(hasSnapDeltaFormat, Equals, true)
+}
+
 func (s *storeCtxSuite) TestCloudInfo(c *C) {
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 

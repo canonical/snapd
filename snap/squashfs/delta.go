@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // This file implements the support for snap deltas. Currently two formats are
@@ -160,9 +161,10 @@ var (
 
 // For testing purposes
 var (
-	osutilRunManyWithContext = osutil.RunManyWithContext
-	osutilRunWithContext     = osutil.RunWithContext
-	setupPipes               = setupPipesImpl
+	osutilRunManyWithContext                  = osutil.RunManyWithContext
+	setupPipes                                = setupPipesImpl
+	snapdtoolCommandFromSystemSnapWithContext = snapdtool.CommandFromSystemSnapWithContext
+	cmdRun                                    = cmdRunImpl
 )
 
 // SnapDeltaHeader is the header wrapping the actual delta stream. See
@@ -175,6 +177,10 @@ type SnapDeltaHeader struct {
 	Timestamp     uint32
 	Compression   uint16
 	Flags         uint16
+}
+
+func cmdRunImpl(cmd *exec.Cmd) error {
+	return cmd.Run()
 }
 
 // toBytes serialises a delta header to a buffer of deltaHeaderSize length.
@@ -261,18 +267,32 @@ func formatStoreString(id DeltaFormat) string {
 	return "unexpected"
 }
 
-// Supported delta formats
-func SupportedDeltaFormats() []string {
-	return []string{formatStoreString(SnapXdelta3Format), formatStoreString(Xdelta3Format)}
+type DeltaFormatOpts struct {
+	WithSnapDeltaFormat bool
+}
+
+// Supported delta formats. The order here is determines the preferred formats,
+// with lower indexes being preferred. This might become eventually
+// compatibility labels if necessary.
+func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
+	// check if deltas were disabled by the environment
+	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
+		// then the env var is explicitly false, we can't use deltas
+		logger.Noticef("delta usage disabled by environment variable")
+		return nil
+	}
+
+	var formats []string
+	if opts.WithSnapDeltaFormat {
+		formats = append(formats, formatStoreString(SnapXdelta3Format))
+	}
+	formats = append(formats, formatStoreString(Xdelta3Format))
+	return formats
 }
 
 // GenerateDelta creates a delta file called delta from sourceSnap and
 // targetSnap, using deltaFormat.
-func GenerateDelta(sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
-	// Context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
 	switch deltaFormat {
 	case Xdelta3Format:
 		// Plain xdelta3 on compressed files
@@ -317,11 +337,7 @@ func generateSnapDelta(ctx context.Context, sourceSnap, targetSnap, delta string
 }
 
 // ApplyDelta uses sourceSnap and delta files to generate targetSnap.
-func ApplyDelta(sourceSnap, delta, targetSnap string) error {
-	// Global Context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func ApplyDelta(ctx context.Context, sourceSnap, delta, targetSnap string) error {
 	deltaFile, err := os.Open(delta)
 	if err != nil {
 		return fmt.Errorf("cannot open delta: %w", err)
@@ -390,24 +406,26 @@ func generatePlainXdelta3Delta(ctx context.Context, sourceSnap, targetSnap, delt
 	// Compression level, force overwrite (-f), compress (-e), source (-s <file>), target, delta
 	opts := append([]string{}, xdelta3PlainTuning...)
 	opts = append(opts, "-f", "-e", "-s", sourceSnap, targetSnap, delta)
-	cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/xdelta3", opts...)
+	cmd, err := snapdtoolCommandFromSystemSnapWithContext(ctx, "/usr/bin/xdelta3", opts...)
 	if err != nil {
-		return fmt.Errorf("cannot generate delta: %w", err)
+		return err
 	}
 
-	return osutilRunWithContext(ctx, cmd)
+	// cmd is cancellable if ctx is a cancellable context
+	return cmdRun(cmd)
 }
 
 // applyPlainXdelta3Delta applies a delta between compressed snaps
 func applyPlainXdelta3Delta(ctx context.Context, sourceSnap, delta, targetSnap string) error {
 	// Force overwrite (-f), decompress (-d), source (-s <file>), target, delta
-	cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/xdelta3",
-		"-f", "-d", "-s", sourceSnap, delta, targetSnap)
+	cmd, err := snapdtoolCommandFromSystemSnapWithContext(
+		ctx, "/usr/bin/xdelta3", "-f", "-d", "-s", sourceSnap, delta, targetSnap)
 	if err != nil {
-		return fmt.Errorf("cannot apply delta: %w", err)
+		return err
 	}
 
-	return osutilRunWithContext(ctx, cmd)
+	// cmd is cancellable if ctx is a cancellable context
+	return cmdRun(cmd)
 }
 
 // generateXdelta3Delta runs in parallel two instances of unsquashfs (one for
@@ -456,33 +474,39 @@ func generateXdelta3Delta(ctx context.Context, deltaFile *os.File, sourceSnap, t
 	sourcePipe := pipes[0]
 	targetPipe := pipes[1]
 
-	// Output to sourcePipe, -pf stands for pseudo-file representation
-	unsquashSrcArg := append([]string{}, unsquashfsTuningGenerate...)
-	unsquashSrcArg = append(unsquashSrcArg, "-no-progress", "-pf", sourcePipe, sourceSnap)
-	unsquashSrcCmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/unsquashfs", unsquashSrcArg...)
-	if err != nil {
-		return fmt.Errorf("cannot find unsquashfs: %w", err)
-	}
-	// Output to targetPipe.
-	// Leave progress output to show it when we run "snap delta".
-	unsquashTrgArg := append([]string{}, unsquashfsTuningGenerate...)
-	unsquashTrgArg = append(unsquashTrgArg, "-pf", targetPipe, targetSnap)
-	unsquashTrgCmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/unsquashfs", unsquashTrgArg...)
-	if err != nil {
-		return fmt.Errorf("cannot find unsquashfs: %w", err)
-	}
-	// Compress (-e), force overwrite (-f), no app header (-A), source from sourcePipe (-s)
-	xdelta3Arg := append([]string{}, xdelta3Tuning...)
-	xdelta3Arg = append(xdelta3Arg, "-e", "-f", "-A", "-s", sourcePipe, targetPipe)
-	xdelta3Cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/xdelta3", xdelta3Arg...)
-	if err != nil {
-		return fmt.Errorf("cannot find xdelta3: %w", err)
-	}
-	// Output to the file where we already wrote the header
-	xdelta3Cmd.Stdout = deltaFile
+	buildPipeline := func(ctx context.Context) ([]*exec.Cmd, []func() error, error) {
+		// Output to sourcePipe, -pf stands for pseudo-file representation
+		unsquashSrcArg := append([]string{}, unsquashfsTuningGenerate...)
+		unsquashSrcArg = append(unsquashSrcArg, "-no-progress", "-pf", sourcePipe, sourceSnap)
+		unsquashSrcCmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/unsquashfs", unsquashSrcArg...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find unsquashfs: %w", err)
+		}
+		// Output to targetPipe.
+		// Leave progress output to show it when we run "snap delta".
+		unsquashTrgArg := append([]string{}, unsquashfsTuningGenerate...)
+		unsquashTrgArg = append(unsquashTrgArg, "-pf", targetPipe, targetSnap)
+		unsquashTrgCmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/unsquashfs", unsquashTrgArg...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find unsquashfs: %w", err)
+		}
+		// Compress (-e), force overwrite (-f), no app header (-A), source from sourcePipe (-s)
+		xdelta3Arg := append([]string{}, xdelta3Tuning...)
+		xdelta3Arg = append(xdelta3Arg, "-e", "-f", "-A", "-s", sourcePipe, targetPipe)
+		xdelta3Cmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/xdelta3", xdelta3Arg...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find xdelta3: %w", err)
+		}
+		// Output to the file where we already wrote the header
+		xdelta3Cmd.Stdout = deltaFile
 
-	cmds := []*exec.Cmd{unsquashSrcCmd, unsquashTrgCmd, xdelta3Cmd}
-	return osutilRunManyWithContext(ctx, cmds, nil)
+		return []*exec.Cmd{unsquashSrcCmd, unsquashTrgCmd, xdelta3Cmd}, nil, nil
+	}
+
+	return osutilRunManyWithContext(ctx, buildPipeline)
 }
 
 // applyXdelta3Delta runs in parallel unsquashfs (to get the pseudo-file from
@@ -532,60 +556,65 @@ func applyXdelta3Delta(ctx context.Context, sourceSnap, targetSnap string, delta
 	srcPipe := pipes[0]
 	deltaPipe := pipes[1]
 
-	// Output to srcPipe, -pf stands for pseudo-file representation
-	unsquashCmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/unsquashfs",
-		"-no-progress", "-pf", srcPipe, sourceSnap)
-	if err != nil {
-		return fmt.Errorf("cannot find unsquashfs: %w", err)
-	}
-	// Decompress (-d), force overwrite (-f), source from srcPipe (-s),
-	// delta from deltaPipe, output is to stdout
-	xdelta3Cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/xdelta3",
-		"-d", "-f", "-s", srcPipe, deltaPipe)
-	if err != nil {
-		return fmt.Errorf("cannot find xdelta3: %w", err)
-	}
-	// Source from stdin (-), create targetSnap, pseudo-file from stdin
-	// (-pf -), not append to existing filesystem, quiet, append additional
-	// args built from our header.
-	mksquashArgs := append([]string{
-		"-", targetSnap, "-pf", "-", "-noappend", "-quiet",
-	}, mksqfsHdrArgs...)
-	mksquashCmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/mksquashfs", mksquashArgs...)
-	if err != nil {
-		return fmt.Errorf("cannot find mksquashfs: %w", err)
-	}
-	// Shows progress when creating squashfs.
-	// TODO make this happen only in "snap apply" command
-	mksquashCmd.Stdout = os.Stdout
-	// Connect xdelta3 output to mksquashfs input
-	mksquashCmd.Stdin, err = xdelta3Cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("while connecting xdelta to mksqfs: %w", err)
-	}
-
-	// task that writes to deltaPipe named FIFO
-	deltaWriter := func(context.Context) error {
-		pf, err := os.OpenFile(deltaPipe, os.O_WRONLY, 0)
+	buildPipeline := func(ctx context.Context) ([]*exec.Cmd, []func() error, error) {
+		// Output to srcPipe, -pf stands for pseudo-file representation
+		unsquashCmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/unsquashfs",
+			"-no-progress", "-pf", srcPipe, sourceSnap)
 		if err != nil {
-			return err
+			return nil, nil, fmt.Errorf("cannot find unsquashfs: %w", err)
 		}
-		defer pf.Close()
-		// seek past header
-		if _, err := deltaFile.Seek(deltaHeaderSize, io.SeekStart); err != nil {
-			return err
+		// Decompress (-d), force overwrite (-f), source from srcPipe (-s),
+		// delta from deltaPipe, output is to stdout
+		xdelta3Cmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/xdelta3",
+			"-d", "-f", "-s", srcPipe, deltaPipe)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find xdelta3: %w", err)
 		}
-		// If there is an error in one of the processes, all of them
-		// will be killed by RunManyWithContext, which will in turn
-		// close the named pipe and we will return with error here.
-		if _, err := copyBuffer(pf, deltaFile); err != nil {
-			return err
+		// Source from stdin (-), create targetSnap, pseudo-file from stdin
+		// (-pf -), not append to existing filesystem, quiet, append additional
+		// args built from our header.
+		mksquashArgs := append([]string{
+			"-", targetSnap, "-pf", "-", "-noappend", "-quiet",
+		}, mksqfsHdrArgs...)
+		mksquashCmd, err := snapdtoolCommandFromSystemSnapWithContext(
+			ctx, "/usr/bin/mksquashfs", mksquashArgs...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot find mksquashfs: %w", err)
 		}
-		return nil
+		// Shows progress when creating squashfs.
+		// TODO make this happen only in "snap apply" command
+		mksquashCmd.Stdout = os.Stdout
+		// Connect xdelta3 output to mksquashfs input
+		mksquashCmd.Stdin, err = xdelta3Cmd.StdoutPipe()
+		if err != nil {
+			return nil, nil, fmt.Errorf("while connecting xdelta to mksqfs: %w", err)
+		}
+
+		// task that writes to deltaPipe named FIFO
+		deltaWriter := func() error {
+			pf, err := os.OpenFile(deltaPipe, os.O_WRONLY, 0)
+			if err != nil {
+				return err
+			}
+			defer pf.Close()
+			// seek past header
+			if _, err := deltaFile.Seek(deltaHeaderSize, io.SeekStart); err != nil {
+				return err
+			}
+			// If there is an error in one of the processes, all of them
+			// will be killed by RunManyWithContext, which will in turn
+			// close the named pipe and we will return with error here.
+			if _, err := copyBuffer(pf, deltaFile); err != nil {
+				return err
+			}
+			return nil
+		}
+		return []*exec.Cmd{unsquashCmd, mksquashCmd, xdelta3Cmd}, []func() error{deltaWriter}, nil
 	}
 
-	cmds := []*exec.Cmd{unsquashCmd, mksquashCmd, xdelta3Cmd}
-	return osutilRunManyWithContext(ctx, cmds, []func(context.Context) error{deltaWriter})
+	return osutilRunManyWithContext(ctx, buildPipeline)
 }
 
 // setupPipes creates a temporary directory and named pipes within it.

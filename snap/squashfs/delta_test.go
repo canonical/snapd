@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -54,7 +55,12 @@ func (s *DeltaTestSuite) SetUpTest(c *C) {
 }
 
 func (s *DeltaTestSuite) TestSupportedDeltaFormats(c *C) {
-	c.Assert(squashfs.SupportedDeltaFormats(), DeepEquals,
+	c.Assert(squashfs.SupportedDeltaFormats(
+		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: false}), DeepEquals,
+		[]string{"xdelta3"})
+
+	c.Assert(squashfs.SupportedDeltaFormats(
+		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true}), DeepEquals,
 		[]string{"snap-1-1-xdelta3", "xdelta3"})
 }
 
@@ -341,28 +347,28 @@ func (s *DeltaTestSuite) createDeltaFile(c *C, name string, timestamp uint32, co
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaUnsupportedFormat(c *C) {
-	err := squashfs.GenerateDelta("s", "t", "d", squashfs.DeltaFormat(99))
+	err := squashfs.GenerateDelta(context.Background(), "s", "t", "d", squashfs.DeltaFormat(99))
 	c.Assert(err, ErrorMatches, "unsupported delta format 99")
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaPlainSuccess(c *C) {
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		c.Check(cmd, Equals, "/usr/bin/xdelta3")
-		c.Check(args, DeepEquals,
-			[]string{"-3", "-f", "-e", "-s", "source.snap", "target.snap", "diff.xdelta3"})
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
-
-	defer squashfs.MockOsutilRunWithContext(
-		func(ctx context.Context, cmd *exec.Cmd) error {
-			return nil
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			c.Check(cmd, Equals, "/usr/bin/xdelta3")
+			c.Check(args, DeepEquals,
+				[]string{"-3", "-f", "-e", "-s", "source.snap", "target.snap", "diff.xdelta3"})
+			return &exec.Cmd{
+				Path: cmd,
+				Args: append([]string{cmd}, args...),
+			}, nil
 		})()
 
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
+
 	// Execute
-	err := squashfs.GenerateDelta("source.snap", "target.snap", "diff.xdelta3", squashfs.Xdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "diff.xdelta3", squashfs.Xdelta3Format)
 	c.Assert(err, IsNil)
 }
 
@@ -378,17 +384,20 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 	snapdBinDir := "/usr/bin/"
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
-		func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			// Execute the builder to get the commands
+			cmds, tasks, err := buildWithContext(ctx)
+			c.Assert(err, IsNil)
 			c.Check(len(cmds), Equals, 3)
+			c.Check(len(tasks), Equals, 0)
 
+			// 1. Assert on Unsquashfs Source
 			unsquashfsArgs1 := cmds[0].Args
 			c.Check(len(unsquashfsArgs1), Equals, 9)
 			c.Check(unsquashfsArgs1[0:7], DeepEquals,
@@ -396,6 +405,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 			c.Check(unsquashfsArgs1[7], Matches, "/tmp/snap-delta-.*/src-pipe")
 			c.Check(unsquashfsArgs1[8], Matches, "*./source.snap")
 
+			// 2. Assert on Unsquashfs Target
 			unsquashfsArgs2 := cmds[1].Args
 			c.Check(len(unsquashfsArgs2), Equals, 8)
 			c.Check(unsquashfsArgs2[0:6], DeepEquals,
@@ -403,6 +413,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 			c.Check(unsquashfsArgs2[6], Matches, "/tmp/snap-delta-.*/trgt-pipe")
 			c.Check(unsquashfsArgs2[7], Matches, "*./target.snap")
 
+			// 3. Assert on Xdelta3
 			xdelta3Args := cmds[2].Args
 			c.Check(len(xdelta3Args), Equals, 8)
 			c.Check(xdelta3Args[0:6], DeepEquals, []string{xdelta3Path, "-7", "-e", "-f", "-A", "-s"})
@@ -412,7 +423,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, IsNil)
 
 	// Verify the delta file header was written correctly
@@ -439,16 +450,58 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 	c.Check(binary.LittleEndian.Uint16(header[14:16]), Equals, uint16(0x0040))
 }
 
+func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Cancelled(c *C) {
+	// Setup mock snaps
+	// 4 = xz compression, 0x0040 = flagDuplicates
+	src := s.createMockSnap(c, "source.snap", 1000, 4, 0x0040)
+	dst := s.createMockSnap(c, "target.snap", 2000, 4, 0x0040)
+	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
+
+	// Mock the external commands
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			// Wait for the cancellation to happen
+			<-ctx.Done()
+			return errors.New("calculation cancelled")
+		})()
+
+	// Cancel the context shortly after starting
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	// Execute
+	err := squashfs.GenerateDelta(ctx, src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	c.Assert(err, ErrorMatches, "calculation cancelled")
+}
+
 func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3NoUnsquashfsCmd(c *C) {
 	dst := s.createMockSnap(c, "target.snap", 2000, 4, 0x0040)
 
 	// Mock the external commands
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return nil, errors.New("not found")
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return nil, errors.New("not found")
+		})()
+	// build should fail
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, build func(context.Context) (
+			cmds []*exec.Cmd, tasks []func() error, err error)) error {
+			_, _, err := build(ctx)
+			c.Assert(err, NotNil)
+			return err
+		})()
 
 	// Execute
-	err := squashfs.GenerateDelta("source.snap", dst, "out.delta", squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, "out.delta", squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "cannot find unsquashfs: not found")
 }
 
@@ -462,7 +515,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3PipeSetupError(c *C) {
 	})()
 
 	// Execute
-	err := squashfs.GenerateDelta("source.snap", dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "cannot set-up pipes")
 
 	// Check delta file was removed
@@ -473,7 +526,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetOpenError(c *C) {
 	src := s.createMockSnap(c, "source.snap", 1000, 1, 0)
 	dst := filepath.Join(dirs.GlobalRootDir, "non-existent.snap")
 
-	err := squashfs.GenerateDelta(src, dst, "out.delta", squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "cannot open target: .* no such file or directory")
 }
 
@@ -484,7 +537,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetReadError(c *C) {
 	err := os.WriteFile(dst, []byte("too short"), 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.GenerateDelta(src, dst, "out.delta", squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "while reading target superblock: unexpected EOF")
 }
 
@@ -495,7 +548,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputFileError(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "cannot create delta file: .* no such file or directory")
 }
 
@@ -518,7 +571,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaUnsuportedSquashfsVersion(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "unexpected squashfs version 4.1")
 }
 
@@ -540,7 +593,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaBadTargetHeader(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "target is not a squashfs")
 }
 
@@ -552,23 +605,23 @@ func (s *DeltaTestSuite) TestApplyDeltaPlainSuccess(c *C) {
 	err := os.WriteFile(xdelta3DiffPath, buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
 
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		c.Check(cmd, Equals, "/usr/bin/xdelta3")
-		c.Check(args[0:4], DeepEquals, []string{"-f", "-d", "-s", "source.snap"})
-		c.Check(args[4], Matches, ".*/diff.xdelta3")
-		c.Check(args[5], Equals, "target.snap")
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
-	defer squashfs.MockOsutilRunWithContext(
-		func(ctx context.Context, cmd *exec.Cmd) error {
-			return nil
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			c.Check(cmd, Equals, "/usr/bin/xdelta3")
+			c.Check(args[0:4], DeepEquals, []string{"-f", "-d", "-s", "source.snap"})
+			c.Check(args[4], Matches, ".*/diff.xdelta3")
+			c.Check(args[5], Equals, "target.snap")
+			return &exec.Cmd{
+				Path: cmd,
+				Args: append([]string{cmd}, args...),
+			}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	// Execute
-	err = squashfs.ApplyDelta("source.snap", xdelta3DiffPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", xdelta3DiffPath, "target.snap")
 	c.Assert(err, IsNil)
 }
 
@@ -584,15 +637,15 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
 	mksquashfsPath := filepath.Join(snapdBinDir, "mksquashfs")
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
-		func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			cmds, tasks, err := buildWithContext(ctx)
+			c.Assert(err, IsNil)
 			c.Check(len(cmds), Equals, 3)
 			c.Check(len(tasks), Equals, 1) // The deltaWriter goroutine
 
@@ -622,8 +675,40 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 			return nil
 		})()
 
-	err = squashfs.ApplyDelta(sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
 	c.Assert(err, IsNil)
+}
+
+func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Cancelled(c *C) {
+	// Create a mock delta: gzip (1), duplicate flags set (0x0040), timestamp 5000
+	deltaPath := s.createDeltaFile(c, "valid.delta", 5000, 1, 0x0040)
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	err := os.WriteFile(sourceSnap, []byte("mock source"), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock commands
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer squashfs.MockOsutilRunManyWithContext(
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			// Wait for the cancellation to happen
+			<-ctx.Done()
+			return errors.New("calculation cancelled")
+		})()
+
+	// Cancel the context shortly after starting
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	err = squashfs.ApplyDelta(ctx, sourceSnap, deltaPath, "target.snap")
+	c.Assert(err, ErrorMatches, "calculation cancelled")
 }
 
 func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
@@ -643,13 +728,16 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 	c.Assert(err, IsNil)
 
 	// Mock the command creation to avoid needing real binaries.
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
 
 	// Mock RunManyWithContext to manually trigger the deltaWriter task.
 	defer squashfs.MockOsutilRunManyWithContext(
-		func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
+			cmds, tasks, err := buildWithContext(ctx)
+			c.Assert(err, IsNil)
 			// Ensure deltaWriter task exists (it should be the only task in applyXdelta3Delta).
 			c.Assert(tasks, HasLen, 1)
 
@@ -672,7 +760,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 			}()
 
 			// Run the deltaWriter routine provided by applyXdelta3Delta.
-			err := tasks[0](ctx)
+			err = tasks[0]()
 			c.Assert(err, IsNil)
 
 			// Validate that the data read from the pipe matches the payload
@@ -684,7 +772,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 		})()
 
 	// Execute
-	err = squashfs.ApplyDelta(sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
 	c.Assert(err, IsNil)
 }
 
@@ -693,7 +781,7 @@ func (s *DeltaTestSuite) TestApplyDeltaShortFile(c *C) {
 	err := os.WriteFile(deltaPath, []byte{0x01, 0x02}, 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches, "delta file does not contain a header")
 }
 
@@ -703,7 +791,7 @@ func (s *DeltaTestSuite) TestApplyDeltaUnknownMagic(c *C) {
 	err := os.WriteFile(deltaPath, []byte{0xDE, 0xAD, 0xBE, 0xEF}, 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches, "unknown delta file format")
 }
 
@@ -728,7 +816,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3VersionMismatch(c *C) {
 	err := os.WriteFile(path, buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta("source.snap", path, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", path, "target.snap")
 	c.Assert(err, ErrorMatches, `incompatible version 2.0`)
 }
 
@@ -742,7 +830,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3UnsupportedTool(c *C) {
 	f.Close()
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches, "unsupported delta tool 99")
 }
 
@@ -750,7 +838,7 @@ func (s *DeltaTestSuite) TestApplyDeltaInvalidCompressionInHeader(c *C) {
 	// Compression ID 99 is unknown
 	deltaPath := s.createDeltaFile(c, "bad-comp.delta", 1234, 99, 0x0040)
 
-	err := squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
+	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches,
 		"bad compression id from delta header: unknown compression id: 99")
 }
@@ -759,7 +847,7 @@ func (s *DeltaTestSuite) TestApplyDeltaInvalidFlagsInHeader(c *C) {
 	// flagCheck (0x0004) triggers an error in superBlockFlagsToMksquashfsArgs
 	deltaPath := s.createDeltaFile(c, "bad-flags.delta", 1234, 1, 0x0004)
 
-	err := squashfs.ApplyDelta("source.snap", deltaPath, "target.snap")
+	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches,
 		"bad flags from delta header: unexpected value in superblock flags")
 }
@@ -771,7 +859,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetUnsupportedCompressionOptions(c 
 
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
 
-	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "compression options section present in target, which is unsupported")
 }
 
@@ -790,21 +878,21 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 	})()
 
 	// Mock the external commands to return valid exec.Cmd objects
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
 
 	// Force RunManyWithContext to fail
 	defer squashfs.MockOsutilRunManyWithContext(
-		func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+		func(ctx context.Context, build func(context.Context) (
+			cmds []*exec.Cmd, tasks []func() error, err error)) error {
+			build(ctx)
 			return errors.New("pipeline execution failed")
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
 	c.Assert(err, ErrorMatches, "pipeline execution failed")
 
 	// The captured temp directory should no longer exist
@@ -830,21 +918,21 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
 	})()
 
 	// Mock the external commands to return valid exec.Cmd objects
-	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
-		return &exec.Cmd{
-			Path: cmd,
-			Args: append([]string{cmd}, args...),
-		}, nil
-	})()
+	defer squashfs.MockCommandFromSystemSnapWithContext(
+		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
+		})()
 
 	// Force RunManyWithContext to fail
 	defer squashfs.MockOsutilRunManyWithContext(
-		func(ctx context.Context, cmds []*exec.Cmd, tasks []func(context.Context) error) error {
+		func(ctx context.Context, build func(context.Context) (
+			cmds []*exec.Cmd, tasks []func() error, err error)) error {
+			build(ctx)
 			return errors.New("apply pipeline failed")
 		})()
 
 	// Execute
-	err = squashfs.ApplyDelta(sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
 	c.Assert(err, ErrorMatches, "apply pipeline failed")
 
 	// The captured temp directory should no longer exist

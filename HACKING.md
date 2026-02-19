@@ -46,7 +46,11 @@ the `snapd` project, please see [Contributing to snapd](./CONTRIBUTING.md).
 Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 
     cd ~/snapd
+    ln -sfn packaging/ubuntu-16.04 debian
     sudo apt build-dep .
+
+> [!NOTE]
+> The `debian` symbolic link is intentionally not part of the tree, and is explicitly listed in the .gitignore file.
 
 Package build dependencies for other distributions can be found under the
 [./packaging/](./packaging/) directory. Eg. for Fedora use:

@@ -53,6 +53,7 @@ type (
 )
 
 var ComponentSetupTask = componentSetupTask
+var RemoveComponentTasks = removeComponentTasks
 
 const (
 	None         = none
@@ -133,16 +134,13 @@ var (
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts                  = getDirMigrationOpts
-	WriteSeqFile                         = writeSeqFile
-	TriggeredMigration                   = triggeredMigration
-	TaskSetsByTypeForEssentialSnaps      = taskSetsByTypeForEssentialSnaps
-	SetDefaultRestartBoundaries          = setDefaultRestartBoundaries
-	DeviceModelBootBase                  = deviceModelBootBase
-	SplitTaskSetByRebootEdges            = splitTaskSetByRebootEdges
-	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
-	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
-	ReRefreshSummary                     = reRefreshSummary
+	GetDirMigrationOpts             = getDirMigrationOpts
+	WriteSeqFile                    = writeSeqFile
+	TriggeredMigration              = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
+	DeviceModelBootBase             = deviceModelBootBase
+	ReRefreshSummary                = reRefreshSummary
 
 	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
 )
@@ -618,3 +616,25 @@ type CustomInstallGoal struct {
 func (c *CustomInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]Target, error) {
 	return c.ToInstall(ctx, st, opts)
 }
+
+func (sts *snapInstallTaskSet) TaskSet() *state.TaskSet {
+	return sts.ts
+}
+
+type SnapInstallTaskSet = snapInstallTaskSet
+
+func NewSnapInstallTaskSetForTest(
+	snapsup *SnapSetup,
+	ts *state.TaskSet,
+	beforeLocalSystemModificationsTasks, upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
+) SnapInstallTaskSet {
+	return SnapInstallTaskSet{
+		ts:                                  ts,
+		snapsup:                             snapsup,
+		beforeLocalSystemModificationsTasks: beforeLocalSystemModificationsTasks,
+		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
+		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
+	}
+}
+
+var ArrangeInstallTasksForSingleReboot = arrangeInstallTasksForSingleReboot

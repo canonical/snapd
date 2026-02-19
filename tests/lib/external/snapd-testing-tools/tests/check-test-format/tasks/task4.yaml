@@ -3,6 +3,6 @@ summary: this is the summary
 environment:
     TEST: 1
 
-systems: [ ubuntu-20.04-64 ]
+systems: [ubuntu-22.04-64]
 
 

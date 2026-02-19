@@ -82,6 +82,10 @@ const (
 	FDEStatusDegraded FDEStatus = "degraded"
 )
 
+func RunningWithPlatformKeys(status FDEStatus) bool {
+	return status == FDEStatusDegraded || status == FDEStatusActive
+}
+
 // FDESystemState is json serializable disk encryption state for the
 // current boot.
 type FDESystemState struct {

@@ -2,6 +2,6 @@ summary: this is the summary
 
 details: details
 
-systems: [ ubuntu-20.04-64 ]
+systems: [ubuntu-22.04-64]
 
 backends: [ google ]

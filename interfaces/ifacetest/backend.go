@@ -60,6 +60,10 @@ func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 	return b.BackendName
 }
 
+func (b *TestSecurityBackend) Prepare(_ *interfaces.SnapAppSet) error {
+	return nil
+}
+
 // Setup records information about the call and calls the setup callback if one is defined.
 func (b *TestSecurityBackend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	b.SetupCalls = append(b.SetupCalls, TestSetupCall{AppSet: appSet, Options: opts, SetupContext: sctx})
@@ -157,4 +161,26 @@ func (b *TestSecurityBackendReinitializable) Reinitialize() error {
 		return nil
 	}
 	return b.ReinitializeCallback()
+}
+
+// TestSecurityBackendDelayedEffects implements DelayedSideEffectsBackend on top
+// of TestSecurityBackend.
+type TestSecurityBackendDelayedEffects struct {
+	TestSecurityBackend
+
+	ApplyDelayedEffectsCalls int
+
+	ApplyDelayedEffectsCallback func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error
+}
+
+var (
+	_ interfaces.DelayedSideEffectsBackend = (*TestSecurityBackendDelayedEffects)(nil)
+)
+
+func (b *TestSecurityBackendDelayedEffects) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect, tm timings.Measurer) error {
+	b.ApplyDelayedEffectsCalls++
+	if b.ApplyDelayedEffectsCallback == nil {
+		return nil
+	}
+	return b.ApplyDelayedEffectsCallback(appSet, effs)
 }

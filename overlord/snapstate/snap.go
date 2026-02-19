@@ -52,6 +52,9 @@ type installContext struct {
 
 // snapInstallTaskSet captures the task ranges involved in a snap installation.
 type snapInstallTaskSet struct {
+	ts      *state.TaskSet
+	snapsup *SnapSetup
+
 	beforeLocalSystemModificationsTasks []*state.Task
 	upToLinkSnapAndBeforeReboot         []*state.Task
 	afterLinkSnapAndPostReboot          []*state.Task
@@ -228,8 +231,8 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 
 	// kernel command line from gadget is for core boot systems only
 	if ic.DeviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeGadget {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
+		// check whether there are other changes that need to run exclusively
+		if err := CheckChangeConflictExclusiveKinds(st, ic.FromChange); err != nil {
 			return nil, err
 		}
 		cmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(
@@ -509,8 +512,8 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	}
 
 	if deviceCtx.IsCoreBoot() && sc.snapsup.Type == snap.TypeSnapd {
-		// make sure no other active changes are changing the kernel command line
-		if err := CheckUpdateKernelCommandLineConflict(st, ic.FromChange); err != nil {
+		// check whether there are other changes that need to run exclusively
+		if err := CheckChangeConflictExclusiveKinds(st, ic.FromChange); err != nil {
 			return err
 		}
 		// only run for core devices and the snapd snap, run late enough
@@ -606,35 +609,38 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 	return nil
 }
 
-func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installContext) (snapInstallTaskSet, *state.TaskSet, error) {
+func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installContext) (snapInstallTaskSet, error) {
 	b := newTaskChainBuilder()
 
 	beforeLocalSystemMods, err := sc.BeforeLocalSystemMod(st, b.OpenSpan(), ic)
 	if err != nil {
-		return snapInstallTaskSet{}, nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	upToLinkSnapAndBeforeReboot, err := sc.UpToLinkSnapAndBeforeReboot(st, b.OpenSpan(), ic)
 	if err != nil {
-		return snapInstallTaskSet{}, nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	afterLinkSnapAndPostReboot, err := sc.AfterLinkSnapAndPostReboot(st, b.OpenSpan(), ic)
 	if err != nil {
-		return snapInstallTaskSet{}, nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	if !ic.NoRestartBoundaries {
 		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{b.TaskSet()}); err != nil {
-			return snapInstallTaskSet{}, nil, err
+			return snapInstallTaskSet{}, err
 		}
 	}
 
 	return snapInstallTaskSet{
+		ts:      b.TaskSet(),
+		snapsup: sc.snapsup,
+
 		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
 		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
 		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
-	}, b.TaskSet(), nil
+	}, nil
 }
 
 // doInstallOrPreDownload either returns a task set that contains all tasks
@@ -642,24 +648,24 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 // tasks needed to initiate a pre-download. In the pre-download case, an error
 // is also returned that the caller can use to differentiate between the two
 // conditions.
-func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (*state.TaskSet, error) {
+func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSetup, compsups []ComponentSetup, ic installContext) (snapInstallTaskSet, error) {
 	if ic.DeviceCtx == nil {
 		dctx, err := DeviceCtx(st, nil, nil)
 		if err != nil {
-			return nil, err
+			return snapInstallTaskSet{}, err
 		}
 		ic.DeviceCtx = dctx
 	}
 
 	if err := checkInstallPreconditions(st, snapst, snapsup, ic); err != nil {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	// TODO: this feels like a hack that we could drop in some way?
 	if snapst.IsInstalled() {
 		info, err := snapst.CurrentInfo()
 		if err != nil {
-			return nil, err
+			return snapInstallTaskSet{}, err
 		}
 
 		// adjust plugs-only hint to match existing behavior
@@ -671,7 +677,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	// checks done above
 	busyErr, err := shouldPreDownloadSnap(st, snapsup, snapst)
 	if err != nil {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	// snap is busy, return a pre-download task set and the busyErr for the
@@ -679,12 +685,12 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	if busyErr != nil {
 		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
 		if err != nil {
-			return nil, err
+			return snapInstallTaskSet{}, err
 		}
 		for _, task := range existing {
 			switch task.Status() {
 			case state.DoStatus, state.DoingStatus:
-				return nil, busyErr
+				return snapInstallTaskSet{}, busyErr
 			}
 		}
 
@@ -698,28 +704,31 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 		preDownload.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
 		ts.AddTask(preDownload)
 
-		return ts, busyErr
+		return snapInstallTaskSet{
+			ts:      ts,
+			snapsup: snapsup,
+		}, busyErr
 	}
 
 	tr := config.NewTransaction(st)
 	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
 	if experimentalGateAutoRefreshHook && snapst.IsInstalled() {
 		// If this snap was held, then remove it from snaps-hold.
 		if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
-			return nil, err
+			return snapInstallTaskSet{}, err
 		}
 	}
 
 	choreo := newSnapInstallChoreographer(snapst, snapsup, compsups)
-	_, ts, err := choreo.choreograph(st, ic)
+	installTS, err := choreo.choreograph(st, ic)
 	if err != nil {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
 
-	return ts, nil
+	return installTS, nil
 }
 
 // shouldPreDownloadSnap returns a timedBusySnapError when we should enqueue a
@@ -867,7 +876,7 @@ func splitComponentTasksForInstall(
 ) (multiComponentInstallTaskSet, error) {
 	componentTSS := make([]componentInstallTaskSet, 0, len(compsups))
 	for _, compsup := range compsups {
-		cts, _, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, fromChange)
+		cts, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, fromChange)
 		if err != nil {
 			return multiComponentInstallTaskSet{}, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}

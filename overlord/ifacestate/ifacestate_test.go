@@ -647,6 +647,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 		c.Check(ht[i].Kind(), Equals, "run-hook")
 		c.Check(ht[i].Summary(), Matches, "Run hook connect-slot-slot .*")
 	}
+
+	var newConns []string
+	c.Assert(setupProfiles.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer2:plug producer:slot", "consumer:plug producer:slot"})
 }
 
 func (s *interfaceManagerSuite) TestBatchConnectTasksNoHooks(c *C) {
@@ -3032,7 +3036,17 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
 	ifaces := repo.Interfaces()
-	c.Assert(ifaces.Connections, HasLen, 1) //FIXME add deep eq
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "snap", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "ubuntu-core", Name: "network"}}})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"snap:network ubuntu-core:network"})
 }
 
 // The auto-connect task will auto-connect slots with viable candidates.
@@ -3088,6 +3102,13 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
 // The auto-connect task will auto-connect slots with viable multiple candidates.
@@ -3152,6 +3173,13 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
 		{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
 	})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer2:plug producer:slot", "consumer:plug producer:slot"})
 }
 
 // The auto-connect task will not auto-connect slots if viable alternative slots are present.
@@ -3194,6 +3222,88 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(conns, HasLen, 0)
+}
+
+// The auto-connect task will auto-connect slots with viable multiple candidates.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSomeConnected(c *C) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	// Add an OS snap.
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	// Add a consumer snap with unconnected plug (interface "test")
+	s.mockSnap(c, consumerYaml)
+	// Add a 2nd consumer snap with unconnected plug (interface "test")
+	s.mockSnap(c, consumer2Yaml)
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// Add a producer snap with a "slot" slot of the "test" interface.
+	producer := s.mockSnap(c, producerYaml)
+
+	// Mock connections in state
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		// one connection is already present
+		"consumer2:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+	s.state.Unlock()
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: producer.SnapName(),
+			Revision: producer.Revision,
+		},
+	})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "slot" is now saved in the state as auto-connected.
+	var conns map[string]any
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer:plug producer:slot": map[string]any{
+			"interface": "test", "auto": true,
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+		"consumer2:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	// Ensure that "slot" is really connected.
+	slot := repo.Slot("producer", "slot")
+	c.Assert(slot, Not(IsNil))
+	ifaces := repo.Interfaces()
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+	})
+
+	tsks := change.Tasks()
+	c.Check(tsks[len(tsks)-1].Kind(), Equals, "setup-profiles")
+	sp := tsks[len(tsks)-1]
+	var newConns []string
+	// only new connection shows up
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
 // The auto-connect task will auto-connect plugs with viable candidates also condidering snap declarations.
@@ -3544,7 +3654,7 @@ slots:
 			c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-plug-attr"})
 			c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "new-slot-attr"})
 			// Regenerate profiles due to manager initialization
-			c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+			c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			return nil
 		},
 	}
@@ -3731,7 +3841,7 @@ slots:
 				c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 				c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 				// Regenerating all profiles.
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
@@ -3743,9 +3853,9 @@ slots:
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
 					if appSet.InstanceName() == "consumer" {
 						// called for consumer when updating consumer
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 					}
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
@@ -3754,9 +3864,9 @@ slots:
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz", "qux"}})
 					if appSet.InstanceName() == "producer" {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
-						c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 					}
 				}
 			}
@@ -8300,6 +8410,10 @@ volumes:
 	c.Assert(tasks[0].Kind(), Equals, "auto-connect")
 	c.Assert(tasks[1].Kind(), Equals, "connect")
 	c.Assert(tasks[2].Kind(), Equals, "setup-profiles")
+	sp := tasks[2]
+	var newConns []string
+	c.Assert(sp.Get("new-connections", &newConns), IsNil)
+	c.Check(newConns, DeepEquals, []string{"foo:network-control core:network-control"})
 
 	s.state.Unlock()
 	s.settle(c)
@@ -11275,17 +11389,17 @@ slots:
 			_, err := repo.SnapSpecification("test", appSet, opts)
 			if !initDone {
 				// Regenerating all security profiles
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			} else {
 				name := appSet.InstanceName()
 				switch {
 				case refreshedSnap == name:
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && (name == "producer" || name == "producer2"):
 					// Both slot provider snaps are affected by an update of connected consumer
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 				case refreshedSnap == "producer" && name == "consumer":
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
 				default:
 					c.Error("unexpected Setup() call")
 				}
@@ -11438,17 +11552,17 @@ plugs:
 			_, err := repo.SnapSpecification("test", appSet, opts)
 			if !initDone {
 				// Regenerating all security profiles
-				c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			} else {
 				name := appSet.InstanceName()
 				switch {
 				case refreshedSnap == name:
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && name == "producer2":
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
 				case (refreshedSnap == "consumer" && name == "producer") || (refreshedSnap == "producer" && name == "consumer"):
 					// producer and consumer are cyclically connected, each using plugs and slots of the other
-					c.Check(sctx, Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonCyclicallyConnectedUpdate})
+					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonCyclicallyConnectedUpdate})
 				default:
 					c.Error("unexpected Setup() call")
 				}
@@ -11553,7 +11667,7 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			for _, appSet := range appSets {
 				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName()))
 				c.Assert(err, IsNil)
-				c.Check(sctx(appSet.InstanceName()), Equals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx(appSet.InstanceName()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {

@@ -22,6 +22,7 @@ package snapdtool
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"debug/elf"
 	"fmt"
 	"io"
@@ -102,6 +103,20 @@ func parseLdSoConf(root string, confPath string) []string {
 // At the moment it can only run ELF files, expects a standard ld.so
 // interpreter, and can't handle RPATH.
 func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
+	return CommandFromSystemSnapWithCmdBuilder(exec.Command, name, cmdArgs...)
+}
+
+// CommandFromSystemSnapWithContext does the same as CommandFromSystemSnap, but
+// accepts a context for command cancellation.
+func CommandFromSystemSnapWithContext(ctx context.Context, name string, cmdArgs ...string) (*exec.Cmd, error) {
+	return CommandFromSystemSnapWithCmdBuilder(
+		func(name string, args ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, name, args...)
+		},
+		name, cmdArgs...)
+}
+
+func CommandFromSystemSnapWithCmdBuilder(createCmd func(name string, arg ...string) *exec.Cmd, name string, cmdArgs ...string) (*exec.Cmd, error) {
 	from := "snapd"
 	root := filepath.Join(dirs.SnapMountDir, "/snapd/current")
 	if !osutil.FileExists(root) {
@@ -117,7 +132,7 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 		// locations are correct, otherwise we need to set up a command to invoke it directly
 		snapdCurrentDir := filepath.Join(dirs.GlobalRootDir, "snap/snapd/current")
 		if match, err := osutil.ComparePathsByDeviceInode(root, snapdCurrentDir); err == nil && match {
-			return exec.Command(cmdPath, cmdArgs...), nil
+			return createCmd(cmdPath, cmdArgs...), nil
 		}
 
 		interp, err := elfInterp(cmdPath)
@@ -132,7 +147,7 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 
 		ldSoArgs := []string{"--library-path", ldLibraryPathForSnapd, cmdPath}
 		allArgs := append(ldSoArgs, cmdArgs...)
-		return exec.Command(interp, allArgs...), nil
+		return createCmd(interp, allArgs...), nil
 	}
 
 	// We are trying to execute files from core snap. They need
@@ -167,5 +182,5 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
 	allArgs := append(ldSoArgs, cmdArgs...)
-	return exec.Command(coreLdSo, allArgs...), nil
+	return createCmd(coreLdSo, allArgs...), nil
 }

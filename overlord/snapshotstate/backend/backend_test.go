@@ -628,7 +628,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	defer z.Close()
 
 	var tarArgs []string
-	restore := backend.MockTarAsUser(func(username string, args ...string) *exec.Cmd {
+	restore := backend.MockTarAsUser(func(ctx context.Context, username string, args ...string) *exec.Cmd {
 		// We care only about the exclusion arguments in this test
 		tarArgs = nil
 		for _, arg := range args {
@@ -926,19 +926,17 @@ func (s *snapshotSuite) TestMaybeRunuserHappyRunuser(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
+	c.Check(backend.TarAsUser(context.Background(), "test", "--bar"), check.DeepEquals, &exec.Cmd{
 		Path: "/sbin/runuser",
 		Args: []string{"/sbin/runuser", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd := backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	c.Check(logbuf.String(), check.Equals, "")
 }
 
@@ -949,20 +947,19 @@ func (s *snapshotSuite) TestMaybeRunuserHappySudo(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	cmd := backend.TarAsUser("test", "--bar")
+	cmd := backend.TarAsUser(context.Background(), "test", "--bar")
 	c.Check(cmd, check.DeepEquals, &exec.Cmd{
 		Path: "/usr/bin/sudo",
 		Args: []string{"/usr/bin/sudo", "-u", "test", "--", "tar", "--bar"},
 	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+
+	cmd = backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	c.Check(logbuf.String(), check.Equals, "")
 }
 
@@ -973,19 +970,17 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
-	c.Check(backend.TarAsUser("root", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd := backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
+	cmd = backend.TarAsUser(context.Background(), "root", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
 	uid = 42
-	c.Check(backend.TarAsUser("test", "--bar"), check.DeepEquals, &exec.Cmd{
-		Path: s.tarPath,
-		Args: []string{"tar", "--bar"},
-	})
+	cmd = backend.TarAsUser(context.Background(), "test", "--bar")
+	c.Check(cmd.Path, check.Equals, s.tarPath)
+	c.Check(cmd.Args, check.DeepEquals, []string{"tar", "--bar"})
+
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
@@ -1305,6 +1300,25 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 
 	// content.json + num_files + export.json + footer
 	expectedSize := int64(1024 + 4*512 + 1024 + 2*512)
+
+	// If a file's UID or GID exceeds USTAR limits, go's tar uses PAX format which adds
+	// a PAX "header block" (512 bytes) with "extended header records" (512 bytes per record)
+	// for that file.
+	// See https://pubs.opengroup.org/onlinepubs/009695399/utilities/pax.html#tag_04_100_13_01.
+	//
+	// Snapshot creation uses tar.Header's default UID=0, GID=0 for content.json and export.json.
+	// But uses current UID/GID for the snapshot file and this current UID/GID may
+	// exceed USTAR limits and trigger PAX. For setting UID and/or GID in PAX, a single
+	// "extended header record" is sufficient.
+	//
+	// Thus, whenever UID/GID exceeds USTAR limits, the snapshot size will increase by 1024 bytes
+	// (512 for PAX "header block" + 512 for PAX single "extended header record").
+
+	const ustarMaxID = 0o7777777 // 2097151
+	if os.Getuid() > ustarMaxID || os.Getgid() > ustarMaxID {
+		expectedSize += 1024
+	}
+
 	// do on export at the start of the epoch
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
 	defer restore()

@@ -8820,34 +8820,6 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	const withComponents = false
-	s.addSnapsForRemodel(c, withComponents)
-
-	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
-	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
-	chg.AddTask(tugc)
-
-	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
-	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:  si.Revision,
-		SnapType: "app",
-	})
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap", "")
-	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
-	c.Assert(ts, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -10450,11 +10422,26 @@ type customStore struct {
 	customSnapAction func(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
 }
 
+type throttledRefreshResponseMode int
+
+const (
+	throttledRefreshResponseEchoCurrent throttledRefreshResponseMode = iota
+	throttledRefreshResponseOmit
+)
+
 func (s customStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	return s.customSnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
 }
 
 func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrottled(c *C) {
+	s.testSaveMonitoredRefreshCandidatesOnAutoRefreshThrottled(c, throttledRefreshResponseEchoCurrent)
+}
+
+func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrottledOmitted(c *C) {
+	s.testSaveMonitoredRefreshCandidatesOnAutoRefreshThrottled(c, throttledRefreshResponseOmit)
+}
+
+func (s *snapmgrTestSuite) testSaveMonitoredRefreshCandidatesOnAutoRefreshThrottled(c *C, responseMode throttledRefreshResponseMode) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -10504,16 +10491,23 @@ func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 	sto := customStore{fakeStore: s.fakeStore}
 	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 		var actionResult []store.SnapActionResult
+		currentRevisionBySnapID := make(map[string]snap.Revision, len(cs))
+		for _, cur := range cs {
+			currentRevisionBySnapID[cur.SnapID] = cur.Revision
+		}
 
 		snapIDs := map[string]bool{}
 		for _, action := range sa {
 			snapIDs[action.SnapID] = true
-			// throttle refresh requests if this is an auto-refresh
-			if isThrottled[action.SnapID] && ro.Scheduled {
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseOmit {
 				continue
 			}
+
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
+			if isThrottled[action.SnapID] && ro.Scheduled && responseMode == throttledRefreshResponseEchoCurrent {
+				info.Revision = currentRevisionBySnapID[action.SnapID]
+			}
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
 		}
 

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -128,15 +129,15 @@ func InstallComponents(
 		// the component task chains. this results in multiple parallel tasks
 		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		cts, ts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
+		cts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
 		if err != nil {
 			return nil, err
 		}
 
 		compSetupIDs = append(compSetupIDs, cts.compSetupTaskID)
 
-		ts.JoinLane(lane)
-		tss = append(tss, ts)
+		cts.ts.JoinLane(lane)
+		tss = append(tss, cts.ts)
 	}
 
 	setupSecurity.Set("component-setup-tasks", compSetupIDs)
@@ -285,7 +286,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	cts, ts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
+	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -294,17 +295,17 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// operate on multiple components so that it works like InstallComponents.
 	// this would improve performance, especially in the case of kernel module
 	// components.
-	begin, err := ts.Edge(BeginEdge)
+	begin, err := cts.ts.Edge(BeginEdge)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find begin edge on component install task set: %v", err)
 	}
 
 	begin.Set("component-setup-tasks", []string{cts.compSetupTaskID})
-	ts.MarkEdge(begin, SnapSetupEdge)
+	cts.ts.MarkEdge(begin, SnapSetupEdge)
 
-	ts.JoinLane(generateLane(st, opts))
+	cts.ts.JoinLane(generateLane(st, opts))
 
-	return ts, nil
+	return cts.ts, nil
 }
 
 type ComponentInstallFlags struct {
@@ -313,7 +314,9 @@ type ComponentInstallFlags struct {
 }
 
 type componentInstallTaskSet struct {
-	compSetupTaskID                     string
+	ts              *state.TaskSet
+	compSetupTaskID string
+
 	beforeLocalSystemModificationsTasks []*state.Task
 	beforeLinkTasks                     []*state.Task
 	maybeLinkTask                       *state.Task
@@ -566,17 +569,17 @@ func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State
 	return s.Close()
 }
 
-func (cc *componentInstallChoreographer) choreograph(st *state.State) (componentInstallTaskSet, *state.TaskSet, error) {
+func (cc *componentInstallChoreographer) choreograph(st *state.State) (componentInstallTaskSet, error) {
 	b := newTaskChainBuilder()
 
 	beforeLocalSystemMods, err := cc.BeforeLocalSystemMod(st, b.OpenSpan())
 	if err != nil {
-		return componentInstallTaskSet{}, nil, err
+		return componentInstallTaskSet{}, err
 	}
 
 	beforeLink, err := cc.BeforeLink(st, b.OpenSpan())
 	if err != nil {
-		return componentInstallTaskSet{}, nil, err
+		return componentInstallTaskSet{}, err
 	}
 
 	csi := cc.compsup.CompSideInfo
@@ -597,7 +600,7 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 
 	postOpHookToBeforeDiscard, err := cc.PostHookToBeforeDiscard(st, b.OpenSpan())
 	if err != nil {
-		return componentInstallTaskSet{}, nil, err
+		return componentInstallTaskSet{}, err
 	}
 
 	// add the discard-component task to the chain. note, this isn't part of one
@@ -613,13 +616,15 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 	}
 
 	return componentInstallTaskSet{
-		compSetupTaskID:                     cc.compsupTask.ID(),
+		ts:              b.TaskSet(),
+		compSetupTaskID: cc.compsupTask.ID(),
+
 		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
 		beforeLinkTasks:                     beforeLink,
 		maybeLinkTask:                       maybeLink,
 		postHookToDiscardTasks:              postOpHookToBeforeDiscard,
 		maybeDiscardTask:                    maybeDiscard,
-	}, b.ts, nil
+	}, nil
 }
 
 // doInstallComponent might be called with the owner snap installed or not.
@@ -634,21 +639,21 @@ func doInstallComponent(
 	snapsupTask *state.Task,
 	setupSecurity, kmodSetup *state.Task,
 	fromChange string,
-) (componentInstallTaskSet, *state.TaskSet, error) {
+) (componentInstallTaskSet, error) {
 	cc, err := newComponentInstallChoreographer(
 		st, snapsup, snapst, &compsup, fromChange,
 		snapsupTask, setupSecurity, kmodSetup,
 	)
 	if err != nil {
-		return componentInstallTaskSet{}, nil, err
+		return componentInstallTaskSet{}, err
 	}
 
-	cts, ts, err := cc.choreograph(st)
+	cts, err := cc.choreograph(st)
 	if err != nil {
-		return componentInstallTaskSet{}, nil, err
+		return componentInstallTaskSet{}, err
 	}
 
-	return cts, ts, nil
+	return cts, nil
 }
 
 type RemoveComponentsOpts struct {
@@ -717,7 +722,18 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		return nil, err
 	}
 
-	// TODO:COMPS: check if component is enforced by validation set (see snapstate.canRemove)
+	// check if this component is required by any validation set in enforcing mode
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	pres, err := enforcedSets.Presence(info)
+	if err != nil {
+		return nil, err
+	}
+	if pres.Presence == asserts.PresenceRequired {
+		return nil, fmt.Errorf("cannot remove component %q as it is required by an enforcing validation set", compst.SideInfo.Component)
+	}
 
 	snapSup := &SnapSetup{
 		Base:        info.Base,

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+PKGDB_KERNEL_VERSION="$(uname -r)"
+
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
     . "$TESTSLIB/tools/tests.pkgs.apt.sh"
@@ -621,12 +623,14 @@ pkg_dependencies_ubuntu_classic(){
                 fwupd
                 gccgo-9
                 libvirt-daemon-system
-                linux-tools-$(uname -r)
                 packagekit
                 qemu-kvm
                 qemu-utils
                 shellcheck
                 "
+            if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 0 ]; then
+                echo "linux-tools-$PKGDB_KERNEL_VERSION"
+            fi
             ;;
         ubuntu-22.04*|ubuntu-24.04*)
             # bpftool is part of linux-tools package
@@ -637,16 +641,35 @@ pkg_dependencies_ubuntu_classic(){
                 golang
                 gperf
                 libvirt-daemon-system
-                linux-tools-$(uname -r)
                 lz4
                 qemu-kvm
                 qemu-utils
                 "
+            if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 0 ]; then
+                echo "linux-tools-$PKGDB_KERNEL_VERSION"
+            fi
             ;;
-        ubuntu-25.*|ubuntu-26.*)
+        ubuntu-25.*)
             # bpftool is part of linux-tools package
             # ubuntu-25.04+ systemd-dev is optional
             echo "
+                dbus-user-session
+                fwupd
+                golang
+                gperf
+                libvirt-daemon-system
+                lz4
+                qemu-kvm
+                qemu-utils
+                systemd-dev
+                "
+            if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 0 ]; then
+                echo "linux-tools-$PKGDB_KERNEL_VERSION"
+            fi
+            ;;
+        ubuntu-26.*)
+            echo "
+                util-linux-extra
                 dbus-user-session
                 fwupd
                 golang
@@ -666,6 +689,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-sid*)
             echo "
+                busybox
                 debhelper
                 autopkgtest
                 bpftool
@@ -711,11 +735,16 @@ pkg_dependencies_ubuntu_classic(){
 }
 
 pkg_linux_image_extra (){
-    if apt-cache show "linux-image-extra-$(uname -r)" > /dev/null 2>&1; then
-        echo "linux-image-extra-$(uname -r)";
+    if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 1 ]; then
+        # Probing doesn't work, additional packages must be installed manually in cloud-init profiles.
+        return
+    fi
+
+    if apt-cache show "linux-image-extra-$PKGDB_KERNEL_VERSION" > /dev/null 2>&1; then
+        echo "linux-image-extra-$PKGDB_KERNEL_VERSION";
     else
-        if apt-cache show "linux-modules-extra-$(uname -r)" > /dev/null 2>&1; then
-            echo "linux-modules-extra-$(uname -r)";
+        if apt-cache show "linux-modules-extra-$PKGDB_KERNEL_VERSION" > /dev/null 2>&1; then
+            echo "linux-modules-extra-$PKGDB_KERNEL_VERSION";
         else
             echo "cannot find a matching kernel modules package" >&2;
             exit 1;

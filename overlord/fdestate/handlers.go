@@ -21,12 +21,10 @@ package fdestate
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -274,14 +272,15 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 
 	// XXX: unlock state and let conflict detection handle the rest?
 
-	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	activateState, err := SystemState(m.state)
+	if err != nil {
 		return err
 	}
-	if unlockedWithRecoveryKey {
+	if !RunningWithPlatformKeys(activateState.Status) {
 		// primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
-		return errors.New("cannot add platform keys if the system was unlocked with a recovery key during boot")
+		// We need to allow degraded state, as this function might be part of fixing
+		return fmt.Errorf("cannot add platform keys if FDE is not active (current state: %v)", activateState.Status)
 	}
 
 	containers, err := m.GetEncryptedContainers()
