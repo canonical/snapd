@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var shortDeltaHelp = i18n.G("Apply/Generate snap delta")
@@ -41,10 +42,10 @@ Operations:
 
 Formats:
   xdelta3          : raw xdelta3 binary diff
-  snap-1-1-xdelta3 : snap-aware xdelta3 delta (default)
+  snap-1-1-xdelta3 : snap-aware xdelta3 delta
 
 Examples:
-  $ snap delta generate --source <source snap file> --target <target snap file> --delta <delta file>
+  $ snap delta generate --source <source snap file> --target <target snap file> --delta <delta file> --format snap-1-1-xdelta3
   $ snap delta generate --source <source snap file> --target <target snap file> --delta <delta file> --format xdelta3
   $ snap delta apply --delta <delta file> --source <source snap file> --target <target snap file>
 `)
@@ -58,13 +59,7 @@ type cmdDelta struct {
 	Source string `long:"source" short:"s" required:"yes"`
 	Target string `long:"target" short:"t" required:"yes"`
 	Delta  string `long:"delta" short:"d" required:"yes"`
-	Format string `long:"format" short:"f" default:"snap-1-1-xdelta3"`
-}
-
-// deltaFormatIDs maps format store strings to DeltaFormat values.
-var deltaFormatIDs = map[string]squashfs.DeltaFormat{
-	"xdelta3":          squashfs.Xdelta3Format,
-	"snap-1-1-xdelta3": squashfs.SnapXdelta3Format,
+	Format string `long:"format" short:"f"`
 }
 
 // override for testing
@@ -113,14 +108,17 @@ func (x *cmdDelta) Execute(args []string) error {
 
 	switch x.Positional.Operation {
 	case "generate":
-		deltaFormat, ok := deltaFormatIDs[x.Format]
-		if !ok {
+		if x.Format == "" {
+			return fmt.Errorf(i18n.G("the --format flag is required for generate, supported formats: %s"),
+				strings.Join(squashfs.SupportedDeltaFormats(), ", "))
+		}
+		if !strutil.ListContains(squashfs.SupportedDeltaFormats(), x.Format) {
 			return fmt.Errorf(i18n.G("unsupported delta format %q, supported formats: %s"),
 				x.Format, strings.Join(squashfs.SupportedDeltaFormats(), ", "))
 		}
 		fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), x.Format)
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfsGenerateDelta(ctx, x.Source, x.Target, x.Delta, deltaFormat)
+		return squashfsGenerateDelta(ctx, x.Source, x.Target, x.Delta, x.Format)
 	case "apply":
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
 		return squashfsApplyDelta(ctx, x.Source, x.Delta, x.Target)

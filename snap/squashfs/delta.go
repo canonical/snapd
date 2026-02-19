@@ -72,13 +72,7 @@ import (
 //
 // Reference for the squashfs superblock: https://dr-emann.github.io/squashfs
 
-type DeltaFormat int
-
 const (
-	// Identifiers for the formats in the API
-	Xdelta3Format DeltaFormat = iota
-	SnapXdelta3Format
-
 	// Identifiers for the store
 	xdelta3Format = "xdelta3"
 	// This follows compatibility labels conventions. First and second
@@ -257,16 +251,6 @@ func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
 	return io.CopyBuffer(dst, src, bufPtr)
 }
 
-func formatStoreString(id DeltaFormat) string {
-	switch id {
-	case Xdelta3Format:
-		return xdelta3Format
-	case SnapXdelta3Format:
-		return snapDeltaFormatXdelta3
-	}
-	return "unexpected"
-}
-
 // growToMinSize pads a file to minSize with zero bytes if it is smaller.
 func growToMinSize(path string, minSize int64) error {
 	fi, err := os.Stat(path)
@@ -282,22 +266,23 @@ func growToMinSize(path string, minSize int64) error {
 	return nil
 }
 
-// Supported delta formats
+// SupportedDeltaFormats returns the list of supported delta format strings.
 func SupportedDeltaFormats() []string {
-	return []string{formatStoreString(SnapXdelta3Format), formatStoreString(Xdelta3Format)}
+	return []string{snapDeltaFormatXdelta3, xdelta3Format}
 }
 
 // GenerateDelta creates a delta file called delta from sourceSnap and
-// targetSnap, using deltaFormat.
-func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
+// targetSnap, using deltaFormat which must be one of the strings
+// returned by SupportedDeltaFormats().
+func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat string) error {
 	switch deltaFormat {
-	case Xdelta3Format:
+	case xdelta3Format:
 		// Plain xdelta3 on compressed files
 		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
-	case SnapXdelta3Format:
+	case snapDeltaFormatXdelta3:
 		return generateSnapDelta(ctx, sourceSnap, targetSnap, delta)
 	default:
-		return fmt.Errorf("unsupported delta format %d", deltaFormat)
+		return fmt.Errorf("unsupported delta format %q", deltaFormat)
 	}
 }
 

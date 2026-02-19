@@ -342,8 +342,8 @@ func (s *DeltaTestSuite) createDeltaFile(c *C, name string, timestamp uint32, co
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaUnsupportedFormat(c *C) {
-	err := squashfs.GenerateDelta(context.Background(), "s", "t", "d", squashfs.DeltaFormat(99))
-	c.Assert(err, ErrorMatches, "unsupported delta format 99")
+	err := squashfs.GenerateDelta(context.Background(), "s", "t", "d", "unsupported-format")
+	c.Assert(err, ErrorMatches, `unsupported delta format "unsupported-format"`)
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaPlainSuccess(c *C) {
@@ -363,7 +363,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaPlainSuccess(c *C) {
 	})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "diff.xdelta3", squashfs.Xdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "diff.xdelta3", "xdelta3")
 	c.Assert(err, IsNil)
 }
 
@@ -418,7 +418,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, IsNil)
 
 	// Verify the delta file header was written correctly
@@ -474,7 +474,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Cancelled(c *C) {
 	}()
 
 	// Execute
-	err := squashfs.GenerateDelta(ctx, src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(ctx, src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "calculation cancelled")
 }
 
@@ -496,7 +496,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3NoUnsquashfsCmd(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, "out.delta", squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, "out.delta", "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "cannot find unsquashfs: not found")
 }
 
@@ -510,7 +510,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3PipeSetupError(c *C) {
 	})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "cannot set-up pipes")
 
 	// Check delta file was removed
@@ -521,7 +521,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetOpenError(c *C) {
 	src := s.createMockSnap(c, "source.snap", 1000, 1, 0)
 	dst := filepath.Join(dirs.GlobalRootDir, "non-existent.snap")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "cannot open target: .* no such file or directory")
 }
 
@@ -532,7 +532,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetReadError(c *C) {
 	err := os.WriteFile(dst, []byte("too short"), 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "while reading target superblock: unexpected EOF")
 }
 
@@ -543,7 +543,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputFileError(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "cannot create delta file: .* no such file or directory")
 }
 
@@ -566,7 +566,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaUnsuportedSquashfsVersion(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "unexpected squashfs version 4.1")
 }
 
@@ -588,7 +588,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaBadTargetHeader(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "target is not a squashfs")
 }
 
@@ -856,7 +856,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetUnsupportedCompressionOptions(c 
 
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "compression options section present in target, which is unsupported")
 }
 
@@ -889,7 +889,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, squashfs.SnapXdelta3Format)
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
 	c.Assert(err, ErrorMatches, "pipeline execution failed")
 
 	// The captured temp directory should no longer exist

@@ -115,7 +115,7 @@ execute: |
 
     echo "Test snap delta with short flags"
     rm -f out.delta reconstructed.snap
-    snap delta generate -s source.snap -t target.snap -d out.delta
+    snap delta generate -s source.snap -t target.snap -d out.delta -f snap-1-1-xdelta3
     test -f out.delta
     snap delta apply -s source.snap -t reconstructed.snap -d out.delta
     test -f reconstructed.snap
@@ -124,7 +124,7 @@ execute: |
     not snap delta compress --source source.snap --target target.snap --delta out.delta 2>&1 | MATCH "unknown operation"
 
     echo "Test error when source file does not exist"
-    not snap delta generate --source nonexistent.snap --target target.snap --delta out.delta 2>&1
+    not snap delta generate --source nonexistent.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3 2>&1
 
     # --- Test with real snapd snaps ---
     rm -f out.delta reconstructed.snap
