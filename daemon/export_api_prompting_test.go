@@ -28,12 +28,17 @@ var (
 
 	PromptingNotRunningError = promptingNotRunningError
 	PromptingError           = promptingError
+
+	ValidateSnapHasInterfaceConnectionImpl = validateSnapHasInterfaceConnectionImpl
 )
 
-type PostPromptBody postPromptBody
+type PostInterfacesRequestsRequestBody postInterfacesRequestsRequestBody
+type PostPromptRequestBody postPromptRequestBody
 type AddRuleContents addRuleContents
 type RemoveRulesSelector removeRulesSelector
 type PatchRuleContents patchRuleContents
+
+type PostInterfacesRequestsResponse = postInterfacesRequestsResponse
 
 // When the types have nested contents, must redefine with exported types.
 type PostRulesRequestBody struct {
@@ -53,4 +58,12 @@ func MockInterfaceManager(manager interfaceManager) (restore func()) {
 		return manager
 	}
 	return restore
+}
+
+func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
+	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
+}
+
+func MockValidateSnapHasInterfaceConnection(f func(d *Daemon, snapName, iface string) Response) (restore func()) {
+	return testutil.Mock(&validateSnapHasInterfaceConnection, f)
 }

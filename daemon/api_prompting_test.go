@@ -44,6 +44,7 @@ var _ = Suite(&promptingSuite{})
 
 type fakeInterfacesRequestsManager struct {
 	// Values to return
+	ask          prompting.OutcomeType
 	prompts      []*requestprompts.Prompt
 	rules        []*requestrules.Rule
 	prompt       *requestprompts.Prompt
@@ -55,6 +56,9 @@ type fakeInterfacesRequestsManager struct {
 	userID               uint32
 	snap                 string
 	iface                string
+	pid                  int32
+	cgroup               string
+	snapdShuttingDown    <-chan struct{}
 	id                   prompting.IDType // used for prompt ID or rule ID
 	ruleConstraintsJSON  prompting.ConstraintsJSON
 	constraintsPatchJSON prompting.ConstraintsJSON
@@ -63,6 +67,16 @@ type fakeInterfacesRequestsManager struct {
 	lifespan             prompting.LifespanType
 	duration             string
 	clientActivity       bool
+}
+
+func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+	m.userID = uid
+	m.iface = iface
+	m.snap = snap
+	m.pid = pid
+	m.cgroup = cgroup
+	m.snapdShuttingDown = snapdShuttingDown
+	return m.ask, m.err
 }
 
 func (m *fakeInterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
@@ -133,7 +147,7 @@ func (m *fakeInterfacesRequestsManager) RemoveRule(userID uint32, ruleID prompti
 type promptingSuite struct {
 	apiBaseSuite
 
-	// Set this to true to disable prompting
+	// Set this to false to disable prompting
 	appArmorPromptingRunning bool
 	manager                  *fakeInterfacesRequestsManager
 }
@@ -655,6 +669,278 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 	}
 }
 
+func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
+	s.expectWriteAccess(daemon.OpenAccess{})
+
+	s.daemon(c)
+
+	const (
+		fakeUID    = uint32(1000)
+		fakePID    = int32(1234)
+		fakeCgroup = "/path/to/cgroup/snap.foo.bar-someuuid.scope"
+		iface      = "audio-record"
+
+		expectedSnap = "foo"
+	)
+
+	restore := daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Check(pid, Equals, int(fakePID))
+		return fakeCgroup, nil
+	})
+	defer restore()
+
+	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
+		c.Check(snapName, Equals, expectedSnap)
+		c.Check(iface, Equals, iface)
+		return nil
+	})
+	defer restore()
+
+	s.manager.ask = prompting.OutcomeAllow
+
+	contents := &daemon.PostInterfacesRequestsRequestBody{
+		Action:    "ask",
+		Interface: iface,
+		PID:       fakePID,
+	}
+	marshalled, err := json.Marshal(contents)
+	c.Assert(err, IsNil)
+
+	rsp := s.makeSyncReq(c, "POST", "/v2/interfaces/requests", 1000, marshalled)
+
+	// Check parameters
+	c.Check(s.manager.userID, Equals, fakeUID)
+	c.Check(s.manager.iface, Equals, iface)
+	c.Check(s.manager.snap, Equals, expectedSnap)
+	c.Check(s.manager.pid, Equals, fakePID)
+	c.Check(s.manager.cgroup, Equals, fakeCgroup)
+	c.Check(s.manager.snapdShuttingDown, NotNil)
+
+	// Check return value
+	responseBody, ok := rsp.Result.(daemon.PostInterfacesRequestsResponse)
+	c.Assert(ok, Equals, true, Commentf("%t: %+v", rsp.Result, rsp.Result))
+	c.Check(responseBody.Outcome, Equals, s.manager.ask)
+}
+
+func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
+	s.expectWriteAccess(daemon.OpenAccess{})
+
+	s.daemon(c)
+
+	const (
+		fakeUID    = uint32(1000)
+		fakePID    = int32(1234)
+		fakeCgroup = "/path/to/cgroup/snap.foo.bar-someuuid.scope"
+		iface      = "audio-record"
+
+		expectedSnap = "foo"
+	)
+
+	restore := daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Check(pid, Equals, int(fakePID))
+		return fakeCgroup, nil
+	})
+	defer restore()
+
+	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
+		c.Check(snapName, Equals, expectedSnap)
+		c.Check(iface, Equals, iface)
+		return nil
+	})
+	defer restore()
+
+	contents := &daemon.PostInterfacesRequestsRequestBody{
+		Action:    "ask",
+		Interface: iface,
+		PID:       fakePID,
+	}
+	marshalled, err := json.Marshal(contents)
+	c.Assert(err, IsNil)
+
+	// Can't parse userID
+	body := bytes.NewReader(marshalled)
+	req, err := http.NewRequest("POST", "/v2/interfaces/requests", body)
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	body = bytes.NewReader(marshalled)
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	s.appArmorPromptingRunning = true
+
+	// Decode body error
+	badBody := bytes.NewReader([]byte(`{"action": "ask", "pid": "bad"}`))
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Matches, "cannot decode request body into ask for prompting access.*")
+
+	// Missing interface
+	badBody = bytes.NewReader([]byte(`{"action": "ask", "pid": 1234}`))
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Matches, `"interface" field must be non-empty`)
+
+	// Missing pid
+	badBody = bytes.NewReader([]byte(`{"action": "ask", "interface": "audio-record"}`))
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Matches, `"pid" field must be non-zero`)
+
+	// Can't find cgroup
+	restore = daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "", fmt.Errorf("there's no cgroup")
+	})
+	body = bytes.NewReader(marshalled)
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Matches, `cannot find cgroup path for process with PID 1234: there's no cgroup`)
+	restore()
+
+	// Can't find security tag from cgroup
+	restore = daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "/path/to/some/invalid-looking/cgroup", nil
+	})
+	body = bytes.NewReader(marshalled)
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Matches, `cannot find snap security tag for process with PID 1234`)
+	restore()
+
+	// Can't find valid interface connection for snap
+	for _, validateErrorResp := range []daemon.Response{
+		daemon.InternalError("something happened"),
+		daemon.BadRequest("the request was bad"),
+	} {
+		restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
+			return validateErrorResp
+		})
+		body = bytes.NewReader(marshalled)
+		req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe, Equals, validateErrorResp)
+		restore()
+	}
+
+	// Error from Ask()
+	s.manager.err = prompting_errors.ErrPromptingClosed
+	body = bytes.NewReader(marshalled)
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 503)
+	c.Check(rspe.Message, Equals, "prompting subsystem has already been closed")
+	s.manager.err = nil
+}
+
+func (s *promptingSuite) TestValidateSnapHasInterfaceConnectionImpl(c *C) {
+	d := s.daemon(c)
+
+	s.mockSnap(c, `
+name: core
+type: os
+version: 1
+slots:
+  foo:
+  bar:
+  baz:
+`)
+	s.mockSnap(c, `
+name: some-snap
+version: 1
+plugs:
+  foo:
+  bar:
+  baz:
+`)
+
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"some-snap:foo core:foo": map[string]any{
+			"interface": "foo",
+		},
+		"some-snap:bar core:bar": map[string]any{
+			"interface": "bar",
+			"undesired": true,
+		},
+	})
+	st.Unlock()
+
+	for _, testCase := range []struct {
+		snap     string
+		iface    string
+		expected daemon.Response
+	}{
+		{
+			"some-snap",
+			"foo",
+			nil,
+		},
+		{
+			"some-snap",
+			"bar",
+			daemon.BadRequest(`cannot find interface connection for snap "some-snap": "bar"`),
+		},
+		{
+			"some-snap",
+			"baz",
+			daemon.BadRequest(`cannot find interface connection for snap "some-snap": "baz"`),
+		},
+		{
+			"some-snap",
+			"qux",
+			daemon.BadRequest(`cannot find interface connection for snap "some-snap": "qux"`),
+		},
+		{
+			"another-snap",
+			"foo",
+			daemon.BadRequest(`cannot find interface connection for snap "another-snap": "foo"`),
+		},
+	} {
+		result := daemon.ValidateSnapHasInterfaceConnectionImpl(d, testCase.snap, testCase.iface)
+		c.Check(result, DeepEquals, testCase.expected)
+	}
+
+	// Test error
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"is-bad": map[string]any{
+			"interface": "foo",
+		},
+	})
+	st.Unlock()
+
+	result := daemon.ValidateSnapHasInterfaceConnectionImpl(d, "some-snap", "foo")
+	c.Check(result, DeepEquals, daemon.InternalError(`cannot get connections: malformed connection identifier: "is-bad"`))
+}
+
 func (s *promptingSuite) TestGetPromptsHappy(c *C) {
 	s.daemon(c)
 
@@ -719,7 +1005,7 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 		"path-pattern": json.RawMessage(`"/home/test/Pictures/**/*.{png,svg}"`),
 		"permissions":  json.RawMessage(`["read","execute"]`),
 	}
-	contents := &daemon.PostPromptBody{
+	contents := &daemon.PostPromptRequestBody{
 		Outcome:     prompting.OutcomeAllow,
 		Lifespan:    prompting.LifespanTimespan,
 		Duration:    "10m",
@@ -761,7 +1047,7 @@ func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
 		"path-pattern": json.RawMessage(`"/home/test/Pictures/**/*.{png,svg}"`),
 		"permissions":  json.RawMessage(`["read","execute"]`),
 	}
-	contents := &daemon.PostPromptBody{
+	contents := &daemon.PostPromptRequestBody{
 		Outcome:     prompting.OutcomeDeny,
 		Lifespan:    prompting.LifespanTimespan,
 		Duration:    "10m",
