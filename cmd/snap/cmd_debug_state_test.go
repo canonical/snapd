@@ -247,6 +247,12 @@ var stateRunHookJSON = []byte(`
 }`)
 
 func (s *SnapSuite) TestDebugChange(c *C) {
+	oldLoc := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = oldLoc
+	}()
+
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
