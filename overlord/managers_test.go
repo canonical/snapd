@@ -170,10 +170,12 @@ var (
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
 
-func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
-	ts := tts[len(tts)-1]
+func verifyReRefreshTasks(c *C, ts *state.TaskSet) {
 	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Check(ts.Tasks()[0].Kind(), Equals, "check-rerefresh")
+	reRefresh := ts.Tasks()[0]
+	c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
+	// nothing should wait on it
+	c.Check(reRefresh.NumHaltTasks(), Equals, 0)
 }
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
@@ -727,6 +729,8 @@ hooks:
 				expectedStatus = state.HoldStatus
 			}
 			which += fmt.Sprintf("[%s]", hs.Hook)
+		case "process-delayed-backend-effects":
+			expectedStatus = state.HoldStatus
 		}
 		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
 	}
@@ -2292,8 +2296,8 @@ version: @VERSION@
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss, HasLen, 3)
+	verifyReRefreshTasks(c, tss[1])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3460,8 +3464,8 @@ apps:
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss, HasLen, 3)
+	verifyReRefreshTasks(c, tss[1])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3708,8 +3712,8 @@ apps:
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
-	c.Assert(tss, HasLen, 4)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss, HasLen, 5)
+	verifyReRefreshTasks(c, tss[3])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 	chg.AddAll(tss[1])
@@ -3834,8 +3838,8 @@ apps:
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss, HasLen, 3)
+	verifyReRefreshTasks(c, tss[1])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3871,8 +3875,8 @@ apps:
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tss)
+	c.Assert(tss, HasLen, 3)
+	verifyReRefreshTasks(c, tss[1])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -4457,8 +4461,8 @@ version: @VERSION@`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
-	c.Assert(tts, HasLen, 4)
-	verifyLastTasksetIsRerefresh(c, tts)
+	c.Assert(tts, HasLen, 5)
+	verifyReRefreshTasks(c, tts[3])
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -4564,8 +4568,8 @@ version: 1`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -4651,8 +4655,8 @@ apps:
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
-	c.Assert(tts, HasLen, 2)
-	verifyLastTasksetIsRerefresh(c, tts)
+	c.Assert(tts, HasLen, 3)
+	verifyReRefreshTasks(c, tts[1])
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -14600,7 +14604,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	chg := st.NewChange("update many change", "update change")
 	affected, tts, err := snapstate.UpdateMany(context.Background(), st, []string{"snap-with-snapd-control"}, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(tts, HasLen, 2)
+	c.Check(tts, HasLen, 3)
 	c.Check(affected, DeepEquals, []string{"snap-with-snapd-control"})
 
 	// Run only up until setup-profiles. We do not want to run past here, but simulate that a snapd
