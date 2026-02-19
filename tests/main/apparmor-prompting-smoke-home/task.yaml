@@ -97,7 +97,7 @@ execute: |
 
     echo "Wait for snapd to begin restart"
     #shellcheck disable=SC2016
-    retry --wait 1 -n 300 --env SNAPD_PID=$SNAPD_PID sh -c 'test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"'
+    retry --wait 1 -n 300 --env SNAPD_PID="$SNAPD_PID" sh -c 'test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"'
 
     echo "Wait until snapd is active"
     retry --wait 1 -n 300 systemctl is-active snapd
