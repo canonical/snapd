@@ -64,6 +64,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -178,6 +179,69 @@ func verifyReRefreshTasks(c *C, ts *state.TaskSet) {
 	c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
 	// nothing should wait on it
 	c.Check(reRefresh.NumHaltTasks(), Equals, 0)
+	// and it is not waiting for anything
+	c.Check(reRefresh.WaitTasks(), HasLen, 0)
+}
+
+func verifyProcessDelayedEffectsTasks(c *C, ts *state.TaskSet) {
+	c.Assert(ts.Tasks(), HasLen, 1)
+	pde := ts.Tasks()[0]
+	c.Check(pde.Kind(), Equals, "process-delayed-security-backend-effects")
+	// nothing should wait on it
+	c.Check(pde.NumHaltTasks(), Equals, 0)
+	// and it is not waiting for anything
+	c.Check(pde.WaitTasks(), HasLen, 0)
+}
+
+type processDelayedEffectsPresence int
+
+const (
+	present processDelayedEffectsPresence = iota
+	absent
+)
+
+func verifyProcessDelayedEffectsPresence(c *C, tasks []*state.Task, exp processDelayedEffectsPresence) {
+	seen := false
+	for _, t := range tasks {
+		if t.Kind() == "process-delayed-security-backend-effects" {
+			if exp == absent {
+				c.Fatalf("unexpected process delayed effects task")
+			}
+			if !seen {
+				seen = true
+			} else {
+				c.Fatalf("already seen delayed effects task")
+			}
+		}
+	}
+
+	if exp == present && !seen {
+		c.Fatalf("expected delayed effects task but not found")
+	}
+}
+
+func verifyApplyDelayedEffectsForSnaps(c *C, tasks []*state.Task, expectedSnaps []string) {
+	var effectsForSnaps []string
+	for _, t := range tasks {
+		if t.Kind() == "apply-delayed-snap-security-backend-effects" {
+			var data struct {
+				AffectedSnapInstance string `json:"affected-snap-instance"`
+			}
+			c.Assert(t.Get("effects-data", &data), IsNil)
+			effectsForSnaps = append(effectsForSnaps, data.AffectedSnapInstance)
+		}
+	}
+
+	if len(expectedSnaps) > 0 {
+		expectedSnapsCopy := make([]string, len(expectedSnaps))
+		copy(expectedSnapsCopy, expectedSnaps)
+		sort.Strings(expectedSnapsCopy)
+
+		sort.Strings(effectsForSnaps)
+		c.Check(effectsForSnaps, DeepEquals, expectedSnapsCopy)
+	} else {
+		c.Check(effectsForSnaps, HasLen, 0)
+	}
 }
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
@@ -661,6 +725,7 @@ apps:
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -690,6 +755,8 @@ apps:
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
+
+	verifyApplyDelayedEffectsForSnaps(c, chg.Tasks(), nil)
 }
 
 func (s *mgrsSuite) TestLocalInstallUndo(c *C) {
@@ -725,6 +792,7 @@ hooks:
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -753,6 +821,8 @@ hooks:
 				expectedStatus = state.HoldStatus
 			}
 			which += fmt.Sprintf("[%s]", hs.Hook)
+		case "process-delayed-security-backend-effects":
+			expectedStatus = state.HoldStatus
 		}
 		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
 	}
@@ -1689,6 +1759,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1769,6 +1840,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	// the download for the refresh above will be performed below, during 'settle'.
@@ -1815,6 +1887,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1851,6 +1924,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	// the download for the refresh above will be performed below, during 'settle'.
@@ -1901,6 +1975,8 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
+	// TODO: verify delayed processing undo
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1936,6 +2012,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -2015,6 +2092,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	for _, taskset := range tasksets {
 		chg.AddAll(taskset)
 	}
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	// the download for the refresh above will be performed below, during 'settle'.
@@ -2076,6 +2154,7 @@ apps:
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), present)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -2318,8 +2397,9 @@ version: @VERSION@
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	verifyReRefreshTasks(c, tss[1])
+	verifyProcessDelayedEffectsTasks(c, tss[2])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3478,8 +3558,9 @@ apps:
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	verifyReRefreshTasks(c, tss[1])
+	verifyProcessDelayedEffectsTasks(c, tss[2])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3726,8 +3807,9 @@ apps:
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})
-	c.Assert(tss, HasLen, 4)
+	c.Assert(tss, HasLen, 5)
 	verifyReRefreshTasks(c, tss[3])
+	verifyProcessDelayedEffectsTasks(c, tss[4])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 	chg.AddAll(tss[1])
@@ -3852,8 +3934,9 @@ apps:
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	verifyReRefreshTasks(c, tss[1])
+	verifyProcessDelayedEffectsTasks(c, tss[2])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -3889,8 +3972,9 @@ apps:
 	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
-	c.Assert(tss, HasLen, 2)
+	c.Assert(tss, HasLen, 3)
 	verifyReRefreshTasks(c, tss[1])
+	verifyProcessDelayedEffectsTasks(c, tss[2])
 	chg = st.NewChange("upgrade-snaps", "...")
 	chg.AddAll(tss[0])
 
@@ -4304,6 +4388,7 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 		&snapstate.Flags{DevMode: true},
 	)
 	c.Assert(err, IsNil)
+	verifyProcessDelayedEffectsTasks(c, tss[2])
 
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -4346,6 +4431,8 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 		PlugRef: interfaces.PlugRef{Snap: "snap1", Name: "shared-data-plug"},
 		SlotRef: interfaces.SlotRef{Snap: "snap2", Name: "shared-data-slot"},
 	}})
+
+	verifyApplyDelayedEffectsForSnaps(c, chg.Tasks(), nil)
 }
 
 func (s *mgrsSuite) TestTwoInstallsWithAutoconnectPlugSnapFirst(c *C) {
@@ -4480,15 +4567,18 @@ version: @VERSION@`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 3)
-	c.Assert(tts, HasLen, 4)
+	c.Assert(tts, HasLen, 5)
 	verifyReRefreshTasks(c, tts[3])
+	verifyProcessDelayedEffectsTasks(c, tts[4])
 
-	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
 	for _, ts := range tts {
-		// skip rerefresh because we're messing with individual tasks
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
 			c.Logf("skipping rerefresh")
+			continue
+		}
+		if ts.Tasks()[0].Kind() == "process-delayed-security-backend-effects" {
+			c.Logf("skipping delayed effects")
 			continue
 		}
 		chg.AddAll(ts)
@@ -4592,8 +4682,9 @@ version: 1`
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	verifyReRefreshTasks(c, tts[1])
+	verifyProcessDelayedEffectsTasks(c, tts[2])
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -4679,8 +4770,9 @@ apps:
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(updates, HasLen, 1)
-	c.Assert(tts, HasLen, 2)
+	c.Assert(tts, HasLen, 3)
 	verifyReRefreshTasks(c, tts[1])
+	verifyProcessDelayedEffectsTasks(c, tts[2])
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -5218,6 +5310,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), absent)
 
 	c.Check(devicestate.RemodelingChange(st), NotNil)
 
@@ -5501,6 +5594,7 @@ version: 20.04`
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), absent)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -6207,6 +6301,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), absent)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -6261,6 +6356,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 
 	chg, err := devicestate.Remodel(st, newModel, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
+	verifyProcessDelayedEffectsPresence(c, chg.Tasks(), absent)
 
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
@@ -10484,7 +10580,8 @@ NeedDaemonReload=no
 	c.Assert(err, IsNil)
 
 	// check the snapd task state
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	// the change is in doing because of delayed effects processing
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
@@ -10728,7 +10825,8 @@ NeedDaemonReload=no
 	c.Assert(err, IsNil)
 
 	// check the snapd task state
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	// change is in Doing, because of delayed effects processing task
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
@@ -10908,7 +11006,7 @@ volumes:
 	} else {
 		// boot config is updated after link-snap, so first comes the
 		// daemon restart
-		c.Check(chg.Status(), Equals, state.DoStatus)
+		c.Check(chg.Status(), Equals, state.DoingStatus)
 		kind := restart.Pending(st)
 		c.Assert(kind, Equals, restart.RestartDaemon)
 
@@ -11060,7 +11158,7 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 	restartType := restart.Pending(st)
 	switch restartType {
 	case restart.RestartDaemon:
-		c.Check(chg.Status(), Equals, state.DoStatus)
+		c.Check(chg.Status(), Equals, state.DoingStatus)
 	default:
 		c.Check(chg.Status(), Equals, state.WaitStatus)
 	}
@@ -11744,7 +11842,8 @@ type testUpdateKernelBaseSingleRebootWithGadgetSetupOption int
 
 const (
 	none          = 0
-	skipRerefresh = 1
+	skipRerefresh = 1 << iota
+	skipDelayedEffects
 )
 
 func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(
@@ -11879,8 +11978,12 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(
 	for _, ts := range tss {
 		// optionally skip check-rerefresh if the caller intends to
 		// reorganize task dependencies
-		if opt == skipRerefresh && ts.Tasks()[0].Kind() == "check-rerefresh" {
+		if opt&skipRerefresh != 0 && ts.Tasks()[0].Kind() == "check-rerefresh" {
 			c.Logf("skipping rerefresh")
+			continue
+		}
+		if opt&skipDelayedEffects != 0 && ts.Tasks()[0].Kind() == "process-delayed-security-backend-effects" {
+			c.Logf("skipping delayed backend effects")
 			continue
 		}
 		chg.AddAll(ts)
@@ -12193,7 +12296,7 @@ version: 1.0
 type: gadget
 base: core20
 `
-	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget, skipRerefresh)
+	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget, skipRerefresh|skipDelayedEffects)
 	c.Assert(rearrangeBaseKernelForCyclicDependency(s.o.State(), tss), IsNil)
 
 	st := s.o.State()
@@ -12287,7 +12390,7 @@ base: core20
 	// restart to the new snapd which uses a new prune interval that
 	// effectively aborts unready lanes and thus the buggy change completes,
 	// while the new version of snaps remains
-	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget, skipRerefresh)
+	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget, skipRerefresh|skipDelayedEffects)
 	c.Assert(rearrangeBaseKernelForCyclicDependency(s.o.State(), tss), IsNil)
 
 	st := s.o.State()
@@ -13418,8 +13521,9 @@ volumes:
 				tError.JoinLane(l)
 			}
 		} else if err != nil {
-			// rerefresh does not have snapsetup set on it
-			c.Check(tasks[0].Kind(), Equals, "check-rerefresh")
+			// rerefresh and process delayed effects do not have snapsetup set on it
+			c.Check([]string{"check-rerefresh", "process-delayed-security-backend-effects"},
+				testutil.Contains, tasks[0].Kind())
 		}
 
 		chg.AddAll(ts)
@@ -13570,8 +13674,9 @@ volumes:
 				tError.JoinLane(l)
 			}
 		} else if err != nil {
-			// rerefresh does not have snapsetup set on it
-			c.Check(tasks[0].Kind(), Equals, "check-rerefresh")
+			// rerefresh and process delayed effects do not have snapsetup set on it
+			c.Check([]string{"check-rerefresh", "process-delayed-security-backend-effects"},
+				testutil.Contains, tasks[0].Kind())
 		}
 
 		chg.AddAll(ts)
@@ -14372,7 +14477,7 @@ type: snapd`
 
 	// run, this will trigger wait for restart
 	st.Unlock()
-	err = s.o.Settle(settleTimeout)
+	err = s.settleSupportingRestarts(c)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -14565,7 +14670,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	chg := st.NewChange("update many change", "update change")
 	affected, tts, err := snapstate.UpdateMany(context.Background(), st, []string{"snap-with-snapd-control"}, nil, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(tts, HasLen, 2)
+	c.Check(tts, HasLen, 3)
 	c.Check(affected, DeepEquals, []string{"snap-with-snapd-control"})
 
 	// Run only up until setup-profiles. We do not want to run past here, but simulate that a snapd
@@ -14698,4 +14803,197 @@ func (s *mgrsSuite) TestOldNoConnectionDurabilityAndAutoRefresh(c *C) {
 	// in the state
 	const hasPendingSecurityProfiles = false
 	s.testConnectionDurabilityDuringRefreshesAndAutoRefresh(c, hasPendingSecurityProfiles)
+}
+
+var producerYamlTemplate = `
+name: %s
+version: 1
+slots:
+ slot:
+  interface: content
+  content: mylib
+  read:
+   - /
+`
+
+var consumerYamlTemplate = `
+name: %s
+version: 1
+plugs:
+ plug:
+  interface: content
+  target: import
+  content: mylib
+`
+
+func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsApplied(c *C) {
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	canAutoRefreshCalls := 0
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		canAutoRefreshCalls++
+		return true, nil
+	}
+
+	// prevent catalog refresh
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	snapYamls := map[string]string{
+		"producer1": fmt.Sprintf(producerYamlTemplate, "producer1"),
+		"consumer1": fmt.Sprintf(consumerYamlTemplate, "consumer1"),
+		"consumer2": fmt.Sprintf(consumerYamlTemplate, "consumer2"),
+	}
+
+	snapInfos := make(map[string]*snap.Info)
+	for name, yaml := range snapYamls {
+		rev := snap.R(1)
+		skel := map[string]any{
+			"snap-name": name,
+			"format":    "1",
+		}
+		if strings.HasPrefix(name, "consumer") {
+			skel["plugs"] = map[string]any{
+				"plug": map[string]any{
+					"allow-installation": "true",
+					"auto-connect":       "true",
+				},
+			}
+		} else if strings.HasPrefix(name, "producer") {
+			skel["slots"] = map[string]any{
+				"slot": map[string]any{
+					"allow-installation": "true",
+					"auto-connect":       "true",
+				},
+			}
+		}
+		snapDecl := s.prereqSnapAssertions(c, skel)
+		err = assertstate.Add(st, snapDecl)
+		c.Assert(err, IsNil)
+		snapInfos[name] = s.mockInstalledSnapWithRevAndFiles(c, yaml, rev, nil)
+	}
+
+	ifacemgrReinitDone := false
+	var b interfaces.SecurityBackend
+	var effectsAppliedFor []string
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				// bulk of the logic checks
+				// the handler is called in both do and undo paths
+				name := appSet.InstanceName()
+				c.Logf("Setup() for %q init done %v sctx %+v", name, ifacemgrReinitDone, sctx)
+				if ifacemgrReinitDone {
+					// past the point of initial Setup() calls, this is
+					// called for each snap that is affected by a connection, producer and consumer
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case strings.HasPrefix(name, "consumer"):
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						// in do path effects are delayed, but not in undo
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+
+						}
+						return nil
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName())
+			return nil
+		},
+	}
+	b = secBackend
+
+	ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{secBackend})
+	ifmgr := s.o.InterfaceManager()
+	c.Assert(ifmgr, NotNil)
+	interfaces.ResetRepository(ifmgr.Repository())
+
+	st.Unlock()
+	err = ifmgr.StartUp()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	ifacemgrReinitDone = true
+
+	// bump revision of the producer snap
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamls["producer1"], "2")
+	s.serveSnap(snapPath, "2")
+
+	repo := s.o.InterfaceManager().Repository()
+
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer1", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer1", Name: "slot"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	conns, err := repo.Connected("consumer1", "plug")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer1", Name: "slot"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	conns, err = repo.Connected("consumer2", "plug")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+
+	// mock state connections
+	st.Set("conns", map[string]any{
+		"consumer1:plug producer1:slot": map[string]any{
+			"interface": "content",
+		},
+		"consumer2:plug producer1:slot": map[string]any{
+			"interface": "content",
+		},
+	})
+
+	chg := st.NewChange("update many change", "update change")
+	affected, tts, err := snapstate.UpdateMany(context.Background(), st, []string{"producer1"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(tts, HasLen, 3)
+	c.Check(affected, DeepEquals, []string{"producer1"})
+	verifyReRefreshTasks(c, tts[1])
+	verifyProcessDelayedEffectsTasks(c, tts[2])
+
+	// add all tasks
+	for _, t := range tts {
+		chg.AddAll(t)
+	}
+
+	dumpTasks(c, "tasks added to change", chg.Tasks())
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after settle", chg.Tasks())
+	verifyApplyDelayedEffectsForSnaps(c, chg.Tasks(), []string{"consumer1", "consumer2"})
+	sort.Strings(effectsAppliedFor)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
+	c.Check(effectsAppliedFor, DeepEquals, []string{"consumer1", "consumer2"})
 }
