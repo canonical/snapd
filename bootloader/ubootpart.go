@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -145,6 +146,10 @@ func (u *ubootpart) envDevice() (string, error) {
 			return "", err
 		}
 		u.blDisk = disk
+		// diskFromEFI returns (nil, nil) when EFI is not available
+		if u.blDisk != nil {
+			logger.Debugf("ubootpart: found boot disk via EFI")
+		}
 	}
 
 	if u.blDisk == nil {
@@ -161,6 +166,7 @@ func (u *ubootpart) envDevice() (string, error) {
 					return "", fmt.Errorf("cannot find disk %q: %v", diskName, err)
 				}
 			}
+			logger.Debugf("ubootpart: found boot disk via snapd_system_disk=%q", diskName)
 			u.blDisk = disk
 		}
 	}
@@ -175,6 +181,7 @@ func (u *ubootpart) envDevice() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("cannot resolve boot state partition %q: %v", partPath, err)
 		}
+		logger.Debugf("ubootpart: env device %s (partuuid %s)", resolved, partUUID)
 		return resolved, nil
 	}
 
@@ -185,6 +192,7 @@ func (u *ubootpart) envDevice() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve boot state partition: %v", err)
 	}
+	logger.Debugf("ubootpart: env device %s (by partlabel fallback)", resolved)
 	return resolved, nil
 }
 
