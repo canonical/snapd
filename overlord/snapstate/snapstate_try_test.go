@@ -100,7 +100,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 		"start-snap-services",
 		"run-hook[configure]",
 		"run-hook[check-health]",
-		"mock-process-delayed-backend-effects",
+		"mock-process-delayed-security-backend-effects",
 	})
 
 }

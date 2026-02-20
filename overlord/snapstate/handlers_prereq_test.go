@@ -86,6 +86,13 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.AddCleanup(osutil.MockMountInfo(``))
 
 	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
+
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// only one snap is updated
+		c.Check(lanes, HasLen, 1)
+		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
+	}))
+
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
@@ -958,12 +965,6 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
 		return nil, nil
 	}
 	s.AddCleanup(func() { snapstate.AutoAliases = nil })
-
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
-		// only one snap is updated
-		c.Check(lanes, HasLen, 1)
-		return state.NewTaskSet(st.NewTask("process-delayed-backend-effects", "Process delayed backend effects"))
-	}))
 
 	st := s.state
 	st.Lock()

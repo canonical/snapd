@@ -367,8 +367,7 @@ SNAPD_APPARMOR_REEXEC=1
 	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
-		tsk := st.NewTask("mock-process-delayed-backend-effects", "Process delayed backend effects")
-		fmt.Printf("set lanes %v\n", lanes)
+		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed security backend effects")
 		tsk.Set("mock-monitored-lanes", lanes)
 		return state.NewTaskSet(tsk)
 	}))
@@ -425,7 +424,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
 	runner.AddHandler("update-managed-boot-config", fakeHandler, nil)
 
-	runner.AddHandler("mock-process-delayed-backend-effects", func(task *state.Task, _ *tomb.Tomb) error {
+	runner.AddHandler("mock-process-delayed-security-backend-effects", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
 
@@ -12112,7 +12111,7 @@ func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 
 func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int) {
 	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-backend-effects"})
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
 	eff := ts.Tasks()[0]
 	fmt.Printf("task %+v\n", eff)
 	var lanes []int

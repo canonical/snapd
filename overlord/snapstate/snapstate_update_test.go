@@ -534,7 +534,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		// don't make a task wait on rerefresh, that's bad
 		for i := len(tasks) - 1; i > 0; i-- {
 			last = tasks[i]
-			if kind := last.Kind(); kind != "check-rerefresh" && kind != "mock-process-delayed-backend-effects" {
+			if kind := last.Kind(); kind != "check-rerefresh" && kind != "mock-process-delayed-security-backend-effects" {
 				break
 			}
 		}
@@ -4187,7 +4187,7 @@ func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) 
 	c.Check(checkRerefresh.Kind(), Equals, "check-rerefresh")
 	c.Check(checkRerefresh.Status(), Equals, state.DoneStatus)
 
-	c.Check(tasks[len(tasks)-1].Kind(), Equals, "mock-process-delayed-backend-effects")
+	c.Check(tasks[len(tasks)-1].Kind(), Equals, "mock-process-delayed-security-backend-effects")
 
 	// validity
 	c.Check(someSnapValidation, Equals, true)
@@ -4488,7 +4488,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 			c.Check(reRefresh.NumHaltTasks(), Equals, 0)
 
 			delayedEffects := tasks[len(tasks)-1]
-			c.Check(delayedEffects.Kind(), Equals, "mock-process-delayed-backend-effects")
+			c.Check(delayedEffects.Kind(), Equals, "mock-process-delayed-security-backend-effects")
 
 			tasks = tasks[:len(tasks)-2] // and now forget about both
 		}
@@ -17368,7 +17368,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		"run-hook[configure]",
 		"run-hook[check-health]",
 		"check-rerefresh",
-		"mock-process-delayed-backend-effects",
+		"mock-process-delayed-security-backend-effects",
 	})
 
 	// and ensure that it will remove the components - si1 is cleaned

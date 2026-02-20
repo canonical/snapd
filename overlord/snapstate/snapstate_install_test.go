@@ -203,7 +203,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 	)
 
 	if opts&mockDelayedEffects != 0 {
-		expected = append(expected, "mock-process-delayed-backend-effects")
+		expected = append(expected, "mock-process-delayed-security-backend-effects")
 	}
 
 	filtered := make([]string, 0, len(expected))
