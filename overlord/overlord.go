@@ -634,11 +634,12 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			st := o.State()
 			pendingRestart := false
 			st.Lock()
-			for _, chg := range st.Changes() {
-				if !pendingRestart {
-					pendingRestart = pendingRestart || chg.Has("pending-system-restart")
-				}
-			}
+			// for _, chg := range st.Changes() {
+			// 	if !pendingRestart {
+			// 		pendingRestart = pendingRestart || chg.Has("pending-system-restart")
+			// 	}
+			// }
+			pendingRestart, _ = restart.Pending(st)
 			st.Unlock()
 
 			ensureNextUnchangedCnt++
