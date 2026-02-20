@@ -3025,8 +3025,9 @@ func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
 	}
 	if svc {
 		expected = append(expected, fakeOp{
-			op:   "stop-snap-services:remove",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+			op:       "stop-snap-services:remove",
+			path:     filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+			services: []string{"svc1"},
 		})
 	}
 
@@ -3205,8 +3206,9 @@ func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
 	}
 	if svc {
 		expected = append(expected, fakeOp{
-			op:   "stop-snap-services:remove",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+			op:       "stop-snap-services:remove",
+			path:     filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+			services: []string{"svc1"},
 		})
 	}
 
