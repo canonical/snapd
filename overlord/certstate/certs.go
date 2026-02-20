@@ -342,12 +342,13 @@ var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
 // If a previous version of the ca-certificates.crt exists, it is backed up to
 // /var/lib/snapd/pki/v1/merged/ca-certificates.crt.old
 func GenerateCertificateDatabaseImpl() error {
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	// we create the added/blocked/merged directories if they don't exist here.
+	if err := ensureDirectories(); err != nil {
+		return err
 	}
 
 	// create a copy of the current certificates in the snapd pki v1 dir
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
 	caCertificateDbBackupPath := caCertificateDbPath + ".old"
 
@@ -364,11 +365,6 @@ func GenerateCertificateDatabaseImpl() error {
 			}
 		}
 	}()
-
-	// we create the added/blocked/merged directories if they don't exist here.
-	if err := ensureDirectories(); err != nil {
-		return err
-	}
 
 	// We will be using the certificates from the rootfs as a starting point,
 	// meaning we need to go into /etc/ssl/certs/ and read
