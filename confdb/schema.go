@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/strutil"
@@ -105,6 +106,15 @@ func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 	return schema, nil
 }
 
+func listContains[K comparable](list []K, element K) bool {
+	for _, item := range list {
+		if item == element {
+			return true
+		}
+	}
+	return false
+}
+
 // userDefinedType represents a user-defined type defined under "aliases".
 type userDefinedType struct {
 	DatabagSchema
@@ -132,6 +142,11 @@ func (v *userDefinedType) Visibility() Visibility {
 
 func (v *userDefinedType) NestedVisibility(vis Visibility) bool {
 	return v.visibility == vis
+}
+
+func (v *userDefinedType) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	// Secrets are not allowed in user-defined types so this code should never be reached
+	return nil, fmt.Errorf(`internal error: user-defined types cannot be pruned`)
 }
 
 // aliasReference represents a reference to a user-defined type in the schema.
@@ -207,6 +222,15 @@ func (s *aliasReference) NestedVisibility(vis Visibility) bool {
 	return s.visibility == vis
 }
 
+func (s *aliasReference) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	if listContains(vis, s.Visibility()) {
+		return nil, nil
+	}
+	// user-defined types cannot contain secret data so if the alias is not secret,
+	// then all the data it contains must not contain secrets.
+	return data, nil
+}
+
 // scalarSchema holds the data and behaviours common to all types.
 type scalarSchema struct {
 	ephemeral bool
@@ -229,6 +253,16 @@ func (s scalarSchema) Visibility() Visibility {
 
 func (s scalarSchema) NestedVisibility(vis Visibility) bool {
 	return s.Visibility() == vis
+}
+
+func (s scalarSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	if len(path) > 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond scalar type`)
+	}
+	if listContains(vis, s.Visibility()) {
+		return nil, nil
+	}
+	return data, nil
 }
 
 func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
@@ -311,6 +345,13 @@ func (s *StorageSchema) Visibility() Visibility {
 
 func (s *StorageSchema) NestedVisibility(vis Visibility) bool {
 	return s.topLevel.NestedVisibility(vis)
+}
+
+func (s *StorageSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) (prunedData []byte, err error) {
+	if len(vis) == 0 {
+		return data, nil
+	}
+	return s.topLevel.PruneByVisibility(path, vis, data)
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -594,6 +635,22 @@ func (v *alternativesSchema) NestedVisibility(vis Visibility) bool {
 	return false
 }
 
+func (v *alternativesSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	// To find the correct alternative, we need to validate the data, because the
+	// path itself may not differentiate between which alternative is contained in
+	// the data in the case of identical prefixes. Though potentially validating
+	// each alternative may explode with n levels of nesting, we do not expect this
+	// to be a problem since nesting much beyond a simple leaf-node makes the schema
+	// hard to understand.
+	for _, schema := range v.schemas {
+		if err := schema.Validate(data); err != nil {
+			continue
+		}
+		return schema.PruneByVisibility(path, vis, data)
+	}
+	return nil, fmt.Errorf(`internal error: found no matching alternative`)
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
@@ -829,6 +886,136 @@ func (v *mapSchema) NestedVisibility(vis Visibility) bool {
 	}
 
 	return false
+}
+
+func prependFirstPathAccessorToString(path []Accessor, stringedPath string) string {
+	if len(path) > 1 && dotPrecedesAccessorType(path[1]) {
+		return path[0].Access() + "." + stringedPath
+	}
+	return path[0].Access() + stringedPath
+}
+
+func (v *mapSchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	if path[0].Type() != KeyPlaceholderType && path[0].Type() != MapKeyType {
+		return nil, schemaAtErrorf(path, `cannot use %q as key in map`, path[0].Access())
+	}
+	if listContains(vis, v.Visibility()) ||
+		(v.keySchema != nil && listContains(vis, v.keySchema.Visibility())) ||
+		(v.valueSchema != nil && listContains(vis, v.valueSchema.Visibility())) {
+		return nil, &UnauthorizedAccessError{}
+	}
+	decoded, err := unmarshalLevel(path, 0, data)
+	if err != nil {
+		return nil, err
+	}
+	mapData, ok := decoded.(map[string]json.RawMessage)
+	if !ok {
+		return nil, fmt.Errorf("internal error: expected level %q to be map but got %T", path, decoded)
+	}
+	if len(mapData) == 0 {
+		return nil, fmt.Errorf(`internal error: expected map to contain data`)
+	}
+
+	pathKey := ""
+	if path[0].Type() == MapKeyType {
+		pathKey = path[0].Name()
+		_, ok := mapData[pathKey]
+		if !ok {
+			return nil, &NoDataError{}
+		}
+	}
+	pruned := make(map[string]json.RawMessage, len(mapData))
+	for key, value := range mapData {
+		if pathKey != "" && pathKey != key {
+			// The data is not along the path. Do not prune; simply copy over
+			pruned[key] = value
+			continue
+		}
+		schema := v.valueSchema
+		if v.entrySchemas != nil {
+			schema, ok = v.entrySchemas[key]
+			if !ok {
+				return nil, fmt.Errorf(`internal error: map contains unexpected key "%s"`, key)
+			}
+			if listContains(vis, schema.Visibility()) && path[0].Type() == MapKeyType {
+				return nil, &UnauthorizedAccessError{}
+			}
+		}
+		res, err := schema.PruneByVisibility(path[1:], vis, value)
+		if err != nil {
+			if (errors.Is(err, &NoDataError{}) ||
+				errors.Is(err, &UnauthorizedAccessError{})) &&
+				path[0].Type() == KeyPlaceholderType {
+				continue
+			}
+			noContainer, ok := err.(*noContainerError)
+			if ok {
+				return nil, newNoContainerError(prependFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+			}
+			return nil, err
+		}
+		if res != nil {
+			pruned[key] = res
+		}
+	}
+	if _, ok = pruned[pathKey]; !ok && pathKey != "" {
+		// Before entering in the prune loop, the entry existed.
+		// The only way it no longer exists is if it got pruned away
+		// and so we can consider this unauthorized.
+		return nil, &UnauthorizedAccessError{}
+	}
+	if len(pruned) == 0 {
+		// Because containers cannot be empty, we know that there was data in mapData.
+		// Because len(pruned) == 0, we know that all the data got pruned away.
+		// The data must therefore be unauthorized since a map cannot contain nulls.
+		return nil, &UnauthorizedAccessError{}
+	}
+	return json.Marshal(pruned)
+}
+
+func (v *mapSchema) pruneAllByVisibility(vis []Visibility, data []byte) ([]byte, error) {
+	if listContains(vis, v.Visibility()) ||
+		(v.keySchema != nil && listContains(vis, v.keySchema.Visibility())) ||
+		(v.valueSchema != nil && listContains(vis, v.valueSchema.Visibility())) {
+		return nil, nil
+	}
+	decoded, err := unmarshalLevel(nil, -1, data)
+	if err != nil {
+		return nil, err
+	}
+	mapData, ok := decoded.(map[string]json.RawMessage)
+	if !ok {
+		return nil, fmt.Errorf("internal error: expected level to be map but got %T", decoded)
+	}
+
+	pruned := make(map[string]json.RawMessage, len(mapData))
+	for key, value := range mapData {
+		schema := v.valueSchema
+		if v.entrySchemas != nil {
+			schema, ok = v.entrySchemas[key]
+			if !ok {
+				return nil, fmt.Errorf(`internal error: map contains unexpected key "%s"`, key)
+			}
+		}
+		res, err := schema.PruneByVisibility(nil, vis, value)
+		if err != nil {
+			return nil, err
+		}
+		if res != nil {
+			pruned[key] = res
+		}
+	}
+	if len(pruned) > 0 {
+		return json.Marshal(pruned)
+	}
+	return nil, nil
+}
+
+func (v *mapSchema) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	if len(path) > 0 {
+		return v.pruneByVisibilityAt(path, vis, data)
+	}
+	return v.pruneAllByVisibility(vis, data)
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1497,6 +1684,103 @@ func (v *arraySchema) NestedVisibility(vis Visibility) bool {
 		return true
 	}
 	return v.elementType.NestedVisibility(vis)
+}
+
+func (v *arraySchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	key := path[0]
+	if key.Type() != IndexPlaceholderType && key.Type() != ListIndexType {
+		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key.Access())
+	}
+	if listContains(vis, v.Visibility()) || listContains(vis, v.elementType.Visibility()) {
+		return nil, &UnauthorizedAccessError{}
+	}
+	decoded, err := unmarshalLevel(path, 0, data)
+	if err != nil {
+		return nil, err
+	}
+	array, ok := decoded.([]json.RawMessage)
+	if !ok {
+		return nil, fmt.Errorf("internal error: expected level %q to be list but got %T", path, decoded)
+	}
+	if len(array) == 0 {
+		return nil, fmt.Errorf(`internal error: expected list to contain data`)
+	}
+	var arrayIndex int
+	if key.Type() == ListIndexType {
+		arrayIndex, _ = strconv.Atoi(key.Name())
+		if arrayIndex >= len(array) {
+			return nil, &NoDataError{}
+		}
+	}
+	pruned := make([]json.RawMessage, 0, len(array))
+	for i, item := range array {
+		if key.Type() == ListIndexType && arrayIndex != i {
+			// This is not the data indicated in the path so do not prune; just copy over
+			pruned = append(pruned, item)
+			continue
+		}
+		res, err := v.elementType.PruneByVisibility(path[1:], vis, item)
+		if err != nil {
+			if (errors.Is(err, &NoDataError{}) ||
+				errors.Is(err, &UnauthorizedAccessError{})) &&
+				key.Type() == IndexPlaceholderType {
+				// The only way for pruning to return these types of errors
+				// is if len(path) > 0. If the current path element is a placeholder,
+				// then we want to collect multiple entries and simply exclude
+				// those with private/no data rather than erroring here.
+				continue
+			}
+			noContainer, ok := err.(*noContainerError)
+			if ok {
+				return nil, newNoContainerError(prependFirstPathAccessorToString(path, noContainer.path), noContainer.actualType)
+			}
+			return nil, err
+		}
+		if res != nil {
+			pruned = append(pruned, res)
+		}
+	}
+	if len(pruned) == 0 {
+		// If we are along the path and we pruned away all the data, since
+		// we cannot return an empty container, consider this unauthorized.
+		return nil, &UnauthorizedAccessError{}
+	}
+	return json.Marshal(pruned)
+}
+
+func (v *arraySchema) pruneAllByVisibility(vis []Visibility, data []byte) ([]byte, error) {
+	if listContains(vis, v.Visibility()) || listContains(vis, v.elementType.Visibility()) {
+		return nil, nil
+	}
+	decoded, err := unmarshalLevel(nil, -1, data)
+	if err != nil {
+		return nil, err
+	}
+	array, ok := decoded.([]json.RawMessage)
+	if !ok {
+		return nil, fmt.Errorf("internal error: expected level to be list but got %T", decoded)
+	}
+	pruned := make([]json.RawMessage, 0, len(array))
+	for _, item := range array {
+		res, err := v.elementType.PruneByVisibility(nil, vis, item)
+		if err != nil {
+			return nil, err
+		}
+		if res != nil {
+			pruned = append(pruned, res)
+		}
+	}
+	if len(pruned) > 0 {
+		return json.Marshal(pruned)
+	}
+	return nil, nil
+}
+
+func (v *arraySchema) PruneByVisibility(path []Accessor, vis []Visibility, data []byte) ([]byte, error) {
+	if len(path) > 0 {
+		return v.pruneByVisibilityAt(path, vis, data)
+	}
+	return v.pruneAllByVisibility(vis, data)
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {

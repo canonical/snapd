@@ -194,6 +194,24 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
+type UnauthorizedAccessError struct {
+	viewID    string
+	operation string
+	request   string
+}
+
+func (e *UnauthorizedAccessError) Is(err error) bool {
+	_, ok := err.(*UnauthorizedAccessError)
+	return ok
+}
+
+func (e *UnauthorizedAccessError) Error() string {
+	if e.request != "" {
+		return fmt.Sprintf("cannot %s %q through %s: unauthorized access", e.operation, e.request, e.viewID)
+	}
+	return fmt.Sprintf("cannot %s through %s: unauthorized access", e.operation, e.viewID)
+}
+
 // Databag controls access to the confdb data storage.
 type Databag interface {
 	Get(path []Accessor, constraints map[string]any) (any, error)
@@ -235,6 +253,15 @@ type DatabagSchema interface {
 
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
+
+	// PruneByVisibility prunes away any data in input that has a visibility in the visToPrune array in input.
+	// It will only prune along the path, and once it reaches the end, it will prune everything that's left.
+	// It will return error if:
+	// - the data does not conform to the schema
+	// - NoDataError - if the data does not contain data indicated by the path
+	// - UnAuthorizedAccessError - if the path contains a schema with a visibility contained in the input array
+	//     or if the end of the path contains an empty container due to its contents being pruned away
+	PruneByVisibility(path []Accessor, visToPrune []Visibility, data []byte) (prunedData []byte, err error)
 }
 
 type SchemaType uint
@@ -2102,10 +2129,14 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
+func dotPrecedesAccessorType(acc Accessor) bool {
+	return acc.Type() != IndexPlaceholderType && acc.Type() != ListIndexType
+}
+
 func JoinAccessors(parts []Accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
-		if !(part.Type() == IndexPlaceholderType || part.Type() == ListIndexType || i == 0) {
+		if dotPrecedesAccessorType(part) && i != 0 {
 			sb.WriteRune('.')
 		}
 
@@ -2690,7 +2721,8 @@ func newNoContainerError(path, actualType string) *noContainerError {
 
 // unmarshalLevel decodes rawLevel into whatever container type it represents
 // (list or map). It returns a noContainerError if the raw JSON can't be
-// unmarshalled to either container type.
+// unmarshalled to either container type. The index should indicate the index
+// of the accessor for the rawLevel. If accessors is empty, then index should be -1.
 func unmarshalLevel(accessors []Accessor, index int, rawLevel json.RawMessage) (any, error) {
 	var mapLevel map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &mapLevel); err != nil {
@@ -3109,3 +3141,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ []Visibility, data []byte) ([]byte, error) {
+	return data, nil
+}
