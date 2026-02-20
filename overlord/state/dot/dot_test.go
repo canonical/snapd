@@ -95,7 +95,6 @@ func (s *changeGraphSuite) TestString(c *C) {
 	g, err := dot.NewChangeGraph(s.chg, taskLabel, "TestString")
 	c.Assert(err, IsNil)
 
-	// XXX remove the show before landing
 	c.Check(g.String(), Equals, strings.TrimSpace(`
 subgraph "cluster[0]" {
   "d"
@@ -182,5 +181,4 @@ label=<<b>Tasks on lanes: [2]</b>>; fontsize=18
 "b" -> "c:three" [style=bold]
 }
 `)
-	g.Show(c)
 }
