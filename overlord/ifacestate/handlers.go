@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -2416,6 +2417,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	defer st.Unlock()
 
 	logger.Debugf("delayed effects coordination")
+	fmt.Printf("delayed effects coordination\n")
 
 	var snapLanes []int
 	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -2423,6 +2425,12 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	}
 
 	logger.Debugf("monitor lanes: %v", snapLanes)
+	fmt.Printf("monitor lanes: %v\n", snapLanes)
+
+	if len(snapLanes) == 0 {
+		task.SetStatus(state.DoneStatus)
+		return nil
+	}
 
 	// We are going to apply the effects only for triggering snaps in lanes
 	// which were fully successful. Depending on the scenario there could be one
@@ -2430,25 +2438,33 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	// have completed.
 	successfulTriggeringSnaps := map[triggeringSnap]bool{}
 	chg := task.Change()
+	considerTasks := make(map[string]bool, len(chg.Tasks()))
+
+	unreadyTasks := false
 	for _, lane := range snapLanes {
 		laneFailed := false
 		var seenSnaps []string
 	laneLoop:
 		for _, tsk := range chg.LaneTasks(lane) {
+			considerTasks[tsk.ID()] = true
 			switch {
 			case tsk.ID() == task.ID():
 				// our task should only be present in the default '0' lane, not a dedicated one
 				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
+					fmt.Printf("process delayed effects in unexpected lanes: %v", lanes)
 					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
 				}
+				delete(considerTasks, tsk.ID())
 				continue
 			case tsk.Kind() == "check-rerefresh":
 				// same thing applies to check-rerefresh, although lane
 				// verification should be done in snapstate
+				delete(considerTasks, tsk.ID())
 				continue
 			case !tsk.Status().Ready():
 				logger.Debugf("not yet ready")
-				return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
+				fmt.Printf("not yet ready: %v %v\n", tsk.Kind(), tsk.Summary())
+				unreadyTasks = true
 			case tsk.Status() != state.DoneStatus:
 				laneFailed = true
 				break laneLoop
@@ -2467,6 +2483,16 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				successfulTriggeringSnaps[triggeringSnap(seenSnap)] = true
 			}
 		}
+	}
+
+	if restart.PendingForChangeTasks(st, chg, considerTasks) {
+		fmt.Printf("pending restart for change tasks\n")
+		return restart.TaskWaitForRestart(task)
+	}
+
+	if unreadyTasks {
+		fmt.Printf("have unready tasks\n")
+		return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
 	}
 
 	logger.Debugf("happy snaps: %v", successfulTriggeringSnaps)
