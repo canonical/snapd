@@ -67,12 +67,13 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	startServices := s.state.NewTask("start-snap-services", "...")
 	startServices.WaitFor(autoConnect)
 	ts := state.NewTaskSet(prereq, prepareSnap, unlinkSnap, linkSnap, autoConnect, startServices)
-	// 4 required edges
+
 	ts.MarkEdge(prereq, snapstate.BeginEdge)
+	ts.MarkEdge(prepareSnap, snapstate.LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(linkSnap, snapstate.MaybeRebootEdge)
 	ts.MarkEdge(autoConnect, snapstate.MaybeRebootWaitEdge)
 	ts.MarkEdge(startServices, snapstate.EndEdge)
-	// Assign each TS a lane
+
 	ts.JoinLane(s.state.NewLane())
 
 	return snapstate.NewSnapInstallTaskSetForTest(
@@ -378,6 +379,16 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssential(c *C) {
 	// TypeApp should have no boundaries
 	c.Check(s.hasRestartBoundaries(c, stss[4].TaskSet()), Equals, false)
 
+	// snapd is refreshed in this change. thus, essential snaps should not start
+	// prerequisites/download before snapd fully finishes.
+	snapdEndTask, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	for _, idx := range []int{1, 2, 3} {
+		beginTask, err := stss[idx].TaskSet().Edge(snapstate.BeginEdge)
+		c.Assert(err, IsNil)
+		c.Check(beginTask.WaitTasks(), testutil.Contains, snapdEndTask)
+	}
+
 	// base, gadget and kernel are transactional
 	c.Check(taskSetsShareLane(stss[1].TaskSet(), stss[2].TaskSet(), stss[3].TaskSet()), Equals, true)
 }
@@ -420,7 +431,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
+	beginTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
 	linkTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
@@ -434,8 +446,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of base
+	// - first local modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
+	// - prerequisites/download should not be serialized behind base link
+	c.Check(beginTaskOfKernel.WaitTasks(), Not(testutil.Contains), linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
 	// - "auto-connect" (MaybeRebootWaitEdge) of kernel must depend on the last task of base (EndEdge)
@@ -490,8 +504,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfGadget := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
 	linkTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootWaitEdge)
@@ -504,7 +517,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
+	// - first local modification task of gadget must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of gadget (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfGadget)
@@ -560,8 +573,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 	}
 
 	// Grab the tasks we need to check dependencies between
-	firstTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
 	linkTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootWaitEdge)
@@ -574,7 +586,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
+	// - first local modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -633,23 +645,21 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	c.Assert(err, IsNil)
 	lastTaskOfBase, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfGadget := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
 	linkTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 	lastTaskOfGadget, err := stss[1].TaskSet().Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfKernel, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, stss[2].TaskSet())
 	linkTaskOfKernel, err := stss[2].TaskSet().Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := stss[2].TaskSet().Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 
 	// Things that must be correct between base and gadget:
-	// - "prerequisites" (BeginEdge) of gadget must depend on "link-snap" (MaybeRebootEdge) of base
+	// - first local modification task of gadget must depend on "link-snap" (MaybeRebootEdge) of base
 	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -657,7 +667,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
 
 	// Things that must be correct between gadget and kernel:
-	// - "prerequisites" (BeginEdge) of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
+	// - first local modification task of kernel must depend on "link-snap" (MaybeRebootEdge) of gadget
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on last task of base (EndEdge)
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
