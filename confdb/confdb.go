@@ -207,8 +207,7 @@ func (e *UnauthorizedAccessError) Is(err error) bool {
 
 func (e *UnauthorizedAccessError) Error() string {
 	if e.request != "" {
-		reqStr := "\"" + e.request + "\""
-		return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+		return fmt.Sprintf("cannot %s %q through %s: unauthorized access", e.operation, e.request, e.viewID)
 	}
 	return fmt.Sprintf("cannot %s through %s: unauthorized access", e.operation, e.viewID)
 }
