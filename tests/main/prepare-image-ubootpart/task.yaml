@@ -1,4 +1,4 @@
-summary: Check that prepare-image works for uc20 ubootpart systems
+summary: Check that prepare-image works for uc24 ubootpart systems
 
 details: |
     The `snap prepare-image` command performs some of the steps necessary for
@@ -35,7 +35,7 @@ prepare: |
     chown -R test:test "$ROOT"
 
     # sign the model assertion
-    gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-ubootpart-20.model.json > "$ROOT/model.assertion"
+    gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-ubootpart-24.model.json > "$ROOT/model.assertion"
 
 restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -57,7 +57,7 @@ execute: |
     name: test-qemu-ubootpart-gadget
     version: 1.0
     type: gadget
-    base: core20
+    base: core24
     EOF
 
     cat > "$gadget_dir/meta/gadget.yaml" <<'EOF'
@@ -123,6 +123,6 @@ execute: |
     test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
 
     echo Verify snaps are present
-    test -e "$ROOT"/system-seed/snaps/core20_*.snap
-    test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
+    test -e "$ROOT"/system-seed/snaps/core24_*.snap
+    test -e "$ROOT"/system-seed/snaps/test-qemu-optee-kernel_*.snap
     test -e "$ROOT"/system-seed/snaps/snapd_*.snap
