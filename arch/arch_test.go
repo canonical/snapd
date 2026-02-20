@@ -38,6 +38,7 @@ func (ts *ArchTestSuite) TestArchDpkgArchitecture(c *C) {
 	c.Check(dpkgArchFromGoArch("amd64"), Equals, "amd64")
 	c.Check(dpkgArchFromGoArch("arm"), Equals, "armhf")
 	c.Check(dpkgArchFromGoArch("arm64"), Equals, "arm64")
+	c.Check(dpkgArchFromGoArch("loong64"), Equals, "loong64")
 	c.Check(dpkgArchFromGoArch("ppc"), Equals, "powerpc")
 	c.Check(dpkgArchFromGoArch("ppc64"), Equals, "ppc64")
 	c.Check(dpkgArchFromGoArch("ppc64le"), Equals, "ppc64el")
