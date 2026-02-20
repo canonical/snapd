@@ -117,6 +117,7 @@ jobs:
         build-config:
           - { system: "opensuse-tumbleweed-64", dockerfile: "opensuse.dockerfile", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
           - { system: "opensuse-15.6-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
+          - { system: "opensuse-16.0-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
           - { system: "amazon-linux-2-64",      dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2",      pkg-dir: "amzn-2"              }
           - { system: "amazon-linux-2023-64",   dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2023",   pkg-dir: "amzn-2023"           }
 
