@@ -3260,6 +3260,34 @@ func (*schemaSuite) TestPruneVisibilitySecretMapKeys(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
 }
 
+func (*schemaSuite) TestPruneMapNoContainerError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": {
+							"type": "string",
+							"visibility": "secret"
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": ""}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo.bar": expected container type but got string`)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.eph"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": ""}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo.bar.eph": expected container type but got string`)
+}
+
 func (*schemaSuite) TestPruneVisibilityArray(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -3452,6 +3480,10 @@ func (*schemaSuite) TestPruneArrayNoContainerError(c *C) {
 	_, err = schema.PruneByVisibility(parsePath(c, "foo[0].bar"), []confdb.Visibility{confdb.SecretVisibility},
 		marshal(c, map[string]any{"foo": []any{map[string]any{"bar": ""}}}))
 	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo[0].bar": expected container type but got string`)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[0].bar[0].eph"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{map[string]any{"bar": ""}}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo[0].bar[0]": expected container type but got string`)
 }
 
 func (*schemaSuite) TestPruneAllAlternatives(c *C) {
