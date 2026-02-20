@@ -14,3 +14,11 @@ echo "localtime symlink: $LOCALTIME"  >> "$SNAP_COMMON"/debug.txt  2>&1 || true
 
 HOSTNAME=$(cat /etc/writable/hostname)
 echo "hostname: $HOSTNAME"  >> "$SNAP_COMMON"/debug.txt  2>&1 || true
+
+# On pre-core24 the motd system option is not supported
+if [ -e /etc/motd.d/50-default ]; then
+    MOTD="$(cat /etc/motd.d/50-default)"
+else
+    MOTD="n/a"
+fi
+echo "motd: $MOTD"  >> "$SNAP_COMMON"/debug.txt  2>&1 || true

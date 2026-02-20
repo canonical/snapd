@@ -21,6 +21,9 @@ defaults:
       disable-backlight-service: true
       timezone: Europe/Malta
       hostname: foo
+      motd: |
+        Welcome to Ubuntu Core!
+        Have a nice day.
       network:
         netplan:
           bridges:

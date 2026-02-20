@@ -88,6 +88,17 @@ execute: |
         remote.exec "cat /etc/hostname" | MATCH "foo"
         remote.exec "hostname" | MATCH "foo"
 
+        # motd is set
+        if os.query is-core-lt 24; then
+            echo "on pre-core24 the motd option is not supported"
+            remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "motd: n/a"
+            not remote.exec "test -e /etc/motd.d/50-default"
+        else
+            echo "on core24+ setting the motd option via gadget defaults should work"
+            remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "motd: Test MOTD"
+            remote.exec "cat /etc/motd.d/50-default" | MATCH "Test MOTD"
+        fi
+
         # Should not have all-* snippets from the base
         not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-en"
         not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-eth"
