@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
@@ -279,6 +280,169 @@ func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
 	restore := testutil.Mock(&s.maxIDPath, s.legacyMaxIDPath)
 	defer restore()
 	s.checkWrittenMaxID(c, expectedID)
+}
+
+func (s *requestpromptsSuite) TestNewHandleReadying(c *C) {
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready")
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	result := pdb.HandleReadying("")
+	c.Check(result, HasLen, 0)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should still be ready")
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(timer, NotNil)
+	c.Check(timer.Active(), Equals, true)
+
+	// ID map on still disk
+	s.checkWrittenRequestMap(c, mapping)
+
+	result := pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"foo:1", "foo:2"})
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should now be ready")
+	}
+
+	noticeData := map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	c.Check(timer.Active(), Equals, false)
+
+	// ID map empty
+	s.checkWrittenRequestMap(c, map[string]requestprompts.RequestMapEntry{})
+}
+
+func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
+	restore = requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := requestprompts.RequestMappingJSON{
+		RequestMap: map[string]requestprompts.RequestMapEntry{
+			"foo:1": {PromptID: 1, UserID: s.defaultUser},
+			"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		},
+	}
+	data, err := json.Marshal(mapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	// Ensure the timer was created
+	c.Assert(timer, NotNil)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(logbuf.String(), Equals, "")
+
+	c.Check(timer.Active(), Equals, true)
+
+	// Elapse time as if the timer expired
+	timer.Elapse(requestprompts.ReadyTimeout)
+
+	c.Check(timer.Active(), Equals, false)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Fatalf("should now be ready")
+	}
+
+	noticeData := map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	<-callbackDone
+
+	c.Check(logbuf.String(), testutil.Contains, `timed out waiting for requests to be re-received after snap restart: "foo:1", "foo:2"`)
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
@@ -1379,19 +1543,72 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
 
-	// Sense check that the timer is still active, though this is not part of
-	// any contract, and there's no reason that closing the timer shouldn't be
-	// allowed to stop the expiration timers. We don't at the moment because
-	// doing so is racy and unnecessary, though there's no harm in closing them.
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
+	c.Check(timer.Active(), Equals, false)
+
+	// Check that no new notices were recorded
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(timer, NotNil)
 	c.Check(timer.Active(), Equals, true)
 
-	// Elapse time as if the prompt timer expired
-	timer.Elapse(requestprompts.InitialTimeout + requestprompts.ActivityTimeout)
-	// Check that timer expiration did not result in new notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
-	// Check that the timer is no longer active. Since the DB is closed, the
-	// expiration callback should not reset the timer as it usually would.
+	pdb.Close()
+
+	// Closing the prompts DB should ready so that API calls aren't left blocked
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should now be ready")
+	}
+
+	s.checkNewNoticesSimple(c, nil, nil)
+
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
 	c.Check(timer.Active(), Equals, false)
+
+	// ID map still on disk
+	s.checkWrittenRequestMap(c, mapping)
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
@@ -1407,29 +1624,29 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	metadata := prompting.Metadata{Interface: "home"}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 	c.Check(merged, Equals, false)
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	prompts, err := pdb.Prompts(1000, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(prompts, IsNil)
 
 	prompt, err := pdb.PromptWithID(1000, 1, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(prompt, IsNil)
 
 	result, err = pdb.Reply(1000, 1, prompting.OutcomeDeny, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 
 	promptIDs, err := pdb.HandleNewRule(nil, nil)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(promptIDs, IsNil)
 
 	err = pdb.Close()
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
 
 func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
@@ -1538,24 +1755,31 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleReadying(c *C) {
-	req1 := &prompting.Request{Key: "fake:1"}
-	req2 := &prompting.Request{Key: "fake:2"}
+	req1 := &prompting.Request{Key: "foo:1"}
+	req2 := &prompting.Request{Key: "foo:2"}
+	req3 := &prompting.Request{Key: "bar:1"}
+	// One request which wasn't received before
+	req4 := &prompting.Request{Key: "baz:2"}
 
 	// Write initial mappings from request keys to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	mapping := requestprompts.RequestMappingJSON{
 		RequestMap: map[string]requestprompts.RequestMapEntry{
-			"fake:1": {PromptID: 1, UserID: s.defaultUser},
-			"fake:2": {PromptID: 2, UserID: s.defaultUser},
-			"fake:3": {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
-			"fake:4": {PromptID: 3, UserID: s.defaultUser}, // we won't re-receive request 4
+			"foo:1": {PromptID: 1, UserID: s.defaultUser},
+			"foo:2": {PromptID: 2, UserID: s.defaultUser},
+			"foo:3": {PromptID: 1, UserID: s.defaultUser}, // unreceived, shared prompt with foo:1
+			"foo:4": {PromptID: 3, UserID: s.defaultUser}, // unreceived
+			"bar:1": {PromptID: 4, UserID: s.defaultUser},
+			"bar:2": {PromptID: 4, UserID: s.defaultUser}, // unreceived, shared prompt with bar:1
+			"bar:3": {PromptID: 5, UserID: s.defaultUser}, // unreceived
+			"baz:1": {PromptID: 6, UserID: s.defaultUser}, // unreceived
 		},
 	}
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
 	// Write max ID corresponding to mapping
-	expectedID := uint64(3)
+	expectedID := uint64(6)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
 	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
@@ -1563,6 +1787,14 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
+
+	// Check that prompt DB is not yet ready
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
 
 	metadataTemplate := prompting.Metadata{
 		User:      s.defaultUser,
@@ -1592,43 +1824,137 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	c.Check(prompt2, Not(Equals), prompt1)
 	c.Check(prompt2.ID, Equals, prompting.IDType(2))
 
-	// Do *not* re-receive third or fourth request
+	// Receive third request, again with different snap (so it's different prompt)
+	metadata = metadataTemplate
+	metadata.Snap = "thunderbird"
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, req3)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt3, Not(Equals), prompt1)
+	c.Check(prompt3, Not(Equals), prompt2)
+	c.Check(prompt3.ID, Equals, prompting.IDType(4))
+
+	s.checkWrittenMaxID(c, expectedID)
+
+	// Do *not* re-receive other outstanding requests
+
+	// Receive fourth request which was not previously received
+	metadata = metadataTemplate
+	metadata.Snap = "protonmail-bridge"
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, req4)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt4, Not(Equals), prompt1)
+	c.Check(prompt4, Not(Equals), prompt2)
+	c.Check(prompt4, Not(Equals), prompt3)
+	c.Check(prompt4.ID, Equals, prompting.IDType(7))
+
+	// New request bumped the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
 
 	// New prompts should record notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 	// All received prompts were previously sent, so expected map and max ID
 	// should be unchanged.
 	expectedMap := map[string]requestprompts.RequestMapEntry{
-		"fake:1": {PromptID: 1, UserID: s.defaultUser},
-		"fake:2": {PromptID: 2, UserID: s.defaultUser},
-		"fake:3": {PromptID: 1, UserID: s.defaultUser},
-		"fake:4": {PromptID: 3, UserID: s.defaultUser},
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:3": {PromptID: 1, UserID: s.defaultUser},
+		"foo:4": {PromptID: 3, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"bar:2": {PromptID: 4, UserID: s.defaultUser},
+		"bar:3": {PromptID: 5, UserID: s.defaultUser},
+		"baz:1": {PromptID: 6, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
 	c.Assert(err, IsNil)
-	c.Assert(stored, HasLen, 2)
+	c.Assert(stored, HasLen, 4)
 	c.Check(stored[0], Equals, prompt1)
 	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
 
-	// Signal that the manager is readying
-	err = pdb.HandleReadying()
-	c.Check(err, IsNil)
+	// Signal that all requests with namespace "bar" have been re-received
+	result := pdb.HandleReadying("bar")
+	c.Check(result, DeepEquals, []string{"bar:2", "bar:3"})
 
-	// Notice should be recorded for every prompt for which no notice was
-	// re-received. That is, prompt ID 3.
+	// Check that prompt DB is still not yet ready
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// Notice should be recorded for every prompt associated with a request
+	// with the "bar" namespace for which no request was re-received. That is,
+	// prompt ID 5.
 	noticeData := map[string]string{"resolved": "expired"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{3}, noticeData)
-	// Handling ready should prune all pending requests which have not been
-	// re-received.
+	s.checkNewNoticesSimple(c, []prompting.IDType{5}, noticeData)
+	// Handling ready should prune all pending requests with namespace "bar"
+	// which have not been re-received.
 	expectedMap = map[string]requestprompts.RequestMapEntry{
-		"fake:1": {PromptID: 1, UserID: s.defaultUser},
-		"fake:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:3": {PromptID: 1, UserID: s.defaultUser},
+		"foo:4": {PromptID: 3, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"baz:1": {PromptID: 6, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
+
+	// Signal that the manager is readying all unreceived requests (no namespace)
+	result = pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"baz:1", "foo:3", "foo:4"})
+
+	// Check that prompt DB is now ready
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready")
+	}
+
+	// Notice should be recorded for every prompt for which no request was
+	// re-received. That is, prompt ID 3 and 6.
+	noticeData = map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{3, 6}, noticeData)
+	// Handling ready should prune all pending requests which have not been
+	// re-received.
+	expectedMap = map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
+	}
+	s.checkWrittenMaxID(c, expectedID)
+	s.checkWrittenRequestMap(c, expectedMap)
+
+	// Check that subsequent calls to HandleReadying do nothing and cause no problems
+	for _, namespace := range []string{"foo", "", "kernel"} {
+		result = pdb.HandleReadying(namespace)
+		c.Check(result, HasLen, 0)
+
+		// Check that prompt DB is still ready
+		select {
+		case <-pdb.Ready():
+			// all good
+		default:
+			c.Fatalf("should be ready")
+		}
+
+		// Check that no notices were recorded
+		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+		// And the request map is unchanged
+		s.checkWrittenRequestMap(c, expectedMap)
+	}
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
@@ -1672,6 +1998,19 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			requestedPerms:   []string{"access"},
 			outstandingPerms: []string{"access"},
 			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
+		},
+		{
+			metadata: &prompting.Metadata{
+				User:      s.defaultUser,
+				Snap:      "protonmail-bridge",
+				PID:       1248,
+				Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+				Interface: "audio-record",
+			},
+			path:             "/placeholder",
+			requestedPerms:   []string{"access"},
+			outstandingPerms: []string{"access"},
+			expected:         `{"id":"0000000000000003","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"protonmail-bridge","pid":1248,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"audio-record","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
 		},
 	} {
 		fakeRequest := &prompting.Request{Key: "fake:1234"}

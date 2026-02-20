@@ -65,6 +65,11 @@ type fakeInterfacesRequestsManager struct {
 	clientActivity       bool
 }
 
+func (m *fakeInterfacesRequestsManager) Query(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+	// TODO
+	return prompting.OutcomeUnset, fmt.Errorf("FIXME")
+}
+
 func (m *fakeInterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
 	m.userID = userID
 	m.clientActivity = clientActivity
@@ -316,24 +321,13 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
-			err: prompting_errors.ErrPromptsClosed,
+			err: prompting_errors.ErrPromptingClosed,
 			body: map[string]any{
 				"result": map[string]any{
-					"message": prompting_errors.ErrPromptsClosed.Error(),
+					"message": prompting_errors.ErrPromptingClosed.Error(),
 				},
-				"status":      "Internal Server Error",
-				"status-code": 500.0,
-				"type":        "error",
-			},
-		},
-		{
-			err: prompting_errors.ErrRulesClosed,
-			body: map[string]any{
-				"result": map[string]any{
-					"message": prompting_errors.ErrRulesClosed.Error(),
-				},
-				"status":      "Internal Server Error",
-				"status-code": 500.0,
+				"status":      "Service Unavailable",
+				"status-code": 503.0,
 				"type":        "error",
 			},
 		},

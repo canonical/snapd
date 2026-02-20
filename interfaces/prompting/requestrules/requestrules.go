@@ -940,7 +940,7 @@ func (rdb *RuleDB) Close() error {
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return prompting_errors.ErrRulesClosed
+		return prompting_errors.ErrPromptingClosed
 	}
 
 	if err := rdb.maxIDMmap.Close(); err != nil {
@@ -1030,7 +1030,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting_errors.ErrRulesClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 
 	currSession, err := readOrAssignUserSessionID(rdb, user)
@@ -1276,7 +1276,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting_errors.ErrRulesClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 
 	rule, err := rdb.lookupRuleByIDForUser(user, id)
@@ -1326,7 +1326,7 @@ func (rdb *RuleDB) RemoveRulesForSnap(user uint32, snap string) ([]*Rule, error)
 // The caller must ensure that the database lock is held for writing.
 func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	if rdb.maxIDMmap.IsClosed() {
-		return prompting_errors.ErrRulesClosed
+		return prompting_errors.ErrPromptingClosed
 	}
 
 	if len(rules) == 0 {
@@ -1415,7 +1415,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	defer rdb.mutex.Unlock()
 
 	if rdb.maxIDMmap.IsClosed() {
-		return nil, prompting_errors.ErrRulesClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 
 	origRule, err := rdb.lookupRuleByIDForUser(user, id)
