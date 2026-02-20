@@ -46,4 +46,4 @@ execute: |
     snap list | not grep ^"core "
 
     echo "Ensure we re-exec to the snapd snap"
-    SNAPD_DEBUG=1 test-snapd-sh-core18.sh -c 'true' 2>&1 | MATCH 'restarting into "/snap/snapd/current'
+    SNAPD_LOG_SNAP_TO_JOURNAL=false SNAPD_DEBUG=1 test-snapd-sh-core18.sh -c 'true' 2>&1 | MATCH 'restarting into "/snap/snapd/current'

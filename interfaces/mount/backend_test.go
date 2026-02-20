@@ -942,7 +942,6 @@ func (s *backendSuite) TestEffectApplyDelayedOpportunisticDiscardErrFallsBack(c 
 		Description: "mount namespace update triggered by slot provider update",
 	}
 
-	// easy case first, no instances, no mnt file
 	eff := []interfaces.DelayedSideEffect{consumerDelayed}
 	defMntB := s.Backend.(interfaces.DelayedSideEffectsBackend)
 
@@ -972,7 +971,6 @@ func (s *backendSuite) TestEffectApplyDelayedOpportunisticDiscardErrLockHeldFall
 		Description: "mount namespace update triggered by slot provider update",
 	}
 
-	// easy case first, no instances, no mnt file
 	eff := []interfaces.DelayedSideEffect{consumerDelayed}
 	defMntB := s.Backend.(interfaces.DelayedSideEffectsBackend)
 

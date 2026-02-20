@@ -253,18 +253,19 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 		snapName := appSet.InstanceName()
 		snapInfo := appSet.Info()
 
-		err := opportunisticDiscard(appSet)
-		switch {
-		case err == nil:
-			// we're done
+		logger.Debugf("setup delayed for %v", snapName)
+
+		// attempt to discard the mount namespace of affected snap if no
+		// applications or service of that snap are running
+		if err := opportunisticDiscard(appSet); err == nil {
+			// namespace was discarded, we're done
 			return nil
-		case errors.Is(err, runningApplicationsError):
-			logger.Noticef("snap has running applications: %v", err)
-		default:
-			logger.Noticef("cannot discard mount namespace: %v", err)
+		} else {
+			// could be running applications or other error, carry on and try to
+			// execute a regular update
+			logger.Noticef("%v", err)
 		}
 
-		logger.Debugf("setup delayed for %v", snapName)
 		// Assuming all non-deferred work was done in Setup(), perform only the
 		// remaining work, specifically update or discard the mount namespace
 		return b.updateOrDiscard(snapName, snapInfo)
