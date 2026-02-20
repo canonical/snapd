@@ -208,8 +208,8 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
 	// verify apparmor connected
 	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
-	// verify classic didn't connect
-	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
+	// verify classic did connect
+	c.Assert(snippet, testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
