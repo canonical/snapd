@@ -84,7 +84,8 @@ owner @{HOME}/.local/share/jupyter/** rw,
 # miscellaneous accesses
 @{PROC}/vmstat r,
 
-#  Allow reading Linux PSI info
+# Allow reading pressure stall info
+# https://docs.kernel.org/accounting/psi.html
 @{PROC}/pressure/{memory,cpu,io} r,
 
 # Chromium content api sometimes queries about huge pages. Allow status of
