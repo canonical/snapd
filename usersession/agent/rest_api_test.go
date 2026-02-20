@@ -206,6 +206,9 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		if cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
@@ -226,7 +229,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"kind": "service-control", "message": "some user services failed to start",
 		"value": map[string]any{
-			"start-errors": map[string]any{"snap.bar.service": "mock systemctl error"},
+			"start-errors": map[string]any{"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error"},
 			"stop-errors":  map[string]any{},
 		},
 	})
@@ -240,6 +243,7 @@ func (s *restSuite) TestServiceControlStartEnableFailsAndDisables(c *C) {
 		// Game is rigged, this will fail, and we should stop the first service
 		// we managed to start
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 
@@ -275,6 +279,9 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
 			return nil, fmt.Errorf("start failure")
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
@@ -294,7 +301,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nstart failure",
 			},
 			"stop-errors": map[string]any{},
 		},
@@ -303,6 +310,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
@@ -318,6 +326,9 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
 			return nil, fmt.Errorf("stop failure")
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
@@ -337,7 +348,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		"kind":    "service-control",
 		"value": map[string]any{
 			"start-errors": map[string]any{
-				"snap.bar.service": "start failure",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nstart failure",
 			},
 			"stop-errors": map[string]any{
 				"snap.foo.service": "stop failure",
@@ -348,6 +359,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
+		{"--user", "show", "--property", "FragmentPath", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
@@ -570,6 +582,9 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
 			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
@@ -592,7 +607,7 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error",
 			},
 		},
 	})
@@ -645,6 +660,9 @@ func (s *restSuite) TestServicesRestartOrReloadNonSnap(c *C) {
 func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if cmd[0] == "--user" && cmd[1] == "show" && cmd[2] == "--property" && cmd[3] == "FragmentPath" {
+			return []byte(fmt.Sprintf("%s=/etc/systemd/user/%s", cmd[3], cmd[4])), nil
+		}
 		// Ignore "show" spam
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
@@ -671,7 +689,7 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 		"message": "some user services failed to restart",
 		"value": map[string]any{
 			"restart-errors": map[string]any{
-				"snap.bar.service": "mock systemctl error",
+				"snap.bar.service": "Failed to load the systemd service file for snap.bar.service: open /etc/systemd/user/snap.bar.service: no such file or directory\nmock systemctl error",
 			},
 		},
 	})

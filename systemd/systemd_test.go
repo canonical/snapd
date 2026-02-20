@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -772,6 +773,18 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	err = sysd.DisableNoReload([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
+}
+
+func (s *SystemdTestSuite) TestDaemonDisableEnable(c *C) {
+	sysd := New(SystemMode, s.rep)
+	err := sysd.DaemonReEnable([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "reenable", "foo"}})
+
+	s.argses = nil
+	err = sysd.DaemonReEnable([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "reenable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
@@ -2802,4 +2815,41 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 
 	_, err = New(SystemMode, nil).EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs", systemd.EnsureMountUnitFlags{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
+}
+
+func (s *SystemdTestSuite) TestGetServicePath(c *C) {
+	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-service-path-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	var systemctlOutput string
+	createFakeUnit := func(fileName, snapName, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(systemctlOutput) > 0 {
+			systemctlOutput += "\n\n"
+		}
+		systemctlOutput += fmt.Sprintf(`FragmentPath=%s
+`, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Test unit for %s, revision x1
+
+[Install]
+WantedBy=doesntmatter.target
+X-SnapdOrigin=%s
+`, snapName, origin)
+		return os.WriteFile(path, []byte(contents), 0644)
+	}
+
+	// Prepare the unit files
+	err = createFakeUnit("somepath-somedir.service", "some-snap", "module1")
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{
+		[]byte(systemctlOutput),
+	}
+	sysd := New(SystemMode, nil)
+
+	spath, err := sysd.GetServicePath("some-snap")
+	c.Check(err, IsNil)
+	c.Check(spath, Equals, path.Join(tmpDir, "somepath-somedir.service"))
 }

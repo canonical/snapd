@@ -29,7 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/mvo5/goconfigparser"
+	"gopkg.in/ini.v1"
 
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
@@ -89,6 +91,66 @@ func sessionInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
+/* startUserServiceAndCheckWantedBy is called if starting an user service
+ * fails. It checks if the WantedBy entry for that service belongs to a target
+ * that is not active. If that's the case (for example, when installing an user
+ * daemon that uses the Desktop interface, and thus has the `graphical-session`
+ * target, but doing it from a SSH connection or from a text console, where no
+ * graphical session is running) it won't fail. It also won't fail if the WantedBy
+ * entry points to a non-existent target, because it can happens that a system
+ * lacks a graphical system, but still wants to install a snap that has a daemon
+ * that is designed for it (for example, because it contains other tools that
+ * are useful in a text-only system; another case is for spread tests).
+ */
+
+func checkWantedByForService(sysd systemd.Systemd, originalError error, service string) error {
+	// If the service fails, check if it is wanted by a target that isn't active
+	servicePath, err := sysd.GetServicePath(service)
+	if err != nil {
+		return fmt.Errorf("Failed to get the systemd service file path for %s: %s\n%s", service, err, originalError)
+	}
+	serviceFileIni, err := ini.Load(servicePath)
+	if err != nil {
+		return fmt.Errorf("Failed to load the systemd service file for %s: %s\n%s", service, err, originalError)
+	}
+	target := ""
+	if section := serviceFileIni.Section("Install"); section != nil {
+		target = section.Key("WantedBy").String()
+	}
+	if target == "default.target" || target == "" || !strings.HasSuffix(target, ".target") {
+		return originalError // if it uses the default target, return the original error
+	}
+
+	// Check if the target is active
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return fmt.Errorf("Failed to connect to the session bus: %s\n%s", err, originalError)
+	}
+	defer conn.Close()
+
+	obj := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
+	var targetObject dbus.ObjectPath
+	err = obj.Call("org.freedesktop.systemd1.Manager.GetUnit", 0, target).Store(&targetObject)
+	if err != nil {
+		// it's not an error if the desired unit isn't in the system.
+		logger.Noticef("Failed to get unit name for %s target: %s\n%s", target, err, originalError)
+		return nil
+	}
+
+	targetObjectIface := conn.Object("org.freedesktop.systemd1", dbus.ObjectPath(targetObject))
+	var state string
+	err = targetObjectIface.Call("org.freedesktop.DBus.Properties.Get", 0, "org.freedesktop.systemd1.Unit", "ActiveState").Store(&state)
+	if err != nil {
+		return fmt.Errorf("Failed to get unit state for %s target: %s\n%s", target, err, originalError)
+	}
+
+	if state == "active" {
+		return originalError // the target is active, so it failed due to another problem
+	}
+	// The target is inactive. Let's presume that it is the reason why it failed to launch.
+	return nil
+}
+
 func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -127,8 +189,10 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 	var started []string
 	for _, service := range inst.Services {
 		if err := sysd.Start([]string{service}); err != nil {
-			startErrors[service] = err.Error()
-			break
+			if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+				startErrors[service] = err2.Error()
+				break
+			}
 		}
 		started = append(started, service)
 	}
@@ -172,11 +236,15 @@ func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respo
 	for _, service := range inst.Services {
 		if inst.Reload {
 			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+					restartErrors[service] = err2.Error()
+				}
 			}
 		} else {
 			if err := sysd.Restart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
+				if err2 := checkWantedByForService(sysd, err, service); err2 != nil {
+					restartErrors[service] = err2.Error()
+				}
 			}
 		}
 	}

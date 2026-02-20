@@ -27,6 +27,8 @@ import (
 	"sort"
 	"time"
 
+	"gopkg.in/ini.v1"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -400,6 +402,22 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+func userDaemonReEnable(services []string) error {
+	userGlobalSysd := systemd.New(systemd.GlobalUserMode, nil)
+	enabledServices := []string{}
+	for _, service := range services {
+		enabled, err := userGlobalSysd.IsEnabled(service)
+		if err != nil {
+			logger.Noticef("Failed to get state for %s: %s", service, err.Error())
+			continue
+		}
+		if enabled {
+			enabledServices = append(enabledServices, service)
+		}
+	}
+	return userGlobalSysd.DaemonReEnable(enabledServices)
+}
+
 func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileState, modified bool, err error) {
 	newFileState := osutil.MemoryFileState{
 		Content: desiredContent,
@@ -505,6 +523,7 @@ type ensureSnapServicesContext struct {
 	// should have do/undo handlers to properly handle the case where this
 	// function is interrupted midway
 	modifiedUnits map[string]*osutil.MemoryFileState
+	reEnableUnits []string
 }
 
 // restore is a helper function which should be called in case any errors happen
@@ -546,7 +565,11 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	if es.opts.Preseeding {
 		return nil
 	}
-
+	if len(es.reEnableUnits) != 0 {
+		if err := userDaemonReEnable(es.reEnableUnits); err != nil {
+			es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
+		}
+	}
 	if es.systemDaemonReloadNeeded {
 		if err := es.sysd.DaemonReload(); err != nil {
 			return err
@@ -568,13 +591,12 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		if err != nil {
 			return err
 		}
-
+		var oldContent []byte
+		if old != nil {
+			oldContent = old.Content
+		}
 		if modifiedFile {
 			if es.observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
 				es.observeChange(app, nil, unitType, name, string(oldContent), string(content))
 			}
 			es.modifiedUnits[path] = old
@@ -586,6 +608,29 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 				es.systemDaemonReloadNeeded = true
 			case snap.UserDaemon:
 				es.userDaemonReloadNeeded = true
+			}
+			if oldContent != nil && app.DaemonScope == snap.UserDaemon {
+				oldIni, err := ini.Load(oldContent)
+				if err != nil {
+					return err
+				}
+				newIni, err := ini.Load(content)
+				if err != nil {
+					return err
+				}
+				oldKey := ""
+				newKey := ""
+				if oldSection := oldIni.Section("Install"); oldSection != nil {
+					oldKey = oldSection.Key("WantedBy").String()
+				}
+				if newSection := newIni.Section("Install"); newSection != nil {
+					newKey = newSection.Key("WantedBy").String()
+				}
+				if oldKey != newKey {
+					// the daemon must be disabled and re-enabled to ensure that the
+					// .service file is placed in the right wanted-by folder
+					es.reEnableUnits = append(es.reEnableUnits, filepath.Base(path))
+				}
 			}
 		}
 
