@@ -486,11 +486,18 @@ func storeUpdatePlanCore(
 	// make sure to explicitly request the components from the store.
 	requestComponentsFromStore := false
 
-	// make sure that all requested updates are currently installed
+	// make sure that all requested updates can be handled by this planner
 	for _, update := range updates {
 		snapst, ok := allSnaps[update.InstanceName]
 		if !ok {
-			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+			if !update.InstallIfMissing {
+				return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+			}
+
+			if len(update.AdditionalComponents) > 0 {
+				requestComponentsFromStore = true
+			}
+			continue
 		}
 
 		if snapst.HasActiveComponents() || len(update.AdditionalComponents) > 0 {
@@ -541,7 +548,10 @@ func storeUpdatePlanCore(
 	}
 
 	for _, name := range noStoreUpdates {
-		hasLocalRevision[name] = allSnaps[name]
+		snapst, ok := allSnaps[name]
+		if ok {
+			hasLocalRevision[name] = snapst
+		}
 	}
 
 	for _, sar := range sars {
@@ -550,13 +560,15 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
 		}
 
+		action := "refresh"
 		snapst, ok := allSnaps[sar.InstanceName()]
 		if !ok {
-			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
+			snapst = &SnapState{}
+			action = "install"
 		}
 
 		currentComps, err := snapst.CurrentComponentInfos()
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrNoCurrent) {
 			return updatePlan{}, err
 		}
 
@@ -574,23 +586,35 @@ func storeUpdatePlanCore(
 		// compTargets will be filtered down to only the components that appear
 		// in the action result, meaning that we might install fewer components
 		// than we have installed right now
-		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
+		compTargets, err := componentTargetsFromActionResult(action, sar, compNames)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
-		// if we still have no channel here, this means that we refreshed
-		// by-revision without specifying a channel. make sure we continue to
-		// track the channel that the snap is currently on
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
+		if action == "refresh" {
+			// if we still have no channel here, this means that we refreshed
+			// by-revision without specifying a channel. make sure we continue to
+			// track the channel that the snap is currently on
+			up.RevOpts.Channel = firstNonEmpty(
+				up.RevOpts.Channel,
+				snapst.TrackingChannel,
+			)
+		} else {
+			up.RevOpts.Channel = firstNonEmpty(
+				sar.RedirectChannel,
+				up.RevOpts.Channel,
+				"stable",
+			)
+		}
 
 		plan.targets = append(plan.targets, target{
 			info:   sar.Info,
 			snapst: *snapst,
 			setup: SnapSetup{
-				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
-				CohortKey:    up.RevOpts.CohortKey,
+				DownloadInfo:      &sar.DownloadInfo,
+				Channel:           up.RevOpts.Channel,
+				CohortKey:         up.RevOpts.CohortKey,
+				IntegrityDataInfo: sar.IntegrityData,
 			},
 			components: compTargets,
 		})
@@ -642,7 +666,7 @@ func storeUpdatePlanCore(
 		// this must happen after the call to componentSetupsForInstall, since
 		// we can't set the channel to the tracking channel if we don't know
 		// that the requested revision is part of this channel
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
+		up.RevOpts.Channel = firstNonEmpty(up.RevOpts.Channel, snapst.TrackingChannel)
 
 		// make sure that we switch the current channel of the snap that we're
 		// switching to
@@ -672,7 +696,12 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
 		}
 
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		action := "refresh"
+		if !t.snapst.IsInstalled() {
+			action = "install"
+		}
+
+		if err := checkSnapAgainstValidationSets(t.info, t.components, action, up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 	}
@@ -818,6 +847,23 @@ func collectCurrentSnapsAndActions(
 		return nil, nil, nil, err
 	}
 
+	for name, req := range updates {
+		if _, ok := allSnaps[name]; ok || !req.InstallIfMissing {
+			continue
+		}
+
+		action := &store.SnapAction{
+			Action:       "install",
+			InstanceName: req.InstanceName,
+		}
+
+		if err := completeStoreAction(action, req.RevOpts, opts.Flags.IgnoreValidation); err != nil {
+			return nil, nil, nil, err
+		}
+
+		actionsByUserID[fallbackID] = append(actionsByUserID[fallbackID], action)
+	}
+
 	return actionsByUserID, hasLocalRevision, current, nil
 }
 
@@ -827,6 +873,9 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 	for _, up := range updates {
 		var snapst SnapState
 		if err := Get(st, up.InstanceName, &snapst); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
 			return nil, nil, err
 		}
 
