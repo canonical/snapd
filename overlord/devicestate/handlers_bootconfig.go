@@ -64,12 +64,6 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	var noRestart bool
-	err = t.Get("no-restart", &noRestart)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
 	currentData, err := CurrentGadgetData(st, devCtx)
 	if err != nil {
 		return fmt.Errorf("cannot obtain current gadget data: %v", err)
@@ -92,19 +86,22 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 
 	// Any pending extra snapd kernel command line fragments should have
 	// been applied by now.
+	//
+	// Note that the state lock must be held for the duration of the
+	// task so that we do not accidentally unset the pending state
+	// that might have been set externally if the state was unloked.
 	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, false)
 
 	// set this status already before returning to minimize wasteful redos
 	finalStatus := state.DoneStatus
 	if updated {
 		t.Logf("updated boot config assets")
-		// boot assets were updated, request a restart now unless no-restart is
-		// set so that the situation does not end up more complicated if more
-		// updates of boot assets were to be applied
-		if !noRestart {
-			return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil)
-		}
+		// boot assets were updated, request a restart now so that the
+		// situation does not end up more complicated if more updates of
+		// boot assets were to be applied
+		return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil)
+	} else {
+		t.SetStatus(finalStatus)
+		return nil
 	}
-	t.SetStatus(finalStatus)
-	return nil
 }

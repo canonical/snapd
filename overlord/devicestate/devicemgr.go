@@ -1961,23 +1961,6 @@ func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) err
 	return setExtraSnapdKernelCommandLineFragment(m.state, extraSnapdKernelCommandLineFragmentXKB, fragment)
 }
 
-func isTaskKindInProgress(st *state.State, kinds ...string) bool {
-	for _, chg := range st.Changes() {
-		if chg.IsReady() {
-			continue
-		}
-		for _, t := range chg.Tasks() {
-			if t.Status().Ready() {
-				continue
-			}
-			if strutil.ListContains(kinds, t.Kind()) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1992,13 +1975,6 @@ func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() erro
 		return nil
 	}
 
-	// do not create a change if there is already an in-progress
-	// task updating the kernel command line since the pending
-	// changes will be applied there anyway
-	if isTaskKindInProgress(m.state, "update-gadget-cmdline", "update-managed-boot-config") {
-		return nil
-	}
-
 	// check whether there are other changes that need to run exclusively
 	if err := snapstate.CheckChangeConflictExclusiveKinds(m.state, ""); err != nil {
 		logger.Noticef("cannot apply extra snapd kernel command line fragments: %v", err)
@@ -2008,12 +1984,12 @@ func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() erro
 	logger.Noticef("applying pending extra snapd kernel cmdline fragments")
 
 	summary := "Apply extra snapd kernel command line fragments"
-	t := m.state.NewTask("update-managed-boot-config", summary)
+	t := m.state.NewTask("update-gadget-cmdline", summary)
 	// make sure the change does not trigger a system restart to avoid
 	// confusion and bad UX of implicit internal updates to fragment
 	// causing a restart (e.g. a keyboard layout update causing a
 	// sudden restart).
-	t.Set("no-restart", true)
+	t.Set("from-extra-snapd-fragments", true)
 	chg := m.state.NewChange("apply-extra-snapd-kcmdline-fragments", summary)
 	chg.AddTask(t)
 

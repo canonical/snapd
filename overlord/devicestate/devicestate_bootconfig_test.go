@@ -152,7 +152,6 @@ func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Mod
 type testBootConfigUpdateOpts struct {
 	updateAttempted                  bool
 	updateApplied                    bool
-	forceNoRestart                   bool
 	cmdlineAppend                    string
 	cmdlineAppendDanger              string
 	extraSnapdKernelCmdlineFragments map[string]string
@@ -183,6 +182,14 @@ kernel-cmdline:
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test "update-managed-boot-config" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
 		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
@@ -199,9 +206,6 @@ kernel-cmdline:
 		SideInfo: &s.gadgetSnapInfo.SideInfo,
 		Type:     snap.TypeGadget,
 	})
-	if opts.forceNoRestart {
-		tsk.Set("no-restart", true)
-	}
 	chg := s.state.NewChange("sample", "...")
 
 	chg.AddTask(tsk)
@@ -216,7 +220,7 @@ kernel-cmdline:
 
 	restarting, rt := restart.Pending(s.state)
 	if errMatch == "" {
-		if opts.updateAttempted && opts.updateApplied && !opts.forceNoRestart {
+		if opts.updateAttempted && opts.updateApplied {
 			// Expect the change to be in wait status at this point, as a restart
 			// will have been requested
 			c.Check(tsk.Status(), Equals, state.WaitStatus)
@@ -237,19 +241,13 @@ kernel-cmdline:
 		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
-			if opts.forceNoRestart {
-				c.Assert(log, HasLen, 1)
-				c.Check(log[0], Matches, ".* updated boot config assets")
-				c.Check(s.restartRequests, HasLen, 0)
-			} else {
-				c.Assert(log, HasLen, 2)
-				c.Check(log[0], Matches, ".* updated boot config assets")
-				c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
-				// update was applied, thus a restart was requested
-				c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-				c.Check(restarting, Equals, true)
-				c.Check(rt, Equals, restart.RestartSystemNow)
-			}
+			c.Assert(log, HasLen, 2)
+			c.Check(log[0], Matches, ".* updated boot config assets")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
+			// update was applied, thus a restart was requested
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+			c.Check(restarting, Equals, true)
+			c.Check(rt, Equals, restart.RestartSystemNow)
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -284,6 +282,14 @@ kernel-cmdline:
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test "update-managed-boot-config" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
 		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
@@ -300,9 +306,6 @@ kernel-cmdline:
 		SideInfo: &s.gadgetSnapInfo.SideInfo,
 		Type:     snap.TypeGadget,
 	})
-	if opts.forceNoRestart {
-		tsk.Set("no-restart", true)
-	}
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)
@@ -315,7 +318,7 @@ kernel-cmdline:
 	defer s.state.Unlock()
 
 	if errMatch == "" {
-		if opts.updateAttempted && opts.updateApplied && !opts.forceNoRestart {
+		if opts.updateAttempted && opts.updateApplied {
 			// Expect the change to be in wait status at this point, as a restart
 			// will have been requested
 			c.Check(tsk.Status(), Equals, state.WaitStatus)
@@ -336,14 +339,9 @@ kernel-cmdline:
 		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
-			if opts.forceNoRestart {
-				c.Assert(log, HasLen, 1)
-				c.Check(log[0], Matches, ".* updated boot config assets")
-			} else {
-				c.Assert(log, HasLen, 2)
-				c.Check(log[0], Matches, ".* updated boot config assets")
-				c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
-			}
+			c.Assert(log, HasLen, 2)
+			c.Check(log[0], Matches, ".* updated boot config assets")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 		}
 		// There must be no restart request
 		c.Check(s.restartRequests, HasLen, 0)
@@ -373,28 +371,6 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	})
 }
 
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessNoRestart(c *C) {
-	s.state.Lock()
-	s.setupUC20Model(c)
-	s.state.Unlock()
-
-	s.managedbl.Updated = true
-
-	opts := testBootConfigUpdateOpts{
-		updateAttempted: true,
-		updateApplied:   true,
-		forceNoRestart:  true,
-	}
-	s.testBootConfigUpdateRun(c, opts, "")
-
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
-	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
-	})
-}
-
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModes(c *C) {
 	s.state.Lock()
 	s.setupClassicWithModesModel(c)
@@ -405,28 +381,6 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithMode
 	opts := testBootConfigUpdateOpts{
 		updateAttempted: true,
 		updateApplied:   true,
-	}
-	s.testBootConfigUpdateRunClassic(c, opts, "")
-
-	m, err := boot.ReadModeenv("")
-	c.Assert(err, IsNil)
-	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
-	})
-}
-
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModesNoRestart(c *C) {
-	s.state.Lock()
-	s.setupClassicWithModesModel(c)
-	s.state.Unlock()
-
-	s.managedbl.Updated = true
-
-	opts := testBootConfigUpdateOpts{
-		updateAttempted: true,
-		updateApplied:   true,
-		forceNoRestart:  true,
 	}
 	s.testBootConfigUpdateRunClassic(c, opts, "")
 

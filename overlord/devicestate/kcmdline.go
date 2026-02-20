@@ -105,6 +105,8 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 	}
 	st.Set(kcmdlineExtraSnapdFragmentsKey, currentFragments)
 	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, true)
+	// Make sure the pending changes are picked up soon.
+	st.EnsureBefore(0)
 	return nil
 }
 

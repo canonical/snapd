@@ -2671,40 +2671,6 @@ func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(logbuf.String(), Equals, "")
 
-	// but there are in-progress tasks that will apply the changes anyway
-	// i.e. update-gadget-cmdline and update-managed-boot-config
-	chg := s.state.NewChange("", "")
-
-	t1 := s.state.NewTask("update-gadget-cmdline", "")
-	chg.AddTask(t1)
-
-	s.state.Unlock()
-	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-	// pending fragments, but no change created (except our mock change)
-	checkPendingExtraSnapdFragments(c, s.state, true)
-	c.Check(s.state.Changes(), HasLen, 1)
-	c.Check(logbuf.String(), Equals, "")
-
-	t2 := s.state.NewTask("update-managed-boot-config", "")
-	chg.AddTask(t2)
-	t1.SetStatus(state.DoneStatus)
-
-	s.state.Unlock()
-	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-	// pending fragments, but no change created
-	checkPendingExtraSnapdFragments(c, s.state, true)
-	c.Check(s.state.Changes(), HasLen, 1)
-	c.Check(logbuf.String(), Equals, "")
-
-	t2.SetStatus(state.DoneStatus)
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
-
-	// now that above tasks are not in-progress next ensure call should
-	// create a change
 	s.state.Unlock()
 	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
 	s.state.Lock()
@@ -2713,20 +2679,15 @@ func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c
 	// no actual task ran to unset pending state
 	checkPendingExtraSnapdFragments(c, s.state, true)
 
-	c.Check(s.state.Changes(), HasLen, 2)
-	chg = nil
-	for _, chg = range s.state.Changes() {
-		if chg.Kind() == "apply-extra-snapd-kcmdline-fragments" {
-			break
-		}
-	}
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
 	c.Check(chg.Tasks(), HasLen, 1)
 	t := chg.Tasks()[0]
-	c.Check(t.Kind(), Equals, "update-managed-boot-config")
-	var noRestart bool
-	err = t.Get("no-restart", &noRestart)
+	c.Check(t.Kind(), Equals, "update-gadget-cmdline")
+	var fromExtraSnapdFragment bool
+	err = t.Get("from-extra-snapd-fragments", &fromExtraSnapdFragment)
 	c.Assert(err, IsNil)
-	c.Check(noRestart, Equals, true)
+	c.Check(fromExtraSnapdFragment, Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "applying pending extra snapd kernel cmdline fragments")
 }
 
