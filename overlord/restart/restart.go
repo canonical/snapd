@@ -407,7 +407,7 @@ func (rm *RestartManager) Pending() (bool, RestartType) {
 		return false, RestartUnset
 	}
 	restarting := RestartType(atomic.LoadInt32(&rm.restarting))
-	fmt.Printf("---------- nope 1 restarting? %v\n", restarting)
+	//fmt.Printf("---------- nope 1 restarting? %v\n", restarting)
 	return restarting != RestartUnset, restarting
 }
 

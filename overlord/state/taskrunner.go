@@ -20,7 +20,7 @@
 package state
 
 import (
-	"fmt"
+	//	"fmt"
 	"sync"
 	"time"
 
@@ -256,7 +256,7 @@ func (r *TaskRunner) run(t *Task) {
 			}
 		}
 
-		fmt.Printf("   task err: %v\n", err)
+		//fmt.Printf("   task err: %v\n", err)
 		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.

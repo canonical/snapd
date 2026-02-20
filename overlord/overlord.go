@@ -460,7 +460,7 @@ func (o *Overlord) ensureTimerReset() time.Time {
 }
 
 func (o *Overlord) ensureBefore(d time.Duration) {
-	fmt.Printf("ensure before ----\n")
+	//fmt.Printf("ensure before ----\n")
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	if o.ensureTimer == nil {
@@ -470,13 +470,13 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	next := now.Add(d)
 	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
-		fmt.Printf("next reassign %v\n", next)
+		//fmt.Printf("next reassign %v\n", next)
 		o.ensureNext = next
 		return
 	}
 
 	if o.ensureNext.Before(now) {
-		fmt.Printf("next is now!!!!!!!!!!!\n")
+		//fmt.Printf("next is now!!!!!!!!!!!\n")
 		// timer already expired, it will be reset in Loop() and
 		// next Ensure() will be called shortly.
 		if !o.ensureTimer.Stop() {
@@ -607,13 +607,13 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			errs = append(errs, err)
 		}
 		o.stateEng.Wait()
-		fmt.Printf("++++++ wait done, next? %v ensure next %v\n", next, o.ensureNext)
+		//fmt.Printf("++++++ wait done, next? %v ensure next %v\n", next, o.ensureNext)
 		o.ensureLock.Lock()
 		ensureNext := o.ensureNext
 		done = ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 		if done {
-			fmt.Printf("++++++ done\n")
+			//fmt.Printf("++++++ done\n")
 			if beforeCleanups != nil {
 				beforeCleanups()
 				beforeCleanups = nil
@@ -642,9 +642,9 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			st.Unlock()
 
 			ensureNextUnchangedCnt++
-			if ensureNextUnchangedCnt > 1000 {
+			if ensureNextUnchangedCnt > 5000 {
 				fmt.Printf("not progressing!!!\n")
-				// break
+				break
 			}
 			if pendingRestart {
 				fmt.Printf("not progressing, restart pending!!\n")
