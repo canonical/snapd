@@ -110,10 +110,10 @@ func (msg *RequestMessage) ID() string {
 type sequenceCache struct {
 	// Applied tracks how far each sequence has progressed. A sequenced
 	// message can only be applied once its predecessor has been applied.
-	Applied map[string]int `json:"applied"`
+	Applied map[string]int `json:"applied,omitempty"`
 
 	// LRU determines eviction order when the cache is full.
-	LRU []string `json:"lru"`
+	LRU []string `json:"lru,omitempty"`
 }
 
 // deviceMgmtState holds the persistent state for device management operations.
@@ -260,6 +260,10 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 		}
 
 		return nil, err
+	}
+
+	if ms.Sequences.Applied == nil {
+		ms.Sequences.Applied = make(map[string]int)
 	}
 
 	return &ms, nil

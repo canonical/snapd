@@ -201,8 +201,10 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 		cmt := Commentf("%s test", tt.name)
 
 		ms := &devicemgmtstate.DeviceMgmtState{
-			LastExchangeTime: tt.lastExchangeTime,
+			PendingRequests:  make(map[string]*devicemgmtstate.RequestMessage),
+			Sequences:        devicemgmtstate.NewSequenceCache(),
 			ReadyResponses:   tt.readyResponses,
+			LastExchangeTime: tt.lastExchangeTime,
 		}
 
 		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
@@ -250,6 +252,9 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 
 	expired := time.Now().Add(-(devicemgmtstate.DefaultExchangeInterval + time.Minute))
 	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests:  make(map[string]*devicemgmtstate.RequestMessage),
+		Sequences:        devicemgmtstate.NewSequenceCache(),
+		ReadyResponses:   make(map[string]store.Message),
 		LastExchangeTime: expired,
 	}
 	s.mgr.SetState(ms)
@@ -364,10 +369,12 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	})
 
 	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests:   make(map[string]*devicemgmtstate.RequestMessage),
+		Sequences:         devicemgmtstate.NewSequenceCache(),
+		LastReceivedToken: "token-123",
 		ReadyResponses: map[string]store.Message{
 			"someId": {Format: "assertion", Data: "response-data"},
 		},
-		LastReceivedToken: "token-123",
 	}
 	s.mgr.SetState(ms)
 
