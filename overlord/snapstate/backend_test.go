@@ -84,6 +84,7 @@ type fakeOp struct {
 	skipKernelExtraction   bool
 
 	services             []string
+	removedServices      []string
 	disabledServices     []string
 	disabledUserServices map[int][]string
 
@@ -1035,7 +1036,7 @@ type fakeSnappyBackend struct {
 	// TODO cleanup triggers above
 	maybeInjectErr func(*fakeOp) error
 
-	infos map[string]*snap.Info
+	infos map[string]map[snap.Revision]*snap.Info
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -1303,18 +1304,20 @@ apps:
 		info.Base = "core24"
 	}
 
-	if storedInfo, ok := f.infos[name]; ok {
-		storedInfo.SideInfo = *si
-		info = storedInfo
+	if snapInfos, ok := f.infos[name]; ok {
+		if storedInfo, ok := snapInfos[si.Revision]; ok {
+			storedInfo.SideInfo = *si
+			info = storedInfo
+		}
 	}
 
 	info.InstanceKey = instanceKey
 	return info, nil
 }
 
-func (f *fakeSnappyBackend) addSnapApp(name, app string) {
+func (f *fakeSnappyBackend) addSnapApp(name, app string, rev snap.Revision) {
 	if f.infos == nil {
-		f.infos = make(map[string]*snap.Info)
+		f.infos = make(map[string]map[snap.Revision]*snap.Info)
 	}
 
 	snapYaml := fmt.Sprintf(`name: %s
@@ -1327,7 +1330,10 @@ apps:
 		panic(err)
 	}
 
-	f.infos[name] = info
+	if f.infos[name] == nil {
+		f.infos[name] = make(map[snap.Revision]*snap.Info)
+	}
+	f.infos[name][rev] = info
 }
 
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
@@ -1469,11 +1475,33 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	meter.Notify("stop-services")
+
+	var svcNames []string
+	if len(svcs) != 0 {
+		svcNames = make([]string, 0, len(svcs))
+		for _, svc := range svcs {
+			svcNames = append(svcNames, svc.Name)
+		}
+		sort.Strings(svcNames)
+
+	}
+
+	var rmSvcNames []string
+	if len(rmSvcs) != 0 {
+		rmSvcNames = make([]string, 0, len(rmSvcs))
+		for _, svc := range rmSvcs {
+			rmSvcNames = append(rmSvcNames, svc.Name)
+		}
+		sort.Strings(rmSvcNames)
+	}
+
 	f.appendOp(&fakeOp{
-		op:   fmt.Sprintf("stop-snap-services:%s", reason),
-		path: svcSnapMountDir(svcs),
+		op:              fmt.Sprintf("stop-snap-services:%s", reason),
+		path:            svcSnapMountDir(svcs),
+		services:        svcNames,
+		removedServices: rmSvcNames,
 	})
 	return f.maybeErrForLastOp()
 }

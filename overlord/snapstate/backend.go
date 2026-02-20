@@ -91,7 +91,7 @@ type managerBackend interface {
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) error
 	LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error
 	StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error
-	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
+	StopServices(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error)
 	MaybeSetNextBoot(info *snap.Info, dev snap.Device, isUndo bool) (boot.RebootInfo, error)
 

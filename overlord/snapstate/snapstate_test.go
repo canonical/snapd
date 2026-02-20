@@ -7816,8 +7816,9 @@ func (s *snapmgrTestSuite) TestStartSnapServicesUndo(c *C) {
 			services: []string{"svc1", "svc2"},
 		},
 		{
-			op:   "stop-snap-services:",
-			path: filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			op:       "stop-snap-services:",
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			services: []string{"svc1", "svc2"},
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -7870,8 +7871,9 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services:",
-			path: filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			op:       "stop-snap-services:",
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			services: []string{"svc1", "svc2"},
 		},
 		{
 			op:               "current-snap-service-states",
@@ -7941,8 +7943,9 @@ func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "stop-snap-services:",
-			path: filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			op:       "stop-snap-services:",
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			services: []string{"svc1", "svc2"},
 		},
 		{
 			op: "current-snap-service-states",
@@ -10173,7 +10176,7 @@ apps:
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", testSnapState)
 	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
-	s.fakeBackend.addSnapApp("test-snap", "test-snap")
+	s.fakeBackend.addSnapApp("test-snap", "test-snap", snap.R(42))
 	s.state.Unlock()
 
 	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
