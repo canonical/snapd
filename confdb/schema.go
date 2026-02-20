@@ -1705,7 +1705,7 @@ func (v *arraySchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, dat
 	if len(array) == 0 {
 		return nil, fmt.Errorf(`internal error: expected list to contain data`)
 	}
-	arrayIndex := -1
+	var arrayIndex int
 	if key.Type() == ListIndexType {
 		arrayIndex, _ = strconv.Atoi(key.Name())
 		if arrayIndex >= len(array) {
@@ -1714,7 +1714,7 @@ func (v *arraySchema) pruneByVisibilityAt(path []Accessor, vis []Visibility, dat
 	}
 	pruned := make([]json.RawMessage, 0, len(array))
 	for i, item := range array {
-		if arrayIndex != -1 && arrayIndex != i {
+		if key.Type() == ListIndexType && arrayIndex != i {
 			// This is not the data indicated in the path so do not prune; just copy over
 			pruned = append(pruned, item)
 			continue

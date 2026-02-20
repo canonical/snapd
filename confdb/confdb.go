@@ -2722,7 +2722,8 @@ func newNoContainerError(path, actualType string) *noContainerError {
 
 // unmarshalLevel decodes rawLevel into whatever container type it represents
 // (list or map). It returns a noContainerError if the raw JSON can't be
-// unmarshalled to either container type.
+// unmarshalled to either container type. The index should indicate the index
+// of the accessor for the rawLevel. If accessors is empty, then index should be -1.
 func unmarshalLevel(accessors []Accessor, index int, rawLevel json.RawMessage) (any, error) {
 	var mapLevel map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &mapLevel); err != nil {
