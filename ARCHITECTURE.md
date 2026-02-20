@@ -129,11 +129,11 @@ For boot and disk configuration, as well as boot assets management, [`devicestat
 
 ## core-initrd, snap-bootstrap and FDE
 
-On Ubuntu Core systems since 20 and non-Core systems configured nevertheless to use a kernel and gadget snap, a systemd based initrd is in use that is defined in the per-version directories under [`core-initrd/`](https://github.com/canonical/snapd/tree/master/core-initrd).
+On Ubuntu Core systems since 20 and non-Core Ubuntu systems configured to use a kernel and gadget snap, a systemd based initrd is in use that is defined in the per Ubuntu version directories under [`core-initrd/`](https://github.com/canonical/snapd/tree/master/core-initrd).
 
 The main integration point in the initrd is running the [`snap-bootstrap`](https://github.com/canonical/snapd/tree/master/cmd/snap-bootstrap) command which is responsible for initialization and mounting essential snaps as needed to setup the running system. As controlled by the kernel command line snap-bootstrap initializes the system for different lifecycle modes: `install, run, recover, factory-reset`.
 
-`snap-bootstrap` is also crucial in snapd support for Full Disk Encryption (FDE) that ties to the specific device using either TPM with UEFI or OPTEE on ARM (or via hooks other TEEs). It contains the code to obtain device-protected keys from those security modules to open the encrypted disks.
+`snap-bootstrap` is also crucial in snapd support for Full Disk Encryption (FDE) that ties to the specific device using either TPM with UEFI or OPTEE on ARM (or via hooks for other TEEs). It contains the code to obtain device-protected keys from those security modules to open the encrypted disks.
 
 As for example with the TPM, FDE requires measuring boot assets to obtain (unseal) the keys, the implementation needs to be tied with the update logic for essential snaps as those updates change the measurements, the [`boot`](https://github.com/canonical/snapd/tree/master/boot) package and a dedicated state manager [`overlord/fdestate.FDEManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/fdestate#FDEManager) have logic for this.
 
