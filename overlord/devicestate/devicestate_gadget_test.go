@@ -1246,11 +1246,19 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		argsAppended = true
 	}
 	checkCmdlineAppendCoreConfig(c, s.state, "", "")
+
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test ""update-gadget-cmdline"" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
+		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
-		c.Check(updated, Equals, true)
 	}
 	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
 		checkPendingExtraSnapdFragments(c, s.state, false)

@@ -97,6 +97,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
+	swfeats.RegisterEnsure("DeviceManager", "ensureExtraSnapdKernelCommandLineFragmentsApplied")
 
 	snapstate.RegisterResealingTaskKind("set-model")
 	snapstate.RegisterResealingTaskKind("create-recovery-system")
@@ -1952,29 +1953,47 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 // can be detected when entring a recovery-key, passphrase or PIN
 // in a FDE system.
 //
-// This workaround is needed because we cannot updated the initrd
+// This workaround is needed because we cannot update the initrd
 // to set the updated XKB configs for plymouth because it is
 // embedded in the signed UKI.
-//
-// TODO:FDEM: Trigger immediate kernel cmdline update change
-// if args are updated or if there are previous pending changes
-// which can be detected if "kcmdline-pending-extra-snapd-fragments"
-// is set. This requires proper blocking logic for all resealing
-// tasks to be implemented first.
-// Currently, The extra snapd args are only applied lazily when
-// some task updates the kernel command line (e.g. snap set
-// system system.kernel.cmdline-append).
 func (m *DeviceManager) updateEarlyBootXKBConfig(config *keyboard.XKBConfig) error {
 	fragment := config.KernelCommandLineFragment()
-	updated, err := setExtraSnapdKernelCommandLineFragment(m.state, extraSnapdKernelCommandLineFragmentXKB, fragment)
-	if err != nil {
+	return setExtraSnapdKernelCommandLineFragment(m.state, extraSnapdKernelCommandLineFragmentXKB, fragment)
+}
+
+func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var pending bool
+	if err := m.state.Get(kcmdlinePendingExtraSnapdFragmentsKey, &pending); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	if updated {
-		logger.Noticef("Extra snapd kernel cmdline fragment is updated (%s)", fragment)
-		logger.Noticef("Change will take effect in the next kernel cmdline update")
+	if !pending {
+		// nothing to do
+		return nil
 	}
+
+	// check whether there are other changes that need to run exclusively
+	if err := snapstate.CheckChangeConflictExclusiveKinds(m.state, ""); err != nil {
+		logger.Noticef("cannot apply extra snapd kernel command line fragments: %v", err)
+		return nil
+	}
+
+	logger.Noticef("applying pending extra snapd kernel cmdline fragments")
+
+	summary := "Apply extra snapd kernel command line fragments"
+	t := m.state.NewTask("update-gadget-cmdline", summary)
+	// make sure the change does not trigger a system restart to avoid
+	// confusion and bad UX of implicit internal updates to fragment
+	// causing a restart (e.g. a keyboard layout update causing a
+	// sudden restart).
+	t.Set("from-extra-snapd-fragments", true)
+	chg := m.state.NewChange("apply-extra-snapd-kcmdline-fragments", summary)
+	chg.AddTask(t)
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureExtraSnapdKernelCommandLineFragmentsApplied")
 
 	return nil
 }
@@ -2065,6 +2084,12 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureEarlyBootXKBConfigUpdated(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// This must come after all ensures that might update extra snapd
+		// kernel command line fragments.
+		if err := m.ensureExtraSnapdKernelCommandLineFragmentsApplied(); err != nil {
 			errs = append(errs, err)
 		}
 	}

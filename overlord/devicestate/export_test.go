@@ -597,6 +597,10 @@ func EnsureEarlyBootXKBConfigUpdated(m *DeviceManager) error {
 	return m.ensureEarlyBootXKBConfigUpdated()
 }
 
+func EnsureExtraSnapdKernelCommandLineFragmentsApplied(m *DeviceManager) error {
+	return m.ensureExtraSnapdKernelCommandLineFragmentsApplied()
+}
+
 var ProcessAutoImportAssertions = processAutoImportAssertions
 
 func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error)) (restore func()) {
