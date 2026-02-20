@@ -98,15 +98,17 @@ func (u *ubootpart) Name() string {
 	return ubootpartName
 }
 
-func (u *ubootpart) dir() string {
+// assetsDir returns the directory for kernel assets and the environment
+// file at prepare-image time. At runtime this is either /boot/uboot/
+// (run mode) or /uboot/ubuntu/ (recovery / NoSlashBoot), matching uboot.
+func (u *ubootpart) assetsDir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")
 	}
-	if u.prepareImageTime {
-		return filepath.Join(u.rootdir, "/boot/uboot/")
+	if u.role == RoleRecovery {
+		return filepath.Join(u.rootdir, "/uboot/ubuntu/")
 	}
-	// At runtime, we use the partition device
-	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/")
+	return filepath.Join(u.rootdir, "/boot/uboot/")
 }
 
 // diskFromEFI attempts to find the boot disk using the EFI LoaderDevicePartUUID variable
@@ -135,7 +137,7 @@ func diskFromEFI() (disks.Disk, error) {
 func (u *ubootpart) envDevice() (string, error) {
 	if u.prepareImageTime {
 		// At prepare-image time, use a file in the build directory
-		return filepath.Join(u.dir(), "ubuntu-boot-state.img"), nil
+		return filepath.Join(u.assetsDir(), "ubuntu-boot-state.img"), nil
 	}
 
 	// At runtime, lazily initialise the disk. Try EFI first, then
@@ -199,7 +201,7 @@ func (u *ubootpart) envDevice() (string, error) {
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
 		// At prepare-image time, check for the installed environment file
-		envFile := filepath.Join(u.dir(), "ubuntu-boot-state.img")
+		envFile := filepath.Join(u.assetsDir(), "ubuntu-boot-state.img")
 		return osutil.FileExists(envFile), nil
 	}
 
@@ -275,7 +277,7 @@ func (u *ubootpart) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (u *ubootpart) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	dstDir := filepath.Join(u.rootdir, "/boot/uboot/", s.Filename())
+	dstDir := filepath.Join(u.assetsDir(), s.Filename())
 	return extractKernelAssetsToBootDir(dstDir, snapf, ubootKernelAssets)
 }
 
@@ -289,5 +291,5 @@ func (u *ubootpart) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap
 }
 
 func (u *ubootpart) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return removeKernelAssetsFromBootDir(filepath.Join(u.rootdir, "/boot/uboot/"), s)
+	return removeKernelAssetsFromBootDir(u.assetsDir(), s)
 }
