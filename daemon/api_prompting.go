@@ -280,11 +280,11 @@ func promptingError(err error) *apiError {
 		if errors.As(err, &conflictErr) {
 			apiErr.Value = (*promptingRuleConflictError)(conflictErr)
 		}
+	case errors.Is(err, prompting_errors.ErrPromptingClosed):
+		apiErr.Status = 503 // Service Unavailable (down for maintenance)
 	default:
 		// Treat errors without specific mapping as internal errors.
 		// These include:
-		// - ErrPromptsClosed
-		// - ErrRulesClosed
 		// - ErrTooManyPrompts
 		// - ErrRuleIDConflict
 		// - ErrRuleDBInconsistent

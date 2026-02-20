@@ -28,6 +28,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +44,9 @@ import (
 )
 
 const (
+	// readyTimeout is the duration before which outstanding prompts which
+	// have not been re-received after snapd restart should be discarded.
+	readyTimeout = 5 * time.Second
 	// initialTimeout is the duration before which prompts for a given user
 	// will expire if there has been no retrieval of prompt details for that
 	// user since the previous timeout, or if the user prompt DB was just
@@ -480,7 +485,6 @@ type PromptDB struct {
 	// notifyPrompt is a closure which will be called to record a notice when a
 	// prompt is added, merged, modified, or resolved.
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
-
 	// The filepath at which the request map is stored on disk.
 	requestMapFilepath string
 	// requestMap is the mapping from request key to prompt ID/user ID which
@@ -490,6 +494,15 @@ type PromptDB struct {
 	// recorded if the manager readies, causing the prompt ID to be discarded
 	// if no associated request has been re-received for it at time of readying.
 	requestMap map[string]requestMapEntry
+	// pendingUnreceivedRequests stores the pending requests which have not yet
+	// been re-received.
+	pendingUnreceivedRequests map[string]bool
+	// readyTimer is a timer which triggers a cleanup of outstanding requests
+	// which have not been re-received after a timeout.
+	readyTimer timeutil.Timer
+	// ready is closed when all pending requests have been re-received, or when
+	// the readyTimer times out. The mutex must be held when closing ready.
+	ready chan struct{}
 }
 
 // New creates and returns a new prompt database.
@@ -524,6 +537,9 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 		maxIDMmap:    maxIDMmap,
 
 		requestMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json"),
+
+		readyTimer: timeutil.NewTimer(0),
+		ready:      make(chan struct{}),
 	}
 
 	// Load the previous mappings from disk
@@ -544,6 +560,7 @@ type requestMappingJSON struct {
 // to prompt ID, and sets the prompt DB's map to the result.
 //
 // This method should only be called once, when the prompt DB is first created.
+// If called more than once on the same prompt DB, this function may panic.
 //
 // If the existing mapping does not exist, the map is reset to empty, ready
 // for new requests to be added.
@@ -556,6 +573,12 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	defer func() {
 		if pdb.requestMap == nil {
 			pdb.requestMap = make(map[string]requestMapEntry)
+		}
+		if len(pdb.requestMap) == 0 {
+			pdb.readyTimer = timeutil.NewTimer(0)
+			// This may panic if this function is called more than once, which
+			// should never occur
+			close(pdb.ready)
 		}
 	}()
 
@@ -578,6 +601,18 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	}
 
 	pdb.requestMap = savedState.RequestMap
+
+	pdb.pendingUnreceivedRequests = make(map[string]bool, len(pdb.requestMap))
+	for key := range pdb.requestMap {
+		pdb.pendingUnreceivedRequests[key] = true
+	}
+
+	if len(pdb.requestMap) > 0 {
+		pdb.readyTimer = timeAfterFunc(readyTimeout, func() {
+			pruned := pdb.HandleReadying("")
+			logger.Noticef("timed out waiting for requests to be re-received after snap restart: %s", strutil.Quoted(pruned))
+		})
+	}
 
 	return nil
 }
@@ -604,17 +639,46 @@ func (pdb *PromptDB) saveRequestMap() error {
 	return nil
 }
 
+// Ready returns the ready channel for the prompt DB. It is closed when all
+// outstanding requests are re-received after a snapd restart, or after a
+// timeout.
+func (pdb *PromptDB) Ready() <-chan struct{} {
+	return pdb.ready
+}
+
 // HandleReadying prunes map entries for request keys which have not been re-
-// received since snapd restarted. This function should be called by the manager
-// when it readies, before it closes the ready channel to allow new replies or
-// rules to be handled.
-func (pdb *PromptDB) HandleReadying() error {
+// received since snapd restarted. If the given `keyNamespace` is not the empty
+// string, then only requests with keys matching this namespace are pruned.
+//
+// Returns the list of request keys which were pruned.
+//
+// If there are no outstanding prompts left after pruning entries matching the
+// key namespace (or the namespace is the empty string), then signal that the
+// prompt DB is ready. If the prompt DB already signalled readiness, then the
+// function does nothing and returns immediately.
+//
+// This function should be called by the manager when a request originator
+// knows that all previously-pending requests have been re-sent. It should also
+// be called if the prompt DB times out waiting for requests to be re-received.
+func (pdb *PromptDB) HandleReadying(keyNamespace string) []string {
+	prefix := keyNamespace
+	if prefix != "" && !strings.HasSuffix(prefix, ":") {
+		prefix = prefix + ":"
+	}
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 
+	select {
+	case <-pdb.ready:
+		// already ready, so by definition there cannot be outstanding requests
+		return nil
+	default:
+		// no-op
+	}
+
 	// Keep map of requests which haven't been re-received, and record their
 	// map entries so we can record a notice with the correct prompt/user ID.
-	requestKeysToPrune := make(map[string]requestMapEntry)
+	requestsToPrune := make(map[string]requestMapEntry)
 	// Keep track of prompt IDs we see so we know what not to notify for.
 	// This is necessary since it's possible for multiple request keys to be
 	// associated with the same prompt.
@@ -632,12 +696,18 @@ func (pdb *PromptDB) HandleReadying() error {
 			}
 		}
 		// Request has not been re-received
-		requestKeysToPrune[requestKey] = entry
+		if prefix != "" && !strings.HasPrefix(requestKey, prefix) {
+			continue
+		}
+		requestsToPrune[requestKey] = entry
 	}
 
+	requestKeysPruned := make([]string, 0, len(requestsToPrune))
 	data := map[string]string{"resolved": "expired"}
-	for requestKey, entry := range requestKeysToPrune {
+	for requestKey, entry := range requestsToPrune {
+		requestKeysPruned = append(requestKeysPruned, requestKey)
 		delete(pdb.requestMap, requestKey)
+		delete(pdb.pendingUnreceivedRequests, requestKey)
 		if !existingPrompts[entry.PromptID] {
 			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
 		}
@@ -645,11 +715,33 @@ func (pdb *PromptDB) HandleReadying() error {
 		// is gone. Also we can't, since there's no request to call Reply() on.
 	}
 	pdb.saveRequestMap()
-	return nil
+
+	pdb.readyIfPendingAllReceived()
+
+	sort.Strings(requestKeysPruned)
+	return requestKeysPruned
 }
 
 var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
 	return timeutil.AfterFunc(d, f)
+}
+
+// readyIfPendingAllReceived checks whether all pending unreceived requests
+// have been re-received, and if so, ensures that the ready channel is closed.
+// The caller must ensure that the prompt DB mutex is locked.
+func (pdb *PromptDB) readyIfPendingAllReceived() {
+	if len(pdb.pendingUnreceivedRequests) == 0 {
+		select {
+		case <-pdb.ready:
+			// already readied
+		default:
+			// Stop the timer. This is not strictly necessary, as HandleRequests
+			// will return early if already ready, but by stopping it we avoid
+			// starting a goroutine in the future when the timer expires.
+			pdb.readyTimer.Stop()
+			close(pdb.ready)
+		}
+	}
 }
 
 // AddOrMerge checks if the given prompt contents are identical to an existing
@@ -677,7 +769,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return nil, false, prompting_errors.ErrPromptsClosed
+		return nil, false, prompting_errors.ErrPromptingClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -704,6 +796,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		if needToSave {
 			pdb.saveRequestMap()
 		}
+		pdb.readyIfPendingAllReceived()
 	}()
 
 	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, request.Key, metadata, constraints)
@@ -714,7 +807,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// Handle the cases where the request matches an existing prompt
 	if result.foundExistingPrompt {
-		if !result.foundExistingRequestMapping {
+		if result.foundExistingRequestMapping {
+			delete(pdb.pendingUnreceivedRequests, request.Key)
+		} else {
 			// Request matched existing prompt but doesn't have an ID mapped,
 			// so map the request key to the prompt ID.
 			pdb.requestMap[request.Key] = requestMapEntry{
@@ -733,7 +828,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// No existing prompt, so we'll need to make a new one.
 	// If there's no existing ID mapping, get a new prompt ID and map it.
-	if !result.foundExistingRequestMapping {
+	if result.foundExistingRequestMapping {
+		delete(pdb.pendingUnreceivedRequests, request.Key)
+	} else {
 		// Check if there are too many prompts already (this check doesn't
 		// occur if we're re-creating a prompt from an existing ID)
 		if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
@@ -860,7 +957,7 @@ func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	if pdb.isClosed() {
-		return nil, prompting_errors.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.prompts) == 0 {
@@ -895,7 +992,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType, clientActivi
 // The caller should hold a read (or write) lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivity bool) (*userPromptDB, *Prompt, error) {
 	if pdb.isClosed() {
-		return nil, nil, prompting_errors.ErrPromptsClosed
+		return nil, nil, prompting_errors.ErrPromptingClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok {
@@ -967,7 +1064,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return nil, prompting_errors.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -1057,7 +1154,7 @@ func (pdb *PromptDB) Close() error {
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return prompting_errors.ErrPromptsClosed
+		return prompting_errors.ErrPromptingClosed
 	}
 
 	if err := pdb.maxIDMmap.Close(); err != nil {
@@ -1068,8 +1165,24 @@ func (pdb *PromptDB) Close() error {
 		return err
 	}
 
+	// Stop all timers
+	pdb.readyTimer.Stop()
+	for _, userEntry := range pdb.perUser {
+		userEntry.expirationTimer.Stop()
+	}
+
 	// Clear all outstanding prompts
 	pdb.perUser = nil
+
+	// Signal readiness to unblock API calls, but don't call HandleReady, as
+	// that would purge the request map we want to use on next restart.
+	select {
+	case <-pdb.ready:
+		// already readied
+	default:
+		close(pdb.ready)
+	}
+
 	return nil
 }
 

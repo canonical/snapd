@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -63,6 +64,11 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 
 	s.st = state.New(nil)
 	s.defaultUser = 1000
+
+	restore := apparmorprompting.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "some-cgroup-path", nil
+	})
+	s.AddCleanup(restore)
 }
 
 func requestWithReplyChan(req *prompting.Request) (*prompting.Request, chan []string) {
@@ -85,6 +91,13 @@ func (s *apparmorpromptingSuite) TestNew(c *C) {
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	select {
+	case <-mgr.Ready():
+		// all good
+	default:
+		c.Fatalf("manager not ready")
+	}
 
 	err = mgr.Stop()
 	c.Assert(err, IsNil)
@@ -156,7 +169,7 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestStop(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -168,7 +181,6 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Assert(ruleDB, NotNil)
 
 	// Add rule so it can be found when trying to patch
-	close(readyChan)
 	constraints := prompting.ConstraintsJSON{
 		"path-pattern": json.RawMessage(`"/home/test/foo"`),
 		"permissions":  json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
@@ -181,28 +193,28 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 
 	// Check that the listener and prompt and rule backends were closed
 	checkListenerClosed(c, reqChan)
-	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
-	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
+	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptingClosed)
+	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrPromptingClosed)
 
 	// Check that calls to API methods don't panic after backends have been closed
 	_, err = mgr.Prompts(1000, false)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.PromptWithID(1000, rule.ID, false)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.HandleReply(1000, rule.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.Rules(1000, "foo", "bar")
 	c.Check(err, IsNil) // rule backend supports getting rules even after closed
 	_, err = mgr.AddRule(1000, "foo", "home", constraints)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RemoveRules(1000, "foo", "bar")
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RuleWithID(1000, rule.ID)
 	c.Check(err, IsNil) // rule backend supports getting rules even after closed
 	_, err = mgr.PatchRule(1000, rule.ID, nil)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RemoveRule(1000, rule.ID)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
 
 func (s *apparmorpromptingSuite) TestHandleRequestDenyRoot(c *C) {
@@ -227,7 +239,7 @@ func (s *apparmorpromptingSuite) TestHandleRequestDenyRoot(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()
@@ -235,9 +247,6 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// Close readyChan so we can check mgr.Prompts
-	close(readyChan)
 
 	clientActivity := true
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
@@ -292,14 +301,11 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	req, replyChan := requestWithReplyChan(&prompting.Request{})
 	_, prompt := s.simulateRequest(c, reqChan, mgr, req, false)
@@ -435,14 +441,11 @@ func waitForReply(replyChan chan []string) ([]string, error) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	_, prompt := s.simulateRequest(c, reqChan, mgr, &prompting.Request{}, false)
 
@@ -506,15 +509,127 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+func (s *apparmorpromptingSuite) TestQueryAllow(c *C) {
+	s.testQueryWithOutcome(c, prompting.OutcomeAllow)
+}
+
+func (s *apparmorpromptingSuite) TestQueryDeny(c *C) {
+	s.testQueryWithOutcome(c, prompting.OutcomeDeny)
+}
+
+func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.OutcomeType) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+	defer func() {
+		c.Check(mgr.Stop(), IsNil)
+	}()
 
-	// pretend that there are no pending requests to be re-sent
-	close(readyChan)
+	// Check that the manager is ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	default:
+		c.Fatal("manager not ready")
+	}
+
+	const (
+		uid           uint32 = 1234
+		pid           int32  = 5678
+		apparmorLabel string = "snap.foo.bar"
+		iface         string = "audio-record"
+	)
+
+	// There should be no prompts at first
+	prompts, err := mgr.Prompts(uid, false)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Query in the background so we can see and respond to the prompt
+	whenSent := time.Now()
+	outcomeChan := make(chan prompting.OutcomeType)
+	errChan := make(chan error)
+	go func() {
+		out, err := mgr.Query(uid, pid, apparmorLabel, iface)
+		c.Check(err, IsNil, Commentf(logbuf.String()))
+		outcomeChan <- out
+		errChan <- err
+	}()
+
+	// Wait for a notice
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	c.Check(err, IsNil, Commentf(logbuf.String()))
+	c.Check(n, HasLen, 1)
+
+	// Retrieve prompt
+	prompts, err = mgr.Prompts(uid, true)
+	c.Check(err, IsNil)
+	c.Assert(prompts, HasLen, 1)
+	prompt := prompts[0]
+
+	// Check its contents
+	c.Check(prompt.ID, Equals, prompting.IDType(1))
+	c.Check(prompt.Snap, Equals, "foo")
+	c.Check(prompt.PID, Equals, pid)
+	c.Check(prompt.Cgroup, Equals, "some-cgroup-path")
+	c.Check(prompt.Interface, Equals, iface)
+	c.Check(prompt.Constraints.Path(), Equals, "/api-request-placeholder")
+	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"access"})
+
+	// Check the request mapping
+	expected := fmt.Sprintf(`{"request-mapping":{"api:%s:%d:%d:%s":{"prompt-id":"0000000000000001","user-id":%d}}}`, iface, uid, pid, apparmorLabel, uid)
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Check(requestMapFilepath, testutil.FileEquals, expected)
+
+	// Verify that the goroutine is still waiting
+	select {
+	case result := <-outcomeChan:
+		c.Fatalf("received outcome before replying: %v", result)
+	case err := <-errChan:
+		c.Fatalf("received error from query before replying: %v", err)
+	default:
+		// all good
+	}
+
+	// Reply
+	constraintsJSON := prompting.ConstraintsJSON{
+		"permissions": json.RawMessage(`["access"]`),
+	}
+	satisfied, err := mgr.HandleReply(uid, prompt.ID, constraintsJSON, outcome, prompting.LifespanSingle, "", true)
+	c.Check(err, IsNil)
+	c.Check(satisfied, HasLen, 0)
+
+	// See that reply was received
+	select {
+	case result := <-outcomeChan:
+		c.Check(result, Equals, outcome)
+	case <-time.After(time.Second):
+		c.Fatalf("failed to receive outcome after replying")
+	}
+	select {
+	case err := <-errChan:
+		c.Check(err, IsNil)
+	case <-time.After(time.Second):
+		c.Fatalf("failed to receive error value after replying")
+	}
+}
+
+func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
+	_, reqChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
 
 	// Add allow rule to match read permission
 	constraints := prompting.ConstraintsJSON{
@@ -580,14 +695,11 @@ func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// pretend that there are no pending requests to be re-sent
-	close(readyChan)
 
 	// Add rule to match read permission
 	constraints := prompting.ConstraintsJSON{
@@ -612,14 +724,11 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// pretend that there are no pending requests to be re-sent
-	close(readyChan)
 
 	// Add deny rule to match read permission
 	constraints := prompting.ConstraintsJSON{
@@ -658,14 +767,11 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// pretend that there are no pending requests to be re-sent
-	close(readyChan)
 
 	// Add deny rule to match read permission
 	constraints := prompting.ConstraintsJSON{
@@ -716,14 +822,11 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Add read request
 	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
@@ -791,14 +894,11 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Add read request
 	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
@@ -860,7 +960,7 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -869,9 +969,6 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
 	// that rule applies to existing prompts.
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Add read request
 	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
@@ -958,7 +1055,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 		duration = "10m"
 	}
 
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -967,9 +1064,6 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
 	// that rule applies to existing prompts.
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Add read request
 	readReq, readReplyChan := requestWithReplyChan(&prompting.Request{
@@ -1055,7 +1149,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 }
 
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -1063,9 +1157,6 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 
 	// Requests with identical *original* abstract permissions are merged into
 	// the existing prompt
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Create request for read and write
 	partialReq := &prompting.Request{
@@ -1105,11 +1196,8 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
-
-	// Close readyChan so we can add rules
-	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1185,11 +1273,8 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
-
-	// Close readyChan so we can add rules
-	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1211,11 +1296,8 @@ func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
-
-	// Close readyChan so we can add rules
-	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1237,11 +1319,8 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
-
-	// Close readyChan so we can add rules
-	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1263,14 +1342,11 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
-	readyChan, reqChan, restore := apparmorprompting.MockListener()
+	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
-
-	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
-	close(readyChan)
 
 	// Add read request
 	req, replyChan := requestWithReplyChan(&prompting.Request{
@@ -1347,64 +1423,201 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c *C) {
-	readyChan, _, restore := apparmorprompting.MockListener()
+func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsReady(c *C) {
+	listenerReady, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
-	handleStarted := make(chan struct{})
-	finishHandle := make(chan struct{})
-	restore = apparmorprompting.MockPromptsHandleReadying(func(pdb *requestprompts.PromptDB) error {
-		close(handleStarted)
-		<-finishHandle
-		return nil
-	})
+	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
-	// Check that the callback has not started yet
-	select {
-	case <-handleStarted:
-		c.Errorf("HandleReadying started before ready was signalled")
-	case <-time.After(10 * time.Millisecond):
-		// all good
-	}
-
-	// Signal ready
-	close(readyChan)
-
-	// Check that the callback has now started
-	select {
-	case <-handleStarted:
-		// all good
-	case <-time.After(time.Second):
-		c.Errorf("HandleReadying failed to start after ready was signalled")
-	}
-
-	// Check that the manager is not yet ready
-	select {
-	case <-mgr.Ready():
-		c.Errorf("manager is ready before HandleReadying returned")
-	case <-time.After(10 * time.Millisecond):
-		// all good
-	}
-
-	// Tell the HandleReadying to return
-	close(finishHandle)
-
-	// Check that the manager is now ready
 	select {
 	case <-mgr.Ready():
 		// all good
-	case <-time.After(time.Second):
-		c.Errorf("manager failed to become ready after HandleReadying returned")
+	default:
+		c.Errorf("manager should be ready immediately")
 	}
+
+	// Signal ready from the listener
+	close(listenerReady)
+
+	select {
+	case <-mgr.Ready():
+		// all good
+	default:
+		c.Errorf("manager should still be ready")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding requests were pruned")
+	})
 
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
+func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsNotReady(c *C) {
+	listenerReady, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	// Write a mapping from non-kernel request to prompt ID so the prompts backend
+	// will not immediately be ready, and listener
+	const requestMapping = `{"request-mapping":{"api:foo":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager should not be ready")
+	default:
+		// all good
+	}
+
+	// Signal ready from the listener
+	close(listenerReady)
+
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager should still not be ready")
+	default:
+		// all good
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "listener signalled readiness and no outstanding requests were pruned")
+	})
+
+	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
+	})
+}
+
+func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfNoOtherRequests(c *C) {
+	listenerReady, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	// Write a mapping from kernel request to prompt ID so the prompts backend
+	// will not immediately be ready
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Check that the prompts are not ready yet
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager readied before listener signalled ready")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Signal ready from the listener
+	close(listenerReady)
+
+	// Check that the prompts backend is now ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after listener readied")
+	}
+
+	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "requests timed out in the kernel while snapd was restarting: \"kernel:0000000000000001\"\n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
+	})
+}
+
+func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadyingIfOtherRequests(c *C) {
+	listenerReady, reqChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	// Write a mapping from several kernel request to prompt IDs, and at least
+	// one request from elsewhere, so the listener signalling readiness will
+	// not cause the prompts backend to ready.
+	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:foo":{"prompt-id":"0000000000000003","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Check that the prompts are not ready yet
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager unexpectedly readied immediately")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Send one kernel request so we check that it is not dropped when listener readies
+	req := &prompting.Request{
+		Key: "kernel:2",
+		UID: 1000,
+	}
+	s.fillInPartialRequest(req)
+	reqChan <- req
+
+	// Check that the prompts are not ready yet
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager unexpectedly readied even though other requests were outstanding, even before listener signalled ready")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Signal ready from the listener
+	close(listenerReady)
+
+	// Check that the prompts backend is still not ready
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager unexpectedly readied even though other requests were outstanding")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, `requests timed out in the kernel while snapd was restarting: "kernel:1", "kernel:3"`)
+		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
+	})
+
+	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
+	})
+}
+
+func (s *apparmorpromptingSuite) TestPromptsReadyBlocksRepliesNewRules(c *C) {
 	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
 		prompts, err := mgr.Prompts(1000, false)
 		c.Check(err, IsNil)
@@ -1446,6 +1659,13 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorprompting.InterfacesRequestsManager)) {
 	readyChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Write a mapping from kernel request to prompt ID so the prompts backend
+	// will not immediately be ready
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)

@@ -76,7 +76,9 @@ func parseInterfaceSpecificConstraints(iface string, constraintsJSON Constraints
 	case "home":
 		interfaceSpecific = &InterfaceSpecificConstraintsHome{}
 	case "camera":
-		interfaceSpecific = &InterfaceSpecificConstraintsCamera{}
+		interfaceSpecific = &InterfaceSpecificConstraintsEmpty{}
+	case "audio-record":
+		interfaceSpecific = &InterfaceSpecificConstraintsEmpty{}
 	default:
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
@@ -155,32 +157,33 @@ func (constraints *InterfaceSpecificConstraintsHome) patch(existing InterfaceSpe
 	return newConstraints
 }
 
-// InterfaceSpecificConstraintsCamera don't have any fields. All camera prompts,
-// replies, and rules concern access to all cameras.
-type InterfaceSpecificConstraintsCamera struct{}
+// InterfaceSpecificConstraintsEmpty don't have any fields. This should be used
+// for all interfaces which do not have interface-specific constraints, such as
+// marker interfaces.
+type InterfaceSpecificConstraintsEmpty struct{}
 
-func (constraints *InterfaceSpecificConstraintsCamera) parseJSON(constraintsJSON ConstraintsJSON) error {
+func (constraints *InterfaceSpecificConstraintsEmpty) parseJSON(constraintsJSON ConstraintsJSON) error {
 	// Don't expect any fields
 	return nil
 }
 
-func (constraints *InterfaceSpecificConstraintsCamera) parsePatchJSON(constraintsJSON ConstraintsJSON) error {
+func (constraints *InterfaceSpecificConstraintsEmpty) parsePatchJSON(constraintsJSON ConstraintsJSON) error {
 	// Don't expect any fields
 	return nil
 }
 
-func (constraints *InterfaceSpecificConstraintsCamera) toJSON() (ConstraintsJSON, error) {
+func (constraints *InterfaceSpecificConstraintsEmpty) toJSON() (ConstraintsJSON, error) {
 	return make(ConstraintsJSON), nil
 }
 
-func (constraints *InterfaceSpecificConstraintsCamera) pathPattern() *patterns.PathPattern {
+func (constraints *InterfaceSpecificConstraintsEmpty) pathPattern() *patterns.PathPattern {
 	pathPattern, _ := patterns.ParsePathPattern("/**")
 	// Error cannot occur, this is a known good pattern.
 	return pathPattern
 }
 
-func (constraints *InterfaceSpecificConstraintsCamera) patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints {
-	return &InterfaceSpecificConstraintsCamera{}
+func (constraints *InterfaceSpecificConstraintsEmpty) patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints {
+	return &InterfaceSpecificConstraintsEmpty{}
 }
 
 // Constraints hold information about the applicability of a new rule to
@@ -871,8 +874,9 @@ var (
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
 	interfacePermissionsAvailable = map[string][]string{
-		"home":   {"read", "write", "execute"},
-		"camera": {"access"},
+		"home":         {"read", "write", "execute"},
+		"camera":       {"access"},
+		"audio-record": {"access"},
 	}
 
 	// A mapping from interfaces which support AppArmor file permissions to
@@ -891,6 +895,11 @@ var (
 			"access": notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
 		},
 	}
+
+	// Some interfaces do not define AppArmor rules, and thus requests for that
+	// interface are not created by the listener, and permissions do not map to
+	// AppArmor permissions.
+	nonAppArmorInterfaces = []string{"audio-record"}
 )
 
 // availableInterfaces returns the list of supported interfaces.
