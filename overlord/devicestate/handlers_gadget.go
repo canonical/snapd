@@ -334,8 +334,8 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 
 	// Find out if the update has been triggered by setting an extra
 	// snapd kernel command line fragment.
-	var fromExtraSnapdFragment bool
-	err = t.Get("from-extra-snapd-fragments", &fromExtraSnapdFragment)
+	var fromExtraSnapdFragments bool
+	err = t.Get("from-extra-snapd-fragments", &fromExtraSnapdFragments)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -371,7 +371,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 
 	// We use the current gadget kernel command line if the change comes
 	// from setting a system option.
-	useCurrentGadget := fromSysOption || fromExtraSnapdFragment
+	useCurrentGadget := fromSysOption || fromExtraSnapdFragments
 	updated, err := m.updateGadgetCommandLine(t, st, useCurrentGadget)
 	if err != nil {
 		return err
@@ -382,7 +382,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 	//
 	// Note that the state lock must be held for the duration of the
 	// task so that we do not accidentally unset the pending state
-	// that might have been set externally if the state was unloked.
+	// that might have been set externally if the state was unlocked.
 	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, false)
 
 	if !updated {
@@ -395,7 +395,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 	// snap carries an update to the gadget assets and a change in the
 	// kernel command line
 
-	if fromSysOption || fromExtraSnapdFragment {
+	if fromSysOption || fromExtraSnapdFragments {
 		logger.Debugf("change did not come from gadget, we do not reboot")
 		t.SetStatus(state.DoneStatus)
 		return nil
