@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -2411,14 +2412,17 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	st.Lock()
 	defer st.Unlock()
 
-	logger.Debugf("delayed effects coordination")
-
 	var snapLanes []int
 	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	logger.Debugf("monitor lanes: %v", snapLanes)
+	logger.Debugf("delayed effects coordination, monitoring lanes: %v", snapLanes)
+
+	if len(snapLanes) == 0 {
+		task.SetStatus(state.DoneStatus)
+		return nil
+	}
 
 	// We are going to apply the effects only for triggering snaps in lanes
 	// which were fully successful. Depending on the scenario there could be one
@@ -2426,25 +2430,31 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	// have completed.
 	successfulTriggeringSnaps := map[triggeringSnap]bool{}
 	chg := task.Change()
+	considerRestartTriggeringTasks := make(map[string]bool, len(chg.Tasks()))
+
+	unreadyTasks := false
 	for _, lane := range snapLanes {
 		laneFailed := false
 		var seenSnaps []string
 	laneLoop:
 		for _, tsk := range chg.LaneTasks(lane) {
+			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
 			case tsk.ID() == task.ID():
 				// our task should only be present in the default '0' lane, not a dedicated one
 				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
 					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
 				}
+				delete(considerRestartTriggeringTasks, tsk.ID())
 				continue
 			case tsk.Kind() == "check-rerefresh":
 				// same thing applies to check-rerefresh, although lane
 				// verification should be done in snapstate
+				delete(considerRestartTriggeringTasks, tsk.ID())
 				continue
 			case !tsk.Status().Ready():
-				logger.Debugf("not yet ready")
-				return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
+				// Continue iterating to collect all task IDs for restart checking
+				unreadyTasks = true
 			case tsk.Status() != state.DoneStatus:
 				laneFailed = true
 				break laneLoop
@@ -2465,9 +2475,15 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 		}
 	}
 
-	// TODO: handle pending reboot
+	if restart.PendingForChangeTasks(st, chg, considerRestartTriggeringTasks) {
+		// Tasks in monitored lanes may have requested a restart, in which case we
+		// must put ourselves into the waiting state.
+		return restart.TaskWaitForRestart(task)
+	}
 
-	logger.Debugf("happy snaps: %v", successfulTriggeringSnaps)
+	if unreadyTasks {
+		return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
+	}
 
 	delayed, err := getDelayedEffectsForSnaps(task)
 	if err != nil {
@@ -2476,20 +2492,15 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 
 	if len(delayed.TriggeringSnaps) == 0 {
 		task.Logf("no delayed backend effects")
-		logger.Debug("no delayed backend effects")
 		return nil
 	}
-
-	logger.Debugf("delayed effects work %+v", delayed)
 
 	// delayed effects are grouped by snap providing the slot, regroup them by
 	// the affected snap only of the snap that triggered it has been successfully
 	// processed
 	snapsWithDelayedEffects := newDelayedEffectsForSnaps()
 	for triggeredBySnap, affectedSnaps := range delayed.TriggeringSnaps {
-		logger.Debugf("triggered by: %q", triggeredBySnap)
 		if _, ok := successfulTriggeringSnaps[triggeredBySnap]; !ok {
-			logger.Debugf("skipping effects triggered by failed snap %q", triggeredBySnap)
 			task.Logf("skipping effects triggered by failed snap %q", triggeredBySnap)
 			continue
 		}
@@ -2516,7 +2527,6 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 		}
 
 		task.Logf("scheduling delayed effects for snap %q", affectedSnap)
-		logger.Debugf("scheduling delayed effects for snap %q", affectedSnap)
 
 		// One task per connected snap instance
 		updateTask := st.NewTask("apply-delayed-snap-security-backend-effects",
