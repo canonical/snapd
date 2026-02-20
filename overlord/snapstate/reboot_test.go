@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/dot/dottest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -39,9 +40,15 @@ type rebootSuite struct {
 var _ = Suite(&rebootSuite{})
 
 func (s *rebootSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	s.state = state.New(nil)
+}
+
+func (s *rebootSuite) TearDownTest(c *C) {
+	dottest.ExportChangeGraphs(c, s.state)
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snapType snap.Type) snapstate.SnapInstallTaskSet {
