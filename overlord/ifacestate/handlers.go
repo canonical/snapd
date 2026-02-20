@@ -429,7 +429,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	}
 
 	// Compute the set of affected snaps. The set affectedSet set contains name
-	// of all the affected snap instances.  The arrays affectedNames and affectedSnaps
+	// of all the affected snap instances. The arrays affectedNames and affectedSnaps
 	// contain, arrays of snap names and snapInfo's, respectively. The arrays are
 	// sorted by name with the special exception that the snap being setup is always
 	// first. The affectedSnaps array may be shorter than the set of affected snaps in
@@ -693,11 +693,13 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 	return setPendingProfilesSideInfo(st, appSet.InstanceName(), appSet)
 }
 
-// This function expects to be called with the state locked
-func shouldUndoSetupProfiles(task *state.Task, snapName string) bool {
+// shouldUndoSetupProfiles determines whether the undo is actually required given
+// the current task-set, and based on the name of the current task.
+func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 	// Check if there is a "prepare-profiles" task in the change.
-	// If there is not, then we should always do the undo of setup-profiles.
-	prepareProfiles := snapstate.FindTaskMatchingKindAndSnap(task.Change().Tasks(), "prepare-profiles", snapName)
+	// If there is not, then we've likely hit either a change created
+	// prior to this version of snapd, or it may be a component-only change
+	prepareProfiles := snapstate.FindTaskMatchingKindAndSnap(task.Change().Tasks(), "prepare-profiles", instanceName)
 	if prepareProfiles == nil {
 		return true
 	}
@@ -770,7 +772,14 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		// When undoing, ignore any component setup data attached to the task and
 		// regenerate profiles based on the components that are currently installed
 		// for this revision.
-		opts, err := m.buildConfinementOptions(st, task, snapInfo, snapsup.Flags)
+		// TODO: The relevant confinement flags (devmode, jailmode and classic)
+		// should be split out into a separate struct here to avoid passing all
+		// of snapst.Flags.
+		// OBS: It's important here that we are passing snapst.Flags
+		// and not snapsup.Flags, as the latter may contain different flags optins that
+		// impact profile generation while we want to be setting up the old profiles
+		// based on the old flags. (Specifically the Classic flag may have changed)
+		opts, err := m.buildConfinementOptions(st, task, snapInfo, snapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -786,7 +795,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(st, snapsup.InstanceName(), appSet)
+		return setPendingProfilesSideInfo(st, snapName, appSet)
 	}
 }
 
