@@ -21,10 +21,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -59,8 +62,9 @@ type cmdSet struct {
 		ConfValues []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 
-	Typed  bool `short:"t"`
-	String bool `short:"s"`
+	Typed   bool   `short:"t"`
+	String  bool   `short:"s"`
+	Timeout string `long:"access-timeout"`
 }
 
 func init() {
@@ -74,6 +78,8 @@ func init() {
 			"t": i18n.G("Parse the value strictly as JSON document"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"s": i18n.G("Parse the value as a string"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"access-timeout": i18n.G("The timeout for waiting to access confdb"),
 		}), []argDesc{
 			{
 				name: "<snap>",
@@ -112,8 +118,22 @@ func (x *cmdSet) Execute([]string) error {
 			return err
 		}
 
-		chgID, err = x.client.ConfdbSetViaView(confdbViewID, patchValues)
+		var opts client.ConfdbOptions
+		if x.Timeout != "" {
+			timeout, err := time.ParseDuration(x.Timeout)
+			if err != nil {
+				return fmt.Errorf("cannot parse --access-timeout value: %v", err)
+			}
+
+			opts.Timeout = timeout
+		}
+
+		chgID, err = x.client.ConfdbSetViaView(confdbViewID, patchValues, opts)
 	} else {
+		if x.Timeout != "" {
+			return fmt.Errorf("cannot use --timeout with non-confdb write")
+		}
+
 		chgID, err = x.client.SetConf(snapName, patchValues)
 	}
 
