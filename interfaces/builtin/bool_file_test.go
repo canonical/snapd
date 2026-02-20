@@ -198,6 +198,8 @@ func (s *BoolFileInterfaceSuite) TestAddConnectedPlugAdditionalSnippetsForLeds(c
 			"/sys/devices/platform/leds/leds/status-grn-led/brightness rwk,",
 			"/sys/devices/platform/leds/leds/status-grn-led/delay_off rw,",
 			"/sys/devices/platform/leds/leds/status-grn-led/delay_on rw,",
+			"/sys/devices/platform/leds/leds/status-grn-led/multi_intensity rw,",
+			"/sys/devices/platform/leds/leds/status-grn-led/pattern rw,",
 			"/sys/devices/platform/leds/leds/status-grn-led/trigger rw,",
 		},
 	})
