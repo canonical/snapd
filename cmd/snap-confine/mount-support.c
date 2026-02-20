@@ -52,6 +52,7 @@
 
 #define MAX_BUF 1000
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
+#define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
@@ -558,43 +559,67 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
     sc_do_mounts(scratch_dir, config->dynamic_mounts);
 
     if (config->normal_mode) {
-        // Since we mounted /etc from the host filesystem to the scratch directory,
-        // we may need to put certain directories from the desired root filesystem
-        // (e.g. the core snap) back. This way the behavior of running snaps is not
-        // affected by the alternatives directory from the host, if one exists.
+        // Since we mounted /etc from the host filesystem to the scratch
+        // directory, we need to put certain directories and files from the
+        // desired root filesystem (e.g. the base snap) back. This way the
+        // behavior of running snaps is not affected by these
+        // files/directories.
         //
         // Fixes the following bugs:
         //  - https://bugs.launchpad.net/snap-confine/+bug/1580018
         //  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-        static const char *dirs_from_core[] = {"/etc/alternatives", "/etc/nsswitch.conf",
-                                               // Some specific and privileged interfaces (e.g docker-support) give
-                                               // access to apparmor_parser from the base snap which at a minimum
-                                               // needs to use matching configuration from the base snap instead
-                                               // of from the users host system.
-                                               "/etc/apparmor", "/etc/apparmor.d",
-                                               // Use ssl certs from the base by default unless
-                                               // using Debian/Ubuntu classic (see below)
-                                               "/etc/ssl", NULL};
+        static const char *paths_all[] = {"/etc/alternatives", "/etc/nsswitch.conf",
+                                          // Some specific and privileged interfaces (e.g docker-support) give
+                                          // access to apparmor_parser from the base snap which at a minimum
+                                          // needs to use matching configuration from the base snap instead
+                                          // of from the users host system.
+                                          "/etc/apparmor", "/etc/apparmor.d",
+                                          // Use ssl certs from the base by default unless
+                                          // using Debian/Ubuntu classic (see below)
+                                          "/etc/ssl"};
+        static const char *paths_after_26[] = {// We want to use the ld cache / configuration from the app base
+                                               "/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/ld.so.conf.d"};
+        static const char *paths_from_base[NUM_ELEM(paths_all) + NUM_ELEM(paths_after_26) + 1] = {NULL};
+        size_t num_paths = 0;
+        for (; num_paths < NUM_ELEM(paths_all); ++num_paths) {
+            paths_from_base[num_paths] = paths_all[num_paths];
+        }
+        const char *bases_before_26[] = {
+            "core", "core18", "core20", "core22", "core24", NULL,
+        };
+        bool is_after_26 = true;
+        for (const char **base = bases_before_26; *base != NULL; ++base) {
+            if (sc_streq(config->base_snap_name, *base)) {
+                is_after_26 = false;
+                break;
+            }
+        }
+        if (is_after_26) {
+            debug("adding ld caches to bind mounts for core26+");
+            for (size_t i = 0; i < NUM_ELEM(paths_after_26); ++i) {
+                paths_from_base[num_paths + i] = paths_after_26[i];
+            }
+        }
 
-        for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
-            const char *dir = *dirs;
+        for (const char **paths = paths_from_base; *paths != NULL; paths++) {
+            const char *path = *paths;
 
             // Special case for ubuntu/debian based
-            // classic distros that use the core* snap:
+            // classic distros that use base snaps:
             // here we use the host /etc/ssl
             // to support custom ca-cert setups
-            if (sc_streq(dir, "/etc/ssl") && config->distro == SC_DISTRO_CLASSIC && sc_is_debian_like() &&
+            if (sc_streq(path, "/etc/ssl") && config->distro == SC_DISTRO_CLASSIC && sc_is_debian_like() &&
                 sc_startswith(config->base_snap_name, "core")) {
                 continue;
             }
 
-            if (access(dir, F_OK) != 0) {
+            if (access(path, F_OK) != 0) {
                 continue;
             }
             struct stat dst_stat;
             struct stat src_stat;
-            sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir, dir);
-            sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, dir);
+            sc_must_snprintf(src, sizeof src, "%s%s", config->rootfs_dir, path);
+            sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, path);
             if (lstat(src, &src_stat) != 0) {
                 if (errno == ENOENT) {
                     continue;

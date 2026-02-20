@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -67,6 +68,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	s.iface3 = &ifacetest.TestInterface{InterfaceName: "iface3"}
 	c.Assert(s.Repo.AddInterface(s.iface3), IsNil)
+
+	s.AddCleanup(cgroup.MockVersion(2, nil))
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -305,6 +308,123 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got = strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
+}
+
+func (s *backendSuite) TestSetupNoChangesNoUpdate(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(fsEntry1)
+	}
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
+		return spec.AddMountEntry(fsEntry2)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content1, err := os.ReadFile(fn)
+	c.Assert(err, IsNil)
+	c.Check(fn, testutil.FileContains, fsEntry1.String())
+	c.Check(fn, testutil.FileContains, fsEntry2.String())
+
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	c.Assert(os.WriteFile(mntFile, []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	// snap-update-ns was not called
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// content is identical
+	content2, err := os.ReadFile(fn)
+	c.Assert(err, IsNil)
+	c.Check(content1, DeepEquals, content2)
+}
+
+func (s *backendSuite) TestSetupUpdateChangedRemoved(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry1Mod := osutil.MountEntry{Name: "/src-1a", Dir: "/dst-1a", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	const (
+		modeStart = iota
+		modeRemove
+		modeUpdate
+	)
+	mode := modeStart
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		switch mode {
+		case modeStart:
+			return spec.AddMountEntry(fsEntry1)
+		case modeRemove:
+			return nil
+		case modeUpdate:
+			return spec.AddMountEntry(fsEntry1Mod)
+		default:
+			panic("unexpected state")
+		}
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	c.Check(fn, testutil.FileContains, fsEntry1.String())
+
+	// ensure .mnt file
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt")
+	c.Assert(os.WriteFile(mntFile, []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+
+	doSetup := func() {
+		err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+		c.Assert(err, IsNil)
+	}
+	// no changes
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// pretend we have an update
+	mode = modeUpdate
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 1)
+	cmd.ForgetCalls()
+
+	// still same updated content
+	doSetup()
+	// no calls
+	c.Check(cmd.Calls(), HasLen, 0)
+	cmd.ForgetCalls()
+
+	// now remove an entry
+	mode = modeRemove
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 1)
+	cmd.ForgetCalls()
+
+	// one more for good measure
+	doSetup()
+	c.Check(cmd.Calls(), HasLen, 0)
 }
 
 func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
@@ -718,4 +838,167 @@ func (s *backendSuite) TestEffectNotDelayedWhenNotPossible(c *C) {
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
 		{"snap-update-ns", "consumer"},
 	})
+}
+
+func (s *backendSuite) TestEffectApplyDelayedOpportunisticDiscardHappy(c *C) {
+	// delaying effects is not possible, as indicated in SetupContext
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	cmdUpdNs := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmdUpdNs.Restore()
+	cmdDiscardNs := testutil.MockCommand(c, filepath.Join(cmdUpdNs.BinDir(), "snap-discard-ns"), "exit 0")
+	defer cmdDiscardNs.Restore()
+	dirs.DistroLibExecDir = cmdUpdNs.BinDir()
+
+	consumerDelayed := interfaces.DelayedSideEffect{
+		ID:          mount.DelayedConsumerMountNsUpdate,
+		Description: "mount namespace update triggered by slot provider update",
+	}
+
+	// easy case first, no instances, no mnt file
+	eff := []interfaces.DelayedSideEffect{consumerDelayed}
+	defMntB := s.Backend.(interfaces.DelayedSideEffectsBackend)
+
+	err := defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Check(err, IsNil)
+	c.Check(cmdUpdNs.Calls(), HasLen, 0)
+	c.Check(cmdDiscardNs.Calls(), HasLen, 0)
+
+	cmdUpdNs.ForgetCalls()
+	cmdDiscardNs.ForgetCalls()
+
+	// write mnt file
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	err = defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmdUpdNs.Calls(), HasLen, 0)
+	c.Check(cmdDiscardNs.Calls(), DeepEquals, [][]string{
+		{"snap-discard-ns", "--snap-already-locked", "consumer"},
+	})
+
+	cmdUpdNs.ForgetCalls()
+	cmdDiscardNs.ForgetCalls()
+
+	// mnt file, process instances
+	s.mockCgroup(c, "a/b/c/snap.consumer.foo.123123123123.scope")
+	err = defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+	c.Check(cmdDiscardNs.Calls(), HasLen, 0)
+
+	cmdUpdNs.ForgetCalls()
+	cmdDiscardNs.ForgetCalls()
+
+	c.Assert(os.RemoveAll(s.cgroupRoot()), IsNil)
+
+	// hook instances
+	s.mockCgroup(c, "a/b/c/snap.consumer.hook.foo.123123123123.scope")
+	err = defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+	c.Check(cmdDiscardNs.Calls(), HasLen, 0)
+
+	cmdUpdNs.ForgetCalls()
+	cmdDiscardNs.ForgetCalls()
+
+	c.Assert(os.RemoveAll(s.cgroupRoot()), IsNil)
+
+	// service instances
+	s.mockCgroup(c, "a/b/c/snap.consumer.svc.service")
+	err = defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
+		{"snap-update-ns", "consumer"},
+	})
+	c.Check(cmdDiscardNs.Calls(), HasLen, 0)
+
+	cmdUpdNs.ForgetCalls()
+	cmdDiscardNs.ForgetCalls()
+
+	c.Assert(os.RemoveAll(s.cgroupRoot()), IsNil)
+}
+
+func (s *backendSuite) TestEffectApplyDelayedOpportunisticDiscardErrFallsBack(c *C) {
+	// delaying effects is not possible, as indicated in SetupContext
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	cmds := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmds.Restore()
+	// snap-discard-ns fails
+	cmds.Also("snap-discard-ns", "exit 1")
+	dirs.DistroLibExecDir = cmds.BinDir()
+
+	consumerDelayed := interfaces.DelayedSideEffect{
+		ID:          mount.DelayedConsumerMountNsUpdate,
+		Description: "mount namespace update triggered by slot provider update",
+	}
+
+	eff := []interfaces.DelayedSideEffect{consumerDelayed}
+	defMntB := s.Backend.(interfaces.DelayedSideEffectsBackend)
+
+	// write mnt file
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	err := defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(cmds.Calls(), DeepEquals, [][]string{
+		{"snap-discard-ns", "--snap-already-locked", "consumer"},
+		{"snap-update-ns", "consumer"},
+	})
+}
+
+func (s *backendSuite) TestEffectApplyDelayedOpportunisticDiscardErrLockHeldFallback(c *C) {
+	// delaying effects is not possible, as indicated in SetupContext
+	consumerAppSet := s.AddSnap(c, "consumer", mockConsumerSnapYaml, 0)
+
+	cmds := testutil.MockCommand(c, "snap-update-ns", "exit 0")
+	defer cmds.Restore()
+	cmds.Also("snap-discard-ns", "exit 0")
+	dirs.DistroLibExecDir = cmds.BinDir()
+
+	consumerDelayed := interfaces.DelayedSideEffect{
+		ID:          mount.DelayedConsumerMountNsUpdate,
+		Description: "mount namespace update triggered by slot provider update",
+	}
+
+	eff := []interfaces.DelayedSideEffect{consumerDelayed}
+	defMntB := s.Backend.(interfaces.DelayedSideEffectsBackend)
+
+	// write mnt file
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "consumer.mnt"), []byte(""), 0644), IsNil)
+
+	// take the lock so nested locking attempts will fail
+	err := snaplock.WithLock("consumer", func() error {
+		err := defMntB.ApplyDelayedEffects(consumerAppSet, eff, timings.New(nil).StartSpan("", ""))
+		c.Assert(err, IsNil)
+
+		c.Check(cmds.Calls(), DeepEquals, [][]string{
+			// only call to snap-update-ns
+			{"snap-update-ns", "consumer"},
+		})
+		return err
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *backendSuite) cgroupRoot() string {
+	return filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup")
+}
+
+func (s *backendSuite) mockCgroup(c *C, dir string) {
+	path := filepath.Join(s.cgroupRoot(), dir)
+
+	c.Assert(os.MkdirAll(path, 0755), IsNil)
+	finalPath := filepath.Join(path, "cgroup.procs")
+	c.Assert(os.WriteFile(finalPath, []byte("222222\n33333\n"), 0644), IsNil)
 }

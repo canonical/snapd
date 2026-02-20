@@ -8820,34 +8820,6 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	const withComponents = false
-	s.addSnapsForRemodel(c, withComponents)
-
-	tugc := s.state.NewTask("update-gadget-cmdline", "update gadget cmdline")
-	chg := s.state.NewChange("optional-kernel-cmdline", "optional kernel cmdline")
-	chg.AddTask(tugc)
-
-	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
-	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:  si.Revision,
-		SnapType: "app",
-	})
-	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap", "")
-	c.Assert(err, ErrorMatches, "kernel command line already being updated, no additional changes for it allowed meanwhile")
-	c.Assert(ts, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

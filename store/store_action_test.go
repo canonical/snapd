@@ -1265,7 +1265,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "xdelta3")
+		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "snap-1-1-xdelta3,xdelta3")
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {

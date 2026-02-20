@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -39,7 +38,7 @@ func MockListenerRegister(f func() (listenerBackend, error)) (restore func()) {
 
 type fakeListener struct {
 	readyChan chan struct{}
-	reqsChan  chan *listener.Request
+	reqsChan  chan *prompting.Request
 	closeChan chan struct{}
 }
 
@@ -72,16 +71,16 @@ func (l *fakeListener) Ready() <-chan struct{} {
 	return l.readyChan
 }
 
-func (l *fakeListener) Reqs() <-chan *listener.Request {
+func (l *fakeListener) Reqs() <-chan *prompting.Request {
 	return l.reqsChan
 }
 
-func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, restore func()) {
+func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
 	// The readyChan should be closed once all pending previously-sent requests
 	// have been re-sent.
 	readyChan = make(chan struct{})
 	// Since the manager run loop is in a tracked goroutine, shouldn't block.
-	reqChan = make(chan *listener.Request)
+	reqChan = make(chan *prompting.Request)
 
 	closeChan := make(chan struct{})
 
@@ -102,10 +101,6 @@ func (m *InterfacesRequestsManager) Ready() <-chan struct{} {
 
 func MockPromptsHandleReadying(f func(pdb *requestprompts.PromptDB) error) (restore func()) {
 	return testutil.Mock(&promptsHandleReadying, f)
-}
-
-func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
-	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
 
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {
