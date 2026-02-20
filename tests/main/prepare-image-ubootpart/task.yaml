@@ -11,7 +11,7 @@ details: |
     the correct size (2 x 8 KiB = 16 KiB).
 
 # running this on one machine is enough
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-24.04-64]
 
 environment:
     ROOT: /home/test/tmp/
