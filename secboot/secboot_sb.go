@@ -114,8 +114,6 @@ func shouldAttemptRepairOnFailure(a *ActivateState) bool {
 			switch errorType {
 			case sb.KeyslotErrorPlatformFailure:
 				return false
-			case sb.KeyslotErrorNone:
-				return false
 			case sb.KeyslotErrorIncorrectUserAuth:
 				return false
 			case sb.KeyslotErrorInvalidKeyData:
@@ -123,6 +121,9 @@ func shouldAttemptRepairOnFailure(a *ActivateState) bool {
 			case sb.KeyslotErrorInvalidPrimaryKey:
 				return false
 			case sb.KeyslotErrorUnknown:
+				return false
+			case sb.KeyslotErrorNone:
+				// This is not really clear if that should happen.
 				return false
 			// FIXME: add this case after updating secboot when we have this error
 			//case sb.KeyslotErrorIncorrectRoleParams:
