@@ -50,6 +50,9 @@ apps:
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
+  discord-rich-presence:
+    command: bin/run
+    plugs: [ discord-rich-presence ]
   display-control:
     command: bin/run
     plugs: [ display-control ]
