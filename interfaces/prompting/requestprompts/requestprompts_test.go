@@ -456,6 +456,12 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -740,6 +746,12 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -842,6 +854,12 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -917,6 +935,12 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeInvalidMapping(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	// Write initial mappings from request keys to prompt IDs.
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	mapping := map[string]requestprompts.RequestMapEntry{
@@ -1089,6 +1113,12 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1110,7 +1140,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
 		key := fmt.Sprintf("fake:%d", reqCount)
 		reqCount++
-		request := &prompting.Request{Key: key}
+		request := &prompting.Request{Key: key, Reply: func([]string) error { return nil }}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -1166,6 +1196,12 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1206,6 +1242,12 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReply(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1302,6 +1344,12 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1352,6 +1400,12 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1489,6 +1543,12 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1619,6 +1679,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 func (s *requestpromptsSuite) TestClose(c *C) {
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Should ready immediately, so only timer is for prompt timeout
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -1645,20 +1706,15 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 		"/home/test/3.txt",
 	}
 
-	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for i, path := range paths {
 		req := &prompting.Request{Key: fmt.Sprintf("fake:%d", i)}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Assert(err, IsNil)
-		c.Assert(merged, Equals, false)
-		prompts = append(prompts, prompt)
+		c.Check(merged, Equals, false)
+		c.Check(prompt, NotNil)
 	}
 
-	expectedPromptIDs := make([]prompting.IDType, 0, 3)
-	for _, prompt := range prompts {
-		expectedPromptIDs = append(expectedPromptIDs, prompt.ID)
-	}
-	c.Check(prompts[2].ID, Equals, prompting.IDType(3))
+	expectedPromptIDs := []prompting.IDType{1, 2, 3}
 
 	expectedMap := map[string]requestprompts.RequestMapEntry{
 		"fake:0": {PromptID: 1, UserID: s.defaultUser},
@@ -1693,6 +1749,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Never add prompts, so only timer should be for readiness
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -1794,6 +1851,12 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 }
 
 func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	req1 := &prompting.Request{Key: "fake:1"}
 	req2 := &prompting.Request{Key: "fake:2"}
 	req3 := &prompting.Request{Key: "fake:3"}
@@ -1899,6 +1962,12 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleReadying(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	req1 := &prompting.Request{Key: "foo:1"}
 	req2 := &prompting.Request{Key: "foo:2"}
 	req3 := &prompting.Request{Key: "bar:1"}
@@ -2102,6 +2171,12 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -2167,6 +2242,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Ready immediately so only timer is for prompt expiration
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -2322,6 +2398,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	callbackSignaller := make(chan bool, 0)
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Ready immediately so only timer is for prompt expiration
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
