@@ -1033,6 +1033,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading own mountinfo (Go runtime 1.25+)
   owner @{PROC}/@{pid}/mountinfo r,
 
+  # Allow reading the auxv, apparently Go does this on s390x
+  # https://bugs.launchpad.net/snapd/+bug/2141461
+  owner @{PROC}/@{pid}/auxv r,
+
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,
   # but silence noisy denial of inet/inet6
