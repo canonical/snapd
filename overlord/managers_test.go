@@ -729,7 +729,7 @@ hooks:
 				expectedStatus = state.HoldStatus
 			}
 			which += fmt.Sprintf("[%s]", hs.Hook)
-		case "process-delayed-backend-effects":
+		case "process-delayed-security-backend-effects":
 			expectedStatus = state.HoldStatus
 		}
 		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
@@ -11065,6 +11065,7 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	fmt.Printf("check pending restart\n")
 	restarting, restartType := restart.Pending(st)
 	switch restartType {
 	case restart.RestartDaemon:
@@ -11085,6 +11086,7 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 		})
 	}
 
+	fmt.Printf("settle again\n")
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
@@ -12615,9 +12617,6 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 
 // tsWithoutReRefresh removes the re-refresh task from the given taskset.
 //
-// It assumes that re-refresh is the last task and will fail if that is
-// not the case.
-//
 // This is needed because settle() will not converge with the re-refresh
 // task because re-refresh will always be in doing state.
 //
@@ -12627,10 +12626,14 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 // distinct from practical wait time even on slow systems. Once that
 // is done this function can be removed.
 func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
-	refreshIdx := len(ts.Tasks()) - 1
-	c.Assert(ts.Tasks()[refreshIdx].Kind(), Equals, "check-rerefresh")
-	ts = state.NewTaskSet(ts.Tasks()[:refreshIdx-1]...)
-	return ts
+	newTS := state.NewTaskSet()
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "check-rerefresh" { // || t.Kind() == "process-delayed-security-backend-effects" {
+			continue
+		}
+		newTS.AddTask(t)
+	}
+	return newTS
 }
 
 // mockSnapUpgradeWithFiles will put a "rev 2" of the given snapYaml/files
@@ -12871,12 +12874,13 @@ volumes:
 	chg := st.NewChange("upgrade-gadget", "...")
 	chg.AddAll(ts)
 
+	dumpTasks(c, "before", ts.Tasks())
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
-
+	fmt.Printf("--- first settle done\n")
 	// pretend we restarted
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 	ms.mockRestartAndSettle(c, st, chg)
