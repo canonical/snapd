@@ -51,3 +51,38 @@ func OpenLock(snapName string) (*osutil.FileLock, error) {
 	}
 	return flock, nil
 }
+
+// WithLock executes a given function while holding the snap lock.
+//
+// Errors returned by f are passed directly to the caller.
+func WithLock(instanceName string, f func() error) error {
+	lock, err := OpenLock(instanceName)
+	if err != nil {
+		return err
+	}
+
+	// Closing the lock also unlocks it, if locked.
+	defer lock.Close()
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	return f()
+}
+
+// WithTryLock executes a given function if it was possible to take the snap
+// lock. Returns osutil.ErrAlreadyLocked if lock could not be taken.
+//
+// Errors returned by f are passed directly to the caller.
+func WithTryLock(instanceName string, f func() error) error {
+	lock, err := OpenLock(instanceName)
+	if err != nil {
+		return err
+	}
+
+	// Closing the lock also unlocks it, if locked.
+	defer lock.Close()
+	if err := lock.TryLock(); err != nil {
+		return err
+	}
+	return f()
+}
