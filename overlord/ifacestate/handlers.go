@@ -149,7 +149,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 
 func delayedEffectsTask(chg *state.Change) *state.Task {
 	for _, t := range chg.Tasks() {
-		if t.Kind() == "process-delayed-backend-effects" {
+		if t.Kind() == "process-delayed-security-backend-effects" {
 			return t
 		}
 	}
@@ -178,6 +178,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 	delayedTask := delayedEffectsTask(task.Change())
 	// we can only delay side effects if we have the delay task
+	// TODO:delayed-mount-ns-update: add relevant delayed processing task in snapstate
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
@@ -2356,8 +2357,8 @@ func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *
 // DelayedBackendEffectsFor queues delayed backend effects for a bunch of
 // consumer snaps that were triggered by the provided provider snap.
 func DelayedBackendEffectsFor(deferTask *state.Task, snapWithSlot triggeringSnap, newDelayedSnapsWork delayedEffectsForSnaps) error {
-	var scheduledDelayedEffects delayedEffects
-	if err := deferTask.Get("delayed-effects-for-snaps", &scheduledDelayedEffects); err != nil && !errors.Is(err, state.ErrNoState) {
+	scheduledDelayedEffects, err := getDelayedEffectsForSnaps(deferTask)
+	if err != nil {
 		return err
 	}
 
@@ -2398,7 +2399,7 @@ func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, e
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
-func (m *InterfaceManager) doProcessDelayedBackendSideEffects(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Single catch all task handler for all delayed side effects for snaps.
 	// Looks through all the tasks to identify which snaps are affected, and
 	// whether the snaps that triggered the side effect were successfully
@@ -2516,8 +2517,8 @@ func (m *InterfaceManager) doProcessDelayedBackendSideEffects(task *state.Task, 
 		logger.Debugf("scheduling delayed effects for snap %q", affectedSnap)
 
 		// One task per connected snap instance
-		updateTask := st.NewTask("process-delayed-snap-backend-effects",
-			fmt.Sprintf("Delayed side effects for snap %q", affectedSnap))
+		updateTask := st.NewTask("apply-delayed-snap-security-backend-effects",
+			fmt.Sprintf("Apply delayed security backend side effects for snap %q", affectedSnap))
 		updateTask.Set("effects-data", delayedEffectsForSnapData{
 			AffectedSnapInstance: affectedSnap,
 			Effects:              backendEffects,
@@ -2553,7 +2554,7 @@ type delayedEffectsForSnapData struct {
 	Effects              map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect `json:"effects"`
 }
 
-func (m *InterfaceManager) doProcessDelayedBackendSideEffectsForSnap(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doApplyDelayedSnapSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Process and apply delayed effects to a snap
 
 	st := task.State()
