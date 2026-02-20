@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -61,6 +62,9 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	// Mock EFI as unavailable by default so that ubootpart.Present()
+	// can call envDevice() without hitting the real mountinfo.
+	s.AddCleanup(efi.MockVars(nil, nil))
 }
 
 type bootenvTestSuite struct {

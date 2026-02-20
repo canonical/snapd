@@ -205,9 +205,14 @@ func (u *ubootpart) Present() (bool, error) {
 		return osutil.FileExists(envFile), nil
 	}
 
-	// At runtime, check for partition by label
-	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
-	return osutil.FileExists(partPath), nil
+	// At runtime, use envDevice() which tries EFI and kernel cmdline
+	// before falling back to partition label. A bare label check
+	// could false-positive on an unrelated removable device.
+	_, err := u.envDevice()
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // checkGadgetEnvSize checks that the gadget's reference ubootpart.sel (if
