@@ -460,6 +460,7 @@ func (o *Overlord) ensureTimerReset() time.Time {
 }
 
 func (o *Overlord) ensureBefore(d time.Duration) {
+	fmt.Printf("ensure before ----\n")
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	if o.ensureTimer == nil {
@@ -469,11 +470,13 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	next := now.Add(d)
 	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
+		fmt.Printf("next reassign %v\n", next)
 		o.ensureNext = next
 		return
 	}
 
 	if o.ensureNext.Before(now) {
+		fmt.Printf("next is now!!!!!!!!!!!\n")
 		// timer already expired, it will be reset in Loop() and
 		// next Ensure() will be called shortly.
 		if !o.ensureTimer.Stop() {
@@ -584,6 +587,8 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 	t0 := time.Now()
 	done := false
 	var errs []error
+	lastEnsureNext := t0
+	ensureNextUnchangedCnt := 0
 	for !done {
 		if timeout > 0 && time.Since(t0) > timeout {
 			err := fmt.Errorf("Settle is not converging")
@@ -602,10 +607,13 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			errs = append(errs, err)
 		}
 		o.stateEng.Wait()
+		fmt.Printf("++++++ wait done, next? %v ensure next %v\n", next, o.ensureNext)
 		o.ensureLock.Lock()
-		done = o.ensureNext.Equal(next)
+		ensureNext := o.ensureNext
+		done = ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 		if done {
+			fmt.Printf("++++++ done\n")
 			if beforeCleanups != nil {
 				beforeCleanups()
 				beforeCleanups = nil
@@ -614,12 +622,36 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			st := o.State()
 			st.Lock()
 			for _, chg := range st.Changes() {
+				fmt.Printf("change %v ready %v clean %v\n", chg.ID(), chg.IsReady(), chg.IsClean())
 				if chg.IsReady() && !chg.IsClean() {
 					done = false
 					break
 				}
 			}
 			st.Unlock()
+		}
+		if lastEnsureNext.Equal(ensureNext) {
+			st := o.State()
+			pendingRestart := false
+			st.Lock()
+			for _, chg := range st.Changes() {
+				if !pendingRestart {
+					pendingRestart = pendingRestart || chg.Has("pending-system-restart")
+				}
+			}
+			st.Unlock()
+
+			ensureNextUnchangedCnt++
+			if ensureNextUnchangedCnt > 1000 {
+				fmt.Printf("not progressing!!!\n")
+				// break
+			}
+			if pendingRestart {
+				fmt.Printf("not progressing, restart pending!!\n")
+				// break
+			}
+		} else {
+			lastEnsureNext = ensureNext
 		}
 	}
 	if len(errs) != 0 {
@@ -790,6 +822,7 @@ func (mb mockBackend) Checkpoint(data []byte) error {
 }
 
 func (mb mockBackend) EnsureBefore(d time.Duration) {
+	fmt.Printf("####  Ensure Before\n")
 	mb.o.ensureLock.Lock()
 	timer := mb.o.ensureTimer
 	mb.o.ensureLock.Unlock()

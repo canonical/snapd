@@ -20,6 +20,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -221,6 +222,7 @@ func (r *TaskRunner) run(t *Task) {
 		// Capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformly to consider both it or a
 		// overriding previous Kill reason.
+		// fmt.Printf("run %v %v, status %v\n", t.Kind(), t.Summary(), t.Status())
 		t0 := time.Now()
 		tomb.Kill(handler(t, tomb))
 		t1 := time.Now()
@@ -254,6 +256,7 @@ func (r *TaskRunner) run(t *Task) {
 			}
 		}
 
+		fmt.Printf("   task err: %v\n", err)
 		switch x := err.(type) {
 		case *Retry:
 			// Handler asked to be called again later.

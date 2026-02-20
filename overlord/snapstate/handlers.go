@@ -2667,6 +2667,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	st := t.State()
 
 	if restartPoss.RebootRequired {
+		fmt.Printf("reboot required\n")
 		return FinishTaskWithRestart(t, status, restart.RestartSystem, &restartPoss.RebootInfo)
 	}
 
@@ -2688,6 +2689,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	}
 
 	t.Logf(restartReason)
+	fmt.Printf("daemon restart required\n")
 	return FinishTaskWithRestart(t, status, restart.RestartDaemon, nil)
 }
 

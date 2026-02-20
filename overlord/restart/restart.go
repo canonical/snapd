@@ -407,6 +407,7 @@ func (rm *RestartManager) Pending() (bool, RestartType) {
 		return false, RestartUnset
 	}
 	restarting := RestartType(atomic.LoadInt32(&rm.restarting))
+	fmt.Printf("---------- nope 1 restarting? %v\n", restarting)
 	return restarting != RestartUnset, restarting
 }
 
@@ -558,6 +559,7 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
 	}
+	fmt.Printf("^^^^^^^^^^ restart, kind %v\n", restartType)
 	return nil
 }
 
