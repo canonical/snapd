@@ -51,16 +51,13 @@ var (
 )
 
 // SetViaView uses the view to set the requests in the transaction's databag.
-func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
+func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any, userID int) error {
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			//TODO pass real user ID
-			//For now, allow caller to unset everything, including secrets
-			err = view.Unset(bag, request, 0)
+			err = view.Unset(bag, request, userID)
 		} else {
-			// TODO pass real user ID
-			err = view.Set(bag, request, value, 0)
+			err = view.Set(bag, request, value, userID)
 		}
 
 		if err != nil {
@@ -129,14 +126,13 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any) (any, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any, userID int) (any, error) {
 	if err := view.CheckAllConstraintsAreUsed(requests, constraints); err != nil {
 		return nil, err
 	}
 
 	if len(requests) == 0 {
-		// TODO pass real user ID
-		val, err := view.Get(bag, "", constraints, 0)
+		val, err := view.Get(bag, "", constraints, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -146,8 +142,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		// TODO pass real user ID
-		value, err := view.Get(bag, request, constraints, 0)
+		value, err := view.Get(bag, request, constraints, userID)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
@@ -660,7 +655,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 // LoadConfdbAsync schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the resulting
 // data in the change's data (so it can be read by the client).
-func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]any) (changeID string, err error) {
+func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]any, userID int) (changeID string, err error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	txs, _, err := getOngoingTxs(st, account, schemaName)
@@ -698,6 +693,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, cons
 		loadConfdbTask.Set("requests", requests)
 		loadConfdbTask.Set("constraints", constraints)
 		loadConfdbTask.Set("view-name", view.Name)
+		loadConfdbTask.Set("userID", userID)
 
 		loadConfdbTask.Set("tx-task", clearTxTask.ID())
 		loadConfdbTask.WaitFor(clearTxTask)
@@ -711,7 +707,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, cons
 	} else {
 		// no hooks to run so we can just load the values directly into the change
 		// (we still need the change because the API is async)
-		err := readViewIntoChange(chg, tx, view, requests, constraints)
+		err := readViewIntoChange(chg, tx, view, requests, constraints, userID)
 		if err != nil {
 			return "", err
 		}

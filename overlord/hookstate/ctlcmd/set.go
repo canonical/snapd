@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
@@ -130,7 +131,12 @@ func (s *setCommand) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
 
-		return setConfdbValues(context, name, requests)
+		uid, err := strconv.Atoi(s.baseCommand.uid)
+		if err != nil {
+			return err
+		}
+
+		return setConfdbValues(context, name, requests, uid)
 	}
 
 	return s.setInterfaceSetting(context, name)
@@ -244,7 +250,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any) error {
+func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any, userID int) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
@@ -272,7 +278,7 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return err
 	}
 
-	err = confdbstate.SetViaView(tx, view, requests)
+	err = confdbstate.SetViaView(tx, view, requests, userID)
 	if err != nil {
 		return err
 	}

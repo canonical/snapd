@@ -435,7 +435,7 @@ func MockConfdbstateGetView(f func(_ *state.State, _, _, _ string) (*confdb.View
 	return testutil.Mock(&confdbstateGetView, f)
 }
 
-func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]any) error) (restore func()) {
+func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]any, int) error) (restore func()) {
 	return testutil.Mock(&confdbstateSetViaView, f)
 }
 
@@ -443,7 +443,7 @@ func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstat
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
 }
 
-func MockConfdbstateLoadConfdbAsync(f func(*state.State, *confdb.View, []string, map[string]any) (string, error)) (restore func()) {
+func MockConfdbstateLoadConfdbAsync(f func(*state.State, *confdb.View, []string, map[string]any, int) (string, error)) (restore func()) {
 	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
 }
 
