@@ -461,7 +461,7 @@ func (env *Env) Import(r io.Reader) error {
 
 // CreateRedundant initialises a redundant U-Boot environment with two copies.
 // For regular files (prepare-image time) it creates and pre-allocates the
-// file.  For block devices (install time) the partition already exists at
+// file.  For device nodes (install time) the partition already exists at
 // the correct size so Create/Truncate are skipped.
 // Both copies are initialized as empty with the first copy marked active.
 func CreateRedundant(fname string, size int) (*Env, error) {
@@ -469,9 +469,9 @@ func CreateRedundant(fname string, size int) (*Env, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	isBlock := err == nil && fi.Mode()&os.ModeDevice != 0
+	needsCreate := os.IsNotExist(err) || fi.Mode().IsRegular()
 
-	if !isBlock {
+	if needsCreate {
 		f, err := os.Create(fname)
 		if err != nil {
 			return nil, err
