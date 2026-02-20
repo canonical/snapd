@@ -67,6 +67,28 @@ network netlink raw,
 
 owner /run/user/[0-9]*/pipewire-[0-9] rwk,
 owner /run/user/[0-9]*/pipewire-[0-9]-manager rwk,
+
+# Access to xdg-permission-store
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.impl.portal.PermissionStore
+    path=/org/freedesktop/impl/portal/PermissionStore
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/impl/portal/PermissionStore
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Peer
+    path=/org/freedesktop/impl/portal/PermissionStore
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/org/freedesktop/impl/portal/PermissionStore
+    peer=(label=unconfined),
 `
 
 const pipewirePermanentSlotSecComp = `
