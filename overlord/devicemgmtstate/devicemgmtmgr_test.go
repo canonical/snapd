@@ -803,39 +803,40 @@ func buildTaskIndex(chg *state.Change) *taskIndex {
 // assertMessagesDispatched checks that each message has all three dispatched tasks.
 func assertMessagesDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
 	for _, id := range msgIDs {
-		c.Assert(ti.validate[id], NotNil, Commentf("%s: %s should have a validate task", testName, id))
-		c.Assert(ti.apply[id], NotNil, Commentf("%s: %s should have an apply task", testName, id))
-		c.Assert(ti.queue[id], NotNil, Commentf("%s: %s should have a queue response task", testName, id))
+		cmt := Commentf("%s: expected %s to be dispatched", testName, id)
+		c.Assert(ti.validate[id], NotNil, cmt)
+		c.Assert(ti.apply[id], NotNil, cmt)
+		c.Assert(ti.queue[id], NotNil, cmt)
 	}
 }
 
 // assertMessagesNotDispatched checks that no tasks for the given messages were dispatched.
 func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
 	for _, id := range msgIDs {
-		c.Assert(ti.validate[id], IsNil, Commentf("%s: %s should not have a validate task", testName, id))
-		c.Assert(ti.apply[id], IsNil, Commentf("%s: %s should not have an apply task", testName, id))
-		c.Assert(ti.queue[id], IsNil, Commentf("%s: %s should not have a queue response task", testName, id))
+		cmt := Commentf("%s: expected %s to not be dispatched", testName, id)
+		c.Assert(ti.validate[id], IsNil, cmt)
+		c.Assert(ti.apply[id], IsNil, cmt)
+		c.Assert(ti.queue[id], IsNil, cmt)
 	}
 }
 
 // assertMessagesWaitOn checks that each message's validate task waits on its predecessor's queue response task.
 func assertMessagesWaitOn(c *C, ti *taskIndex, waitOn map[string]string, testName string) {
 	for msgID, prevID := range waitOn {
+		cmt := Commentf("%s: invalid wait chain for %s", testName, msgID)
+
 		validate := ti.validate[msgID]
-		c.Assert(validate, NotNil, Commentf("%s: %s should have a validate task", testName, msgID))
+		c.Assert(validate, NotNil, cmt)
 
 		waitTasks := validate.WaitTasks()
-		c.Assert(waitTasks, HasLen, 1, Commentf("%s: %s should have exactly one wait task", testName, msgID))
+		c.Assert(waitTasks, HasLen, 1, cmt)
 
 		if prevID == "<dispatch>" {
-			c.Assert(waitTasks[0].Kind(), Equals, "dispatch-mgmt-messages",
-				Commentf("%s: %s should wait on the dispatch task", testName, msgID))
+			c.Assert(waitTasks[0].Kind(), Equals, "dispatch-mgmt-messages", cmt)
 		} else {
 			prevQueue := ti.queue[prevID]
-			c.Assert(prevQueue, NotNil, Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
-
-			c.Assert(waitTasks[0].ID(), Equals, prevQueue.ID(),
-				Commentf("%s: %s should wait on queue response for %s", testName, msgID, prevID))
+			c.Assert(prevQueue, NotNil, cmt)
+			c.Assert(waitTasks[0].ID(), Equals, prevQueue.ID(), cmt)
 		}
 	}
 }

@@ -88,10 +88,13 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime time.Time             `json:"receive-time"`
-	ChangeID    string                `json:"change-id,omitempty"` // Subsystem change applying this message
-	Status      asserts.MessageStatus `json:"status,omitempty"`    // Response status
-	Error       string                `json:"error,omitempty"`     // Error/rejection reason
+	ReceiveTime time.Time `json:"receive-time"`
+	// Subsystem change applying this message
+	ChangeID string `json:"change-id,omitempty"`
+	// Response status
+	Status asserts.MessageStatus `json:"status,omitempty"`
+	// Error/rejection reason
+	Error string `json:"error,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -395,7 +398,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		}
 
 		if msg.SeqNum == 0 {
-			m.dispatchMessage(chg, t, msg)
+			m.dispatchMessage(t, msg)
 			continue
 		}
 
@@ -404,11 +407,10 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 
 	// Dispatch sequenced messages.
 	for _, msgs := range sequences {
-		m.dispatchSequence(chg, ms, t, msgs)
+		m.dispatchSequence(ms, t, msgs)
 	}
 
 	m.setState(ms)
-	m.state.EnsureBefore(0)
 
 	return nil
 }
@@ -458,7 +460,7 @@ func (m *DeviceMgmtManager) pruneSequences(chg *state.Change, ms *deviceMgmtStat
 // dispatchSequence dispatches sequenced messages starting from where the sequence left off,
 // chaining consecutive messages. Gaps in the sequence stop the chain.
 // All messages must belong to the same sequence.
-func (m *DeviceMgmtManager) dispatchSequence(chg *state.Change, ms *deviceMgmtState, dispatchTask *state.Task, msgs []*RequestMessage) {
+func (m *DeviceMgmtManager) dispatchSequence(ms *deviceMgmtState, dispatchTask *state.Task, msgs []*RequestMessage) {
 	sort.Slice(msgs, func(i, j int) bool {
 		return msgs[i].SeqNum < msgs[j].SeqNum
 	})
@@ -486,33 +488,29 @@ func (m *DeviceMgmtManager) dispatchSequence(chg *state.Change, ms *deviceMgmtSt
 			break
 		}
 
-		awaitTask = m.dispatchMessage(chg, awaitTask, msgs[i])
+		awaitTask = m.dispatchMessage(awaitTask, msgs[i])
 		expectedSeqNum++
 	}
 }
 
 // dispatchMessage creates the task chain for a single message and returns
 // the final task so callers can chain subsequent messages after it.
-func (m *DeviceMgmtManager) dispatchMessage(chg *state.Change, awaitTask *state.Task, msg *RequestMessage) *state.Task {
+func (m *DeviceMgmtManager) dispatchMessage(awaitTask *state.Task, msg *RequestMessage) *state.Task {
+	chg := awaitTask.Change()
 	lane := m.state.NewLane()
 
-	validate := m.state.NewTask("validate-mgmt-message", fmt.Sprintf("Validate message with id %q", msg.ID()))
-	validate.Set("id", msg.ID())
-	validate.WaitFor(awaitTask)
-	validate.JoinLane(lane)
-	chg.AddTask(validate)
+	addTask := func(kind, summary string, prev *state.Task) *state.Task {
+		t := m.state.NewTask(kind, summary)
+		t.Set("id", msg.ID())
+		t.WaitFor(prev)
+		t.JoinLane(lane)
+		chg.AddTask(t)
+		return t
+	}
 
-	apply := m.state.NewTask("apply-mgmt-message", fmt.Sprintf("Apply message with id %q", msg.ID()))
-	apply.Set("id", msg.ID())
-	apply.WaitFor(validate)
-	apply.JoinLane(lane)
-	chg.AddTask(apply)
-
-	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", msg.ID()))
-	queue.Set("id", msg.ID())
-	queue.WaitFor(apply)
-	queue.JoinLane(lane)
-	chg.AddTask(queue)
+	validate := addTask("validate-mgmt-message", fmt.Sprintf("Validate message with id %q", msg.ID()), awaitTask)
+	apply := addTask("apply-mgmt-message", fmt.Sprintf("Apply message with id %q", msg.ID()), validate)
+	queue := addTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", msg.ID()), apply)
 
 	return queue
 }
