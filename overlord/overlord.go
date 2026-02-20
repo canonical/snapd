@@ -199,7 +199,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	deviceMgr.AddOnInit(fdeMgr)
 	o.addManager(deviceMgr)
 
-	o.addManager(clusterstate.Manager(s))
+	o.addManager(clusterstate.Manager(s, o.runner))
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
