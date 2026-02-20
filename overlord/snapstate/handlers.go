@@ -5305,7 +5305,7 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 
 // FindTaskMatchingKindAndSnap returns a task in the given list of tasks that has the given kind matching
 // the given snap name in its SnapSetup, or nil if there is no such task.
-func FindTaskMatchingKindAndSnap(tasks []*state.Task, kind string, snapName string) *state.Task {
+func FindTaskMatchingKindAndSnap(tasks []*state.Task, kind string, instanceName string) *state.Task {
 	for _, t := range tasks {
 		if t.Kind() != kind {
 			continue
@@ -5316,7 +5316,7 @@ func FindTaskMatchingKindAndSnap(tasks []*state.Task, kind string, snapName stri
 			continue
 		}
 
-		if snapsup.InstanceName() == snapName {
+		if snapsup.InstanceName() == instanceName {
 			return t
 		}
 	}

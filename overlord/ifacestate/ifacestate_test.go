@@ -6585,6 +6585,74 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(snapst.PendingSecurity.SideInfo.Revision, Equals, snapInfo.Revision)
 }
 
+// Test that when a snap refresh changes confinement from classic to strict and
+// setup-profiles fails, undo restores the old security profiles using the
+// old classic confinement flag.
+func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefreshClassicToStrictUsesOldClassicFlag(c *C) {
+	// Create the interface manager
+	_ = s.manager(c)
+
+	classicYaml := sampleSnapYaml + "\nconfinement: classic\n"
+	strictYaml := sampleSnapYaml + "\nconfinement: strict\n"
+
+	// Mock a snap as already installed, in classic confinement.
+	oldSnapInfo := s.mockSnap(c, classicYaml)
+
+	// Mark the installed revision as classic in the state flags.
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, oldSnapInfo.InstanceName(), &snapst), IsNil)
+	snapst.Flags.Classic = true
+	// Make the snap inactive so prepare-profiles will record PendingSecurity
+	// for the refresh attempt.
+	snapst.Active = false
+	snapstate.Set(s.state, oldSnapInfo.InstanceName(), &snapst)
+	s.state.Unlock()
+
+	// Mock a new revision that is strict.
+	newRev := oldSnapInfo.Revision.N + 1
+	_ = s.mockUpdatedSnap(c, strictYaml, newRev)
+
+	// Fail security setup for the new strict revision.
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+		if appSet.Info().Revision == snap.R(newRev) && !opts.Classic {
+			return fmt.Errorf("fail setup strict")
+		}
+		return nil
+	}
+
+	// Attempt a refresh to the new revision, with strict confinement flags.
+	change := s.addSetupSnapSecurityChangeWithOptions(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: oldSnapInfo.SnapName(),
+			Revision: snap.R(newRev),
+		},
+		Flags: snapstate.Flags{Classic: false},
+	}, setupSnapSecurityChangeOptions{active: false})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(change.Err(), ErrorMatches, "(?s).*fail setup strict.*")
+
+	// We expect two Setup calls:
+	// 1) attempted setup for the new strict revision (Classic=false)
+	// 2) undo restoring the old classic revision (Classic=true)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+
+	// Explicitly assert Classic is false for the new revision.
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, oldSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snap.R(newRev))
+	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
+
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, oldSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, oldSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{Classic: true, KernelSnap: "krnl"})
+}
+
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 	s.mockSnap(c, coreSnapYaml)
