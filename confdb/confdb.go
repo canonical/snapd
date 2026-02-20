@@ -194,6 +194,25 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 	}
 }
 
+type UnauthorizedAccessError struct {
+	viewID    string
+	operation string
+	request   string
+}
+
+func (e *UnauthorizedAccessError) Is(err error) bool {
+	_, ok := err.(*UnauthorizedAccessError)
+	return ok
+}
+
+func (e *UnauthorizedAccessError) Error() string {
+	if e.request != "" {
+		reqStr := "\"" + e.request + "\""
+		return fmt.Sprintf("cannot %s %s through %s: unauthorized access", e.operation, reqStr, e.viewID)
+	}
+	return fmt.Sprintf("cannot %s through %s: unauthorized access", e.operation, e.viewID)
+}
+
 // Databag controls access to the confdb data storage.
 type Databag interface {
 	Get(path []Accessor, constraints map[string]any) (any, error)
@@ -235,6 +254,15 @@ type DatabagSchema interface {
 
 	// NestedVisibility returns true if it or any of its nested types have the visibility in input
 	NestedVisibility(Visibility) bool
+
+	// PruneByVisibility prunes away any data in input that has a visibility in the visToPrune array in input.
+	// It will only prune along the path, and once it reaches the end, it will prune everything that's left.
+	// It will return error if:
+	// - the data does not conform to the schema
+	// - NoDataError - if the data does not contain data indicated by the path
+	// - UnAuthorizedAccessError - if the path contains a schema with a visibility contained in the input array
+	//     or if the end of the path contains an empty container due to its contents being pruned away
+	PruneByVisibility(path []Accessor, visToPrune []Visibility, data []byte) (prunedData []byte, err error)
 }
 
 type SchemaType uint
@@ -1078,7 +1106,9 @@ func validateSetValue(initial any) error {
 
 // Set sets the named view to a specified non-nil value. Matches that cannot
 // extract their data from the provided value will be considered as being unset.
-func (v *View) Set(databag Databag, request string, value any) error {
+// If the userID does not have sufficient permissions to set the data indicated
+// by the request, then an UnauthorizedAccessError is returned.
+func (v *View) Set(databag Databag, request string, value any, userID int) error {
 	if request == "" {
 		return badRequestErrorFrom(v, "set", request, "")
 	}
@@ -1150,9 +1180,25 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	getAccs = func(i int) []Accessor { return expandedMatches[i].storagePath }
 	sort.Slice(expandedMatches, byAccessor(getAccs))
 
+	visibilities := getVisibilitiesToPrune(userID)
+
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
+		}
+		data, err := databag.Data()
+		if err != nil {
+			return err
+		}
+		pruned, err := v.schema.DatabagSchema.PruneByVisibility(match.storagePath, visibilities, data)
+		if err != nil {
+			if errors.Is(err, &UnauthorizedAccessError{}) {
+				return &UnauthorizedAccessError{viewID: v.ID(), operation: "set", request: request}
+			}
+			return err
+		}
+		if len(pruned) != len(data) {
+			return &UnauthorizedAccessError{viewID: v.ID(), operation: "set", request: request}
 		}
 	}
 
@@ -1193,7 +1239,10 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 	}
 }
 
-func (v *View) Unset(databag Databag, request string) error {
+// Unset unsets the value at request in the named view.
+// If the userID does not have sufficient permissions to unset the data
+// indicated by the request, then an UnauthorizedAccessError is returned
+func (v *View) Unset(databag Databag, request string, userID int) error {
 	opts := ParseOptions{AllowPlaceholders: false}
 	accessors, err := ParsePathIntoAccessors(request, opts)
 	if err != nil {
@@ -1209,7 +1258,25 @@ func (v *View) Unset(databag Databag, request string) error {
 		return NewNoMatchError(v, "unset", []string{request})
 	}
 
+	visibilities := getVisibilitiesToPrune(userID)
 	for _, match := range matches {
+		if len(visibilities) > 0 {
+			data, err := databag.Data()
+			if err != nil {
+				return err
+			}
+			pruned, err := v.schema.DatabagSchema.PruneByVisibility(match.storagePath, visibilities, data)
+			if err != nil {
+				if errors.Is(err, &UnauthorizedAccessError{}) {
+					return &UnauthorizedAccessError{viewID: v.ID(), operation: "unset", request: request}
+				}
+				return err
+			}
+			if len(pruned) != len(data) {
+				return &UnauthorizedAccessError{viewID: v.ID(), operation: "unset", request: request}
+			}
+		}
+
 		if err := databag.Unset(match.storagePath); err != nil {
 			return err
 		}
@@ -1801,11 +1868,21 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
+func getVisibilitiesToPrune(userID int) []Visibility {
+	if userID == 0 {
+		return []Visibility{}
+	}
+	return []Visibility{SecretVisibility}
+}
+
 // Get returns the view value identified by the request after the constraints
-// have been applied to any matching filter in the storage path. If the request
-// cannot be matched against any rule, it returns a NoMatchError, and if no data
-// is stored for the request, a NoDataError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]any) (any, error) {
+// have been applied to any matching filter in the storage path. The userID
+// determines whether data with restrictive visibility levels are returned.
+// If the request cannot be matched against any rule, it returns a NoMatchError,
+// and if no data is stored for the request, a NoDataError is returned. If data
+// would have been returned but was removed due to the visibility level, then a
+// UnauthorizedAccessError is returned.
+func (v *View) Get(databag Databag, request string, constraints map[string]any, userID int) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1825,9 +1902,35 @@ func (v *View) Get(databag Databag, request string, constraints map[string]any) 
 		return nil, err
 	}
 
+	visibilities := getVisibilitiesToPrune(userID)
+	allUnauthorized := len(visibilities) > 0
 	var merged any
 	for _, match := range matches {
-		val, err := databag.Get(match.storagePath, constraints)
+		bag := databag
+		if len(visibilities) > 0 {
+			data, err := databag.Data()
+			if err != nil {
+				return nil, err
+			}
+			data, err = v.schema.DatabagSchema.PruneByVisibility(match.storagePath, visibilities, data)
+			if err != nil {
+				if errors.Is(err, &UnauthorizedAccessError{}) || errors.Is(err, &NoDataError{}) {
+					continue
+				}
+				return nil, err
+			}
+			allUnauthorized = false
+			var decoded map[string]json.RawMessage
+			if err := jsonutil.DecodeWithNumber(bytes.NewReader(data), &decoded); err != nil {
+				_, ok := err.(*json.UnmarshalTypeError)
+				if !ok {
+					return nil, err
+				}
+			}
+			bag = JSONDatabag(decoded)
+		}
+
+		val, err := bag.Get(match.storagePath, constraints)
 		if err != nil {
 			if errors.Is(err, &NoDataError{}) {
 				continue
@@ -1852,6 +1955,9 @@ func (v *View) Get(databag Databag, request string, constraints map[string]any) 
 		var requests []string
 		if request != "" {
 			requests = []string{request}
+		}
+		if allUnauthorized {
+			return nil, &UnauthorizedAccessError{request: request, operation: "get", viewID: v.ID()}
 		}
 		return nil, NewNoDataError(v, requests)
 	}
@@ -2102,10 +2208,14 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
+func dotPrecedesAccessorType(acc Accessor) bool {
+	return acc.Type() != IndexPlaceholderType && acc.Type() != ListIndexType
+}
+
 func JoinAccessors(parts []Accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
-		if !(part.Type() == IndexPlaceholderType || part.Type() == ListIndexType || i == 0) {
+		if dotPrecedesAccessorType(part) && i != 0 {
 			sb.WriteRune('.')
 		}
 
@@ -3109,3 +3219,6 @@ func (v JSONSchema) Ephemeral() bool                  { return false }
 func (v JSONSchema) NestedEphemeral() bool            { return false }
 func (v JSONSchema) Visibility() Visibility           { return DefaultVisibility }
 func (v JSONSchema) NestedVisibility(Visibility) bool { return false }
+func (v JSONSchema) PruneByVisibility(_ []Accessor, _ []Visibility, data []byte) ([]byte, error) {
+	return data, nil
+}

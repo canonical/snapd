@@ -55,9 +55,12 @@ func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) 
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, request)
+			//TODO pass real user ID
+			//For now, allow caller to unset everything, including secrets
+			err = view.Unset(bag, request, 0)
 		} else {
-			err = view.Set(bag, request, value)
+			// TODO pass real user ID
+			err = view.Set(bag, request, value, 0)
 		}
 
 		if err != nil {
@@ -132,7 +135,8 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 	}
 
 	if len(requests) == 0 {
-		val, err := view.Get(bag, "", constraints)
+		// TODO pass real user ID
+		val, err := view.Get(bag, "", constraints, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +146,8 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		value, err := view.Get(bag, request, constraints)
+		// TODO pass real user ID
+		value, err := view.Get(bag, request, constraints, 0)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
