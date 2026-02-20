@@ -13427,3 +13427,246 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	// all other tasks were completed successfully
 	checkSuccessfulTasks(c, otherTasks)
 }
+
+func (s *interfaceManagerSuite) TestDelayedEffectsApplyNoDataErr(c *C) {
+	// apply fails if effects-data isn't set on the task
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initSetupCalls := 0
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				initSetupCalls++
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			c.Errorf("unexpected call for snap %q", appSet.InstanceName())
+			return fmt.Errorf("unexpected call for %q", appSet.InstanceName())
+		},
+	}
+	s.mockSecBackend(secBackend)
+
+	_ = s.manager(c)
+	c.Check(initSetupCalls, Equals, 1)
+
+	s.state.Lock()
+
+	chg := s.state.NewChange("test", "")
+	tsk := s.state.NewTask("apply-delayed-snap-security-backend-effects", "apply")
+	chg.AddTask(tsk)
+	s.state.EnsureBefore(0)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	dumpTasks(c, "after", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* \(no state entry for key "effects-data"\).*$`)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsProcessNoMonitoredLanes(c *C) {
+	// task data isn't set for the processing task
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initSetupCalls := 0
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				initSetupCalls++
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			c.Errorf("unexpected call for snap %q", appSet.InstanceName())
+			return fmt.Errorf("unexpected call for %q", appSet.InstanceName())
+		},
+	}
+	s.mockSecBackend(secBackend)
+
+	_ = s.manager(c)
+	c.Check(initSetupCalls, Equals, 1)
+
+	s.state.Lock()
+
+	// no monitored-lanes
+	chg := s.state.NewChange("test", "")
+	tsk := s.state.NewTask("process-delayed-security-backend-effects", "process")
+	chg.AddTask(tsk)
+	s.state.EnsureBefore(0)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
+}
+
+type testDelayedEffectsSetupProfilesChecksCallbackbackendErrsScenario int
+
+const (
+	nilBackend testDelayedEffectsSetupProfilesChecksCallbackbackendErrsScenario = iota
+	nonDelaying
+)
+
+func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(
+	c *C,
+	tc testDelayedEffectsSetupProfilesChecksCallbackbackendErrsScenario,
+) {
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+	var setupCalls []string
+
+	nonDelayingBackend := &ifacetest.TestSecurityBackend{
+		BackendName: "non-delaying",
+	}
+
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				// bulk of the logic checks
+				// the handler is called in both do and undo paths
+				name := appSet.InstanceName()
+				c.Logf("Setup() for %q init done %v sctx %+v", name, initDone, sctx)
+				if initDone {
+					// past the point of initial Setup() calls, this is
+					// called for each snap that is affected by a connection, producer and consumer
+					setupCalls = append(setupCalls, name)
+
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case name == "consumer":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						// in do path effects are delayed, but not in undo
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							switch tc {
+							case nilBackend:
+								sctx.DelayEffect(nil, interfaces.DelayedSideEffect{
+									ID:          interfaces.DelayedEffect("effect"),
+									Description: fmt.Sprintf("mock effect for %s", name),
+								})
+							case nonDelaying:
+								sctx.DelayEffect(nonDelayingBackend, interfaces.DelayedSideEffect{
+									ID:          interfaces.DelayedEffect("effect"),
+									Description: fmt.Sprintf("mock effect for %s", name),
+								})
+							default:
+								return fmt.Errorf("unexpected call")
+							}
+						}
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				} else {
+					initSetupCalls++
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			c.Errorf("unexpected call for snap %q", appSet.InstanceName())
+			return fmt.Errorf("unexpected call for %q", appSet.InstanceName())
+		},
+	}
+	s.mockSecBackend(secBackend)
+	s.mockSecBackend(nonDelayingBackend)
+
+	s.o.TaskRunner().AddHandler("link-snap", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 2)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+			Revision: prod.Revision,
+		},
+	}
+
+	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
+		useRealLinkSnapTask: true,
+		active:              false,
+	})
+
+	s.state.Lock()
+
+	s.state.Set("conns", map[string]any{
+		// all consumers are connected
+		"consumer:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
+	c.Assert(ts.Tasks(), HasLen, 1)
+	chg.AddAll(ts)
+
+	dumpTasks(c, "before", chg.Tasks())
+	s.state.EnsureBefore(0)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	dumpTasks(c, "after", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	switch tc {
+	case nilBackend:
+		c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* \(internal error: attempt to delay effects without a backend\).*$`)
+	case nonDelaying:
+		c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* \(internal error: attempt to delay effects for backend "non-delaying" without support for it\).*$`)
+	default:
+		c.Fatalf("unexpected test case: %v", tc)
+	}
+
+	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 0)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbackendErrsNilBackend(c *C) {
+	s.testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(c, nilBackend)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbackendErrsNonDelayingBackend(c *C) {
+	s.testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(c, nonDelaying)
+}
