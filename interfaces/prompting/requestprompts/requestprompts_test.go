@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
@@ -281,7 +282,186 @@ func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
 	s.checkWrittenMaxID(c, expectedID)
 }
 
+func (s *requestpromptsSuite) TestNewHandleReadying(c *C) {
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready")
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	result := pdb.HandleReadying("")
+	c.Check(result, HasLen, 0)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should still be ready")
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(timer, NotNil)
+	c.Check(timer.Active(), Equals, true)
+
+	// ID map on still disk
+	s.checkWrittenRequestMap(c, mapping)
+
+	result := pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"foo:1", "foo:2"})
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should now be ready")
+	}
+
+	noticeData := map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	c.Check(timer.Active(), Equals, false)
+
+	// ID map empty
+	s.checkWrittenRequestMap(c, map[string]requestprompts.RequestMapEntry{})
+}
+
+func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	var timer *testtime.TestTimer
+	callbackDone := make(chan struct{})
+	restore = requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, func() {
+			f()
+			close(callbackDone)
+		})
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := requestprompts.RequestMappingJSON{
+		RequestMap: map[string]requestprompts.RequestMapEntry{
+			"foo:1": {PromptID: 1, UserID: s.defaultUser},
+			"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		},
+	}
+	data, err := json.Marshal(mapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	// Ensure the timer was created
+	c.Assert(timer, NotNil)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(logbuf.String(), Equals, "")
+
+	c.Check(timer.Active(), Equals, true)
+
+	// Elapse time as if the timer expired
+	timer.Elapse(requestprompts.ReadyTimeout)
+
+	c.Check(timer.Active(), Equals, false)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Fatalf("should now be ready")
+	}
+
+	noticeData := map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
+
+	<-callbackDone
+
+	c.Check(logbuf.String(), testutil.Contains, `timed out waiting for requests to be re-received after snap restart: "foo:1", "foo:2"`)
+}
+
 func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -566,6 +746,12 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -668,6 +854,12 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -742,6 +934,134 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	c.Check(stored[0], Equals, prompt1)
 }
 
+func (s *requestpromptsSuite) TestAddOrMergeInvalidMapping(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs.
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"fake:1": {PromptID: 1, UserID: s.defaultUser},
+		"fake:2": {PromptID: 1, UserID: s.defaultUser}, // map to the same prompt
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(1)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	metadataTemplate := prompting.Metadata{
+		User:      s.defaultUser,
+		PID:       1234,
+		Cgroup:    "some-cgroup-path",
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+
+	metadata1 := metadataTemplate
+	metadata1.Snap = "firefox"
+	metadata2 := metadataTemplate
+	metadata2.Snap = "thunderbird"
+
+	req1 := &prompting.Request{Key: "fake:1"}
+	req2 := &prompting.Request{Key: "fake:2"}
+
+	clientActivity := false // doesn't matter if it's true or false for this test
+	stored, err := pdb.Prompts(metadata1.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, IsNil)
+
+	// Add first request
+	prompt1, merged, err := pdb.AddOrMerge(&metadata1, path, permissions, permissions, req1)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// Should be one prompt now
+	stored, err = pdb.Prompts(metadata1.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 1)
+	c.Assert(stored[0], Equals, prompt1)
+
+	// Request was added to the requests list
+	c.Assert(prompt1.Requests(), HasLen, 1)
+	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
+
+	// Still expect both requests to map to prompt 1, since second hasn't been
+	// re-received yet
+	expectedMap := mapping
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+	s.checkWrittenRequestMap(c, expectedMap)
+	// Since no new prompt with new ID has been created, max ID should not have
+	// advanced.
+	s.checkWrittenMaxID(c, 1)
+
+	// Add second request with different content but which has mapping to same prompt
+	prompt2, merged, err := pdb.AddOrMerge(&metadata2, path, permissions, permissions, req2)
+	c.Assert(err, IsNil)
+
+	// Because content didn't match, new prompt should be created and assigned
+	// a new prompt ID
+	c.Assert(merged, Equals, false)
+	c.Assert(prompt2, Not(Equals), prompt1)
+	c.Assert(prompt2.ID, Equals, prompting.IDType(2))
+
+	// Now second request key should map to a different prompt ID, since the
+	// original mapping was invalid
+	expectedMap["fake:2"] = requestprompts.RequestMapEntry{PromptID: 2, UserID: s.defaultUser}
+	s.checkWrittenRequestMap(c, expectedMap)
+
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready after receiving second request")
+	}
+
+	// Both prompts should now exist
+	stored, err = pdb.Prompts(metadata2.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 2)
+	c.Assert(stored[1], Equals, prompt2)
+
+	// And second prompt should have second request
+	c.Assert(prompt2.Requests(), HasLen, 1)
+	c.Check(prompt2.Requests()[0].Key, Equals, "fake:2")
+
+	// Should record new notice and advance max prompt ID
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+}
+
 func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
 	s.checkNewNotices(c, applyNotices(expectedPromptIDs, expectedData))
 }
@@ -793,6 +1113,12 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -805,12 +1131,16 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		Interface: "home",
 	}
 
+	reqCount := 0
+
 	permissions := []string{"read", "write", "execute"}
 	clientActivity := false // doesn't matter if it's true or false for this test
 
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request := &prompting.Request{Key: "fake:1"}
+		key := fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
+		request := &prompting.Request{Key: key, Reply: func([]string) error { return nil }}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -823,7 +1153,6 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
 
 	req := &prompting.Request{
-		Key: "fake:1",
 		Reply: func(allowedPerms []string) error {
 			c.Assert(allowedPerms, DeepEquals, []string{})
 			return nil
@@ -832,6 +1161,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
+		req.Key = fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Check(err, Equals, prompting_errors.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
@@ -850,7 +1181,9 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	// Check that new requests can still merge into existing prompts
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		request := &prompting.Request{Key: "fake:1"}
+		key := fmt.Sprintf("fake:%d", reqCount)
+		reqCount++
+		request := &prompting.Request{Key: key}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, request)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
@@ -863,6 +1196,12 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -903,6 +1242,12 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReply(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -999,6 +1344,12 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 }
 
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1049,6 +1400,12 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1186,6 +1543,12 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1316,6 +1679,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 func (s *requestpromptsSuite) TestClose(c *C) {
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Should ready immediately, so only timer is for prompt timeout
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -1342,20 +1706,15 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 		"/home/test/3.txt",
 	}
 
-	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for i, path := range paths {
 		req := &prompting.Request{Key: fmt.Sprintf("fake:%d", i)}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
 		c.Assert(err, IsNil)
-		c.Assert(merged, Equals, false)
-		prompts = append(prompts, prompt)
+		c.Check(merged, Equals, false)
+		c.Check(prompt, NotNil)
 	}
 
-	expectedPromptIDs := make([]prompting.IDType, 0, 3)
-	for _, prompt := range prompts {
-		expectedPromptIDs = append(expectedPromptIDs, prompt.ID)
-	}
-	c.Check(prompts[2].ID, Equals, prompting.IDType(3))
+	expectedPromptIDs := []prompting.IDType{1, 2, 3}
 
 	expectedMap := map[string]requestprompts.RequestMapEntry{
 		"fake:0": {PromptID: 1, UserID: s.defaultUser},
@@ -1379,19 +1738,78 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	// All prompts have been cleared, and all per-user maps deleted
 	c.Check(pdb.PerUser(), HasLen, 0)
 
-	// Sense check that the timer is still active, though this is not part of
-	// any contract, and there's no reason that closing the timer shouldn't be
-	// allowed to stop the expiration timers. We don't at the moment because
-	// doing so is racy and unnecessary, though there's no harm in closing them.
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
+	c.Check(timer.Active(), Equals, false)
+
+	// Check that no new notices were recorded
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
+	var timer *testtime.TestTimer
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Never add prompts, so only timer should be for readiness
+		if timer != nil {
+			c.Fatalf("created more than one timer")
+		}
+		timer = testtime.AfterFunc(d, f)
+		return timer
+	})
+	defer restore()
+
+	// Write initial mappings from request keys to prompt IDs
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	mapping := map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+	}
+	jsonMapping := requestprompts.RequestMappingJSON{
+		RequestMap: mapping,
+	}
+	data, err := json.Marshal(jsonMapping)
+	c.Assert(err, IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	// Write max ID corresponding to mapping
+	expectedID := uint64(2)
+	var maxIDData [8]byte
+	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// No notices
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	c.Check(timer, NotNil)
 	c.Check(timer.Active(), Equals, true)
 
-	// Elapse time as if the prompt timer expired
-	timer.Elapse(requestprompts.InitialTimeout + requestprompts.ActivityTimeout)
-	// Check that timer expiration did not result in new notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
-	// Check that the timer is no longer active. Since the DB is closed, the
-	// expiration callback should not reset the timer as it usually would.
+	pdb.Close()
+
+	// Closing the prompts DB should ready so that API calls aren't left blocked
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should now be ready")
+	}
+
+	s.checkNewNoticesSimple(c, nil, nil)
+
+	// The time should have been stopped, to prevent a zombie goroutine from
+	// firing later.
 	c.Check(timer.Active(), Equals, false)
+
+	// ID map still on disk
+	s.checkWrittenRequestMap(c, mapping)
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
@@ -1433,6 +1851,12 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 }
 
 func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	req1 := &prompting.Request{Key: "fake:1"}
 	req2 := &prompting.Request{Key: "fake:2"}
 	req3 := &prompting.Request{Key: "fake:3"}
@@ -1538,24 +1962,37 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleReadying(c *C) {
-	req1 := &prompting.Request{Key: "fake:1"}
-	req2 := &prompting.Request{Key: "fake:2"}
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
+	req1 := &prompting.Request{Key: "foo:1"}
+	req2 := &prompting.Request{Key: "foo:2"}
+	req3 := &prompting.Request{Key: "bar:1"}
+	// One request which wasn't received before
+	req4 := &prompting.Request{Key: "baz:2"}
 
 	// Write initial mappings from request keys to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	mapping := requestprompts.RequestMappingJSON{
 		RequestMap: map[string]requestprompts.RequestMapEntry{
-			"fake:1": {PromptID: 1, UserID: s.defaultUser},
-			"fake:2": {PromptID: 2, UserID: s.defaultUser},
-			"fake:3": {PromptID: 1, UserID: s.defaultUser}, // third request merged with first request
-			"fake:4": {PromptID: 3, UserID: s.defaultUser}, // we won't re-receive request 4
+			"foo:1": {PromptID: 1, UserID: s.defaultUser},
+			"foo:2": {PromptID: 2, UserID: s.defaultUser},
+			"foo:3": {PromptID: 1, UserID: s.defaultUser}, // unreceived, shared prompt with foo:1
+			"foo:4": {PromptID: 3, UserID: s.defaultUser}, // unreceived
+			"bar:1": {PromptID: 4, UserID: s.defaultUser},
+			"bar:2": {PromptID: 4, UserID: s.defaultUser}, // unreceived, shared prompt with bar:1
+			"bar:3": {PromptID: 5, UserID: s.defaultUser}, // unreceived
+			"baz:1": {PromptID: 6, UserID: s.defaultUser}, // unreceived
 		},
 	}
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
 	// Write max ID corresponding to mapping
-	expectedID := uint64(3)
+	expectedID := uint64(6)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
 	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
@@ -1563,6 +2000,14 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
+
+	// Check that prompt DB is not yet ready
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
 
 	metadataTemplate := prompting.Metadata{
 		User:      s.defaultUser,
@@ -1592,46 +2037,146 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	c.Check(prompt2, Not(Equals), prompt1)
 	c.Check(prompt2.ID, Equals, prompting.IDType(2))
 
-	// Do *not* re-receive third or fourth request
+	// Receive third request, again with different snap (so it's different prompt)
+	metadata = metadataTemplate
+	metadata.Snap = "thunderbird"
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, req3)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt3, Not(Equals), prompt1)
+	c.Check(prompt3, Not(Equals), prompt2)
+	c.Check(prompt3.ID, Equals, prompting.IDType(4))
+
+	s.checkWrittenMaxID(c, expectedID)
+
+	// Do *not* re-receive other outstanding requests
+
+	// Receive fourth request which was not previously received
+	metadata = metadataTemplate
+	metadata.Snap = "protonmail-bridge"
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, req4)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt4, Not(Equals), prompt1)
+	c.Check(prompt4, Not(Equals), prompt2)
+	c.Check(prompt4, Not(Equals), prompt3)
+	c.Check(prompt4.ID, Equals, prompting.IDType(7))
+
+	// New request bumped the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
 
 	// New prompts should record notices
-	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID}, nil)
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID, prompt2.ID, prompt3.ID, prompt4.ID}, nil)
 	// All received prompts were previously sent, so expected map and max ID
 	// should be unchanged.
 	expectedMap := map[string]requestprompts.RequestMapEntry{
-		"fake:1": {PromptID: 1, UserID: s.defaultUser},
-		"fake:2": {PromptID: 2, UserID: s.defaultUser},
-		"fake:3": {PromptID: 1, UserID: s.defaultUser},
-		"fake:4": {PromptID: 3, UserID: s.defaultUser},
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:3": {PromptID: 1, UserID: s.defaultUser},
+		"foo:4": {PromptID: 3, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"bar:2": {PromptID: 4, UserID: s.defaultUser},
+		"bar:3": {PromptID: 5, UserID: s.defaultUser},
+		"baz:1": {PromptID: 6, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
 
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
 	c.Assert(err, IsNil)
-	c.Assert(stored, HasLen, 2)
+	c.Assert(stored, HasLen, 4)
 	c.Check(stored[0], Equals, prompt1)
 	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
 
-	// Signal that the manager is readying
-	err = pdb.HandleReadying()
-	c.Check(err, IsNil)
+	// Signal that all requests with namespace "bar" have been re-received
+	result := pdb.HandleReadying("bar")
+	c.Check(result, DeepEquals, []string{"bar:2", "bar:3"})
 
-	// Notice should be recorded for every prompt for which no notice was
-	// re-received. That is, prompt ID 3.
+	// Check that prompt DB is still not yet ready
+	select {
+	case <-pdb.Ready():
+		c.Fatalf("should not be ready yet")
+	default:
+		// all good
+	}
+
+	// Notice should be recorded for every prompt associated with a request
+	// with the "bar" namespace for which no request was re-received. That is,
+	// prompt ID 5.
 	noticeData := map[string]string{"resolved": "expired"}
-	s.checkNewNoticesSimple(c, []prompting.IDType{3}, noticeData)
-	// Handling ready should prune all pending requests which have not been
-	// re-received.
+	s.checkNewNoticesSimple(c, []prompting.IDType{5}, noticeData)
+	// Handling ready should prune all pending requests with namespace "bar"
+	// which have not been re-received.
 	expectedMap = map[string]requestprompts.RequestMapEntry{
-		"fake:1": {PromptID: 1, UserID: s.defaultUser},
-		"fake:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"foo:3": {PromptID: 1, UserID: s.defaultUser},
+		"foo:4": {PromptID: 3, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"baz:1": {PromptID: 6, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
 	}
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenRequestMap(c, expectedMap)
+
+	// Signal that the manager is readying all unreceived requests (no namespace)
+	result = pdb.HandleReadying("")
+	c.Check(result, DeepEquals, []string{"baz:1", "foo:3", "foo:4"})
+
+	// Check that prompt DB is now ready
+	select {
+	case <-pdb.Ready():
+		// all good
+	default:
+		c.Fatalf("should be ready")
+	}
+
+	// Notice should be recorded for every prompt for which no request was
+	// re-received. That is, prompt ID 3 and 6.
+	noticeData = map[string]string{"resolved": "expired"}
+	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{3, 6}, noticeData)
+	// Handling ready should prune all pending requests which have not been
+	// re-received.
+	expectedMap = map[string]requestprompts.RequestMapEntry{
+		"foo:1": {PromptID: 1, UserID: s.defaultUser},
+		"foo:2": {PromptID: 2, UserID: s.defaultUser},
+		"bar:1": {PromptID: 4, UserID: s.defaultUser},
+		"baz:2": {PromptID: 7, UserID: s.defaultUser},
+	}
+	s.checkWrittenMaxID(c, expectedID)
+	s.checkWrittenRequestMap(c, expectedMap)
+
+	// Check that subsequent calls to HandleReadying do nothing and cause no problems
+	for _, namespace := range []string{"foo", "", "kernel"} {
+		result = pdb.HandleReadying(namespace)
+		c.Check(result, HasLen, 0)
+
+		// Check that prompt DB is still ready
+		select {
+		case <-pdb.Ready():
+			// all good
+		default:
+			c.Fatalf("should be ready")
+		}
+
+		// Check that no notices were recorded
+		s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+		// And the request map is unchanged
+		s.checkWrittenRequestMap(c, expectedMap)
+	}
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
 	defer pdb.Close()
@@ -1639,6 +2184,8 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	timestampStr := "2024-08-14T09:47:03.350324989-05:00"
 	timestamp, err := time.Parse(time.RFC3339Nano, timestampStr)
 	c.Assert(err, IsNil)
+
+	reqCount := 0
 
 	for _, testCase := range []struct {
 		metadata         *prompting.Metadata
@@ -1674,7 +2221,8 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
 		},
 	} {
-		fakeRequest := &prompting.Request{Key: "fake:1234"}
+		fakeRequest := &prompting.Request{Key: fmt.Sprintf("fake:%d", reqCount)}
+		reqCount++
 
 		prompt, merged, err := pdb.AddOrMerge(testCase.metadata, testCase.path, testCase.requestedPerms, testCase.outstandingPerms, fakeRequest)
 		c.Assert(err, IsNil)
@@ -1694,6 +2242,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Ready immediately so only timer is for prompt expiration
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
@@ -1849,6 +2398,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	callbackSignaller := make(chan bool, 0)
 	var timer *testtime.TestTimer
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		// Ready immediately so only timer is for prompt expiration
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
