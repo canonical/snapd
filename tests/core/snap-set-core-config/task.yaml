@@ -165,6 +165,38 @@ execute: |
     snap set system system.hostname=F00
     hostnamectl status | MATCH F00
 
+    if os.query is-core-lt 24; then
+        echo "on pre-core24 the motd system option is not supported, so setting it should return an error"
+        not snap set system system.motd="Test MOTD" 2>stderr
+        MATCH "cannot set message of the day: unsupported on this system, requires UC24+" < stderr
+    else
+        echo "setting the motd works"
+        snap set system system.motd="Test MOTD"
+        cat /etc/motd.d/50-default | MATCH "Test MOTD"
+        snap get system system.motd | MATCH "Test MOTD"
+        snap get system -d | MATCH "Test MOTD"
+
+        echo "but the motd is not stored in the config state"
+        python3 -c 'import json,sys; j=json.loads(sys.stdin.read()); print(j["data"]["config"]);' < /var/lib/snapd/state.json | NOMATCH "Test MOTD"
+
+        echo "setting the motd to empty string resets to the default motd"
+        snap set system system.motd=""
+        not test -e /etc/motd.d/50-default
+        # /usr/lib/motd.d/50-default is readonly, so it should always be there
+        test -e /usr/lib/motd.d/50-default
+
+        echo "unsetting the motd also resets to the default motd"
+        # but first set it to something else to ensure that the unset is actually doing something
+        snap set system system.motd="Another MOTD"
+        snap get system system.motd | MATCH "Another MOTD"
+        cat /etc/motd.d/50-default | MATCH "Another MOTD"
+        # and now unset it
+        snap unset system system.motd
+        not test -e /etc/motd.d/50-default
+        # /usr/lib/motd.d/50-default is readonly, so it should always be there
+        test -e /usr/lib/motd.d/50-default
+    fi
+
     echo "configuring ssh access"
     ssh-keygen -t rsa -N "" -f "$HOME"/.ssh/id_rsa
     mkdir -p /home/ubuntu/.ssh
