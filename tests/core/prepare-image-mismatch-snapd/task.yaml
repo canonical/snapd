@@ -25,6 +25,9 @@ execute: |
     set -o pipefail
 
     case "$SPREAD_SYSTEM" in
+      ubuntu-core-26-*)
+        UC_VERSION=26
+        ;;
       ubuntu-core-24-*)
         UC_VERSION=24
         ;;

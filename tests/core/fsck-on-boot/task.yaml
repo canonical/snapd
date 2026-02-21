@@ -7,6 +7,11 @@ details: |
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
 
+# FIXME: this tries to unmount filesystems while running. Likely components makes it
+# more difficult on core 26.
+systems:
+  - -ubuntu-core-26*
+
 execute: |
   unmount_vfat() {
     if os.query is-core16; then

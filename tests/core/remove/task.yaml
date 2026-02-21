@@ -23,6 +23,8 @@ execute: |
         base=core22
     elif os.query is-core24; then
         base=core24
+    elif os.query is-core26; then
+        base=core26
     fi
     echo "Ensure $base cannot be removed"
     if snap remove --purge "$base"; then
