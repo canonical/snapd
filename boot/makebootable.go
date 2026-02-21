@@ -417,8 +417,29 @@ func UseTokens(model *asserts.Model) bool {
 			}
 		}
 
-		// Later we can start to enable tokens on UC24+
-		return false
+		baseName := model.BaseSnap().Name
+		switch {
+		case baseName == "core":
+			fallthrough
+		case baseName == "core18":
+			fallthrough
+		case baseName == "core20":
+			fallthrough
+		case baseName == "core22":
+			fallthrough
+		case baseName == "core24":
+			// core/core18/core20/core22/core24 do not use
+			// keyslot tokens.
+			return false
+		case baseName[:4] == "core":
+			// Any base name starting with "core", but are
+			// not any of the previous case are expected
+			// to be core26 or later.
+			return true
+		default:
+			logger.Noticef("WARNING: unknown base %s. Guessing cryptsetup support", baseName)
+			return cryptsetupSupportsTokenReplace()
+		}
 	}
 }
 

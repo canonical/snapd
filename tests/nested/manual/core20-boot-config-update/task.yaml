@@ -15,6 +15,9 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
+  # FIXME: make the test not stat sealed key files when using tokens
+  NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
+
 skip:
     - reason: This test needs test keys to be trusted
       if: |
@@ -48,10 +51,12 @@ prepare: |
     case "$VARIANT" in
       gadget-extra)
         echo 'snapd.debug=1 hello from test' > pc-gadget/cmdline.extra
+        echo "${NESTED_EXTRA_CMDLINE}" >>pc-gadget/cmdline.extra
         ;;
       gadget-full)
         # keep the console so that we have useful debug logs
         echo 'snapd.debug=1 console=ttyS0,115200n8 full hello from test' > pc-gadget/cmdline.full
+        echo "${NESTED_EXTRA_CMDLINE}" >>pc-gadget/cmdline.full
         ;;
       *)
         echo "unexpected variant $VARIANT, fix the test"
