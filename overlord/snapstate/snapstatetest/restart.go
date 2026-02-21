@@ -20,6 +20,8 @@
 package snapstatetest
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
@@ -30,7 +32,9 @@ import (
 type MockRestartHandler func(restart.RestartType)
 
 func (h MockRestartHandler) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	fmt.Printf("---------- handle restart\n")
 	if h == nil {
+		fmt.Printf("no handler\n")
 		return
 	}
 	h(t)

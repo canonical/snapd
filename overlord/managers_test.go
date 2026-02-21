@@ -155,6 +155,8 @@ type baseMgrsSuite struct {
 	logbuf *bytes.Buffer
 
 	storeObserver func(r *http.Request)
+
+	restartHandler func(restart.RestartType)
 }
 
 var (
@@ -273,7 +275,12 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	o, err := overlord.New(nil)
+	o, err := overlord.New(snapstatetest.MockRestartHandler(func(restartType restart.RestartType) {
+		fmt.Printf("---- overlord handle restart\n")
+		if s.restartHandler != nil {
+			s.restartHandler(restartType)
+		}
+	}))
 	c.Assert(err, IsNil)
 	st := o.State()
 	st.Lock()
@@ -10477,6 +10484,10 @@ NeedDaemonReload=no
 	// make sure we don't try to ensure snap services before the restart
 	r = servicestate.MockEnsuredSnapServices(s.o.ServiceManager(), true)
 	defer r()
+
+	s.restartHandler = func(restartType restart.RestartType) {
+		fmt.Printf("--------------------------------- handle restart: %v\n", restartType)
+	}
 
 	// run, this will trigger wait for restart
 	st.Unlock()

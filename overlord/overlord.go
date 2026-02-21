@@ -632,14 +632,13 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 		}
 		if lastEnsureNext.Equal(ensureNext) {
 			st := o.State()
-			pendingRestart := false
 			st.Lock()
 			// for _, chg := range st.Changes() {
 			// 	if !pendingRestart {
 			// 		pendingRestart = pendingRestart || chg.Has("pending-system-restart")
 			// 	}
 			// }
-			pendingRestart, _ = restart.Pending(st)
+			pendingRestart, kind := restart.Pending(st)
 			st.Unlock()
 
 			ensureNextUnchangedCnt++
@@ -648,7 +647,11 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 				break
 			}
 			if pendingRestart {
-				fmt.Printf("not progressing, restart pending!!\n")
+				fmt.Printf("not progressing, restart pending!! %v\n", kind)
+				if kind == restart.RestartDaemon {
+					fmt.Printf("daemon restart requested, breaking\n")
+					break
+				}
 				// break
 			}
 		} else {
