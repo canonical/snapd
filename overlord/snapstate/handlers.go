@@ -5303,6 +5303,26 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
+// FindTaskMatchingKindAndSnap returns a task in the given list of tasks that has the given kind matching
+// the given snap name in its SnapSetup, or nil if there is no such task.
+func FindTaskMatchingKindAndSnap(tasks []*state.Task, kind string, instanceName string) *state.Task {
+	for _, t := range tasks {
+		if t.Kind() != kind {
+			continue
+		}
+
+		snapsup, _, err := snapSetupAndState(t)
+		if err != nil {
+			continue
+		}
+
+		if snapsup.InstanceName() == instanceName {
+			return t
+		}
+	}
+	return nil
+}
+
 type dirMigrationOptions struct {
 	// UseHidden states whether the user has requested that the hidden data dir be used
 	UseHidden bool
