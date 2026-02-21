@@ -79,6 +79,18 @@ execute: |
     echo "It's stopped"
     _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
 
+    echo "When we disable it via configure hook"
+    snap set test-snapd-service command=disable
+
+    echo "It's disabled but still inactive"
+    snap services test-snapd-service.test-snapd-service | MATCH ' disabled\s+ inactive'
+
+    echo "When we enable it again via configure hook"
+    snap set test-snapd-service command=enable
+
+    echo "It's enabled but still inactive"
+    snap services test-snapd-service.test-snapd-service | MATCH ' enabled\s+ inactive'
+
     echo "And then restart"
     snap set test-snapd-service service-option-source=foo command=restart
 

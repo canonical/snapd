@@ -208,6 +208,12 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
 					c.Check(argv, DeepEquals, append([]string{"systemctl", "restart"}, expectedServices...))
 				}
+			case "enable":
+				c.Assert(tasks[i].Get("argv", &argv), IsNil)
+				c.Check(argv, DeepEquals, append([]string{"systemctl", "enable"}, expectedServices...))
+			case "disable":
+				c.Assert(tasks[i].Get("argv", &argv), IsNil)
+				c.Check(argv, DeepEquals, append([]string{"systemctl", "disable"}, expectedServices...))
 			default:
 				c.Fatalf("unhandled action %s", expectedAction)
 			}
@@ -232,6 +238,10 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 				} else {
 					c.Check(sa.Action, Equals, "restart")
 				}
+			case "enable":
+				c.Check(sa.Action, Equals, "enable")
+			case "disable":
+				c.Check(sa.Action, Equals, "disable")
 			default:
 				c.Fatalf("unhandled action %s", expectedAction)
 			}
@@ -381,6 +391,38 @@ func (s *serviceControlSuite) TestControlStopDisableInstruction(c *C) {
 	chg := makeControlChange(c, st, inst, inf, []string{"bar"})
 	verifyControlTasks(c, chg.Tasks(), "stop", "disable",
 		[]string{"snap.test-snap.bar.service"}, nil)
+}
+
+func (s *serviceControlSuite) TestControlEnableInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "enable",
+	}
+
+	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
+	verifyControlTasks(c, chg.Tasks(), "enable", "",
+		[]string{"snap.test-snap.foo.service"}, nil)
+}
+
+func (s *serviceControlSuite) TestControlDisableInstruction(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "disable",
+	}
+
+	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
+	verifyControlTasks(c, chg.Tasks(), "disable", "",
+		[]string{"snap.test-snap.foo.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlRestartInstruction(c *C) {
@@ -703,6 +745,36 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 	})
 }
 
+func (s *serviceControlSuite) TestEnableServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "enable",
+		Services: []string{"foo"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
+	})
+}
+
 func (s *serviceControlSuite) TestStartServicesWithScope(c *C) {
 	st := s.state
 	st.Lock()
@@ -862,6 +934,36 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
+		{"--no-reload", "disable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
+	})
+}
+
+func (s *serviceControlSuite) TestDisableServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "disable",
+		Services: []string{"foo"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"--no-reload", "disable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 	})

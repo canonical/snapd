@@ -1,0 +1,59 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016-2024 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package ctlcmd
+
+import (
+	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/servicestate"
+)
+
+type disableCommand struct {
+	baseCommand
+	clientutil.ServiceScopeOptions
+	Positional struct {
+		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+var (
+	shortDisableHelp = i18n.G("Disable services")
+	longDisableHelp  = i18n.G(`
+The disable command disables the given services of the snap. If executed from the
+"configure" hook, the services will be disabled after the hook finishes.`)
+)
+
+func init() {
+	addCommand("disable", shortDisableHelp, longDisableHelp, func() command { return &disableCommand{} })
+}
+
+func (c *disableCommand) Execute(args []string) error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+
+	inst := servicestate.Instruction{
+		Action: "disable",
+		Names:  c.Positional.ServiceNames,
+		Scope:  c.Scope(),
+		Users:  c.Users(),
+	}
+	return runServiceCommand(c.context(), &inst)
+}

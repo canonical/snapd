@@ -178,6 +178,46 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 				snapstate.Set(st, sc.SnapName, &snapst)
 			}
 		}
+	case "enable":
+		opts := &wrappers.EnableServicesOptions{
+			ScopeOptions: sc.ScopeOptions,
+		}
+		st.Unlock()
+		err = wrappers.EnableServices(services, opts, meter, perfTimings)
+		st.Lock()
+		if err != nil {
+			return err
+		}
+		if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+			return err
+		}
+		changed, err := updateSnapstateServices(&snapst, services, nil, sc.ScopeOptions)
+		if err != nil {
+			return err
+		}
+		if changed {
+			snapstate.Set(st, sc.SnapName, &snapst)
+		}
+	case "disable":
+		opts := &wrappers.DisableServicesOptions{
+			ScopeOptions: sc.ScopeOptions,
+		}
+		st.Unlock()
+		err = wrappers.DisableServices(services, opts, meter, perfTimings)
+		st.Lock()
+		if err != nil {
+			return err
+		}
+		if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+			return err
+		}
+		changed, err := updateSnapstateServices(&snapst, nil, services, sc.ScopeOptions)
+		if err != nil {
+			return err
+		}
+		if changed {
+			snapstate.Set(st, sc.SnapName, &snapst)
+		}
 	case "restart":
 		st.Unlock()
 		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
