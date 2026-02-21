@@ -49,6 +49,7 @@ type Task struct {
 	clean        bool
 	progress     *progress
 	data         customData
+	ready        chan struct{}
 	waitTasks    []string
 	haltTasks    []string
 	lanes        []int
@@ -74,6 +75,7 @@ func newTask(state *State, id, kind, summary string) *Task {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+		ready:   make(chan struct{}),
 
 		spawnTime: timeNow(),
 	}
@@ -167,6 +169,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 		custData = make(customData)
 	}
 	t.data = custData
+	t.ready = make(chan struct{})
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.lanes = unmarshalled.Lanes
@@ -182,6 +185,13 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.doingTime = unmarshalled.DoingTime
 	t.undoingTime = unmarshalled.UndoingTime
 	return nil
+}
+
+// finishUnmashal is called after the state is accessible.
+func (t *Task) finishUnmarshal() {
+	if t.Status().Ready() {
+		close(t.ready)
+	}
 }
 
 // ID returns the individual random key for this task.
@@ -249,7 +259,7 @@ func (t *Task) changeStatus(old, new Status) {
 	logger.Trace("task-status-change", "task-name", t.kind, "id", t.id, "status", new.String())
 	t.status = new
 	if !old.Ready() && new.Ready() {
-		t.readyTime = timeNow()
+		t.markReady()
 	}
 	chg := t.Change()
 	if chg != nil {
@@ -275,6 +285,20 @@ func (t *Task) SetStatus(new Status) {
 		return
 	}
 	t.changeStatus(old, new)
+}
+
+func (t *Task) markReady() {
+	select {
+	case <-t.ready:
+	default:
+		close(t.ready)
+	}
+	t.readyTime = timeNow()
+}
+
+// Ready returns a channel that is closed the first time the task becomes ready.
+func (t *Task) Ready() <-chan struct{} {
+	return t.ready
 }
 
 // SetToWait puts the task into WaitStatus, and sets the status the task should be restored
