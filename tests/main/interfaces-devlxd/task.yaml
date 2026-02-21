@@ -1,0 +1,52 @@
+summary: Ensure devlxd interface works.
+
+details: |
+    The devlxd interface allows a snap to access the LXD devlxd socket.
+    This socket provides instance information and metadata to applications
+    running inside LXD instances.
+
+systems: [ubuntu-*]
+
+environment:
+    DEVLXD_PATH: /dev/lxd/sock
+
+prepare: |
+    echo "Given a snap declaring a devlxd plug is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "And the devlxd socket directory exists"
+    p=/dev/lxd/sock
+    if [ -e "$p" ]; then
+        echo "Socket path $p already exists"
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$p")"
+    echo "LXD response" > "$p"
+
+restore: |
+    rm -rf /var/snap/lxd/common/lxd/devlxd /dev/lxd
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i devlxd | MATCH '^- +test-snapd-sh:devlxd'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-sh:devlxd
+
+    echo "Then the snap is able to access the socket path"
+    # We don't have anything to connect to the UNIX socket so we
+    # only verify that we can open() it by using cat
+    test-snapd-sh.with-devlxd-plug -c "cat $DEVLXD_PATH" |& tee output.log || true
+    MATCH "LXD response" < output.log
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:devlxd
+
+    echo "Then the snap cannot access the socket path"
+    test-snapd-sh.with-devlxd-plug -c "cat $DEVLXD_PATH" |& tee output.log || true
+    MATCH "Permission denied" < output.log
