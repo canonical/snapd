@@ -139,7 +139,7 @@ func (s *certsTestSuite) TestParseCertificateDataSimpleHappy(c *C) {
 
 	cert, err := certstate.ParseCertificateData(bytes)
 	c.Assert(err, IsNil)
-	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C) {
@@ -151,18 +151,16 @@ func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C)
 
 	cert, err := certstate.ParseCertificateData(data)
 	c.Assert(err, IsNil)
-	c.Check(cert.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
-func (s *certsTestSuite) TestParseCertificateChainDataDERInput(c *C) {
+func (s *certsTestSuite) TestParseCertificateDataDERInput(c *C) {
 	_, cert, err := makeTestCertPEM("Test Certificate Root CA")
 	c.Assert(err, IsNil)
 
-	parsed, chainDER, err := certstate.ParseCertificateChainData(cert.Raw)
+	parsed, err := certstate.ParseCertificateData(cert.Raw)
 	c.Assert(err, IsNil)
-	c.Check(parsed.Subject.CommonName, Equals, "Test Certificate Root CA")
-	c.Check(chainDER, HasLen, 1)
-	c.Check(chainDER[0], DeepEquals, cert.Raw)
+	c.Check(parsed.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
 func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
@@ -284,7 +282,11 @@ func (s *certsTestSuite) TestGenerateCACertificatesDeduplicatesAndBlocks(c *C) {
 	c.Assert(err, IsNil)
 
 	blockedDigest := digestForPEM(c, cert2)
-	err = certstate.GenerateCACertificates(base, extras, []string{blockedDigest}, outDir)
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+		AddedCertificates:  extras,
+		BlockedDigests:     []string{blockedDigest},
+	}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -321,7 +323,10 @@ func (s *certsTestSuite) TestGenerateCACertificatesDoesNotDeduplicateDifferentCh
 	extras, err := certstate.ParseCertificates(extraDir)
 	c.Assert(err, IsNil)
 
-	err = certstate.GenerateCACertificates(base, extras, nil, outDir)
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+		AddedCertificates:  extras,
+	}, outDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
@@ -341,7 +346,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	bPEM, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), aPEM, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), bPEM, 0o644), IsNil)
@@ -370,7 +375,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c
 	bPEM, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), aPEM, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), bPEM, 0o644), IsNil)

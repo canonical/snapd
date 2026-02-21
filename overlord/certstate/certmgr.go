@@ -74,8 +74,7 @@ func (m *CertManager) Ensure() error {
 	}
 
 	// If the ssl certs directory is missing, nothing to do.
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
-	if exists, isDir, err := osutil.DirExists(baseCertsDir); !exists || !isDir || err != nil {
+	if exists, isDir, err := osutil.DirExists(dirs.SystemCertsDir); !exists || !isDir || err != nil {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
 	}

@@ -21,14 +21,13 @@ package certstate
 import "github.com/snapcore/snapd/testutil"
 
 type Certificate = certificate
+type Certificates = certificates
 
 var (
-	IsBlocked                 = isBlocked
-	ParseCertificateChainData = parseCertificateChainData
-	ParseCertificateData      = parseCertificateData
-	ParseCertificates         = parseCertificates
-	ReadDigests               = readDigests
-	GenerateCACertificates    = generateCACertificates
+	IsBlocked              = isBlocked
+	ParseCertificates      = parseCertificates
+	ReadDigests            = readDigests
+	GenerateCACertificates = generateCACertificates
 )
 
 func MockGenerateCertificateDatabase(f func() error) func() {
