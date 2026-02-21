@@ -2220,6 +2220,19 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			outstandingPerms: []string{"access"},
 			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
 		},
+		{
+			metadata: &prompting.Metadata{
+				User:      s.defaultUser,
+				Snap:      "protonmail-bridge",
+				PID:       1248,
+				Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+				Interface: "audio-record",
+			},
+			path:             "/placeholder",
+			requestedPerms:   []string{"access"},
+			outstandingPerms: []string{"access"},
+			expected:         `{"id":"0000000000000003","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"protonmail-bridge","pid":1248,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"audio-record","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
+		},
 	} {
 		fakeRequest := &prompting.Request{Key: fmt.Sprintf("fake:%d", reqCount)}
 		reqCount++

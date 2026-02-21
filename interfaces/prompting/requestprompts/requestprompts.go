@@ -207,9 +207,10 @@ type promptConstraintsJSONHome struct {
 	AvailablePermissions []string `json:"available-permissions"`
 }
 
-// promptConstraintsJSONCamera defines the marshalled json structure of
-// promptConstraints for the camera interface.
-type promptConstraintsJSONCamera struct {
+// promptConstraintsJSONEmpty defines the marshalled json structure of
+// promptConstraints for interfaces which do not have interface-specific
+// constraints, such as the camera and audio-record interfaces.
+type promptConstraintsJSONEmpty struct {
 	RequestedPermissions []string `json:"requested-permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
 }
@@ -229,8 +230,8 @@ func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
 			AvailablePermissions: pc.availablePermissions,
 		}
 		return json.Marshal(constraintsJSON)
-	case "camera":
-		constraintsJSON := &promptConstraintsJSONCamera{
+	case "camera", "audio-record":
+		constraintsJSON := &promptConstraintsJSONEmpty{
 			RequestedPermissions: pc.outstandingPermissions,
 			AvailablePermissions: pc.availablePermissions,
 		}

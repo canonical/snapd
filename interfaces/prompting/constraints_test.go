@@ -100,28 +100,56 @@ func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsHappy(c *C) {
 			iface:               "camera",
 			constraintsJSON:     prompting.ConstraintsJSON{},
 			isPatch:             false,
-			expected:            &prompting.InterfaceSpecificConstraintsCamera{},
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
 			expectedPathPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface:               "camera",
 			constraintsJSON:     prompting.ConstraintsJSON{},
 			isPatch:             true,
-			expected:            &prompting.InterfaceSpecificConstraintsCamera{},
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
 			expectedPathPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface:               "camera",
 			constraintsJSON:     prompting.ConstraintsJSON{"foo": json.RawMessage(`"bar"`)},
 			isPatch:             false,
-			expected:            &prompting.InterfaceSpecificConstraintsCamera{},
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
 			expectedPathPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface:               "camera",
 			constraintsJSON:     prompting.ConstraintsJSON{"foo": json.RawMessage(`"bar"`)},
+			isPatch:             true,
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
+			expectedPathPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface:               "audio-record",
+			constraintsJSON:     prompting.ConstraintsJSON{},
 			isPatch:             false,
-			expected:            &prompting.InterfaceSpecificConstraintsCamera{},
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
+			expectedPathPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface:               "audio-record",
+			constraintsJSON:     prompting.ConstraintsJSON{},
+			isPatch:             true,
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
+			expectedPathPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface:               "audio-record",
+			constraintsJSON:     prompting.ConstraintsJSON{"foo": json.RawMessage(`"bar"`)},
+			isPatch:             false,
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
+			expectedPathPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface:               "audio-record",
+			constraintsJSON:     prompting.ConstraintsJSON{"foo": json.RawMessage(`"bar"`)},
+			isPatch:             true,
+			expected:            &prompting.InterfaceSpecificConstraintsEmpty{},
 			expectedPathPattern: mustParsePathPattern(c, "/**"),
 		},
 	} {
@@ -205,11 +233,27 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"session"}}`),
 			},
 			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expected: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
 					},
 				},
 			},
@@ -251,19 +295,19 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 				"permissions": json.RawMessage(`{}`),
 			},
 			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions:       prompting.PermissionMap{},
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
-			iface: "camera",
+			iface: "audio-record",
 			constraintsJSON: prompting.ConstraintsJSON{
 				// Check that permissions aren't validated here
 				"permissions": json.RawMessage(`{"bad":{}}`),
 			},
 			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
@@ -341,17 +385,22 @@ func (s *constraintsSuite) TestConstraintsMatch(c *C) {
 			false,
 		},
 		{
-			&prompting.InterfaceSpecificConstraintsCamera{},
+			&prompting.InterfaceSpecificConstraintsEmpty{},
 			"/dev/video0",
 			true,
 		},
 		{
-			&prompting.InterfaceSpecificConstraintsCamera{},
+			&prompting.InterfaceSpecificConstraintsEmpty{},
+			"/placeholder",
+			true,
+		},
+		{
+			&prompting.InterfaceSpecificConstraintsEmpty{},
 			"anything",
 			false, // XXX: unfortunately...
 		},
 		{
-			&prompting.InterfaceSpecificConstraintsCamera{},
+			&prompting.InterfaceSpecificConstraintsEmpty{},
 			"",
 			true, // XXX: surprisingly...
 		},
@@ -491,7 +540,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 		{
 			iface: "camera",
 			constraints: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -500,12 +549,33 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 				},
 			},
 			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:   prompting.OutcomeAllow,
 						Lifespan:  prompting.LifespanSession,
 						SessionID: at.SessionID,
+					},
+				},
+			},
+		},
+		{
+			iface: "audio-record",
+			constraints: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			expected: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
 					},
 				},
 			},
@@ -708,7 +778,24 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"session","session-id":"ABCDABCD12345678"}}`),
 			},
 			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: prompting.IDType(0xABCDABCD12345678),
+					},
+				},
+			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"session","session-id":"ABCDABCD12345678"}}`),
+			},
+			expected: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:   prompting.OutcomeAllow,
@@ -754,19 +841,19 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 				"permissions": json.RawMessage(`{}`),
 			},
 			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions:       prompting.RulePermissionMap{},
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
-			iface: "camera",
+			iface: "audio-record",
 			constraintsJSON: prompting.ConstraintsJSON{
 				// Check that permissions aren't validated here
 				"permissions": json.RawMessage(`{"bad":{}}`),
 			},
 			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions:       prompting.RulePermissionMap{"bad": &prompting.RulePermissionEntry{}},
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
@@ -847,7 +934,7 @@ func (s *constraintsSuite) TestRuleConstraintsMarshalJSON(c *C) {
 		},
 		{
 			&prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1279,7 +1366,24 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsHappy(c *C) {
 				"permissions": json.RawMessage(`["access"]`),
 			},
 			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+		},
+		{
+			iface:    "audio-record",
+			outcome:  prompting.OutcomeAllow,
+			lifespan: prompting.LifespanSession,
+			constraints: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`["access"]`),
+			},
+			expected: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1355,6 +1459,18 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsUnhappy(c *C) {
 			errStr: `invalid permissions for camera interface: permissions empty`,
 		},
 		{
+			iface:       "audio-record",
+			constraints: prompting.ConstraintsJSON{},
+			errStr:      `invalid permissions for audio-record interface: permissions empty`,
+		},
+		{
+			iface: "audio-record",
+			constraints: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`[]`),
+			},
+			errStr: `invalid permissions for audio-record interface: permissions empty`,
+		},
+		{
 			iface: "home",
 			constraints: prompting.ConstraintsJSON{
 				"path-pattern": json.RawMessage(`"/path/to/foo"`),
@@ -1369,6 +1485,14 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsUnhappy(c *C) {
 				"permissions":  json.RawMessage(`["read","access","write","create","execute"]`),
 			},
 			errStr: `invalid permissions for camera interface: "read", "write", "create", "execute"`,
+		},
+		{
+			iface: "audio-record",
+			constraints: prompting.ConstraintsJSON{
+				"path-pattern": json.RawMessage(`"/path/to/foo"`),
+				"permissions":  json.RawMessage(`["read","access","write","create","execute"]`),
+			},
+			errStr: `invalid permissions for audio-record interface: "read", "write", "create", "execute"`,
 		},
 	} {
 		iface := "home"
@@ -1406,7 +1530,14 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 			iface:           "camera",
 			constraintsJSON: prompting.ConstraintsJSON{},
 			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+			},
+		},
+		{
+			iface:           "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{},
+			expected: &prompting.RuleConstraintsPatch{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 			},
 		},
 		{
@@ -1441,10 +1572,25 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 				"permissions": json.RawMessage(`{"access":{"outcome":"deny","lifespan":"session"}}`),
 			},
 			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"session"}}`),
+			},
+			expected: &prompting.RuleConstraintsPatch{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
 					},
 				},
@@ -1506,7 +1652,18 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 				"permissions": json.RawMessage(`{"bad": {}}`),
 			},
 			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
+			},
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// Check that permissions aren't validated here
+				"permissions": json.RawMessage(`{"bad": {}}`),
+			},
+			expected: &prompting.RuleConstraintsPatch{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
 			},
 		},
@@ -1760,7 +1917,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 		{
 			iface: "camera",
 			initial: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1777,7 +1934,37 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			final: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
+					},
+				},
+			},
+		},
+		{
+			iface: "audio-record",
+			initial: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:   prompting.OutcomeAllow,
@@ -1822,7 +2009,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 		{
 			iface: "camera",
 			initial: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:    prompting.OutcomeAllow,
@@ -1832,10 +2019,36 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 			},
 			final: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+		},
+		{
+			iface: "audio-record",
+			initial: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+			},
+			final: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
 					"access": &prompting.RulePermissionEntry{
 						Outcome:    prompting.OutcomeAllow,
