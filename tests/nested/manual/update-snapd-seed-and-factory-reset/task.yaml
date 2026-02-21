@@ -120,6 +120,7 @@ prepare: |
     # Save modern kernel, use old one for the seed so it does not install from
     # the initramfs
     mv "${extra}"/pc-kernel.snap pc-kernel_new.snap
+    old_unmkinitramfs=true
     if [ "$VERSION" -eq 20 ]; then
         kernel_rev=2332
     elif [ "$VERSION" -eq 22 ] || [ "$VERSION" -eq 24 ]; then
@@ -128,6 +129,7 @@ prepare: |
         # This one does not install by default from the initramfs, which is
         # relevant when doing the factory reset.
         kernel_rev=2247
+        old_unmkinitramfs=false
     fi
     snap download pc-kernel --revision="${kernel_rev}" --basename=pc-kernel_old
 
@@ -161,8 +163,14 @@ prepare: |
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img-"$kernelver"
     unmkinitramfs initrd.img-"$kernelver" initrd
     rm initrd.img-"$kernelver"
-    cp snap-bootstrap initrd/main/usr/lib/snapd/
-    pushd initrd/main
+    # unmkinitramfs has changed its behavior on 26.04, it does not create a folder
+    # per cpio file like it the past.
+    initrd_d=initrd/main
+    if [ "$old_unmkinitramfs" = false ]
+    then initrd_d=initrd
+    fi
+    cp snap-bootstrap "$initrd_d"/usr/lib/snapd/
+    pushd "$initrd_d"
     compress_prog="zstd -1 -T0"
     if [ "$VERSION" -eq 20 ]; then
         compress_prog="lz4 -9 -l"
