@@ -133,3 +133,12 @@ func ngn(d int) uint32 {
 func NG(msgid string, msgidPlural string, n int) string {
 	return locale.NGettext(msgid, msgidPlural, ngn(n))
 }
+
+func MockLocale(l gettext.Catalog) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock locale in a non-test binary")
+	old := locale
+	locale = l
+	return func() {
+		locale = old
+	}
+}
