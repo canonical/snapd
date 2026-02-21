@@ -763,10 +763,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 			if !tc.noKeyFile && !tc.errorReadKeyFile {
 				if tc.oldKeyFormat {
-					keyPath = filepath.Join("test-data", "keyfile")
+					keyPath = filepath.Join("testdata", "keyfile")
 				} else {
-					keyPath = filepath.Join("test-data", "keydata")
-					keyPath2 = filepath.Join("test-data", "keydata2")
+					keyPath = filepath.Join("testdata", "keydata")
+					keyPath2 = filepath.Join("testdata", "keydata2")
 				}
 				finfo, err := os.Lstat(keyPath)
 				c.Assert(err, IsNil)
@@ -1749,12 +1749,12 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 				// To create full looking
 				// mockSealedKeyObjects, although {},{} would
 				// have been enough as well
-				mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+				mockSealedKeyFile := filepath.Join("testdata", "keyfile")
 				mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
 				c.Assert(err, IsNil)
 				mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
 			} else {
-				mockSealedKeyFile := filepath.Join("test-data", "keydata")
+				mockSealedKeyFile := filepath.Join("testdata", "keydata")
 				reader, err := sb.NewFileKeyDataReader(mockSealedKeyFile)
 				c.Assert(err, IsNil)
 				kd, err := sb.ReadKeyData(reader)
@@ -4079,7 +4079,7 @@ func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {
 func (s *secbootSuite) TestReadKeyFileSealedObject(c *C) {
 	keyLoader := &secboot.DefaultKeyLoader{}
 	const fdeHookHint = false
-	keyPath := filepath.Join("test-data", "keyfile")
+	keyPath := filepath.Join("testdata", "keyfile")
 
 	readSealedKeyObjectFromFileCalls := 0
 	restore := secboot.MockSbReadSealedKeyObjectFromFile(func(path string) (*sb_tpm2.SealedKeyObject, error) {
@@ -5376,7 +5376,7 @@ func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
 	})()
 
 	kd := &sb.KeyData{}
-	mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+	mockSealedKeyFile := filepath.Join("testdata", "keyfile")
 	mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
 	c.Assert(err, IsNil)
 
