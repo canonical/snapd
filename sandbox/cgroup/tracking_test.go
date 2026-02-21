@@ -118,7 +118,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 			defer func() {
 				close(signalChan)
 			}()
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
@@ -126,14 +126,14 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	})
 	go func() {
 		<-signalChan
-		inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "done"))
+		inject(mockJobRemovedSignal("snap.pkg.app."+uuid+".scope", "done"))
 	}()
 	c.Assert(err, IsNil)
 	restore = dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 	// Replace the cgroup analyzer function
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app-" + uuid + ".scope", nil
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -243,7 +243,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 	// Rig the cgroup analyzer to pretend that we got placed into the system slice.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
 		c.Assert(pid, Equals, 312123)
-		return "/system.slice/snap.pkg.app-" + uuid + ".scope", nil
+		return "/system.slice/snap.pkg.app." + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -421,19 +421,27 @@ func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 	// call was made on the system bus, as requested by TrackingOptions below.
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
 		c.Assert(conn, Equals, systemBus)
-		c.Assert(unitName, Equals, "snap.pkg.app-"+uuid+".scope")
+		c.Assert(unitName, Equals, "snap.pkg-foo.app-bar."+uuid+".scope")
+
+		// Ensure that the transient scope can be used by the snapped application
+		// to figure out the snap instance and name.
+		// See: https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2125222
+		splits := strings.Split(unitName, ".")
+		c.Assert(splits[0], Equals, "snap")
+		c.Assert(splits[1], Equals, "pkg-foo")
+		c.Assert(splits[2], Equals, "app-bar")
 		return nil
 	})
 	defer restore()
 
 	// Rig the cgroup analyzer to indicate successful tracking.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "snap.pkg.app-" + uuid + ".scope", nil
+		return "snap.pkg-foo.app-bar." + uuid + ".scope", nil
 	})
 	defer restore()
 
 	// Create a transient scope and see it succeed.
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", &cgroup.TrackingOptions{AllowSessionBus: false})
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg-foo.app-bar", &cgroup.TrackingOptions{AllowSessionBus: false})
 	c.Assert(err, IsNil)
 }
 
@@ -473,7 +481,7 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 		c.Assert(err, IsNil)
 
 		c.Assert(conn, Equals, sessionBus)
-		c.Assert(unitName, Equals, escapedTag+"-"+tc.uuid+".scope")
+		c.Assert(unitName, Equals, escapedTag+"."+tc.uuid+".scope")
 		return nil
 	})
 	defer restore()
@@ -500,7 +508,7 @@ func (s *trackingSuite) TestCreateTransientScopeConfirmHappy(c *C) {
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
 		securityTag: "snap.pkg.app",
 		uuid:        uuid,
-		confirmUnit: "foo/bar/baz/snap.pkg.app-" + uuid + ".scope",
+		confirmUnit: "foo/bar/baz/snap.pkg.app." + uuid + ".scope",
 	})
 }
 
@@ -509,7 +517,7 @@ func (s *trackingSuite) TestCreateTransientScopeConfirmEscaped(c *C) {
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
 		securityTag: "snap.pkg+comp.hook.install",
 		uuid:        uuid,
-		confirmUnit: "foo/bar/baz/snap.pkg\\x2bcomp.hook.install-" + uuid + ".scope",
+		confirmUnit: "foo/bar/baz/snap.pkg\\x2bcomp.hook.install." + uuid + ".scope",
 	})
 }
 
@@ -672,10 +680,10 @@ func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c 
 		c.Logf("%v got msg: %v", n, msg)
 		switch n {
 		case 0:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 			// CreateTransientScopeForTracking is called twice in the test
 		case 1:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -691,7 +699,7 @@ func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c 
 		if pathInTrackingCgroupCalls < pathInTrackingCgroupCallsToSuccess {
 			return "vte-spawn-1234-1234-1234.scope", nil
 		}
-		return "snap.pkg.app-" + uuid + ".scope", nil
+		return "snap.pkg.app." + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -733,7 +741,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 			defer func() {
 				close(signalChan)
 			}()
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
@@ -741,7 +749,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 	})
 	go func() {
 		<-signalChan
-		inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "failed"))
+		inject(mockJobRemovedSignal("snap.pkg.app."+uuid+".scope", "failed"))
 	}()
 
 	c.Assert(err, IsNil)
@@ -780,7 +788,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobTimeout(c *C) {
 		case 0:
 			return []*dbus.Message{checkSystemdSignalSubscribe(c, msg)}, nil
 		case 1:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
