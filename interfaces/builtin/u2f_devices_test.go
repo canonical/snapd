@@ -66,6 +66,12 @@ func (s *u2fDevicesInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, u2fDevicesCoreYaml, nil, "u2f-devices")
 }
 
+func (s *u2fDevicesInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// udev
+	_, ok := s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *u2fDevicesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "u2f-devices")
 }

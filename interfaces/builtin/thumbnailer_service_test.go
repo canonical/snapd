@@ -75,6 +75,16 @@ apps:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfo, nil, "thumbnailer-service")
 }
 
+func (s *ThumbnailerServiceInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {
 	c.Check(s.iface.Name(), Equals, "thumbnailer-service")
 }

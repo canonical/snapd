@@ -91,6 +91,20 @@ func (s *X11InterfaceSuite) SetUpTest(c *C) {
 	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, x11ClassicYaml, nil, "x11")
 }
 
+func (s *X11InterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *X11InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "x11")
 }

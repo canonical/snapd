@@ -80,6 +80,18 @@ func (s *cupsSuite) SetUpTest(c *C) {
 	s.providerLegacySlot, s.providerLegacySlotInfo = MockConnectedSlot(c, cupsProviderLegacyYaml, nil, "cups")
 }
 
+func (s *cupsSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *cupsSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "cups")
 }

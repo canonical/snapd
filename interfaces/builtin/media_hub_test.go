@@ -65,6 +65,16 @@ apps:
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "media-hub")
 }
 
+func (s *MediaHubInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *MediaHubInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "media-hub")
 }

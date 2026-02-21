@@ -62,6 +62,12 @@ func (s *desktopLaunchSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, desktopLaunchCoreYaml, nil, "desktop-launch")
 }
 
+func (s *desktopLaunchSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *desktopLaunchSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "desktop-launch")
 }

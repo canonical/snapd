@@ -70,6 +70,12 @@ func (s *displayControlInterfaceSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 }
 
+func (s *displayControlInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *displayControlInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "display-control")
 }

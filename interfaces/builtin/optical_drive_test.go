@@ -90,6 +90,12 @@ func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, opticalDriveCoreYaml, nil, "optical-drive")
 }
 
+func (s *OpticalDriveInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "optical-drive")
 }

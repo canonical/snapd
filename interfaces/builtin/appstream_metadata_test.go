@@ -65,6 +65,16 @@ apps:
 	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "appstream-metadata")
 }
 
+func (s *AppstreamMetadataInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *AppstreamMetadataInterfaceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }

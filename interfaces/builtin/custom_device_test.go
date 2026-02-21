@@ -101,6 +101,16 @@ func (s *CustomDeviceInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, customDeviceProviderYaml, nil, "hwdev")
 }
 
+func (s *CustomDeviceInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *CustomDeviceInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "custom-device")
 }

@@ -65,6 +65,12 @@ func (s *RawInputInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, rawInputCoreYaml, nil, "raw-input")
 }
 
+func (s *RawInputInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// udev
+	_, ok := s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *RawInputInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "raw-input")
 }

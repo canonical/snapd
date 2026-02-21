@@ -99,6 +99,16 @@ func (s *mediatekAccelSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, mediatekAccelMockPlugSnapInfoYaml, nil, "mediatek-accel")
 }
 
+func (s *mediatekAccelSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *mediatekAccelSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "mediatek-accel")
 }
