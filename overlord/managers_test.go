@@ -276,7 +276,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	o, err := overlord.New(snapstatetest.MockRestartHandler(func(restartType restart.RestartType) {
-		fmt.Printf("---- overlord handle restart\n")
+		fmt.Printf("---- overlord handle restart %v\n", restartType)
 		if s.restartHandler != nil {
 			s.restartHandler(restartType)
 		}
@@ -2710,14 +2710,23 @@ type: kernel`
 	c.Assert(err, IsNil)
 
 	terr := st.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-1])
+	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-2])
 	ts.AddTask(terr)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
 
+	breakSettle := false
+	s.restartHandler = func(restartType restart.RestartType) {
+		fmt.Printf("--------------------------------- handle restart: %v\n", restartType)
+		breakSettle = true
+	}
+
 	// run, this will trigger a wait for the restart
 	st.Unlock()
-	err = s.o.Settle(settleTimeout)
+	err = s.o.SettleWithBreakCondition(settleTimeout, func() bool {
+		fmt.Printf("break check\n")
+		return breakSettle
+	})
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -2736,14 +2745,19 @@ type: kernel`
 	// pretend we restarted
 	s.mockSuccessfulReboot(c, chg, bloader, []snap.Type{snap.TypeKernel})
 
+	fmt.Printf("#### after reboot\n")
+	breakSettle = false
 	st.Unlock()
-	err = s.o.Settle(settleTimeout)
+	err = s.o.SettleWithBreakCondition(settleTimeout, func() bool {
+		fmt.Printf("break check\n")
+		return breakSettle
+	})
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	// undoing will have retriggered a restart, and put the change
 	// back into wait
-	c.Assert(chg.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// and we undo the bootvars and trigger a reboot
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{

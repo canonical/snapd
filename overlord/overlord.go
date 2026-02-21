@@ -563,7 +563,7 @@ func (o *Overlord) Stop() error {
 	return err
 }
 
-func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
+func (o *Overlord) settle(timeout time.Duration, beforeCleanups func(), breakHint func() bool) error {
 	if err := o.StartUp(); err != nil {
 		return err
 	}
@@ -642,17 +642,22 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			st.Unlock()
 
 			ensureNextUnchangedCnt++
-			if ensureNextUnchangedCnt > 5000 {
-				fmt.Printf("not progressing!!!\n")
-				break
-			}
 			if pendingRestart {
 				fmt.Printf("not progressing, restart pending!! %v\n", kind)
 				if breakingRestart(kind) {
 					fmt.Printf("daemon restart requested, breaking\n")
 					break
 				}
+				fmt.Printf("hint? %p\n", breakHint)
+				if breakHint != nil && breakHint() {
+					fmt.Printf("breaking hint\n")
+					break
+				}
 				// break
+			}
+			if ensureNextUnchangedCnt > 50000 {
+				fmt.Printf("not progressing force break!!!\n")
+				break
 			}
 		} else {
 			lastEnsureNext = ensureNext
@@ -681,7 +686,7 @@ func breakingRestart(restartType restart.RestartType) bool {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) Settle(timeout time.Duration) error {
-	return o.settle(timeout, nil)
+	return o.settle(timeout, nil, nil)
 }
 
 // SettleObserveBeforeCleanups runs first a state engine Ensure and
@@ -693,7 +698,11 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
-	return o.settle(timeout, beforeCleanups)
+	return o.settle(timeout, beforeCleanups, nil)
+}
+
+func (o *Overlord) SettleWithBreakCondition(timeout time.Duration, breakCond func() bool) error {
+	return o.settle(timeout, nil, breakCond)
 }
 
 // State returns the system state managed by the overlord.
