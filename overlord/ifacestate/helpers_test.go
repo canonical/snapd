@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -510,6 +511,60 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 
 	c.Check(writeKey, Equals, true)
 	c.Check(setupManyCalls, Equals, 1)
+}
+
+func (s *helpersSuite) TestProfileRegenerationDoesNotDelay(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	var setupCalls []string
+	var writeKey bool
+
+	backend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "fake",
+			SetupCallback: func(
+				appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+				sctx interfaces.SetupContext, repo *interfaces.Repository,
+			) error {
+				setupCalls = append(setupCalls, appSet.InstanceName())
+				c.Check(sctx.CanDelayEffects, Equals, false)
+				c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOther)
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			panic("unexpected call")
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// Create a mock overlord, mainly to have state.
+	ovld := overlord.Mock()
+	st := ovld.State()
+
+	// Mocks 2 snaps internally
+	mockSnaps(c, st)
+
+	// Pretend that security profiles are out of date.
+	restore = ifacestate.MockProfilesNeedRegeneration(func(m *ifacestate.InterfaceManager) bool { return true })
+	defer restore()
+	restore = ifacestate.MockWriteSystemKey(func(extraData interfaces.SystemKeyExtraData) error {
+		writeKey = true
+		return nil
+	})
+	defer restore()
+
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	c.Check(writeKey, Equals, true)
+	sort.Strings(setupCalls)
+	c.Check(setupCalls, DeepEquals, []string{"bar", "foo"})
 }
 
 func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(c *C) {
