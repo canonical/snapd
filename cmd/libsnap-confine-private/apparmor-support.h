@@ -78,15 +78,4 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor);
  **/
 void sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
 
-/**
- * Maybe call aa_change_hat(2)
- *
- * This function does nothing when apparmor support is not enabled at compile
- * time. If apparmor is enabled then hat change is attempted.
- *
- * As with many functions in the snap-confine tree, all errors result in
- * process termination.
- **/
-void sc_maybe_aa_change_hat(struct sc_apparmor *apparmor, const char *subprofile, unsigned long magic_token);
-
 #endif
