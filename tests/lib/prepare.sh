@@ -1151,7 +1151,7 @@ description: kernel component for testing purposes
 EOF
     # Replace _ or - with [_-], as it can be any of these
     glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
-    module_path=$(find pc-kernel -name "${glob_mod_name}.ko*")
+    module_path=$(find pc-kernel/modules/ -name "${glob_mod_name}.ko*")
     cp "$module_path" "$comp_ko_dir"
     snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
 
