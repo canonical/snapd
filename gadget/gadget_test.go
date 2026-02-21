@@ -730,7 +730,14 @@ func (s *gadgetYamlTestSuite) TestFlatten(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
-	err := os.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
+	netPlanConf := filepath.Join(dirs.GlobalRootDir, "etc/netplan/00-snapd-config.yaml")
+	err := os.MkdirAll(filepath.Dir(netPlanConf), 0755)
+	c.Assert(err, IsNil)
+
+	err = os.WriteFile(netPlanConf, []byte{}, 0644)
+	c.Assert(err, IsNil)
+
+	err = os.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
@@ -753,6 +760,23 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	defaults = gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]any{
 		"something": true,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestCoreConfigDefaultsNoNetplan(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
+	c.Assert(err, IsNil)
+	defaults := gadget.SystemDefaults(ginfo.Defaults)
+	c.Check(defaults, DeepEquals, map[string]any{
+		"ssh.disable": true,
+		"system.network.netplan.network.version": 2,
+		"system.network.netplan.network.ethernets.all-en.match.name": "en*",
+		"system.network.netplan.network.ethernets.all-en.dhcp4": true,
+		"system.network.netplan.network.ethernets.all-eth.match.name": "eth*",
+		"system.network.netplan.network.ethernets.all-eth.dhcp4": true,
 	})
 }
 
