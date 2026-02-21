@@ -53,6 +53,14 @@ var (
 
 	// for testing
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
+
+	// Limit unsquashfs memory usage
+	// On low-memory devices unsquashfs can otherwise fail with "Requested memory size too large".
+	// TODO: leverage mem-percent parameter in latest version of unsquashfs
+	baseUnsquashfsOptions = []string{
+		"-data-queue", "16", // 16MB
+		"-frag-queue", "16", // 16MB
+	}
 )
 
 func FileHasSquashfsHeader(path string) bool {
@@ -198,6 +206,12 @@ func (u *unsquashfsStderrWriter) Err() error {
 	}
 }
 
+// Helper to call unsquashfs, appending the default option to limit memory consumption
+func unsquashfsCmd(extraArgs ...string) *exec.Cmd {
+	args := append(baseUnsquashfsOptions, extraArgs...)
+	return exec.Command("unsquashfs", args...)
+}
+
 // Unpack unpacks the snap to the given directory.
 //
 // Extended attributes are not preserved. This affects capabilities granted to specific executables.
@@ -205,7 +219,15 @@ func (s *Snap) Unpack(src, dstDir string) error {
 	usw := newUnsquashfsStderrWriter()
 
 	var output bytes.Buffer
-	cmd := exec.Command("unsquashfs", "-no-xattrs", "-n", "-f", "-d", dstDir, s.path, src)
+	extraArgs := []string{
+		"-no-xattrs",
+		"-no-progress",
+		"-force",
+		"-dest", dstDir,
+		s.path,
+		src,
+	}
+	cmd := unsquashfsCmd(extraArgs...)
 	cmd.Stderr = io.MultiWriter(&output, usw)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, osutil.OutputErr(output.Bytes(), err))
@@ -237,7 +259,16 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if output, err := exec.Command("unsquashfs", "-no-xattrs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+	extraArgs := []string{
+		"-no-xattrs",
+		"-no-progress",
+		"-dest", unpackDir,
+		s.path,
+		filePath,
+	}
+
+	// TODO: use sqfscat
+	if output, err := unsquashfsCmd(extraArgs...).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
@@ -352,12 +383,18 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 		relative = relative[1:]
 	}
 
-	var cmd *exec.Cmd
-	if relative == "." {
-		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
-	} else {
-		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
+	extraArgs := []string{
+		"-no-progress",
+		"-dest", ".",
+		"-lls",
+		s.path,
 	}
+	if relative != "." {
+		extraArgs = append(extraArgs, relative)
+	}
+
+	var cmd *exec.Cmd
+	cmd = unsquashfsCmd(extraArgs...)
 	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -421,8 +458,16 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, stderr, err := osutil.RunSplitOutput(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
+	args := append(
+		baseUnsquashfsOptions,
+		"-no-progress",
+		"-dest", "_",
+		"-ls",
+		s.path,
+		dirPath,
+	)
+	output, stderr, err := osutil.RunSplitOutput("unsquashfs", args...)
+
 	if err != nil {
 		return nil, osutil.OutputErrCombine(output, stderr, err)
 	}
@@ -647,7 +692,13 @@ func BuildDate(path string) time.Time {
 		N:      1,
 	}
 
-	cmd := exec.Command("unsquashfs", "-n", "-s", path)
+	extraArgs := []string{
+		"-no-progress",
+		"-stat",
+		path,
+	}
+
+	cmd := unsquashfsCmd(extraArgs...)
 	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m
