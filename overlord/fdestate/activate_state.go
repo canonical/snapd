@@ -92,12 +92,25 @@ type FDESystemState struct {
 	// Status gives a summary on whether encrypted disks have been
 	// activated and whether any recovery key was used.
 	Status FDEStatus `json:"status"`
+
+	// AutoRepairResult is the status of the auto-repair attempt
+	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 }
 
 // SystemState returns a json serializable FDE state of the booted
 // system.
 func SystemState(st *state.State) (*FDESystemState, error) {
 	ret := &FDESystemState{}
+
+	repairResult, err := getRepairAttemptResult(st)
+	if err != nil {
+		return nil, err
+	}
+	if repairResult == nil {
+		ret.AutoRepairResult = AutoRepairNotInitialized
+	} else {
+		ret.AutoRepairResult = repairResult.Result
+	}
 
 	s, err := getActivateState(st)
 	if err == errNoActivateState {

@@ -30,6 +30,7 @@ import (
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/systemd"
@@ -75,7 +76,7 @@ const ActionNone = string(sb_preinstall.ActionNone)
 //
 // To support testing, when the system is running in a Virtual Machine, the check
 // configuration is modified to permit this to avoid an error.
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+func PreinstallCheck(ctx context.Context, postInstall bool, bootImagePaths []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	// allow value-added-retailer drivers that are:
 	//  - listed as Driver#### load options
 	//  - referenced in the DriverOrder UEFI variable
@@ -87,13 +88,21 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
+	if postInstall {
+		checkFlags |= sb_preinstall.PostInstallChecks
+	}
+
 	// do not customize TCG compliant PCR profile generation
 	profileOptionFlags := sb_preinstall.PCRProfileOptionsDefault
 
 	// create boot file images from provided paths
 	var bootImages []sb_efi.Image
 	for _, image := range bootImagePaths {
-		bootImages = append(bootImages, sb_efi.NewFileImage(image))
+		fileImage, err := efiImageFromBootFile(&image)
+		if err != nil {
+			return nil, nil, err
+		}
+		bootImages = append(bootImages, fileImage)
 	}
 	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
 
