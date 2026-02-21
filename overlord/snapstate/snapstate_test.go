@@ -366,6 +366,12 @@ SNAPD_APPARMOR_REEXEC=1
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
 
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed security backend effects")
+		tsk.Set("mock-monitored-lanes", lanes)
+		return state.NewTaskSet(tsk)
+	}))
+
 	s.restarts = make(map[string]int)
 	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
 
@@ -417,6 +423,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
 	runner.AddHandler("update-managed-boot-config", fakeHandler, nil)
+
+	runner.AddHandler("mock-process-delayed-security-backend-effects", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -555,6 +565,7 @@ const (
 	localRevision
 	needsKernelSetup
 	isHybrid
+	mockDelayedEffects
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -573,8 +584,7 @@ func taskKinds(tasks []*state.Task) []string {
 	return kinds
 }
 
-func verifyLastTasksetIsReRefresh(c *C, tts []*state.TaskSet) {
-	ts := tts[len(tts)-1]
+func verifyReRefreshTasks(c *C, ts *state.TaskSet) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	reRefresh := ts.Tasks()[0]
 	c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
@@ -7550,7 +7560,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
+	verifyInstallTasks(c, snap.TypeGadget, mockDelayedEffects, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
@@ -7574,7 +7584,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, snap.TypeGadget, doesReRefresh, 0, ts)
+	verifyUpdateTasks(c, snap.TypeGadget, doesReRefresh|mockDelayedEffects, 0, ts)
 
 }
 
@@ -7615,7 +7625,7 @@ func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefresh(c *C, mode
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, snap.TypeKernel, opts, 0, ts)
+	verifyUpdateTasks(c, snap.TypeKernel, opts|mockDelayedEffects, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C) {
@@ -7660,7 +7670,7 @@ func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, snap.TypeKernel, opts, 0, ts)
+	verifyUpdateTasks(c, snap.TypeKernel, opts|mockDelayedEffects, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
@@ -12097,4 +12107,17 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+}
+
+func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int) {
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
+	eff := ts.Tasks()[0]
+	fmt.Printf("task %+v\n", eff)
+	var lanes []int
+	eff.Get("mock-monitored-lanes", &lanes)
+	sort.Ints(lanes)
+	if expectedLanes != nil {
+		c.Check(lanes, DeepEquals, expectedLanes)
+	}
 }

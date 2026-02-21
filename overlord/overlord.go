@@ -460,6 +460,7 @@ func (o *Overlord) ensureTimerReset() time.Time {
 }
 
 func (o *Overlord) ensureBefore(d time.Duration) {
+	//fmt.Printf("ensure before ----\n")
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	if o.ensureTimer == nil {
@@ -469,11 +470,13 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	next := now.Add(d)
 	if next.Before(o.ensureNext) {
 		o.ensureTimer.Reset(d)
+		//fmt.Printf("next reassign %v\n", next)
 		o.ensureNext = next
 		return
 	}
 
 	if o.ensureNext.Before(now) {
+		//fmt.Printf("next is now!!!!!!!!!!!\n")
 		// timer already expired, it will be reset in Loop() and
 		// next Ensure() will be called shortly.
 		if !o.ensureTimer.Stop() {
@@ -560,7 +563,7 @@ func (o *Overlord) Stop() error {
 	return err
 }
 
-func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
+func (o *Overlord) settle(timeout time.Duration, beforeCleanups func(), breakHint func() bool) error {
 	if err := o.StartUp(); err != nil {
 		return err
 	}
@@ -584,6 +587,8 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 	t0 := time.Now()
 	done := false
 	var errs []error
+	lastEnsureNext := t0
+	ensureNextUnchangedCnt := 0
 	for !done {
 		if timeout > 0 && time.Since(t0) > timeout {
 			err := fmt.Errorf("Settle is not converging")
@@ -602,10 +607,13 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			errs = append(errs, err)
 		}
 		o.stateEng.Wait()
+		//fmt.Printf("++++++ wait done, next? %v ensure next %v\n", next, o.ensureNext)
 		o.ensureLock.Lock()
-		done = o.ensureNext.Equal(next)
+		ensureNext := o.ensureNext
+		done = ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 		if done {
+			//fmt.Printf("++++++ done\n")
 			if beforeCleanups != nil {
 				beforeCleanups()
 				beforeCleanups = nil
@@ -614,6 +622,7 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			st := o.State()
 			st.Lock()
 			for _, chg := range st.Changes() {
+				fmt.Printf("change %v ready %v clean %v\n", chg.ID(), chg.IsReady(), chg.IsClean())
 				if chg.IsReady() && !chg.IsClean() {
 					done = false
 					break
@@ -621,11 +630,52 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			}
 			st.Unlock()
 		}
+		if lastEnsureNext.Equal(ensureNext) {
+			st := o.State()
+			st.Lock()
+			// for _, chg := range st.Changes() {
+			// 	if !pendingRestart {
+			// 		pendingRestart = pendingRestart || chg.Has("pending-system-restart")
+			// 	}
+			// }
+			pendingRestart, kind := restart.Pending(st)
+			st.Unlock()
+
+			ensureNextUnchangedCnt++
+			if pendingRestart {
+				fmt.Printf("not progressing, restart pending!! %v\n", kind)
+				if breakingRestart(kind) {
+					fmt.Printf("daemon restart requested, breaking\n")
+					break
+				}
+				fmt.Printf("hint? %p\n", breakHint)
+				if breakHint != nil && breakHint() {
+					fmt.Printf("breaking hint\n")
+					break
+				}
+				// break
+			}
+			if ensureNextUnchangedCnt > 50000 {
+				fmt.Printf("not progressing force break!!!\n")
+				break
+			}
+		} else {
+			lastEnsureNext = ensureNext
+		}
 	}
 	if len(errs) != 0 {
 		return &ensureError{errs}
 	}
 	return nil
+}
+
+func breakingRestart(restartType restart.RestartType) bool {
+	switch restartType {
+	case restart.RestartDaemon, restart.StopDaemon, restart.RestartSystemNow:
+		return true
+	default:
+		return false
+	}
 }
 
 // Settle runs first a state engine Ensure and then wait for
@@ -636,7 +686,7 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) Settle(timeout time.Duration) error {
-	return o.settle(timeout, nil)
+	return o.settle(timeout, nil, nil)
 }
 
 // SettleObserveBeforeCleanups runs first a state engine Ensure and
@@ -648,7 +698,11 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
-	return o.settle(timeout, beforeCleanups)
+	return o.settle(timeout, beforeCleanups, nil)
+}
+
+func (o *Overlord) SettleWithBreakCondition(timeout time.Duration, breakCond func() bool) error {
+	return o.settle(timeout, nil, breakCond)
 }
 
 // State returns the system state managed by the overlord.
@@ -790,6 +844,7 @@ func (mb mockBackend) Checkpoint(data []byte) error {
 }
 
 func (mb mockBackend) EnsureBefore(d time.Duration) {
+	fmt.Printf("####  Ensure Before\n")
 	mb.o.ensureLock.Lock()
 	timer := mb.o.ensureTimer
 	mb.o.ensureLock.Unlock()

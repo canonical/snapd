@@ -64,7 +64,7 @@ func (s *targetTestSuite) TestInstallWithComponents(c *C) {
 	c.Check(info.Channel, Equals, channel)
 	c.Check(info.Components[compName].Name, Equals, compName)
 
-	verifyInstallTasksWithComponents(c, snap.TypeApp, 0, 0, []string{compName}, ts)
+	verifyInstallTasksWithComponents(c, snap.TypeApp, mockDelayedEffects, 0, []string{compName}, ts)
 
 	setupTask := ts.Tasks()[1]
 
@@ -282,7 +282,7 @@ version: 1.0
 	c.Check(info.InstanceName(), Equals, snapName)
 	c.Check(info.Components[compName].Name, Equals, compName)
 
-	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap|updatesGadgetAssets, 0, []string{compName}, ts)
+	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap|updatesGadgetAssets|mockDelayedEffects, 0, []string{compName}, ts)
 }
 
 func (s *targetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
@@ -783,7 +783,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh, 0, 0, []string{compName}, ts)
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, 0, 0, []string{compName}, ts)
 }
 
 func (s *targetTestSuite) TestUpdateComponentsSameComponentRevision(c *C) {
@@ -855,7 +855,7 @@ func (s *targetTestSuite) TestUpdateComponentsSameComponentRevision(c *C) {
 	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh, compOptRevisionPresent, 0, []string{compName}, ts)
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|mockDelayedEffects, compOptRevisionPresent, 0, []string{compName}, ts)
 
 	c.Assert(storeAccessed, Equals, true)
 }
@@ -934,7 +934,7 @@ version: 1.0
 	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets, 0, 0, []string{compName}, ts)
+	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets|mockDelayedEffects, 0, 0, []string{compName}, ts)
 }
 
 func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {

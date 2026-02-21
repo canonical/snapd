@@ -59,6 +59,27 @@ const (
 	RestartSystemPoweroffNow
 )
 
+func (r RestartType) String() string {
+	switch r {
+	case RestartDaemon:
+		return "restart-daemon"
+	case RestartSystem:
+		return "restart-system"
+	case RestartSystemNow:
+		return "restart-system-now"
+	case RestartSocket:
+		return "restart-socket"
+	case StopDaemon:
+		return "stop-daemon"
+	case RestartSystemHaltNow:
+		return "restart-system-halt-now"
+	case RestartSystemPoweroffNow:
+		return "restart-system-poweroff-now"
+	default:
+		return fmt.Sprintf("restart-kind(%d)", r)
+	}
+}
+
 // RestartBoundaryDirection defines in which direction a task may have a restart
 // boundary set. A restart boundary is when the task must restart, before it's dependencies
 // can continue. A restart boundary may be either in the 'Do' direction, or the 'Undo' direction.
@@ -407,6 +428,7 @@ func (rm *RestartManager) Pending() (bool, RestartType) {
 		return false, RestartUnset
 	}
 	restarting := RestartType(atomic.LoadInt32(&rm.restarting))
+	//fmt.Printf("---------- nope 1 restarting? %v\n", restarting)
 	return restarting != RestartUnset, restarting
 }
 
@@ -558,6 +580,7 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
 	}
+	fmt.Printf("^^^^^^^^^^ restart, kind %v\n", restartType)
 	return nil
 }
 

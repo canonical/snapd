@@ -133,6 +133,10 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
+
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+		return state.NewTaskSet()
+	}))
 }
 
 func (s *fdeMgrSuite) TearDownTest(c *C) {
