@@ -648,7 +648,7 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			}
 			if pendingRestart {
 				fmt.Printf("not progressing, restart pending!! %v\n", kind)
-				if kind == restart.RestartDaemon {
+				if breakingRestart(kind) {
 					fmt.Printf("daemon restart requested, breaking\n")
 					break
 				}
@@ -662,6 +662,15 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 		return &ensureError{errs}
 	}
 	return nil
+}
+
+func breakingRestart(restartType restart.RestartType) bool {
+	switch restartType {
+	case restart.RestartDaemon, restart.StopDaemon, restart.RestartSystemNow:
+		return true
+	default:
+		return false
+	}
 }
 
 // Settle runs first a state engine Ensure and then wait for
