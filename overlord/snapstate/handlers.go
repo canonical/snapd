@@ -4746,6 +4746,7 @@ func changeReadyUpToTask(task *state.Task, considerTasks map[string]bool) bool {
 			continue
 		}
 		if !task.Status().Ready() {
+			fmt.Printf("re-refresh check: %v not ready\n", task.Summary())
 			return false
 		}
 	}

@@ -801,6 +801,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		infos = append(infos, t.info)
 	}
 
+	fmt.Printf("flags no delayed effects? %v\n", opts.Flags.NoDelayedSideEffects)
 	tasksets = setupDelayedSecurityBackendEffects(st, tasksets, keys(snapLanes), &opts.Flags)
 
 	return infos, tasksets, nil
