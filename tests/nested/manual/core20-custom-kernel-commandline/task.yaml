@@ -63,11 +63,12 @@ execute: |
 
     # system is in run mode
     echo "Make sure the system is in run mode"
-    remote.exec 'sudo cat /proc/cmdline' > system.cmdline.run
-    MATCH snapd_recovery_mode=run < system.cmdline.run
+    remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+    MATCH 'mode=run' < modeenv
 
     echo "Verify kernel command line in run mode"
-    MATCH 'snapd_recovery_mode=run .* hello from test$' < system.cmdline.run
+    remote.exec 'sudo cat /proc/cmdline' > system.cmdline.run
+    MATCH '.* hello from test$' < system.cmdline.run
 
     echo "Perform an update of the gadget"
     REMOTE_CHG_ID=$(remote.exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap')

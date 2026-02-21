@@ -154,6 +154,15 @@ execute: |
     # Created boot entry is first in order
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
+    # If install+run, reboot to make the entries also the current ones
+    VERSION=$(tests.nested show version)
+    if [ "$VERSION" -ge "26" ]; then
+        echo "Wait for reboot (uc26+)"
+        boot_id=$(tests.nested boot-id)
+        remote.exec "sudo reboot" || true
+        remote.wait-for reboot "${boot_id}"
+        "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
+    fi
     # It is also the current boot entry
     "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | NOMATCH fallback-created
     "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | MATCH ubuntu

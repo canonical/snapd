@@ -47,7 +47,7 @@ execute: |
     remote.wait-for reboot "${boot_id}"
 
     # check that we are back in run mode
-    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec sudo cat /var/lib/snapd/modeenv | grep '^mode=run$';
 
     # wait for the system to get setup and finish seeding
     remote.wait-for snap-command
@@ -132,7 +132,7 @@ execute: |
     boot_id=$(tests.nested boot-id)
     remote.exec "sudo snap reboot --factory-reset" || true
     remote.wait-for reboot "${boot_id}"
-    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec sudo cat /var/lib/snapd/modeenv | grep '^mode=run$';
     remote.wait-for snap-command
     # TODO investigate why does this have to be much longer than what is needed for the
     # initial wait and one after the first reset?

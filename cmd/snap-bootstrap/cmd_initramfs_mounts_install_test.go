@@ -179,16 +179,26 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
-	failMount := false
-	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+	s.testInitramfsMountsInstallModeWithCompsHappy(c,
+		testInitramfsMountsInstallModeWithCompOpts{failMount: false, preseeded: false})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithPreseedAndCompsHappy(c *C) {
+	s.testInitramfsMountsInstallModeWithCompsHappy(c,
+		testInitramfsMountsInstallModeWithCompOpts{failMount: false, preseeded: true})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsFailMount(c *C) {
-	failMount := true
-	s.testInitramfsMountsInstallModeWithCompsHappy(c, failMount)
+	s.testInitramfsMountsInstallModeWithCompsHappy(c,
+		testInitramfsMountsInstallModeWithCompOpts{failMount: true})
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C, failMount bool) {
+type testInitramfsMountsInstallModeWithCompOpts struct {
+	preseeded bool
+	failMount bool
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C, opts testInitramfsMountsInstallModeWithCompOpts) {
 	var efiArch string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -220,7 +230,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	// model file already exists and can't setup the seed
 	err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
 	c.Assert(err, IsNil)
-	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true})
+	release := 26
+	channel := fmt.Sprintf("%d", release)
+	s.setupSeed(c, time.Time{}, nil, setupSeedOpts{hasKModsComps: true, release: release})
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 	s.mockBlkidDiskFull("gpt", 1, []mockedPart{
@@ -229,11 +241,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	if opts.preseeded {
+		c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	}
 
 	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
-	kernelSnapYamlContent := seedtest.SampleSnapYaml["pc-kernel=24+kmods"]
+	kernelSnapYamlContent := seedtest.SampleSnapYaml["pc-kernel="+channel+"+kmods"]
 	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
 
 	for _, compName := range []string{"kcomp1", "kcomp2"} {
@@ -280,8 +294,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			Name:       "pc-kernel",
 			Revision:   snap.R(1),
 			MountPoint: filepath.Join(boot.InitramfsRunMntDir, "kernel"),
-			// As the drivers tree is already in the preseed tarball
-			NeedsDriversTree: false,
+			// drivers tree is in the preseed tarball
+			NeedsDriversTree: !opts.preseeded,
 			IsCore:           true,
 			ModulesComps: []install.KernelModulesComponentInfo{
 				{
@@ -316,8 +330,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
-		c.Assert(bootWith.Base.Filename(), Equals, "core24_1.snap")
-		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core24_1.snap"))
+		c.Assert(bootWith.Base.Filename(), Equals, "core"+channel+"_1.snap")
+		c.Assert(bootWith.BasePath, Equals, filepath.Join(s.seedDir, "snaps", "core"+channel+"_1.snap"))
 		c.Assert(bootWith.Kernel.Filename(), Equals, "pc-kernel_1.snap")
 		c.Assert(bootWith.KernelPath, Equals, filepath.Join(s.seedDir, "snaps", "pc-kernel_1.snap"))
 		c.Assert(bootWith.Gadget.Filename(), Equals, "pc_1.snap")
@@ -416,7 +430,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			nil,
 			nil,
 		}}
-	if failMount {
+	if opts.failMount {
 		mounts = []systemdMount{
 			s.nodeMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -457,7 +471,7 @@ if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	result := true
 	expectedCallsObserve := 1
-	if failMount {
+	if opts.failMount {
 		c.Assert(err, ErrorMatches, "error mounting")
 		result = false
 		expectedCallsObserve = 0
@@ -466,18 +480,18 @@ if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 	}
 	c.Check(sealedKeysLocked, Equals, true)
 
-	c.Assert(applyPreseedCalled, Equals, result)
+	c.Assert(applyPreseedCalled, Equals, opts.preseeded && result)
 	c.Assert(makeRunnableCalled, Equals, result)
 	c.Assert(gadgetInstallCalled, Equals, result)
 	c.Assert(nextBootEnsured, Equals, result)
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, expectedCallsObserve)
 
-	if !failMount {
+	if !opts.failMount {
 		checkKernelMounts(c, "/run/mnt/data/system-data", "/sysroot/writable/system-data",
 			[]string{"kcomp1", "kcomp2"}, []string{"77", "77"}, nil, nil)
 	}
 
-	if failMount {
+	if opts.failMount {
 		c.Assert(cmdSystemdMount.Calls(), DeepEquals, [][]string{
 			{
 				"systemd-mount",
@@ -527,7 +541,7 @@ Before=umount.target
 Conflicts=umount.target
 
 [Mount]
-What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
+What=/run/mnt/ubuntu-seed/snaps/core`+channel+`_1.snap
 Where=/sysroot
 Type=squashfs
 `)

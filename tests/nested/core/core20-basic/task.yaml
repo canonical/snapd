@@ -100,20 +100,25 @@ execute: |
     remote.exec snap model --serial --assertion >serial
     cmp serial serial.saved
 
-    echo "Check that we get the install log after the transition to run mode"
-    remote.exec "test -e /var/log/install-mode.log.gz"
+    if nested_is_core_lt 26; then
+        echo "Check that we get the install log after the transition to run mode"
+        remote.exec "test -e /var/log/install-mode.log.gz"
 
-    echo "Transparently verify that the format is gzip"
-    remote.exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
+        echo "Transparently verify that the format is gzip"
+        remote.exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
 
-    echo "Check that we go the timings after the transition to run mode"
-    remote.exec "test -e /var/log/install-timings.txt.gz"
-    remote.exec "zcat /var/log/install-timings.txt.gz" > install-timings.txt
-    MATCH "Install the system"        < install-timings.txt
-    MATCH "^seed"                     < install-timings.txt
-    MATCH "Mark system seeded"        < install-timings.txt
-    MATCH "Setup system for run mode" < install-timings.txt
-    MATCH "ensure=install-system"     < install-timings.txt
+        echo "Check that we go the timings after the transition to run mode"
+        remote.exec "test -e /var/log/install-timings.txt.gz"
+        remote.exec "zcat /var/log/install-timings.txt.gz" > install-timings.txt
+        MATCH "Install the system"        < install-timings.txt
+        MATCH "^seed"                     < install-timings.txt
+        MATCH "Mark system seeded"        < install-timings.txt
+        MATCH "Setup system for run mode" < install-timings.txt
+        MATCH "ensure=install-system"     < install-timings.txt
+    else
+        echo "Look at journal for installation log"
+        remote.exec sudo journalctl | MATCH 'installing a new system'
+    fi
 
     echo "Check seeding info"
     remote.exec "snap debug seeding" | MATCH "^seeded: +true"

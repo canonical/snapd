@@ -12,16 +12,25 @@ execute: |
   # $1: name of the gadget snap file
   check_gadget_mounted() {
       local gadget_snap=$1
+      local first_boot=$2
+      local version
+      version=$(tests.nested show version)
+
       remote.exec "cat /var/lib/snapd/modeenv | MATCH gadget=$gadget_snap"
       remote.exec "mountpoint /run/mnt/gadget"
-      remote.exec mount | MATCH "/run/mnt/data/system-data/var/lib/snapd/snaps/$gadget_snap on /run/mnt/gadget type squashfs"
+      if [ "$first_boot" = true ] && [ "$version" -ge "26" ]; then
+          # Install+run for UC26+ implies that on first boot we have the gadget from the seed
+          remote.exec mount | MATCH "/run/mnt/ubuntu-seed/systems/.*/snaps/pc_.*.snap on /run/mnt/gadget type squashfs"
+      else
+          remote.exec mount | MATCH "/run/mnt/data/system-data/var/lib/snapd/snaps/$gadget_snap on /run/mnt/gadget type squashfs"
+      fi
   }
 
   echo "Wait for the system to be seeded first"
   remote.exec "sudo snap wait system seed.loaded"
 
   gadget_snap=pc_x1.snap
-  check_gadget_mounted "$gadget_snap"
+  check_gadget_mounted "$gadget_snap" "true"
 
   # re-install gadget snap, it will be now version x2
   remote.exec "sudo snap install --dangerous /var/lib/snapd/snaps/$gadget_snap"
@@ -35,4 +44,4 @@ execute: |
   # since this command causes an immediate reboot
   remote.exec "sudo snap reboot || true"
   remote.wait-for reboot "$boot_id"
-  check_gadget_mounted "$gadget_snap"
+  check_gadget_mounted "$gadget_snap" "false"
