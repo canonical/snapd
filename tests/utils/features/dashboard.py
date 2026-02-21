@@ -149,6 +149,12 @@ app.layout = html.Div(
                                 options=[],
                                 placeholder="Select system",
                             ),
+                            dcc.Input(
+                                id={"type": "systems-regex-input", "index": 2},
+                                type="text",
+                                placeholder="Use regex here to select systems instead of dropdown",
+                                debounce=True,
+                            ),
                             html.Div(children="", style={"marginBottom": "10px"}),
                             html.Button(
                                 "🔄",

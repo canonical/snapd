@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 import concurrent.futures
 from contextlib import closing
+import copy
 import datetime
 import json
 import os
@@ -40,7 +41,7 @@ class TaskId:
         return hash((self.suite, self.task_name))
 
     def __str__(self) -> str:
-        return self.suite + ":" + self.task_name
+        return self.suite + "/" + self.task_name
 
 
 class TaskIdVariant(TaskId):
@@ -326,6 +327,27 @@ def minus(first: dict[str, list], second: dict[str, list]) -> dict:
             if m:
                 minus[feature] = m
     return minus
+
+
+def union(first: dict[str, list], second: dict[str, list]) -> dict[str, list]:
+    '''
+    Creates a new dictionary of first U second calculated on values.
+
+    Ex: 
+    >>> first = {'a':['b','c'],'d':['e']}
+    >>> second = {'a':['c'], 'd':['f'], 'q':[]}
+    >>> union(first, second)
+    {'a': ['b', 'c], 'd': ['e','f'], 'q':[]}
+    '''
+    union = copy.deepcopy(first)
+    for feature, feature_list in second.items():
+        if feature not in union:
+            union[feature] = feature_list
+        else:
+            for feat in feature_list:
+                if feat not in union[feature]:
+                    union[feature].append(feat)
+    return union
 
 
 def subtract_features(first: dict[str, list], second: dict[str, list], match_snap_types: bool) -> dict:

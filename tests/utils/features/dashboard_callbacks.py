@@ -5,6 +5,7 @@ from dash import Dash, html, Output, Input, dash_table, State, MATCH, ALL
 import dash_bootstrap_components as dbc
 import json
 import os
+import re
 import sys
 
 # To ensure this can be run from any point in the filesystem,
@@ -124,6 +125,7 @@ def update_totals_table(selected_timestamp):
         if timestamp["timestamp"] != selected_timestamp:
             continue
         for system in timestamp["systems"]:
+            global cached_all_features_diff
             if (
                 selected_timestamp in cached_all_features_diff
                 and system in cached_all_features_diff[selected_timestamp]
@@ -190,24 +192,58 @@ def display_column_details(active_cell, table_data, timestamp):
     Output("coverage-diff-container", "children"),
     Input({"type": "timestamp-dropdown", "index": 2}, "value"),
     Input({"type": "systems-dropdown", "index": 2}, "value"),
+    Input({"type": "systems-regex-input", "index": 2}, "value"),
     Input({"type": "timestamp-dropdown", "index": 3}, "value"),
     Input({"type": "systems-dropdown", "index": 3}, "value"),
     Input("remove-failed-switch", "on"),
     Input("only-same-switch", "on"),
     Input("match-snap-types", "on"),
 )
-def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types):
-    if not ts_2 or not sys_2 or not ts_3 or not sys_3:
+def update_totals_table(ts_2, sys_2, sys_2_reg, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types):
+    if not ts_2 or (not sys_2 and not sys_2_reg) or not ts_3 or not sys_3:
         return []
-
-    diff = qf.diff(
-        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
-    )
-
+    
     global cached_feat_diff
-    cached_feat_diff = qf.diff_group_by_test(
-        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
-    )
+
+    if not sys_2:
+        for item in timestamps:
+            if item["timestamp"] == ts_2:
+                sys_list = [sys for sys in item["systems"]]
+        try:
+            pattern = re.compile(sys_2_reg)
+            systems = [s for s in sys_list if pattern.search(s)]
+            diff = {}
+            cached_feat_diff = {}
+            for system in systems:
+                sys_diff = qf.diff(
+                    retriever, ts_2, system, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
+                )
+                diff = qf.union(diff, sys_diff)
+                sys_test_diff = qf.diff_group_by_test(
+                    retriever, ts_2, system, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
+                )
+                for test_name, feat_dict in sys_test_diff.items():
+                    if test_name not in cached_feat_diff:
+                        cached_feat_diff[test_name] = feat_dict
+                    else:
+                        for feat_name, feat_list in feat_dict.items():
+                            if feat_name not in cached_feat_diff[test_name]:
+                                cached_feat_diff[test_name][feat_name] = feat_list
+                            else:
+                                for feat in feat_list:
+                                    if feat not in cached_feat_diff[test_name][feat_name]:
+                                        cached_feat_diff[test_name][feat_name].append(feat)
+            i = 0
+        except re.error:
+            raise RuntimeError(f'regex {sys_2_reg} is invalid')
+
+    if sys_2:
+        diff = qf.diff(
+            retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
+        )
+        cached_feat_diff = qf.diff_group_by_test(
+            retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
+        )
 
     tables = []
     column_data = [
@@ -421,6 +457,7 @@ def create_coverage_matrix(timestamp, remove_failed, suite, task, variant):
     columns = [{"name": "System", "id": "system"}] + [
         {"name": key, "id": key} for key in qf.KNOWN_FEATURES
     ]
+    global coverage_matrix
     coverage_matrix[timestamp] = [
         {"system": system, **{key: 0 for key in qf.KNOWN_FEATURES}}
         for system in systems
@@ -544,6 +581,7 @@ def calculate_duplicate_systems(timestamp, system):
     if not timestamp or not system:
         return [], []
 
+    global cached_duplicates
     if timestamp in cached_duplicates and system in cached_duplicates[timestamp]:
         duplicates = cached_duplicates[timestamp][system]
     else:
@@ -648,6 +686,7 @@ def populate_feature_table(timestamp, selected_feature, add_freq):
     if not timestamp or not selected_feature:
         return [], []
 
+    global cached_feat_explore
     if (
         add_freq
         and timestamp in cached_feat_explore
