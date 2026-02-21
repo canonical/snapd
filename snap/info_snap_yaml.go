@@ -186,7 +186,7 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	snap := infoSkeletonFromSnapYaml(y)
 
 	// Collect top-level definitions of plugs and slots
-	if err := setPlugsFromSnapYaml(y, snap); err != nil {
+	if err := setPlugsFromSnapYaml(y, snap, false); err != nil {
 		return nil, err
 	}
 	if err := setSlotsFromSnapYaml(y, snap); err != nil {
@@ -387,18 +387,19 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 	return nil
 }
 
-func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
+func setPlugsFromSnapYaml(y snapYaml, snap *Info, isDependency bool) error {
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
 			return err
 		}
 		snap.Plugs[name] = &PlugInfo{
-			Snap:      snap,
-			Name:      name,
-			Interface: iface,
-			Attrs:     attrs,
-			Label:     label,
+			Snap:       snap,
+			Name:       name,
+			Interface:  iface,
+			Attrs:      attrs,
+			Label:      label,
+			Dependency: isDependency,
 		}
 		if len(y.Apps) > 0 {
 			snap.Plugs[name].Apps = make(map[string]*AppInfo)
@@ -429,7 +430,18 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
+// TODO:GOVERSION: remove in favor of slices.Collect once we're on Go 1.21+
+func slicesCollect(mapvar map[string]any) []string {
+	retval := []string{}
+	for key := range mapvar {
+		retval = append(retval, key)
+	}
+	return retval
+}
+
 func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
+	globalPlugs := slicesCollect(y.Plugs)
+
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
@@ -484,16 +496,24 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			}
 			snap.LegacyAliases[alias] = app
 		}
+
+		plugDependencies, err := GetDependenciesFor(append(yApp.PlugNames, globalPlugs...), yApp.SlotNames, snap.Base)
+		if err != nil {
+			return err
+		}
+		yApp.PlugNames = append(yApp.PlugNames, plugDependencies...)
+
 		// Bind all plugs/slots listed in this app
 		for _, plugName := range yApp.PlugNames {
 			plug, ok := snap.Plugs[plugName]
 			if !ok {
 				// Create implicit plug definitions if required
 				plug = &PlugInfo{
-					Snap:      snap,
-					Name:      plugName,
-					Interface: plugName,
-					Apps:      make(map[string]*AppInfo),
+					Snap:       snap,
+					Name:       plugName,
+					Interface:  plugName,
+					Apps:       make(map[string]*AppInfo),
+					Dependency: slicesContains(plugDependencies, plugName),
 				}
 				snap.Plugs[plugName] = plug
 			}
