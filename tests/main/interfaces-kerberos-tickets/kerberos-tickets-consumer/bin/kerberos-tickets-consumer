@@ -3,4 +3,4 @@ ticket=${KRB5CCNAME#FILE:}
 echo "KRB5CCNAME:$KRB5CCNAME"
 cat "$ticket" 2>/dev/null || echo "cannot read ticket $ticket"
 # Try to write anything random to the ticket file.
-echo 8 2>/dev/null >>"$ticket" || echo "cannot write to ticket $ticket"
+echo "appended contents" 2>/dev/null >>"$ticket" || echo "cannot write to ticket $ticket"
