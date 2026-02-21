@@ -57,7 +57,7 @@ execute: |
     spread-filter -r rules.yaml -p google:ubuntu -c DELETED.md > res
     test "$(wc -w < res)" -eq 0
 
-    # Scenario: a doc file and a the nested library changed
+    # Scenario: a doc file and the nested library changed
     spread-filter -r rules.yaml -p google:ubuntu -c README.md -c tests/lib/nested.sh > res
     MATCH "^google:ubuntu:tests/nested/$" < res
     
