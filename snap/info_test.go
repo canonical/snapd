@@ -1353,26 +1353,41 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.DesktopPrefix(), Equals, "sample+instance")
 }
 
-func (s *infoSuite) testAppDesktopFileWithDesktopFileIDs(c *C, isParallelInstance bool) {
-	const sampleDesktopFileIDsYaml = `
+func (s *infoSuite) testAppDesktopFileWithDesktopFileIDs(c *C, isParallelInstance, withCommonIDs bool) {
+	const sampleDesktopFileIDsYamlBase = `
 name: sample
 version: 1
 apps:
  app:
    command: foo
+   %[1]s
  app2:
    command: bar
+   %[2]s
  sample:
    command: foobar
    command-chain: [chain]
+ disallowed-common-id:
+   command: disallowed-common-id
+   common-id: org.example.InvalidCommonID.Sample
 plugs:
   desktop:
     desktop-file-ids:
       - org.example
       - org.example.Foo
       - org.example.Bar
+      - org.example.CommonID.Foo
+      - org.example.CommonID.Bar
 `
 
+	fooCommonID := ""
+	barCommonID := ""
+	if withCommonIDs {
+		fooCommonID = "common-id: org.example.CommonID.Foo"
+		barCommonID = "common-id: org.example.CommonID.Bar"
+	}
+
+	sampleDesktopFileIDsYaml := fmt.Sprintf(sampleDesktopFileIDsYamlBase, fooCommonID, barCommonID)
 	snaptest.MockSnap(c, sampleDesktopFileIDsYaml, &snap.SideInfo{})
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
@@ -1394,48 +1409,91 @@ Exec=%s
 		c.Assert(os.WriteFile(path, []byte(content), 0644), IsNil)
 	}
 
+	prefix := "sample"
+	if isParallelInstance {
+		prefix = `sample\+instance`
+	}
+
+	expectedAppDesktop := "org.example.desktop"
+	expectedApp2Desktop := prefix + "_app2.desktop"
+
 	// Given the configuration below:
 	//   - org.example     -> app
 	//   - org.example.Foo -> sample
 	//   - org.example.Bar -> sample
+	//   - org.example.InvalidCommonID.Sample -> disallowed-common-id
 	mockDesktopFile(snapInfo.Apps["app"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"))
 	mockDesktopFile(snapInfo.Apps["sample"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop"))
 	mockDesktopFile(snapInfo.Apps["sample"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Bar.desktop"))
+	mockDesktopFile(snapInfo.Apps["disallowed-common-id"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.InvalidCommonID.Sample.desktop"))
 
-	// Desktop file detected for "app" should be org.example.desktop
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.desktop`)
+	if withCommonIDs {
+		//   - org.example.CommonID.Foo -> app
+		//   - org.example.CommonID.Bar -> app2
+		mockDesktopFile(snapInfo.Apps["app"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.CommonID.Foo.desktop"))
+		mockDesktopFile(snapInfo.Apps["app2"], filepath.Join(dirs.SnapDesktopFilesDir, "org.example.CommonID.Bar.desktop"))
+
+		expectedAppDesktop = "org.example.CommonID.Foo.desktop"
+		expectedApp2Desktop = "org.example.CommonID.Bar.desktop"
+	}
+
+	expectedAppDesktopMatch := fmt.Sprintf(`.*/var/lib/snapd/desktop/applications/%s`, expectedAppDesktop)
+	expectedApp2DesktopMatch := fmt.Sprintf(`.*/var/lib/snapd/desktop/applications/%s`, expectedApp2Desktop)
+
+	// Desktop file detected for "app" should match expectedAppDesktopMatch
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, expectedAppDesktopMatch)
+
+	// Desktop file detected for "app2" should match expectedApp2DesktopMatch
+	c.Check(snapInfo.Apps["app2"].DesktopFile(), Matches, expectedApp2DesktopMatch)
 
 	// Desktop file detected for "sample" should be org.example.Foo.desktop because
 	// it comes before org.example.Bar in the desktop-file-ids attribute
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.Foo.desktop`)
 
-	// When org.example.Foo.desktop is removed, esktop file detected for "sample" should be org.example.Bar.desktop
+	// When org.example.Foo.desktop is removed, desktop file detected for "sample" should be org.example.Bar.desktop
 	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")), IsNil)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.Bar.desktop`)
 
 	// When no desktop-file-id desktop files exist, fallback to the "$PREFIX_$APP.desktop" heuristic
 	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop")), IsNil)
 	c.Assert(os.Remove(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Bar.desktop")), IsNil)
-	prefix := "sample"
-	if isParallelInstance {
-		prefix = `sample\+instance`
+
+	if !withCommonIDs {
+		expectedAppDesktopMatch = ".*/var/lib/snapd/desktop/applications/" + prefix + "_app.desktop"
 	}
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_app.desktop")
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, expectedAppDesktopMatch)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_sample.desktop")
 
 	// When X-SnapAppName is not found, also fallback to the "$PREFIX_$APP.desktop" heuristic
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.desktop"), nil, 0644), IsNil)
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_app.desktop")
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, expectedAppDesktopMatch)
+
+	// Desktop file detected for "disallowed-common-id" should be the default
+	c.Check(snapInfo.Apps["disallowed-common-id"].DesktopFile(), Matches, ".*/var/lib/snapd/desktop/applications/"+prefix+"_disallowed-common-id.desktop")
 }
 
 func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDs(c *C) {
 	const isParallelInstance = false
-	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance)
+	const withCommonIDs = false
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance, withCommonIDs)
+}
+
+func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDsAndCommonIDs(c *C) {
+	const isParallelInstance = false
+	const withCommonIDs = true
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance, withCommonIDs)
 }
 
 func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDsParallelInstance(c *C) {
 	const isParallelInstance = true
-	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance)
+	const withCommonIDs = false
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance, withCommonIDs)
+}
+
+func (s *infoSuite) TestAppDesktopFileWithDesktopFileIDsCommonIDsAndParallelInstance(c *C) {
+	const isParallelInstance = true
+	const withCommonIDs = true
+	s.testAppDesktopFileWithDesktopFileIDs(c, isParallelInstance, withCommonIDs)
 }
 
 const coreSnapYaml = `name: core
