@@ -1,0 +1,96 @@
+summary: Verify HACKING.md build instructions work correctly
+
+details: |
+    This test validates that the build instructions in HACKING.md are correct
+    by extracting and executing the documented commands directly from the markdown.
+    This ensures the documentation stays accurate and up-to-date.
+
+systems: [ubuntu-24.04-64, fedora-42-64]
+
+prepare: |
+    # Create test-specific copy of the project
+    TESTDIR=/tmp/hacking-md-test
+    mkdir -p "$TESTDIR"
+    cp -ar "$PROJECT_PATH" "$TESTDIR/snapd"
+    chown -R test:12345 "$TESTDIR"
+
+    # On Ubuntu, remove debian symlink if it exists
+    if os.query is-ubuntu && [ -L "$TESTDIR/snapd/debian" ]; then
+        rm -f "$TESTDIR/snapd/debian"
+    fi
+
+restore: |
+    # Remove test directory copy
+    rm -rf /tmp/hacking-md-test
+
+    # Remove Go build directory
+    rm -rf /tmp/build
+
+    # Remove extracted scripts
+    rm -f /tmp/deps.sh /tmp/build-*.sh /tmp/c-build.sh
+
+debug: |
+    # Show C build config log if it exists
+    if [ -f "/tmp/hacking-md-test/snapd/cmd/config.log" ]; then
+        echo "=== Last 100 lines of config.log ==="
+        tail -100 /tmp/hacking-md-test/snapd/cmd/config.log
+    fi
+
+    # Show extracted scripts for debugging
+    echo "=== Extracted scripts ==="
+    for script in /tmp/deps.sh /tmp/build-*.sh /tmp/c-build.sh; do
+        if [ -f "$script" ]; then
+            echo "--- $script ---"
+            cat "$script"
+        fi
+    done
+
+execute: |
+    TESTDIR=/tmp/hacking-md-test/snapd
+    cd "$TESTDIR"
+
+    # Extract and prepare dependency installation script (as root)
+    if os.query is-ubuntu; then
+        echo "Preparing Ubuntu build dependencies from HACKING.md"
+        python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md ubuntu-deps > /tmp/deps.sh
+        sed -i "s|~/snapd|$TESTDIR|g" /tmp/deps.sh
+
+    elif os.query is-fedora; then
+        echo "Preparing Fedora build dependencies from HACKING.md"
+        python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md fedora-deps > /tmp/deps.sh
+    fi
+
+    # Install dependencies as test user
+    echo "Installing dependencies from HACKING.md"
+    su -c "bash -ex /tmp/deps.sh" test
+
+    # Extract and prepare all build scripts (as root)
+    echo "Preparing snap build script"
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-snap > /tmp/build-snap.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snap.sh
+
+    echo "Preparing snapd build script"
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-snapd > /tmp/build-snapd.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snapd.sh
+
+    echo "Preparing all components build script"
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-all > /tmp/build-all.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-all.sh
+
+    echo "Preparing C components build script"
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md c-build > /tmp/c-build.sh
+
+    # Execute all builds as test user
+    echo "Building snap from HACKING.md instructions"
+    su -c "bash -ex /tmp/build-snap.sh" test
+
+    echo "Building snapd from HACKING.md instructions"
+    su -c "bash -ex /tmp/build-snapd.sh" test
+
+    echo "Building all Go components from HACKING.md instructions"
+    su -c "bash -ex /tmp/build-all.sh" test
+
+    echo "Building C components from HACKING.md instructions"
+    su -c "bash -ex /tmp/c-build.sh" test
+
+    echo "All builds successful - HACKING.md instructions are correct!"
