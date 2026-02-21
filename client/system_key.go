@@ -88,24 +88,31 @@ func (client *Client) SystemKeyMismatchAdvice(systemKey any) (*AdvisedAction, er
 		return nil, fmt.Errorf("cannot marshal request data: %w", doErr)
 	}
 
-	body = bytes.NewReader(d)
-	hdrs := map[string]string{
-		"Content-Type": "application/json",
-	}
-	statusCode, doErr := client.do("POST", "/v2/system-info", nil, hdrs, body, &rsp, opts)
-	if statusCode == 405 {
-		// Method Not Allowed, most likely we are talking to an older version of
-		// snapd, which does not support the advisory system key mismatch
-		// handling, but since we got a response, snapd must be up already
-		return nil, ErrMismatchAdviceUnsupported
-	}
+	for {
+		body = bytes.NewReader(d)
+		hdrs := map[string]string{
+			"Content-Type": "application/json",
+		}
+		statusCode, doErr := client.do("POST", "/v2/system-info", nil, hdrs, body, &rsp, opts)
+		if statusCode == 405 {
+			// Method Not Allowed, most likely we are talking to an older version of
+			// snapd, which does not support the advisory system key mismatch
+			// handling, but since we got a response, snapd must be up already
+			return nil, ErrMismatchAdviceUnsupported
+		}
 
-	if doErr != nil {
-		return nil, doErr
-	}
+		if doErr != nil {
+			return nil, doErr
+		}
 
-	if err := rsp.err(client, statusCode); err != nil {
-		return nil, err
+		err, isDaemonRestart := rsp.err(client, statusCode)
+		if isDaemonRestart {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
 
 	var act *AdvisedAction

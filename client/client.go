@@ -504,12 +504,20 @@ func (client *Client) doSyncWithOpts(method, path string, query url.Values, head
 	client.checkMaintenanceJSON()
 
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
-	if err != nil {
-		return nil, err
-	}
-	if err := rsp.err(client, statusCode); err != nil {
-		return nil, err
+	for {
+		rsp = response{}
+		statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
+		if err != nil {
+			return nil, err
+		}
+		err, isDaemonRestart := rsp.err(client, statusCode)
+		if isDaemonRestart {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("expected sync response, got %q", rsp.Type)
@@ -533,13 +541,24 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 }
 
 func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (result json.RawMessage, changeID string, err error) {
-	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
-	if err != nil {
-		return nil, "", err
-	}
-	if err := rsp.err(client, statusCode); err != nil {
-		return nil, "", err
+	var (
+		rsp        response
+		statusCode int
+	)
+	for {
+		rsp = response{}
+		statusCode, err = client.do(method, path, query, headers, body, &rsp, opts)
+		if err != nil {
+			return nil, "", err
+		}
+		err, isDaemonRestart := rsp.err(client, statusCode)
+		if isDaemonRestart {
+			continue
+		}
+		if err != nil {
+			return nil, "", err
+		}
+		break
 	}
 	if rsp.Type != "async" {
 		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
@@ -696,7 +715,9 @@ type SysInfo struct {
 	SnapdBinFrom string `json:"snapd-bin-from"`
 }
 
-func (rsp *response) err(cli *Client, statusCode int) error {
+// err attempts to parse the receiver as an error response. If it is successful,
+// it returns the error, as well as whether the error is ErrKindDaemonRestart.
+func (rsp *response) err(cli *Client, statusCode int) (error, bool) {
 	if cli != nil {
 		maintErr := rsp.Maintenance
 		// avoid setting to (*client.Error)(nil)
@@ -707,16 +728,16 @@ func (rsp *response) err(cli *Client, statusCode int) error {
 		}
 	}
 	if rsp.Type != "error" {
-		return nil
+		return nil, false
 	}
 	var resultErr Error
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Message == "" {
-		return fmt.Errorf("server error: %q", http.StatusText(statusCode))
+		return fmt.Errorf("server error: %q", http.StatusText(statusCode)), false
 	}
 	resultErr.StatusCode = statusCode
 
-	return &resultErr
+	return &resultErr, resultErr.Kind == ErrorKindDaemonRestart
 }
 
 func parseError(r *http.Response) error {
@@ -730,7 +751,7 @@ func parseError(r *http.Response) error {
 		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
-	err := rsp.err(nil, r.StatusCode)
+	err, _ := rsp.err(nil, r.StatusCode)
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}

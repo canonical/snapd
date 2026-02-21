@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -480,20 +481,28 @@ func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *D
 		headers["range"] = fmt.Sprintf("bytes: %d-", options.Resume)
 	}
 
-	// no deadline for downloads
-	ctx := context.Background()
-	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if rsp.StatusCode != 200 {
-		var r response
-		defer rsp.Body.Close()
-		if err := decodeInto(rsp.Body, &r); err != nil {
+	var rsp *http.Response
+	for {
+		// no deadline for downloads
+		ctx := context.Background()
+		rsp, err = client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
+		if err != nil {
 			return nil, nil, err
 		}
-		return nil, nil, r.err(client, rsp.StatusCode)
+
+		if rsp.StatusCode != 200 {
+			var r response
+			defer rsp.Body.Close()
+			if err := decodeInto(rsp.Body, &r); err != nil {
+				return nil, nil, err
+			}
+			err, isDaemonRestart := r.err(client, rsp.StatusCode)
+			if isDaemonRestart {
+				continue
+			}
+			return nil, nil, err
+		}
+		break
 	}
 	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))
 	if matches == nil || matches[1] == "" {
