@@ -3053,7 +3053,7 @@ type: kernel`
 	c.Assert(err, IsNil)
 
 	terr := st.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-1])
+	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-2])
 	ts.AddTask(terr)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -13463,7 +13463,7 @@ volumes:
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
-		if tasks[0].Kind() == "check-rerefresh" {
+		if tasks[0].Kind() == "check-rerefresh" || tasks[0].Kind() == "process-delayed-security-backend-effects" {
 			continue
 		}
 
@@ -13618,7 +13618,7 @@ volumes:
 		// skip the taskset of UpdateMany that does the
 		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
-		if tasks[0].Kind() == "check-rerefresh" {
+		if tasks[0].Kind() == "check-rerefresh" || tasks[0].Kind() == "process-delayed-security-backend-effects" {
 			continue
 		}
 
