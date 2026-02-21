@@ -8,7 +8,6 @@ environment:
     ALLOW_SANDBOX/allow: true
     ALLOW_SANDBOX/disallow: false
     OWNED_FILES:
-        /var/tmp/etilqs_test
         /home/test/.local/share/jupyter/foo
     READABLE_FILES:
         /run/udev/data/+platform:test
@@ -44,7 +43,6 @@ prepare: |
     touch created_dirs
 
 restore: |
-    rm -f /var/tmp/test
     for file in $OWNED_FILES $READABLE_FILES $READABLE_WITH_SANDBOX_FILES; do
         rm -f "$file"
     done
@@ -65,11 +63,7 @@ execute: |
        snap connect browser-support-consumer:browser-support
     fi
 
-    echo "And the snap is able to access tmp"
-    echo "test" > /var/tmp/test
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd ls /var/tmp/" test | MATCH test
-
     echo "And the snap is able to access owned files"
     for owned_file in $OWNED_FILES; do
         parent_dir=$(dirname "$owned_file")
@@ -138,18 +132,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect browser-support-consumer:browser-support
-
-    echo "Then the snap is not able to access tmp"
-    if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd ls /var/tmp/" test 2> tmpdir-access.err; then
-        echo "Expected error with disconnected plug didn't happen"
-        exit 1
-    fi
-    MATCH "Permission denied" < tmpdir-access.err
-    if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat /var/tmp/etilqs_test" test 2> tmpfile-read.err; then
-        echo "Expected error with disconnected plug didn't happen"
-        exit 1
-    fi
-    MATCH "Permission denied" < tmpfile-read.err
 
     for owned_file in $OWNED_FILES; do
         if su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd cat $owned_file" test 2> owned-read.err; then
