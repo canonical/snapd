@@ -342,25 +342,22 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 	// push a request
 	reqChan <- req
 
-	// Check that no error occurred
-	time.Sleep(10 * time.Millisecond)
-	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
-
 	// which should generate a notice
-	s.st.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
 		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
 		After: whenSent,
 	})
-	s.st.Unlock()
 	c.Check(err, IsNil)
 	c.Check(n, HasLen, 1)
 
 	// Check prompts now
 	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
 	c.Assert(err, IsNil)
+
+	// Check that no error occurred
+	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
 
 	if shouldMerge {
 		c.Assert(prompts, HasLen, len(origPromptIDs))
