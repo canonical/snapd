@@ -120,6 +120,22 @@ func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {
 	c.Assert(st.TaskCount(), Equals, 2)
 }
 
+func (ss *stateSuite) TestAllTasksForTestsIncludesUnlinked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	t2 := st.NewTask("bar", "...")
+
+	allTasks := st.AllTasksForTests()
+	c.Assert(allTasks, HasLen, 2)
+	c.Check(allTasks, testutil.Contains, t1)
+	c.Check(allTasks, testutil.Contains, t2)
+}
+
 func (ss *stateSuite) TestSetPanic(c *C) {
 	st := state.New(nil)
 	st.Lock()

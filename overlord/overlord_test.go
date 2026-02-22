@@ -1420,7 +1420,6 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	bytesRead, err := io.ReadAtLeast(stdout, buf, len(buf))
 	c.Assert(err, IsNil)
 	c.Assert(bytesRead, Equals, len(buf))
-
 	err = overlord.LockWithTimeout(flock, 5*time.Millisecond)
 	c.Check(err, ErrorMatches, "timeout for state lock file expired")
 	c.Check(notifyCalls, DeepEquals, []string{
