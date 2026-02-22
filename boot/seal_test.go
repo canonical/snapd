@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
@@ -58,6 +59,7 @@ func (s *sealSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	s.AddCleanup(efi.MockVars(nil, nil))
 	snippets := []assets.ForEditions{
 		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
 	}

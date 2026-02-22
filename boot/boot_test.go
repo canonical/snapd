@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -68,6 +69,9 @@ func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
+	// Mock EFI as unavailable so ubootpart.Present() does not
+	// trigger real mountinfo access.
+	s.AddCleanup(efi.MockVars(nil, nil))
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")
 

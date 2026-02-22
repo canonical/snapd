@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode/utf16"
 
 	"github.com/snapcore/snapd/dirs"
@@ -50,6 +51,12 @@ var (
 )
 
 const expectedEFIvarfsDir = "/sys/firmware/efi/efivars"
+
+// loaderDevicePartUUID is the EFI variable holding the partition UUID
+// of the device the bootloader was loaded from. The vendor ID
+// 4a67b082-0a4c-41cf-b6c7-440b29bb8c4f is systemd; the variable is
+// populated by shim.
+const loaderDevicePartUUID = "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
 
 func openEFIVarImpl(name string) (r io.ReadCloser, attr VariableAttr, size int64, err error) {
 	mounts, err := osutil.LoadMountInfo()
@@ -156,6 +163,18 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 		b.WriteRune(r)
 	}
 	return b.String(), attr, nil
+}
+
+// ReadLoaderDevicePartUUID reads the EFI LoaderDevicePartUUID variable and
+// returns the partition UUID as a lowercase string. It returns ("", ErrNoEFISystem)
+// when EFI is not available.
+func ReadLoaderDevicePartUUID() (string, error) {
+	partuuid, _, err := ReadVarString(loaderDevicePartUUID)
+	if err != nil {
+		return "", err
+	}
+	// LoaderDevicePartUUID is in all caps
+	return strings.ToLower(partuuid), nil
 }
 
 // MockVars mocks EFI variables as read by ReadVar*, only to be used

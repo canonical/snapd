@@ -606,6 +606,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		blVars["snap_kernel"] = bootWith.Kernel.Filename()
 	}
 
+	// install the boot config from the gadget; for trusted-assets
+	// bootloaders this installs managed assets, for others (e.g. uboot,
+	// ubootpart) this creates the environment file and its parent directory
+	if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
+		return fmt.Errorf("cannot install boot config: %v", err)
+	}
+
 	// set the ubuntu-boot bootloader variables before triggering transition to
 	// try and boot from ubuntu-boot (that transition happens when we write
 	// snapd_recovery_mode below)
@@ -615,13 +622,6 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 
 	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
-		// the bootloader can manage its boot config
-
-		// installing boot config must be performed after the boot
-		// partition has been populated with gadget data
-		if err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts); err != nil {
-			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
-		}
 		// determine the expected command line
 		cmdline, err := ComposeCandidateCommandLine(model, bootWith.UnpackedGadgetDir)
 		if err != nil {
