@@ -75,11 +75,22 @@ userns,
 /run/pressure-vessel/** mrw,
 /var/pressure-vessel/** mrw,
 
-# Allow access to icons and shortcuts directories
-owner /home/*/.config/menus/{,**} rw,
-owner /home/*/.local/share/applications/{,**} rw,
-owner /home/*/.local/share/desktop-directories/{,**} rw,
-owner /home/*/.local/share/icons/{,**} rw,
+# This is just so you can test UMU without access to the $SNAP_REAL_HOME folder.
+# Currently, UMU on Snap doesn't allow you to choose where the umu and Steam folders will be created.
+owner /home/*/umu/ rwklix,
+owner /home/*/umu/** rwklix,
+owner /home/*/Steam/ rwklix,
+owner /home/*/Steam/** rwklix,
+
+# Access to mounting points
+/media/ r,
+/mnt/ r,
+/run/media/ r,
+
+# Block access to what's inside the mounting points.
+deny /media/** mrwklx,
+deny /mnt/** mrwklx,
+deny /run/media/** mrwklx,
 
 # Permissions to access certain binaries
 # For UMU launcher
