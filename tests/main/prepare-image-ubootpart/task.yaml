@@ -68,6 +68,7 @@ execute: |
           - name: ubuntu-boot-state
             role: system-boot-state
             type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+            offset: 1M
             size: 1M
           - name: ubuntu-seed
             role: system-seed
