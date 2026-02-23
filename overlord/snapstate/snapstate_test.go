@@ -9672,77 +9672,6 @@ type testResolveValidationSetsEnforcementErrorComponentsOpts struct {
 	current           []snapstate.SnapState
 }
 
-func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet) {
-	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
-	c.Assert(err, IsNil)
-
-	essentials := []string{"snapd"}
-	for _, sn := range deviceCtx.Model().EssentialSnaps() {
-		essentials = append(essentials, sn.SnapName())
-	}
-
-	var essentialTaskIDs []string
-	var essentialAndBaseTasks []*state.Task
-	for _, ts := range tss {
-		begin := ts.MaybeEdge(snapstate.BeginEdge)
-		if begin == nil {
-			continue
-		}
-
-		snapsup, err := snapstate.TaskSnapSetup(begin)
-		c.Assert(err, IsNil)
-
-		switch {
-		case strutil.ListContains(essentials, snapsup.SideInfo.RealName):
-			// essential snap updates don't wait on anything
-			c.Assert(begin.WaitTasks(), HasLen, 0)
-			for _, t := range ts.Tasks() {
-				essentialTaskIDs = append(essentialTaskIDs, t.ID())
-			}
-			essentialAndBaseTasks = append(essentialAndBaseTasks, ts.Tasks()...)
-		case snapsup.Type == snap.TypeBase:
-			// non-essential bases only should wait on tasks that come from
-			// essential snap updates
-			for _, t := range begin.WaitTasks() {
-				c.Assert(strutil.ListContains(essentialTaskIDs, t.ID()), Equals, true)
-			}
-
-			essentialAndBaseTasks = append(essentialAndBaseTasks, ts.Tasks()...)
-		default:
-			// all other updates and installs should at a minimum wait on the
-			// essential snap updates and the new base installations
-			c.Assert(willWaitOnMany(begin, essentialAndBaseTasks), Equals, true)
-		}
-	}
-}
-
-func willWaitOnMany(graph *state.Task, targets []*state.Task) bool {
-	seen := make(map[string]bool)
-	queue := append([]*state.Task(nil), graph.WaitTasks()...)
-	for i := 0; i < len(queue); i++ {
-		current := queue[i]
-		if seen[current.ID()] {
-			continue
-		}
-
-		seen[current.ID()] = true
-
-		for _, child := range current.WaitTasks() {
-			if !seen[child.ID()] {
-				queue = append(queue, child)
-			}
-		}
-	}
-
-	for _, t := range targets {
-		if !seen[t.ID()] {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c *C, opts testResolveValidationSetsEnforcementErrorComponentsOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9827,14 +9756,6 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
-
-	// this verifies that we correctly set up task dependencies.
-	// things should happen in this order:
-	// * essential snap updates
-	// * non-essential base installations
-	// * remaining updates
-	// * remaining installs
-	validateEnforcementOrder(c, s.state, tss)
 
 	s.settle(c)
 	c.Assert(chg.Err(), IsNil)

@@ -1112,25 +1112,6 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
-func currentEssentialSnapNames(st *state.State) ([]string, error) {
-	deviceCtx, err := DeviceCtxFromState(st, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, sn := range deviceCtx.Model().EssentialSnaps() {
-		names = append(names, sn.SnapName())
-	}
-
-	// some models have an implicit snapd, make sure that we account for it here
-	if !strutil.ListContains(names, "snapd") {
-		names = append(names, "snapd")
-	}
-
-	return names, nil
-}
-
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
 // meet the validation set constraints reported in the ValidationSetsValidationError..
 func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {
@@ -1168,36 +1149,24 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// explicitly.
 	resolved := make(map[string]bool)
 
-	essential, err := currentEssentialSnapNames(st)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var wrongRevs, wrongRevsEssential []StoreUpdate
+	updates := make([]StoreUpdate, 0, len(valErr.WrongRevisionSnaps)+len(valErr.MissingSnaps))
 	for name := range valErr.WrongRevisionSnaps {
 		resolved[name] = true
 
-		var additionalComps []string
+		var comps []string
 		if cerr, ok := valErr.ComponentErrors[name]; ok {
-			additionalComps = keys(cerr.MissingComponents)
+			comps = keys(cerr.MissingComponents)
 		}
 
-		update := StoreUpdate{
+		updates = append(updates, StoreUpdate{
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
-			AdditionalComponents: additionalComps,
-		}
-
-		if strutil.ListContains(essential, name) {
-			wrongRevsEssential = append(wrongRevsEssential, update)
-		} else {
-			wrongRevs = append(wrongRevs, update)
-		}
+			AdditionalComponents: comps,
+		})
 	}
 
-	var missing []StoreSnap
 	for name := range valErr.MissingSnaps {
 		var comps []string
 		if cerr, ok := valErr.ComponentErrors[name]; ok {
@@ -1205,53 +1174,30 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		}
 
 		resolved[name] = true
-		missing = append(missing, StoreSnap{
+		updates = append(updates, StoreUpdate{
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
-			Components: comps,
+			AdditionalComponents: comps,
+			InstallIfMissing:     true,
 		})
 	}
 
-	var essentialTss []*state.TaskSet
-	if len(wrongRevsEssential) > 0 {
-		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevsEssential...), nil, Options{
+	var tasksets []*state.TaskSet
+	if len(updates) > 0 {
+		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(updates...), nil, Options{
 			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		essentialTss = append(essentialTss, uts.Refresh...)
+		tasksets = append(tasksets, uts.Refresh...)
 		affected = append(affected, updated...)
 	}
 
-	var updateTss []*state.TaskSet
-	if len(wrongRevs) > 0 {
-		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
-			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
-		}
-
-		updateTss = append(updateTss, uts.Refresh...)
-		affected = append(affected, updated...)
-	}
-
-	var installed []*snap.Info
-	var installTss []*state.TaskSet
-	if len(missing) > 0 {
-		var err error
-		installed, installTss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
-			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
-		}
-	}
-
+	var compTss []*state.TaskSet
 	for snapName, cerr := range valErr.ComponentErrors {
 		if resolved[snapName] {
 			continue
@@ -1272,38 +1218,18 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		}
 
 		affected = append(affected, snapName)
-		installTss = append(installTss, compTasks...)
-	}
 
-	for _, i := range installed {
-		affected = append(affected, i.InstanceName())
-	}
-
-	// here we enforce some ordering constraints:
-	//  * essential snaps are updated first; this ensures that all reboots are
-	//    grouped together and subsequent updates/installs will see the new
-	//    versions of the essential snaps
-	//  * non-essential bases are installed next. this ensures that the
-	//    following updates and installs have their bases available. without this
-	//    ordering constraint, updates that bring in a new base will create a
-	//    circular dependency on the update's "prerequisites" task.
-	//  * the remaining updates and installs are done last
-
-	// installTss is made up of the install tasks for snaps and components (in
-	// that order). we only care about the snap ones, so we take a subslice.
-	var baseInstalls, nonBaseInstalls []*state.TaskSet
-	for i, ts := range installTss[:len(installed)] {
-		if installed[i].Type() == snap.TypeBase {
-			baseInstalls = append(baseInstalls, ts)
-		} else {
-			nonBaseInstalls = append(nonBaseInstalls, ts)
+		for _, compTs := range compTasks {
+			for _, ts := range tasksets {
+				compTs.WaitAll(ts)
+			}
 		}
+
+		compTss = append(compTss, compTasks...)
 	}
 
-	nonBaseInstalls = append(nonBaseInstalls, installTss[len(installed):]...)
-
-	// TODO: make use of EndEdges to make this chaining result in cleaner graphs
-	tasksets := flattenAndWaitTaskSets(essentialTss, baseInstalls, updateTss, nonBaseInstalls)
+	tasksets = append(tasksets, compTss...)
+	sort.Strings(affected)
 
 	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
 	for vsStr, vs := range valErr.Sets {
@@ -1323,36 +1249,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	tasksets = append(tasksets, ts)
 
 	return tasksets, affected, nil
-}
-
-// flattenAndWaitTaskSets merges a slice of [state.TaskSet] slices into one flat
-// slice. It also enforces ordering so that every [state.Task] in chain[i] waits
-// for each [state.Task] in chain[i-1].
-//
-// TODO: This implementation could be better if we relied on each task set to
-// have an [EndEdge]. This isn't true at the moment.
-func flattenAndWaitTaskSets(chain ...[]*state.TaskSet) []*state.TaskSet {
-	if len(chain) == 0 {
-		return nil
-	}
-
-	prev := chain[0]
-	flattened := make([]*state.TaskSet, len(prev))
-	copy(flattened, prev)
-
-	for _, tss := range chain[1:] {
-		// all of the tasks in tss must go after all of the tasks in prev
-		// thus, all of the tasks in tss must wait on all of the tasks in prev
-		for _, ts := range tss {
-			for _, prevTs := range prev {
-				ts.WaitAll(prevTs) // TODO: make this not a WaitAll
-			}
-		}
-		flattened = append(flattened, tss...)
-		prev = tss
-	}
-
-	return flattened
 }
 
 func keys[K comparable, V any](m map[K]V) []K {
