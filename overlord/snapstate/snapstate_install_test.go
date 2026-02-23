@@ -6522,6 +6522,13 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithSharedBase(c *C)
 
 	c.Check(chg.CheckTaskDependencies(), IsNil)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through the end
 	s.settle(c)
 
 	checkRerefresh := false
@@ -6546,6 +6553,13 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithoutSharedBased(c
 
 	c.Check(chg.CheckTaskDependencies(), IsNil)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// keep running
 	s.settle(c)
 
 	for _, snap := range []string{"snapd", "some-snap", "some-base", "some-base-snap"} {

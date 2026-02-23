@@ -5462,6 +5462,13 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 	// refresh of some-snap fails on link-snap
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through the end
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, ".*cannot perform the following tasks:\n- Make snap \"some-snap\" \\(11\\) available to the system.*")
@@ -13634,6 +13641,15 @@ type: snapd
 
 	s.state.EnsureBefore(0)
 
+	// up until link-snap requesting daemon restart after snapd
+	s.settle(c)
+
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+
+	// up until link-snap requesting daemon restart after snapd
 	s.settle(c)
 
 	didDownloadCore22 := false
@@ -13651,6 +13667,10 @@ type: snapd
 	err = snapstate.Get(s.state, "snap-core18-to-core22", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Base, Equals, "core22")
+
+	chg = s.state.Change(chg.ID())
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
@@ -13836,6 +13856,13 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 
 	c.Check(chg.CheckTaskDependencies(), IsNil)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through the end
 	s.settle(c)
 
 	checkRerefresh := true
@@ -13927,6 +13954,13 @@ func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c
 
 	c.Check(chg.CheckTaskDependencies(), IsNil)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// keep running until the change hits a wait status
 	s.settle(c)
 
 	// some-snap-with-core18-base depends on the base but the prereq code only waits
@@ -14017,6 +14051,13 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
 
 	c.Check(chg.CheckTaskDependencies(), IsNil)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through the end
 	s.settle(c)
 
 	for _, snap := range []string{"snapd", "some-snap", "some-base", "some-base-snap"} {
@@ -14348,6 +14389,13 @@ func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBa
 		chg.AddAll(ts)
 	}
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through the end
 	s.settle(c)
 
 	// the plug waits for the default provider which in turn waits for core18 to complete its link-snap (but not reboot)
@@ -14470,6 +14518,15 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 
 	task.Set("snaps", cands)
 
+	// run til daemon restart
+	s.settle(c)
+
+	pending, kind := restart.Pending(s.state)
+	c.Check(pending, Equals, true)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+
+	// run until kernel reboot
 	s.settle(c)
 
 	// some-snap-with-core18-base depends on the base but the prereq code only waits
