@@ -67,7 +67,9 @@ var stateJSON = []byte(`
 			"kind": "download-snap",
 			"summary": "Download snap a from channel edge",
 			"status": 4,
-			"data": { "snap-setup": {
+			"data": {
+				"restart-boundary": "do",
+				"snap-setup": {
 					"channel": "edge",
 					"flags": 1,
 					"side-info" : {
@@ -278,10 +280,10 @@ func (s *SnapSuite) TestDebugChangeDot(c *C) {
 		"label=<<b>[9] install-snap</b>>; labelloc=top; fontsize=24\n"+
 		"subgraph \"cluster[0]\" {\n"+
 		"label=<<b>Tasks on lanes: [0]</b>>; fontsize=18\n"+
-		"  \"[11] a:download-snap\"\n"+
+		"  \"[11] a:download-snap\\n[reboot:do]\"\n"+
 		"  \"[12] some-other-task\"\n"+
 		"}\n"+
-		"\"[11] a:download-snap\" -> \"[12] some-other-task\"\n"+
+		"\"[11] a:download-snap\\n[reboot:do]\" -> \"[12] some-other-task\"\n"+
 		"}\n")
 	c.Check(s.Stderr(), Equals, "")
 }

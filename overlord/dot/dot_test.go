@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/dot"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -134,6 +135,32 @@ func (s *dotSuite) TestTaskLabelConnectMissingSnapName(c *C) {
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "[1] connect")
+}
+
+func (s *dotSuite) TestTaskLabelWithRestartBoundary(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task-with-restart-boundary")
+	task.Set("restart-boundary", restart.RestartBoundaryDirectionDo)
+
+	str, err := dot.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] task-kind\\n[reboot:do]")
+}
+
+func (s *dotSuite) TestTaskLabelWithRestartBoundaryBothDirections(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task-with-restart-boundary")
+	task.Set("restart-boundary", restart.RestartBoundaryDirectionDo|restart.RestartBoundaryDirectionUndo)
+
+	str, err := dot.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "[1] task-kind\\n[reboot:do|undo]")
 }
 
 func (s *dotSuite) TestTaskLabelWithComponentSetupTask(c *C) {

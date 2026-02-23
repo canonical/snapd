@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	statedot "github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/snap"
@@ -63,17 +64,22 @@ func TaskLabel(t *state.Task) (string, error) {
 		return "", err
 	}
 
+	rebootBoundarySuffix, err := taskRebootBoundarySuffix(t)
+	if err != nil {
+		return "", err
+	}
+
 	switch t.Kind() {
 	case "run-hook":
 		var hooksup hookSetup
 		if err := t.Get("hook-setup", &hooksup); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("[%s] %s:run-hook[%s]", t.ID(), hooksup.Snap, hooksup.Hook), nil
+		return fmt.Sprintf("[%s] %s:run-hook[%s]", t.ID(), hooksup.Snap, hooksup.Hook) + rebootBoundarySuffix, nil
 	}
 
 	if snapName != "" {
-		return fmt.Sprintf("[%s] %s:%s", t.ID(), snapName, t.Kind()), nil
+		return fmt.Sprintf("[%s] %s:%s", t.ID(), snapName, t.Kind()) + rebootBoundarySuffix, nil
 	}
 
 	label := fmt.Sprintf("[%s] %s", t.ID(), t.Kind())
@@ -92,7 +98,20 @@ func TaskLabel(t *state.Task) (string, error) {
 		label = fmt.Sprintf("[%s] %s[%s:%s %s:%s]", t.ID(), t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	}
 
-	return label, nil
+	return label + rebootBoundarySuffix, nil
+}
+
+func taskRebootBoundarySuffix(t *state.Task) (string, error) {
+	var boundary restart.RestartBoundaryDirection
+	err := t.Get("restart-boundary", &boundary)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	return fmt.Sprintf("\\n[reboot:%s]", boundary.String()), nil
 }
 
 func taskSnapName(t *state.Task) (string, error) {
