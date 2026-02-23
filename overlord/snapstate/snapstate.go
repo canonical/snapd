@@ -1212,7 +1212,9 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			return nil, nil, err
 		}
 
-		compTasks, err := InstallComponents(ctx, st, comps, info, vsets, Options{})
+		compTasks, err := InstallComponents(ctx, st, comps, info, vsets, Options{
+			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
+		})
 		if err != nil {
 			return nil, nil, err
 		}

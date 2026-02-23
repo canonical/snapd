@@ -9751,6 +9751,20 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, pinnedSeqs, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(affected, testutil.DeepUnsortedMatches, opts.affected)
+	c.Assert(tss, Not(HasLen), 0)
+
+	enforce := tss[len(tss)-1].Tasks()[0]
+	c.Assert(enforce.Kind(), Equals, "enforce-validation-sets")
+	c.Assert(enforce.Lanes(), HasLen, 1)
+	lane := enforce.Lanes()[0]
+	c.Assert(lane, Not(Equals), 0)
+
+	// all tasks are in the same lane as the enforcement task
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), testutil.Contains, lane)
+		}
+	}
 
 	chg := s.state.NewChange("refresh-to-enforce", "")
 	for _, ts := range tss {
