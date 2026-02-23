@@ -40,7 +40,7 @@ const ubuntuProControlConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-/etc/ubuntu-advantage/uaclient.conf rw,
+/etc/ubuntu-advantage/uaclient.conf r,
 
 # Allow use of ObjectManager APIs, used to enumerate services.
 # do not use peer=(label=unconfined) here since this is DBus activated
