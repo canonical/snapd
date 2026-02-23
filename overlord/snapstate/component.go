@@ -90,7 +90,28 @@ func InstallComponents(
 		return nil, err
 	}
 
-	// TODO:COMPS: verify validation sets here
+	pres, err := vsets.Presence(info)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, comp := range compsups {
+		compName := comp.ComponentName()
+		compRevision := comp.Revision()
+		cp := pres.Component(compName)
+
+		if cp.Presence == asserts.PresenceInvalid {
+			return nil, fmt.Errorf(
+				"cannot install component %q due to enforcing rules of validation set %s",
+				naming.NewComponentRef(info.SnapName(), compName),
+				cp.Sets.CommaSeparated(),
+			)
+		}
+
+		if !cp.Revision.Unset() && compRevision != cp.Revision {
+			return nil, invalidComponentRevisionError("install", info.SnapName(), compName, cp.Sets, compRevision, cp.Revision)
+		}
+	}
 
 	snapsup := SnapSetup{
 		Base:                        info.Base,
