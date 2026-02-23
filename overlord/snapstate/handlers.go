@@ -3457,16 +3457,22 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	defer st.Lock()
 
-	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
-	if err != nil {
-		return err
-	}
+	var rmSvcs map[string]*snap.AppInfo
+	if stopReason == snap.StopReasonRefresh {
+		// if we're refreshing, compute the set of removed services so we stop
+		// them regardless of their "stop-mode"
+		snapName := snapsup.InstanceName()
+		newInfo, err := readInfo(snapName, snapsup.SideInfo, errorOnBroken)
+		if err != nil {
+			return err
+		}
 
-	rmSvcs := make(map[string]*snap.AppInfo)
-	for _, svc := range svcs {
-		app, ok := newInfo.Apps[svc.Name]
-		if !ok || !app.IsService() {
-			rmSvcs[svc.Name] = svc
+		rmSvcs = make(map[string]*snap.AppInfo)
+		for _, svc := range svcs {
+			app, ok := newInfo.Apps[svc.Name]
+			if !ok || !app.IsService() {
+				rmSvcs[svc.Name] = svc
+			}
 		}
 	}
 
