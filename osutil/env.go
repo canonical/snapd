@@ -22,6 +22,7 @@ package osutil
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -209,6 +210,38 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
 
+var envExpandRegExp, _ = regexp.Compile("[a-zA-Z0-9_]+:[+-]")
+
+// Adds support for bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX}
+func (env *Environment) expand(key string) string {
+	return os.Expand(key, func(varName string) string {
+		loc := envExpandRegExp.FindStringIndex(varName)
+		if loc == nil {
+			return (*env)[varName]
+		}
+		envvar := string(varName[loc[0]:(loc[1] - 2)])
+		operation := string(varName[loc[1]-1])
+		newval := string(varName[loc[1]:])
+		envvar_value := (*env)[envvar]
+		switch operation {
+		case "-":
+			if envvar_value == "" {
+				return env.expand(newval)
+			} else {
+				return envvar_value
+			}
+		case "+":
+			if envvar_value == "" {
+				return ""
+			} else {
+				return env.expand(newval)
+			}
+		default: // never can really happen, but the compiler complains without it
+			return (*env)[varName]
+		}
+	})
+}
+
 // ExtendWithExpanded extends the environment with eenv.
 //
 // Environment is modified in place. Each variable defined by eenv is
@@ -220,9 +253,7 @@ func (env *Environment) ExtendWithExpanded(eenv ExpandableEnv) {
 	}
 
 	for _, key := range eenv.Keys() {
-		(*env)[key] = os.Expand(eenv.Get(key), func(varName string) string {
-			return (*env)[varName]
-		})
+		(*env)[key] = env.expand(eenv.Get(key))
 	}
 }
 

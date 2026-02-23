@@ -330,3 +330,34 @@ func (s *envSuite) TestForExecEscapeUnsafeNothingToEscape(c *C) {
 		"XDG_STUFF=xdg-stuff",
 	})
 }
+
+func (s *envSuite) TestExpandEnvVariable(c *C) {
+	env := osutil.Environment{
+		"LD_LIBRARY_PATH": "/usr/lib:/usr/local/lib",
+		"TMPDIR":          "/var/tmp",
+		"A":               "foo",
+		"B":               "bad-value",
+		"D_default":       "default",
+	}
+
+	env.ExtendWithExpanded(osutil.NewExpandableEnv(
+		"LD_LIBRARY_PATH", "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib/x86_64-linux-gnu",
+		"PATH", "${PATH:+$PATH:}/usr/local/bin",
+		"TMPDIR", "${TMPDIR:-this-wont-be}",
+		"NOEXISTS", "${NOEXITS:-a-new-value}",
+		"A", "${A:+}",
+		"B", "${B:+goodvalue}",
+		"C", "${C:-}",
+		"D", "${D:-$D_default}",
+	))
+	c.Check(env, DeepEquals, osutil.Environment{
+		"LD_LIBRARY_PATH": "/usr/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu",
+		"NOEXISTS":        "a-new-value",
+		"TMPDIR":          "/var/tmp",
+		"PATH":            "/usr/local/bin",
+		"A":               "",
+		"B":               "goodvalue",
+		"C":               "",
+		"D":               "default",
+		"D_default":       "default"})
+}
