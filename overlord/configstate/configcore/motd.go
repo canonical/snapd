@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -62,13 +63,16 @@ func validateMotdConfiguration(tr ConfGetter) error {
 	return nil
 }
 
-func isMotdConfigurationSupported(rootDir string) bool {
-	// Restrict this config to systems where defaultMotdFilepathReadonly exists.
-	// Generally this means UC24+ systems.
-	return osutil.FileExists(filepath.Join(rootDir, defaultMotdFilePathReadonly))
+func isMotdConfigurationSupported(base string) bool {
+	// Restrict this config to UC24+ systems
+	coreVersion, err := naming.CoreVersion(base)
+	if err != nil {
+		return false
+	}
+	return coreVersion >= 24
 }
 
-func handleMotdConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+func handleMotdConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var motd, rootDir string
 	if opts == nil {
 		// runtime system
@@ -100,7 +104,7 @@ func handleMotdConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCont
 	}
 
 	// Check if MOTD configuration is supported on this system
-	if !isMotdConfigurationSupported(rootDir) {
+	if !isMotdConfigurationSupported(dev.Base()) {
 		return errors.New("cannot set message of the day: unsupported on this system, requires UC24+")
 	}
 
@@ -135,12 +139,13 @@ func getMotdFromSystemHelper(key string) (any, error) {
 
 func getMotdFromSystem() (string, error) {
 	rootDir := dirs.GlobalRootDir
-	if !isMotdConfigurationSupported(rootDir) {
-		return "", nil
-	}
 	motdFilePath := filepath.Join(rootDir, defaultMotdFilePathWritable)
 	if !osutil.FileExists(motdFilePath) {
 		motdFilePath = filepath.Join(rootDir, defaultMotdFilePathReadonly)
+		if !osutil.FileExists(motdFilePath) {
+			// as both don't exist, motd option is not supported (no error)
+			return "", nil
+		}
 	}
 	motdBytes, err := os.ReadFile(motdFilePath)
 	if err != nil {

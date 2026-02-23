@@ -59,8 +59,12 @@ func (s *motdSuite) SetUpTest(c *C) {
 	s.readonlyDirPath = filepath.Dir(s.readonlyFilePath)
 	err := os.MkdirAll(s.readonlyDirPath, 0755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(s.readonlyFilePath, []byte("Default MOTD\n"), 0644)
+	err = os.WriteFile(s.readonlyFilePath, []byte("Default MOTD\n"), 0444)
 	c.Assert(err, IsNil)
+	os.Chmod(s.readonlyDirPath, 0555)
+	s.AddCleanup(func() {
+		os.Chmod(s.readonlyDirPath, 0755)
+	})
 
 	s.writableFilePath = filepath.Join(dirs.GlobalRootDir, defaultMotdFilePathWritable)
 	s.writableDirPath = filepath.Dir(s.writableFilePath)
@@ -78,7 +82,7 @@ func (s *motdSuite) TestValidateMotdConfigurationValid(c *C) {
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Valid multi-line MOTD
@@ -88,7 +92,7 @@ func (s *motdSuite) TestValidateMotdConfigurationValid(c *C) {
 			motdOptionKey: "Welcome to Ubuntu Core!\nThis is a test message of the day.",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Empty MOTD (unset)
@@ -98,7 +102,7 @@ func (s *motdSuite) TestValidateMotdConfigurationValid(c *C) {
 			motdOptionKey: "",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// MOTD that is exactly 64 KiB (minus 1 for newline)
@@ -108,7 +112,7 @@ func (s *motdSuite) TestValidateMotdConfigurationValid(c *C) {
 			motdOptionKey: strings.Repeat("a", 64*1024-1),
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 }
 
@@ -120,27 +124,28 @@ func (s *motdSuite) TestValidateMotdConfigurationInvalid(c *C) {
 			motdOptionKey: strings.Repeat("a", 64*1024+1),
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, `cannot set message of the day: size .* bytes exceeds limit of 65536 bytes`)
 }
 
 func (s *motdSuite) TestIsMotdConfigurationSupportedTrue(c *C) {
-	// SetUpTest creates defaultMotdFilepathReadonly, so it should be supported
 	conf := &mockConf{
 		state: s.state,
 		conf: map[string]any{
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 }
 
 func (s *motdSuite) TestIsMotdConfigurationSupportedFalse(c *C) {
 	// As SetUpTest creates defaultMotdFilepathReadonly,
 	// remove it to simulate older than UC24 systems
+	os.Chmod(s.readonlyDirPath, 0755)
 	err := os.Remove(s.readonlyFilePath)
 	c.Assert(err, IsNil)
+	os.Chmod(s.readonlyDirPath, 0555)
 
 	conf := &mockConf{
 		state: s.state,
@@ -148,11 +153,11 @@ func (s *motdSuite) TestIsMotdConfigurationSupportedFalse(c *C) {
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core20Dev, conf)
 	c.Assert(err, ErrorMatches, "cannot set message of the day: unsupported on this system, requires UC24\\+")
 }
 
-func (s *motdSuite) TestHandleMotdConfigurationSetFileExists(c *C) {
+func (s *motdSuite) TestHandleMotdConfigurationSetWritableFileExists(c *C) {
 	// First add the writable file
 	err := os.MkdirAll(s.writableDirPath, 0755)
 	c.Assert(err, IsNil)
@@ -167,14 +172,14 @@ func (s *motdSuite) TestHandleMotdConfigurationSetFileExists(c *C) {
 			motdOptionKey: motd,
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Verify the file content was written correctly
 	c.Check(s.writableFilePath, testutil.FileEquals, motd+"\n")
 }
 
-func (s *motdSuite) TestHandleMotdConfigurationSetFileDoesNotExist(c *C) {
+func (s *motdSuite) TestHandleMotdConfigurationSetWritableFileDoesNotExist(c *C) {
 	// Ensure the writable file does not exist
 	_, err := os.Lstat(s.writableFilePath)
 	c.Assert(errors.Is(err, fs.ErrNotExist), Equals, true)
@@ -187,7 +192,7 @@ func (s *motdSuite) TestHandleMotdConfigurationSetFileDoesNotExist(c *C) {
 			motdOptionKey: motd,
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Verify directory was created with correct permissions
@@ -216,7 +221,7 @@ func (s *motdSuite) TestHandleMotdConfigurationSetMkdirAllError(c *C) {
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, "cannot set message of the day: mkdir .*/etc/motd.d: permission denied")
 }
 
@@ -241,11 +246,11 @@ func (s *motdSuite) TestHandleMotdConfigurationSetAtomicWriteFileError(c *C) {
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, "cannot set message of the day: open .*/etc/motd.d/50-default.*: permission denied")
 }
 
-func (s *motdSuite) TestHandleMotdConfigurationUnsetFileExists(c *C) {
+func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileExists(c *C) {
 	// Unsetting when the writable file exists should remove it
 	// First add the writable file
 	err := os.MkdirAll(s.writableDirPath, 0755)
@@ -260,7 +265,7 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetFileExists(c *C) {
 			motdOptionKey: "",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Verify the writable file was removed
@@ -268,7 +273,7 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetFileExists(c *C) {
 	c.Assert(errors.Is(err, fs.ErrNotExist), Equals, true)
 }
 
-func (s *motdSuite) TestHandleMotdConfigurationUnsetRemoveError(c *C) {
+func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileRemoveError(c *C) {
 	// First add the writable file
 	err := os.MkdirAll(s.writableDirPath, 0755)
 	c.Assert(err, IsNil)
@@ -286,7 +291,7 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetRemoveError(c *C) {
 			motdOptionKey: "",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, "cannot unset message of the day: remove .*/etc/motd.d/50-default: permission denied")
 
 	// Verify the writable file still exists
@@ -294,7 +299,7 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetRemoveError(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *motdSuite) TestHandleMotdConfigurationUnsetFileDoesNotExist(c *C) {
+func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileDoesNotExist(c *C) {
 	// Unsetting when the writable file doesn't exist should not error
 	// Ensure the writable file does not exist
 	_, err := os.Lstat(s.writableFilePath)
@@ -307,14 +312,14 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetFileDoesNotExist(c *C) {
 			motdOptionKey: "",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) {
 	// Mock os.ReadFile(s.readonlyFilePath) to return an error
 	os.Chmod(s.readonlyFilePath, 0000)
-	defer os.Chmod(s.readonlyFilePath, 0644)
+	defer os.Chmod(s.readonlyFilePath, 0444)
 
 	conf := &mockConf{
 		state: s.state,
@@ -322,7 +327,7 @@ func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) 
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, `cannot get message of the day: open .*/usr/lib/motd.d/50-default: permission denied`)
 }
 
@@ -339,7 +344,7 @@ func (s *motdSuite) TestHandleMotdConfigurationSameMotdAsCurrent(c *C) {
 			motdOptionKey: "Default MOTD\n",
 		},
 	}
-	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, IsNil)
 
 	// Verify that the writable file was not created
@@ -351,16 +356,19 @@ func (s *motdSuite) TestFilesystemOnlyApplySuccess(c *C) {
 	// Create the readonly motd file in tmpDir
 	tmpDir := c.MkDir()
 	readonlyFilePath := filepath.Join(tmpDir, defaultMotdFilePathReadonly)
-	err := os.MkdirAll(filepath.Dir(readonlyFilePath), 0755)
+	readonlyDirPath := filepath.Dir(readonlyFilePath)
+	err := os.MkdirAll(readonlyDirPath, 0755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(readonlyFilePath, []byte("Default MOTD\n"), 0644)
+	err = os.WriteFile(readonlyFilePath, []byte("Default MOTD\n"), 0444)
 	c.Assert(err, IsNil)
+	os.Chmod(readonlyDirPath, 0555)
+	defer os.Chmod(readonlyDirPath, 0755)
 
 	motd := "Welcome to Ubuntu Core!\nThis is a test message of the day."
 	conf := configcore.PlainCoreConfig(map[string]any{
 		motdOptionKey: motd,
 	})
-	err = configcore.FilesystemOnlyApply(coreDev, tmpDir, conf)
+	err = configcore.FilesystemOnlyApply(core24Dev, tmpDir, conf)
 	c.Assert(err, IsNil)
 
 	writableFilePath := filepath.Join(tmpDir, defaultMotdFilePathWritable)
@@ -371,10 +379,13 @@ func (s *motdSuite) TestFilesystemOnlyApplyNoMotdChange(c *C) {
 	// Create the readonly and writable motd files in tmpDir
 	tmpDir := c.MkDir()
 	readonlyFilePath := filepath.Join(tmpDir, defaultMotdFilePathReadonly)
-	err := os.MkdirAll(filepath.Dir(readonlyFilePath), 0755)
+	readonlyDirPath := filepath.Dir(readonlyFilePath)
+	err := os.MkdirAll(readonlyDirPath, 0755)
 	c.Assert(err, IsNil)
-	err = os.WriteFile(readonlyFilePath, []byte("Default MOTD\n"), 0644)
+	err = os.WriteFile(readonlyFilePath, []byte("Default MOTD\n"), 0444)
 	c.Assert(err, IsNil)
+	os.Chmod(readonlyDirPath, 0555)
+	defer os.Chmod(readonlyDirPath, 0755)
 	writableFilePath := filepath.Join(tmpDir, defaultMotdFilePathWritable)
 	err = os.MkdirAll(filepath.Dir(writableFilePath), 0755)
 	c.Assert(err, IsNil)
@@ -384,21 +395,21 @@ func (s *motdSuite) TestFilesystemOnlyApplyNoMotdChange(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]any{
 		"non.motd.key": "value",
 	})
-	err = configcore.FilesystemOnlyApply(coreDev, tmpDir, conf)
+	err = configcore.FilesystemOnlyApply(core24Dev, tmpDir, conf)
 	c.Assert(err, IsNil)
 
 	// Verify that the writable file was not modified
 	c.Check(writableFilePath, testutil.FileEquals, "Test MOTD\n")
 }
 
-func (s *motdSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
+func (s *motdSuite) TestFilesystemOnlyApplyUnsupported(c *C) {
 	// Don't create the readonly motd file - simulates unsupported system
 	tmpDir := c.MkDir()
 
 	conf := configcore.PlainCoreConfig(map[string]any{
 		motdOptionKey: "Test MOTD",
 	})
-	err := configcore.FilesystemOnlyApply(coreDev, tmpDir, conf)
+	err := configcore.FilesystemOnlyApply(core20Dev, tmpDir, conf)
 	c.Assert(err, ErrorMatches, "cannot set message of the day: unsupported on this system, requires UC24\\+")
 }
 
@@ -420,8 +431,10 @@ func (s *motdSuite) TestGetMotdFromSystemUnsupported(c *C) {
 
 	// As SetUpTest creates defaultMotdFilepathReadonly,
 	// remove it to simulate older than UC24 systems
+	os.Chmod(s.readonlyDirPath, 0755)
 	err := os.Remove(s.readonlyFilePath)
 	c.Assert(err, IsNil)
+	os.Chmod(s.readonlyDirPath, 0555)
 
 	tr := config.NewTransaction(s.state)
 	var motd string
