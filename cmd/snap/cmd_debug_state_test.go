@@ -277,7 +277,7 @@ func (s *SnapSuite) TestDebugChangeDot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "digraph {\n"+
-		"label=<<b>[9] install-snap</b>>; labelloc=top; fontsize=24\n"+
+		"label=<<b>9-install-snap</b>>; labelloc=top; fontsize=24\n"+
 		"subgraph \"cluster[0]\" {\n"+
 		"label=<<b>Tasks on lanes: [0]</b>>; fontsize=18\n"+
 		"  \"[11] a:download-snap\\n[reboot:do]\"\n"+

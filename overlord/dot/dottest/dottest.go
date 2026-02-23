@@ -21,16 +21,23 @@
 package dottest
 
 import (
-	"os"
+	"flag"
+	"fmt"
+	"os/exec"
 
 	"github.com/snapcore/snapd/overlord/dot"
 	"github.com/snapcore/snapd/overlord/state"
 	"gopkg.in/check.v1"
 )
 
-// ExportChangeGraphs creates change graphs for tasks in state when explicitly enabled.
+var exportChangeGraphs = flag.Bool("snapd.export-change-graphs", false, "export change graphs during tests")
+var openChangeGraphs = flag.Bool("snapd.open-change-graphs", false, "open exported change graphs during tests (implies -snapd.export-change-graphs)")
+
+// ExportChangeGraphs creates change graphs for tasks in the state when either
+// -snapd.export-change-graphs or -snapd.open-change-graphs is set. if
+// -snapd.open-change-graphs is set, then the graphs are opened.
 func ExportChangeGraphs(c *check.C, st *state.State) {
-	if os.Getenv("SNAPD_TEST_DUMP_TASK_GRAPH") == "" {
+	if !*exportChangeGraphs && !*openChangeGraphs {
 		return
 	}
 
@@ -52,7 +59,7 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 		return
 	}
 
-	chg := st.NewChange("test-task-graph", c.TestName())
+	chg := st.NewChange("unlinked-tasks", c.TestName())
 	for _, t := range unlinked {
 		chg.AddTask(t)
 	}
@@ -60,5 +67,18 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 	g, err := dot.NewChangeGraph(chg, c.TestName())
 	c.Assert(err, check.IsNil)
 
-	g.Show(nil)
+	graphPath, err := g.Export()
+	if err != nil {
+		c.Logf("cannot export change graph: %v", err)
+		return
+	}
+
+	fmt.Printf("%s => %s\n", c.TestName(), graphPath)
+
+	if !*openChangeGraphs {
+		return
+	}
+	if err := exec.Command("xdg-open", graphPath).Run(); err != nil {
+		c.Logf("cannot open change graph: %v", err)
+	}
 }

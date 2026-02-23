@@ -162,7 +162,7 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 			})
 		}
 	}
-	tags := []string{chg.Label()}
+	tags := []string{fmt.Sprintf("%s-%s", chg.ID(), chg.Kind())}
 	if tag != "" {
 		tags = append(tags, tag)
 	}
@@ -211,37 +211,25 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 	return err
 }
 
-// Show invokes the dot command and uses xdg-open to graphically display the
-// graphviz representation of the change dependency graph.
-// If provided logfer is used to report errors and information, if nil stderr
-// and stdout are used instead.
-func (g *ChangeGraph) Show(logfer interface {
-	Logf(format string, args ...interface{})
-}) {
-	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(g.tags, "-")))
-	fprintfln := func(w io.Writer, format string, args ...interface{}) {
-		if logfer != nil {
-			logfer.Logf(format, args...)
-		} else {
-			fmt.Fprintf(w, format+"\n", args...)
-		}
-	}
+// Export invokes the dot command and writes the graphviz representation of the
+// change dependency graph into a temporary SVG file.
+func (g *ChangeGraph) Export() (string, error) {
+	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(strings.Fields(strings.Join(g.tags, "-")), "-")))
 	if err != nil {
-		fprintfln(os.Stderr, "cannot create .svg file: %v", err)
+		return "", fmt.Errorf("cannot create .svg file: %v", err)
 	}
 	output := f.Name()
 	f.Close()
 	dotCmd := exec.Command("dot", "-Tsvg", "-o"+output)
 	gbuf := new(bytes.Buffer)
-	g.WriteDotTo(gbuf)
+	if err := g.WriteDotTo(gbuf); err != nil {
+		return "", err
+	}
 	dotCmd.Stdin = gbuf
 	if o, err := dotCmd.CombinedOutput(); err != nil {
-		if _, ok := err.(*exec.Error); ok {
-		}
-		fprintfln(os.Stderr, "cannot process dot definition: %v", osutil.OutputErr(o, err))
+		return "", fmt.Errorf("cannot process dot definition: %v", osutil.OutputErr(o, err))
 	}
-	fprintfln(os.Stdout, "%s => %s", strings.Join(g.tags, " "), output)
-	exec.Command("xdg-open", output).Run()
+	return output, nil
 }
 
 func clusterLabel(lanes []int) string {

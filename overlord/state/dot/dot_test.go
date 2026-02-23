@@ -125,7 +125,7 @@ func (s *changeGraphSuite) TestWriteDotTo(c *C) {
 	err = g.WriteDotTo(b)
 	c.Assert(err, IsNil)
 	c.Check(b.String(), Equals, `digraph {
-label=<<b>[1] chg - TestWriteDotTo</b>>; labelloc=top; fontsize=24
+label=<<b>1-chg - TestWriteDotTo</b>>; labelloc=top; fontsize=24
 subgraph "cluster[0]" {
 label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
   "d"
@@ -157,7 +157,7 @@ func (s *changeGraphSuite) TestDot(c *C) {
 	g, err := dot.NewChangeGraph(s.chg, taskLabel, "TestDot")
 	c.Assert(err, IsNil)
 	c.Check(g.Dot(), Equals, `digraph {
-label=<<b>[1] chg - TestDot</b>>; labelloc=top; fontsize=24
+label=<<b>1-chg - TestDot</b>>; labelloc=top; fontsize=24
 subgraph "cluster[0]" {
 label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
   "d"

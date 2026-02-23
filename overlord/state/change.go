@@ -902,9 +902,3 @@ func (c *Change) CheckTaskDependencies() error {
 	}
 	return nil
 }
-
-// Label returns a unique, standardized textual representation of the change,
-// suitable for use in diagrams, logs, or other visualizations.
-func (c *Change) Label() string {
-	return fmt.Sprintf("[%s] %s", c.id, c.kind)
-}
