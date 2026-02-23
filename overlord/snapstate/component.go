@@ -95,22 +95,13 @@ func InstallComponents(
 		return nil, err
 	}
 
+	comps := make(map[string]snap.Revision, len(compsups))
 	for _, comp := range compsups {
-		compName := comp.ComponentName()
-		compRevision := comp.Revision()
-		cp := pres.Component(compName)
+		comps[comp.ComponentName()] = comp.Revision()
+	}
 
-		if cp.Presence == asserts.PresenceInvalid {
-			return nil, fmt.Errorf(
-				"cannot install component %q due to enforcing rules of validation set %s",
-				naming.NewComponentRef(info.SnapName(), compName),
-				cp.Sets.CommaSeparated(),
-			)
-		}
-
-		if !cp.Revision.Unset() && compRevision != cp.Revision {
-			return nil, invalidComponentRevisionError("install", info.SnapName(), compName, cp.Sets, compRevision, cp.Revision)
-		}
+	if err := checkComponentsPresenceAndRevision(info.SnapName(), comps, pres, "install"); err != nil {
+		return nil, err
 	}
 
 	snapsup := SnapSetup{
