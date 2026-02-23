@@ -1297,3 +1297,21 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 func (s *restartSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("restart.go", c, false)
 }
+
+func (*restartSuite) TestStringfiedTypes(c *C) {
+	for _, tc := range []struct {
+		typ restart.RestartType
+		v   string
+	}{
+		{restart.RestartDaemon, "restart-daemon"},
+		{restart.RestartSystem, "restart-system"},
+		{restart.RestartSystemNow, "restart-system-now"},
+		{restart.RestartSocket, "restart-socket"},
+		{restart.StopDaemon, "stop-daemon"},
+		{restart.RestartSystemHaltNow, "restart-system-halt-now"},
+		{restart.RestartSystemPoweroffNow, "restart-system-poweroff-now"},
+		{restart.RestartType(123), "restart-type(123)"},
+	} {
+		c.Check(tc.typ.String(), Equals, tc.v)
+	}
+}
