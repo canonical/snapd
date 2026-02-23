@@ -163,7 +163,7 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	uc20DevRunMode := mockDev{
 		mode: "run",
-		uc20: true,
+		base: "core20",
 	}
 
 	// write default config at both the uc18 style runtime location and uc20 run
@@ -202,7 +202,7 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	uc20DevMode := mockDev{
 		mode: mode,
-		uc20: true,
+		base: "core20",
 	}
 
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
@@ -278,7 +278,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	uc20DevInstallMode := mockDev{
 		classic: false,
 		mode:    "install",
-		uc20:    true,
+		base:    "core20",
 	}
 
 	err := configcore.FilesystemOnlyRun(uc20DevInstallMode, &mockConf{

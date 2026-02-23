@@ -198,12 +198,12 @@ type mockDev struct {
 	mode    string
 	classic bool
 	kernel  string
-	uc20    bool
+	base    string
 }
 
 func (d mockDev) RunMode() bool    { return d.mode == "" || d.mode == "run" }
 func (d mockDev) Classic() bool    { return d.classic }
-func (d mockDev) HasModeenv() bool { return d.uc20 }
+func (d mockDev) HasModeenv() bool { return d.base == "core20" }
 func (d mockDev) Kernel() string {
 	if d.Classic() {
 		return ""
@@ -213,12 +213,14 @@ func (d mockDev) Kernel() string {
 	}
 	return d.kernel
 }
+func (d mockDev) Base() string { return d.base }
 
 var (
 	coreDev    = mockDev{classic: false}
 	classicDev = mockDev{classic: true}
 
-	core20Dev = mockDev{classic: false, uc20: true}
+	core20Dev = mockDev{classic: false, base: "core20"}
+	core24Dev = mockDev{classic: false, base: "core24"}
 )
 
 // applyCfgSuite tests configcore.Apply()

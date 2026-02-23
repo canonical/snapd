@@ -20,7 +20,6 @@
 package sysconfig_test
 
 import (
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -285,13 +284,7 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	motdReadonlyFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/usr/lib/motd.d/50-default")
-	err := os.MkdirAll(filepath.Dir(motdReadonlyFile), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(motdReadonlyFile, []byte("Default MOTD\n"), 0644)
-	c.Assert(err, IsNil)
-
-	err = sysconfig.ConfigureTargetSystem(fake24Model("signed"), &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake24Model("signed"), &sysconfig.Options{
 		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetDir:     snapInfo.MountDir(),
 	})
