@@ -6,6 +6,10 @@ details: |
 
 systems: [ubuntu-2*]
 
+environment:
+  # FIXME: make the test not stat sealed key files
+  NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
+
 execute: |
     SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2325,7 +2326,10 @@ func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
 	}
 }
 
-func constructPermissionsMaps() []map[string]map[string]notify.AppArmorPermission {
+// constructAppArmorPermissionsMaps converts mediation class-specific permission
+// maps into maps to notify.AppArmorPermission, and returns the list of maps
+// for all mediation classes.
+func constructAppArmorPermissionsMaps() []map[string]map[string]notify.AppArmorPermission {
 	var permissionsMaps []map[string]map[string]notify.AppArmorPermission
 	// interfaceFilePermissionsMaps
 	filePermissionsMaps := make(map[string]map[string]notify.AppArmorPermission)
@@ -2380,7 +2384,7 @@ func (s *constraintsSuite) TestMarshalRulePermissionEntry(c *C) {
 }
 
 func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
-	permissionsMaps := constructPermissionsMaps()
+	permissionsMaps := constructAppArmorPermissionsMaps()
 	// Check that every interface in interfacePermissionsAvailable is in
 	// exactly one of the permissions maps.
 	// Also, check that the permissions for a given interface in
@@ -2389,10 +2393,11 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	// Also, check that each priority only occurs once.
 	for iface, perms := range prompting.InterfacePermissionsAvailable {
 		availablePerms, err := prompting.AvailablePermissions(iface)
-		c.Check(err, IsNil, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
+		c.Check(err, IsNil, Commentf("interface from interfacePermissionsAvailable not found by AvailablePermissions: %s", iface))
 		c.Check(perms, Not(HasLen), 0, Commentf("interface has no available permissions: %s", iface))
 		c.Check(availablePerms, DeepEquals, perms)
 		found := false
+		// Interface should either be in a permission map...
 		for _, permsMaps := range permissionsMaps {
 			pMap, exists := permsMaps[iface]
 			if !exists {
@@ -2407,14 +2412,28 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 				c.Check(exists, Equals, true, Commentf("missing permission mapping for %s interface permission: %s", iface, perm))
 			}
 		}
+		// ...or be a non-AppArmor interface
+		if strutil.ListContains(prompting.NonAppArmorInterfaces, iface) {
+			c.Check(found, Equals, false, Commentf("interface found in more than one map of interface permissions maps: %s", iface))
+			found = true
+		}
 		if !found {
-			c.Errorf("interface not included in any map of interface permissions maps: %s", iface)
+			c.Errorf("interface not included in any map of interface permissions maps or the list of non-AppArmor interfaces: %s", iface)
+		}
+	}
+	// Check that every interface in each permission map appears in
+	// interfacePermissionsAvailable.
+	for _, permsMap := range permissionsMaps {
+		for iface := range permsMap {
+			_, ok := prompting.InterfacePermissionsAvailable[iface]
+			c.Check(ok, Equals, true, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
 		}
 	}
 }
 
 func (s *constraintsSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
+		// Check that permission maps don't overlap or contain `AA_MAY_OPEN`
 		seenPermissions := notify.FilePermission(0)
 		for name, mask := range permsMap {
 			if duplicate := seenPermissions & mask; duplicate != notify.FilePermission(0) {

@@ -27,13 +27,11 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
-	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -46,12 +44,6 @@ var (
 	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
 	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
 
-	// readyTimeout is the time to wait to re-receive and process previously-
-	// pending requests from the kernel before we tell the manager we're ready.
-	// We should be able to re-receive messages very quickly, but there must be
-	// someone listening over l.reqs to quickly receive and process them too.
-	readyTimeout = time.Duration(5 * time.Second)
-
 	osOpen                       = os.Open
 	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
 	notifyIoctl                  = notify.Ioctl
@@ -63,9 +55,9 @@ type SendResponseFunc = func(id uint64, aaAllowed, aaRequested, allow notify.App
 // Listener encapsulates a loop for receiving apparmor notification requests
 // and responding with notification responses, hiding the low-level details.
 type Listener[R any] struct {
-	// once ensures that the Run method is only run once, to avoid closing
+	// runOnce ensures that the Run method is only run once, to avoid closing
 	// a channel multiple times
-	once sync.Once
+	runOnce sync.Once
 
 	// newRequest is a closure which the listener can call to construct a new
 	// request when it receives a message from the kernel. The listener should
@@ -77,16 +69,16 @@ type Listener[R any] struct {
 	// Only the main run loop may close this channel.
 	reqs chan *R
 
+	// readyOnce should always be used to call `signalReady` to ensure that the
+	// listener only readies once.
+	readyOnce sync.Once
 	// ready is a channel which is closed once all requests which were pending
 	// at time of registration have been re-received from the kernel and sent
-	// over the reqs channel. This occurs once pendingCount reaches 0, snapd
-	// receives a message which does not have the UNOTIF_RESENT flag, or the
-	// ready timer times out. This channel must only be closed by the
-	// signalReady method.
+	// over the reqs channel. This occurs once pendingCount reaches 0 or snapd
+	// receives a message which does not have the UNOTIF_RESENT flag. This
+	// channel must only be closed by the signalReady method, and that should
+	// only be called via readyOnce.
 	ready chan struct{}
-	// readyTimer is a timer which will call signalReady if the listener times
-	// out waiting for pending requests to be received.
-	readyTimer timeutil.Timer
 	// pendingMu is a mutex which protects pendingCount.
 	pendingMu sync.Mutex
 	// pendingCount is the number of "pending" (UNOTIF_RESENT) messages still
@@ -156,7 +148,6 @@ func Register[R any](newReq func(msg notify.MsgNotificationGeneric, sendResponse
 		reqs: make(chan *R),
 
 		ready:        make(chan struct{}),
-		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
 		pendingCount: pendingCount,
 
 		protocolVersion: protoVersion,
@@ -168,17 +159,11 @@ func Register[R any](newReq func(msg notify.MsgNotificationGeneric, sendResponse
 	// If there are no pending requests waiting to be re-sent, ready
 	// immediately, otherwise start the ready timer when Run is called.
 	if listener.pendingCount == 0 {
-		// Ensure timer is truly stopped, and no later call to readyTimer.Stop()
-		// can possibly return true.
-		listener.readyTimer.Stop()
-		// Ready up
-		listener.signalReady()
+		listener.readyOnce.Do(func() {
+			listener.signalReady()
+		})
 	}
 	return listener, nil
-}
-
-var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
-	return timeutil.AfterFunc(d, f)
 }
 
 // isClosed returns true if the listener has been closed.
@@ -233,14 +218,11 @@ func (l *Listener[R]) Reqs() <-chan *R {
 
 // Ready returns a read-only channel which will be closed once all requests
 // which were pending when the listener was registered have been re-received
-// from the kernel and sent over the reqs channel. No non-resent requests will
-// be sent until all originally-pending requests have been resent.
+// from the kernel and sent over the reqs channel.
 //
-// The channel will close automatically after a timeout even if not all pending
-// requests have been re-received.
-//
-// The caller may wish to block new prompt replies or rules until after the
-// ready channel has been closed.
+// The kernel guarantees that no non-resent requests will be sent until all
+// originally-pending requests have been resent, so if a non-resent request is
+// received, then this channel will be closed to signal readiness.
 func (l *Listener[R]) Ready() <-chan struct{} {
 	return l.ready
 }
@@ -256,28 +238,15 @@ var exitOnError = false
 // If the listener was intentionally stopped via the Close() method, returns nil.
 func (l *Listener[R]) Run() error {
 	var err error
-	l.once.Do(func() {
-		// Run should only be called once, so this once.Do is really only an
+	l.runOnce.Do(func() {
+		// Run should only be called once, so this runOnce.Do is really only an
 		// extra precaution to ensure that l.reqs is only closed once.
-
-		// If there were pending requests at time of registration, then Register
-		// didn't set a real ready timer with callback, so do so now.
-		if l.pendingCount != 0 {
-			l.readyTimer = timeAfterFunc(readyTimeout, func() {
-				pendingCount := l.signalReady()
-				logger.Noticef("timeout waiting for resent messages from apparmor: still expected %d more resent messages", pendingCount)
-			})
-		}
 		defer func() {
-			if l.readyTimer.Stop() {
-				// The timer was still active, so the listener was not ready.
-				// The manager is closing the listener, so if the listener isn't
-				// ready by now, it doesn't matter, the manager has stopped
-				// receiving requests by now anyway.
-			}
-
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
+			// The manager is closing the listener, so if the listener isn't
+			// ready by now, it doesn't matter, the manager has stopped
+			// receiving requests by now anyway.
 		}()
 		for {
 			err = l.handleRequests()
@@ -415,12 +384,11 @@ func (l *Listener[R]) decodeAndDispatchRequest(buf []byte) error {
 
 		// Handle whether the message was resent prior to attempting to parse
 		// it into a Request or send it to the manager. This way, API calls
-		// won't block unnecessarily and any potential ready timeout message
-		// will report the correct pending count. If this is the final pending
-		// request, then we want to signal readiness only if we find it to be
-		// malformed or after the request has been received, to make sure the
-		// manager handles the request (if valid) prior to observing the
-		// listener readiness.
+		// won't block unnecessarily. If this is the final pending request,
+		// then we want to signal readiness only if we find it to be malformed
+		// or after the request has been received, to make sure the manager
+		// handles the request (if valid) prior to observing the listener
+		// readiness.
 		isFinalPendingReq := l.handlePotentialResentMessage(omsg.Resent())
 
 		req, err := l.parseRequest(omsg.Class, first)
@@ -432,7 +400,9 @@ func (l *Listener[R]) decodeAndDispatchRequest(buf []byte) error {
 				// In practice, snapd should always be able to parse a message
 				// with a RESENT flag set unless the list of classes/interfaces/permissions
 				// supported by snapd changed across a restart.
-				l.ensureReady()
+				l.readyOnce.Do(func() {
+					l.signalReady()
+				})
 			}
 			return err
 		}
@@ -451,7 +421,9 @@ func (l *Listener[R]) decodeAndDispatchRequest(buf []byte) error {
 		}
 
 		if isFinalPendingReq {
-			l.ensureReady()
+			l.readyOnce.Do(func() {
+				l.signalReady()
+			})
 		}
 	}
 	return nil
@@ -499,9 +471,11 @@ func (l *Listener[R]) handlePotentialResentMessage(resent bool) (isFinalPendingR
 	if resent {
 		return l.decrementPendingCheckFinal()
 	}
-	if pendingCount := l.ensureReady(); pendingCount != 0 {
-		logger.Noticef("received non-resent message when pending count was %d", pendingCount)
-	}
+	l.readyOnce.Do(func() {
+		if pendingCount := l.signalReady(); pendingCount != 0 {
+			logger.Noticef("received non-resent message when pending count was %d", pendingCount)
+		}
+	})
 	return false
 }
 
@@ -523,21 +497,6 @@ func (l *Listener[R]) decrementPendingCheckFinal() (isFinal bool) {
 	return false
 }
 
-// ensureReady signals readiness if the listener hasn't already readied, and
-// returns the number of pending requests yet to be re-received. If already
-// ready, returns 0.
-//
-// If the ready timer timeout callback races with this function call, then it
-// is possible for this function to return before the listener has signalled
-// ready.
-func (l *Listener[R]) ensureReady() (pendingCount int) {
-	if !l.readyTimer.Stop() {
-		// Timer already fired, so readiness already signalled.
-		return 0
-	}
-	return l.signalReady()
-}
-
 // signalReady is responsible for closing the ready channel and ensuring that
 // pendingCount is set to 0. Returns the pending count at time of readying.
 //
@@ -547,7 +506,7 @@ func (l *Listener[R]) signalReady() (pendingCount int) {
 	l.pendingMu.Lock()
 	defer l.pendingMu.Unlock()
 	pendingCount = l.pendingCount
-	l.pendingCount = 0 // if timed out, tell the run loop we're ready
+	l.pendingCount = 0 // tell the run loop we're ready
 	close(l.ready)
 	return pendingCount
 }
