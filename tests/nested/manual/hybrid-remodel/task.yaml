@@ -22,6 +22,11 @@ prepare: |
   snap install --edge test-snapd-swtpm
   snap install snapcraft --classic
 
+  # The rev1 model used by this test adds one application snap. Keep the
+  # selected snap name/id in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
+  #
+  # On 22 we use jq-core22 (existing store snap), while on 24 we use the
+  # test-owned core24 equivalent test-snapd-jq-core24.
   case "${VERSION}" in
     22)
       snap_app_name=jq-core22
@@ -174,6 +179,8 @@ execute: |
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
+  # Verify remodel installed the app snap added in rev1 (jq-core22 on 22,
+  # test-snapd-jq-core24 on 24).
   remote.exec "snap list" | MATCH "jq-core${VERSION}"
 
   case "$VERSION" in
