@@ -29,7 +29,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
@@ -208,11 +207,8 @@ func (s *motdSuite) TestHandleMotdConfigurationSetFileDoesNotExist(c *C) {
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationSetMkdirAllError(c *C) {
-	// Mock os.MkdirAll to return an error
-	restore := configcore.MockOsMkdirAll(func(string, os.FileMode) error {
-		return errors.New("permission denied")
-	})
-	defer restore()
+	// Mock os.MkdirAll(/etc/motd.d) to return an error
+	os.MkdirAll(filepath.Dir(s.writableDirPath), 0555)
 
 	conf := &mockConf{
 		state: s.state,
@@ -221,15 +217,22 @@ func (s *motdSuite) TestHandleMotdConfigurationSetMkdirAllError(c *C) {
 		},
 	}
 	err := configcore.FilesystemOnlyRun(coreDev, conf)
-	c.Assert(err, ErrorMatches, "cannot set message of the day: permission denied")
+	c.Assert(err, ErrorMatches, "cannot set message of the day: mkdir .*/etc/motd.d: permission denied")
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationSetAtomicWriteFileError(c *C) {
-	// Mock osutil.AtomicWriteFile to return an error
-	restore := configcore.MockOsutilAtomicWriteFile(func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error {
-		return errors.New("permission denied")
-	})
-	defer restore()
+	// First add the writable file
+	err := os.MkdirAll(s.writableDirPath, 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(s.writableFilePath, []byte("Old MOTD\n"), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock osutil.AtomicWriteFile(s.writableFilePath) to return an error
+	// Note: it will create a temp file (name: /etc/motd.d/50-default.*)
+	// and rename it, so we need to make s.writableDirPath unwritable
+	// to cause an error
+	os.Chmod(s.writableDirPath, 0555)
+	defer os.Chmod(s.writableDirPath, 0755)
 
 	// Now set motd
 	conf := &mockConf{
@@ -238,8 +241,8 @@ func (s *motdSuite) TestHandleMotdConfigurationSetAtomicWriteFileError(c *C) {
 			motdOptionKey: "Test MOTD",
 		},
 	}
-	err := configcore.FilesystemOnlyRun(coreDev, conf)
-	c.Assert(err, ErrorMatches, "cannot set message of the day: permission denied")
+	err = configcore.FilesystemOnlyRun(coreDev, conf)
+	c.Assert(err, ErrorMatches, "cannot set message of the day: open .*/etc/motd.d/50-default.*: permission denied")
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationUnsetFileExists(c *C) {
@@ -272,11 +275,9 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetRemoveError(c *C) {
 	err = os.WriteFile(s.writableFilePath, []byte("Test MOTD\n"), 0644)
 	c.Assert(err, IsNil)
 
-	// Mock os.Remove to return an error
-	restore := configcore.MockOsRemove(func(string) error {
-		return errors.New("permission denied")
-	})
-	defer restore()
+	// Mock os.Remove(s.writableFilePath) to return an error
+	os.Chmod(s.writableDirPath, 0555)
+	defer os.Chmod(s.writableDirPath, 0755)
 
 	// Now unset motd
 	conf := &mockConf{
@@ -286,7 +287,7 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetRemoveError(c *C) {
 		},
 	}
 	err = configcore.FilesystemOnlyRun(coreDev, conf)
-	c.Assert(err, ErrorMatches, "cannot unset message of the day: permission denied")
+	c.Assert(err, ErrorMatches, "cannot unset message of the day: remove .*/etc/motd.d/50-default: permission denied")
 
 	// Verify the writable file still exists
 	_, err = os.Lstat(s.writableFilePath)
@@ -311,11 +312,9 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetFileDoesNotExist(c *C) {
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) {
-	// Mock osReadFile to return an error
-	restore := configcore.MockOsReadFile(func(string) ([]byte, error) {
-		return nil, errors.New("permission denied")
-	})
-	defer restore()
+	// Mock os.ReadFile(s.readonlyFilePath) to return an error
+	os.Chmod(s.readonlyFilePath, 0000)
+	defer os.Chmod(s.readonlyFilePath, 0644)
 
 	conf := &mockConf{
 		state: s.state,
@@ -324,7 +323,7 @@ func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) 
 		},
 	}
 	err := configcore.FilesystemOnlyRun(coreDev, conf)
-	c.Assert(err, ErrorMatches, `cannot get message of the day: .*permission denied`)
+	c.Assert(err, ErrorMatches, `cannot get message of the day: open .*/usr/lib/motd.d/50-default: permission denied`)
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationSameMotdAsCurrent(c *C) {
@@ -473,15 +472,13 @@ func (s *motdSuite) TestGetMotdFromSystemReadError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Mock osReadFile to return an error
-	restore := configcore.MockOsReadFile(func(string) ([]byte, error) {
-		return nil, errors.New("permission denied")
-	})
-	defer restore()
+	// Mock os.ReadFile(s.readonlyFilePath) to return an error
+	os.Chmod(s.readonlyFilePath, 0000)
+	defer os.Chmod(s.readonlyFilePath, 0644)
 
 	tr := config.NewTransaction(s.state)
 
 	var motd string
 	err := tr.Get("core", motdOptionKey, &motd)
-	c.Assert(err, ErrorMatches, `cannot get message of the day: .*permission denied`)
+	c.Assert(err, ErrorMatches, `cannot get message of the day: open .*/usr/lib/motd.d/50-default: permission denied`)
 }

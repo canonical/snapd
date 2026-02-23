@@ -38,13 +38,6 @@ const (
 	defaultMotdFilePathWritable = "/etc/motd.d/50-default"
 )
 
-var (
-	osMkdirAll            = os.MkdirAll
-	osReadFile            = os.ReadFile
-	osRemove              = os.Remove
-	osutilAtomicWriteFile = osutil.AtomicWriteFile
-)
-
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core."+motdOptionKey] = true
@@ -117,17 +110,17 @@ func handleMotdConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCont
 	// by deleting the defaultMotdFilepathWritable if it exists.
 	motdFilePath := filepath.Join(rootDir, defaultMotdFilePathWritable)
 	if motd == "" {
-		if err := osRemove(motdFilePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := os.Remove(motdFilePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("cannot unset message of the day: %v", err)
 		}
 		return nil
 	}
 
-	if err := osMkdirAll(filepath.Dir(motdFilePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(motdFilePath), 0755); err != nil {
 		return fmt.Errorf("cannot set message of the day: %v", err)
 	}
 	motdBytes := []byte(motd + "\n")
-	if err := osutilAtomicWriteFile(motdFilePath, motdBytes, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(motdFilePath, motdBytes, 0644, 0); err != nil {
 		return fmt.Errorf("cannot set message of the day: %v", err)
 	}
 	return nil
@@ -149,7 +142,7 @@ func getMotdFromSystem() (string, error) {
 	if !osutil.FileExists(motdFilePath) {
 		motdFilePath = filepath.Join(rootDir, defaultMotdFilePathReadonly)
 	}
-	motdBytes, err := osReadFile(motdFilePath)
+	motdBytes, err := os.ReadFile(motdFilePath)
 	if err != nil {
 		return "", fmt.Errorf("cannot get message of the day: %v", err)
 	}
