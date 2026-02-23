@@ -9223,6 +9223,161 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateBaseKernelAndSnapdSingleRebootHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}))
+	defer restore()
+
+	snaps := []struct {
+		name string
+		typ  string
+		id   string
+	}{
+		{name: "snapd", typ: "snapd", id: "snapd-snap-id"},
+		{name: "kernel", typ: "kernel", id: "kernel-id"},
+		{name: "core18", typ: "base", id: "core18-snap-id"},
+	}
+
+	for _, sn := range snaps {
+		si := &snap.SideInfo{
+			RealName: sn.name,
+			Revision: snap.R(7),
+			SnapID:   sn.id,
+		}
+		snaptest.MockSnap(c, fmt.Sprintf("name: %s\nversion: 1.2.3\ntype: %s", sn.name, sn.typ), si)
+		snapstate.Set(s.state, sn.name, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        sn.typ,
+		})
+	}
+
+	chg := s.state.NewChange("refresh", "refresh snapd, kernel and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"snapd", "kernel", "core18"}, nil, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, []string{"snapd", "kernel", "core18"})
+
+	var baseTs, kernelTs, snapdTs *state.TaskSet
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			if err != nil {
+				continue
+			}
+			switch snapsup.Type {
+			case snap.TypeSnapd:
+				snapdTs = ts
+			case snap.TypeKernel:
+				kernelTs = ts
+			case snap.TypeBase:
+				baseTs = ts
+			}
+		}
+		chg.AddAll(ts)
+	}
+	c.Assert(baseTs, NotNil)
+	c.Assert(kernelTs, NotNil)
+	c.Assert(snapdTs, NotNil)
+
+	beginTaskOfBase, err := baseTs.Edge(snapstate.BeginEdge)
+	c.Assert(err, IsNil)
+	firstTaskOfKernel := firstTaskAfterLocalModifications(c, kernelTs)
+	beginTaskOfKernel, err := kernelTs.Edge(snapstate.BeginEdge)
+	c.Assert(err, IsNil)
+	linkTaskOfBase, err := baseTs.Edge(snapstate.MaybeRebootEdge)
+	c.Assert(err, IsNil)
+	acTaskOfBase, err := baseTs.Edge(snapstate.MaybeRebootWaitEdge)
+	c.Assert(err, IsNil)
+	lastTaskOfBase, err := baseTs.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	linkTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootEdge)
+	c.Assert(err, IsNil)
+	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
+	c.Assert(err, IsNil)
+	snapdEndTask, err := snapdTs.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+
+	c.Check(beginTaskOfBase.WaitTasks(), testutil.Contains, snapdEndTask)
+	c.Check(beginTaskOfKernel.WaitTasks(), testutil.Contains, snapdEndTask)
+	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
+	c.Check(beginTaskOfKernel.WaitTasks(), Not(testutil.Contains), linkTaskOfBase)
+	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
+	c.Check(acTaskOfKernel.WaitTasks(), testutil.Contains, lastTaskOfBase)
+
+	// core18 and kernel should be in the same transactional lane.
+	c.Check(taskSetsShareLane(baseTs, kernelTs), Equals, true)
+
+	// snapd should not be in the single-reboot transactional lane.
+	c.Check(taskSetsShareLane(snapdTs, baseTs), Equals, false)
+	c.Check(taskSetsShareLane(snapdTs, kernelTs), Equals, false)
+
+	// have fake backend indicate a need to reboot for base and kernel
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+		"core18": true,
+	}
+
+	s.settle(c)
+
+	// mock restart for the 'link-snap' step and run change to completion.
+	s.mockRestartAndSettle(c, chg)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+		restart.RestartDaemon,
+		restart.RestartSystem,
+	})
+
+	for _, name := range []string{"snapd", "kernel", "core18"} {
+		snapID := "snapd-snap-id"
+		switch name {
+		case "kernel":
+			snapID = "kernel-id"
+		case "core18":
+			snapID = "core18-snap-id"
+		}
+
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Channel:  "",
+			Revision: snap.R(7),
+		}, nil))
+		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Channel:  "latest/stable",
+			Revision: snap.R(11),
+		}, nil))
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
