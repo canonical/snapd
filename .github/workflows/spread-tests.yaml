@@ -230,14 +230,14 @@ jobs:
           echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
 
     - name: Checkout snapd-testing-skip
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS != '' }}
       uses: actions/checkout@v6
       with:
           repository: canonical/snapd-testing-skip
           path: snapd-testing-skip
 
     - name: Filter out tests to skip
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS != '' }}
       run: |
           spread_list="$(spread -list $RUN_TESTS 2>&1 || true)"
           if grep -q "nothing matches provider filter" <<< "$spread_list"; then
