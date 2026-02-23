@@ -1869,7 +1869,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 func getVisibilitiesToPrune(userID int) []Visibility {
 	if userID == 0 {
-		return []Visibility{}
+		return nil
 	}
 	return []Visibility{SecretVisibility}
 }
