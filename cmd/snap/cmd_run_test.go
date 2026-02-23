@@ -50,22 +50,15 @@ import (
 	"github.com/snapcore/snapd/x11"
 )
 
-var mockYaml = []byte(`name: snapname
-version: 1.0
-apps:
- app:
-  command: run-app
- svc:
-  command: run-svc
-  daemon: simple
-hooks:
- configure:
-`)
+func mockYamlForNameBase(name, base string) []byte {
+	baseLine := ""
+	if base != "" {
+		baseLine = fmt.Sprintf("base: %s\n", base)
+	}
 
-var mockYamlCore26 = []byte(`name: snapname
+	return []byte(fmt.Sprintf(`name: %s
 version: 1.0
-base: core26
-apps:
+%sapps:
  app:
   command: run-app
  svc:
@@ -73,7 +66,8 @@ apps:
   daemon: simple
 hooks:
  configure:
-`)
+`, name, baseLine))
+}
 
 var mockYamlWithComponent = []byte(`name: snapname
 version: 1.0
@@ -226,7 +220,7 @@ func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 	defer r()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -261,7 +255,7 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	}
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -309,7 +303,7 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	var execArg0 string
 	var execArgs []string
@@ -389,7 +383,7 @@ func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockWait
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
 		return nil
@@ -411,7 +405,7 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnap(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	var execEnv []string
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
@@ -446,7 +440,7 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 		}
 
 		// mock installed snap's new revision with current symlink
-		snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+		snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x3")})
 
 		// snap is not inhibited anymore
 		err = notInhibited(ctx)
@@ -519,7 +513,7 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -561,7 +555,7 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	var execArg0 string
 	var execArgs []string
@@ -623,7 +617,7 @@ func (s *RunSuite) TestSnapRunAppHintUnlockedOnSnapConfineFailure(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	// mock not-inhibited empty hint
 	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
@@ -672,7 +666,7 @@ func (s *RunSuite) TestSnapRunAppHintLockedUntilTrackingCgroupIsCreated(c *check
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	// mock not-inhibited empty hint
 	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
@@ -730,7 +724,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 	defer restore()
 
 	// mock installed snap
-	si := snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	si := snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
@@ -780,7 +774,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 			// remove current symlink to add another "current" revision
 			c.Assert(os.RemoveAll(filepath.Join(si.MountDir(), "../current")), check.IsNil)
 			// update current snap revision
-			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+			snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x3")})
 
 			// snap is not inhibited anymore
 			err = notInhibited(ctx)
@@ -874,7 +868,7 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *chec
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
@@ -1010,7 +1004,7 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 			// snap is inhibited
 			inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x3")}
 			// update current snap revision
-			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+			snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x3")})
 			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, &inhibitInfo)
 			c.Check(err, check.IsNil)
 			c.Check(cont, check.Equals, false)
@@ -1070,7 +1064,7 @@ func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
@@ -1121,7 +1115,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	}
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", ""))+"confinement: classic\n", &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1158,7 +1152,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) 
 	defer mockSnapConfine(mountedCoreLibExecPath)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", ""))+"confinement: classic\n", &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1191,7 +1185,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C)
 	defer mockSnapConfine(mountedSnapdLibExecPath)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", ""))+"confinement: classic\n", &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1221,7 +1215,7 @@ func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1265,7 +1259,7 @@ func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 }
 
 func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *dirs.SnapDirOptions) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
+	info, err := snap.InfoFromSnapYaml(mockYamlForNameBase("snapname", ""))
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
@@ -1284,7 +1278,7 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
+	info, err := snap.InfoFromSnapYaml(mockYamlForNameBase("snapname", ""))
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 	info.InstanceKey = "foo"
@@ -1305,7 +1299,7 @@ func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1404,7 +1398,7 @@ func (s *RunSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1437,10 +1431,10 @@ func (s *RunSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 
 	// mock installed snap
 	// Create both revisions 41 and 42
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(41),
 	})
-	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1470,7 +1464,7 @@ func (s *RunSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 
 func (s *RunSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	// Only create revision 42
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1494,7 +1488,7 @@ func (s *RunSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
 
 func (s *RunSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	// Only create revision 42
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1530,7 +1524,7 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1565,7 +1559,7 @@ func (s *RunSuite) TestSnapRunXdgRuntimeDirCreation(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -1676,7 +1670,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1715,7 +1709,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "snapd", "222", dirs.CoreLibExecDir))()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1755,7 +1749,7 @@ func (s *RunSuite) TestSnapRunExposeKerberosTickets(c *check.C) {
 
 	// mock installed snap; happily this also gives us a directory
 	// below /tmp which Kerberos ticket exposal expects.
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -1874,7 +1868,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 
 	// mock installed snap; happily this also gives us a directory
 	// below /tmp which the Xauthority migration expects.
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2021,7 +2015,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2184,7 +2178,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2235,7 +2229,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceBadShim(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2275,7 +2269,7 @@ func (s *RunSuite) TestSnapRunShellIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2308,7 +2302,7 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2366,7 +2360,7 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("1"),
 	})
 
@@ -2395,7 +2389,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2476,7 +2470,7 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2618,7 +2612,7 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2669,12 +2663,85 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	c.Assert(created, check.Equals, true)
 }
 
+func (s *RunSuite) TestSnapRunTrackingFailureBaseMatrix(c *check.C) {
+	for i, tc := range []struct {
+		base        string
+		enforceFail bool
+	}{
+		{base: ""},
+		{base: "core"},
+		{base: "core18"},
+		{base: "core20"},
+		{base: "core22"},
+		{base: "core24"},
+		{base: "core22-desktop"},
+		{base: "core24-desktop"},
+		{base: "bare", enforceFail: true},
+		{base: "core26", enforceFail: true},
+	} {
+		c.Logf("base=%q", tc.base)
+		snapName := fmt.Sprintf("snapname%d", i)
+		expectedSecurityTag := fmt.Sprintf("snap.%s.app", snapName)
+
+		restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+
+		// mock installed snap
+		snaptest.MockSnapCurrent(c, string(mockYamlForNameBase(snapName, tc.base)), &snap.SideInfo{
+			Revision: snap.R("x2"),
+		})
+
+		// pretend to be running from core
+		restoreReadlink := snaprun.MockOsReadlink(func(string) (string, error) {
+			return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		})
+
+		restoreCreate := snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+			c.Assert(securityTag, check.Equals, expectedSecurityTag)
+			c.Assert(opts, check.NotNil)
+			c.Assert(opts.AllowSessionBus, check.Equals, true)
+			return cgroup.ErrCannotTrackProcess
+		})
+
+		restoreConfirm := snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+			panic("apps need to create a scope and do not use systemd service tracking")
+		})
+
+		execCalled := false
+		restoreExec := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+			execCalled = true
+			return nil
+		})
+
+		os.Setenv("SNAPD_DEBUG", "1")
+		logbuf, restoreLogger := logger.MockLogger()
+
+		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", snapName + ".app", "--arg1", "arg2"})
+		if tc.enforceFail {
+			c.Assert(err, check.ErrorMatches, "cannot track application process")
+			c.Check(execCalled, check.Equals, false)
+			c.Check(logbuf.String(), testutil.Contains, "See https://forum.snapcraft.io/t/46210 for more details.\n")
+		} else {
+			c.Assert(err, check.IsNil)
+			c.Check(execCalled, check.Equals, true)
+			c.Check(logbuf.String(), testutil.Contains, "snapd cannot track the started application\n")
+		}
+
+		restoreLogger()
+		os.Unsetenv("SNAPD_DEBUG")
+		restoreExec()
+		restoreConfirm()
+		restoreCreate()
+		restoreReadlink()
+		restore()
+	}
+}
+
 func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2730,7 +2797,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2784,7 +2851,7 @@ func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2846,7 +2913,7 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2912,7 +2979,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26(c *check.C) {
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYamlCore26), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "core26")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -2948,6 +3015,113 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26(c *check.C) {
 
 	// Ensure that the error message is printed.
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, "cannot track application process")
+	c.Assert(logbuf.String(), testutil.Contains, "See https://forum.snapcraft.io/t/46210 for more details.\n")
+}
+
+func (s *RunSuite) TestSnapRunTrackingFailureCore26SelfManagedAllowed(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "core26")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
+		// Pretend that the tracking system was unable to track this application.
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("apps need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	cgroupOpts := cgroup.SnapDeviceCgroupOptions{SelfManaged: true}
+	cgroupOptsData, err := cgroupOpts.MarshalText()
+	c.Assert(err, check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(cgroup.SnapDeviceFile("snap.snapname.app"), cgroupOptsData, 0644), check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		return nil
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"--base", "core26",
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+}
+
+func (s *RunSuite) TestSnapRunTrackingFailureCore26NonStrictOnlyFails(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "core26")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
+		// Pretend that the tracking system was unable to track this application.
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		panic("apps need to create a scope and do not use systemd service tracking")
+	})
+	defer restore()
+
+	cgroupOpts := cgroup.SnapDeviceCgroupOptions{NonStrict: true}
+	cgroupOptsData, err := cgroupOpts.MarshalText()
+	c.Assert(err, check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(cgroup.SnapDeviceFile("snap.snapname.app"), cgroupOptsData, 0644), check.IsNil)
+
+	// redirect exec
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		panic("did not expect to run through exec")
+	})
+	defer restore()
+
+	// Capture the non-debug log that is printed by this test.
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.ErrorMatches, "cannot track application process")
 	c.Assert(logbuf.String(), testutil.Contains, "See https://forum.snapcraft.io/t/46210 for more details.\n")
 }
@@ -3015,7 +3189,7 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 	defer os.Setenv("PATH", oldPath)
 
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3094,7 +3268,7 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	})
 	defer restore()
 
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("12"),
 	})
 
@@ -3134,7 +3308,7 @@ func (s *RunSuite) TestSystemKeyMismatchTrivial(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3191,7 +3365,7 @@ func (s *RunSuite) TestSystemKeyMismatchProceed(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3241,7 +3415,7 @@ func (s *RunSuite) TestSystemKeyMismatchWaitChange(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3284,7 +3458,7 @@ func (s *RunSuite) TestSystemKeyMismatchBackwardCompatUnsupportedAPI(c *check.C)
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3335,7 +3509,7 @@ func (s *RunSuite) TestSystemKeyMismatchChangeFails(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3380,7 +3554,7 @@ func (s *RunSuite) TestSystemKeyMismatchVersionTooHighNoRestart(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3445,7 +3619,7 @@ func (s *RunSuite) TestSystemKeyMismatchVersionTooHighDaemonRestart(c *check.C) 
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3492,7 +3666,7 @@ func (s *RunSuite) TestSystemKeyMismatchRetriesExhausted(c *check.C) {
 	})
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
