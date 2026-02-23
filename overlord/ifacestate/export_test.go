@@ -71,6 +71,7 @@ var (
 
 type (
 	DelayedEffectsForSnapData = delayedEffectsForSnapData
+	ShouldUndoSetupProfiles   = shouldUndoSetupProfiles
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {

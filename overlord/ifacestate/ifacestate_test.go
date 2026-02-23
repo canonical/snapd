@@ -10754,6 +10754,55 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	c.Check(hooktask.ID(), Equals, task2.ID())
 }
 
+func (s *interfaceManagerSuite) TestShouldUndoSetupProfilesWithoutPrepareProfilesLegacyChange(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap"}}
+	otherSnapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "other-snap"}}
+
+	chg := st.NewChange("test", "")
+
+	setupBeforeLink := st.NewTask("setup-profiles", "")
+	setupBeforeLink.Set("snap-setup", snapsup)
+	chg.AddTask(setupBeforeLink)
+
+	linkSnap := st.NewTask("link-snap", "")
+	linkSnap.Set("snap-setup", snapsup)
+	linkSnap.WaitFor(setupBeforeLink)
+	chg.AddTask(linkSnap)
+
+	autoConnect := st.NewTask("auto-connect", "")
+	autoConnect.Set("snap-setup", snapsup)
+	autoConnect.WaitFor(linkSnap)
+	chg.AddTask(autoConnect)
+
+	setupAfterAutoConnect := st.NewTask("setup-profiles", "")
+	setupAfterAutoConnect.Set("snap-setup", snapsup)
+	setupAfterAutoConnect.WaitFor(autoConnect)
+	chg.AddTask(setupAfterAutoConnect)
+
+	otherPrepareProfiles := st.NewTask("prepare-profiles", "")
+	otherPrepareProfiles.Set("snap-setup", otherSnapsup)
+	chg.AddTask(otherPrepareProfiles)
+
+	otherSetupProfiles := st.NewTask("setup-profiles", "")
+	otherSetupProfiles.Set("snap-setup", otherSnapsup)
+	otherSetupProfiles.WaitFor(otherPrepareProfiles)
+	chg.AddTask(otherSetupProfiles)
+
+	// Legacy/component-only style change has no prepare-profiles task.
+	// In that case, undo should run for setup-profiles tasks.
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupBeforeLink, snapsup.InstanceName()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupAfterAutoConnect, snapsup.InstanceName()), Equals, true)
+
+	// The prepare-profiles task for a different snap must not affect the result
+	// for this snap. For the other snap itself, setup-profiles should not undo
+	// because prepare-profiles exists for that same snap.
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName()), Equals, false)
+}
+
 // Tests for ResolveDisconnect()
 
 // All the ways to resolve a 'snap disconnect' between two snaps.
