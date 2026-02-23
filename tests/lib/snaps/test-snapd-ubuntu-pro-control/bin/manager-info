@@ -17,8 +17,11 @@ case "${1:-}" in
             string:com.canonical.UbuntuAdvantage.Manager \
             string:DaemonVersion
         ;;
+    uaclient-conf-rw)
+        : <> /etc/ubuntu-advantage/uaclient.conf
+        ;;
     *)
-        echo "usage: $0 {attached|daemon-version}" >&2
+        echo "usage: $0 {attached|daemon-version|uaclient-conf-rw}" >&2
         exit 1
         ;;
 esac
