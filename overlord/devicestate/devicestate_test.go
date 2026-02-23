@@ -2713,6 +2713,21 @@ func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedCo
 	s.state.Lock()
 	c.Assert(err, IsNil)
 	c.Check(logbuf.String(), testutil.Contains, "cannot apply extra snapd kernel command line fragments: remodeling in progress, no other changes allowed until this is done")
+	// no new change created
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	chg.SetStatus(state.DoneStatus)
+
+	chg = s.state.NewChange("apply-extra-snapd-kcmdline-fragments", "...")
+	chg.SetStatus(state.DoingStatus)
+	c.Assert(s.state.Changes(), HasLen, 2)
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// no new change created
+	c.Assert(s.state.Changes(), HasLen, 2)
 }
 
 func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {

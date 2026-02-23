@@ -1981,6 +1981,11 @@ func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() erro
 		return nil
 	}
 
+	if m.changeInFlight("apply-extra-snapd-kcmdline-fragments") {
+		// avoid creating a change if one is already in-progress
+		return nil
+	}
+
 	logger.Noticef("applying pending extra snapd kernel cmdline fragments")
 
 	summary := "Apply extra snapd kernel command line fragments"
