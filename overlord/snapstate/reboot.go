@@ -213,6 +213,7 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			return head(sts.beforeLocalSystemModificationsTasks), tail(sts.afterLinkSnapAndPostReboot)
 		}
 
+		// we let sts.beforeLocalSystemModificationsTasks happen in parallel
 		return head(sts.upToLinkSnapAndBeforeReboot), tail(sts.upToLinkSnapAndBeforeReboot)
 	}
 
@@ -224,10 +225,10 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		return head(sts.afterLinkSnapAndPostReboot), tail(sts.afterLinkSnapAndPostReboot)
 	}
 
-	// snapd fully goes first
+	// snapd fully goes first, we rely on the existing ordering of the tasks
+	// updating snapd
 	if sts, ok := essentials[snap.TypeSnapd]; ok {
-		chain(beforeReboot(sts))
-		chain(afterReboot(sts))
+		prev = tail(sts.afterLinkSnapAndPostReboot)
 	}
 
 	// enables us to require that downloads start after we've swapped to the new
