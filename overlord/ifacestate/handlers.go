@@ -249,6 +249,11 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 // setupPendingProfilesSideInfo helps updating information about any
 // revision for which security profiles are set up while the snap is
 // not yet active.
+//
+// This state is still required for correctness after the prepare-profiles
+// split: it preserves restart durability while a snap is inactive during
+// refresh, and lets ifacestate pick the most recent inactive
+// revision/components when regenerating security for affected snaps.
 func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *interfaces.SnapAppSet) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -690,6 +695,11 @@ func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) err
 		}
 	}
 
+	// Keep PendingSecurity updated even though prepare-profiles only does
+	// backend preparation now: we still rely on this state for restart
+	// durability during refresh (inactive snaps must be re-added with the
+	// correct revision/components) and to regenerate affected snaps against
+	// the most recent inactive revision in multi-snap updates.
 	return setPendingProfilesSideInfo(st, appSet.InstanceName(), appSet)
 }
 
