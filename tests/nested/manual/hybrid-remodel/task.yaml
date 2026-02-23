@@ -18,7 +18,7 @@ environment:
 prepare: |
   VERSION="$(tests.nested show version)"
 
-  snap install remarshal lxd
+  snap install lxd
   snap install --edge test-snapd-swtpm
   snap install snapcraft --classic
 
