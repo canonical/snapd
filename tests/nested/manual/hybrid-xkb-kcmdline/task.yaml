@@ -107,10 +107,6 @@ execute: |
     remote.exec "sudo cat /var/lib/snapd/modeenv"
   }
 
-  force_cmdline_update() {
-    remote.exec 'sudo snap unset system system.kernel.cmdline-append'
-  }
-
   reboot() {
     tests.nested vm stop
     tests.nested vm start
