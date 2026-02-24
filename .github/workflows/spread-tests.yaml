@@ -211,7 +211,7 @@ jobs:
 
           TESTS_TO_RUN=""
           if [ "$FAILED_TESTS" = 'true' ]; then
-              TESTS_TO_RUN="$(cat $FAILED_TESTS_FILE)"
+              TESTS_TO_RUN="$(cat "$FAILED_TESTS_FILE")"
           elif [ "${{ inputs.systems }}" = "ALL" ]; then
               TESTS_TO_RUN=$(get_new_tasks "$SPREAD_BACKEND" "$CHANGES_PARAM")
           elif [ "${{ inputs.systems }}" != "NONE" ]; then
@@ -225,13 +225,14 @@ jobs:
               done
           fi
 
+          RUN_TESTS_FILE="${{ github.workspace }}/run-tests-file.txt"
+          echo "RUN_TESTS_FILE=$RUN_TESTS_FILE" >> $GITHUB_ENV
           if [ -n "$TESTS_TO_RUN" ]; then
-              RUN_TESTS_FILE="${{ github.workspace }}/run-tests-file.txt"
               echo "$TESTS_TO_RUN" > "$RUN_TESTS_FILE"
-              echo "RUN_TESTS_FILE=$RUN_TESTS_FILE" >> $GITHUB_ENV
               echo "RUN_TESTS=true" >> $GITHUB_ENV
           else
               echo "RUN_TESTS=false" >> $GITHUB_ENV
+              echo "" > "$RUN_TESTS_FILE"
           fi
 
     - name: Checkout snapd-testing-skip
@@ -248,6 +249,7 @@ jobs:
           if grep -q "nothing matches provider filter" <<< "$spread_list"; then
             echo "No tests to run"
             echo "RUN_TESTS=false"  >> $GITHUB_ENV
+            echo "" > "$RUN_TESTS_FILE"
             exit 0
           fi
           if [ -n "${{ inputs.skip-tests }}" ]; then
@@ -274,6 +276,7 @@ jobs:
 
           if [ -z "${spread_list// /}" ]; then
               echo "RUN_TESTS=false" >> $GITHUB_ENV
+              echo "" > "$RUN_TESTS_FILE"
           fi
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
