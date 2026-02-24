@@ -273,7 +273,7 @@ jobs:
               fi
           done
 
-          if [ -z "$spread_list" ]; then
+          if [ -z "${spread_list// /}" ]; then
               echo "RUN_TESTS=false" >> $GITHUB_ENV
           fi
           echo "The following list of tests will run:"
