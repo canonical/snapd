@@ -72,13 +72,7 @@ import (
 //
 // Reference for the squashfs superblock: https://dr-emann.github.io/squashfs
 
-type DeltaFormat int
-
 const (
-	// Identifiers for the formats in the API
-	Xdelta3Format DeltaFormat = iota
-	SnapXdelta3Format
-
 	// Identifiers for the store
 	xdelta3Format = "xdelta3"
 	// This follows compatibility labels conventions. First and second
@@ -257,16 +251,6 @@ func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
 	return io.CopyBuffer(dst, src, bufPtr)
 }
 
-func formatStoreString(id DeltaFormat) string {
-	switch id {
-	case Xdelta3Format:
-		return xdelta3Format
-	case SnapXdelta3Format:
-		return snapDeltaFormatXdelta3
-	}
-	return "unexpected"
-}
-
 type DeltaFormatOpts struct {
 	WithSnapDeltaFormat bool
 }
@@ -284,9 +268,9 @@ func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
 
 	var formats []string
 	if opts.WithSnapDeltaFormat {
-		formats = append(formats, formatStoreString(SnapXdelta3Format))
+		formats = append(formats, snapDeltaFormatXdelta3)
 	}
-	formats = append(formats, formatStoreString(Xdelta3Format))
+	formats = append(formats, xdelta3Format)
 	return formats
 }
 
@@ -307,15 +291,15 @@ func growSnapToMinSize(path string, minSize int64) error {
 
 // GenerateDelta creates a delta file called delta from sourceSnap and
 // targetSnap, using deltaFormat.
-func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
+func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat string) error {
 	switch deltaFormat {
-	case Xdelta3Format:
+	case xdelta3Format:
 		// Plain xdelta3 on compressed files
 		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
-	case SnapXdelta3Format:
+	case snapDeltaFormatXdelta3:
 		return generateSnapDelta(ctx, sourceSnap, targetSnap, delta)
 	default:
-		return fmt.Errorf("unsupported delta format %d", deltaFormat)
+		return fmt.Errorf("unsupported delta format %q", deltaFormat)
 	}
 }
 

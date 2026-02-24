@@ -108,13 +108,14 @@ func (x *cmdDelta) Execute(args []string) error {
 
 	switch x.Positional.Operation {
 	case "generate":
+		supportedFormats := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})
 		if x.Format == "" {
 			return fmt.Errorf(i18n.G("the --format flag is required for generate, supported formats: %s"),
-				strings.Join(squashfs.SupportedDeltaFormats(), ", "))
+				strings.Join(supportedFormats, ", "))
 		}
-		if !strutil.ListContains(squashfs.SupportedDeltaFormats(), x.Format) {
+		if !strutil.ListContains(supportedFormats, x.Format) {
 			return fmt.Errorf(i18n.G("unsupported delta format %q, supported formats: %s"),
-				x.Format, strings.Join(squashfs.SupportedDeltaFormats(), ", "))
+				x.Format, strings.Join(supportedFormats, ", "))
 		}
 		fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), x.Format)
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
