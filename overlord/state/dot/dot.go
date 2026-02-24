@@ -186,7 +186,7 @@ func (g *ChangeGraph) String() string {
 
 // Dot generates and returns a complete dot representation of the change
 // dependency graph.
-func (g *ChangeGraph) Dot() string {
+func (g *ChangeGraph) Dot() (graphDot string) {
 	gbuf := new(bytes.Buffer)
 	g.WriteDotTo(gbuf)
 	return gbuf.String()
@@ -212,15 +212,15 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 }
 
 // Export invokes the dot command and writes the graphviz representation of the
-// change dependency graph into a temporary SVG file.
-func (g *ChangeGraph) Export() (string, error) {
+// change dependency graph into a temporary SVG file, returning the SVG path.
+func (g *ChangeGraph) Export() (svgPath string, err error) {
 	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(strings.Fields(strings.Join(g.tags, "-")), "-")))
 	if err != nil {
 		return "", fmt.Errorf("cannot create .svg file: %v", err)
 	}
-	output := f.Name()
+	svgPath = f.Name()
 	f.Close()
-	dotCmd := exec.Command("dot", "-Tsvg", "-o"+output)
+	dotCmd := exec.Command("dot", "-Tsvg", "-o"+svgPath)
 	gbuf := new(bytes.Buffer)
 	if err := g.WriteDotTo(gbuf); err != nil {
 		return "", err
@@ -229,7 +229,7 @@ func (g *ChangeGraph) Export() (string, error) {
 	if o, err := dotCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot process dot definition: %v", osutil.OutputErr(o, err))
 	}
-	return output, nil
+	return svgPath, nil
 }
 
 func clusterLabel(lanes []int) string {

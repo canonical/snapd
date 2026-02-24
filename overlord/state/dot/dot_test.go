@@ -20,6 +20,7 @@ package dot_test
 import (
 	"bytes"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/state/dot"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestDot(t *testing.T) { TestingT(t) }
@@ -181,4 +183,29 @@ label=<<b>Tasks on lanes: [2]</b>>; fontsize=18
 "b" -> "c:three" [style=bold]
 }
 `)
+}
+
+func (s *changeGraphSuite) TestExport(c *C) {
+	// just write the stdin of the command to the filename passed to "dot"
+	mock := testutil.MockCommand(c, "dot", `cat > "${2#-o}"`)
+	defer mock.Restore()
+
+	st := s.chg.State()
+	st.Lock()
+	defer st.Unlock()
+
+	g, err := dot.NewChangeGraph(s.chg, taskLabel, "TestExport")
+	c.Assert(err, IsNil)
+
+	svg, err := g.Export()
+	c.Assert(err, IsNil)
+	defer os.Remove(svg)
+
+	c.Assert(mock.Calls(), HasLen, 1)
+	c.Check(mock.Calls()[0], DeepEquals, []string{"dot", "-Tsvg", "-o" + svg})
+
+	graphSVG, err := os.ReadFile(svg)
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(graphSVG), "digraph {"), Equals, true)
+	c.Check(strings.Contains(string(graphSVG), "TestExport"), Equals, true)
 }
