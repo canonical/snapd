@@ -1899,13 +1899,15 @@ nested_del_device() {
     echo "device deleted"
 }
 
-nested_get_core_revision_for_channel() {
-    local CHANNEL=$1
-    remote.exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
+nested_get_snap_revision_for_channel() {
+    local SNAP=$1
+    local CHANNEL=$2
+    remote.exec "snap info $SNAP" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
 }
 
-nested_get_core_revision_installed() {
-    remote.exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+nested_get_snap_revision_installed() {
+    local SNAP=$1
+    remote.exec "snap info $SNAP" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_fetch_spread() {
