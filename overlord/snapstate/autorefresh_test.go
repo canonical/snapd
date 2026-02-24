@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
@@ -1643,5 +1644,5 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []confdb.SchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }

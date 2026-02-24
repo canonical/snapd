@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -14531,7 +14532,7 @@ func checkSnapsupHasConfdb(ts *state.TaskSet, c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []confdb.SchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {

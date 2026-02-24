@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -176,7 +177,7 @@ type SnapSetup struct {
 
 	// PluggedConfdbIDs is the set of confdb schema IDs that the snap plugs,
 	// identified by account and confdb schema name pairs.
-	PluggedConfdbIDs []ConfdbSchemaID `json:"plugged-confdb-ids,omitempty"`
+	PluggedConfdbIDs []confdb.SchemaID `json:"plugged-confdb-ids,omitempty"`
 
 	// PreUpdateKernelModuleComponents is set if the kernel-modules component
 	// that are set up, prior to any changes to the state. This is used in the
@@ -190,14 +191,6 @@ type SnapSetup struct {
 
 	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
-}
-
-// ConfdbSchemaID identifies a confdb schema.
-type ConfdbSchemaID struct {
-	// Account is the name of the account that publishes the confdb schema.
-	Account string
-	// Name is the name of the confdb schema within the account namespace.
-	Name string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

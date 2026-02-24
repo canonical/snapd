@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -5815,7 +5816,7 @@ func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 		SnapPath:         snapPath,
 		UserID:           0,
 		SideInfo:         si,
-		PluggedConfdbIDs: []snapstate.ConfdbSchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
+		PluggedConfdbIDs: []confdb.SchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
 	}
 
 	t.Set("snap-setup", snapsup)

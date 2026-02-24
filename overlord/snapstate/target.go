@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -133,18 +134,18 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		flags.IgnoreValidation = t.snapst.IgnoreValidation
 	}
 
-	var confdbSchemaIDs []ConfdbSchemaID
+	var confdbSchemaIDs []confdb.SchemaID
 	for _, plug := range t.info.Plugs {
 		if plug.Interface != "confdb" {
 			continue
 		}
 
-		account, confdb, _, err := snap.ConfdbPlugAttrs(plug)
+		account, name, _, err := snap.ConfdbPlugAttrs(plug)
 		if err != nil {
 			return SnapSetup{}, nil, err
 		}
 
-		confdbSchemaIDs = append(confdbSchemaIDs, ConfdbSchemaID{Account: account, Name: confdb})
+		confdbSchemaIDs = append(confdbSchemaIDs, confdb.SchemaID{Account: account, Name: name})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)

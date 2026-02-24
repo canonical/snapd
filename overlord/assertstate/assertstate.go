@@ -422,13 +422,13 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 		return err
 	}
 
-	var confdbSchemas []*confdb.Schema
+	var schemaIDs []confdb.SchemaID
 	for _, dbAs := range confdbAsserts {
 		schema := dbAs.(*asserts.ConfdbSchema).Schema()
-		confdbSchemas = append(confdbSchemas, schema)
+		schemaIDs = append(schemaIDs, schema.ID())
 	}
 
-	return refreshConfdbAssertions(st, confdbSchemas, userID, opts)
+	return refreshConfdbAssertions(st, schemaIDs, userID, opts)
 }
 
 // FetchConfdbSchemaAssertion fetches the confdb-schema assertion identified by
@@ -447,7 +447,7 @@ func FetchConfdbSchemaAssertion(st *state.State, userID int, account, name strin
 // refreshConfdbAssertions fetches new revisions for the assertions referenced
 // by the provided confdb schemas. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, schemaIDs []confdb.SchemaID, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
@@ -457,7 +457,7 @@ func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, us
 		return err
 	}
 
-	err = bulkRefreshConfdbSchemas(st, confdbSchemas, userID, deviceCtx, opts)
+	err = bulkRefreshConfdbSchemas(st, schemaIDs, userID, deviceCtx, opts)
 	if err == nil {
 		return nil
 	}
@@ -470,8 +470,8 @@ func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, us
 	logger.Noticef("bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, schema := range confdbSchemas {
-			if err := snapasserts.FetchConfdbSchema(f, schema.Account, schema.Name); err != nil {
+		for _, id := range schemaIDs {
+			if err := snapasserts.FetchConfdbSchema(f, id.Account, id.Name); err != nil {
 				return err
 			}
 		}
