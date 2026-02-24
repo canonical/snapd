@@ -163,7 +163,7 @@ jobs:
       run: |
           echo "FAILED_TESTS=false" >> $GITHUB_ENV
 
-          if [ -f "$FAILED_TESTS_FILE" ] && [ -n "$(cat $FAILED_TESTS_FILE)" ]; then
+          if [ -s "$FAILED_TESTS_FILE" ]; then
               echo "FAILED_TESTS=true" >> $GITHUB_ENV
           fi
 
@@ -210,7 +210,6 @@ jobs:
           done
 
           TESTS_TO_RUN=""
-          # Save previous failed test results in FAILED_TESTS env var
           if [ "$FAILED_TESTS" = 'true' ]; then
               TESTS_TO_RUN="$(cat $FAILED_TESTS_FILE)"
           elif [ "${{ inputs.systems }}" = "ALL" ]; then
