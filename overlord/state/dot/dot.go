@@ -184,6 +184,14 @@ func (g *ChangeGraph) String() string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
+// Dot generates and returns a complete dot representation of the change
+// dependency graph.
+func (g *ChangeGraph) Dot() string {
+	gbuf := new(bytes.Buffer)
+	g.WriteDotTo(gbuf)
+	return gbuf.String()
+}
+
 // WriteDotTo writes a syntactically complete dot file for representation of
 // the change dependency graph to the given io.Writer.
 func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
