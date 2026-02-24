@@ -599,66 +599,14 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: unexpected update to local revision: %q", snapst.InstanceName())
 		}
 
-		var si *snap.SideInfo
-		if !up.RevOpts.Revision.Unset() {
-			si = snapst.Sequence.Revisions[snapst.LastIndex(up.RevOpts.Revision)].Snap
-		} else {
-			si = snapst.CurrentSideInfo()
-		}
-
-		info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
+		// construct the target from a combination of the local snap and
+		// component information fetched from the store
+		target, err := targetFromLocalSnapWithStoreComponents(ctx, st, snapst, up, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
 
-		// here, we attempt to refresh components that are currently installed.
-		// first, we take the list of currently installed components and remove
-		// any components that are not available in the target snap revision.
-		// then we check with the store to get the revisions of the desired
-		// components.
-		compsToInstall, err := currentComponentsAvailableInRevision(snapst, info)
-		if err != nil {
-			return updatePlan{}, err
-		}
-
-		// add the additional components that the caller requested to be
-		// installed
-		compsToInstall = unique(append(compsToInstall, up.AdditionalComponents...))
-
-		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
-			Channel:        up.RevOpts.Channel,
-			Revision:       si.Revision,
-			ValidationSets: up.RevOpts.ValidationSets,
-		}, opts)
-		if err != nil {
-			return updatePlan{}, err
-		}
-
-		// this must happen after the call to componentSetupsForInstall, since
-		// we can't set the channel to the tracking channel if we don't know
-		// that the requested revision is part of this channel
-		up.RevOpts.Channel = firstNonEmpty(up.RevOpts.Channel, snapst.TrackingChannel)
-
-		// make sure that we switch the current channel of the snap that we're
-		// switching to
-		info.Channel = up.RevOpts.Channel
-
-		plan.targets = append(plan.targets, target{
-			info:   info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				Channel:   up.RevOpts.Channel,
-				CohortKey: up.RevOpts.CohortKey,
-				SnapPath:  info.MountFile(),
-
-				// if the caller specified a revision, then we always run
-				// through the entire update process. this enables something
-				// like "snap refresh --revision=n", where revision n is already
-				// installed
-				AlwaysUpdate: !up.RevOpts.Revision.Unset(),
-			},
-			components: compsups,
-		})
+		plan.targets = append(plan.targets, target)
 	}
 
 	for _, t := range plan.targets {

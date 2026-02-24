@@ -94,6 +94,75 @@ type target struct {
 	components []ComponentSetup
 }
 
+func targetFromLocalSnapWithStoreComponents(
+	ctx context.Context,
+	st *state.State,
+	snapst *SnapState,
+	up StoreUpdate,
+	opts Options,
+) (target, error) {
+	var si *snap.SideInfo
+	if !up.RevOpts.Revision.Unset() {
+		si = snapst.Sequence.Revisions[snapst.LastIndex(up.RevOpts.Revision)].Snap
+	} else {
+		si = snapst.CurrentSideInfo()
+	}
+
+	info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
+	if err != nil {
+		return target{}, err
+	}
+
+	// here, we attempt to refresh components that are currently installed.
+	// first, we take the list of currently installed components and remove
+	// any components that are not available in the target snap revision.
+	// then we check with the store to get the revisions of the desired
+	// components.
+	compsToInstall, err := currentComponentsAvailableInRevision(snapst, info)
+	if err != nil {
+		return target{}, err
+	}
+
+	// add the additional components that the caller requested to be
+	// installed
+	compsToInstall = unique(append(compsToInstall, up.AdditionalComponents...))
+
+	compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
+		Channel:        up.RevOpts.Channel,
+		Revision:       si.Revision,
+		ValidationSets: up.RevOpts.ValidationSets,
+	}, opts)
+	if err != nil {
+		return target{}, err
+	}
+
+	// this must happen after the call to componentSetupsForInstall, since
+	// we can't set the channel to the tracking channel if we don't know
+	// that the requested revision is part of this channel
+	trackedChannel := firstNonEmpty(up.RevOpts.Channel, snapst.TrackingChannel)
+
+	// make sure that we switch the current channel of the snap that we're
+	// switching to
+	info.Channel = trackedChannel
+
+	return target{
+		info:   info,
+		snapst: *snapst,
+		setup: SnapSetup{
+			Channel:   trackedChannel,
+			CohortKey: up.RevOpts.CohortKey,
+			SnapPath:  info.MountFile(),
+
+			// if the caller specified a revision, then we always run
+			// through the entire update process. this enables something
+			// like "snap refresh --revision=n", where revision n is already
+			// installed
+			AlwaysUpdate: !up.RevOpts.Revision.Unset(),
+		},
+		components: compsups,
+	}, nil
+}
+
 func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOpts RevisionOptions, comps []string) (target, error) {
 	action := "refresh"
 	if !snapst.IsInstalled() {
