@@ -77,6 +77,10 @@ type StoreService interface {
 	// busy and the cleanup could not run.
 	CleanDownloadsCache() error
 
+	// CleanDownloadsCacheEntry drops a cached entry associated with
+	// given download info.
+	CleanDownloadsCacheEntry(*snap.DownloadInfo) error
+
 	ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
