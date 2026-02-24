@@ -24,7 +24,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1241,4 +1245,116 @@ func (s *snapmgrTestSuite) TestInstallComponentPathTooEarly(c *C) {
 		Seed: true,
 	})
 	c.Assert(err, ErrorMatches, `.*too early for operation, device model not yet acknowledged`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsWithInvalidPresence(c *C) {
+	expectedErr := fmt.Sprintf("cannot install component %q due to enforcing rules of validation set 16/developer/my-set/1", "some-snap+standard-component")
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component", "kernel-modules-component"}, expectedErr)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsWithInvalidRevision(c *C) {
+	expectedErr := fmt.Sprintf("cannot install component %q at revision %s without --ignore-validation, revision %s is required by validation sets: 16/developer/my-set/1", "some-snap+standard-component-extra", snap.R(1), snap.R(2))
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component-extra", "kernel-modules-component"}, expectedErr)
+}
+
+func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNames []string, expectedErrorMsg string) {
+	snapName := "some-snap"
+	snapID := "aaqKhntON3vR7kwEbVPsILm7bUViPDzx"
+	snapRev := snap.R(1)
+	compRev := snap.R(1)
+	compNamesToType := map[string]string{
+		"standard-component":       "standard",
+		"standard-component-extra": "standard",
+		"kernel-modules-component": "kernel-modules",
+	}
+
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+	info.SnapID = snapID
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: snapID}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)}),
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+	})
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		var results []store.SnapResourceResult
+		for compName, compType := range compNamesToType {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + compName,
+				},
+				Name:      compName,
+				Revision:  compRev.N,
+				Type:      fmt.Sprintf("component/%s", compType),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	headers := map[string]any{
+		"series":     "16",
+		"account-id": "developer",
+		"name":       "my-set",
+		"sequence":   "1",
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"snaps": []any{
+			map[string]any{
+				"name":     snapName,
+				"id":       snapID,
+				"revision": fmt.Sprintf("%d", snapRev.N),
+				"presence": "required",
+				"components": map[string]any{
+					"standard-component": map[string]any{
+						"presence": "invalid",
+					},
+					"standard-component-extra": map[string]any{
+						"presence": "required",
+						"revision": "2",
+					},
+				},
+			},
+		},
+	}
+
+	privKey, _ := assertstest.GenerateKey(1024)
+	signingDB := assertstest.NewSigningDB("developer", privKey)
+	assertion, err := signingDB.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	validSet := assertion.(*asserts.ValidationSet)
+
+	// Test by passing the validation sets to the function
+	vsets := snapasserts.NewValidationSets()
+	vsets.Add(validSet)
+
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, vsets, snapstate.Options{})
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, expectedErrorMsg)
+
+	// Set up enforced validation set mocking to test without passing the validation sets to the function
+	snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vsets := snapasserts.NewValidationSets()
+
+		err := vsets.Add(validSet)
+		if err != nil {
+			return nil, err
+		}
+
+		return vsets, nil
+	})
+
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, nil, snapstate.Options{})
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, expectedErrorMsg)
+
 }
