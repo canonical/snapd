@@ -278,7 +278,7 @@ func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
 func growSnapToMinSize(path string, minSize int64) error {
 	fi, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("cannot stat snap: %w", err)
+		return fmt.Errorf("cannot get size of snap: %w", err)
 	}
 	if fi.Size() >= minSize {
 		return nil
