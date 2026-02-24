@@ -1,4 +1,4 @@
-summary: Refresh and revert the fundamental snaps for uc20
+summary: Refresh and revert the fundamental snaps for uc24
 
 details: |
     This test validates the fundamental snaps can be refreshed
@@ -15,15 +15,15 @@ environment:
     NESTED_ENABLE_TPM: true
 
     SNAP/kernel: pc-kernel
-    TRACK/kernel: 20
+    TRACK/kernel: 24
 
     SNAP/gadget: pc
-    TRACK/gadget: 20
+    TRACK/gadget: 24
 
     SNAP/snapd: snapd
     TRACK/snapd: latest
 
-    SNAP/base: core20
+    SNAP/base: core24
     TRACK/base: latest
 
 skip:
