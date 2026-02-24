@@ -937,3 +937,9 @@ func (s *Store) SetCachePolicy(policy CachePolicy) {
 func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
 }
+
+// CleanDownloadsCacheEntry drops an entry associated with the provided download
+// info from the downloads cache.
+func (s *Store) CleanDownloadsCacheEntry(dl *snap.DownloadInfo) error {
+	return s.cacher.Drop(dl.Sha3_384)
+}
