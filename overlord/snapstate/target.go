@@ -94,6 +94,9 @@ type target struct {
 	components []ComponentSetup
 }
 
+// targetFromLocalSnapWithStoreComponents builds a target for an installed snap
+// when the requested revision is already available locally, while still
+// resolving component revisions from the store.
 func targetFromLocalSnapWithStoreComponents(
 	ctx context.Context,
 	st *state.State,
@@ -101,6 +104,10 @@ func targetFromLocalSnapWithStoreComponents(
 	up StoreUpdate,
 	opts Options,
 ) (target, error) {
+	if !snapst.IsInstalled() {
+		return target{}, errors.New("internal error: cannot create target for local snap without existing installation")
+	}
+
 	var si *snap.SideInfo
 	if !up.RevOpts.Revision.Unset() {
 		si = snapst.Sequence.Revisions[snapst.LastIndex(up.RevOpts.Revision)].Snap
@@ -163,6 +170,9 @@ func targetFromLocalSnapWithStoreComponents(
 	}, nil
 }
 
+// targetFromActionResult builds a target from a store action result and the
+// current snap state. Note that channel tracking behavior differs slightly for
+// installs and refreshes to account for redirection to default tracks.
 func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOpts RevisionOptions, comps []string) (target, error) {
 	action := "refresh"
 	if !snapst.IsInstalled() {
