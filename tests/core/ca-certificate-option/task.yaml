@@ -1,0 +1,140 @@
+summary: Check custom CA certificate options
+
+details: |
+    Verify the pki.certs.custom.* system options.
+    The test adds a custom certificate, checks it appears in snapd merged
+    certificate database, toggles state between accepted and blocked, and
+    validates certificate name restrictions.
+
+systems: [ubuntu-core-*]
+
+environment:
+    CERT_NAME: spreadcustomcert
+
+restore: |
+    snap set system "pki.certs.custom.${CERT_NAME}.state=unset" || true
+
+execute: |
+    set -eu
+
+    CERT_PEM="$(mktemp)"
+    CERT_KEY="$(mktemp)"
+
+    PKI_BASE_DIR="/var/lib/snapd/pki/v1"
+    CUSTOM_CERT_PATH="$PKI_BASE_DIR/${CERT_NAME}.crt"
+    ADDED_DIR="$PKI_BASE_DIR/added"
+    BLOCKED_DIR="$PKI_BASE_DIR/blocked"
+    CA_CERTIFICATES_DB="$PKI_BASE_DIR/merged/ca-certificates.crt"
+
+    # Build a temporary self-signed certificate to use as custom CA content.
+    openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
+        -subj "/CN=snapd-spread-ca-option" \
+        -days 2 \
+        -keyout "$CERT_KEY" -out "$CERT_PEM" >/dev/null 2>&1
+
+    # Emit one SHA256 digest per certificate in the PEM bundle, sorted.
+    bundle_digests() {
+        local BUNDLE="$1"
+        local SPLITDIR
+        SPLITDIR="$(mktemp -d)"
+        trap 'rm -rf "${SPLITDIR}"' RETURN
+
+        csplit -q -f "${SPLITDIR}/cert-" -b "%05d.pem" "${BUNDLE}" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        for f in "${SPLITDIR}"/cert-*.pem; do
+            MATCH -- '-----BEGIN CERTIFICATE-----' "$f" || continue
+            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null \
+                | sha256sum | awk '{print $1}'
+        done | sort -u
+    }
+
+    cert_in_bundle() {
+        local CERT="$1"
+        local BUNDLE="$2"
+        local CERT_DIGEST
+        CERT_DIGEST="$(openssl x509 -in "${CERT}" -inform pem -outform der | sha256sum | awk '{print $1}')"
+        bundle_digests "${BUNDLE}" | MATCH "^${CERT_DIGEST}$"
+    }
+
+    cert_same_identity() {
+        local CERT_A="$1"
+        local CERT_B="$2"
+        local DIGEST_A DIGEST_B
+        DIGEST_A="$(openssl x509 -in "${CERT_A}" -inform pem -outform der | sha256sum | awk '{print $1}')"
+        DIGEST_B="$(openssl x509 -in "${CERT_B}" -inform pem -outform der | sha256sum | awk '{print $1}')"
+        test "${DIGEST_A}" = "${DIGEST_B}"
+    }
+
+    count_links_to_cert() {
+        local CDIR="$1"
+        local NAME="$2"
+        find "${CDIR}" -maxdepth 1 -type l -lname "../${NAME}.crt" | wc -l
+    }
+
+    cert_fingerprint_from_links() {
+        local NAME="$1"
+        for dir in "$ADDED_DIR" "$BLOCKED_DIR"; do
+            find "$dir" -maxdepth 1 -type l -lname "../${NAME}.crt" -printf "%f\n" \
+                | sed 's/\.crt$//' \
+                | head -n1
+        done | head -n1
+    }
+
+    echo "Add custom certificate with accepted state"
+    snap set system \
+        "pki.certs.custom.${CERT_NAME}.content=$(cat "${CERT_PEM}")" \
+        "pki.certs.custom.${CERT_NAME}.state=accepted"
+
+    test -f "$CUSTOM_CERT_PATH"
+    test "$(count_links_to_cert "${ADDED_DIR}" "${CERT_NAME}")" -eq 1
+    test "$(count_links_to_cert "${BLOCKED_DIR}" "${CERT_NAME}")" -eq 0
+
+    test -f "$CA_CERTIFICATES_DB"
+    cert_in_bundle "${CERT_PEM}" "${CA_CERTIFICATES_DB}"
+
+    echo "Check custom certificate list/details retrieval when accepted"
+    CERT_FP="$(cert_fingerprint_from_links "${CERT_NAME}")"
+    test -n "${CERT_FP}"
+    snap get system pki.certs.custom > custom-certs.txt
+    MATCH "${CERT_NAME}" < custom-certs.txt
+    MATCH "accepted" < custom-certs.txt
+    MATCH "${CERT_FP}" < custom-certs.txt
+    cert_same_identity "${CUSTOM_CERT_PATH}" "${CERT_PEM}"
+
+    echo "Switch state to blocked and verify merged db is updated"
+    snap set system "pki.certs.custom.${CERT_NAME}.state=blocked"
+
+    test "$(count_links_to_cert "${ADDED_DIR}" "${CERT_NAME}")" -eq 0
+    test "$(count_links_to_cert "${BLOCKED_DIR}" "${CERT_NAME}")" -eq 1
+    not cert_in_bundle "${CERT_PEM}" "${CA_CERTIFICATES_DB}"
+
+    echo "Check custom certificate list/details retrieval when blocked"
+    CERT_FP="$(cert_fingerprint_from_links "${CERT_NAME}")"
+    test -n "${CERT_FP}"
+    snap get system pki.certs.custom > custom-certs.txt
+    MATCH "${CERT_NAME}" < custom-certs.txt
+    MATCH "blocked" < custom-certs.txt
+    MATCH "${CERT_FP}" < custom-certs.txt
+
+    echo "Switch state back to accepted and verify merged db is updated again"
+    snap set system "pki.certs.custom.${CERT_NAME}.state=accepted"
+    test "$(count_links_to_cert "${ADDED_DIR}" "${CERT_NAME}")" -eq 1
+    test "$(count_links_to_cert "${BLOCKED_DIR}" "${CERT_NAME}")" -eq 0
+    cert_in_bundle "${CERT_PEM}" "${CA_CERTIFICATES_DB}"
+
+    CERT_FP="$(cert_fingerprint_from_links "${CERT_NAME}")"
+    test -n "${CERT_FP}"
+    snap get system pki.certs.custom > custom-certs.txt
+    MATCH "${CERT_NAME}" < custom-certs.txt
+    MATCH "accepted" < custom-certs.txt
+    MATCH "${CERT_FP}" < custom-certs.txt
+
+    echo "Check custom certificate name validation"
+    not snap set system "pki.certs.custom.${CERT_NAME}.name=///" 2>./err.txt
+    MATCH 'invalid certificate name for "pki.certs.custom.spreadcustomcert.name": "///"' < ./err.txt
+
+    # Invalid rename must not alter current accepted state of this certificate.
+    test "$(count_links_to_cert "${ADDED_DIR}" "${CERT_NAME}")" -eq 1
+    test "$(count_links_to_cert "${BLOCKED_DIR}" "${CERT_NAME}")" -eq 0
+    cert_in_bundle "${CERT_PEM}" "${CA_CERTIFICATES_DB}"
