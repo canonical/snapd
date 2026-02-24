@@ -547,7 +547,9 @@ func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.Ou
 	errChan := make(chan error)
 	go func() {
 		out, err := mgr.Query(uid, pid, apparmorLabel, iface)
-		c.Check(err, IsNil, Commentf(logbuf.String()))
+		logger.WithLoggerLock(func() {
+			c.Check(err, IsNil, Commentf(logbuf.String()))
+		})
 		outcomeChan <- out
 		errChan <- err
 	}()
