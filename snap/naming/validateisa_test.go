@@ -68,7 +68,6 @@ func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 	var assumesTests = []struct {
 		assumes                  []string
 		arch                     string
-		supportedExtensions      []arch.RISCVHWProbePairs
 		isRISCVISASupportedError string
 		expectedError            string
 	}{
@@ -77,9 +76,8 @@ func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 		// found in the arch package
 		{
 			// Success case
-			assumes:             []string{"isa-riscv64-rva23"},
-			arch:                "riscv64",
-			supportedExtensions: minimumRVA23Extensions,
+			assumes: []string{"isa-riscv64-rva23"},
+			arch:    "riscv64",
 		}, {
 			// ISA not supported
 			assumes:                  []string{"isa-riscv64-badisa"},
@@ -90,7 +88,7 @@ func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 	}
 
 	for _, test := range assumesTests {
-		// Mock riscv_hwprobe syscall
+		// Mock function checking for ISA support
 		restoreIsRISCVISASupported := naming.MockIsRISCVISASupported(func(isa string) error {
 			if test.isRISCVISASupportedError == "" {
 				return nil

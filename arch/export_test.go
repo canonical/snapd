@@ -36,7 +36,7 @@ func MockRISCVHWProbe(mockRISCVHWProbe func(pairs []RISCVHWProbePairs, set *CPUS
 	origRISCVHWProbe := RISCVHWProbe
 	RISCVHWProbe = mockRISCVHWProbe
 
-	// And restore the function and the "called" flag
+	// And restore the function
 	return func() {
 		RISCVHWProbe = origRISCVHWProbe
 	}
@@ -44,14 +44,9 @@ func MockRISCVHWProbe(mockRISCVHWProbe func(pairs []RISCVHWProbePairs, set *CPUS
 
 // MockKernelVersion mocks the running kernel version in the form of the
 // version string, and returns a function to restore to the current value.
-func MockKernelVersion(newKernelVersion string) (restore func()) {
-	// Do nothing if no kernel version specified
-	if newKernelVersion == "" {
-		return func() {}
-	}
-
+func MockKernelVersion(newKernelVersion func() string) (restore func()) {
 	originalKernelVersion := KernelVersion
-	KernelVersion = func() string { return newKernelVersion }
+	KernelVersion = newKernelVersion
 
 	return func() { KernelVersion = originalKernelVersion }
 }

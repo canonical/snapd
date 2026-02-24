@@ -111,27 +111,26 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 		c.Check(err, ErrorMatches, "cannot validate RiscV ISA support while running on: "+runtime.GOOS+", riscv64. Need linux, riscv64.")
 	} else {
 		var assumesTests = []struct {
-			isa                      string
-			arch                     string
-			supportedExtensions      []arch.RISCVHWProbePairs
-			expectedRISCVHWProbeCall bool
-			hwprobeSyscallError      string
-			kernelVersion            string
-			unameSyscallError        string
-			expectedError            string
+			isa                     string
+			arch                    string
+			supportedExtensions     []arch.RISCVHWProbePairs
+			expectedRISCVHWNumCalls int
+			hwprobeSyscallError     string
+			kernelVersion           string
+			expectedError           string
 		}{
 			{
 				// Success case
-				isa:                      "rva23",
-				arch:                     "riscv64",
-				supportedExtensions:      minimumRVA23Extensions,
-				expectedRISCVHWProbeCall: true,
+				isa:                     "rva23",
+				arch:                    "riscv64",
+				supportedExtensions:     minimumRVA23Extensions,
+				expectedRISCVHWNumCalls: 1,
 			}, {
 				// ISA not supported
-				isa:                      "badisa",
-				arch:                     "riscv64",
-				expectedRISCVHWProbeCall: false,
-				expectedError:            "unsupported ISA for riscv64 architecture: badisa",
+				isa:                     "badisa",
+				arch:                    "riscv64",
+				expectedRISCVHWNumCalls: 0,
+				expectedError:           "unsupported ISA for riscv64 architecture: badisa",
 			}, {
 				// Base IMA support missing
 				isa:  "rva23",
@@ -143,8 +142,8 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 					},
 					minimumRVA23Extensions[1],
 				},
-				expectedRISCVHWProbeCall: true,
-				expectedError:            "missing base RISC-V support",
+				expectedRISCVHWNumCalls: 1,
+				expectedError:           "missing base RISC-V support",
 			}, {
 				// Missing required Zicboz extension, not dependent on kernel version
 				isa:  "rva23",
@@ -156,16 +155,16 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 						Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_ZICBOZ,
 					},
 				},
-				expectedRISCVHWProbeCall: true,
-				expectedError:            "missing required RVA23 extension: Zicboz",
+				expectedRISCVHWNumCalls: 1,
+				expectedError:           "missing required RVA23 extension: Zicboz",
 			}, {
 				// Error in the hwprobe syscall
-				isa:                      "rva23",
-				arch:                     "riscv64",
-				supportedExtensions:      minimumRVA23Extensions,
-				expectedRISCVHWProbeCall: true,
-				hwprobeSyscallError:      "missing CPU...",
-				expectedError:            "error while querying RVA23 extensions supported by CPU: missing CPU...",
+				isa:                     "rva23",
+				arch:                    "riscv64",
+				supportedExtensions:     minimumRVA23Extensions,
+				expectedRISCVHWNumCalls: 1,
+				hwprobeSyscallError:     "missing CPU...",
+				expectedError:           "error while querying RVA23 extensions supported by CPU: missing CPU...",
 			}, {
 				// Missing required Zicntr extension, introduced in 6.15 kernel
 				// does not generate errors when running on 6.14
@@ -178,8 +177,8 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 						Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_ZICNTR,
 					},
 				},
-				expectedRISCVHWProbeCall: true,
-				kernelVersion:            "6.14.0-24-generic",
+				expectedRISCVHWNumCalls: 1,
+				kernelVersion:           "6.14.0-24-generic",
 			}, {
 				// Missing required Supm extension, introduced in 6.13 kernel
 				// returns error when running on 6.14
@@ -192,17 +191,18 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 						Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_SUPM,
 					},
 				},
-				expectedRISCVHWProbeCall: true,
-				kernelVersion:            "6.14.0-24-generic",
-				expectedError:            "missing required RVA23 extension: Supm",
+				expectedRISCVHWNumCalls: 1,
+				kernelVersion:           "6.14.0-24-generic",
+				expectedError:           "missing required RVA23 extension: Supm",
 			},
 		}
 
 		for _, test := range assumesTests {
+			numRISCVHWPRobeCalls := 0
+
 			// Mock kernel version and riscv_hwprobe
 			restoreRISCVHWProbe := arch.MockRISCVHWProbe(func(pairs []arch.RISCVHWProbePairs, set *arch.CPUSet, flags uint) (err error) {
-				// Check if this function should be running
-				c.Check(test.expectedRISCVHWProbeCall, Equals, true)
+				numRISCVHWPRobeCalls++
 
 				// Return an error if specified in the test case
 				if test.hwprobeSyscallError != "" {
@@ -217,7 +217,13 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 
 				return nil
 			})
-			restoreOsutilKernelVersion := arch.MockKernelVersion(test.kernelVersion)
+			restoreOsutilKernelVersion := arch.MockKernelVersion(func() string {
+				if test.kernelVersion == "" {
+					return "0"
+				} else {
+					return test.kernelVersion
+				}
+			})
 
 			err := arch.IsRISCVISASupported(test.isa)
 
@@ -226,6 +232,9 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 			} else {
 				c.Check(err, ErrorMatches, test.expectedError)
 			}
+
+			c.Check(numRISCVHWPRobeCalls, Equals, test.expectedRISCVHWNumCalls)
+			numRISCVHWPRobeCalls = 0
 
 			// Restore functions
 			restoreRISCVHWProbe()
