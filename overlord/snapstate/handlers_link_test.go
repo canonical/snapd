@@ -1357,8 +1357,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	s.state.Lock()
 
 	// Ensure that a restart has been requested
-	restarting, rt := restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
+	rt := restart.Pending(s.state)
 	c.Check(rt, Equals, restart.RestartSystem)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
@@ -1407,8 +1406,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	s.state.Lock()
 
 	// Restart must not have been requested, as we're on classic
-	restarting, _ := restart.Pending(s.state)
-	c.Check(restarting, Equals, false)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartUnset)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	c.Assert(t.Log(), HasLen, 1)
@@ -1451,8 +1449,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	s.state.Lock()
 
 	// Ensure the restart is requested as RestartSystemNow
-	restarting, rt := restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
+	rt := restart.Pending(s.state)
 	c.Check(rt, Equals, restart.RestartSystemNow)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
