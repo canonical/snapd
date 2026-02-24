@@ -83,13 +83,13 @@ func (s *ValidateRISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 			assumes:                  []string{"isa-riscv64-badisa"},
 			arch:                     "riscv64",
 			isRISCVISASupportedError: "unsupported ISA for riscv64 architecture: badisa",
-			expectedError:            "isa-riscv64-badisa: validation failed: unsupported ISA for riscv64 architecture: badisa",
+			expectedError:            "isa-riscv64-badisa: unsupported ISA for riscv64 architecture: badisa",
 		},
 	}
 
 	for _, test := range assumesTests {
 		// Mock function checking for ISA support
-		restoreIsRISCVISASupported := naming.MockIsRISCVISASupported(func(isa string) error {
+		restoreIsRISCVISASupported := naming.MockArchIsISASupportedByCPU(func(isa string) error {
 			if test.isRISCVISASupportedError == "" {
 				return nil
 			} else {

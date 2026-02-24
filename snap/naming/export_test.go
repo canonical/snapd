@@ -3,12 +3,12 @@
 
 package naming
 
-// MockIsRISCVISASupported mocks the return value of the function checking
+// MockArchIsISASupportedByCPU mocks the return value of the function checking
 // if a RISCV ISA is supported on the running system, and returns a function
 // to restore to the current value.
-func MockIsRISCVISASupported(newArchIsRISCVISASupported func(isa string) error) (restore func()) {
-	originalIsRISCVISASupported := archIsRISCVISASupported
-	archIsRISCVISASupported = newArchIsRISCVISASupported
+func MockArchIsISASupportedByCPU(newArchisISASupportedByCPU func(isa string) error) (restore func()) {
+	originalArchisISASupportedByCPU := archIsISASupportedByCPU
+	archIsISASupportedByCPU = newArchisISASupportedByCPU
 
-	return func() { archIsRISCVISASupported = originalIsRISCVISASupported }
+	return func() { archIsISASupportedByCPU = originalArchisISASupportedByCPU }
 }

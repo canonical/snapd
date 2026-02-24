@@ -50,3 +50,13 @@ func MockKernelVersion(newKernelVersion func() string) (restore func()) {
 
 	return func() { KernelVersion = originalKernelVersion }
 }
+
+// MockIsISASupportedByCPU mocks the return value of the function checking
+// if a RISCV ISA is supported on the running system, and returns a function
+// to restore to the current value.
+func MockIsISASupportedByCPU(newArchisISASupportedByCPU func(isa string) error) (restore func()) {
+	originalArchisISASupportedByCPU := IsISASupportedByCPU
+	IsISASupportedByCPU = newArchisISASupportedByCPU
+
+	return func() { IsISASupportedByCPU = originalArchisISASupportedByCPU }
+}
