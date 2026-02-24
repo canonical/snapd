@@ -1178,8 +1178,9 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services:refresh",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
+			op:       "stop-snap-services:refresh",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap/7"),
+			services: []string{"svc1", "svc2", "svc3"},
 		},
 		{
 			op: "current-snap-service-states",
@@ -1560,8 +1561,9 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services:refresh",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+			op:       "stop-snap-services:refresh",
+			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+			services: []string{"svc1", "svc2", "svc3"},
 		},
 		{
 			op: "current-snap-service-states",
@@ -4217,8 +4219,8 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.fakeBackend.addSnapApp("some-snap", "cmdA")
-	s.fakeBackend.addSnapApp("other-snap", "cmdB")
+	s.fakeBackend.addSnapApp("some-snap", "cmdA", snap.R(4))
+	s.fakeBackend.addSnapApp("other-snap", "cmdB", snap.R(2))
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
@@ -4370,8 +4372,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.fakeBackend.addSnapApp("some-snap", "cmdA")
-	s.fakeBackend.addSnapApp("other-snap", "cmdB")
+	s.fakeBackend.addSnapApp("some-snap", "cmdA", snap.R(4))
+	s.fakeBackend.addSnapApp("other-snap", "cmdB", snap.R(2))
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -18852,4 +18854,90 @@ func (s *snapmgrTestSuite) TestBlockUnlinkAffectingHook(c *C) {
 			c.Assert(block, Equals, false)
 		}
 	}
+}
+
+const (
+	v1SnapYaml = `name: test-snap
+version: 1.0
+apps:
+ normal-app:
+  command: bin/test
+ foo-svc:
+  command: bin/service
+  daemon: simple
+ bar-svc:
+  command: bin/service
+  daemon: simple
+ baz-svc:
+  command: bin/user-service
+  daemon: simple
+`
+
+	v2SnapYaml = `name: test-snap
+version: 2.0
+apps:
+ normal-app:
+  command: bin/test
+ foo-svc:
+  command: bin/service
+  daemon: simple
+ bar-svc:
+  command: bin/service
+`
+)
+
+func (s *snapmgrTestSuite) TestStopSnapServicesComputesRemovedServices(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup the installed revision
+	oldSi := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(11)}
+	oldInfo := snaptest.MockSnap(c, v1SnapYaml, oldSi)
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSi}),
+		Current:  snap.R(11),
+		Active:   true,
+	})
+
+	// refreshing to revision with different set of services
+	newSi := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(12)}
+	newInfo := snaptest.MockSnap(c, v2SnapYaml, newSi)
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(12),
+			SnapID:   "test-snap-id",
+		},
+	}
+
+	s.fakeBackend.infos = map[string]map[snap.Revision]*snap.Info{
+		"test-snap": {
+			oldSi.Revision: oldInfo,
+			newSi.Revision: newInfo,
+		},
+	}
+
+	chg := s.state.NewChange("stop-services", "stop the services")
+	task := s.state.NewTask("stop-snap-services", "Stop snap services")
+	task.Set("stop-reason", snap.StopReasonRefresh)
+	task.Set("snap-setup", snapsup)
+	chg.AddTask(task)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:       "stop-snap-services:refresh",
+			path:     oldInfo.MountDir(),
+			services: []string{"bar-svc", "baz-svc", "foo-svc"},
+			// bar-svc is removed and baz-svc is turned into a "normal" app
+			removedServices: []string{"bar-svc", "baz-svc"},
+		},
+		{
+			op: "current-snap-service-states",
+		},
+	})
 }

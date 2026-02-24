@@ -30,11 +30,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/timeutil"
-)
-
-var (
-	ReadyTimeout = readyTimeout
 )
 
 func ExitOnError() (restore func()) {
@@ -187,8 +182,4 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 		return ret, err
 	})
 	return ioctlDoneRW, restore
-}
-
-func MockTimeAfterFunc(f func(d time.Duration, callback func()) timeutil.Timer) (restore func()) {
-	return testutil.Mock(&timeAfterFunc, f)
 }

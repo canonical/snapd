@@ -865,6 +865,10 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 // installed snaps, but doesn't update tracking information in case of an error.
 // It may return snapasserts.ValidationSetsValidationError which can be used to
 // install/remove snaps as required to satisfy validation sets constraints.
+//
+// On snapasserts.ValidationSetsValidationError, prerequisite assertions needed
+// by the fetched validation-set assertions will be committed, but not the
+// validation-set assertions themselves.
 func TryEnforcedValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
@@ -954,6 +958,15 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
 			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
 			// the new validation sets - the caller should resolve the error and retry.
+			if _, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
+				// in the case validation sets cannot be enforced, we should
+				// still commit the prerequisite assertions. this eliminates a
+				// second trip to the store later, when validation sets are
+				// enforced by the "enforce-validation-sets" task.
+				if err := commitValidationSetPrerequisites(db, tmpDb, extraVs); err != nil {
+					return err
+				}
+			}
 			return err
 		}
 
@@ -989,6 +1002,33 @@ func TryEnforcedValidationSets(st *state.State, validationSets []string, userID 
 	}
 
 	return addCurrentTrackingToValidationSetsHistory(st)
+}
+
+func commitValidationSetPrerequisites(db, source *asserts.Database, valsets []*asserts.ValidationSet) error {
+	batch := asserts.NewBatch(handleUnsupported(db))
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(source.Find)
+	}
+	save := func(a asserts.Assertion) error {
+		// ignore validation sets, only save the prereqs
+		if a.Type() == asserts.ValidationSetType {
+			return nil
+		}
+		return batch.Add(a)
+	}
+	f := asserts.NewFetcher(source, retrieve, save)
+
+	for _, vs := range valsets {
+		if err := f.Save(vs); err != nil {
+			return err
+		}
+	}
+
+	if err := batch.CommitTo(db, nil); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string) (map[string]*asserts.ValidationSet, error) {
@@ -1072,9 +1112,12 @@ func ApplyLocalEnforcedValidationSets(st *state.State, vsKeys map[string][]strin
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a map
-// of validation set keys to validation sets, pinned sequence numbers (if any),
-// installed snaps and ignored snaps. It fetches any pre-requisites necessary.
+// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a
+// map of validation set keys to validation sets, pinned sequence numbers (if
+// any), installed snaps and ignored snaps. It persists the supplied
+// validation-set assertions and required prerequisites. Prerequisites are
+// resolved from the local assertions database and only fetched from the store
+// when missing locally.
 func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1083,13 +1126,30 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 
 	db := cachedDB(st)
 	batch := asserts.NewBatch(handleUnsupported(db))
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return err
+	}
+	sto := snapstate.Store(st, deviceCtx)
 
 	valsetsSlice, valsetsTracking, err := validationSetTrackings(valsets, pinnedSeqs)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := ref.Resolve(db.Find)
+		if err == nil {
+			return a, nil
+		}
+		if !errors.Is(err, &asserts.NotFoundError{}) {
+			return nil, err
+		}
+
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
+	}
+
+	err = doFetchWithRetrieve(st, batch, retrieve, func(f asserts.Fetcher) error {
 		for vsKey, vs := range valsets {
 			if err := f.Save(vs); err != nil {
 				return fmt.Errorf("cannot save assertion %q to batch: %v", vsKey, err)

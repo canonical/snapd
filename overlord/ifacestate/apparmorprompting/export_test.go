@@ -94,13 +94,9 @@ func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, r
 	return readyChan, reqChan, restore
 }
 
-// Export the manager-level ready channel so it can be used in tests.
+// Export the prompt backend ready channel so it can be used in tests.
 func (m *InterfacesRequestsManager) Ready() <-chan struct{} {
-	return m.ready
-}
-
-func MockPromptsHandleReadying(f func(pdb *requestprompts.PromptDB) error) (restore func()) {
-	return testutil.Mock(&promptsHandleReadying, f)
+	return m.prompts.Ready()
 }
 
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {

@@ -126,3 +126,15 @@ On Ubuntu Core devices, where kernel and boot assets are provided by snaps, snap
 [`overlord/devicestate.DeviceManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/devicestate#DeviceManager) is the state manager responsible for orchestrating all of this. For example, it has code to drive full device installation from a never-before-booted Ubuntu Core image or for a more limited installation of a set of snaps in a system on first boot, from a so-called *seed system* configuration. It also has code to register and give an identity (`asserts.Serial` tied to the device [`asserts.Model`](https://pkg.go.dev/github.com/snapcore/snapd/asserts#Model)) to the device with device services and/or the store.
 
 For boot and disk configuration, as well as boot assets management, [`devicestate`](https://github.com/canonical/snapd/tree/master/overlord/devicestate) and [`snapstate`](https://github.com/canonical/snapd/tree/master/overlord/snapstate) code use functionality from the [`boot`](https://github.com/canonical/snapd/tree/master/boot), [`gadget`](https://github.com/canonical/snapd/tree/master/gadget) and [`kernel`](https://github.com/canonical/snapd/tree/master/kernel) packages. Bootloader specific code lives in [`bootloader`](https://github.com/canonical/snapd/tree/master/bootloader) and is mostly used via [`boot`](https://github.com/canonical/snapd/tree/master/boot) and not directly.
+
+## core-initrd, snap-bootstrap and FDE
+
+On Ubuntu Core systems since 20 and non-Core Ubuntu systems configured to use a kernel and gadget snap, a systemd based initrd is in use that is defined in the per Ubuntu version directories under [`core-initrd/`](https://github.com/canonical/snapd/tree/master/core-initrd).
+
+The main integration point in the initrd is running the [`snap-bootstrap`](https://github.com/canonical/snapd/tree/master/cmd/snap-bootstrap) command which is responsible for initialization and mounting essential snaps as needed to setup the running system. As controlled by the kernel command line snap-bootstrap initializes the system for different lifecycle modes: `install, run, recover, factory-reset`.
+
+`snap-bootstrap` is also crucial in snapd support for Full Disk Encryption (FDE) that ties to the specific device using either TPM with UEFI or OPTEE on ARM (or via hooks for other TEEs). It contains the code to obtain device-protected keys from those security modules to open the encrypted disks.
+
+As for example with the TPM, FDE requires measuring boot assets to obtain (unseal) the keys, the implementation needs to be tied with the update logic for essential snaps as those updates change the measurements, the [`boot`](https://github.com/canonical/snapd/tree/master/boot) package and a dedicated state manager [`overlord/fdestate.FDEManager`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/fdestate#FDEManager) have logic for this.
+
+The low-level helper logic for FDE is provided by [`secboot`](https://github.com/canonical/snapd/tree/master/secboot) which is a wrapper around an [external package of the same name](https://github.com/canonical/secboot/tree/master).

@@ -6,6 +6,10 @@ details: |
 
 systems: [ubuntu-2*]
 
+environment:
+  # FIXME: make the test not stat sealed key files
+  NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
+
 prepare: |
   # we cannot use the kernel from store as it may have a version of
   # snap-bootstrap that will not be able to unseal the keys and unlock the

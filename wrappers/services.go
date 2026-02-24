@@ -931,14 +931,14 @@ func serviceUnitsFromApps(apps []*snap.AppInfo, includeActivatedServices bool) [
 // filterAppsForStop filters a list of a snap apps based on the following criteria
 //  1. They must be services
 //  2. They must have a service unit
-//  3. If the reason for the stop is a refresh, then check that the service is not marked "endure",.
-//     (i. e) it should persist through refreshes
+//  3. If the reason for the stop is a refresh and the service is not being removed,
+//     it must not be marked as "endure" (i.e., it persists through refreshes)
 //  4. The services must match the provided scope in flags.Scope
 //     (i. e) whether we are restarting user or system services (or both)
 //
 // The result is then two lists of snap service apps, separated by system/user type
 // that are valid for being stopped.
-func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
+func filterAppsForStop(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -951,8 +951,10 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
 			switch app.RefreshMode {
 			case "endure":
-				// skip this service
-				continue
+				if _, removed := removedSvcs[app.Name]; !removed {
+					// skip this service if it's not being removed
+					continue
+				}
 			}
 		}
 		// Verify that scope covers this service
@@ -981,16 +983,17 @@ type StopServicesOptions struct {
 }
 
 // StopServices stops and optionally disables service units for the applications
-// from the snap which are services.
-func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
+// from the snap which are services eligible for stopping (i.e,. services marked
+// as "endure" that are not being removed should persist).
+func StopServices(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	if opts == nil {
 		opts = &StopServicesOptions{}
 	}
 
 	if reason != snap.StopReasonOther {
-		logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
+		logger.Debugf("StopServices called for %q, reason: %v", svcs, reason)
 	} else {
-		logger.Debugf("StopServices called for %q", apps)
+		logger.Debugf("StopServices called for %q", svcs)
 	}
 
 	sysd := systemd.New(systemd.SystemMode, inter)
@@ -1005,7 +1008,7 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	// doing this on a 'static' service is a no-op anyway, so no harm here.
 	const includeActivatedServices = true
 
-	sysApps, userApps := filterAppsForStop(apps, reason, opts)
+	sysApps, userApps := filterAppsForStop(svcs, removedSvcs, reason, opts)
 	systemServices := serviceUnitsFromApps(sysApps, includeActivatedServices)
 	userServices := serviceUnitsFromApps(userApps, includeActivatedServices)
 

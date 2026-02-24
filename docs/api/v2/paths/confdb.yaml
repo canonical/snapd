@@ -73,13 +73,19 @@ put:
       application/json:
         schema:
           type: object
-          description: |-
-            A map of configuration paths to their values. Use null to
-            unset a value.
-          additionalProperties: true
+          required:
+            - values
+          properties:
+            values:
+              type: object
+              description: |-
+                A map of configuration paths to JSON values to be set.
+                Use null to unset a value.
+              additionalProperties: true
           example:
-            office.ssid: foo
-            password: null
+            values:
+              office.ssid: foo
+              password: null
   responses:
     202:
       $ref: '../components/responses/Accepted.yaml'
