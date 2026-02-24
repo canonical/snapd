@@ -770,12 +770,15 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 type cacheObserver struct {
 	inCache map[string]bool
 
-	gets []string
-	puts []string
+	gets  []string
+	puts  []string
+	drops []string
 
 	// list of errors to return on Put() to a specific key
 	putFailForKey map[string][]error
 	putErrHits    map[string]int
+
+	dropErr map[string]error
 
 	cleanupCalls int
 }
@@ -806,6 +809,15 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	return nil
 }
 
+func (co *cacheObserver) Drop(cacheKey string) error {
+	co.drops = append(co.drops, cacheKey)
+
+	if co.dropErr != nil {
+		return co.dropErr[cacheKey]
+	}
+	return nil
+}
+
 func (co *cacheObserver) Cleanup() error {
 	co.cleanupCalls++
 	return nil
@@ -831,6 +843,7 @@ func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
+	c.Check(obs.drops, IsNil)
 	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
@@ -856,6 +869,7 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
@@ -940,6 +954,7 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 	})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
 	c.Check(obs.cleanupCalls, Equals, 0)
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
@@ -1133,6 +1148,42 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 	c.Check(stream, IsNil)
 }
 
+func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
+	obs := &cacheObserver{
+		inCache: map[string]bool{
+			"sha3_384-of-foo": true,
+		},
+		dropErr: map[string]error{
+			"sha3_384-of-unhappy": errors.New("mock error"),
+		},
+	}
+	defer s.store.MockCacher(obs)()
+
+	snapHappy := &snap.Info{}
+	snapHappy.RealName = "foo"
+	snapHappy.DownloadURL = "URL"
+	snapHappy.Size = 123
+	snapHappy.Sha3_384 = "sha3_384-of-foo"
+
+	err := s.store.CleanDownloadsCacheEntry(&snapHappy.DownloadInfo)
+	c.Assert(err, IsNil)
+
+	c.Check(obs.drops, DeepEquals, []string{"sha3_384-of-foo"})
+	obs.drops = nil
+
+	// errors are forwarded
+	snapUnhappy := &snap.Info{}
+	snapUnhappy.RealName = "unhappy"
+	snapUnhappy.DownloadURL = "URL"
+	snapUnhappy.Size = 123
+	snapUnhappy.Sha3_384 = "sha3_384-of-unhappy"
+
+	err = s.store.CleanDownloadsCacheEntry(&snapUnhappy.DownloadInfo)
+	c.Assert(err, ErrorMatches, "mock error")
+
+	c.Check(obs.drops, DeepEquals, []string{"sha3_384-of-unhappy"})
+}
+
 type fakeCacher struct {
 	getPathCalls []string
 }
@@ -1147,6 +1198,10 @@ func (co *fakeCacher) GetPath(cacheKey string) string {
 }
 
 func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Drop(cacheKey string) error {
 	panic("unexpected call")
 }
 

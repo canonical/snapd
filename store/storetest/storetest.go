@@ -131,6 +131,10 @@ func (Store) CleanDownloadsCache() error {
 	panic("CleanDownloadsCache not expected")
 }
 
+func (Store) CleanDownloadsCacheEntry(dl *snap.DownloadInfo) error {
+	panic("CleanDownloadsCacheEntry not expected")
+}
+
 func (Store) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 	panic("ExchangeMessages not expected")
 }
