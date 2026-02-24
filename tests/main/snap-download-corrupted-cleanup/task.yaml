@@ -1,0 +1,81 @@
+summary: Verify corrupted snap files are cleaned up when download task is undone
+
+details: |
+    Verify that undo of snap-download attempts to clean up corrupted snap files.
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: test "$TRUST_TEST_KEYS" = "false"
+
+prepare: |
+    snap install test-snapd-sh-core24
+
+    echo "And the daemon is configured to point to the fake store"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+    tests.cleanup defer "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+
+    echo "Expose the needed assertions through the fakestore"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$BLOB_DIR/asserts"
+
+    # It is not enough to copy the assertions, we must also ack them otherwise we
+    # will get an error about not being able to resolve the account key
+    snap ack "$BLOB_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$BLOB_DIR/asserts/developer1.account"
+    snap ack "$BLOB_DIR/asserts/developer1.account-key"
+
+    # Fake refresh of the test snap
+     "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-sh-core24
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    rev_old="$(readlink "$SNAP_MOUNT_DIR"/test-snapd-sh-core24/current)"
+
+    snap refresh test-snapd-sh-core24
+    snap list test-snapd-sh-core24 | MATCH '\+fake1'
+
+    snap refresh test-snapd-sh-core24
+    rev_new="$(readlink "$SNAP_MOUNT_DIR"/test-snapd-sh-core24/current)"
+
+    # Revert now, so that we can remove the new revision, and trigger it to be
+    # redownloaded.
+
+    snap revert test-snapd-sh-core24
+    test "$(readlink "$SNAP_MOUNT_DIR"/test-snapd-sh-core24/current)" = "$rev_old"
+
+    # Identify which cache file references the new revision blob
+    cache_file_rev_new="$(find /var/lib/snapd/cache -samefile \
+        "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap")"
+    [ -n "$cache_file_rev_new" ]
+
+    snap remove --revision "$rev_new" test-snapd-sh-core24
+
+    echo "Create corrupted (empty) snap file to short-circuit download task"
+    rm -fv "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
+    touch "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
+
+    echo "Attempt refresh"
+    if snap refresh test-snapd-sh-core24 2>install.err; then
+        echo "Refresh should have failed but succeeded"
+        exit 1
+    fi
+
+    echo "Verify installation failed"
+    MATCH "no matching signatures found" < install.err
+
+    echo "Verify installation change shows error"
+    snap change --last refresh > change.out
+    MATCH "found corrupted snap file" < change.out
+    MATCH "Undone.*Download snap.*test-snapd-sh-core24" < change.out
+
+    echo "Verify undo cleaned up the corrupted file and the cache file"
+    not test -f "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
+    echo "Cache entry for corrupted file was removed"
+    not test -f "$cache_file_rev_new"
+
+    echo "Subsequent refresh succeeds"
+    snap refresh test-snapd-sh-core24
