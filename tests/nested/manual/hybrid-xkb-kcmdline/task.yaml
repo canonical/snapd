@@ -106,6 +106,7 @@ execute: |
   get_modeenv() {
     remote.exec "sudo cat /var/lib/snapd/modeenv"
   }
+  export -f get_modeenv
 
   reboot() {
     tests.nested vm stop
@@ -117,11 +118,11 @@ execute: |
 
   # Wait for snapd to pick up the current keyboard config
   retry -n 100 bash -c 'get_snapd_xkb | MATCH "^snapd\.xkb=\"uk,pc105,basic,compat\"$"'
-  # And wait until it is no longer pending
-  retry -n 100 bash -c 'get_pending | MATCH "^false$"'
 
-  # Modeenv is updated
-  get_modeenv | MATCH "uk,pc105,basic,compat"
+  # And wait until modeenv is updated
+  retry -n 100 bash -c 'get_modeenv | MATCH "uk,pc105,basic,compat"'
+  # and extra snapd fragments are no longer pending
+  retry -n 100 bash -c 'get_pending | MATCH "^false$"'
   # But not yet reflected in kcmdline because we didn't reboot yet
   get_kcmdline | NOMATCH "uk"
 
@@ -134,12 +135,12 @@ execute: |
   # Layout changes are detected realtime
   remote.exec "sudo sed -i 's/XKBLAYOUT=uk/XKBLAYOUT=eg/g' /etc/default/keyboard"
   retry -n 100 bash -c 'get_snapd_xkb | MATCH "^snapd\.xkb=\"eg,pc105,basic,compat\"$"'
-  # Let's again wait until it is no longer pending
+  # Let's again wait until modeenv is updated
+  retry -n 100 bash -c 'get_modeenv | MATCH "eg,pc105,basic,compat"'
+  # and extra snapd fragments are no longer pending
   retry -n 100 bash -c 'get_pending | MATCH "^false$"'
 
-  # Modeenv is updated
-  get_modeenv | MATCH "eg,pc105,basic,compat"
-  # But not yet reflected in kcmdline because we didn't reboot yet
+  # But not yet reflected in kcmdline since we didn't reboot yet
   get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="uk,pc105,basic,compat"$'
   get_kcmdline | NOMATCH "eg"
 
