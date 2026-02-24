@@ -91,7 +91,7 @@ jobs:
           # Kill any leftover spread processes
           for pid in $(pgrep spread); do
             echo "Killing process $(ps -p "$pid" -o cmd || true)"
-            kill "$pid"; 
+            kill -9 "$pid" || true 
           done
 
     - name: Checkout code
@@ -452,7 +452,7 @@ jobs:
         # Kill any leftover spread processes
         for pid in $(pgrep spread); do
           echo "Killing process $(ps -p "$pid" -o cmd || true)"
-          kill "$pid"; 
+          kill -9 "$pid" || true
         done
 
         shopt -s nullglob;
