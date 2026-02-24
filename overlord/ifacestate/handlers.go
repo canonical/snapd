@@ -496,13 +496,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 					defer delayedEffectsLock.Unlock()
 
 					if backend == nil {
-						// TODO: use errors.Join
+						// TODO:GOVERSION: use errors.Join
 						delayErr = strutil.JoinErrors(delayErr,
 							fmt.Errorf("internal error: attempt to delay effects without a backend"))
 						return
 					}
 					if !interfaces.SupportsDelayingEffects(backend) {
-						// TODO: use errors.Join
+						// TODO:GOVERSION: use errors.Join
 						delayErr = strutil.JoinErrors(delayErr,
 							fmt.Errorf("internal error: attempt to delay effects for backend %q without support for it",
 								backend.Name()))
@@ -2464,6 +2464,8 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 			}
 		}
 	}
+
+	// TODO: handle pending reboot
 
 	logger.Debugf("happy snaps: %v", successfulTriggeringSnaps)
 
