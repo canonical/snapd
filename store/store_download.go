@@ -203,7 +203,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
-		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+		if _, err := w.Seek(0, io.SeekStart); err != nil {
 			return err
 		}
 		if _, err := io.Copy(h, w); err != nil {
