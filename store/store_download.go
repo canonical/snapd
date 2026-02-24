@@ -155,6 +155,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 	}
 
+	// open to sync the directory
 	d, err := os.Open(filepath.Dir(targetPath))
 	if err != nil {
 		return err
