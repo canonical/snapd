@@ -1189,6 +1189,8 @@ func (v *View) Set(databag Databag, request string, value any, userID int) error
 		if err != nil {
 			return err
 		}
+		// we can safely check visibility after setting data in the databag since the
+		// data is only persisted if this Set method returns a non-error
 		pruned, err := v.schema.DatabagSchema.PruneByVisibility(match.storagePath, visibilities, data)
 		if err != nil {
 			if errors.Is(err, &UnauthorizedAccessError{}) {
