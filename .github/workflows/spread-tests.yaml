@@ -161,10 +161,10 @@ jobs:
     - name: Check failed tests to run
       if: ${{ env.RUN_ALL_LABEL != 'true' }}
       run: |
-          echo "FAILED_TESTS=false" >> $GITHUB_ENV
-
           if [ -s "$FAILED_TESTS_FILE" ]; then
               echo "FAILED_TESTS=true" >> $GITHUB_ENV
+          else
+              echo "FAILED_TESTS=false" >> $GITHUB_ENV
           fi
 
     - name: Setup for local run
