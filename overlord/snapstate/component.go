@@ -90,7 +90,7 @@ func InstallComponents(
 		return nil, err
 	}
 
-	pres, err := vsets.Presence(info)
+	pres, err := revOpts.ValidationSets.Presence(info)
 	if err != nil {
 		return nil, err
 	}
