@@ -259,13 +259,6 @@ type DeltaFormatOpts struct {
 // with lower indexes being preferred. This might become eventually
 // compatibility labels if necessary.
 func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
-	// check if deltas were disabled by the environment
-	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
-		// then the env var is explicitly false, we can't use deltas
-		logger.Noticef("delta usage disabled by environment variable")
-		return nil
-	}
-
 	var formats []string
 	if opts.WithSnapDeltaFormat {
 		formats = append(formats, snapDeltaFormatXdelta3)
