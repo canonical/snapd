@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
@@ -520,4 +521,88 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 		},
 	})
 
+}
+
+type testUndoDownloadSnapFileCorruptedScenario int
+
+const (
+	validFile testUndoDownloadSnapFileCorruptedScenario = iota
+	badFile
+	removedFile
+)
+
+func (s *downloadSnapSuite) testUndoDownloadSnapFile(c *C, scenario testUndoDownloadSnapFileCorruptedScenario) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	t := s.state.NewTask("download-snap", "test")
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			Sha3_384: "some-hash",
+		},
+	}
+	t.Set("snap-setup", sup)
+	t.SetStatus(state.UndoStatus)
+
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	switch scenario {
+	case badFile:
+		c.Assert(os.WriteFile(sup.BlobPath(), nil, 0644), IsNil)
+	case validFile:
+		c.Assert(os.WriteFile(sup.BlobPath(), []byte("some-content"), 0644), IsNil)
+	case removedFile:
+	// the file is already gone
+	default:
+		panic("unexpected scenario")
+	}
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+	// file was dropped
+	switch scenario {
+	case removedFile:
+		// file was already gone
+		c.Check(sup.BlobPath(), testutil.FileAbsent)
+		// no cleanup was requested
+		c.Check(s.fakeBackend.ops, IsNil)
+	case badFile:
+		// file was removed
+		c.Check(sup.BlobPath(), testutil.FileAbsent)
+		// entry drop was requested
+		c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+			{
+				op:   "storesvc-clean-downloads-cache-entry",
+				name: "some-hash",
+			},
+		})
+	case validFile:
+		// file is kept
+		c.Check(sup.BlobPath(), testutil.FilePresent)
+		// nothing is dropped
+		c.Assert(s.fakeBackend.ops, IsNil)
+	}
+
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapFileCorrupted(c *C) {
+	s.testUndoDownloadSnapFile(c, badFile)
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapFileRemovedNotFatal(c *C) {
+	s.testUndoDownloadSnapFile(c, removedFile)
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapFileOk(c *C) {
+	s.testUndoDownloadSnapFile(c, validFile)
 }
