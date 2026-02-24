@@ -90,8 +90,7 @@ func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
 	// Mark the system as seeded to trigger certificate generation.
 	s.state.Set("seeded", true)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
-	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
 
 	s.state.Unlock()
 	defer s.state.Lock()
@@ -173,7 +172,7 @@ func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 
 	s.state.Set("seeded", true)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
 	s.state.Unlock()
@@ -199,7 +198,7 @@ func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
 
 	s.state.Set("seeded", true)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
 	s.state.Unlock()
@@ -215,7 +214,7 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 	certB, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
 
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), certA, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "b.crt"), certB, 0o644), IsNil)
@@ -237,7 +236,7 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C) {
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
@@ -273,7 +272,7 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {
-	baseCertsDir := filepath.Join(dirs.GlobalRootDir, "etc", "ssl", "certs")
+	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")

@@ -47,9 +47,12 @@ get:
                         - confdb-schema
                         - cluster
                         - device-session-request
+                        - hardware-identity
                         - model
-                        - pressed
+                        - preseed
                         - repair
+                        - request-message
+                        - response-message
                         - serial
                         - serial-request
                         - snap-build
@@ -59,9 +62,10 @@ get:
                         - snap-resource-revision
                         - snap-revision
                         - store
-                        - system-user-validation
+                        - system-user
+                        - validation
                         - validation-set
-                    
+
     4XX:
       $ref: '../components/responses/InternalError.yaml'
 
@@ -85,7 +89,6 @@ post:
       application/x.ubuntu.assertion:
         schema:
           type: string
-          format: binary
           description: A raw assertion string.
           example: |
             type: system-user

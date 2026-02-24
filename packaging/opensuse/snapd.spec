@@ -582,6 +582,7 @@ fi
 %{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
+%{_prefix}/lib/dracut/dracut.conf.d/50-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/info

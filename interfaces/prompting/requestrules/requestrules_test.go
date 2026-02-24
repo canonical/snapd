@@ -137,7 +137,7 @@ func (s *requestrulesSuite) TestRuleMarshalUnmarshalJSON(c *C) {
 				Snap:      "thunderbird",
 				Interface: "camera",
 				Constraints: &prompting.RuleConstraints{
-					InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+					InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 					Permissions: prompting.RulePermissionMap{
 						"access": &prompting.RulePermissionEntry{
 							Outcome:   prompting.OutcomeAllow,
@@ -149,6 +149,27 @@ func (s *requestrulesSuite) TestRuleMarshalUnmarshalJSON(c *C) {
 			},
 			fmt.Sprintf(`{"id":"1234123412341234","timestamp":%s,"user":1000,"snap":"thunderbird","interface":"camera","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","session-id":"1123581321345589"}}}}`, nowJSON),
 			fmt.Sprintf(`{"id":"1234123412341234","timestamp":%s,"user":1000,"snap":"thunderbird","interface":"camera","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","expiration":"0001-01-01T00:00:00Z","session-id":"1123581321345589"}}}}`, nowJSON),
+		},
+		{
+			&requestrules.Rule{
+				ID:        prompting.IDType(0xdeadbeefdeadbeef),
+				Timestamp: now,
+				User:      1001,
+				Snap:      "firefox",
+				Interface: "audio-record",
+				Constraints: &prompting.RuleConstraints{
+					InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
+					Permissions: prompting.RulePermissionMap{
+						"access": &prompting.RulePermissionEntry{
+							Outcome:   prompting.OutcomeAllow,
+							Lifespan:  prompting.LifespanSession,
+							SessionID: sessionID,
+						},
+					},
+				},
+			},
+			fmt.Sprintf(`{"id":"DEADBEEFDEADBEEF","timestamp":%s,"user":1001,"snap":"firefox","interface":"audio-record","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","session-id":"1123581321345589"}}}}`, nowJSON),
+			fmt.Sprintf(`{"id":"DEADBEEFDEADBEEF","timestamp":%s,"user":1001,"snap":"firefox","interface":"audio-record","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","expiration":"0001-01-01T00:00:00Z","session-id":"1123581321345589"}}}}`, nowJSON),
 		},
 	} {
 		expected := testCase.expected

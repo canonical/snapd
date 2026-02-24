@@ -20,8 +20,11 @@
 package clientutil_test
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
@@ -83,6 +86,16 @@ func (s *serviceScopeSuite) TestInvalidOptions(c *C) {
 	}
 }
 
+type mockLocaleToUpper struct{}
+
+func (l *mockLocaleToUpper) Gettext(msgid string) string {
+	return strings.ToUpper(msgid)
+}
+
+func (l *mockLocaleToUpper) NGettext(msgid string, msgid_plural string, n uint32) string {
+	return strings.ToUpper(msgid)
+}
+
 func (s *serviceScopeSuite) TestFmtServiceStatus(c *C) {
 	out := clientutil.FmtServiceStatus(&client.AppInfo{
 		Snap: "test-snap",
@@ -135,4 +148,27 @@ func (s *serviceScopeSuite) TestFmtServiceStatus(c *C) {
 		DropSnapInstanceKey: true,
 	})
 	c.Check(out, Equals, "test-snap.bar\tenabled\tactive\t-")
+
+	// Check service status is translated
+	restore := i18n.MockLocale(&mockLocaleToUpper{})
+	defer restore()
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:    "test-snap_foo",
+		Name:    "bar",
+		Active:  true,
+		Enabled: true,
+	}, clientutil.FmtServiceStatusOptions{})
+	c.Check(out, Equals, "test-snap_foo.bar\tENABLED\tACTIVE\t-")
+
+	// but not if call is coming from snapctl so it is machine readable
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:    "test-snap_foo",
+		Name:    "bar",
+		Active:  true,
+		Enabled: true,
+	}, clientutil.FmtServiceStatusOptions{
+		FromSnapCtl: true,
+	})
+	c.Check(out, Equals, "test-snap_foo.bar\tenabled\tactive\t-")
 }

@@ -20,6 +20,7 @@
 package confdb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -2988,4 +2989,623 @@ func (*schemaSuite) TestUserTypeReferenceSecret(c *C) {
 	c.Assert(fooSchema[0].Visibility(), Equals, confdb.SecretVisibility)
 	c.Assert(barSchema, HasLen, 1)
 	c.Assert(barSchema[0].Visibility(), Equals, confdb.DefaultVisibility)
+}
+
+func marshal(c *C, data any) []byte {
+	marshelled, err := json.Marshal(data)
+	c.Assert(err, IsNil)
+	return marshelled
+}
+
+func (s *schemaSuite) TestPruneAllSecret(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "string"
+	},
+	"visibility": "secret"
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	// Without providing a path, to a secret map, all data gets pruned away without error
+	data, err := schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{"foo": "data"}))
+	c.Assert(err, IsNil)
+	c.Assert(data, IsNil)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{"foo": "data"}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	data, err = schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{}, marshal(c, map[string]any{"foo": "data"}))
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, marshal(c, map[string]any{"foo": "data"}))
+}
+
+func (s *schemaSuite) TestPruneMap(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "int",
+		"bar": {
+			"schema": {
+				"eph": "string",
+				"best": {
+					"type": "string",
+					"visibility": "secret"
+				}
+			}
+		},
+		"baz": {
+			"type": "bool",
+			"visibility": "secret"
+		},
+		"eph": "string"
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data := marshal(c, map[string]any{
+		"bar": map[string]any{
+			"eph":  "e",
+			"best": "secret",
+		},
+		"baz": false,
+		"eph": "data",
+	})
+	// When passing no path, everything will be pruned
+	pruned, err := schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"bar": map[string]any{"eph": "e"}, "eph": "data"}))
+
+	// When providing a path to bar, only elements in bar will be pruned. The rest of the data remains unaltered
+	pruned, err = schema.PruneByVisibility(parsePath(c, "bar"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"bar": map[string]any{"eph": "e"}, "eph": "data", "baz": false}))
+
+	// Secret data at the same level as eph is preserved, so best remains
+	pruned, err = schema.PruneByVisibility(parsePath(c, "bar.eph"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, data)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "bar.best"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	// When attempting to access data that is not present, pruning returns a no-data error
+	_, err = schema.PruneByVisibility(parsePath(c, "bar.eph"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"bar": map[string]any{"best": "secret"},
+		"baz": false,
+	}))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (s *schemaSuite) TestPruneMapNested(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": {
+							"type": "string",
+							"visibility": "secret"
+						}
+					}
+				},
+				"eph": {
+					"schema": {
+						"baz": "string"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data := marshal(c, map[string]any{
+		"foo": map[string]any{
+			"bar": map[string]any{"baz": "data-secret"},
+			"eph": map[string]any{"baz": "data"},
+		},
+	})
+
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo.{n}"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": map[string]any{"eph": map[string]any{"baz": "data"}}}))
+
+	pruned, err = schema.PruneByVisibility(parsePath(c, "foo.{n}.baz"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": map[string]any{"eph": map[string]any{"baz": "data"}}}))
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.baz"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (s *schemaSuite) TestPruneMapValSchema(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "int",
+		"bar": {
+			"keys": "string",
+			"values": {
+				"schema": {
+					"a": {
+						"type": "string",
+						"visibility": "secret"
+					},
+					"b": "string"
+				}
+			}
+		},
+		"baz": {
+			"type": "bool",
+			"visibility": "secret"
+		},
+		"eph": "string"
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data := marshal(c, map[string]any{
+		"bar": map[string]any{
+			"one": map[string]any{"a": "a-secret-1", "b": "b-data-1"},
+			"two": map[string]any{"a": "a-secret-2", "b": "b-data-2"},
+		},
+		"baz": false,
+		"eph": "data",
+	})
+
+	// When passing no path, everything will be pruned
+	pruned, err := schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{
+		"bar": map[string]any{
+			"one": map[string]any{"b": "b-data-1"},
+			"two": map[string]any{"b": "b-data-2"},
+		},
+		"eph": "data",
+	}))
+
+	// When providing a path to bar, only elements in bar will be pruned. The rest of the data remains unaltered
+	pruned, err = schema.PruneByVisibility(parsePath(c, "bar"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{
+		"bar": map[string]any{
+			"one": map[string]any{"b": "b-data-1"},
+			"two": map[string]any{"b": "b-data-2"},
+		},
+		"baz": false,
+		"eph": "data",
+	}))
+
+	// b does not contain private data so no data is pruned
+	pruned, err = schema.PruneByVisibility(parsePath(c, "bar.{n}.b"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, data)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "bar.{n}.a"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, NotNil)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "bar.one.a"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, NotNil)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneVisibilityMapSecretValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"keys": "string",
+					"values": {
+						"type": "string",
+						"visibility": "secret"
+					}
+				},
+				"baz": "bool"
+			}
+		},
+		"eph": "string"
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data := marshal(c, map[string]any{
+		"foo": map[string]any{"bar": map[string]any{"a": "1", "b": "2"}, "baz": true},
+		"eph": "a",
+	})
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": map[string]any{"baz": true}, "eph": "a"}))
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, NotNil)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.{n}"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, NotNil)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	// If the databag is missing secret data, then pruning will return a NoDataError instead
+
+	data = marshal(c, map[string]any{
+		"foo": map[string]any{"baz": true},
+		"eph": "a",
+	})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.{n}"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (*schemaSuite) TestPruneVisibilitySecretMapKeys(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"keys": {
+				"type": "string",
+				"visibility": "secret"
+			},
+			"values": "bool"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": map[string]any{"bar": false},
+	}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneMapNoContainerError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"eph": {
+							"type": "string",
+							"visibility": "secret"
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": ""}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo.bar": expected container type but got string`)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo.bar.eph"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": ""}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo.bar.eph": expected container type but got string`)
+}
+
+func (*schemaSuite) TestPruneVisibilityArray(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "string",
+						"visibility": "secret"
+					},
+					"baz": "string"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	// Even if the schema allows for non-secret data in an array, if that data is not present,
+	// then it will return an unauthorized error
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0"},
+			map[string]any{"bar": "secret1"},
+		}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[2]"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0"},
+			map[string]any{"bar": "secret1"},
+		}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0", "baz": "0"},
+			map[string]any{"bar": "secret1", "baz": "1"},
+		}}))
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": []any{map[string]any{"baz": "0"}, map[string]any{"baz": "1"}}}))
+
+	// When providing an index, only that element is pruned
+	pruned, err = schema.PruneByVisibility(parsePath(c, "foo[1]"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0", "baz": "0"},
+			map[string]any{"bar": "secret1", "baz": "1"},
+		}}))
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"foo": []any{
+		map[string]any{"bar": "secret0", "baz": "0"},
+		map[string]any{"baz": "1"},
+	}}))
+
+	// When providing an index and path to secret data, it returns an unauthorized error
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[1].bar"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0", "baz": "0"},
+			map[string]any{"bar": "secret1", "baz": "1"},
+		}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	// When providing an index placeholder and path to secret data, it returns an unauthorized error
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[{n}].bar"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0", "baz": "0"},
+			map[string]any{"bar": "secret1", "baz": "1"},
+		}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	// When providing an index placeholder and mixed data, some with secrets, some with not, only secrets are excluded
+	pruned, err = schema.PruneByVisibility(parsePath(c, "foo[{n}]"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"bar": "secret0"},
+			map[string]any{"baz": "1"},
+			map[string]any{"bar": "secret2", "baz": "2"},
+		}}))
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{
+		"foo": []any{
+			map[string]any{"baz": "1"},
+			map[string]any{"baz": "2"},
+		}}))
+}
+
+func (*schemaSuite) TestPruneVisibilitySecretArray(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string"
+			},
+			"visibility": "secret"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, marshal(c,
+		map[string]any{"foo": []any{"bar", "baz"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneVisibilityArraySecretValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"type": "string",
+				"visibility": "secret"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{"bar", "baz"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[1]"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{"bar", "baz"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneArrayNotAlongPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"type": "array",
+					"values": {
+						"schema": {
+							"eph": {
+								"type": "string",
+								"visibility": "secret"
+							}
+						}
+					}
+				},
+				"baz": "bool"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": []any{
+			map[string]any{"eph": "secret0"},
+			map[string]any{"eph": "secret1"},
+		},
+			"baz": false}}))
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{
+		"foo": map[string]any{"baz": false},
+	}))
+}
+
+func (*schemaSuite) TestPruneArrayNoContainerError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "array",
+						"values": {
+							"schema": {
+								"eph": {
+									"type": "string",
+									"visibility": "secret"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[0].bar"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{map[string]any{"bar": ""}}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo[0].bar": expected container type but got string`)
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo[0].bar[0].eph"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{map[string]any{"bar": ""}}}))
+	c.Assert(err.Error(), Equals, `cannot decode databag at path "foo[0].bar[0]": expected container type but got string`)
+}
+
+func (*schemaSuite) TestPruneAllAlternatives(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": "string"
+			},
+			"visibility": "secret"
+		},
+		{
+			"type": "array",
+			"values": {
+				"type": "string"
+			},
+			"visibility": "secret"
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": []any{"a", "b"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": "a"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneIdenticalAlternativesExceptForValidate(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+		{
+			"schema": {
+				"bar": {
+					"type": "string",
+					"pattern": "^data-[0-9]+$",
+					"visibility": "secret"
+				}
+			}
+		},
+		{
+			"schema": {
+				"bar": {
+					"type": "string"
+				}
+			}
+		}
+		]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+		marshal(c, map[string]any{"foo": map[string]any{"bar": "data-10"}}))
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+
+	data := marshal(c, map[string]any{"foo": map[string]any{"bar": "data-10b"}})
+	pruned, err := schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, data)
+}
+
+func (*schemaSuite) TestPruneVisibilityUserType(c *C) {
+	schemaStr := []byte(`{
+	"aliases": {
+		"my-type": {
+			"type": "string"
+		}
+	},
+	"schema": {
+		"foo": {
+			"type": "${my-type}",
+			"visibility": "secret"
+		},
+		"bar": {
+			"type": "${my-type}"
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	data := marshal(c, map[string]any{
+		"foo": "a",
+		"bar": "b",
+	})
+	pruned, err := schema.PruneByVisibility([]confdb.Accessor{}, []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, IsNil)
+	c.Assert(pruned, DeepEquals, marshal(c, map[string]any{"bar": "b"}))
+
+	_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility}, data)
+	c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+}
+
+func (*schemaSuite) TestPruneSecretAllTypes(c *C) {
+	values := map[string]any{
+		"number":                    float64(1),
+		"int":                       float64(2),
+		"bool":                      true,
+		"string":                    "a",
+		"any":                       "b",
+		`array", "values": "string`: []any{"a", "b"},
+	}
+	for _, typ := range []string{"number", "int", "bool", "string", "any", `array", "values": "string`} {
+		cmt := Commentf("secret pruning unsuccessful for type %q", typ)
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "%s",
+			"visibility": "secret"
+		}
+	}
+}`, typ))
+		schema, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, IsNil, cmt)
+		_, err = schema.PruneByVisibility(parsePath(c, "foo"), []confdb.Visibility{confdb.SecretVisibility},
+			marshal(c, map[string]any{"foo": values[typ]}))
+		c.Assert(err, testutil.ErrorIs, &confdb.UnauthorizedAccessError{})
+	}
 }

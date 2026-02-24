@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -1164,8 +1165,21 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
 }
 
+type mockLocale struct{}
+
+func (l *mockLocale) Gettext(msgid string) string {
+	return "i18n"
+}
+
+func (l *mockLocale) NGettext(msgid string, msgid_plural string, n uint32) string {
+	return "i18n"
+}
+
 func (s *servicectlSuite) TestTwoServices(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		switch args[0] {
 		case "show":
 			c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
@@ -1199,7 +1213,10 @@ test-snap.user-service     enabled  -        user
 }
 
 func (s *servicectlSuite) TestServices(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
@@ -1222,7 +1239,10 @@ test-snap.test-service  enabled  active   -
 }
 
 func (s *servicectlSuite) TestServicesAsUserWithGlobal(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
@@ -1257,7 +1277,10 @@ func (s *servicectlSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *s
 }
 
 func (s *servicectlSuite) TestServicesUserSwitch(c *C) {
-	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
 		c.Check(isGlobal, Equals, false)
 		c.Check(uid, Equals, "0")
 		return s
@@ -1282,7 +1305,10 @@ test-snap.user-service  enabled  active   user
 }
 
 func (s *servicectlSuite) TestServicesAsUser(c *C) {
-	restore := ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = ctlcmd.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
 		c.Check(isGlobal, Equals, false)
 		c.Check(uid, Equals, "1337")
 		return s
@@ -1326,7 +1352,10 @@ func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
 }
 
 func (s *servicectlSuite) TestServicesParallelInstallsImplicit(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap_foo.test-service.service")
 		return []byte(`Id=snap.test-snap_foo.test-service.service
@@ -1356,7 +1385,10 @@ test-snap.test-service  enabled  active   -
 }
 
 func (s *servicectlSuite) TestServicesParallelInstallsExplicit(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore := i18n.MockLocale(&mockLocale{})
+	defer restore()
+
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap_foo.test-service.service")
 		return []byte(`Id=snap.test-snap_foo.test-service.service

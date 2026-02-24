@@ -52,6 +52,24 @@ func handleUnsupported(db asserts.RODatabase) func(ref *asserts.Ref, unsupported
 // doFetch fetches and save assertions. If a batch is passed then it's not committed.
 // If no batch is passed, one is created and committed.
 func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, batch *asserts.Batch, fetching func(asserts.Fetcher) error) error {
+	user, err := userFromUserID(s, userID)
+	if err != nil {
+		return err
+	}
+
+	sto := snapstate.Store(s, deviceCtx)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		// TODO: ignore errors if already in db?
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
+	}
+
+	return doFetchWithRetrieve(s, batch, retrieve, fetching)
+}
+
+// doFetchWithRetrieve fetches and save assertions using the supplied retrieval
+// strategy. If a batch is passed then it's not committed. If no batch is
+// passed, one is created and committed.
+func doFetchWithRetrieve(s *state.State, batch *asserts.Batch, retrieve func(*asserts.Ref) (asserts.Assertion, error), fetching func(asserts.Fetcher) error) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 	db := cachedDB(s)
 
@@ -62,20 +80,8 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, batc
 		commitBatch = true
 	}
 
-	user, err := userFromUserID(s, userID)
-	if err != nil {
-		return err
-	}
-
-	sto := snapstate.Store(s, deviceCtx)
-
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		// TODO: ignore errors if already in db?
-		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
-	}
-
 	s.Unlock()
-	err = batch.Fetch(db, retrieve, fetching)
+	err := batch.Fetch(db, retrieve, fetching)
 	s.Lock()
 	if err != nil {
 		return err
