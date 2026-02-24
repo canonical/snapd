@@ -87,6 +87,8 @@ jobs:
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+
+          # Kill any leftover spread processes
           for pid in $(pgrep spread); do
             echo "Killing process $(ps -p "$pid" -o cmd || true)"
             kill "$pid"; 
