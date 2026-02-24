@@ -755,8 +755,6 @@ hooks:
 				expectedStatus = state.HoldStatus
 			}
 			which += fmt.Sprintf("[%s]", hs.Hook)
-		case "process-delayed-security-backend-effects":
-			expectedStatus = state.HoldStatus
 		}
 		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
 	}
@@ -13481,6 +13479,9 @@ volumes:
 			for _, l := range lanes {
 				tError.JoinLane(l)
 			}
+		} else if err != nil {
+			// rerefresh does not have snapsetup set on it
+			c.Check(tasks[0].Kind(), Equals, "check-rerefresh")
 		}
 
 		chg.AddAll(ts)
@@ -13630,6 +13631,9 @@ volumes:
 			for _, l := range lanes {
 				tError.JoinLane(l)
 			}
+		} else if err != nil {
+			// rerefresh does not have snapsetup set on it
+			c.Check(tasks[0].Kind(), Equals, "check-rerefresh")
 		}
 
 		chg.AddAll(ts)
