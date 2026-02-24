@@ -585,7 +585,7 @@ func storeUpdatePlanCore(
 
 		target, err := targetFromActionResult(sar, snapst, up.RevOpts, compNames)
 		if err != nil {
-			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
+			return updatePlan{}, err
 		}
 
 		plan.targets = append(plan.targets, target)

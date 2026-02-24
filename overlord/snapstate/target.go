@@ -105,7 +105,7 @@ func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOp
 	// have installed right now
 	components, err := componentTargetsFromActionResult(action, sar, comps)
 	if err != nil {
-		return target{}, err
+		return target{}, fmt.Errorf("cannot build target from store action result: %w", err)
 	}
 
 	trackedChannel := revOpts.Channel
@@ -338,7 +338,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
 		if err != nil {
-			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
+			return nil, err
 		}
 
 		installs = append(installs, target)

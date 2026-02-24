@@ -539,7 +539,7 @@ func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissingWithMissingC
 	})
 
 	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
-	c.Assert(err, ErrorMatches, `cannot extract components from snap resources: cannot find component "missing-component" in snap resources`)
+	c.Assert(err, ErrorMatches, `cannot build target from store action result: cannot find component "missing-component" in snap resources`)
 }
 
 func (s *targetTestSuite) TestUpdateWithGoalMixesRefreshAndInstallIfMissing(c *C) {
