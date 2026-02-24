@@ -560,7 +560,7 @@ func (o *Overlord) Stop() error {
 	return err
 }
 
-func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
+func (o *Overlord) settle(timeout time.Duration, beforeCleanups func(), breakHint func() bool) error {
 	if err := o.StartUp(); err != nil {
 		return err
 	}
@@ -621,6 +621,9 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 			}
 			st.Unlock()
 		}
+		if breakHint != nil && breakHint() {
+			break
+		}
 	}
 	if len(errs) != 0 {
 		return &ensureError{errs}
@@ -636,7 +639,7 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) Settle(timeout time.Duration) error {
-	return o.settle(timeout, nil)
+	return o.settle(timeout, nil, nil)
 }
 
 // SettleObserveBeforeCleanups runs first a state engine Ensure and
@@ -648,7 +651,16 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 // conjunction with Loop. If timeout is non-zero and settling takes
 // longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
-	return o.settle(timeout, beforeCleanups)
+	return o.settle(timeout, beforeCleanups, nil)
+}
+
+// SettleWithBreakCondition is a convenience wrapper around Settle, which passes
+// caller provided helper for indicating when the processing loop should be
+// broken. The helper is evaluated after Ensure() calls and right before
+// starting another iteration. Returning true from the helper breaks the
+// settle loop.
+func (o *Overlord) SettleWithBreakCondition(timeout time.Duration, breakCond func() bool) error {
+	return o.settle(timeout, nil, breakCond)
 }
 
 // State returns the system state managed by the overlord.
