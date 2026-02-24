@@ -562,11 +562,9 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
 		}
 
-		action := "refresh"
 		snapst, ok := allSnaps[sar.InstanceName()]
 		if !ok {
 			snapst = &SnapState{}
-			action = "install"
 		}
 
 		currentComps, err := snapst.CurrentComponentInfos()
@@ -585,41 +583,12 @@ func storeUpdatePlanCore(
 		// installed
 		compNames = unique(append(compNames, up.AdditionalComponents...))
 
-		// compTargets will be filtered down to only the components that appear
-		// in the action result, meaning that we might install fewer components
-		// than we have installed right now
-		compTargets, err := componentTargetsFromActionResult(action, sar, compNames)
+		target, err := targetFromActionResult(sar, snapst, up.RevOpts, compNames)
 		if err != nil {
 			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
-		if action == "refresh" {
-			// if we still have no channel here, this means that we refreshed
-			// by-revision without specifying a channel. make sure we continue to
-			// track the channel that the snap is currently on
-			up.RevOpts.Channel = firstNonEmpty(
-				up.RevOpts.Channel,
-				snapst.TrackingChannel,
-			)
-		} else {
-			up.RevOpts.Channel = firstNonEmpty(
-				sar.RedirectChannel,
-				up.RevOpts.Channel,
-				"stable",
-			)
-		}
-
-		plan.targets = append(plan.targets, target{
-			info:   sar.Info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				DownloadInfo:      &sar.DownloadInfo,
-				Channel:           up.RevOpts.Channel,
-				CohortKey:         up.RevOpts.CohortKey,
-				IntegrityDataInfo: sar.IntegrityData,
-			},
-			components: compTargets,
-		})
+		plan.targets = append(plan.targets, target)
 	}
 
 	// consider snaps that already have a local copy of the revision that we are

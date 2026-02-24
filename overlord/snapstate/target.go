@@ -94,6 +94,52 @@ type target struct {
 	components []ComponentSetup
 }
 
+func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOpts RevisionOptions, comps []string) (target, error) {
+	action := "refresh"
+	if !snapst.IsInstalled() {
+		action = "install"
+	}
+
+	// components will be filtered down to only the components that appear in
+	// the action result, meaning that we might install fewer components than we
+	// have installed right now
+	components, err := componentTargetsFromActionResult(action, sar, comps)
+	if err != nil {
+		return target{}, err
+	}
+
+	trackedChannel := revOpts.Channel
+	if action == "refresh" {
+		// if we still have no channel here, this means that we refreshed
+		// by-revision without specifying a channel. make sure we continue to
+		// track the channel that the snap is currently on
+		trackedChannel = firstNonEmpty(
+			trackedChannel,
+			snapst.TrackingChannel,
+		)
+	} else {
+		trackedChannel = firstNonEmpty(
+			sar.RedirectChannel,
+			trackedChannel,
+			// fallback to "stable" should only happen if the caller requested a
+			// specific revision to be installed, without specifying a channel.
+			"stable",
+		)
+	}
+
+	return target{
+		info:   sar.Info,
+		snapst: *snapst,
+		setup: SnapSetup{
+			DownloadInfo:      &sar.DownloadInfo,
+			Channel:           trackedChannel,
+			CohortKey:         revOpts.CohortKey,
+			IntegrityDataInfo: sar.IntegrityData,
+		},
+		components: components,
+	}, nil
+}
+
 // setups returns the completed SnapSetup and slice of ComponentSetup structs
 // for the target snap.
 func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSetup, error) {
@@ -290,30 +336,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		channel := firstNonEmpty(
-			r.RedirectChannel,
-			sn.RevOpts.Channel,
-			// fallback to "stable" should only happen if the caller requested a
-			// specific revision to be installed, without specifying a channel.
-			"stable",
-		)
-
-		comps, err := componentTargetsFromActionResult("install", r, sn.Components)
+		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
 		if err != nil {
 			return nil, fmt.Errorf("cannot extract components from snap resources: %w", err)
 		}
 
-		installs = append(installs, target{
-			setup: SnapSetup{
-				DownloadInfo:      &r.DownloadInfo,
-				Channel:           channel,
-				CohortKey:         sn.RevOpts.CohortKey,
-				IntegrityDataInfo: r.IntegrityData,
-			},
-			info:       r.Info,
-			snapst:     *snapst,
-			components: comps,
-		})
+		installs = append(installs, target)
 	}
 
 	for _, t := range installs {

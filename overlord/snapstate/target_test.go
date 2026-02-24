@@ -403,7 +403,7 @@ func (s *targetTestSuite) TestUpdateSnapNotInstalled(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not installed`)
 }
 
-func (s *targetTestSuite) TestUpdateSnapNotInstalledInstallIfMissing(c *C) {
+func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
