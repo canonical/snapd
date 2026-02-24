@@ -154,6 +154,10 @@ func (ms *deviceMgmtState) enqueueRequests(pollResp *store.MessageExchangeRespon
 		if !exists {
 			ms.PendingRequests[reqMsg.ID()] = reqMsg
 		}
+
+		if reqMsg.SeqNum > 0 {
+			ms.touchSequence(reqMsg.BaseID)
+		}
 	}
 
 	if len(pollResp.Messages) > 0 {
@@ -422,30 +426,6 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 // pruneSequences evicts tracked sequences that exceed the capacity limit,
 // queuing a rejection response for each evicted sequence.
 func (m *DeviceMgmtManager) pruneSequences(chg *state.Change, ms *deviceMgmtState) {
-	latestReceiveTime := make(map[string]time.Time)
-	for _, msg := range ms.PendingRequests {
-		if msg.SeqNum <= 0 {
-			continue
-		}
-
-		t, ok := latestReceiveTime[msg.BaseID]
-		if !ok || msg.ReceiveTime.After(t) {
-			latestReceiveTime[msg.BaseID] = msg.ReceiveTime
-		}
-	}
-
-	baseIDs := make([]string, 0, len(latestReceiveTime))
-	for baseID := range latestReceiveTime {
-		baseIDs = append(baseIDs, baseID)
-	}
-	sort.Slice(baseIDs, func(i, j int) bool {
-		return latestReceiveTime[baseIDs[i]].Before(latestReceiveTime[baseIDs[j]])
-	})
-
-	for _, baseID := range baseIDs {
-		ms.touchSequence(baseID)
-	}
-
 	for len(ms.Sequences.Applied) > maxSequences {
 		earliest := ms.evictLRUSequence()
 		if earliest != nil {

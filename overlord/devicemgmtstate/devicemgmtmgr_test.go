@@ -392,6 +392,68 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	c.Check(ms.PendingRequests, HasLen, 0)
 }
 
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesSequenceLRU(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockModel()
+	setRemoteMgmtFeatureFlag(c, s.st, true)
+
+	oneHourAgo := time.Now().Add(-time.Hour)
+	tomorrow := oneHourAgo.Add(24 * time.Hour)
+	body := []byte(`{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`)
+
+	makeSeqMsg := func(baseID string, seqNum int) store.MessageWithToken {
+		as, err := s.storeStack.Sign(
+			asserts.RequestMessageType,
+			map[string]any{
+				"authority-id": "my-brand",
+				"account-id":   "my-brand",
+				"message-id":   fmt.Sprintf("%s-%d", baseID, seqNum),
+				"message-kind": "confdb",
+				"devices":      []any{"serial-1.my-model.my-brand"},
+				"valid-since":  oneHourAgo.UTC().Format(time.RFC3339),
+				"valid-until":  tomorrow.UTC().Format(time.RFC3339),
+				"timestamp":    oneHourAgo.UTC().Format(time.RFC3339),
+			},
+			body, "",
+		)
+		c.Assert(err, IsNil)
+		return store.MessageWithToken{
+			Token: fmt.Sprintf("token-%s-%d", baseID, seqNum),
+			Message: store.Message{
+				Format: "assertion",
+				Data:   string(asserts.Encode(as)),
+			},
+		}
+	}
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				makeSeqMsg("seqA", 1),
+				makeSeqMsg("seqB", 1),
+				makeSeqMsg("seqB", 2),
+				makeSeqMsg("seqC", 1),
+				makeSeqMsg("seqA", 2),
+			},
+		}, nil
+	})
+
+	t := s.st.NewTask("exchange-mgmt-messages", "test exchange-mgmt-messages task")
+
+	s.st.Unlock()
+	err := s.mgr.DoExchangeMessages(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// seqA's second touch moves it after seqC, leaving seqB least recently used.
+	c.Check(ms.Sequences.LRU, DeepEquals, []string{"seqB", "seqC", "seqA"})
+}
+
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -662,6 +724,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 
 	baseTime := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
 	pending := make(map[string]*devicemgmtstate.RequestMessage)
+	seqs := devicemgmtstate.NewSequenceCache()
 	for i := 1; i <= devicemgmtstate.MaxSequences+2; i++ {
 		baseID := fmt.Sprintf("seq-%d", i)
 		for _, seqNum := range []int{1, 2} {
@@ -671,11 +734,15 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 			)
 			pending[msg.ID()] = msg
 		}
+
+		// Build the LRU as enqueueRequests would.
+		seqs.Applied[baseID] = 0
+		seqs.LRU = append(seqs.LRU, baseID)
 	}
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		PendingRequests: pending,
-		Sequences:       devicemgmtstate.NewSequenceCache(),
+		Sequences:       seqs,
 		ReadyResponses:  make(map[string]store.Message),
 	}
 	s.mgr.SetState(ms)
@@ -776,9 +843,9 @@ func makeRequestMessage(baseID, kind string, seqNum int, changeID string) *devic
 }
 
 type taskIndex struct {
-	validate map[string]*state.Task // Message ID -> validate-mgmt-message
-	apply    map[string]*state.Task // Message ID -> apply-mgmt-message
-	queue    map[string]*state.Task // Message ID -> queue-mgmt-response
+	validate map[string]*state.Task
+	apply    map[string]*state.Task
+	queue    map[string]*state.Task
 }
 
 func buildTaskIndex(chg *state.Change) *taskIndex {
@@ -807,7 +874,6 @@ func buildTaskIndex(chg *state.Change) *taskIndex {
 	return ti
 }
 
-// assertMessagesDispatched checks that each message has all three dispatched tasks.
 func assertMessagesDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
 	for _, id := range msgIDs {
 		cmt := Commentf("%s: expected %s to be dispatched", testName, id)
@@ -817,7 +883,6 @@ func assertMessagesDispatched(c *C, ti *taskIndex, msgIDs []string, testName str
 	}
 }
 
-// assertMessagesNotDispatched checks that no tasks for the given messages were dispatched.
 func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName string) {
 	for _, id := range msgIDs {
 		cmt := Commentf("%s: expected %s to not be dispatched", testName, id)
@@ -827,7 +892,6 @@ func assertMessagesNotDispatched(c *C, ti *taskIndex, msgIDs []string, testName 
 	}
 }
 
-// assertMessagesWaitOn checks that each message's validate task waits on its predecessor's queue response task.
 func assertMessagesWaitOn(c *C, ti *taskIndex, waitOn map[string]string, testName string) {
 	for msgID, prevID := range waitOn {
 		cmt := Commentf("%s: invalid wait chain for %s", testName, msgID)
