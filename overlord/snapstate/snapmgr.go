@@ -856,7 +856,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// remove anything that is not referenced anymore
 	runner.AddHandler("prerequisites", m.doPrerequisites, nil)
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
-	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
+	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoDownloadSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)

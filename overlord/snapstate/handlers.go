@@ -857,6 +857,55 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, theStore, _, err := downloadSnapParams(st, t)
+	if err != nil {
+		t.Logf("cannot obtain download info: %v", err)
+		return nil
+	}
+
+	fname := snapsup.BlobPath()
+	fi, err := os.Stat(fname)
+	if err != nil {
+		t.Logf("cannot stat download file: %v", err)
+		return nil
+	}
+
+	err = func() error {
+		st.Unlock()
+		defer st.Lock()
+
+		// TODO: better check for file being corrupted, verify the hash?
+		corrupted := fi.Size() == 0
+		if !corrupted {
+			return nil
+		}
+
+		err := fmt.Errorf("found corrupted snap file")
+
+		if rerr := os.Remove(fname); rerr != nil {
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot remove corrupted file: %w", rerr))
+		}
+
+		if snapsup.DownloadInfo != nil {
+			// takes a lock inside, could block
+			if cerr := theStore.CleanDownloadsCacheEntry(snapsup.DownloadInfo); cerr != nil {
+				err = strutil.JoinErrors(err, fmt.Errorf("cannot drop cached download entry: %w", cerr))
+			}
+		}
+		return err
+	}()
+	if err != nil {
+		t.Logf("errors during cleanup: %v", err)
+	}
+
+	return nil
+}
+
 func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
 	st := task.State()
 	st.Lock()

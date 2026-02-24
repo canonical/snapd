@@ -1014,6 +1014,11 @@ func (f *fakeStore) CleanDownloadsCache() error {
 	return nil
 }
 
+func (f *fakeStore) CleanDownloadsCacheEntry(info *snap.DownloadInfo) error {
+	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-clean-downloads-cache-entry", name: info.Sha3_384})
+	return nil
+}
+
 type fakeSnappyBackend struct {
 	ops fakeOps
 	mu  sync.Mutex
