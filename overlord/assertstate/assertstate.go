@@ -407,12 +407,12 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 		return err
 	}
 
-	return autoRefreshConfdbAssertions(s, userID, opts)
+	return refreshAllConfdbAssertions(s, userID, opts)
 }
 
 // autoRefreshConfdbAssertions fetches the newest revision of all stored
 // confdb assertions.
-func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
+func refreshAllConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
 	confdbAsserts, err := db.FindMany(asserts.ConfdbSchemaType, nil)
 	if err != nil {
@@ -481,18 +481,23 @@ func refreshConfdbAssertions(st *state.State, schemaIDs []confdb.SchemaID, userI
 }
 
 // RefreshSnapAssertions tries to refresh all snap-centered assertions
-func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+func RefreshSnapAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
 	opts.IsAutoRefresh = false
-	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
+	if err := RefreshSnapDeclarations(st, userID, opts); err != nil {
 		return err
 	}
 	if !opts.IsRefreshOfAllSnaps {
 		return nil
 	}
-	return RefreshValidationSetAssertions(s, userID, opts)
+
+	if err := RefreshValidationSetAssertions(st, userID, opts); err != nil {
+		return err
+	}
+
+	return refreshAllConfdbAssertions(st, userID, opts)
 }
 
 // FetchAllValidationSets updates the DB with new validation sets, if any exist.
