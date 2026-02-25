@@ -19299,8 +19299,8 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	firstLocalModApp := firstTaskAfterLocalModifications(c, appTS)
 
 	for _, firstLocalMod := range []*state.Task{firstLocalModKernel, firstLocalModBase, firstLocalModApp} {
-		c.Check(firstLocalMod.WaitTasks(), testutil.Contains, lastBeforeLocalBase)
-		c.Check(firstLocalMod.WaitTasks(), testutil.Contains, lastBeforeLocalKernel)
+		c.Check(waitsOnTransitively(firstLocalMod, lastBeforeLocalBase), Equals, true)
+		c.Check(waitsOnTransitively(firstLocalMod, lastBeforeLocalKernel), Equals, true)
 	}
 }
 
@@ -19416,6 +19416,16 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 
 	lastEssentialSnapTask, err := kernelTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
+	lastBeforeLocalModelApp, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+
+	// with seed-refresh early downloads enabled, essential snaps should defer
+	// local modifications until all early cohort downloads (including model
+	// apps) are complete.
+	firstLocalModBase := firstTaskAfterLocalModifications(c, baseTS)
+	firstLocalModKernel := firstTaskAfterLocalModifications(c, kernelTS)
+	c.Check(waitsOnTransitively(firstLocalModBase, lastBeforeLocalModelApp), Equals, true)
+	c.Check(waitsOnTransitively(firstLocalModKernel, lastBeforeLocalModelApp), Equals, true)
 
 	// model app downloads early, but doesn't perform any local modifications
 	// until all essential snaps are complete.

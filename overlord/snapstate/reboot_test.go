@@ -323,6 +323,26 @@ func (s *rebootSuite) setDependsOn(c *C, ts, dep *state.TaskSet) bool {
 	return false
 }
 
+func waitsOnTransitively(waiter, target *state.Task) bool {
+	stack := append([]*state.Task(nil), waiter.WaitTasks()...)
+	seen := make(map[string]bool, len(stack))
+	for len(stack) > 0 {
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if cur == target {
+			return true
+		}
+		if seen[cur.ID()] {
+			continue
+		}
+		seen[cur.ID()] = true
+		stack = append(stack, cur.WaitTasks()...)
+	}
+
+	return false
+}
+
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsUC16NoSplits(c *C) {
 	defer snapstatetest.MockDeviceModel(DefaultModel())()
 
@@ -713,8 +733,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloads(c *C) {
 
 	for _, sts := range stss {
 		firstLocalModTask := firstTaskAfterLocalModifications(c, sts.TaskSet())
-		c.Check(firstLocalModTask.WaitTasks(), testutil.Contains, baseLastBefore)
-		c.Check(firstLocalModTask.WaitTasks(), testutil.Contains, kernelLastBefore)
+		c.Check(waitsOnTransitively(firstLocalModTask, baseLastBefore), Equals, true)
+		c.Check(waitsOnTransitively(firstLocalModTask, kernelLastBefore), Equals, true)
 	}
 }
 
@@ -739,10 +759,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdEarlyDownload(c *C) {
 	c.Assert(err, IsNil)
 
 	baseFirstLocalMod := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
-	c.Check(baseFirstLocalMod.WaitTasks(), testutil.Contains, snapdLastBefore)
+	c.Check(waitsOnTransitively(baseFirstLocalMod, snapdLastBefore), Equals, true)
 
 	appFirstLocalMod := firstTaskAfterLocalModifications(c, stss[2].TaskSet())
-	c.Check(appFirstLocalMod.WaitTasks(), testutil.Contains, snapdLastBefore)
+	c.Check(waitsOnTransitively(appFirstLocalMod, snapdLastBefore), Equals, true)
 
 	baseLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
@@ -750,8 +770,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdEarlyDownload(c *C) {
 	c.Assert(err, IsNil)
 
 	snapdFirstLocalMod := firstTaskAfterLocalModifications(c, stss[0].TaskSet())
-	c.Check(snapdFirstLocalMod.WaitTasks(), Not(testutil.Contains), baseLastBefore)
-	c.Check(snapdFirstLocalMod.WaitTasks(), Not(testutil.Contains), appLastBefore)
+	c.Check(waitsOnTransitively(snapdFirstLocalMod, baseLastBefore), Equals, false)
+	c.Check(waitsOnTransitively(snapdFirstLocalMod, appLastBefore), Equals, false)
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialEarlyDownloadsNoCycle(c *C) {
@@ -788,10 +808,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialEarlyDownlo
 	c.Assert(err, IsNil)
 
 	baseFirstLocalMod := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
-	c.Check(baseFirstLocalMod.WaitTasks(), testutil.Contains, snapdLastBefore)
+	c.Check(waitsOnTransitively(baseFirstLocalMod, snapdLastBefore), Equals, true)
 
 	snapdFirstLocalMod := firstTaskAfterLocalModifications(c, stss[0].TaskSet())
-	c.Check(snapdFirstLocalMod.WaitTasks(), testutil.Contains, baseLastBefore)
+	c.Check(waitsOnTransitively(snapdFirstLocalMod, baseLastBefore), Equals, true)
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloadedAppWaitsAfterEssentials(c *C) {

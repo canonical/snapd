@@ -158,6 +158,28 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 		return tasks[len(tasks)-1]
 	}
 
+	// since there are already some cross-snap dependencies established, we use
+	// a smarter WaitFor alternative here that considers existing transitive
+	// dependencies. this reduces the number of superfluous dependencies in the
+	// final graph of tasks.
+	waitForIfNeeded := func(waiter, target *state.Task) {
+		stack := append([]*state.Task(nil), waiter.WaitTasks()...)
+		seen := make(map[*state.Task]bool, len(stack))
+		for len(stack) > 0 {
+			cur := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			if seen[cur] {
+				continue
+			}
+			seen[cur] = true
+			stack = append(stack, cur.WaitTasks()...)
+		}
+		if !seen[target] {
+			waiter.WaitFor(target)
+		}
+	}
+
 	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
 	for _, sts := range stss {
 		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
@@ -177,7 +199,7 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 			if name == sts.snapsup.InstanceName() {
 				continue
 			}
-			firstLocalMod.WaitFor(tail)
+			waitForIfNeeded(firstLocalMod, tail)
 		}
 	}
 
@@ -235,10 +257,6 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			len(sts.afterLinkSnapAndPostReboot) == 0 {
 			return errors.New("internal error: snap install task set has empty slices")
 		}
-	}
-
-	if err := addEarlyDownloadDeps(stss, earlyDownloads); err != nil {
-		return err
 	}
 
 	head := func(tasks []*state.Task) *state.Task {
@@ -468,6 +486,10 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		if baseSTS, ok := nonEssentialBases[sts.snapsup.Base]; ok {
 			nonEssentialWaitHead(sts).WaitFor(tail(baseSTS.afterLinkSnapAndPostReboot))
 		}
+	}
+
+	if err := addEarlyDownloadDeps(stss, earlyDownloads); err != nil {
+		return err
 	}
 
 	return nil
