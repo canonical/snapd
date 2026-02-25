@@ -106,7 +106,6 @@ func sessionInfo(c *Command, r *http.Request) Response {
 // lacks a graphical system, but still wants to install a snap that has a daemon
 // that is designed for it (for example, because it contains other tools that
 // are useful in a text-only system; another case is for spread tests).
-
 func checkWantedByForService(sysd systemdService, originalError error, service string) error {
 	// first, get the path where the .target file of this service is, load it as an INI file,
 	// and read the `WantedBy` section to get in which target this service should be launched.

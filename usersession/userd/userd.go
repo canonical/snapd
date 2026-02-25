@@ -21,13 +21,20 @@ package userd
 
 import (
 	"fmt"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
+	"gopkg.in/ini.v1"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type dbusInterface interface {
@@ -48,6 +55,92 @@ type Userd struct {
 var userdBusNames = []string{
 	"io.snapcraft.Launcher",
 	"io.snapcraft.Settings",
+}
+
+func clearBrokenLink(targetPath string) error {
+	_, err := filepath.EvalSymlinks(targetPath)
+	if err != nil {
+		switch err.(type) {
+		case *fs.PathError:
+			logger.Noticef("deleting broken link in snap service %s", targetPath)
+			// it's a broken link; delete it
+			os.Remove(targetPath)
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+func reenableUserService(serviceName string) error {
+	logger.Noticef("re-enabling user service %s", serviceName)
+	sysd := systemd.New(systemd.UserMode, nil)
+	return sysd.DaemonReEnable([]string{serviceName})
+}
+
+func checkServicePlacement(targetName, snapTarget string) error {
+	snapTargetData, err := os.ReadFile(snapTarget)
+	if err != nil {
+		return err
+	}
+	targetIni, err := ini.Load(snapTargetData)
+	if err != nil {
+		return err
+	}
+	wantedBy := ""
+	if section := targetIni.Section("Install"); section != nil {
+		wantedBy = section.Key("WantedBy").String()
+	}
+	if wantedBy != targetName {
+		// the symlink is in the wrong folder. Re-enable the service
+		// to change it.
+		err := reenableUserService(path.Base(snapTarget))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func sanitizeUserServices() error {
+	// ensure that the user services enabled in the $HOME folder are
+	// correctly placed in the right .target.wants folder. This placement
+	// will be wrong if a service is moved from default.target to
+	// graphical-session.target or vice-versa, so this clean up is required.
+	//
+	// The change can happen in two cases:
+	//
+	// * when migrating from an old version of snapd without "graphical-session.target"
+	//   support, to a new version that supports it: all the user daemons' WantedBy entry
+	//   will be updated, and so these entries will have to be updated too.
+	// * when a snap adds or removes the `desktop` plug in a daemon
+
+	userSystemdQuery := path.Join(os.Getenv("HOME"), ".config", "systemd", "user", "*.target.wants")
+	entries, err := filepath.Glob(userSystemdQuery)
+	if err != nil {
+		return err
+	}
+	for _, targetWantPath := range entries {
+		snapTargetPaths, err := filepath.Glob(path.Join(targetWantPath, "snap.*"))
+		if err != nil {
+			logger.Noticef("cannot get the user service files at %s: %s", targetWantPath, err.Error())
+			continue
+		}
+		for _, snapTarget := range snapTargetPaths {
+			// Remove any broken link (that's a service that was removed)
+			if err = clearBrokenLink(snapTarget); err != nil {
+				logger.Noticef("cannot remove the broken link %s: %s", snapTarget, err.Error())
+				continue
+			}
+			// Check that any snap service is in the right .target.wants
+			targetName := strings.TrimSuffix(targetWantPath, ".wants")
+			if err := checkServicePlacement(path.Base(targetName), snapTarget); err != nil {
+				logger.Noticef("cannot process user service at %s for %s: %s", snapTarget, targetName, err.Error())
+				continue
+			}
+		}
+	}
+	return nil
 }
 
 func (ud *Userd) Init() error {
@@ -86,6 +179,8 @@ func (ud *Userd) Init() error {
 			return fmt.Errorf("cannot obtain bus name '%s'", name)
 		}
 	}
+
+	sanitizeUserServices()
 	return nil
 }
 
