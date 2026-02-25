@@ -65,6 +65,12 @@ var (
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
+
+	NewDelayedEffectsForSnaps = newDelayedEffectsForSnaps
+)
+
+type (
+	DelayedEffectsForSnapData = delayedEffectsForSnapData
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {

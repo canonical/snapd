@@ -511,6 +511,7 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 
 type setupSeedOpts struct {
 	hasKModsComps bool
+	release       int
 	// integrityData is an array of integrity data because multiple integrity data
 	// can be found in a single snap-revision assertion
 	integrityData *[]asserts.IntegrityData
@@ -529,9 +530,9 @@ func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, integrityDat
 func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
 	base := "core20"
 	channel := "20"
-	if opts.hasKModsComps {
-		base = "core24"
-		channel = "24"
+	if opts.release != 0 {
+		channel = fmt.Sprintf("%d", opts.release)
+		base = "core" + channel
 	}
 
 	// pretend /run/mnt/ubuntu-seed has a valid seed
@@ -567,7 +568,7 @@ func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, modelAssertTime time.T
 	}
 
 	if opts.hasKModsComps {
-		testSeed.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"],
+		testSeed.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel="+channel+"+kmods"],
 			nil, snap.R(1), nil, "canonical", testSeed.StoreSigning.Database)
 	} else {
 		if opts.integrityData != nil {

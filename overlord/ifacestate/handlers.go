@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -145,6 +147,15 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 	return nil
 }
 
+func delayedEffectsTask(chg *state.Change) *state.Task {
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "process-delayed-security-backend-effects" {
+			return t
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -157,6 +168,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	if err != nil {
 		return err
 	}
+
+	var newConns []string
+	if err := task.Get("new-connections", &newConns); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	logger.Debugf("new connections: %v", newConns)
+
+	delayedTask := delayedEffectsTask(task.Change())
+	// we can only delay side effects if we have the delay task
+	// TODO:delayed-mount-ns-update: add relevant delayed processing task in snapstate
+	canDelay := delayedTask != nil
+	logger.Debugf("has delayed effects support? %v", canDelay)
 
 	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
@@ -197,10 +221,28 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
+	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
+	if err != nil {
 		return err
 	}
-	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
+
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet); err != nil {
+		return err
+	}
+
+	if len(delayedEffects) != 0 {
+		if delayedTask == nil {
+			return fmt.Errorf("internal error: cannot delay backend effects without a handler task")
+		}
+		logger.Debugf("has delayed effects for snaps: %v", delayedEffects)
+		task.Logf("delayed effects for snaps:\n%v", delayedEffects)
+		err := DelayedBackendEffectsFor(delayedTask, triggeringSnap(snapsup.InstanceName()), delayedEffects)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // setupPendingProfilesSideInfo helps updating information about any
@@ -238,10 +280,39 @@ func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *in
 	return nil
 }
 
+// triggeringSnap is the snap name of a snap that triggered the side effect.
+type triggeringSnap string
+
+// affectedSnap is the name of a snap that is affected.
+type affectedSnap string
+
+// delayedEffectsForSnaps captures all affected snaps and delayed side effects for
+// each security backend for each snap.
+type delayedEffectsForSnaps map[affectedSnap]map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect
+
+// delayedEffects captures all delayed side effects grouped by snaps that triggered them.
+type delayedEffects struct {
+	// snap owning the slot -> plug snaps -> []work items
+	TriggeringSnaps map[triggeringSnap]delayedEffectsForSnaps `json:"triggering-snaps"`
+}
+
+func newDelayedEffectsForSnaps() delayedEffectsForSnaps {
+	return delayedEffectsForSnaps(make(map[affectedSnap]map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect))
+}
+
+func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interfaces.SecuritySystem, item interfaces.DelayedSideEffect) {
+	if d[snapName] == nil {
+		d[snapName] = make(map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect)
+	}
+	d[snapName][backend] = append(d[snapName][backend], item)
+}
+
 func (m *InterfaceManager) setupProfilesForAppSet(
 	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	newConns []string,
+	canDelay bool,
 	tm timings.Measurer,
-) error {
+) (delayedEffects delayedEffectsForSnaps, err error) {
 	st := task.State()
 
 	snapInfo := appSet.Info()
@@ -259,15 +330,15 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// - setup the security of all the affected snaps
 	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
 	if err := m.repo.RemoveSnap(snapName); err != nil {
-		return err
+		return nil, err
 	}
 	if err := m.repo.AddAppSet(appSet); err != nil {
-		return err
+		return nil, err
 	}
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
@@ -282,7 +353,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// snaps cannot be found in the state.
 	affectedConnections, err := m.reloadConnections(snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	affectedSet := make(map[string]bool)
 	for _, name := range disconnectedSnaps {
@@ -291,11 +362,12 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 	snapsWithConnectedPlugs := make(map[string]bool)
 	snapsWithConnectedSlots := make(map[string]bool)
+	newConnectedSnaps := make(map[string]bool)
 	// Identify affected snaps on either side of the connection.
 	for _, connID := range affectedConnections {
 		connRef, err := interfaces.ParseConnRef(connID)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
+			return nil, fmt.Errorf("internal error: cannot parse existing connection: %w", err)
 		}
 
 		affectedSet[connRef.PlugRef.Snap] = true
@@ -311,8 +383,16 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 	}
 
-	// Sort the set of affected names, ensuring that the snap being setup
-	// is first regardless of the name it has.
+	for _, connId := range newConns {
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot parse new connection: %w", err)
+		}
+		newConnectedSnaps[connRef.PlugRef.Snap] = true
+		newConnectedSnaps[connRef.SlotRef.Snap] = true
+	}
+
+	// back to a slice
 	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
 		if name != snapName {
@@ -320,6 +400,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 	}
 	sort.Strings(affectedNames)
+	// the snap for which profiles are being set up comes first
 	affectedNames = append([]string{snapName}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
@@ -333,8 +414,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	confinementOpts = append(confinementOpts, opts)
 	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
 		// We are being updated
-		Reason: interfaces.SnapSetupReasonOwnUpdate,
+		Reason:          interfaces.SnapSetupReasonOwnUpdate,
+		CanDelayEffects: false,
 	}
+
+	var delayedEffectsLock sync.Mutex
+	var delayErr error
+	delayedEffects = newDelayedEffectsForSnaps()
 
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
@@ -345,10 +431,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := addImplicitInterfaces(st, snapInfo); err != nil {
-			return err
+			return nil, err
 		}
 
 		var appSet *interfaces.SnapAppSet
@@ -362,7 +448,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 			for _, csi := range snapst.PendingSecurity.Components {
 				ci, err := snapstate.ReadComponentInfo(snapInfo, csi)
 				if err != nil {
-					return fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
+					return nil, fmt.Errorf("cannot read component info when building app set %q: %v", name, err)
 				}
 
 				comps = append(comps, ci)
@@ -374,12 +460,12 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		}
 
 		if err != nil {
-			return fmt.Errorf("building app set for snap %q: %v", name, err)
+			return nil, fmt.Errorf("building app set for snap %q: %v", name, err)
 		}
 
 		opts, err := m.buildConfinementOptions(st, task, snapInfo, snapst.Flags)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// The snap is affected though a connection, set the context for the
@@ -395,13 +481,52 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		case snapsWithConnectedSlots[name]:
 			sctx.Reason = interfaces.SnapSetupReasonConnectedPlugConsumerUpdate
 		}
+
+		// TODO: the safe bet right now is to only allow side effects when the
+		// snap is on the plug side of the connection
+		if sctx.Reason == interfaces.SnapSetupReasonConnectedSlotProviderUpdate {
+			// for newly established connections, especially ones with plug side
+			// connection hook, the side effects cannot be delayed
+			_, isNewConnected := newConnectedSnaps[name]
+			sctx.CanDelayEffects = canDelay && !isNewConnected
+			if sctx.CanDelayEffects {
+				// callback only makes sense if side effects can be delayed
+				sctx.DelayEffect = func(backend interfaces.SecurityBackend, item interfaces.DelayedSideEffect) {
+					delayedEffectsLock.Lock()
+					defer delayedEffectsLock.Unlock()
+
+					if backend == nil {
+						// TODO:GOVERSION: use errors.Join
+						delayErr = strutil.JoinErrors(delayErr,
+							fmt.Errorf("internal error: attempt to delay effects without a backend"))
+						return
+					}
+					if !interfaces.SupportsDelayingEffects(backend) {
+						// TODO:GOVERSION: use errors.Join
+						delayErr = strutil.JoinErrors(delayErr,
+							fmt.Errorf("internal error: attempt to delay effects for backend %q without support for it",
+								backend.Name()))
+						return
+					}
+					delayedEffects.EnqueueFor(affectedSnap(snapst.InstanceName()), backend.Name(), item)
+				}
+			}
+		}
 		setupContexts[name] = sctx
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
 	}
 
-	return m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm)
+	if err := m.setupSecurityByBackend(task, affectedSnapSets, confinementOpts, setupContexts, tm); err != nil {
+		return nil, err
+	}
+
+	if delayErr != nil {
+		return nil, delayErr
+	}
+
+	return delayedEffects, nil
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
@@ -525,7 +650,8 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 
-		if err := m.setupProfilesForAppSet(task, appSet, opts, perfTimings); err != nil {
+		const canDefer = false
+		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
 		return setPendingProfilesSideInfo(task.State(), snapName, appSet)
@@ -2226,4 +2352,268 @@ func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *
 	// of state for the duration of security backend operations
 	const unlockState = true
 	return m.regenerateAllSecurityProfiles(perfTimings, unlockState)
+}
+
+// DelayedBackendEffectsFor queues delayed backend effects for a bunch of
+// consumer snaps that were triggered by the provided provider snap.
+func DelayedBackendEffectsFor(deferTask *state.Task, snapWithSlot triggeringSnap, newDelayedSnapsWork delayedEffectsForSnaps) error {
+	scheduledDelayedEffects, err := getDelayedEffectsForSnaps(deferTask)
+	if err != nil {
+		return err
+	}
+
+	if scheduledDelayedEffects.TriggeringSnaps == nil {
+		scheduledDelayedEffects.TriggeringSnaps = make(map[triggeringSnap]delayedEffectsForSnaps)
+	}
+
+	forSnap := scheduledDelayedEffects.TriggeringSnaps[snapWithSlot]
+
+	if forSnap == nil {
+		forSnap = newDelayedEffectsForSnaps()
+	}
+
+	// if there's already some work, merge new things
+	for sn := range newDelayedSnapsWork {
+		if len(forSnap[sn]) == 0 {
+			forSnap[sn] = make(map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect, len(newDelayedSnapsWork[sn]))
+		}
+
+		for b := range newDelayedSnapsWork[sn] {
+			forSnap[sn][b] = append(forSnap[sn][b], newDelayedSnapsWork[sn][b]...)
+		}
+	}
+
+	scheduledDelayedEffects.TriggeringSnaps[snapWithSlot] = forSnap
+	deferTask.Set("delayed-effects-for-snaps", scheduledDelayedEffects)
+
+	return nil
+}
+
+// getDelayedEffectsForSnaps returns delayed backend effects.
+func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, err error) {
+	if err := deferTask.Get("delayed-effects-for-snaps", &delayed); err != nil && !errors.Is(err, state.ErrNoState) {
+		return delayedEffects{}, err
+	}
+	return delayed, nil
+}
+
+var delayedEffectsCoordinationRetryTimeout = time.Second / 2
+
+func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
+	// Single catch all task handler for all delayed side effects for snaps.
+	// Looks through all the tasks to identify which snaps are affected, and
+	// whether the snaps that triggered the side effect were successfully
+	// processed. Then schedules new tasks, one for each affected snap to apply
+	// its queued effects.
+
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	logger.Debugf("delayed effects coordination")
+
+	var snapLanes []int
+	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	logger.Debugf("monitor lanes: %v", snapLanes)
+
+	// We are going to apply the effects only for triggering snaps in lanes
+	// which were fully successful. Depending on the scenario there could be one
+	// or more snaps in the lane. Before we start doing any work, all lanes must
+	// have completed.
+	successfulTriggeringSnaps := map[triggeringSnap]bool{}
+	chg := task.Change()
+	for _, lane := range snapLanes {
+		laneFailed := false
+		var seenSnaps []string
+	laneLoop:
+		for _, tsk := range chg.LaneTasks(lane) {
+			switch {
+			case tsk.ID() == task.ID():
+				// our task should only be present in the default '0' lane, not a dedicated one
+				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
+					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
+				}
+				continue
+			case tsk.Kind() == "check-rerefresh":
+				// same thing applies to check-rerefresh, although lane
+				// verification should be done in snapstate
+				continue
+			case !tsk.Status().Ready():
+				logger.Debugf("not yet ready")
+				return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
+			case tsk.Status() != state.DoneStatus:
+				laneFailed = true
+				break laneLoop
+			case tsk.Kind() == "link-snap":
+				sup, err := snapstate.TaskSnapSetup(tsk)
+				if err != nil {
+					return fmt.Errorf("internal error: task snap setup not found through link-snap task")
+				}
+				seenSnaps = append(seenSnaps, sup.InstanceName())
+			}
+		}
+		if laneFailed {
+			logger.Debugf("lane %v failed", lane)
+		} else {
+			for _, seenSnap := range seenSnaps {
+				successfulTriggeringSnaps[triggeringSnap(seenSnap)] = true
+			}
+		}
+	}
+
+	// TODO: handle pending reboot
+
+	logger.Debugf("happy snaps: %v", successfulTriggeringSnaps)
+
+	delayed, err := getDelayedEffectsForSnaps(task)
+	if err != nil {
+		return err
+	}
+
+	if len(delayed.TriggeringSnaps) == 0 {
+		task.Logf("no delayed backend effects")
+		logger.Debug("no delayed backend effects")
+		return nil
+	}
+
+	logger.Debugf("delayed effects work %+v", delayed)
+
+	// delayed effects are grouped by snap providing the slot, regroup them by
+	// the affected snap only of the snap that triggered it has been successfully
+	// processed
+	snapsWithDelayedEffects := newDelayedEffectsForSnaps()
+	for triggeredBySnap, affectedSnaps := range delayed.TriggeringSnaps {
+		logger.Debugf("triggered by: %q", triggeredBySnap)
+		if _, ok := successfulTriggeringSnaps[triggeredBySnap]; !ok {
+			logger.Debugf("skipping effects triggered by failed snap %q", triggeredBySnap)
+			task.Logf("skipping effects triggered by failed snap %q", triggeredBySnap)
+			continue
+		}
+
+		for affected, perBackendEffects := range affectedSnaps {
+			alreadyCollected := snapsWithDelayedEffects[affected]
+			if alreadyCollected == nil {
+				alreadyCollected = make(map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect)
+			}
+
+			for b, items := range perBackendEffects {
+				alreadyCollected[b] = append(alreadyCollected[b], items...)
+			}
+
+			snapsWithDelayedEffects[affected] = alreadyCollected
+		}
+	}
+
+	var perSnapTasks []*state.Task
+	for affectedSnap, backendEffects := range snapsWithDelayedEffects {
+		if len(backendEffects) == 0 {
+			// unlikely
+			continue
+		}
+
+		task.Logf("scheduling delayed effects for snap %q", affectedSnap)
+		logger.Debugf("scheduling delayed effects for snap %q", affectedSnap)
+
+		// One task per connected snap instance
+		updateTask := st.NewTask("apply-delayed-snap-security-backend-effects",
+			fmt.Sprintf("Apply delayed security backend side effects for snap %q", affectedSnap))
+		updateTask.Set("effects-data", delayedEffectsForSnapData{
+			AffectedSnapInstance: affectedSnap,
+			Effects:              backendEffects,
+		})
+
+		perSnapTasks = append(perSnapTasks, updateTask)
+	}
+
+	if len(perSnapTasks) > 0 {
+		// place each task in a dedicated lane, such that their errors are not
+		// affecting anything else (neither the default lane, nor any other
+		// lanes where the triggering snaps are being processed)
+
+		// TODO in case some effects would need to be able to trigger undo, this
+		// may need additional task sharing the same lane as the snap
+		for _, tsk := range perSnapTasks {
+			tsk.JoinLane(st.NewLane())
+		}
+
+		ts := state.NewTaskSet(perSnapTasks...)
+		ts.WaitFor(task)
+		task.Change().AddAll(ts)
+	}
+
+	// Update the status before we unlock
+	task.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+type delayedEffectsForSnapData struct {
+	AffectedSnapInstance affectedSnap                                                 `json:"affected-snap-instance"`
+	Effects              map[interfaces.SecuritySystem][]interfaces.DelayedSideEffect `json:"effects"`
+}
+
+func (m *InterfaceManager) doApplyDelayedSnapSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
+	// Process and apply delayed effects to a snap
+
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(task.State())
+
+	var effectsData delayedEffectsForSnapData
+	if err := task.Get("effects-data", &effectsData); err != nil {
+		return err
+	}
+
+	instanceName := string(effectsData.AffectedSnapInstance)
+	delayed := effectsData.Effects
+	logger.Debugf("delayed update for snap %v, effects %v", instanceName, delayed)
+
+	// Get the snap state to build an app set
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return err
+	}
+
+	// Get the current snap info
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// Add implicit interfaces if needed
+	if err := addImplicitInterfaces(st, snapInfo); err != nil {
+		return err
+	}
+
+	// Build an app set for the current snap revision
+	appSet, err := appSetForSnapRevision(st, snapInfo)
+	if err != nil {
+		return fmt.Errorf("building app set for snap %q: %v", instanceName, err)
+	}
+
+	// Unlock state for the duration of security backend operations
+	st.Unlock()
+	defer st.Lock()
+
+	// Call SetupDelayed on each backend
+	for _, backend := range m.repo.Backends() {
+		effects := delayed[backend.Name()]
+		if len(effects) == 0 {
+			continue
+		}
+
+		if err := interfaces.ApplyDelayedEffects(m.repo, backend, appSet, effects, perfTimings); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

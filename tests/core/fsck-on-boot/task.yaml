@@ -74,8 +74,18 @@ execute: |
     exit 1
   fi
 
-  case "$SPREAD_REBOOT" in
+  # On first 26+ boot (initramfs install) we cannot unmount ubuntu-seed as the
+  # base there is mounted at root, so we have to do an additional reboot in
+  # that case. We jump that stage for older UC.
+  BOOT_COUNT=$SPREAD_REBOOT
+  if os.query is-core-lt 26; then
+      BOOT_COUNT=$((SPREAD_REBOOT + 1))
+  fi
+  case "$BOOT_COUNT" in
     0)
+      REBOOT
+      ;;
+    1)
       echo "We can corrupt the boot partition"
       # FAT uses a specific byte to effectively indicate that the file system is
       # dirty. The precise details as to how this byte is used by each system vary,
@@ -93,7 +103,7 @@ execute: |
       # Reboot to give the early boot process a chance to fix the corruption.
       REBOOT
       ;;
-    1)
+    2)
       echo "On the next boot, we should not see the dirty flag anymore"
       # Note that we cannot read the dirty byte from the filesystem as it is
       # automatically set by the kernel when vfat is mounted. We must resort

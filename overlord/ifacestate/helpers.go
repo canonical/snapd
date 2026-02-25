@@ -289,6 +289,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 			defaultSetupCtx := func(snapName string) interfaces.SetupContext {
 				return interfaces.SetupContext{
 					Reason: interfaces.SnapSetupReasonOther,
+					// not running in task context, nothing can be deferred
+					CanDelayEffects: false,
 				}
 			}
 			if errors := interfaces.SetupMany(m.repo, backend, appSets, precomputedConfinementOpts, defaultSetupCtx, tm); len(errors) > 0 {
@@ -616,7 +618,12 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	sctxs := map[string]interfaces.SetupContext{
-		appSet.InstanceName(): {Reason: interfaces.SnapSetupReasonOther},
+		appSet.InstanceName(): {
+			Reason: interfaces.SnapSetupReasonOther,
+			// this is called only in the contexts where all backend effects
+			// are expected to be immediate
+			CanDelayEffects: false,
+		},
 	}
 	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
 }
