@@ -4106,8 +4106,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "5", "kind": "process-delayed-security-backend-effects", "summary": "Process side effects", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "apply-delayed-snap-security-backend-effects", "summary": "Apply side effects for snap \"foo\"", "status": "Doing", "progress": {"done": 1, "total": 1}},
-{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "7", "kind": "apply-delayed-snap-security-backend-effects", "summary": "Apply side effects for snap \"foo\"", "status": "Doing", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 6:
@@ -4120,8 +4120,8 @@ func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
 {"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
 {"id": "5", "kind": "process-delayed-security-backend-effects", "summary": "Process side effects", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "5", "kind": "apply-delayed-snap-security-backend-effects", "summary": "Apply side effects for snap \"foo\"", "status": "Done", "progress": {"done": 1, "total": 1}},
-{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+{"id": "6", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "7", "kind": "apply-delayed-snap-security-backend-effects", "summary": "Apply side effects for snap \"foo\"", "status": "Done", "progress": {"done": 1, "total": 1}}
 ]
 }}`)
 		case 7:
