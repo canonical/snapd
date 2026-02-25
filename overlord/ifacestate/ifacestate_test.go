@@ -12976,9 +12976,8 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	} else {
 		// new connection through auto-connect
 		c.Check(setupCalls, DeepEquals, []string{
-			"producer", // 1st setup-profiles
-			"producer", // 2nd call due to auto-connect
-			"consumer", // 3rd call to an affected snap
+			"producer", // 1st setup-profiles triggered by auto-connect
+			"consumer", // 2nd call to an affected snap
 		})
 	}
 
@@ -13224,7 +13223,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	})
 
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 2)
-	c.Check(chg.Tasks(), HasLen, 6)
+	c.Check(chg.Tasks(), HasLen, 7)
 	tsks := chg.Tasks()
 	delForSnap := tsks[len(tsks)-2:]
 	for _, t := range delForSnap {
@@ -13350,7 +13349,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
 		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", name))
+		setupProfiles := s.state.NewTask("prepare-profiles", fmt.Sprintf("prepare profiles for %q", name))
 		setupProfiles.Set("snap-setup", snapsup)
 
 		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
@@ -13410,18 +13409,24 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 
 	// only effects for "consumer1" are applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
-	c.Assert(chg.Tasks(), HasLen, 10)
+	c.Assert(chg.Tasks(), HasLen, 12)
 	tsks := chg.Tasks()
-	effectsTasks := tsks[len(tsks)-2:]
+	effectsTasks := tsks[len(tsks)-4:]
 
 	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-security-backend-effects")
 	logs := strings.Join(effectsTasks[0].Log(), "\n")
 	c.Check(logs, testutil.Contains, `skipping effects triggered by failed snap "producer2"`)
 	c.Check(logs, testutil.Contains, `scheduling delayed effects for snap "consumer1"`)
 
-	c.Check(effectsTasks[1].Kind(), Equals, "apply-delayed-snap-security-backend-effects")
+	// setup-profiles will be automatically injected by auto-connect
+	// before apply-delayed-snap-security-backend-effects for both the
+	// consumers.
+	c.Check(effectsTasks[1].Kind(), Equals, "setup-profiles")
+	c.Check(effectsTasks[2].Kind(), Equals, "setup-profiles")
+
+	c.Check(effectsTasks[3].Kind(), Equals, "apply-delayed-snap-security-backend-effects")
 	var effData ifacestate.DelayedEffectsForSnapData
-	c.Assert(effectsTasks[1].Get("effects-data", &effData), IsNil)
+	c.Assert(effectsTasks[3].Get("effects-data", &effData), IsNil)
 	c.Check(string(effData.AffectedSnapInstance), Equals, "consumer1")
 }
 
@@ -13703,7 +13708,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
 		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", name))
+		setupProfiles := s.state.NewTask("prepare-profiles", fmt.Sprintf("prepare profiles for %q", name))
 		setupProfiles.Set("snap-setup", snapsup)
 
 		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
@@ -13758,9 +13763,9 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* Apply delayed security backend side effects for snap "consumer2" \(mock error\).*$`)
 
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 2)
-	// 2 * (link-snap, auto-connect, setup-profiles),
+	// 2 * (prepare-profiles, link-snap, auto-connect, setup-profiles),
 	// process-delayed-backend-effects, 2 * process-snap-delayed-backend-effects
-	c.Assert(chg.Tasks(), HasLen, 9)
+	c.Assert(chg.Tasks(), HasLen, 11)
 	tsks := chg.Tasks()
 	effectsTasks := tsks[len(tsks)-2:]
 	otherTasks := tsks[0 : len(tsks)-2]
