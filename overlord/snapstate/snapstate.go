@@ -1131,19 +1131,19 @@ func currentEssentialSnapNames(st *state.State, providedDeviceCtx DeviceContext)
 	return names, nil
 }
 
-func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]struct{}, error) {
+func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]bool, error) {
 	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	names := make(map[string]struct{})
+	names := make(map[string]bool)
 	for _, sn := range deviceCtx.Model().AllSnaps() {
-		names[sn.SnapName()] = struct{}{}
+		names[sn.SnapName()] = true
 	}
 
 	// some models have an implicit snapd, make sure that we account for it here
-	names["snapd"] = struct{}{}
+	names["snapd"] = true
 
 	return names, nil
 }
