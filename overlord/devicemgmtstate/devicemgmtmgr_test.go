@@ -519,10 +519,10 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponse(c *C) {
 				return makeRequestMessage("mesg", 1, "test-kind", change.ID())
 			},
 			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
-				return map[string]any{"result": "ok"}, asserts.MessageStatusSuccess
+				return map[string]any{"values": "ok"}, asserts.MessageStatusSuccess
 			},
 			expectedStatus: asserts.MessageStatusSuccess,
-			expectedBody:   map[string]any{"result": "ok"},
+			expectedBody:   map[string]any{"values": "ok"},
 		},
 		{
 			name: "error",
@@ -533,17 +533,17 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponse(c *C) {
 				return makeRequestMessage("mesg", 1, "test-kind", change.ID())
 			},
 			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
-				return map[string]any{"error": "operation failed"}, asserts.MessageStatusError
+				return map[string]any{"message": "cannot process message: operation failed"}, asserts.MessageStatusError
 			},
 			expectedStatus: asserts.MessageStatusError,
-			expectedBody:   map[string]any{"error": "operation failed"},
+			expectedBody:   map[string]any{"message": "cannot process message: operation failed"},
 		},
 		{
 			name: "rejected",
 			msg: func() *devicemgmtstate.RequestMessage {
 				msg := makeRequestMessage("mesg", 1, "test-kind", "")
 				msg.Status = asserts.MessageStatusRejected
-				msg.Error = "invalid payload: missing required field"
+				msg.Error = "cannot parse payload: missing required field"
 				return msg
 			},
 			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
@@ -553,7 +553,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponse(c *C) {
 				return nil, ""
 			},
 			expectedStatus: asserts.MessageStatusRejected,
-			expectedBody:   map[string]any{"message": "invalid payload: missing required field"},
+			expectedBody:   map[string]any{"message": "cannot parse payload: missing required field"},
 		},
 	}
 
