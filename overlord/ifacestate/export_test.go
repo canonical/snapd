@@ -67,11 +67,11 @@ var (
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
 
 	NewDelayedEffectsForSnaps = newDelayedEffectsForSnaps
+	ShouldUndoSetupProfiles   = shouldUndoSetupProfiles
 )
 
 type (
 	DelayedEffectsForSnapData = delayedEffectsForSnapData
-	ShouldUndoSetupProfiles   = shouldUndoSetupProfiles
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {
