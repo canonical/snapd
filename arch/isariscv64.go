@@ -196,9 +196,7 @@ var KernelVersion = osutil.KernelVersion
 // Currently, only support for [RVA23] can be checked for.
 //
 // [RVA23]: https://github.com/riscv/riscv-profiles/blob/main/src/rva23-profile.adoc#rva23u64-profile
-var IsRISCVISASupported = isRISCVISASupported
-
-func isRISCVISASupported(isa string) error {
+func IsRISCVISASupported(isa string) error {
 	// If the architecture is not riscv64 we exit immediately
 	if runtime.GOOS != "linux" || DpkgArchitecture() != "riscv64" {
 		return fmt.Errorf("cannot validate RiscV ISA support while running on: %s, %s. Need linux, riscv64.", runtime.GOOS, DpkgArchitecture())
