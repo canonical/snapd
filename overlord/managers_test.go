@@ -13162,7 +13162,7 @@ volumes:
 	c.Check(affected, DeepEquals, []string{"pi"})
 
 	addTaskSetsToChange := func(chg *state.Change, tss []*state.TaskSet) {
-		for _, ts := range tasksets {
+		for _, ts := range tss {
 			// the test is stepping through epochs manually, avoid re-refresh which makes it automatic
 			if ts.Tasks()[0].Kind() == "check-rerefresh" {
 				continue
