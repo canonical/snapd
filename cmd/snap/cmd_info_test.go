@@ -888,7 +888,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled,blocked
+installed:    2.10 (1)  1024B disabled,blocked
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -946,7 +946,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (100) 1kB disabled
+installed:    2.10 (100)  1024B disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -984,11 +984,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
 channels:
-  1/stable:    2.10 2018-12-18T15:16:56Z   (1) 65kB -
-  1/candidate: ^                                    
-  1/beta:      ^                                    
-  1/edge:      ^                                    
-installed:     2.10                      (100)  1kB disabled
+  1/stable:    2.10 2018-12-18T15:16:56Z   (1) 65.5kB -
+  1/candidate: ^                                      
+  1/beta:      ^                                      
+  1/edge:      ^                                      
+installed:     2.10                      (100)  1024B disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 2)
@@ -1011,11 +1011,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: %s
 channels:
-  1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
-installed:     2.10            (100)  1kB disabled
+  1/stable:    2.10 2018-12-18   (1) 65.5kB -
+  1/candidate: ^                            
+  1/beta:      ^                            
+  1/edge:      ^                            
+installed:     2.10            (100)  1024B disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 4)
@@ -1037,14 +1037,120 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: %s
 channels:
-  1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ↑                          
-  1/beta:      ↑                          
-  1/edge:      ↑                          
-installed:     2.10            (100)  1kB disabled
+  1/stable:    2.10 2018-12-18   (1) 65.5kB -
+  1/candidate: ↑                            
+  1/beta:      ↑                            
+  1/edge:      ↑                            
+installed:     2.10            (100)  1024B disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 6)
+}
+
+const mockInfoJSONWithChannelsBigSize = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": [
+    {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "download-size": 65536,
+      "icon": "",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "store-url": "https://snapcraft.io/hello",
+      "type": "app",
+      "version": "2.10",
+      "license": "MIT",
+      "channels": {
+        "1/stable": {
+          "revision": "1",
+          "version": "2.10",
+          "channel": "1/stable",
+          "size": 1652695040,
+          "released-at": "2018-12-18T15:16:56.723501Z"
+        },
+        "1/beta": {
+          "revision": "3",
+          "version": "2.10",
+          "channel": "1/beta",
+          "size": 1468006,
+          "released-at": "2018-12-18T15:12:56.723501Z"
+        },
+        "1/edge": {
+          "revision": "2",
+          "version": "2.10",
+          "channel": "1/edge",
+          "size": 795869184,
+          "released-at": "2018-12-18T15:10:56.723501Z"
+        }
+      },
+      "tracks": ["1"]
+    }
+  ],
+  "sources": [
+    "store"
+  ],
+  "suggested-currency": "GBP"
+}
+`
+
+func (s *infoSuite) TestInfoHumanSizes(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprint(w, mockInfoJSONWithChannelsBigSize)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprint(w, mockInfoJSONNoLicense)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical**
+store-url: https://snapcraft.io/hello
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02T22:04:07Z
+channels:
+  1/stable:    2.10 2018-12-18T15:16:56Z   (1) 1.65GB -
+  1/candidate: ^                                      
+  1/beta:      2.10 2018-12-18T15:12:56Z   (3) 1.47MB -
+  1/edge:      2.10 2018-12-18T15:10:56Z   (2)  796MB -
+installed:     2.10                      (100)  1024B disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 2)
 }
 
 func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
@@ -1082,7 +1188,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: TOTALLY NOT A ROBOT
-installed:    2.10 (100) 1kB disabled
+installed:    2.10 (100)  1024B disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -1309,11 +1415,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: %s
 channels:
-  1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
-installed:     2.10            (100)  1kB disabled
+  1/stable:    2.10 2018-12-18   (1) 65.5kB -
+  1/candidate: ^                            
+  1/beta:      ^                            
+  1/edge:      ^                            
+installed:     2.10            (100)  1024B disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -1393,11 +1499,11 @@ snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: %s
 channels:
-  1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
-installed:     2.10            (100)  1kB disabled
+  1/stable:    2.10 2018-12-18   (1) 65.5kB -
+  1/candidate: ^                            
+  1/beta:      ^                            
+  1/edge:      ^                            
+installed:     2.10            (100)  1024B disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 }

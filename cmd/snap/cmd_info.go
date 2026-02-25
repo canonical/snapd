@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 type infoCmd struct {
@@ -584,8 +585,9 @@ func (chInfos *channelInfos) add(indent, name, version string, revision snap.Rev
 		name:     name,
 		version:  version,
 		revision: fmt.Sprintf("(%s)", revision),
-		size:     strutil.SizeToStr(size),
-		notes:    notes.String(),
+		// -1 for auto-width of 5 chars
+		size:  quantity.FormatAmount(uint64(size), -1) + "B",
+		notes: notes.String(),
 	}
 	if !released.IsZero() {
 		chInfo.released = released.Format(chInfos.releasedfmt)
