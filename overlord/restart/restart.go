@@ -388,7 +388,8 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	return nil
 }
 
-// Pending returns the type of restart requested with Request.
+// Pending returns the type of restart requested with Request or RestartUnset
+// if no restart is pending.
 func Pending(st *state.State) RestartType {
 	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
@@ -399,7 +400,7 @@ func Pending(st *state.State) RestartType {
 }
 
 // Pending returns the type of restart requested with Request or RestartUnset
-// if none has been.
+// if no restart is pending.
 // NOTE: the state does not need to be locked to fetch this information.
 func (rm *RestartManager) Pending() RestartType {
 	if rm == nil {
