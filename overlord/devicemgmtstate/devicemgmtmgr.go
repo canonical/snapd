@@ -88,9 +88,9 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime    time.Time             `json:"receive-time"`
-	ResponseStatus asserts.MessageStatus `json:"status,omitempty"`
-	ResponseReason string                `json:"error,omitempty"`
+	ReceiveTime time.Time             `json:"receive-time"`
+	Status      asserts.MessageStatus `json:"status,omitempty"`
+	Error       string                `json:"error,omitempty"`
 	// Subsystem change applying this message.
 	ChangeID string `json:"change-id,omitempty"`
 }
@@ -396,8 +396,8 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 
 		body, status = handler.BuildResponse(change)
 	} else {
-		body = map[string]any{"message": msg.ResponseReason}
-		status = msg.ResponseStatus
+		status = msg.Status
+		body = map[string]any{"message": msg.Error}
 	}
 
 	bodyBytes, err := json.Marshal(body)

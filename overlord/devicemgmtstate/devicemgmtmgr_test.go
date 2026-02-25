@@ -542,8 +542,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponse(c *C) {
 			name: "rejected",
 			msg: func() *devicemgmtstate.RequestMessage {
 				msg := makeRequestMessage("mesg", 1, "test-kind", "")
-				msg.ResponseStatus = asserts.MessageStatusRejected
-				msg.ResponseReason = "invalid payload: missing required field"
+				msg.Status = asserts.MessageStatusRejected
+				msg.Error = "invalid payload: missing required field"
 				return msg
 			},
 			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
@@ -718,8 +718,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 	s.mgr.MockSigner(signer)
 
 	msg := makeRequestMessage("mesg", 1, "test-kind", "")
-	msg.ResponseStatus = asserts.MessageStatusRejected
-	msg.ResponseReason = "invalid payload: missing required field"
+	msg.Status = asserts.MessageStatusRejected
+	msg.Error = "cannot parse payload: missing required field"
 	ms := &devicemgmtstate.DeviceMgmtState{
 		PendingRequests: map[string]*devicemgmtstate.RequestMessage{"mesg-1": msg},
 		Sequences:       devicemgmtstate.NewSequenceCache(),
