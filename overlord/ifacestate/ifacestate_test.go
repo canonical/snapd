@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -253,6 +254,11 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(snapstatetest.ReplaceDeviceCtxHook(devicestate.DeviceCtx))
 	s.MockModel(c, nil)
+
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		c.Logf("restart request: %v", t)
+	}))
+	c.Assert(err, IsNil)
 
 	s.privateHookMgr = nil
 	s.privateMgr = nil
@@ -2340,6 +2346,7 @@ type setupSnapSecurityChangeOptions struct {
 	install             bool
 	components          []*snapstate.ComponentSetup
 	useRealLinkSnapTask bool
+	linkSnapRestarts    bool
 }
 
 func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapstate.SnapSetup) *state.Change {
@@ -2486,6 +2493,11 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		}
 		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
+
+		if opts.linkSnapRestarts {
+			c.Log("requesting restart in link-snap")
+			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+		}
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
 		s.state.Lock()
@@ -13669,4 +13681,139 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbac
 
 func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbackendErrsNonDelayingBackend(c *C) {
 	s.testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(c, nonDelaying)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C) {
+	// Pretend we're a core system, so that restart handler is triggered
+	defer release.MockOnClassic(false)()
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+
+	var b interfaces.SecurityBackend
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				// bulk of the logic checks
+				// the handler is called in both do and undo paths
+				name := appSet.InstanceName()
+				c.Logf("Setup() for %q init done %v sctx %+v", name, initDone, sctx)
+				if initDone {
+					// past the point of initial Setup() calls, this is
+					// called for each snap that is affected by a connection, producer and consumer
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case name == "consumer":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						// in do path effects are delayed, but not in undo
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+
+						}
+						return nil
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				} else {
+					initSetupCalls++
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			return nil
+		},
+	}
+	s.mockSecBackend(secBackend)
+	b = secBackend
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 2)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+			Revision: prod.Revision,
+		},
+	}
+
+	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
+		useRealLinkSnapTask: true,
+		active:              false,
+		linkSnapRestarts:    true,
+	})
+
+	s.state.Lock()
+
+	s.state.Set("conns", map[string]any{
+		// all consumers are connected
+		"consumer:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
+	c.Assert(ts.Tasks(), HasLen, 1)
+	processTask := ts.Tasks()[0]
+	chg.AddAll(ts)
+
+	// mark restart boundary
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
+			break
+		}
+	}
+
+	dumpTasks(c, "before", chg.Tasks())
+	s.state.EnsureBefore(0)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	dumpTasks(c, "after restart request", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(strings.Join(processTask.Log(), "\n"), testutil.Contains,
+		"Task set to wait until a system restart allows to continue")
+
+	restarting, rt := restart.Pending(s.state)
+	c.Check(restarting, Equals, true)
+	c.Check(rt, Equals, restart.RestartSystem)
+
+	// pretend the restart happened
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	dumpTasks(c, "after restart", chg.Tasks())
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// delayed effects eventually got applied
+	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 }
