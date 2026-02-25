@@ -313,38 +313,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 	d[snapName][backend] = append(d[snapName][backend], item)
 }
 
-// prepareAppSetInterfaces does the minimal amount of setup for auto-connect to work and correctly
-// detect plugs/slots for auto-connection. The real work of setting up profiles is done in
-// setupProfilesForAppSet, and is called after auto-connect in the "setup-profiles" task.
-func (m *InterfaceManager) prepareAppSetInterfaces(st *state.State, appSet *interfaces.SnapAppSet) error {
-	installed, err := isSnapInstalled(st, appSet.InstanceName())
-	if err != nil {
-		return err
-	} else if installed {
-		// For installed snaps, we don't need to pre-fill the repo, instead
-		// mark pending security.
-		return setPendingProfilesSideInfo(st, appSet.InstanceName(), appSet)
-	}
-
-	// For non-installed snaps, we just need to add the app set to the
-	// repo, to ensure auto-connect can find plugs/slots by the snap.
-	if err := addImplicitInterfaces(st, appSet.Info()); err != nil {
-		return err
-	}
-	if err := m.repo.AddAppSet(appSet); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *InterfaceManager) setupProfilesForAppSet(
-	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
-	newConns []string,
-	canDelay bool,
-	tm timings.Measurer,
-) (delayedEffects delayedEffectsForSnaps, err error) {
-	st := task.State()
-
+func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
 	snapName := appSet.InstanceName()
 
@@ -360,16 +329,16 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// - setup the security of all the affected snaps
 	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
 	if err := m.repo.RemoveSnap(snapName); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := m.repo.AddAppSet(appSet); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(snapInfo.BadInterfaces) > 0 {
@@ -378,8 +347,25 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 	affectedConnections, err := m.reloadConnections(snapName)
 	if err != nil {
+		return nil, nil, err
+	}
+	return disconnectedSnaps, affectedConnections, nil
+}
+
+func (m *InterfaceManager) setupProfilesForAppSet(
+	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
+	newConns []string,
+	canDelay bool,
+	tm timings.Measurer,
+) (delayedEffects delayedEffectsForSnaps, err error) {
+	st := task.State()
+
+	snapName := appSet.InstanceName()
+	disconnectedSnaps, affectedConnections, err := m.refreshAppSetConnections(task, appSet)
+	if err != nil {
 		return nil, err
 	}
+
 	affectedSet := make(map[string]bool)
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
@@ -397,6 +383,15 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		affectedSet[connRef.PlugRef.Snap] = true
 		affectedSet[connRef.SlotRef.Snap] = true
+
+		// Snaps on the plug or slot side, other than the current one, are
+		// indirectly affected.
+		if connRef.PlugRef.Snap != snapName {
+			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
+		}
+		if connRef.SlotRef.Snap != snapName {
+			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
+		}
 	}
 
 	for _, connId := range newConns {
@@ -417,64 +412,6 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	}
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{snapName}, affectedNames...)
-	return affectedNames, affectedConnections, nil
-}
-
-func (m *InterfaceManager) setupProfilesForAppSet(
-	task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
-	tm timings.Measurer,
-) error {
-	st := task.State()
-
-	snapName := appSet.InstanceName()
-	disconnectedSnaps, affectedConnections, err := m.refreshAppSetConnections(task, appSet)
-	if err != nil {
-		return err
-	}
-
-	// Compute the set of affected snaps. The set affectedSet set contains name
-	// of all the affected snap instances. The arrays affectedNames and affectedSnaps
-	// contain, arrays of snap names and snapInfo's, respectively. The arrays are
-	// sorted by name with the special exception that the snap being setup is always
-	// first. The affectedSnaps array may be shorter than the set of affected snaps in
-	// case any of the snaps cannot be found in the state.
-	affectedSet := make(map[string]bool)
-	for _, name := range disconnectedSnaps {
-		affectedSet[name] = true
-	}
-
-	snapsWithConnectedPlugs := make(map[string]bool)
-	snapsWithConnectedSlots := make(map[string]bool)
-	// Identify affected snaps on either side of the connection.
-	for _, connID := range affectedConnections {
-		connRef, err := interfaces.ParseConnRef(connID)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot parse existing connection: %w", err)
-		}
-
-		affectedSet[connRef.PlugRef.Snap] = true
-		affectedSet[connRef.SlotRef.Snap] = true
-
-		// Snaps on the plug or slot side, other than the current one, are
-		// indirectly affected.
-		if connRef.PlugRef.Snap != snapName {
-			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
-		}
-		if connRef.SlotRef.Snap != snapName {
-			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
-		}
-	}
-
-	// Sort the set of affected names, ensuring that the snap being setup
-	// is first regardless of the name it has.
-	affectedNames := make([]string, 0, len(affectedSet))
-	for name := range affectedSet {
-		if name != snapName {
-			affectedNames = append(affectedNames, name)
-		}
-	}
-	sort.Strings(affectedNames)
 	affectedNames = append([]string{snapName}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that

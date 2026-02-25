@@ -2525,7 +2525,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		csis = append(csis, snapst.CurrentComponentSideInfos()...)
 	}
 
-	linkSnapTask := "mock-link-snap-n-witness"
+	linkSnapTask := fmt.Sprintf("mock-link-snap-n-witness-%s", snapsup.InstanceName())
 	if opts.useRealLinkSnapTask {
 		linkSnapTask = "link-snap"
 	}
@@ -2604,7 +2604,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	prepareProfiles.Set("snap-setup", snapsup)
 	change.AddTask(prepareProfiles)
 
-	linkSnap := s.state.NewTask(mockLinkName, "")
+	linkSnap := s.state.NewTask(linkSnapTask, "")
 	linkSnap.Set("snap-setup-task", prepareProfiles.ID())
 	linkSnap.WaitFor(prepareProfiles)
 	change.AddTask(linkSnap)
@@ -12986,8 +12986,8 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 		c.Logf("expecting delayed call")
 		c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 		// already connected scenario so at most the following list of tasks:
-		// setup-profiles, link-snap, auto-connect, delayed-effects, delayed-snap-effects
-		expectingTasks := 5
+		// prepare-profiles, link-snap, auto-connect, delayed-effects, setup-profiles, delayed-snap-effects
+		expectingTasks := 6
 		if opts.AddRerefresh {
 			// and optionally check-rerefresh
 			expectingTasks++
@@ -13017,7 +13017,7 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	} else {
 		for _, t := range chg.Tasks() {
 			switch t.Kind() {
-			case "setup-profiles", "run-hook", "link-snap", "process-delayed-security-backend-effects", "auto-connect", "connect":
+			case "prepare-profiles", "setup-profiles", "run-hook", "link-snap", "process-delayed-security-backend-effects", "auto-connect", "connect":
 			case "check-rerefresh":
 				if !opts.AddRerefresh {
 					c.Errorf("unexpected task %v", t.Kind())
@@ -13581,17 +13581,18 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 
 	// only effects for "consumer1" are applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
-	c.Assert(chg.Tasks(), HasLen, 5)
+	c.Assert(chg.Tasks(), HasLen, 6)
 	tsks := chg.Tasks()
-	effectsTasks := tsks[len(tsks)-2:]
+	effectsTasks := tsks[len(tsks)-3:]
 	otherTasks := tsks[0 : len(tsks)-2]
 
 	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-security-backend-effects")
-	c.Check(effectsTasks[1].Kind(), Equals, "apply-delayed-snap-security-backend-effects")
+	c.Check(effectsTasks[1].Kind(), Equals, "setup-profiles")
+	c.Check(effectsTasks[2].Kind(), Equals, "apply-delayed-snap-security-backend-effects")
 	var effData ifacestate.DelayedEffectsForSnapData
-	c.Assert(effectsTasks[1].Get("effects-data", &effData), IsNil)
+	c.Assert(effectsTasks[2].Get("effects-data", &effData), IsNil)
 	c.Check(string(effData.AffectedSnapInstance), Equals, "consumer")
-	c.Check(effectsTasks[1].Status(), Equals, state.ErrorStatus)
+	c.Check(effectsTasks[2].Status(), Equals, state.ErrorStatus)
 	// all other tasks were completed successfully
 	checkSuccessfulTasks(c, otherTasks)
 }
