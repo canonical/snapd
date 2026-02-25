@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var commandFromSystemSnap = snapdtool.CommandFromSystemSnap
@@ -920,8 +921,48 @@ func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
 }
 
-// CleanDownloadsCacheEntry drops an entry associated with the provided download
-// info from the downloads cache.
-func (s *Store) CleanDownloadsCacheEntry(dl *snap.DownloadInfo) error {
-	return s.cacher.Drop(dl.Sha3_384)
+// CleanupDownloadsCacheEntry attempts to clean up download artifacts associated
+// with a given snap.
+func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
+	var err error
+	// TODO:GOVERSION: use errors.Join
+	if rerr := os.Remove(targetFn); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove corrupted file: %w", rerr))
+	}
+
+	if dl != nil {
+		maybeDropIfCorrupted := func() error {
+			f, oerr := s.cacher.Open(dl.Sha3_384)
+			if oerr != nil {
+				if errors.Is(oerr, fs.ErrNotExist) {
+					return nil
+				}
+				return fmt.Errorf("cannot drop cached download entry: %w", oerr)
+			}
+			defer f.Close()
+
+			h := crypto.SHA3_384.New()
+			if _, cerr := io.Copy(h, f); cerr != nil {
+				return err
+			}
+
+			actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+			if dl.Sha3_384 == actualSha3 {
+				// the cached entry appears to be correct, let's keep it
+				return nil
+			}
+
+			// takes a lock inside, could block
+			if derr := s.cacher.Drop(dl.Sha3_384); derr != nil && !errors.Is(derr, fs.ErrNotExist) {
+				return fmt.Errorf("cannot drop cached download entry: %w", derr)
+			}
+
+			return nil
+		}
+
+		if merr := maybeDropIfCorrupted(); merr != nil {
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot drop cached download entry: %w", merr))
+		}
+	}
+	return err
 }
