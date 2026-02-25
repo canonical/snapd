@@ -594,14 +594,13 @@ func (ms *baseMgrsSuite) settleSupportingRestarts(c *C) error {
 		c.Logf("test restart handler: %v", rt)
 		requestedRestart = rt
 	}
-	err := ms.o.SettleWithBreakCondition(settleTimeout, func() bool {
+	return ms.o.SettleWithBreakCondition(settleTimeout, func() bool {
 		if requestedRestart != restart.RestartUnset {
 			c.Logf("request settle loop break: %v\n", requestedRestart)
 			return true
 		}
 		return false
 	})
-	return err
 }
 
 type mgrsSuite struct {
