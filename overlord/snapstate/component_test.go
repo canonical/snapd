@@ -292,6 +292,11 @@ components:
 				"name":     enforcedSnapName,
 				"id":       enforcedSnapID,
 				"presence": "required",
+				"components": map[string]any{
+					compName: map[string]any{
+						"presence": "required",
+					},
+				},
 			},
 		},
 	}

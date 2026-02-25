@@ -731,7 +731,8 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	if err != nil {
 		return nil, err
 	}
-	if pres.Presence == asserts.PresenceRequired {
+	compPres := pres.Component(compst.SideInfo.Component.ComponentName)
+	if compPres.Presence == asserts.PresenceRequired {
 		return nil, fmt.Errorf("cannot remove component %q as it is required by an enforcing validation set", compst.SideInfo.Component)
 	}
 
