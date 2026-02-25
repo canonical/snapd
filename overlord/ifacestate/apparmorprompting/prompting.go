@@ -20,6 +20,7 @@
 package apparmorprompting
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -340,13 +341,17 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // request will be automatically denied and [prompting.OutcomeDeny] will be
 // returned.
 //
-// If the prompting subsystem is shutting down, then returns
-// [prompting_errors.ErrPromptingClosed].
+// If the given context is cancelled or the prompting subsystem is shutting
+// down, then returns [prompting_errors.ErrPromptingClosed].
 //
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(ctx context.Context, uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+	// Create a new context which is done when either the given context is done
+	// or the manager's tomb is dying.
+	ctx = m.tomb.Context(ctx)
+
 	if supported := prompting.NonAppArmorInterfaces(); !strutil.ListContains(supported, iface) {
 		return prompting.OutcomeUnset, prompting_errors.NewInvalidInterfaceError(iface, supported)
 	}
@@ -381,7 +386,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel str
 			select {
 			case replyChan <- allowedPerms:
 				return nil
-			case <-m.tomb.Dying():
+			case <-ctx.Done():
 				return prompting_errors.ErrPromptingClosed
 			}
 		},
@@ -391,7 +396,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel str
 	select {
 	case m.askRequests <- req:
 		// request received and being processed
-	case <-m.tomb.Dying():
+	case <-ctx.Done():
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
 	}
 
@@ -400,7 +405,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel str
 	select {
 	case allowedPermissions = <-replyChan:
 		// received reply
-	case <-m.tomb.Dying():
+	case <-ctx.Done():
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
 	}
 

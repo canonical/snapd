@@ -546,7 +546,8 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		out, err := mgr.Ask(uid, pid, apparmorLabel, iface)
+		ctx := context.Background()
+		out, err := mgr.Ask(ctx, uid, pid, apparmorLabel, iface)
 		logger.WithLoggerLock(func() {
 			c.Check(err, IsNil, Commentf(logbuf.String()))
 		})
