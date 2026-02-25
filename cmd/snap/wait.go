@@ -164,11 +164,12 @@ func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 			case t.Status != "Doing" && t.Status != "Wait":
 				continue
 			case (t.Kind == "check-rerefresh" || t.Kind == "process-delayed-security-backend-effects") && len(inDoing) > 1:
-				// when doing a refresh, check-rerefresh task is perpetually in
-				// Doing state as it not blocked by other tasks, but rather
-				// monitors them for completion so that additional refresh check
-				// can be performend. Purposefully skip unless it's really the
-				// only running task.
+				// when doing a refresh, check-rerefresh and
+				// process-delayed-security-backend-effects tasks are
+				// perpetually in Doing state as they are not blocked by other
+				// tasks, but they rather monitor other relevant tasks for
+				// completion. Purposefully skip either task unless it's really
+				// the only one left.
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
