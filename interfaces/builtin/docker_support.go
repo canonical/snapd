@@ -312,6 +312,8 @@ keyctl
 # /snap/docker/VERSION/bin/docker-runc
 pivot_root
 
+lsm_set_self_attr
+
 # ptrace can be abused to break out of the seccomp sandbox
 # but is required by the Docker daemon.
 ptrace

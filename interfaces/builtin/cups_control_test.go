@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -195,6 +196,38 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "peer=(label=\"snap.consumer.app\"")
+}
+
+func (s *cupsControlSuite) TestSecCompSpecCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// core to consumer on core is empty for PermanentSlot
+	spec := seccomp.NewSpecification(s.coreSlot.AppSet())
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// provider to consumer on core gets permanent slot seccomp policy
+	spec = seccomp.NewSpecification(s.providerSlot.AppSet())
+	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "lsm_get_self_attr\n")
+}
+
+func (s *cupsControlSuite) TestSecCompSpecClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// core to consumer on classic is empty for PermanentSlot
+	spec := seccomp.NewSpecification(s.coreSlot.AppSet())
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// provider to consumer on classic gets permanent slot seccomp policy
+	spec = seccomp.NewSpecification(s.providerSlot.AppSet())
+	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "lsm_get_self_attr\n")
 }
 
 func (s *cupsControlSuite) TestAutoConnect(c *C) {

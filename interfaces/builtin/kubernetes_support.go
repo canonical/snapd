@@ -252,6 +252,9 @@ mount
 umount
 umount2
 
+lsm_get_self_attr
+lsm_set_self_attr
+
 unshare
 setns - CLONE_NEWNET
 
