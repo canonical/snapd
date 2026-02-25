@@ -22,13 +22,24 @@ package blkid
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type Constructor func(string) (AbstractBlkidProbe, error)
 
+// MockBlkidProbeFromFilename mocks [NewProbeFromFilename]. Should only be used
+// in tests.
+//
+// Keep the restore logic local instead of using testutil: this helper lives in
+// production code so tests in other packages can call it, and importing
+// testutil would leak a test-only dependency into production import graphs.
 func MockBlkidProbeFromFilename(constr Constructor) func() {
-	r := testutil.Backup(&NewProbeFromFilename)
+	osutil.MustBeTestBinary("can only mock blkid probe in tests")
+
+	backup := NewProbeFromFilename
+	r := func() {
+		NewProbeFromFilename = backup
+	}
 	NewProbeFromFilename = constr
 	return r
 }
@@ -43,8 +54,19 @@ func MockBlkidMap(probeMap map[string]*FakeBlkidProbe) func() {
 	})
 }
 
+// MockBlkidProbeFromRange mocks [NewProbeFromRange]. Should only be used in
+// tests.
+//
+// Keep the restore logic local instead of using testutil: this helper lives in
+// production code so tests in other packages can call it, and importing
+// testutil would leak a test-only dependency into production import graphs.
 func MockBlkidProbeFromRange(f func(node string, start, size int64) (AbstractBlkidProbe, error)) func() {
-	r := testutil.Backup(&NewProbeFromRange)
+	osutil.MustBeTestBinary("can only mock blkid probe in tests")
+
+	backup := NewProbeFromRange
+	r := func() {
+		NewProbeFromRange = backup
+	}
 	NewProbeFromRange = f
 	return r
 }
