@@ -88,9 +88,9 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime    time.Time             `json:"receive-time"`
-	ResponseStatus asserts.MessageStatus `json:"status,omitempty"`
-	ResponseReason string                `json:"error,omitempty"`
+	ReceiveTime time.Time             `json:"receive-time"`
+	Status      asserts.MessageStatus `json:"status,omitempty"`
+	Error       string                `json:"error,omitempty"`
 	// Subsystem change applying this message.
 	ChangeID string `json:"change-id,omitempty"`
 }
@@ -399,7 +399,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 	for _, msg := range ms.PendingRequests {
 		// No explicit "dispatched" marker is needed; the single-change-in-flight
 		// guard in Ensure() prevents concurrent dispatch.
-		if msg.ChangeID != "" || msg.ResponseStatus != "" {
+		if msg.ChangeID != "" || msg.Status != "" {
 			continue // Already dispatched
 		}
 
@@ -427,8 +427,8 @@ func (m *DeviceMgmtManager) pruneSequences(chg *state.Change, ms *deviceMgmtStat
 	for len(ms.Sequences.Applied) > maxSequences {
 		earliest := ms.evictLRUSequence()
 		if earliest != nil {
-			earliest.ResponseStatus = asserts.MessageStatusRejected
-			earliest.ResponseReason = "sequence evicted from cache due to capacity limits"
+			earliest.Status = asserts.MessageStatusRejected
+			earliest.Error = "cannot process message: sequence evicted from cache due to capacity limits"
 
 			lane := m.state.NewLane()
 			queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))

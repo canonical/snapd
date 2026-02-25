@@ -762,8 +762,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 	// seq-1 evicted.
 	rejected := ms.PendingRequests["seq-1-1"]
 	c.Assert(rejected, NotNil)
-	c.Check(rejected.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(rejected.ResponseReason, Equals, "sequence evicted from cache due to capacity limits")
+	c.Check(rejected.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(rejected.Error, Equals, "cannot process message: sequence evicted from cache due to capacity limits")
 	c.Check(ms.PendingRequests["seq-1-2"], IsNil, Commentf("the 2nd message in seq-1 should have been deleted"))
 
 	ti := buildTaskIndex(chg)
@@ -775,7 +775,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEviction(c *C) {
 	c.Check(tracked, Equals, false)
 
 	// seq-2 also evicted.
-	c.Check(ms.PendingRequests["seq-2-1"].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.PendingRequests["seq-2-1"].Status, Equals, asserts.MessageStatusRejected)
 	c.Check(ms.PendingRequests["seq-2-2"], IsNil)
 
 	c.Check(len(ms.Sequences.Applied), Equals, devicemgmtstate.MaxSequences)
