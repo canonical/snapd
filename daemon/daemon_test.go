@@ -667,6 +667,13 @@ version: 1`, si)
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d := s.newTestDaemon(c)
 
+	var systemctlArgs [][]string
+	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		systemctlArgs = append(systemctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlMock()
+
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -725,6 +732,11 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	stoppedYet = true
 
 	c.Assert(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1", "STOPPING=1"})
+	c.Assert(systemctlArgs, check.DeepEquals, [][]string{
+		{"start", "--no-block", "snapd.apparmor.service"},
+		{"start", "--no-block", "snapd.service"},
+		{"start", "--no-block", "snapd.seeded.service"},
+		{"start", "--no-block", "snapd.autoimport.service"}})
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
