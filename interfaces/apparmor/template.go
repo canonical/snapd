@@ -263,6 +263,8 @@ var templateCommon = `
   /dev/{,u}random w,
   /etc/machine-id r,
   /etc/mime.types r,
+  /{etc,run,usr/lib}/motd r,
+  /{etc,run,usr/lib}/motd.d/** r,
   /etc/default/keyboard r,
   @{PROC}/ r,
   @{PROC}/version r,
