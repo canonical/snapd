@@ -579,6 +579,10 @@ type channelInfos struct {
 	esc                   *escapes
 }
 
+func formatSize(sz int64) string {
+	return quantity.FormatAmount(uint64(sz), -1) + "B"
+}
+
 func (chInfos *channelInfos) add(indent, name, version string, revision snap.Revision, released time.Time, size int64, notes *Notes) {
 	chInfo := &channelInfo{
 		indent:   indent,
@@ -586,7 +590,7 @@ func (chInfos *channelInfos) add(indent, name, version string, revision snap.Rev
 		version:  version,
 		revision: fmt.Sprintf("(%s)", revision),
 		// -1 for auto-width of 5 chars
-		size:  quantity.FormatAmount(uint64(size), -1) + "B",
+		size:  formatSize(size),
 		notes: notes.String(),
 	}
 	if !released.IsZero() {

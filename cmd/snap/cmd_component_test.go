@@ -102,14 +102,14 @@ type: framework
 summary: The compiler component
 description: |
   Handles compilation tasks
-installed: 1.0 (42) 200MB
+installed: 1.0 (42)  200MB
 ---
 component: qwen-vl+runtime
 type: app
 summary: The runtime component
 description: |
   Handles runtime execution
-installed: 1.2 (10) 10MB
+installed: 1.2 (10) 10.0MB
 `
 
 	c.Assert(err, check.IsNil)
