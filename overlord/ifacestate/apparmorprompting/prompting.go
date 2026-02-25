@@ -87,7 +87,7 @@ type InterfacesRequestsManager struct {
 	// listener readiness.
 	listenerAlreadySignalled chan struct{}
 
-	apiRequests chan *prompting.Request
+	askRequests chan *prompting.Request
 
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -152,7 +152,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		prompts:                  promptsBackend,
 		rules:                    rulesBackend,
 		listenerAlreadySignalled: make(chan struct{}),
-		apiRequests:              make(chan *prompting.Request),
+		askRequests:              make(chan *prompting.Request),
 		notifyPrompt:             notifyPrompt,
 		notifyRule:               notifyRule,
 	}
@@ -223,7 +223,7 @@ run_loop:
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
-		case req := <-m.apiRequests:
+		case req := <-m.askRequests:
 			logger.Debugf("received from API request channel: %+v", req)
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
@@ -332,10 +332,10 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	return strutil.JoinErrors(errs...)
 }
 
-// Query creates a request with the given contents and feeds it into the
+// Ask creates a request with the given contents and feeds it into the
 // prompting manager, either matching it against an existing rule or creating
 // a prompt and waiting for a reply.
-func (m *InterfacesRequestsManager) Query(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
 	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
 	if err != nil {
 		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
@@ -375,7 +375,7 @@ func (m *InterfacesRequestsManager) Query(uid uint32, pid int32, apparmorLabel s
 
 	// Send request to manager
 	select {
-	case m.apiRequests <- req:
+	case m.askRequests <- req:
 		// request received and being processed
 	case <-m.tomb.Dying():
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed

@@ -385,7 +385,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 	c.Check(prompt.Interface, Equals, "home")
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
-	// Check that we can query that prompt by ID
+	// Check that we can retrieve that prompt by ID
 	promptByID, err := mgr.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(promptByID, Equals, prompt)
@@ -500,15 +500,15 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestQueryAllow(c *C) {
-	s.testQueryWithOutcome(c, prompting.OutcomeAllow)
+func (s *apparmorpromptingSuite) TestAskAllow(c *C) {
+	s.testAskWithOutcome(c, prompting.OutcomeAllow)
 }
 
-func (s *apparmorpromptingSuite) TestQueryDeny(c *C) {
-	s.testQueryWithOutcome(c, prompting.OutcomeDeny)
+func (s *apparmorpromptingSuite) TestAskDeny(c *C) {
+	s.testAskWithOutcome(c, prompting.OutcomeDeny)
 }
 
-func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.OutcomeType) {
+func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.OutcomeType) {
 	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
@@ -541,12 +541,12 @@ func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.Ou
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
-	// Query in the background so we can see and respond to the prompt
+	// Ask in the background so we can see and respond to the prompt
 	whenSent := time.Now()
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		out, err := mgr.Query(uid, pid, apparmorLabel, iface)
+		out, err := mgr.Ask(uid, pid, apparmorLabel, iface)
 		logger.WithLoggerLock(func() {
 			c.Check(err, IsNil, Commentf(logbuf.String()))
 		})
@@ -591,7 +591,7 @@ func (s *apparmorpromptingSuite) testQueryWithOutcome(c *C, outcome prompting.Ou
 	case result := <-outcomeChan:
 		c.Fatalf("received outcome before replying: %v", result)
 	case err := <-errChan:
-		c.Fatalf("received error from query before replying: %v", err)
+		c.Fatalf("received error from Ask before replying: %v", err)
 	default:
 		// all good
 	}
