@@ -2626,7 +2626,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 			}
 		}
 		// ...or be a non-AppArmor interface
-		if strutil.ListContains(prompting.NonAppArmorInterfaces, iface) {
+		if strutil.ListContains(prompting.NonAppArmorInterfaces(), iface) {
 			c.Check(found, Equals, false, Commentf("interface found in more than one map of interface permissions maps: %s", iface))
 			found = true
 		}

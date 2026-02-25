@@ -921,6 +921,12 @@ func AvailablePermissions(iface string) ([]string, error) {
 	return available, nil
 }
 
+// NonAppArmorInterfaces returns the list of interfaces which do not trigger
+// prompting requests via AppArmor.
+func NonAppArmorInterfaces() []string {
+	return nonAppArmorInterfaces
+}
+
 // AbstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
 func AbstractPermissionsFromAppArmorPermissions(iface string, permissions notify.AppArmorPermission) ([]string, error) {

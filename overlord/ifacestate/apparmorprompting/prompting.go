@@ -335,7 +335,21 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // Ask creates a request with the given contents and feeds it into the
 // prompting manager, either matching it against an existing rule or creating
 // a prompt and waiting for a reply.
+//
+// If the prompt times out due to inactivity from prompting clients, then the
+// request will be automatically denied and [prompting.OutcomeDeny] will be
+// returned.
+//
+// If the prompting subsystem is shutting down, then returns
+// [prompting_errors.ErrPromptingClosed].
+//
+// The given interface must be one for which we expect requests to be created
+// directly, rather than via AppArmor. The requested permissions will include
+// all available permissions for the given interface.
 func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
+	if supported := prompting.NonAppArmorInterfaces(); !strutil.ListContains(supported, iface) {
+		return prompting.OutcomeUnset, prompting_errors.NewInvalidInterfaceError(iface, supported)
+	}
 	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
 	if err != nil {
 		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
