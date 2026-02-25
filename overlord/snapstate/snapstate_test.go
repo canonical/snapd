@@ -97,8 +97,7 @@ type snapmgrBaseTest struct {
 
 	restarts map[string]int
 
-	restartRequested restart.RestartType
-	restartHandler   func(restart.RestartType)
+	restartHandler func(restart.RestartType)
 }
 
 // state must be locked by caller
@@ -108,15 +107,15 @@ func (s *snapmgrBaseTest) settle(c *C) {
 	s.state.Unlock()
 	defer s.state.Lock()
 
-	s.restartRequested = restart.RestartUnset
+	requestedRestart := restart.RestartUnset
 	s.restartHandler = func(rt restart.RestartType) {
 		c.Logf("restart handler, requested kind: %v", rt)
-		s.restartRequested = rt
+		requestedRestart = rt
 	}
 
 	err := s.o.SettleWithBreakCondition(testutil.HostScaledTimeout(10*time.Second),
 		func() bool {
-			return s.restartRequested != restart.RestartUnset
+			return requestedRestart != restart.RestartUnset
 		})
 	if err != nil {
 		s.state.Lock()

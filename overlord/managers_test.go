@@ -156,8 +156,7 @@ type baseMgrsSuite struct {
 
 	storeObserver func(r *http.Request)
 
-	requestedRestart restart.RestartType
-	restartHandler   func(rt restart.RestartType)
+	restartHandler func(rt restart.RestartType)
 }
 
 var (
@@ -590,19 +589,18 @@ func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string,
 func (ms *baseMgrsSuite) settleSupportingRestarts(c *C) error {
 	c.Logf(">>> settle start")
 	defer c.Logf("<<<< settle end")
-	ms.requestedRestart = restart.RestartUnset
+	requestedRestart := restart.RestartUnset
 	ms.restartHandler = func(rt restart.RestartType) {
 		c.Logf("test restart handler: %v", rt)
-		ms.requestedRestart = rt
+		requestedRestart = rt
 	}
-	err := ms.o.SettleWithBreakCondition(settleTimeout, func() bool {
-		if ms.requestedRestart != restart.RestartUnset {
-			c.Logf("request settle loop break: %v\n", ms.requestedRestart)
+	return ms.o.SettleWithBreakCondition(settleTimeout, func() bool {
+		if requestedRestart != restart.RestartUnset {
+			c.Logf("request settle loop break: %v\n", requestedRestart)
 			return true
 		}
 		return false
 	})
-	return err
 }
 
 type mgrsSuite struct {

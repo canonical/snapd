@@ -75,6 +75,7 @@ func (s *UbuntuProControlInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/etc/ubuntu-advantage/uaclient.conf r,`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.DBus.ObjectManager`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=com.canonical.UbuntuAdvantage.Manager`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=com.canonical.UbuntuAdvantage.Service`)

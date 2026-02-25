@@ -23,6 +23,12 @@ execute: |
             exit 1
         fi
         MATCH "Permission denied" < manager.error
+
+        if test-snapd-ubuntu-pro-control.manager-info uaclient-conf-r 2> uaclient.error; then
+            echo "Expected permission error while interface is disconnected"
+            exit 1
+        fi
+        MATCH "Permission denied" < uaclient.error
     fi
 
     # connect and test usage
@@ -32,6 +38,7 @@ execute: |
     test-snapd-ubuntu-pro-control.manager-info daemon-version | MATCH "string"
 
     test-snapd-ubuntu-pro-control.list-services | MATCH "com.canonical.UbuntuAdvantage.Manager"
+    test-snapd-ubuntu-pro-control.manager-info uaclient-conf-r
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -45,3 +52,9 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < manager.error
+
+    if test-snapd-ubuntu-pro-control.manager-info uaclient-conf-r 2> uaclient.error; then
+        echo "Expected permission error while interface is disconnected"
+        exit 1
+    fi
+    MATCH "Permission denied" < uaclient.error
