@@ -186,6 +186,47 @@ missing_interface_spread_test() {
     done
 }
 
+forbidden_cmd_go_deps() {
+    local -a go_list_tags=()
+    local -a forbidden_deps=(
+        "github.com/snapcore/snapd/testutil"
+        "gopkg.in/check.v1"
+    )
+
+    if [ -n "${GO_BUILD_TAGS:-}" ]; then
+        go_list_tags=(-tags "$GO_BUILD_TAGS")
+    fi
+
+    local cmd_mains
+    cmd_mains=$(go list "${go_list_tags[@]}" -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...)
+
+    local -a violations=()
+    local cmd_main
+    for cmd_main in $cmd_mains; do
+        local deps
+        deps=$(go list "${go_list_tags[@]}" -deps "$cmd_main")
+
+        local dep
+        for dep in "${forbidden_deps[@]}"; do
+            if grep -qx "$dep" <<<"$deps"; then
+                violations+=("$cmd_main -> $dep")
+            fi
+        done
+    done
+
+    if [ ${#violations[@]} -gt 0 ]; then
+        echo "Go binaries must not depend on forbidden packages:" >&2
+        for dep in "${forbidden_deps[@]}"; do
+            echo "  - $dep" >&2
+        done
+        echo "Violations:" >&2
+        for violation in "${violations[@]}"; do
+            echo "  - $violation" >&2
+        done
+        return 1
+    fi
+}
+
 CURRENT_TRAP="true"
 EXIT_CODE=99
 
@@ -332,6 +373,9 @@ if [ "$STATIC" = 1 ]; then
         echo "$got" >&2
         exit 1
     fi
+
+    echo ">> [Go] Checking cmd binaries for forbidden dependencies"
+    forbidden_cmd_go_deps
 
     if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
         echo ">> [Go] Checking modernize"
