@@ -96,14 +96,27 @@ type snapmgrBaseTest struct {
 	user3 *auth.UserState
 
 	restarts map[string]int
+
+	restartHandler func(restart.RestartType)
 }
 
 // state must be locked by caller
 func (s *snapmgrBaseTest) settle(c *C) {
+	c.Logf(">>> settle start")
+	defer c.Logf("<<< settle end")
 	s.state.Unlock()
 	defer s.state.Lock()
 
-	err := s.o.Settle(testutil.HostScaledTimeout(10 * time.Second))
+	requestedRestart := restart.RestartUnset
+	s.restartHandler = func(rt restart.RestartType) {
+		c.Logf("restart handler, requested kind: %v", rt)
+		requestedRestart = rt
+	}
+
+	err := s.o.SettleWithBreakCondition(testutil.HostScaledTimeout(10*time.Second),
+		func() bool {
+			return requestedRestart != restart.RestartUnset
+		})
 	if err != nil {
 		s.state.Lock()
 		defer s.state.Unlock()
@@ -164,7 +177,13 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", nil)
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(rt restart.RestartType) {
+		if s.restartHandler != nil {
+			c.Logf("call test restart handler for restart type: %v", rt)
+			s.restartHandler(rt)
+		}
+	}))
+
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
@@ -8217,6 +8236,12 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
+	// up until daemon restart caused by snapd installation
+	s.settle(c)
+	kind := restart.Pending(s.state)
+	c.Check(kind, Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	// run through to the end
 	s.settle(c)
 
 	// various backend operations, but no unlink-current-snap
