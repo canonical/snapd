@@ -45,7 +45,7 @@ var (
 	DiscardSnapIcon = discardSnapIcon
 )
 
-func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error)) (restore func()) {
+func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {
 	old := wrappersAddSnapdSnapServices
 	wrappersAddSnapdSnapServices = f
 	return func() {
