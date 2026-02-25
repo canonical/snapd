@@ -282,10 +282,6 @@ WantedBy=snapd.service
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		{"start", "--no-block", "snapd.apparmor.service"},
-		{"start", "--no-block", "snapd.service"},
-		{"start", "--no-block", "snapd.seeded.service"},
-		{"start", "--no-block", "snapd.autoimport.service"},
 	})
 }
 
@@ -329,10 +325,6 @@ type: snapd
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		{"start", "--no-block", "snapd.apparmor.service"},
-		{"start", "--no-block", "snapd.service"},
-		{"start", "--no-block", "snapd.seeded.service"},
-		{"start", "--no-block", "snapd.autoimport.service"},
 	}
 
 	s.testAddSnapServicesOperationsWithQuirks(c, quirkySnapdYaml, extras, expectedOps)
@@ -384,10 +376,6 @@ type: snapd
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		{"start", "--no-block", "snapd.apparmor.service"},
-		{"start", "--no-block", "snapd.service"},
-		{"start", "--no-block", "snapd.seeded.service"},
-		{"start", "--no-block", "snapd.autoimport.service"},
 	}
 
 	s.testAddSnapServicesOperationsWithQuirks(c, quirkySnapdYaml, extras, expectedOps)

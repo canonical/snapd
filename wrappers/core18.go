@@ -172,34 +172,37 @@ type snapdRestartImpl struct {
 	Sysd systemd.Systemd
 }
 
-// Restart restarts systemd service units. Call this method after
-// symlink /snap/snapd/current has been updated.
-func (r *snapdRestartImpl) Restart() error {
-	if err := r.Sysd.StartNoBlock([]string{"snapd.apparmor.service"}); err != nil {
+// Restart restarts systemd service units. Called from daemon.Stop.
+func Restart() error {
+	sysd := systemd.New(systemd.SystemMode, nil)
+	if err := sysd.StartNoBlock([]string{"snapd.apparmor.service"}); err != nil {
 		return err
 	}
 
-	// and finally start snapd.service (it will stop by itself and gets
-	// started by systemd then)
+	// Restart snapd.service (it will stop by itself and gets
+	// started by systemd then).
 	// Because of the file lock held on the snapstate by the Overlord, the new
 	// snapd will block there until we release it. For this reason, we cannot
 	// start the unit in blocking mode.
-	// TODO: move/share this responsibility with daemon so that we can make the
-	// start blocking again
-	if err := r.Sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
+	if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
 		return err
 	}
-	if err := r.Sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
+	if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
 		return err
 	}
 	// we cannot start snapd.autoimport in blocking mode because
 	// it has a "After=snapd.seeded.service" which means that on
 	// seeding a "systemctl start" that blocks would hang forever
 	// and we deadlock.
-	if err := r.Sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
+	if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (r *snapdRestartImpl) Restart() error {
+	logger.Noticef("empty Restart")
 	return nil
 }
 
