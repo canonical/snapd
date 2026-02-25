@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -439,6 +440,21 @@ func (s *State) Tasks() []*Task {
 		if t.Change() == nil { // skip unlinked tasks
 			continue
 		}
+		res = append(res, t)
+	}
+	return res
+}
+
+// AllTasksForTests returns all tasks currently known to the state,
+// including tasks not linked to any change.
+//
+// This method exists for unit tests that build task graphs directly
+// without creating changes.
+func (s *State) AllTasksForTests() []*Task {
+	osutil.MustBeTestBinary("State.AllTasksForTests can only be used from tests")
+	s.reading()
+	res := make([]*Task, 0, len(s.tasks))
+	for _, t := range s.tasks {
 		res = append(res, t)
 	}
 	return res
