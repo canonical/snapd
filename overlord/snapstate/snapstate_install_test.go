@@ -7227,6 +7227,11 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 
 	if opts.undo {
 		expected = append(expected, undoOps(instanceName, opts.snapType, expectedSeq, nil)...)
+		expected = append(expected, fakeOp{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "",
+			path: snap.MountFile(instanceName, snapRevision),
+		})
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -7366,6 +7371,7 @@ type testInstallComponentsFromPathRunThroughOpts struct {
 	undo        bool
 	removePaths bool
 	unasserted  bool
+	download    bool
 }
 
 func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, opts testInstallComponentsFromPathRunThroughOpts) {
@@ -7633,6 +7639,13 @@ components:
 
 	if opts.undo {
 		expected = append(expected, undoOps(instanceName, opts.snapType, expectedSeq, nil)...)
+		if opts.download {
+			expected = append(expected, fakeOp{
+				op:   "storesvc-cleanup-download-artifacts",
+				sha3: "some-hash",
+				path: snap.MountFile(instanceName, snapRevision),
+			})
+		}
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",

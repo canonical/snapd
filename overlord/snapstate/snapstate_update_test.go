@@ -2980,6 +2980,11 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "",
+			path: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+		},
 	}...)
 
 	// ensure all our tasks ran

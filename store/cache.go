@@ -22,6 +22,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -72,6 +73,8 @@ type downloadCache interface {
 	GetPath(cacheKey string) string
 	// Drop an entry. Ignores errors when entry does not exist.
 	Drop(cacheKey string) error
+	// Open a stream to entry under a given key.
+	Open(cacheKey string) (io.ReadSeekCloser, error)
 	// Best effort cleanup of outstanding cache items. Returns ErrCleanupBusy
 	// when the cache is in use and cleanup should be retried at some later
 	// time.
@@ -90,6 +93,8 @@ func (cm *nullCache) GetPath(cacheKey string) string {
 func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
 func (cm *nullCache) Drop(cacheKey string) error { return nil }
+
+func (cm *nullCache) Open(cacheKey string) (io.ReadSeekCloser, error) { return nil, fs.ErrNotExist }
 
 func (cm *nullCache) Cleanup() error { return nil }
 
@@ -214,6 +219,22 @@ func (cm *CacheManager) Drop(cacheKey string) error {
 		}
 		return nil
 	}()
+}
+
+// Open a stream for reading from an entry under a given key.
+func (cm *CacheManager) Open(cacheKey string) (io.ReadSeekCloser, error) {
+	if cacheKey == "" {
+		return nil, fs.ErrNotExist
+	}
+
+	// always try to create the cache dir first or the following
+	// osutil.IsWritable will always fail if the dir is missing
+	_ = os.MkdirAll(cm.cacheDir, 0700)
+
+	cm.cleanupLock.RLock()
+	defer cm.cleanupLock.RUnlock()
+
+	return os.Open(cm.path(cacheKey))
 }
 
 // count returns the number of items in the cache
