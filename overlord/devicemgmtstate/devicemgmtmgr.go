@@ -88,13 +88,11 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime time.Time `json:"receive-time"`
-	// Subsystem change applying this message
+	ReceiveTime    time.Time             `json:"receive-time"`
+	ResponseStatus asserts.MessageStatus `json:"status,omitempty"`
+	ResponseReason string                `json:"error,omitempty"`
+	// Subsystem change applying this message.
 	ChangeID string `json:"change-id,omitempty"`
-	// Response status
-	Status asserts.MessageStatus `json:"status,omitempty"`
-	// Error/rejection reason
-	Error string `json:"error,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -401,7 +399,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 	for _, msg := range ms.PendingRequests {
 		// No explicit "dispatched" marker is needed; the single-change-in-flight
 		// guard in Ensure() prevents concurrent dispatch.
-		if msg.ChangeID != "" || msg.Status != "" {
+		if msg.ChangeID != "" || msg.ResponseStatus != "" {
 			continue // Already dispatched
 		}
 
@@ -429,8 +427,8 @@ func (m *DeviceMgmtManager) pruneSequences(chg *state.Change, ms *deviceMgmtStat
 	for len(ms.Sequences.Applied) > maxSequences {
 		earliest := ms.evictLRUSequence()
 		if earliest != nil {
-			earliest.Status = asserts.MessageStatusRejected
-			earliest.Error = "sequence evicted from cache due to capacity limits"
+			earliest.ResponseStatus = asserts.MessageStatusRejected
+			earliest.ResponseReason = "sequence evicted from cache due to capacity limits"
 
 			lane := m.state.NewLane()
 			queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))
@@ -512,10 +510,9 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
-// For messages with a subsystem change, the task retries until the change completes.
+// Retries until subsystem change completes.
 func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: implement this task, no-op for now.
-	// TODO: on success for sequenced messages, update seq.Applied = msg.SeqNum.
 	return nil
 }
 
