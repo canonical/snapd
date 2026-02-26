@@ -342,13 +342,17 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			continue
 		}
 
-		// if we refreshed snapd, force all of the downloads to start after it
-		// is done. note: we don't add this to the chain of tasks we're building
-		// because we don't want to serialize the download tasks.
+		// if this essential snap is not one of the early downloads, we ensure
+		// that this snap's first before-local-modifications task waits on the
+		// final snapd task. this results in the new version of snapd executing
+		// all tasks created for this essential snap.
 		//
-		// note: as an exception, if this essential snap is in the early
-		// download cohort, then we allow/require that the original snapd run
-		// the before-local-modification tasks
+		// alternatively, when this essential snap is part of the early download
+		// cohort, we omit this dependency, and we only require that this snap's
+		// modification inducing tasks wait for snapd. this frees up this
+		// essential snap's before-local-modifications tasks so that they can be
+		// freely arranged before all local modification inducing tasks, across
+		// all snaps.
 		if finalSnapdTask != nil && !earlyDownloads[sts.snapsup.InstanceName()] {
 			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalSnapdTask)
 		}
