@@ -68,14 +68,14 @@ func TaskLabel(t *state.Task) (string, error) {
 		if err := t.Get("hook-setup", &hooksup); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("[%s] %s:run-hook[%s]", t.ID(), hooksup.Snap, hooksup.Hook), nil
+		return fmt.Sprintf("%s:run-hook[%s] [%s]", hooksup.Snap, hooksup.Hook, t.ID()), nil
 	}
 
 	if snapName != "" {
-		return fmt.Sprintf("[%s] %s:%s", t.ID(), snapName, t.Kind()), nil
+		return fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), nil
 	}
 
-	label := fmt.Sprintf("[%s] %s", t.ID(), t.Kind())
+	label := fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
 
 	var plugRef interfaces.PlugRef
 	if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -88,13 +88,13 @@ func TaskLabel(t *state.Task) (string, error) {
 	}
 
 	if plugRef.Snap != "" && slotRef.Snap != "" {
-		label = fmt.Sprintf("[%s] %s[%s:%s %s:%s]", t.ID(), t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+		label = fmt.Sprintf("%s[%s:%s %s:%s] [%s]", t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name, t.ID())
 	}
 
 	return label, nil
 }
 
-// taskSnapName returns the name of the snap with which thisthat this task is
+// taskSnapName returns the name of the snap with which this task is
 // associated.
 //
 // TODO: properly handle "apply-delayed-snap-security-backend-effects" tasks

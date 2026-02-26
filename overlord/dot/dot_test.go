@@ -61,7 +61,7 @@ func (s *dotSuite) TestTaskLabelRunHook(c *C) {
 
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
-	c.Assert(str, Equals, "[1] snap:run-hook[hook]")
+	c.Assert(str, Equals, "snap:run-hook[hook] [1]")
 }
 
 func (s *dotSuite) TestTaskLabelRunHookErrorNoHookSetup(c *C) {
@@ -89,7 +89,7 @@ func (s *dotSuite) TestTaskLabelWithSnapSetup(c *C) {
 
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
-	c.Assert(str, Equals, "[1] snap-name:task-kind")
+	c.Assert(str, Equals, "snap-name:task-kind [1]")
 }
 
 func (s *dotSuite) TestTaskLabelConnect(c *C) {
@@ -111,7 +111,7 @@ func (s *dotSuite) TestTaskLabelConnect(c *C) {
 
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
-	c.Assert(str, Equals, "[1] connect[plug-snap:plug-name slot-snap:slot-name]")
+	c.Assert(str, Equals, "connect[plug-snap:plug-name slot-snap:slot-name] [1]")
 }
 
 func (s *dotSuite) TestTaskLabelConnectMissingSnapName(c *C) {
@@ -133,7 +133,7 @@ func (s *dotSuite) TestTaskLabelConnectMissingSnapName(c *C) {
 
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
-	c.Assert(str, Equals, "[1] connect")
+	c.Assert(str, Equals, "connect [1]")
 }
 
 func (s *dotSuite) TestTaskLabelWithComponentSetupTask(c *C) {
@@ -159,7 +159,7 @@ func (s *dotSuite) TestTaskLabelWithComponentSetupTask(c *C) {
 
 	str, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
-	c.Assert(str, Equals, "[2] mysnap:link-component")
+	c.Assert(str, Equals, "mysnap:link-component [2]")
 }
 
 func (s *dotSuite) TestNewChangeGraphUsesDefaultTaskLabel(c *C) {
@@ -173,5 +173,5 @@ func (s *dotSuite) TestNewChangeGraphUsesDefaultTaskLabel(c *C) {
 
 	g, err := dot.NewChangeGraph(chg, "my-tag")
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(g.Dot(), `"[1] task-kind"`), Equals, true)
+	c.Assert(strings.Contains(g.Dot(), `"task-kind [1]"`), Equals, true)
 }
