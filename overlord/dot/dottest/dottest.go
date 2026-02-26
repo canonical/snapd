@@ -33,9 +33,10 @@ import (
 var exportChangeGraphs = flag.Bool("snapd.export-change-graphs", false, "export change graphs during tests")
 var openChangeGraphs = flag.Bool("snapd.open-change-graphs", false, "open exported change graphs during tests (implies -snapd.export-change-graphs)")
 
-// ExportChangeGraphs creates change graphs for tasks in the state when either
-// -snapd.export-change-graphs or -snapd.open-change-graphs is set. if
-// -snapd.open-change-graphs is set, then the graphs are opened.
+// ExportChangeGraphs creates change graphs for tasks that are not associated
+// with any change when either -snapd.export-change-graphs or
+// -snapd.open-change-graphs is set. If -snapd.open-change-graphs is set, then
+// the exported graphs are opened.
 func ExportChangeGraphs(c *check.C, st *state.State) {
 	if !*exportChangeGraphs && !*openChangeGraphs {
 		return
@@ -45,22 +46,19 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 	defer st.Unlock()
 
 	tasks := st.AllTasksForTests()
-	unlinked := make([]*state.Task, 0, len(tasks))
+	withoutChange := make([]*state.Task, 0, len(tasks))
 	for _, t := range tasks {
 		if t.Change() != nil {
 			continue
 		}
-		unlinked = append(unlinked, t)
+		withoutChange = append(withoutChange, t)
 	}
-
-	// TODO: for now, we're just handling tasks that aren't attached to a
-	// change.
-	if len(unlinked) == 0 {
+	if len(withoutChange) == 0 {
 		return
 	}
 
-	chg := st.NewChange("unlinked-tasks", c.TestName())
-	for _, t := range unlinked {
+	chg := st.NewChange("tasks-without-change", c.TestName())
+	for _, t := range withoutChange {
 		chg.AddTask(t)
 	}
 
@@ -69,16 +67,15 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 
 	graphPath, err := g.Export()
 	if err != nil {
-		c.Logf("cannot export change graph: %v", err)
+		c.Logf("cannot export tasks-without-change graph: %v", err)
 		return
 	}
-
-	fmt.Printf("%s => %s\n", c.TestName(), graphPath)
+	fmt.Printf("%s tasks-without-change => %s\n", c.TestName(), graphPath)
 
 	if !*openChangeGraphs {
 		return
 	}
 	if err := exec.Command("xdg-open", graphPath).Run(); err != nil {
-		c.Logf("cannot open change graph: %v", err)
+		c.Logf("cannot open tasks-without-change graph: %v", err)
 	}
 }
