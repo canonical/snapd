@@ -887,6 +887,7 @@ make -C data -k check
 %ghost %{_localstatedir}/cache/snapd/commands
 %ghost %{_localstatedir}/cache/snapd/names
 %ghost %{_localstatedir}/cache/snapd/sections
+%dir %{_localstatedir}/log/snapd
 %dir %{_localstatedir}/snap
 %if %{with snap_symlink}
 /snap
@@ -4642,7 +4643,7 @@ fi
    specific cgroup (2.53)
  - interfaces/u2f-devices: add Nitrokey 3
  - Update the ubuntu-image channel to candidate
- - Allow hostnames up to 253 characters, with dot-delimited elements 
+ - Allow hostnames up to 253 characters, with dot-delimited elements
    (as suggested by man 7 hostname).
  - Disable i386 until it is possible to build snapd using lxd
  - o/snapstate, hookstate: print remaining hold time on snapctl
@@ -5644,7 +5645,7 @@ fi
 
 * Wed May 19 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.50.1
- - interfaces: update permitted /lib/.. paths to be compatible with 
+ - interfaces: update permitted /lib/.. paths to be compatible with
    UC20
  - interfaces: builtin: update permitted paths to be compatible with
    UC20

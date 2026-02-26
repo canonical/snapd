@@ -513,6 +513,7 @@ fi
 %dir %{_environmentdir}
 %dir %{_libexecdir}/snapd
 %dir %{_localstatedir}/cache/snapd
+%dir %{_localstatedir}/log/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/apparmor
 %dir %{_sharedstatedir}/snapd/apparmor/profiles

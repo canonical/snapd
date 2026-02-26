@@ -21,4 +21,5 @@ var/lib/snapd/lib/vulkan
 var/lib/snapd/snaps/partial
 var/lib/snapd/ssl/store-certs
 var/lib/snapd/void
+var/log/snapd
 var/snap
