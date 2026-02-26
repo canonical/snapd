@@ -234,20 +234,25 @@ components:
 
 func (s *snapmgrTestSuite) TestComponentEnforcedValidationSet(c *C) {
 	expectedErr := `cannot remove component "mysnap+mycomp" as it is required by an enforcing validation set`
-	s.testComponentRemoveValidationSet(c, "mysnap", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", expectedErr)
+	s.testComponentRemoveValidationSet(c, "mysnap", "mycomp", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", expectedErr)
+}
+
+func (s *snapmgrTestSuite) TestComponentEnforcedValidationSetOtherComponent(c *C) {
+	s.testComponentRemoveValidationSet(c, "mysnap", "othercomp", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
 }
 
 func (s *snapmgrTestSuite) TestComponentUnenforcedValidationSet(c *C) {
-	s.testComponentRemoveValidationSet(c, "othersnap", "otherIDVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
+	s.testComponentRemoveValidationSet(c, "othersnap", "othercomp", "otherIDVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
 }
 
-func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName, targetSnapID, expectedErrorMsg string) {
+func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName, targetCompName, targetSnapID, expectedErrorMsg string) {
 	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
 
 	const enforcedSnapName = "mysnap"
+	const enforcedCompName = "mycomp"
 	const enforcedSnapID = "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"
 
-	const compName = "mycomp"
+	compName := targetCompName
 	snapRev := snap.R(1)
 	compRev := snap.R(33)
 
@@ -293,7 +298,7 @@ components:
 				"id":       enforcedSnapID,
 				"presence": "required",
 				"components": map[string]any{
-					compName: map[string]any{
+					enforcedCompName: map[string]any{
 						"presence": "required",
 					},
 				},
