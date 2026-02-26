@@ -12355,6 +12355,15 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Assert(logs, HasLen, 0)
 }
 
+func verifyDelayedEffectsTaskset(c *C, ts *state.TaskSet, expectedLanes []int) {
+	c.Assert(ts.Tasks(), HasLen, 1)
+	processTask := ts.Tasks()[0]
+	c.Check(processTask.Kind(), Equals, "process-delayed-security-backend-effects")
+	var monitorLanes []int
+	c.Assert(processTask.Get("monitored-lanes", &monitorLanes), IsNil)
+	c.Check(monitorLanes, DeepEquals, expectedLanes)
+}
+
 func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	s.mockSnap(c, consumerYaml)
 	prod := s.mockSnap(c, producerYaml)
@@ -12629,12 +12638,11 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
 	c.Assert(chg, NotNil)
@@ -12851,15 +12859,13 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	s.state.Lock()
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{0})
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
@@ -13044,16 +13050,15 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	})
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{1, 2})
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
 	c.Assert(chg, NotNil)
@@ -13089,12 +13094,10 @@ func (s *interfaceManagerSuite) TestDelayedEffectsNoLanes(c *C) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
-	s.state.EnsureBefore(0)
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 }
@@ -13108,12 +13111,10 @@ func (s *interfaceManagerSuite) TestDelayedEffectsLaneNoWork(c *C) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	chg.AddAll(ts)
 
-	s.state.EnsureBefore(0)
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 }
@@ -13219,16 +13220,15 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 	})
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{0})
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
 	c.Assert(chg, NotNil)
@@ -13396,15 +13396,13 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	})
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{1, 2})
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
@@ -13472,12 +13470,11 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyNoDataErr(c *C) {
 	chg := s.state.NewChange("test", "")
 	tsk := s.state.NewTask("apply-delayed-snap-security-backend-effects", "apply")
 	chg.AddTask(tsk)
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
+
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
 	c.Assert(chg, NotNil)
@@ -13521,11 +13518,9 @@ func (s *interfaceManagerSuite) TestDelayedEffectsProcessNoMonitoredLanes(c *C) 
 	chg := s.state.NewChange("test", "")
 	tsk := s.state.NewTask("process-delayed-security-backend-effects", "process")
 	chg.AddTask(tsk)
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
@@ -13646,15 +13641,13 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesChecksCallbackbac
 	})
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{0})
 	chg.AddAll(ts)
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
+
 	s.state.Unlock()
-
 	s.settle(c)
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg = s.state.Change(chg.ID())
@@ -13683,9 +13676,18 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbac
 	s.testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(c, nonDelaying)
 }
 
-func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C) {
-	// Pretend we're a core system, so that restart handler is triggered
-	defer release.MockOnClassic(false)()
+type testDelayedEffectsHandlingOfRestartRequestsScenario int
+
+const (
+	onCore = iota
+	onClassic
+)
+
+func (s *interfaceManagerSuite) testDelayedEffectsHandlingOfRestartRequests(c *C, scenario testDelayedEffectsHandlingOfRestartRequestsScenario) {
+	if scenario == onCore {
+		// Pretend we're a core system, so that restart handler is triggered
+		defer release.MockOnClassic(false)()
+	}
 
 	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
 	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
@@ -13768,7 +13770,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 	})
 
 	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg))
-	c.Assert(ts.Tasks(), HasLen, 1)
+	verifyDelayedEffectsTaskset(c, ts, []int{0})
 	processTask := ts.Tasks()[0]
 	chg.AddAll(ts)
 
@@ -13781,8 +13783,6 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 	}
 
 	dumpTasks(c, "before", chg.Tasks())
-	s.state.EnsureBefore(0)
-
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
@@ -13800,8 +13800,15 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 		"Task set to wait until a system restart allows to continue")
 
 	restarting, rt := restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
-	c.Check(rt, Equals, restart.RestartSystem)
+	if scenario == onCore {
+		c.Check(restarting, Equals, true)
+		c.Check(rt, Equals, restart.RestartSystem)
+	} else if scenario == onClassic {
+		// on classic we're not really requesting a restart, but the change is
+		// put into the waiting state nonetheless
+		c.Check(restarting, Equals, false)
+		c.Check(rt, Equals, restart.RestartUnset)
+	}
 
 	// pretend the restart happened
 	restart.MockPending(s.state, restart.RestartUnset)
@@ -13816,4 +13823,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 
 	// delayed effects eventually got applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsCore(c *C) {
+	s.testDelayedEffectsHandlingOfRestartRequests(c, onCore)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsClassic(c *C) {
+	s.testDelayedEffectsHandlingOfRestartRequests(c, onClassic)
 }

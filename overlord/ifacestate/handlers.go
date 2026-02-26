@@ -2475,13 +2475,13 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 		}
 	}
 
-	if restart.PendingForChangeTasks(st, chg, considerRestartTriggeringTasks) {
-		// Tasks in monitored lanes may have requested a restart, in which case we
-		// must put ourselves into the waiting state.
-		return restart.TaskWaitForRestart(task)
-	}
-
 	if unreadyTasks {
+		if restart.PendingForChangeTasks(st, chg, considerRestartTriggeringTasks) {
+			// Tasks in monitored lanes may have requested a restart, in which case we
+			// must put ourselves into the waiting state.
+			return restart.TaskWaitForRestart(task)
+		}
+
 		return &state.Retry{After: delayedEffectsCoordinationRetryTimeout, Reason: "pending snap work"}
 	}
 
