@@ -89,10 +89,9 @@ jobs:
           mkdir "${{ github.workspace }}"
 
           # Kill any leftover spread processes
-          for pid in $(pgrep spread); do
-            echo "Killing process $(ps -p "$pid" -o cmd || true)"
-            kill -9 "$pid" || true 
-          done
+          echo "Leftover spread processes:"
+          ps -e -o cmd | grep spread | grep -v grep
+          killall -9 spread || true
 
     - name: Checkout code
       uses: actions/checkout@v6
@@ -450,10 +449,9 @@ jobs:
       if: always()
       run: |
         # Kill any leftover spread processes
-        for pid in $(pgrep spread); do
-          echo "Killing process $(ps -p "$pid" -o cmd || true)"
-          kill -9 "$pid" || true
-        done
+        echo "Leftover spread processes:"
+        ps -e -o cmd | grep spread | grep -v grep
+        killall -9 spread || true
 
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
