@@ -13676,9 +13676,18 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesChecksCallbackbac
 	s.testDelayedEffectsSetupProfilesChecksCallbackbackendErrs(c, nonDelaying)
 }
 
-func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C) {
-	// Pretend we're a core system, so that restart handler is triggered
-	defer release.MockOnClassic(false)()
+type testDelayedEffectsHandlingOfRestartRequestsScenario int
+
+const (
+	onCore = iota
+	onClassic
+)
+
+func (s *interfaceManagerSuite) testDelayedEffectsHandlingOfRestartRequests(c *C, scenario testDelayedEffectsHandlingOfRestartRequestsScenario) {
+	if scenario == onCore {
+		// Pretend we're a core system, so that restart handler is triggered
+		defer release.MockOnClassic(false)()
+	}
 
 	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
 	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
@@ -13791,8 +13800,15 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 		"Task set to wait until a system restart allows to continue")
 
 	restarting, rt := restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
-	c.Check(rt, Equals, restart.RestartSystem)
+	if scenario == onCore {
+		c.Check(restarting, Equals, true)
+		c.Check(rt, Equals, restart.RestartSystem)
+	} else if scenario == onClassic {
+		// on classic we're not really requesting a restart, but the change is
+		// put into the waiting state nonetheless
+		c.Check(restarting, Equals, false)
+		c.Check(rt, Equals, restart.RestartUnset)
+	}
 
 	// pretend the restart happened
 	restart.MockPending(s.state, restart.RestartUnset)
@@ -13807,4 +13823,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequests(c *C
 
 	// delayed effects eventually got applied
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsCore(c *C) {
+	s.testDelayedEffectsHandlingOfRestartRequests(c, onCore)
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsClassic(c *C) {
+	s.testDelayedEffectsHandlingOfRestartRequests(c, onClassic)
 }
