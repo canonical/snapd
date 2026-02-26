@@ -316,24 +316,13 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
-			err: prompting_errors.ErrPromptsClosed,
+			err: prompting_errors.ErrPromptingClosed,
 			body: map[string]any{
 				"result": map[string]any{
-					"message": prompting_errors.ErrPromptsClosed.Error(),
+					"message": prompting_errors.ErrPromptingClosed.Error(),
 				},
-				"status":      "Internal Server Error",
-				"status-code": 500.0,
-				"type":        "error",
-			},
-		},
-		{
-			err: prompting_errors.ErrRulesClosed,
-			body: map[string]any{
-				"result": map[string]any{
-					"message": prompting_errors.ErrRulesClosed.Error(),
-				},
-				"status":      "Internal Server Error",
-				"status-code": 500.0,
+				"status":      "Service Unavailable",
+				"status-code": 503.0,
 				"type":        "error",
 			},
 		},

@@ -44,7 +44,7 @@ tags:
   - name: OpenAccess
     description: Do not require the user to authenticate.
   - name: Prompting
-    description:  Interact with the prompting system.
+    description:  Interact with the prompting subsystem.
   - name: Root
     description: Requires the user to authenticate with root access.    # TODO Properly describe the difference between AuthenticationRequired and Root
   - name: Snaps

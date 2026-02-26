@@ -352,6 +352,19 @@ var removeStaleConnections = func(st *state.State) error {
 		return err
 	}
 	var staleConns []string
+	brokenCache := make(map[string]bool)
+	isBrokenCached := func(snapName string) (bool, error) {
+		broken, ok := brokenCache[snapName]
+		if ok {
+			return broken, nil
+		}
+		broken, err := isBroken(st, snapName)
+		if err != nil {
+			return false, err
+		}
+		brokenCache[snapName] = broken
+		return broken, nil
+	}
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -362,12 +375,26 @@ var removeStaleConnections = func(st *state.State) error {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
+			broken, err := isBrokenCached(connRef.SlotRef.Snap)
+			if err != nil {
+				return err
+			}
+			if broken {
+				continue
+			}
 			staleConns = append(staleConns, id)
 			continue
 		}
 		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
+			}
+			broken, err := isBrokenCached(connRef.PlugRef.Snap)
+			if err != nil {
+				return err
+			}
+			if broken {
+				continue
 			}
 			staleConns = append(staleConns, id)
 			continue

@@ -188,28 +188,28 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 
 	// Check that the listener and prompt and rule backends were closed
 	checkListenerClosed(c, reqChan)
-	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
-	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
+	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptingClosed)
+	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrPromptingClosed)
 
 	// Check that calls to API methods don't panic after backends have been closed
 	_, err = mgr.Prompts(1000, false)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.PromptWithID(1000, rule.ID, false)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.HandleReply(1000, rule.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.Rules(1000, "foo", "bar")
 	c.Check(err, IsNil) // rule backend supports getting rules even after closed
 	_, err = mgr.AddRule(1000, "foo", "home", constraints)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RemoveRules(1000, "foo", "bar")
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RuleWithID(1000, rule.ID)
 	c.Check(err, IsNil) // rule backend supports getting rules even after closed
 	_, err = mgr.PatchRule(1000, rule.ID, nil)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	_, err = mgr.RemoveRule(1000, rule.ID)
-	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
 
 func (s *apparmorpromptingSuite) TestHandleRequestDenyRoot(c *C) {

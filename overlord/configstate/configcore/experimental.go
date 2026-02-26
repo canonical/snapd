@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func init() {
@@ -94,11 +93,19 @@ func IsSupportedExperimentalFlag(flag string) bool {
 	return supportedConfigurations["core.experimental."+flag]
 }
 
-// MockSupportedExperimentalFlags mocks list of supported experimental flags for use in testing.
+// MockSupportedExperimentalFlags mocks the supported experimental flags. Should
+// only be used in tests.
+//
+// Keep the restore logic local instead of using testutil: this helper lives in
+// production code so tests in other packages can call it, and importing
+// testutil would leak a test-only dependency into production import graphs.
 func MockSupportedExperimentalFlags(flags []string) (restore func()) {
 	osutil.MustBeTestBinary("MockSupportedExperimentalFlags only can be used in tests")
 
-	restore = testutil.Backup(&supportedConfigurations)
+	backup := supportedConfigurations
+	restore = func() {
+		supportedConfigurations = backup
+	}
 	newConfs := make(map[string]bool, len(flags))
 	for _, flag := range flags {
 		newConfs["core.experimental."+flag] = true

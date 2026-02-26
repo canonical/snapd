@@ -1825,29 +1825,29 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 
 	metadata := prompting.Metadata{Interface: "home"}
 	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 	c.Check(merged, Equals, false)
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	prompts, err := pdb.Prompts(1000, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(prompts, IsNil)
 
 	prompt, err := pdb.PromptWithID(1000, 1, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(prompt, IsNil)
 
 	result, err = pdb.Reply(1000, 1, prompting.OutcomeDeny, clientActivity)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(result, IsNil)
 
 	promptIDs, err := pdb.HandleNewRule(nil, nil)
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 	c.Check(promptIDs, IsNil)
 
 	err = pdb.Close()
-	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
 
 func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {

@@ -596,7 +596,7 @@ func (pdb *PromptDB) loadRequestKeyPromptIDMapping() error {
 	err = json.NewDecoder(f).Decode(&savedState)
 	if err != nil {
 		// XXX: currently, a decode error causes prompt DB startup to fail,
-		// thus preventing the prompting system from starting. Do we want to
+		// thus preventing the prompting subsystem from starting. Do we want to
 		// instead record a logger.Notice and re-initialize an empty map?
 		return fmt.Errorf("cannot read stored mapping from request key to prompt ID: %w", err)
 	}
@@ -775,7 +775,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return nil, false, prompting_errors.ErrPromptsClosed
+		return nil, false, prompting_errors.ErrPromptingClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -964,7 +964,7 @@ func (pdb *PromptDB) Prompts(user uint32, clientActivity bool) ([]*Prompt, error
 	pdb.mutex.RLock()
 	defer pdb.mutex.RUnlock()
 	if pdb.isClosed() {
-		return nil, prompting_errors.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok || len(userEntry.prompts) == 0 {
@@ -999,7 +999,7 @@ func (pdb *PromptDB) PromptWithID(user uint32, id prompting.IDType, clientActivi
 // The caller should hold a read (or write) lock on the prompt DB mutex.
 func (pdb *PromptDB) promptWithID(user uint32, id prompting.IDType, clientActivity bool) (*userPromptDB, *Prompt, error) {
 	if pdb.isClosed() {
-		return nil, nil, prompting_errors.ErrPromptsClosed
+		return nil, nil, prompting_errors.ErrPromptingClosed
 	}
 	userEntry, ok := pdb.perUser[user]
 	if !ok {
@@ -1071,7 +1071,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return nil, prompting_errors.ErrPromptsClosed
+		return nil, prompting_errors.ErrPromptingClosed
 	}
 
 	userEntry, ok := pdb.perUser[metadata.User]
@@ -1161,7 +1161,7 @@ func (pdb *PromptDB) Close() error {
 	defer pdb.mutex.Unlock()
 
 	if pdb.isClosed() {
-		return prompting_errors.ErrPromptsClosed
+		return prompting_errors.ErrPromptingClosed
 	}
 
 	if err := pdb.maxIDMmap.Close(); err != nil {

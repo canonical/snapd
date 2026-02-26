@@ -1,0 +1,53 @@
+summary: Preserve dbus connections when snaps are temporarily broken
+
+details: |
+    Ensure that snapd keeps dbus interface connections in state even when
+    either side becomes temporarily broken due to an unmounted snap. After
+    remounting and restarting snapd, the connection must be preserved and
+    dbus access must work again.
+
+prepare: |
+    snap install --edge test-snapd-dbus-provider
+    snap install --edge test-snapd-dbus-consumer
+
+    snap connect test-snapd-dbus-consumer:dbus-system-test test-snapd-dbus-provider:dbus-system-test
+
+restore: |
+    snap remove --purge test-snapd-dbus-consumer || true
+    snap remove --purge test-snapd-dbus-provider || true
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+    echo "Break provider mount and restart snapd"
+    PROV_REV=$(snap list test-snapd-dbus-provider | awk 'NR==2{print $3}')
+    PROV_UNIT="$(systemd-escape -p "$SNAP_MOUNT_DIR"/test-snapd-dbus-provider/"$PROV_REV")".mount
+
+    systemctl stop "$PROV_UNIT"
+    systemctl restart snapd.service
+    snap list test-snapd-dbus-provider | MATCH "broken"
+
+    echo "Remount provider and ensure connection is preserved"
+    systemctl start "$PROV_UNIT"
+    systemctl restart snapd.service
+    snap list test-snapd-dbus-provider | NOMATCH "broken"
+    snap connections test-snapd-dbus-consumer | MATCH "^dbus +test-snapd-dbus-consumer:dbus-system-test +test-snapd-dbus-provider:dbus-system-test +"
+
+    echo "Break consumer mount and restart snapd"
+    CONS_REV=$(snap list test-snapd-dbus-consumer | awk 'NR==2{print $3}')
+    CONS_UNIT="$(systemd-escape -p "$SNAP_MOUNT_DIR"/test-snapd-dbus-consumer/"$CONS_REV")".mount
+
+    systemctl stop "$CONS_UNIT"
+    systemctl restart snapd.service
+    snap list test-snapd-dbus-consumer | MATCH "broken"
+
+    echo "Remount consumer and ensure connection is preserved"
+    systemctl start "$CONS_UNIT"
+    systemctl restart snapd.service
+    snap list test-snapd-dbus-consumer | NOMATCH "broken"
+    snap connections test-snapd-dbus-consumer | MATCH "^dbus +test-snapd-dbus-consumer:dbus-system-test +test-snapd-dbus-provider:dbus-system-test +"
+
+    echo "dbus call still works after both break/fix cycles"
+    snap start test-snapd-dbus-provider.system-provider
+    sleep 3 # the service doesn't notify of readiness so we can just wait for a bit.
+    test-snapd-dbus-consumer.dbus-system-consumer | MATCH "hello world"

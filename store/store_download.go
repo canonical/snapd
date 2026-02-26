@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var commandFromSystemSnap = snapdtool.CommandFromSystemSnap
@@ -154,6 +155,13 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 	}
 
+	// open to sync the directory
+	d, err := os.Open(filepath.Dir(targetPath))
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
 	partialPath := targetPath + ".partial"
 	w, err := os.OpenFile(partialPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -163,6 +171,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
@@ -173,8 +182,13 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		}
 		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
 			os.Remove(w.Name())
+			if serr := d.Sync(); serr != nil {
+				// TODO:GOVERSION: use errors.Join
+				err = strutil.JoinErrors(err, serr)
+			}
 		}
 	}()
+
 	if resume > 0 {
 		logger.Debugf("Resuming download of %q at %d.", partialPath, resume)
 	} else {
@@ -190,7 +204,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	} else {
 		// we're done! check the hash though
 		h := crypto.SHA3_384.New()
-		if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+		if _, err := w.Seek(0, io.SeekStart); err != nil {
 			return err
 		}
 		if _, err := io.Copy(h, w); err != nil {
@@ -228,6 +242,10 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	}
 
 	if err := w.Sync(); err != nil {
+		return err
+	}
+
+	if err := d.Sync(); err != nil {
 		return err
 	}
 

@@ -21,7 +21,6 @@ package optee
 
 import (
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -56,9 +55,17 @@ func NewFDETAClient() FDETAClient {
 
 // MockNewFDETAClient mocks the function called by [NewFDETAClient]. Should only
 // be used in tests.
+//
+// Keep the restore logic local instead of using testutil: this helper lives in
+// production code so tests in other packages can call it, and importing
+// testutil would leak a test-only dependency into production import graphs.
 func MockNewFDETAClient(c FDETAClient) (restore func()) {
 	osutil.MustBeTestBinary("can only mock optee client in tests")
-	return testutil.Mock(&newClient, func() FDETAClient {
+	backup := newClient
+	newClient = func() FDETAClient {
 		return c
-	})
+	}
+	return func() {
+		newClient = backup
+	}
 }
