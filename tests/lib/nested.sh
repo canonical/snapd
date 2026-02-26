@@ -1266,6 +1266,13 @@ nested_create_vm_service() {
     PARAM_OPT="${2:-}"
     QEMU=$(nested_qemu_name)
 
+    # Due to a bug in apparmor, on 26.04 the netcat apparmor profile is not
+    # allowing access to the ports exposed by qemu, remove it for the moment.
+    # Note that this function might be called for different tests running on
+    # the same host, so we ensure that the call does not fail.
+    # TODO remove once LP#2143151 is fixed.
+    apparmor_parser -R /etc/apparmor.d/nc.openbsd || true
+
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
