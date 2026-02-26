@@ -162,7 +162,7 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 			})
 		}
 	}
-	tags := []string{fmt.Sprintf("%s-%s", chg.ID(), chg.Kind())}
+	tags := []string{fmt.Sprintf("%s [%s]", chg.Kind(), chg.ID())}
 	if tag != "" {
 		tags = append(tags, tag)
 	}
