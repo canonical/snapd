@@ -104,6 +104,10 @@ func handleMotdConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 	}
 
 	// Check if MOTD configuration is supported on this system
+	// Note: It's important to check if the motd option is actually being changed before checking
+	// if it is supported because these handlers are called even if there is no change in the
+	// configuration they are handling. So, this ensures that only when someone is trying to set
+	// the motd option and if it is unsupported, then throw the error
 	if !isMotdConfigurationSupported(dev.Base()) {
 		return errors.New("cannot set message of the day: unsupported on this system, requires UC24+")
 	}
