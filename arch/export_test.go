@@ -28,3 +28,35 @@ func MockRuntimeGOARCH(arch string) (restore func()) {
 	runtimeGOARCH = arch
 	return restore
 }
+
+// MockRISCVHWProbe mocks the return value of the riscv_hwprobe syscall
+// and returns a function to restore to the current value.
+func MockRISCVHWProbe(mockRISCVHWProbe func(pairs []RISCVHWProbePairs, set *CPUSet, flags uint) (err error)) (restore func()) {
+	// Replace the normal function with the mock one
+	origRISCVHWProbe := RISCVHWProbe
+	RISCVHWProbe = mockRISCVHWProbe
+
+	// And restore the function
+	return func() {
+		RISCVHWProbe = origRISCVHWProbe
+	}
+}
+
+// MockKernelVersion mocks the running kernel version in the form of the
+// version string, and returns a function to restore to the current value.
+func MockKernelVersion(newKernelVersion func() string) (restore func()) {
+	originalKernelVersion := KernelVersion
+	KernelVersion = newKernelVersion
+
+	return func() { KernelVersion = originalKernelVersion }
+}
+
+// MockIsISASupportedByCPU mocks the return value of the function checking
+// if a RISCV ISA is supported on the running system, and returns a function
+// to restore to the current value.
+func MockIsISASupportedByCPU(newArchisISASupportedByCPU func(isa string) error) (restore func()) {
+	originalArchisISASupportedByCPU := IsISASupportedByCPU
+	IsISASupportedByCPU = newArchisISASupportedByCPU
+
+	return func() { IsISASupportedByCPU = originalArchisISASupportedByCPU }
+}
