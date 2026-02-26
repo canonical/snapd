@@ -50,6 +50,15 @@ get:
         object.
       schema:
         type: string
+    - name: constraints
+      in: query
+      description: |-
+        A JSON object holding values used to constrain parameters, keyed by the
+        parameter names. Used to filter data according to the placeholders and 
+        field filters in the matched requests.
+      schema:
+        type: string
+
   responses:
     202:
       $ref: '../components/responses/Accepted.yaml'
