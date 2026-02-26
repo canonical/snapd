@@ -169,15 +169,17 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 			cur := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
+			if cur == target {
+				return
+			}
+
 			if seen[cur] {
 				continue
 			}
 			seen[cur] = true
 			stack = append(stack, cur.WaitTasks()...)
 		}
-		if !seen[target] {
-			waiter.WaitFor(target)
-		}
+		waiter.WaitFor(target)
 	}
 
 	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
