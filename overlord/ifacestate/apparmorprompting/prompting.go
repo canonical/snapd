@@ -342,6 +342,9 @@ func (m *InterfacesRequestsManager) disconnect() error {
 //
 // If the given channel closes or the prompting subsystem is shutting down,
 // then returns [prompting_errors.ErrPromptingClosed].
+// TODO: replace this ad-hoc channel with a proper shutdown handler in the
+// manager itself, so this method will observe the shutdown from within the
+// manager and act accordingly.
 //
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
