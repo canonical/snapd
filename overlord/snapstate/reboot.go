@@ -211,7 +211,7 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 // seedRefreshEarlyDownloads checks if the experimental seed-refresh feature
 // flag is set, and if so, returns the set of seed snaps that are being
 // refreshed and should be treated as early-downloads.
-func seedRefreshEarlyDownloads(st *state.State, deviceCtx DeviceContext, stss []snapInstallTaskSet) (map[string]bool, error) {
+func seedRefreshEarlyDownloads(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (map[string]bool, error) {
 	tr := config.NewTransaction(st)
 	seedRefresh, err := features.Flag(tr, features.SeedRefresh)
 	if err != nil && !config.IsNoOption(err) {
@@ -227,14 +227,10 @@ func seedRefreshEarlyDownloads(st *state.State, deviceCtx DeviceContext, stss []
 		return nil, err
 	}
 
-	refreshes := make(map[string]bool, len(stss))
+	earlyDownloads := make(map[string]bool, len(stss))
 	for _, sts := range stss {
-		refreshes[sts.snapsup.InstanceName()] = true
-	}
-
-	earlyDownloads := make(map[string]bool)
-	for name := range seedSnaps {
-		if _, ok := refreshes[name]; ok {
+		name := sts.snapsup.InstanceName()
+		if seedSnaps[name] {
 			earlyDownloads[name] = true
 		}
 	}

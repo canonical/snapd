@@ -1738,7 +1738,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	earlyDownloads, err := seedRefreshEarlyDownloads(st, opts.DeviceCtx, snapInstallTSS)
+	earlyDownloads, err := seedRefreshEarlyDownloads(st, snapInstallTSS, opts.DeviceCtx)
 	if err != nil {
 		return nil, false, nil, err
 	}
