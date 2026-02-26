@@ -1346,6 +1346,14 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 3)
 
+	a, err = assertstate.DB(s.state).Find(asserts.ConfdbSchemaType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-confdb",
+		"revision":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 2)
 	c.Assert(err, IsNil)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
@@ -1353,7 +1361,7 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
-	// change the validation set again
+	// change the confdb-schema again
 	s.setupConfdbAssert(c, map[string]any{
 		"revision": "3",
 	})
@@ -1376,7 +1384,7 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "my-confdb",
-		"sequence":   "3",
+		"revision":   "3",
 	})
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
