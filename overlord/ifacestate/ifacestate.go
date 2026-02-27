@@ -685,10 +685,15 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 // dependencies on other tasks. However, any delayed effects are applied only
 // when the snaps that triggered them have been processed (installed, refreshed,
 // or removed) successfully. The monitorLanes parameter carries a list of lanes
-// that should be monitored for tasks related to snap processing.
-func ProcessDelayedSecurityBackendEffects(st *state.State, monitorLanes []int) (ts *state.TaskSet) {
+// that should be monitored for tasks related to snap processing. The
+// applyInLane parameter, if non 0, identifies the lane which tasks for applying
+// delayed effects should join (such as when using all-snaps transaction).
+func ProcessDelayedSecurityBackendEffects(st *state.State, monitoredLanes []int, applyInLane int) (ts *state.TaskSet) {
 	delayedCoordinationTask := st.NewTask("process-delayed-security-backend-effects", "Process delayed security backend side effects for affected snaps")
-	delayedCoordinationTask.Set("monitored-lanes", monitorLanes)
+	delayedCoordinationTask.Set("params", processDelayedSecurityBackendEffectsParamsData{
+		MonitoredLanes: monitoredLanes,
+		ApplyInLane:    applyInLane,
+	})
 	ts = state.NewTaskSet(delayedCoordinationTask)
 	return ts
 }
