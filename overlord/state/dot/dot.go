@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -214,22 +215,51 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 // Export invokes the dot command and writes the graphviz representation of the
 // change dependency graph into a temporary SVG file, returning the SVG path.
 func (g *ChangeGraph) Export() (svgPath string, err error) {
-	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(strings.Fields(strings.Join(g.tags, "-")), "-")))
+	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", filenamePrefix(g.tags)))
 	if err != nil {
 		return "", fmt.Errorf("cannot create .svg file: %v", err)
 	}
+
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
 	svgPath = f.Name()
-	f.Close()
+
 	dotCmd := exec.Command("dot", "-Tsvg", "-o"+svgPath)
 	gbuf := new(bytes.Buffer)
 	if err := g.WriteDotTo(gbuf); err != nil {
 		return "", err
 	}
+
 	dotCmd.Stdin = gbuf
 	if o, err := dotCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot process dot definition: %v", osutil.OutputErr(o, err))
 	}
 	return svgPath, nil
+}
+
+func filenamePrefix(tags []string) string {
+	frags := make([]string, 0, len(tags))
+	for _, t := range tags {
+		f := strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' {
+				return r
+			}
+			return ' '
+		}, t)
+		f = strings.Join(strings.Fields(f), "_")
+		if f == "" {
+			continue
+		}
+		frags = append(frags, f)
+	}
+
+	if len(frags) == 0 {
+		return "change-graph"
+	}
+
+	return strings.Join(frags, "-")
 }
 
 func clusterLabel(lanes []int) string {

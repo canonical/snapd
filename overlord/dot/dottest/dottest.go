@@ -57,7 +57,11 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 		return
 	}
 
-	chg := st.NewChange("tasks-without-change", c.TestName())
+	// since not all tests end up adding their tasks to a change, we group all
+	// of the change-less tasks into a fake change to make this helper useful in
+	// those contexts.
+	const fakeChangeName = "tasks w/o change"
+	chg := st.NewChange(fakeChangeName, c.TestName())
 	for _, t := range withoutChange {
 		chg.AddTask(t)
 	}
@@ -67,15 +71,15 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 
 	graphPath, err := g.Export()
 	if err != nil {
-		c.Logf("cannot export tasks-without-change graph: %v", err)
+		c.Logf("cannot export %q graph: %v", fakeChangeName, err)
 		return
 	}
-	fmt.Printf("%s tasks-without-change => %s\n", c.TestName(), graphPath)
+	fmt.Printf("%s %q => %s\n", fakeChangeName, c.TestName(), graphPath)
 
 	if !*openChangeGraphs {
 		return
 	}
 	if err := exec.Command("xdg-open", graphPath).Run(); err != nil {
-		c.Logf("cannot open tasks-without-change graph: %v", err)
+		c.Logf("cannot open %q graph: %v", fakeChangeName, err)
 	}
 }
