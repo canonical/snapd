@@ -1,0 +1,18 @@
+name: test-snapd-content-consumer-%SUFF%
+version: 1.0.0
+base: core24
+
+apps:
+    app:
+        command: bin/app
+        plugs:
+            - special-content
+
+plugs:
+    special-content:
+        interface: content
+        target: $SNAP/connected-content
+
+    special-content-v2:
+        interface: content
+        target: $SNAP/connected-content-v2

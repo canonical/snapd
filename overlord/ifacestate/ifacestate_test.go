@@ -13855,14 +13855,12 @@ func (s *interfaceManagerSuite) testDelayedEffectsHandlingOfRestartRequests(c *C
 	c.Check(strings.Join(processTask.Log(), "\n"), testutil.Contains,
 		"Task set to wait until a system restart allows to continue")
 
-	restarting, rt := restart.Pending(s.state)
+	rt := restart.Pending(s.state)
 	if scenario == onCore {
-		c.Check(restarting, Equals, true)
 		c.Check(rt, Equals, restart.RestartSystem)
 	} else if scenario == onClassic {
 		// on classic we're not really requesting a restart, but the change is
 		// put into the waiting state nonetheless
-		c.Check(restarting, Equals, false)
 		c.Check(rt, Equals, restart.RestartUnset)
 	}
 

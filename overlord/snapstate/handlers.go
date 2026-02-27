@@ -81,6 +81,10 @@ var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ sn
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 
+var ProcessDelayedSecurityBackendEffects = func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	panic("internal error: snapstate.ProcessDelayedSecurityBackendEffects is unset")
+}
+
 var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
@@ -409,6 +413,11 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		RequireTypeBase: requireTypeBase,
 		Transaction:     flags.Transaction,
 		Lane:            flags.Lane,
+		// we're calling an API facing call which would otherwise be normally
+		// expected to produce a delayed effects taskset, but since the desire
+		// is to inject the tasksets into the current change, set the flag to
+		// avoid generating one
+		NoDelayedSideEffects: true,
 	}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
