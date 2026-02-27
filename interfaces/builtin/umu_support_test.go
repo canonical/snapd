@@ -101,7 +101,7 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(snippet, testutil.Contains, "userns,")
 
-	c.Check(snippet, testutil.Contains, "/newroot/** rwkl,")
+	c.Check(snippet, testutil.Contains, "/newroot/** mrwklix,")
 
 	c.Check(snippet, testutil.Contains, "/run/host/usr/lib/** mr,")
 
@@ -113,10 +113,17 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "/run/pressure-vessel/** mrw,")
 	c.Check(snippet, testutil.Contains, "/var/pressure-vessel/** mrw,")
 
-	c.Check(snippet, testutil.Contains, "owner /home/*/.config/menus/{,**} rw,")
-	c.Check(snippet, testutil.Contains, "owner /home/*/.local/share/applications/{,**} rw,")
-	c.Check(snippet, testutil.Contains, "owner /home/*/.local/share/desktop-directories/{,**} rw,")
-	c.Check(snippet, testutil.Contains, "owner /home/*/.local/share/icons/{,**} rw,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/ rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/UMU/ rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/UMU/** rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/umu/ rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/umu/** rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/Steam/ rwklix,")
+	c.Check(snippet, testutil.Contains, "owner @{HOME}/Steam/** rwklix,")
+
+	c.Check(snippet, testutil.Contains, "/media/ r,")
+	c.Check(snippet, testutil.Contains, "/mnt/ r,")
+	c.Check(snippet, testutil.Contains, "/run/media/ r,")
 
 	c.Check(snippet, testutil.Contains, "/usr/bin/zenity ixr,")
 	c.Check(snippet, testutil.Contains, "/run/host/usr/sbin/ldconfig* ixr,")
