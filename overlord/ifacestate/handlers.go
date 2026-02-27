@@ -2399,6 +2399,11 @@ func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, e
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
+type processDelayedSecuritybackendEffectsParamsData struct {
+	MonitoredLanes []int `json:"monitored-lanes"`
+	ApplyInLane    int   `json:"apply-in-lane"`
+}
+
 func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Single catch all task handler for all delayed side effects for snaps.
 	// Looks through all the tasks to identify which snaps are affected, and
@@ -2411,14 +2416,19 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	st.Lock()
 	defer st.Unlock()
 
-	var snapLanes []int
-	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
+	var params processDelayedSecuritybackendEffectsParamsData
+
+	if err := task.Get("params", &params); err != nil {
+		var snapLanes []int
+		if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		params.MonitoredLanes = snapLanes
 	}
 
-	logger.Debugf("delayed effects coordination, monitoring lanes: %v", snapLanes)
+	logger.Debugf("delayed effects coordination, monitoring lanes: %v", params.MonitoredLanes)
 
-	if len(snapLanes) == 0 {
+	if len(params.MonitoredLanes) == 0 {
 		task.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -2432,7 +2442,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	considerRestartTriggeringTasks := make(map[string]bool, len(chg.Tasks()))
 
 	unreadyTasks := false
-	for _, lane := range snapLanes {
+	for _, lane := range params.MonitoredLanes {
 		laneFailed := false
 		var seenSnaps []string
 	laneLoop:
@@ -2543,10 +2553,12 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 		// affecting anything else (neither the default lane, nor any other
 		// lanes where the triggering snaps are being processed)
 
-		// TODO in case some effects would need to be able to trigger undo, this
-		// may need additional task sharing the same lane as the snap
 		for _, tsk := range perSnapTasks {
-			tsk.JoinLane(st.NewLane())
+			if params.ApplyInLane != 0 {
+				tsk.JoinLane(params.ApplyInLane)
+			} else {
+				tsk.JoinLane(st.NewLane())
+			}
 		}
 
 		ts := state.NewTaskSet(perSnapTasks...)
