@@ -880,6 +880,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 		lane := generateLane(st, opts)
 		installTS.ts.JoinLane(lane)
+		fmt.Printf("snap lane: %v\n", lane)
 		snapLanes[lane] = true
 
 		tasksets = append(tasksets, installTS.ts)

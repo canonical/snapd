@@ -12171,6 +12171,7 @@ func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, exp
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
 	eff := ts.Tasks()[0]
+	fmt.Printf("task %+v\n", eff)
 	// this should match what the mocked handler sets on the task, and should be
 	// mostly the same as the actual
 	// ifacestate.ProcessDelayedSecurityBackendEffects
