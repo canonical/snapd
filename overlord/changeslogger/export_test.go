@@ -29,6 +29,5 @@ func NewTestManager(st *state.State, logPath string) *Manager {
 		state:         st,
 		seenChanges:   make(map[string]ChangeInfo),
 		changeLogPath: logPath,
-		retryCount:    make(map[string]int),
 	}
 }

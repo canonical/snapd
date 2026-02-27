@@ -62,9 +62,8 @@ func ExtractChangeInfo(chg *state.Change) ChangeInfo {
 type Manager struct {
 	state         *state.State
 	mu            sync.Mutex
-	seenChanges   map[string]ChangeInfo
+	seenChanges   map[string]ChangeInfo // indexed by change ID
 	changeLogPath string
-	retryCount    map[string]int
 }
 
 // New creates a new ChangesLogger manager
@@ -73,7 +72,6 @@ func New(s *state.State) *Manager {
 		state:         s,
 		seenChanges:   make(map[string]ChangeInfo),
 		changeLogPath: dirs.SnapdChangesLog,
-		retryCount:    make(map[string]int),
 	}
 }
 
@@ -114,7 +112,6 @@ func (m *Manager) Ensure() error {
 	for id := range m.seenChanges {
 		if !currentChangeIDs[id] {
 			delete(m.seenChanges, id)
-			delete(m.retryCount, id)
 		}
 	}
 
@@ -148,11 +145,6 @@ func (m *Manager) logChange(info ChangeInfo) error {
 
 	if !info.ReadyTime.IsZero() {
 		lines = append(lines, fmt.Sprintf("ReadyTime: %s", info.ReadyTime.Format(time.RFC3339)))
-	}
-
-	retryCount := m.retryCount[info.ID]
-	if retryCount > 0 {
-		lines = append(lines, fmt.Sprintf("RetryCount: %d", retryCount))
 	}
 
 	if info.Error != "" {
