@@ -120,20 +120,20 @@ func (m *Manager) Ensure() error {
 
 // logChange writes a change entry to the log file in APT history.log format
 func (m *Manager) logChange(info ChangeInfo) error {
-	// Ensure the directory exists
+	// Ensure the directory exists rather than relying entirely in packaging to create it
 	logDir := filepath.Dir(m.changeLogPath)
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("cannot create log directory: %v", err)
 	}
 
-	// Open the log file for appending
 	f, err := os.OpenFile(m.changeLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("cannot open log file: %v", err)
 	}
 	defer f.Close()
 
-	// Write the change entry as Key: Value pairs
+	// Each record is `Key: Value` pairs, one per line, followed by the YAML record separator `---` on a line by itself. This format is simple to write and parse, and is valid YAML (with the separator) if we want to use YAML tools in the future.
+	// This makes the log file human-readable, simple to parse with basic dev tools, and also valid YAML for more advanced parsing if needed.
 	lines := []string{
 		fmt.Sprintf("Timestamp: %s", time.Now().Format(time.RFC3339)),
 		fmt.Sprintf("ID: %s", info.ID),
@@ -151,15 +151,13 @@ func (m *Manager) logChange(info ChangeInfo) error {
 		lines = append(lines, fmt.Sprintf("Error: %s", info.Error))
 	}
 
-	// Write all lines followed by a blank line separator
 	for _, line := range lines {
 		if _, err := f.WriteString(line + "\n"); err != nil {
 			return fmt.Errorf("cannot write log entry: %v", err)
 		}
 	}
 
-	// Write blank line separator between entries
-	if _, err := f.WriteString("\n"); err != nil {
+	if _, err := f.WriteString("---\n"); err != nil {
 		return fmt.Errorf("cannot write log separator: %v", err)
 	}
 

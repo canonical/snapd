@@ -90,8 +90,8 @@ func (s *changesLoggerSuite) TestEnsureLogsNewChange(c *C) {
 	// Parse the first log entry (Key: Value format)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "" {
-			// Blank line separates entries
+		if line == "---" {
+			// YAML record separator separates entries
 			break
 		}
 		parts := strings.SplitN(line, ": ", 2)
@@ -145,8 +145,8 @@ func (s *changesLoggerSuite) TestEnsureLogsStatusChange(c *C) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "" {
-			// Blank line separates entries
+		if line == "---" {
+			// YAML record separator separates entries
 			if len(currentEntry) > 0 {
 				entries = append(entries, currentEntry)
 				currentEntry = make(map[string]string)
@@ -159,7 +159,7 @@ func (s *changesLoggerSuite) TestEnsureLogsStatusChange(c *C) {
 		}
 	}
 
-	// Don't forget the last entry if file doesn't end with blank line
+	// Don't forget the last entry if file doesn't end with YAML record separator
 	if len(currentEntry) > 0 {
 		entries = append(entries, currentEntry)
 	}
