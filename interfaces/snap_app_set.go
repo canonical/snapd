@@ -105,7 +105,9 @@ func (a *SnapAppSet) ExpandSliceSnapVariablesWithOrder(paths []string) []Expande
 			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
 				a.info.ExpandSnapVariablesSetSnapMountDir(
 					filepath.Join(dirs.GlobalRootDir, dir),
-					dirs.StripRootDir(dirs.SnapMountDir))),
+					dirs.StripRootDir(dirs.SnapMountDir),
+					snap.PerspectiveSelf,
+				)),
 				Idx: idx,
 			})
 		}

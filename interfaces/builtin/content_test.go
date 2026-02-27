@@ -394,19 +394,61 @@ slots:
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info), Equals, "/var/snap/name/42/")
+	c.Check(info.SnapName(), Equals, "name")
+	c.Check(info.InstanceName(), Equals, "name")
+
+	for _, side := range []builtin.ResolveSide{builtin.TargetSide, builtin.SourceSide} {
+		c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, side), Equals, "/var/snap/name/42/foo")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, side), Equals, "/var/snap/name/common/foo")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, side), Equals, "/var/snap/name/42")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, side), Equals, "/var/snap/name/common")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, side), Equals, "/var/snap/name/42/")
+		// automatically prefixed with $SNAP
+		c.Check(builtin.ResolveSpecialVariable("foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+		c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, side), Equals, "/snap/name/42/foo/snap/bar")
+		// contain invalid variables
+		c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, side), Equals, "/snap/name/42//bar")
+		c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, side), Equals, "/snap/name/42/bar//foo")
+	}
+}
+
+func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
+	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
+	info.InstanceKey = "foo"
+	c.Check(info.SnapName(), Equals, "name")
+	c.Check(info.InstanceName(), Equals, "name_foo")
+
+	side := builtin.SourceSide
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, side), Equals, "/var/snap/name_foo/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, side), Equals, "/var/snap/name_foo/common/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, side), Equals, "/var/snap/name_foo/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, side), Equals, "/var/snap/name_foo/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, side), Equals, "/var/snap/name_foo/42/")
 	// automatically prefixed with $SNAP
-	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info), Equals, "/snap/name/42/foo/snap/bar")
+	c.Check(builtin.ResolveSpecialVariable("foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, side), Equals, "/snap/name_foo/42/foo/snap/bar")
 	// contain invalid variables
-	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info), Equals, "/snap/name/42//bar")
-	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info), Equals, "/snap/name/42/bar//foo")
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, side), Equals, "/snap/name_foo/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, side), Equals, "/snap/name_foo/42/bar//foo")
+
+	side = builtin.TargetSide
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, side), Equals, "/var/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, side), Equals, "/var/snap/name/common/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, side), Equals, "/var/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, side), Equals, "/var/snap/name/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, side), Equals, "/var/snap/name/42/")
+	// automatically prefixed with $SNAP
+	c.Check(builtin.ResolveSpecialVariable("foo", info, side), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, side), Equals, "/snap/name/42/foo/snap/bar")
+	// contain invalid variables
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, side), Equals, "/snap/name/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, side), Equals, "/snap/name/42/bar//foo")
 }
 
 // Check that legacy syntax works and allows sharing read-only snap content
