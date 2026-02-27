@@ -9228,6 +9228,11 @@ func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// not expecting any calls
+		panic("unexpected call")
+	}))
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -9317,6 +9322,11 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorHookContextCompatibility(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// not expecting any calls
+		panic("unexpected call")
+	}))
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -9408,6 +9418,11 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidCompo
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// not expecting any calls
+		panic("unexpected call")
+	}))
+
 	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
@@ -9899,6 +9914,12 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C) {
 	// fail to enforce the validation set at the end to trigger an undo
+
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+		// not expecting any calls
+		panic("unexpected call")
+	}))
+
 	expectedErr := errors.New("expected")
 	restore := snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error {
 		return expectedErr

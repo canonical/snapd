@@ -8,7 +8,8 @@ prepare: |
     snap install core24
 
 execute: |
-    # generare and install a bunch of content consuemr and provider snaps, the naming pattern is:
+    # Generate and install a bunch of content consumer and provider snaps, the
+    # naming pattern is:
     # test-snapd-content-consumer-c1, test-snapd-content-consumer-c2, ..
     # test-snapd-content-provider-p1, test-snapd-content-provider-p2, ..
     for suff in c1 c2 c3; do
@@ -90,7 +91,7 @@ execute: |
     test -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
 
     # update p1, affects test-snapd-content-consumer
-    echo "Update a snap affecting test-snapd-content-contumer only"
+    echo "Update a snap affecting test-snapd-content-consumer only"
     "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-p1"
     snap change --last install | tee change.out
     MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
@@ -111,7 +112,7 @@ execute: |
          MATCH '^(content mod p1;content p2|content p2;content mod p1);special content v2;$'
 
     # update p2, affects test-snapd-content-consumer{,-c2,-c3}
-    echo "Update a snap affecting all instances of test-snapd-content-contumer (c1, c2 and c3)"
+    echo "Update a snap affecting all instances of test-snapd-content-consumer (c1, c2 and c3)"
     "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-p2"
     snap change --last install | tee change.out
     MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
@@ -204,7 +205,7 @@ execute: |
     test ! -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
 
     after_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-content-consumer-c1.mnt)"
-    # the moutn ns is the same, it hasn't been discarded
+    # the mount ns is the same, it hasn't been discarded
     test "$before_inode" = "$after_inode"
 
     kill "$sleeppid"
