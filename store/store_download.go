@@ -938,13 +938,13 @@ func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
 }
 
-// CleanupDownloadsCacheEntry attempts to clean up download artifacts associated
+// CleanupDownloadArtifacts attempts to clean up download artifacts associated
 // with a given snap.
 func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
 	var err error
 	// TODO:GOVERSION: use errors.Join
 	if rerr := os.Remove(targetFn); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
-		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove corrupted file: %w", rerr))
+		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove downloaded file: %w", rerr))
 	}
 
 	if dl != nil {
@@ -954,13 +954,13 @@ func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo)
 				if errors.Is(oerr, fs.ErrNotExist) {
 					return nil
 				}
-				return fmt.Errorf("cannot drop cached download entry: %w", oerr)
+				return fmt.Errorf("cannot open: %w", oerr)
 			}
 			defer f.Close()
 
 			h := crypto.SHA3_384.New()
 			if _, cerr := io.Copy(h, f); cerr != nil {
-				return err
+				return fmt.Errorf("cannot read: %w", cerr)
 			}
 
 			actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
@@ -971,7 +971,7 @@ func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo)
 
 			// takes a lock inside, could block
 			if derr := s.cacher.Drop(dl.Sha3_384); derr != nil && !errors.Is(derr, fs.ErrNotExist) {
-				return fmt.Errorf("cannot drop cached download entry: %w", derr)
+				return fmt.Errorf("cannot drop: %w", derr)
 			}
 
 			return nil

@@ -818,6 +818,23 @@ func (co *cacheObserver) Drop(cacheKey string) error {
 	return nil
 }
 
+func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, error) {
+	if co.inCache[cacheKey] {
+		s := "content"
+
+		// strings.NewReader returns an *strings.Reader that implements io.{Reader,Seeker}
+		sr := strings.NewReader(s)
+
+		// io.NopCloser adds a no-op Close() method
+		var rsc io.ReadSeekCloser = struct {
+			*strings.Reader
+			io.Closer
+		}{sr, io.NopCloser(nil)}
+		return rsc, nil
+	}
+	return nil, errors.New("not found in cache")
+}
+
 func (co *cacheObserver) Cleanup() error {
 	co.cleanupCalls++
 	return nil
@@ -1165,7 +1182,7 @@ func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
 	snapHappy.Size = 123
 	snapHappy.Sha3_384 = "sha3_384-of-foo"
 
-	err := s.store.CleanDownloadsCacheEntry(&snapHappy.DownloadInfo)
+	err := s.store.CleanupDownloadArtifacts("foo.snap", &snapHappy.DownloadInfo)
 	c.Assert(err, IsNil)
 
 	c.Check(obs.drops, DeepEquals, []string{"sha3_384-of-foo"})
@@ -1178,10 +1195,10 @@ func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
 	snapUnhappy.Size = 123
 	snapUnhappy.Sha3_384 = "sha3_384-of-unhappy"
 
-	err = s.store.CleanDownloadsCacheEntry(&snapUnhappy.DownloadInfo)
-	c.Assert(err, ErrorMatches, "mock error")
+	err = s.store.CleanupDownloadArtifacts("unhappy.snap", &snapUnhappy.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot open: not found in cache")
 
-	c.Check(obs.drops, DeepEquals, []string{"sha3_384-of-unhappy"})
+	c.Check(obs.drops, IsNil)
 }
 
 type fakeCacher struct {
@@ -1202,6 +1219,10 @@ func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
 }
 
 func (co *fakeCacher) Drop(cacheKey string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Open(cacheKey string) (io.ReadSeekCloser, error) {
 	panic("unexpected call")
 }
 

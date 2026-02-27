@@ -579,6 +579,6 @@ func (s *downloadSnapSuite) TestUndoDownloadSnapFileDone(c *C) {
 	s.testUndoDownloadSnapFile(c, cleanupOk)
 }
 
-func (s *downloadSnapSuite) TestUndoDownloadSnapFileRemovedNotFatal(c *C) {
+func (s *downloadSnapSuite) TestUndoDownloadSnapCleanupErrorNotFatal(c *C) {
 	s.testUndoDownloadSnapFile(c, cleanupErr)
 }
