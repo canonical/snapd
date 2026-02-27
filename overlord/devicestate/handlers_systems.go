@@ -464,7 +464,7 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	st.Lock()
 	defer st.Unlock()
 
-	if ok, _ := restart.Pending(st); ok {
+	if restart.Pending(st) != restart.RestartUnset {
 		// don't continue until we are in the restarted snapd
 		t.Logf("Waiting for system reboot...")
 		return &state.Retry{}

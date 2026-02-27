@@ -300,6 +300,14 @@ var (
 	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
 )
 
+// SchemaID identifies a confdb schema.
+type SchemaID struct {
+	// Account is the ID of the account that publishes the confdb schema.
+	Account string
+	// Name is the name of the confdb schema within the account namespace.
+	Name string
+}
+
 // Schema holds a set of views that describe how the confdb can be accessed as
 // well as a schema for the storage.
 type Schema struct {
@@ -307,6 +315,13 @@ type Schema struct {
 	Name          string
 	DatabagSchema DatabagSchema
 	views         map[string]*View
+}
+
+func (s *Schema) ID() SchemaID {
+	return SchemaID{
+		Account: s.Account,
+		Name:    s.Name,
+	}
 }
 
 // GetViewsAffectedByPath returns all the views in the confdb schema that have

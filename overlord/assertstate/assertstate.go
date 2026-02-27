@@ -407,12 +407,12 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 		return err
 	}
 
-	return autoRefreshConfdbAssertions(s, userID, opts)
+	return refreshAllConfdbAssertions(s, userID, opts)
 }
 
 // autoRefreshConfdbAssertions fetches the newest revision of all stored
 // confdb assertions.
-func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
+func refreshAllConfdbAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(st)
 	confdbAsserts, err := db.FindMany(asserts.ConfdbSchemaType, nil)
 	if err != nil {
@@ -422,13 +422,13 @@ func autoRefreshConfdbAssertions(st *state.State, userID int, opts *RefreshAsser
 		return err
 	}
 
-	var confdbSchemas []*confdb.Schema
+	var schemaIDs []confdb.SchemaID
 	for _, dbAs := range confdbAsserts {
 		schema := dbAs.(*asserts.ConfdbSchema).Schema()
-		confdbSchemas = append(confdbSchemas, schema)
+		schemaIDs = append(schemaIDs, schema.ID())
 	}
 
-	return refreshConfdbAssertions(st, confdbSchemas, userID, opts)
+	return refreshConfdbAssertions(st, schemaIDs, userID, opts)
 }
 
 // FetchConfdbSchemaAssertion fetches the confdb-schema assertion identified by
@@ -447,7 +447,7 @@ func FetchConfdbSchemaAssertion(st *state.State, userID int, account, name strin
 // refreshConfdbAssertions fetches new revisions for the assertions referenced
 // by the provided confdb schemas. It attempts a bulk refresh and if that
 // fails, it falls back to fetching the assertions one by one.
-func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, userID int, opts *RefreshAssertionsOptions) error {
+func refreshConfdbAssertions(st *state.State, schemaIDs []confdb.SchemaID, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
@@ -457,7 +457,7 @@ func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, us
 		return err
 	}
 
-	err = bulkRefreshConfdbSchemas(st, confdbSchemas, userID, deviceCtx, opts)
+	err = bulkRefreshConfdbSchemas(st, schemaIDs, userID, deviceCtx, opts)
 	if err == nil {
 		return nil
 	}
@@ -470,8 +470,8 @@ func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, us
 	logger.Noticef("bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching: %v", err)
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, schema := range confdbSchemas {
-			if err := snapasserts.FetchConfdbSchema(f, schema.Account, schema.Name); err != nil {
+		for _, id := range schemaIDs {
+			if err := snapasserts.FetchConfdbSchema(f, id.Account, id.Name); err != nil {
 				return err
 			}
 		}
@@ -481,18 +481,23 @@ func refreshConfdbAssertions(st *state.State, confdbSchemas []*confdb.Schema, us
 }
 
 // RefreshSnapAssertions tries to refresh all snap-centered assertions
-func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+func RefreshSnapAssertions(st *state.State, userID int, opts *RefreshAssertionsOptions) error {
 	if opts == nil {
 		opts = &RefreshAssertionsOptions{}
 	}
 	opts.IsAutoRefresh = false
-	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
+	if err := RefreshSnapDeclarations(st, userID, opts); err != nil {
 		return err
 	}
 	if !opts.IsRefreshOfAllSnaps {
 		return nil
 	}
-	return RefreshValidationSetAssertions(s, userID, opts)
+
+	if err := RefreshValidationSetAssertions(st, userID, opts); err != nil {
+		return err
+	}
+
+	return refreshAllConfdbAssertions(st, userID, opts)
 }
 
 // FetchAllValidationSets updates the DB with new validation sets, if any exist.

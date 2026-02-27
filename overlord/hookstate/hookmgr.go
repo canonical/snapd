@@ -382,7 +382,7 @@ func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *
 func (m *HookManager) runHookGuardForRestarting(context *Context) error {
 	context.Lock()
 	defer context.Unlock()
-	if ok, _ := restart.Pending(m.state); ok {
+	if restart.Pending(m.state) != restart.RestartUnset {
 		return &state.Retry{}
 	}
 

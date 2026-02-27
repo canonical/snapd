@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -5485,8 +5486,7 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// run through the end
@@ -13835,8 +13835,7 @@ type: snapd
 	// up until link-snap requesting daemon restart after snapd
 	s.settle(c)
 
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 
@@ -14049,8 +14048,7 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// run through the end
@@ -14147,8 +14145,7 @@ func (s *snapmgrTestSuite) TestOldStyleAutoRefreshSplitEssentialWithSharedBase(c
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// keep running until the change hits a wait status
@@ -14244,8 +14241,7 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// run through the end
@@ -14582,8 +14578,7 @@ func (s *snapmgrTestSuite) TestSplitRefreshWithDefaultProviderDependingOnModelBa
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// run through the end
@@ -14712,8 +14707,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshSplitRefresh(c *C) {
 	// run til daemon restart
 	s.settle(c)
 
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 
@@ -14777,7 +14771,7 @@ func checkSnapsupHasConfdb(ts *state.TaskSet, c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []confdb.SchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {

@@ -62,7 +62,7 @@ type Device interface {
 	Classic() bool
 
 	Kernel() string
-	//Base() string
+	Base() string
 
 	HasModeenv() bool
 
@@ -85,6 +85,10 @@ func (d *configedDevice) Classic() bool {
 
 func (d *configedDevice) Kernel() string {
 	return d.model.Kernel()
+}
+
+func (d *configedDevice) Base() string {
+	return d.model.Base()
 }
 
 func (d *configedDevice) HasModeenv() bool {

@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
@@ -1274,7 +1275,7 @@ func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, inst
 	})
 }
 
-func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidationSets(c *C) {
+func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1300,6 +1301,9 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
+	confdbAs := s.setupConfdbAssert(c, nil)
+	c.Assert(assertstate.Add(s.state, confdbAs), IsNil)
+
 	// changed snap decl assertion
 	headers := map[string]any{
 		"series":       "16",
@@ -1317,6 +1321,11 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	// changed validation set assertion
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	// change confdb-schema assertion
+	s.setupConfdbAssert(c, map[string]any{
+		"revision": "2",
+	})
 
 	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true})
 	c.Assert(err, IsNil)
@@ -1337,12 +1346,25 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 3)
 
+	a, err = assertstate.DB(s.state).Find(asserts.ConfdbSchemaType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-confdb",
+		"revision":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 2)
 	c.Assert(err, IsNil)
 	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
 
 	// changed validation set assertion again
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
+
+	// change the confdb-schema again
+	s.setupConfdbAssert(c, map[string]any{
+		"revision": "3",
+	})
 
 	// but pretend it's not a refresh of all snaps
 	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: false})
@@ -1354,6 +1376,15 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
 		"sequence":   "4",
+	})
+	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
+
+	// the confdb assertion was also not updated
+	_, err = assertstate.DB(s.state).Find(asserts.ConfdbSchemaType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-confdb",
+		"revision":   "3",
 	})
 	c.Check(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 }
@@ -5454,7 +5485,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]any, body string) *asserts.ConfdbSchema {
+func (s *assertMgrSuite) confdbAssertion(c *C, name string, extraHeaders map[string]any, body string) *asserts.ConfdbSchema {
 	headers := map[string]any{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
@@ -5483,7 +5514,7 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
 	err = assertstate.Add(s.state, s.dev1AcctKey)
 	c.Assert(err, IsNil)
 
-	confdbFoo := s.confdb(c, "foo", map[string]any{
+	confdbFoo := s.confdbAssertion(c, "foo", map[string]any{
 		"views": map[string]any{
 			"a-view": map[string]any{
 				"rules": []any{
@@ -5763,7 +5794,7 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 	}
 }
 
-func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
+func (s *assertMgrSuite) setupConfdbAssert(c *C, customHeaders map[string]any) *asserts.ConfdbSchema {
 	extraHeaders := map[string]any{
 		"revision": "1",
 		"views": map[string]any{
@@ -5775,6 +5806,11 @@ func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
 		},
 		"body-length": "60",
 	}
+
+	for k, v := range customHeaders {
+		extraHeaders[k] = v
+	}
+
 	schema := `{
   "storage": {
     "schema": {
@@ -5782,17 +5818,10 @@ func (s *assertMgrSuite) setupConfdb(c *C) *snap.SideInfo {
     }
   }
 }`
-	confdbAs := s.confdb(c, "my-confdb", extraHeaders, schema)
+	confdbAs := s.confdbAssertion(c, "my-confdb", extraHeaders, schema)
 	err := s.storeSigning.Add(confdbAs)
 	c.Assert(err, IsNil)
-
-	si := &snap.SideInfo{
-		RealName: "foo",
-		SnapID:   "snap-id-1",
-		Revision: snap.R(10),
-	}
-
-	return si
+	return confdbAs
 }
 
 func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
@@ -5801,7 +5830,7 @@ func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 
 	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
 	snapPath := paths[10]
-	si := s.setupConfdb(c)
+	s.setupConfdbAssert(c, nil)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -5812,10 +5841,14 @@ func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 
 	snapsup := snapstate.SnapSetup{
-		SnapPath:         snapPath,
-		UserID:           0,
-		SideInfo:         si,
-		PluggedConfdbIDs: []snapstate.ConfdbSchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(10),
+		},
+		PluggedConfdbIDs: []confdb.SchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
 	}
 
 	t.Set("snap-setup", snapsup)
@@ -5852,7 +5885,7 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setupConfdb(c)
+	s.setupConfdbAssert(c, nil)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -5909,27 +5942,7 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	err := s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	extraHeaders := map[string]any{
-		"revision": "1",
-		"views": map[string]any{
-			"my-view": map[string]any{
-				"rules": []any{
-					map[string]any{"request": "foo", "storage": "foo"},
-				},
-			},
-		},
-		"body-length": "60",
-	}
-	schema := `{
-  "storage": {
-    "schema": {
-      "foo": "any"
-    }
-  }
-}`
-	confdbAs := s.confdb(c, "my-confdb", extraHeaders, schema)
-	err = s.storeSigning.Add(confdbAs)
-	c.Assert(err, IsNil)
+	confdbAs := s.setupConfdbAssert(c, nil)
 
 	// store revision 1 of the confdb assertion locally
 	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, confdbAs} {
@@ -5947,10 +5960,9 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(confdb.Revision(), Equals, 1)
 
-	extraHeaders["revision"] = "2"
-	confdbAs = s.confdb(c, "my-confdb", extraHeaders, schema)
-	err = s.storeSigning.Add(confdbAs)
-	c.Assert(err, IsNil)
+	s.setupConfdbAssert(c, map[string]any{
+		"revision": "2",
+	})
 
 	// auto-refresh should obtain revision 2
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)

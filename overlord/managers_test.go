@@ -2400,8 +2400,7 @@ type: os
 	c.Assert(err, IsNil)
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	t := findKind(chg, "auto-connect")
@@ -2525,8 +2524,7 @@ type rebootEnv interface {
 
 func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, chg *state.Change, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
-	restarting, restartType := restart.Pending(st)
-	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
+	restartType := restart.Pending(st)
 	c.Assert(restartType, Equals, restart.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	restart.MockPending(st, restart.RestartUnset)
 	restart.MockAfterRestartForChange(chg)
@@ -2543,8 +2541,7 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, chg *state.Change, be rebootE
 
 func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, chg *state.Change, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
-	restarting, restartType := restart.Pending(st)
-	c.Assert(restarting, Equals, true, Commentf("mockRollbackAcrossReboot called when there was no pending restart"))
+	restartType := restart.Pending(st)
 	c.Assert(restartType, Equals, restart.RestartSystem, Commentf("mockRollbackAcrossReboot called but restartType is not SystemRestart but %v", restartType))
 	restart.MockPending(st, restart.RestartUnset)
 	restart.MockAfterRestartForChange(chg)
@@ -2629,8 +2626,7 @@ type: kernel`
 	st.Lock()
 	c.Assert(err, IsNil)
 	// we are in restarting state and the change is not done yet
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
@@ -2745,8 +2741,7 @@ type: kernel`
 	})
 
 	// we are in restarting state and the change is not done yet
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 	// pretend we restarted
@@ -2769,8 +2764,7 @@ type: kernel`
 		"snap_kernel":     "pc-kernel_123.snap",
 		"snap_mode":       boot.DefaultStatus,
 	})
-	restarting, _ = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 
 	// pretend we restarted back to the old kernel
 	s.mockSuccessfulReboot(c, chg, bloader, nil)
@@ -2897,8 +2891,7 @@ type: kernel`
 	})
 
 	// we are in restarting state and the change is not done yet
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// the kernelSnapInfo we mocked earlier will not have a revision set for the
@@ -3093,8 +3086,7 @@ type: kernel`
 	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
 
 	// we are in restarting state and the change is not done yet
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 	// pretend we restarted
 	s.mockSuccessfulReboot(c, chg, bloader, []snap.Type{snap.TypeKernel})
@@ -3109,8 +3101,7 @@ type: kernel`
 	c.Assert(chg.Status(), Equals, state.WaitStatus)
 
 	// we should have triggered a reboot to undo the boot changes
-	restarting, _ = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 
 	// we revert to the previous working kernel, so kernel_status is unset now
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
@@ -5721,8 +5712,7 @@ version: 20.04`
 	ms.mockRestartAndSettle(c, st, chg)
 
 	// we are in restarting state
-	restarting, restartType := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	restartType := restart.Pending(st)
 	c.Check(restartType, Equals, restart.RestartSystem)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
@@ -5884,8 +5874,7 @@ version: 20.04`
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// and we are *not* in restarting state
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, false)
+	c.Check(restart.Pending(st), Equals, restart.RestartUnset)
 	// bootvars unchanged
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       boot.DefaultStatus,
@@ -6386,8 +6375,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(err, IsNil)
 
 	// we are in restarting state
-	restarting, restartType := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	restartType := restart.Pending(st)
 	c.Check(restartType, Equals, restart.RestartSystem)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 
@@ -6447,8 +6435,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// and we are *not* in restarting state
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, false)
+	c.Check(restart.Pending(st), Equals, restart.RestartUnset)
 
 	// and the undo gave us our old kernel back
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
@@ -6837,8 +6824,7 @@ volumes:
 	c.Check(updaterForStructureCalls, Equals, 1)
 
 	// gadget update requests a restart
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 
 	// simulate successful restart happened
 	s.mockRestartAndSettle(c, st, chg)
@@ -7720,8 +7706,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 
 	now := time.Now()
@@ -8103,8 +8088,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8142,8 +8126,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	// we're installing a new kernel, so another reboot
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	// and we've rebooted
@@ -8263,8 +8246,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8387,8 +8369,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8426,8 +8407,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	// we are switching the core, so more reboots are expected
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	// restarting to a new base
@@ -8556,8 +8536,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8593,8 +8572,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	// only one with contents (see oldPcGadgetYamlForRemodel).
 	c.Check(updater.updateCalls, Equals, 1)
 	// a reboot was requested, as mock updated were applied
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 
 	// simulate successful reboot back
@@ -8744,8 +8722,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -8781,8 +8758,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	// only one with contents (see oldPcGadgetYamlForRemodel).
 	c.Check(updater.updateCalls, Equals, 1)
 	// a reboot was requested, as mock updated were applied
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 
 	// simulate successful reboot back
@@ -9233,8 +9209,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -9274,8 +9249,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
 
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	// and we've rebooted
@@ -9340,8 +9314,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
 	// the gadget has updated the kernel command line
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	m, err = boot.ReadModeenv("")
@@ -9693,8 +9666,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -9734,8 +9706,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
 
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	// and we've rebooted
@@ -9800,8 +9771,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
 	// the gadget has updated the kernel command line
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	m, err = boot.ReadModeenv("")
@@ -10010,8 +9980,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -10049,8 +10018,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
 
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	// and we've rebooted
@@ -10115,8 +10083,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
 	// the gadget has updated the kernel command line
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	m, err = boot.ReadModeenv("")
@@ -10288,8 +10255,7 @@ type: kernel`
 	})
 
 	// we are in restarting state and the change is not done yet
-	restarting, _ := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	c.Check(restart.Pending(st), Not(Equals), restart.RestartUnset)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
 	s.mockRollbackAcrossReboot(c, chg, bloader, []snap.Type{snap.TypeKernel})
 
@@ -10519,8 +10485,7 @@ NeedDaemonReload=no
 
 	// check the snapd task state
 	c.Check(chg.Status(), Equals, state.DoStatus)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
 	// now we do want the ensure loop to run though
@@ -10541,8 +10506,7 @@ NeedDaemonReload=no
 
 	// we don't restart since the unit file was just rewritten, no services were
 	// killed
-	restarting, _ = restart.Pending(st)
-	c.Check(restarting, Equals, false)
+	c.Check(restart.Pending(st), Equals, restart.RestartUnset)
 
 	// the unit file was rewritten to use Wants= now
 	rewrittenUnitFile := fmt.Sprintf(unitTempl,
@@ -10765,8 +10729,7 @@ NeedDaemonReload=no
 
 	// check the snapd task state
 	c.Check(chg.Status(), Equals, state.DoStatus)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
 	// now we do want the ensure loop to run though
@@ -10787,8 +10750,7 @@ NeedDaemonReload=no
 
 	// we do end up restarting now, since we tried to restart the service but
 	// failed and so to be safe as possible we reboot the system immediately
-	restarting, kind = restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystemNow)
 
 	// the unit file was rewritten to use Wants= now
@@ -10947,8 +10909,7 @@ volumes:
 		// boot config is updated after link-snap, so first comes the
 		// daemon restart
 		c.Check(chg.Status(), Equals, state.DoStatus)
-		restarting, kind := restart.Pending(st)
-		c.Check(restarting, Equals, true)
+		kind := restart.Pending(st)
 		c.Assert(kind, Equals, restart.RestartDaemon)
 
 		// simulate successful daemon restart happened
@@ -10961,16 +10922,14 @@ volumes:
 		st.Lock()
 		c.Assert(err, IsNil)
 
-		restarting, kind = restart.Pending(st)
+		kind = restart.Pending(st)
 		if updated {
 			c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("change failed: %v", chg.Err()))
 			// boot config updated, thus a system restart was
 			// requested
-			c.Check(restarting, Equals, true)
 			c.Assert(kind, Equals, restart.RestartSystem)
 		} else {
 			c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
-			c.Check(restarting, Equals, false)
 		}
 	}
 }
@@ -11098,14 +11057,13 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	restarting, restartType := restart.Pending(st)
+	restartType := restart.Pending(st)
 	switch restartType {
 	case restart.RestartDaemon:
 		c.Check(chg.Status(), Equals, state.DoStatus)
 	default:
 		c.Check(chg.Status(), Equals, state.WaitStatus)
 	}
-	c.Check(restarting, Equals, true)
 
 	// simulate successful restart happened
 	restart.MockPending(st, restart.RestartUnset)
@@ -11325,8 +11283,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	if update {
 		// after link-snap, a system restart will be requested
 		c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("change failed: %v", chg.Err()))
-		restarting, kind := restart.Pending(st)
-		c.Check(restarting, Equals, true)
+		kind := restart.Pending(st)
 		c.Assert(kind, Equals, restart.RestartSystem)
 
 		// simulate successful system restart happened
@@ -11639,8 +11596,7 @@ func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// auto connects aren't done yet
@@ -11705,8 +11661,7 @@ func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// auto connects aren't done yet
@@ -12056,8 +12011,7 @@ base: core20
 	c.Logf(s.logbuf.String())
 
 	// snapd is updated first (as it's a prerequisite for the base)
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartDaemon)
 	restart.MockPending(st, restart.RestartUnset)
 	restart.MockAfterRestartForChange(chg)
@@ -12090,8 +12044,7 @@ base: core20
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 	c.Logf(s.logbuf.String())
 
-	ok, rst = restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst = restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	autoConnectStatus("core20", []string{"snapd"})
@@ -12127,8 +12080,8 @@ base: core20
 	err = s.settleSupportingRestarts(c)
 	st.Lock()
 	c.Assert(err, IsNil)
-	ok, _ = restart.Pending(st)
-	c.Assert(ok, Equals, false)
+	kind := restart.Pending(st)
+	c.Assert(kind, Equals, restart.RestartUnset)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("change failed with: %v", chg.Err()))
 }
@@ -12263,8 +12216,7 @@ base: core20
 	dumpTasks(c, "after run", chg.Tasks())
 
 	// first comes the snapd restart
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartDaemon)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -12276,8 +12228,7 @@ base: core20
 	dumpTasks(c, "after run", chg.Tasks())
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst = restart.Pending(st)
-	c.Assert(ok, Equals, false)
+	rst = restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartUnset)
 
 	// settle has exited as there are no more tasks that can be run due to
@@ -12359,8 +12310,7 @@ base: core20
 	dumpTasks(c, "after run", chg.Tasks())
 
 	// first comes the snapd restart
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartDaemon)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -12372,8 +12322,7 @@ base: core20
 	dumpTasks(c, "after run", chg.Tasks())
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst = restart.Pending(st)
-	c.Assert(ok, Equals, false)
+	rst = restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartUnset)
 
 	// settle has exited as there are no more tasks that can be run due to
@@ -12472,8 +12421,7 @@ base: core20
 	dumpTasks(c, "after run", chg.Tasks())
 
 	// first comes the snapd restart
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartDaemon)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -12486,8 +12434,7 @@ base: core20
 
 	// Snapd is done updating, and a restart has been requested after
 	// running all pre-boot tasks for base, gadget and kernel.
-	ok, rst = restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst = restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// we are trying out a new base
@@ -12520,8 +12467,8 @@ base: core20
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	ok, _ = restart.Pending(st)
-	c.Assert(ok, Equals, false)
+	kind := restart.Pending(st)
+	c.Assert(kind, Equals, restart.RestartUnset)
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
@@ -12711,8 +12658,7 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -12801,8 +12747,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// pretend we restarted
@@ -12900,8 +12845,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -13020,8 +12964,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// At this point the gadget and kernel are updated and the kernel
@@ -13179,8 +13122,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot resolve content for structure #0 \("ubuntu-seed"\) at index 1: cannot find "pidtbs" in kernel info .*\)`)
 
-	restarting, _ := restart.Pending(st)
-	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
+	c.Check(restart.Pending(st), Equals, restart.RestartUnset)
 
 	// let's try updating the kernel;
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
@@ -13196,8 +13138,7 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 	restart.MockPending(st, restart.RestartUnset)
 
@@ -13273,8 +13214,7 @@ epoch: 1
 		testutil.FileContains, "start.elf rev0")
 
 	// thus there is no reboot either
-	restarting, _ = restart.Pending(st)
-	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
+	c.Check(restart.Pending(st), Equals, restart.RestartUnset)
 
 	// and now we can perform a refresh of the kernel
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, nil, 0, &snapstate.Flags{})
@@ -13643,8 +13583,7 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), IsNil)
 
-	ok, rst := restart.Pending(st)
-	c.Assert(ok, Equals, true)
+	rst := restart.Pending(st)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// At this point the gadget and kernel are updated and the kernel
@@ -14439,8 +14378,7 @@ type: snapd`
 
 	// check the snapd task state
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	restarting, kind := restart.Pending(st)
-	c.Check(restarting, Equals, true)
+	kind := restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartDaemon)
 
 	// now verify whether the state would be correctly asserted as to

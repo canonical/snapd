@@ -86,8 +86,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	defer st.Unlock()
 
 	// uninitialized
-	ok, t := restart.Pending(st)
-	c.Check(ok, Equals, false)
+	t := restart.Pending(st)
 	c.Check(t, Equals, restart.RestartUnset)
 
 	h := &testHandler{}
@@ -96,22 +95,18 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
-	ok, t = restart.Pending(st)
-	c.Check(ok, Equals, false)
+	t = restart.Pending(st)
 	c.Check(t, Equals, restart.RestartUnset)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, false)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartUnset)
 
 	restart.Request(st, restart.RestartDaemon, nil)
 
 	c.Check(h.restartRequested, Equals, true)
 
-	ok, t = restart.Pending(st)
-	c.Check(ok, Equals, true)
+	t = restart.Pending(st)
 	c.Check(t, Equals, restart.RestartDaemon)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, true)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartDaemon)
 }
 
@@ -126,11 +121,9 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 
 	restart.Request(st, restart.RestartDaemon, nil)
 
-	ok, t := restart.Pending(st)
-	c.Check(ok, Equals, true)
+	t := restart.Pending(st)
 	c.Check(t, Equals, restart.RestartDaemon)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, true)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartDaemon)
 }
 
@@ -144,22 +137,18 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
-	ok, t := restart.Pending(st)
-	c.Check(ok, Equals, false)
+	t := restart.Pending(st)
 	c.Check(t, Equals, restart.RestartUnset)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, false)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartUnset)
 
 	restart.Request(st, restart.RestartSystem, nil)
 
 	c.Check(h.restartRequested, Equals, true)
 
-	ok, t = restart.Pending(st)
-	c.Check(ok, Equals, true)
+	t = restart.Pending(st)
 	c.Check(t, Equals, restart.RestartSystem)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, true)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartSystem)
 
 	var fromBootID string
@@ -192,11 +181,9 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
-	ok, t := restart.Pending(st)
-	c.Check(ok, Equals, false)
+	t := restart.Pending(st)
 	c.Check(t, Equals, restart.RestartUnset)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, false)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartUnset)
 
 	restart.Request(st, restart.RestartSystem, &boot.RebootInfo{
@@ -208,11 +195,9 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(h.rebootInfo.RebootRequired, Equals, true)
 	c.Check(h.rebootInfo.BootloaderOptions, NotNil)
 
-	ok, t = restart.Pending(st)
-	c.Check(ok, Equals, true)
+	t = restart.Pending(st)
 	c.Check(t, Equals, restart.RestartSystem)
-	ok, t = manager.Pending()
-	c.Check(ok, Equals, true)
+	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartSystem)
 
 	var fromBootID string
@@ -291,9 +276,8 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 				c.Check(err, IsNil)
 			}
 
-			ok, rst := restart.Pending(st)
+			rst := restart.Pending(st)
 			c.Check(task.Status(), Equals, t.final)
-			c.Check(ok, Equals, true)
 			c.Check(rst, Equals, restart.RestartDaemon)
 			c.Check(waitBootID, Equals, "")
 			continue
@@ -314,12 +298,11 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 		}
 		restart.ProcessRestartForChange(chg, state.DefaultStatus, state.WaitStatus)
 
-		ok, rst := restart.Pending(st)
+		rst := restart.Pending(st)
 		if t.restart {
-			c.Check(ok, Equals, true)
 			c.Check(rst, Equals, t.restartType)
 		} else {
-			c.Check(ok, Equals, false)
+			c.Check(rst, Equals, restart.RestartUnset)
 
 			var wait bool
 			if err := chg.Get("wait-for-system-restart", &wait); !errors.Is(err, state.ErrNoState) {

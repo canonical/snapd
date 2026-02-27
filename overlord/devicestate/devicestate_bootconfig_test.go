@@ -211,7 +211,7 @@ kernel-cmdline:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restarting, rt := restart.Pending(s.state)
+	rt := restart.Pending(s.state)
 	if errMatch == "" {
 		if opts.updateAttempted && opts.updateApplied {
 			// Expect the change to be in wait status at this point, as a restart
@@ -239,7 +239,6 @@ kernel-cmdline:
 			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-			c.Check(restarting, Equals, true)
 			c.Check(rt, Equals, restart.RestartSystemNow)
 		} else {
 			// update was not applied or failed

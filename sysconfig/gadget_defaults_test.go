@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 
 	// to set ApplyFilesystemOnlyDefaults hook
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -78,6 +79,33 @@ func fake20Model(grade string) *asserts.Model {
 				"id":              "gadgetididididididididididididid",
 				"type":            "gadget",
 				"default-channel": "20",
+			},
+		},
+	}).(*asserts.Model)
+}
+
+func fake24Model(grade string) *asserts.Model {
+	return assertstest.FakeAssertion(map[string]any{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"base":         "core24",
+		"grade":        grade,
+		"snaps": []any{
+			map[string]any{
+				"name":            "kernel",
+				"id":              "kerneldididididididididididididi",
+				"type":            "kernel",
+				"default-channel": "24",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              "gadgetididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "24",
 			},
 		},
 	}).(*asserts.Model)
@@ -205,4 +233,63 @@ defaults:
 	c.Check(exists, Equals, true)
 
 	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
+}
+
+func (s *sysconfigSuite) TestGadgetDefaultsMotdNotSupportedBeforeUC24(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
+	const gadgetDefaultsYaml = `
+defaults:
+  system:
+    system.motd: Test MOTD
+`
+	si := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "idid",
+	}
+	snapInfo := snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
+	})
+
+	motdReadonlyFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/usr/lib/motd.d/50-default")
+	c.Check(osutil.FileExists(motdReadonlyFile), Equals, false)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+		GadgetDir:     snapInfo.MountDir(),
+	})
+	c.Check(err, ErrorMatches, "cannot set message of the day: unsupported on this system, requires UC24\\+")
+
+	motdWritableFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/motd.d/50-default")
+	c.Check(osutil.FileExists(motdWritableFile), Equals, false)
+}
+
+func (s *sysconfigSuite) TestGadgetDefaultsMotdSupportedUC24Onwards(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
+	const gadgetDefaultsYaml = `
+defaults:
+  system:
+    system.motd: Test MOTD
+`
+	si := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   "idid",
+	}
+	snapInfo := snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
+	})
+
+	err := sysconfig.ConfigureTargetSystem(fake24Model("signed"), &sysconfig.Options{
+		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
+		GadgetDir:     snapInfo.MountDir(),
+	})
+	c.Assert(err, IsNil)
+
+	motdWritableFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/motd.d/50-default")
+	c.Check(motdWritableFile, testutil.FileEquals, "Test MOTD\n")
 }

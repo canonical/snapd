@@ -8238,8 +8238,7 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	// up until daemon restart caused by snapd installation
 	s.settle(c)
-	pending, kind := restart.Pending(s.state)
-	c.Check(pending, Equals, true)
+	kind := restart.Pending(s.state)
 	c.Check(kind, Equals, restart.RestartDaemon)
 	restart.MockPending(s.state, restart.RestartUnset)
 	// run through to the end

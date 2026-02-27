@@ -282,7 +282,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 		return nil
 	}
 
-	if ok, _ := restart.Pending(task.State()); ok {
+	if restart.Pending(task.State()) != restart.RestartUnset {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}

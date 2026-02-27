@@ -1932,15 +1932,13 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restarting, rt := restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
+	rt := restart.Pending(s.state)
 	c.Check(rt, Equals, restart.RestartSystemNow)
 
 	// simulate restart for the 'do' path
 	s.mockRestartAndSettle(c, s.state, chg)
 
-	restarting, rt = restart.Pending(s.state)
-	c.Check(restarting, Equals, true)
+	rt = restart.Pending(s.state)
 	c.Check(rt, Equals, restart.RestartSystemNow)
 
 	// simulate restart for the 'undo' path
