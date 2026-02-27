@@ -39,6 +39,13 @@ var (
 	StringListAttribute         = stringListAttribute
 )
 
+type ResolveSide resolveSide
+
+const (
+	SourceSide = sourceSide
+	TargetSide = targetSide
+)
+
 type GbmDriverLibsInterface gbmDriverLibsInterface
 
 func SymlinksUserIfaceFromGbmIface(iface interfaces.Interface) interfaces.SymlinksUser {
