@@ -29,7 +29,7 @@ prepare: |
     snap ack "$BLOB_DIR/asserts/developer1.account-key"
 
     # Fake refresh of the test snap
-     "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-sh-core24
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-sh-core24
 
 execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
