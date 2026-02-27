@@ -19283,6 +19283,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 			break
 		}
 	}
+	c.Check(chg.CheckTaskDependencies(), IsNil)
 	c.Assert(baseTS, NotNil)
 	c.Assert(kernelTS, NotNil)
 	c.Assert(appTS, NotNil)
@@ -19410,6 +19411,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 			break
 		}
 	}
+	c.Check(chg.CheckTaskDependencies(), IsNil)
 	if baseTS == nil || kernelTS == nil || appTS == nil || extraAppTS == nil {
 		c.Fatalf("missing task sets: base=%v kernel=%v app=%v extraApp=%v", baseTS != nil, kernelTS != nil, appTS != nil, extraAppTS != nil)
 	}
@@ -19555,6 +19557,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 			break
 		}
 	}
+	c.Check(chg.CheckTaskDependencies(), IsNil)
 	if snapdTS == nil || baseTS == nil || kernelTS == nil || appTS == nil || extraAppTS == nil {
 		c.Fatalf("missing task sets: snapd=%v base=%v kernel=%v app=%v extraApp=%v", snapdTS != nil, baseTS != nil, kernelTS != nil, appTS != nil, extraAppTS != nil)
 	}
@@ -19686,6 +19689,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshDisabled(c *C) {
 			break
 		}
 	}
+	c.Check(chg.CheckTaskDependencies(), IsNil)
 	c.Assert(baseTS, NotNil)
 	c.Assert(kernelTS, NotNil)
 	c.Assert(appTS, NotNil)
