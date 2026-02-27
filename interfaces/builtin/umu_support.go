@@ -59,7 +59,7 @@ pivot_root,
 userns,
 
 # Permission for the new root
-/newroot/** rwkl,
+/newroot/** mrwklix,
 
 # Restrictive host access
 /run/host/usr/lib/** mr,
@@ -75,22 +75,19 @@ userns,
 /run/pressure-vessel/** mrw,
 /var/pressure-vessel/** mrw,
 
-# This is just so you can test UMU without access to the $SNAP_REAL_HOME folder.
-# Currently, UMU on Snap doesn't allow you to choose where the umu and Steam folders will be created.
-owner /home/*/umu/ rwklix,
-owner /home/*/umu/** rwklix,
-owner /home/*/Steam/ rwklix,
-owner /home/*/Steam/** rwklix,
+# Permissions to test UMU without access to the home interface.
+owner @{HOME}/App/ rwklix,
+owner @{HOME}/App/UMU/ rwklix,
+owner @{HOME}/App/UMU/** rwklix,
+owner @{HOME}/umu/ rwklix,
+owner @{HOME}/umu/** rwklix,
+owner @{HOME}/Steam/ rwklix,
+owner @{HOME}/Steam/** rwklix,
 
 # Access to mounting points
 /media/ r,
 /mnt/ r,
 /run/media/ r,
-
-# Block access to what's inside the mounting points.
-deny /media/** mrwklx,
-deny /mnt/** mrwklx,
-deny /run/media/** mrwklx,
 
 # Permissions to access certain binaries
 # For UMU launcher
