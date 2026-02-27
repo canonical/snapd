@@ -1,0 +1,232 @@
+summary: Exercise update with multiple content connections and observe delayed effects
+
+details: |
+    Exercise an update where content providers have multiple consumers connected
+    and observe delayed mount backend side effects in action.
+
+prepare: |
+    snap install core24
+
+execute: |
+    # Generate and install a bunch of content consumer and provider snaps, the
+    # naming pattern is:
+    # test-snapd-content-consumer-c1, test-snapd-content-consumer-c2, ..
+    # test-snapd-content-provider-p1, test-snapd-content-provider-p2, ..
+    for suff in c1 c2 c3; do
+        ./gen-snap test-snapd-content-consumer "test-snapd-content-consumer-$suff" "$suff"
+        "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-consumer-$suff"
+    done
+
+    for suff in p1 p2 p3; do
+        ./gen-snap test-snapd-content-provider "test-snapd-content-provider-$suff" "$suff"
+        "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-$suff"
+    done
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider-v2
+
+    # prepare modified versions
+    (
+    cd test-snapd-content-provider-p1
+    echo 'content mod p1' > special-content-file
+    snap pack
+    )
+
+    (
+    cd test-snapd-content-provider-v2
+    echo 'special content mod v2' > special-content-file
+    snap pack
+    )
+
+    # establish some connections
+    # c1 -> p1, p2
+    # c2 -> p2
+    # c3 -> p2, p3
+
+    # c1 -> p1
+    snap connect test-snapd-content-consumer-c1:special-content \
+        test-snapd-content-provider-p1:special-content
+    # c1 -> p2
+    snap connect test-snapd-content-consumer-c1:special-content \
+        test-snapd-content-provider-p2:special-content
+
+    # c1 -> p-v2
+    snap connect test-snapd-content-consumer-c1:special-content-v2 \
+        test-snapd-content-provider-v2:special-content-v2
+
+    # c2 -> p2
+    snap connect test-snapd-content-consumer-c2:special-content \
+        test-snapd-content-provider-p2:special-content
+
+    # c3 -> p2
+    snap connect test-snapd-content-consumer-c3:special-content \
+        test-snapd-content-provider-p2:special-content
+    # c3 -> p3
+    snap connect test-snapd-content-consumer-c3:special-content \
+        test-snapd-content-provider-p3:special-content
+    # c3 -> p-v2
+    snap connect test-snapd-content-consumer-c3:special-content-v2 \
+        test-snapd-content-provider-v2:special-content-v2
+
+    # make sure the mount namespaces are created and assert that the right
+    # content is visible
+    test-snapd-content-consumer-c1.app | MATCH "hello from app test-snapd-content-consumer-c1"
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content p1;content p2|content p2;content p1);special content v2;$'
+    test-snapd-content-consumer-c2.app | MATCH "hello from app test-snapd-content-consumer-c2"
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c2.app -c \
+         'cat $SNAP/connected-content/special-content-file' | \
+         MATCH '^content p2$'
+    test-snapd-content-consumer-c3.app | MATCH "hello from app test-snapd-content-consumer-c3"
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c3.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content p2;content p3|content p3;content p2);special content v2;$'
+    test -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+
+    # update p1, affects test-snapd-content-consumer
+    echo "Update a snap affecting test-snapd-content-consumer only"
+    "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-p1"
+    snap change --last install | tee change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
+    # only one Apply effects task
+    test "$(grep -c 'Apply delayed' < change.out)" = "1"
+
+    # no apps were running, so one got discarded
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    # but the other 2 remain
+    test -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+
+    # we observe the modified content (which recreates the mount ns0)
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content mod p1;content p2|content p2;content mod p1);special content v2;$'
+
+    # update p2, affects test-snapd-content-consumer{,-c2,-c3}
+    echo "Update a snap affecting all instances of test-snapd-content-consumer (c1, c2 and c3)"
+    "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-p2"
+    snap change --last install | tee change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c2"' < change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c3"' < change.out
+    # for all 3 affected snaps
+    test "$(grep -c 'Apply delayed' < change.out)" = "3"
+
+    # all 3 were discarded
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+
+    # restore
+    test-snapd-content-consumer-c1.app | MATCH "hello from app test-snapd-content-consumer-c1"
+    test-snapd-content-consumer-c2.app | MATCH "hello from app test-snapd-content-consumer-c2"
+    test-snapd-content-consumer-c3.app | MATCH "hello from app test-snapd-content-consumer-c3"
+
+    # affects test-snapd-content-consumer-c3 only
+    echo "Update a snap affecting test-snapd-content-consumer-c3 only"
+    "$TESTSTOOLS"/snaps-state install-local "test-snapd-content-provider-p3"
+    snap change --last install | tee change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c3"' < change.out
+    test "$(grep -c 'Apply delayed' < change.out)" = "1"
+
+    test -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+    # restore
+    test-snapd-content-consumer-c3.app | MATCH "hello from app test-snapd-content-consumer-c3"
+
+    # update of 2 provider snaps, affects test-snapd-content-consumer{,-c3}, due
+    # to the following connections:
+    # c1 -> p1 & p-v2
+    # c3 -> p-v2
+    echo "Update a snap affecting test-snapd-content-consumer c1 and c3"
+    snap install --dangerous \
+        test-snapd-content-provider-p1/test-snapd-content-provider-p1_*.snap \
+        test-snapd-content-provider-v2/test-snapd-content-provider-v2_*.snap
+    snap change --last install | tee change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c3"' < change.out
+    test "$(grep -c 'Apply delayed' < change.out)" = "2"
+
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+
+    # both affected snaps see modified content
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content mod p1;content p2|content p2;content mod p1);special content mod v2;$'
+    # c3 shows updated content from p-v2
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c3.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content p2;content p3|content p3;content p2);special content mod v2;$'
+
+    echo "Observe mount namespace update when an application is running"
+    # another modification
+    (
+    cd test-snapd-content-provider-v2
+    echo 'special content mod v3' > special-content-file
+    snap pack
+    )
+
+    # restore c3 mount ns
+    test-snapd-content-consumer-c3.app | MATCH "hello from app test-snapd-content-consumer-c3"
+    # start application that prevents the mount ns from being discarded
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'sleep 3600' &
+    sleeppid=$!
+
+    # grab info about the inode of the captured mount namespace
+    before_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-content-consumer-c1.mnt)"
+
+    snap install --dangerous \
+        test-snapd-content-provider-p1/test-snapd-content-provider-p1_*.snap \
+        test-snapd-content-provider-v2/test-snapd-content-provider-v2_*.snap
+    snap change --last install | tee change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c1"' < change.out
+    MATCH 'Done +.* +Apply delayed security backend side effects for snap "test-snapd-content-consumer-c3"' < change.out
+    test "$(grep -c 'Apply delayed' < change.out)" = "2"
+
+    test -e /run/snapd/ns/test-snapd-content-consumer-c1.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer-c2.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer-c3.mnt
+
+    after_inode="$(stat -c '%i:%y' /run/snapd/ns/test-snapd-content-consumer-c1.mnt)"
+    # the mount ns is the same, it hasn't been discarded
+    test "$before_inode" = "$after_inode"
+
+    kill "$sleeppid"
+    wait || true
+
+    # join it to observe updated content
+    # TODO: the output should be:
+    # > content mod v1;content p2;special content mod v3;
+    # however due to a buggy mount ns update new content is not, or shows up at
+    # connected-content-v2-2, the previously visible content from p2 and p2 is
+    # messed up as well
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^.*;special content mod v2;$'
+
+    # discard and observe correct content'
+    snapd.tool exec snap-discard-ns test-snapd-content-consumer-c1
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer-c1.app -c \
+         'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
+         tr '\n' ';' | \
+         MATCH '^(content mod p1;content p2|content p2;content mod p1);special content mod v3;$'

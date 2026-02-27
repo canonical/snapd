@@ -1,0 +1,24 @@
+#!/bin/bash
+
+src_dir="$1"
+dst_dir="$2"
+suffix="$3"
+
+if [ -z "$src_dir" ] || [ -z "$dst_dir" ] || [ -z "$suffix" ]; then
+    echo "Usage: $0 <src-dir> <dst-dir> <suffix-to-patch>"
+    exit 1
+fi
+
+if [ -d "$dst_dir" ]; then
+    echo "$dst_dir already exists"
+    exit 1
+fi
+
+cp -av "$src_dir" "$dst_dir"
+
+sed -i "s/%SUFF%/$suffix/g" "$dst_dir/meta/snap.yaml"
+if [ -f "$dst_dir"/special-content-file ]; then
+    sed -i "s/%SUFF%/$suffix/g" "$dst_dir"/special-content-file
+fi
+
+echo "Generated snap at $dst_dir with patched suffix: $suffix"
