@@ -4367,11 +4367,15 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 		return tss
 	}
 
-	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes)
+	var joinLane int
 	if flags.Transaction == client.TransactionAllSnaps {
-		// TODO: when doing an all-snap transaction, the per snap snap
-		// apply-effects tasks should be forced onto the same lane
-		pde.JoinLane(flags.Lane)
+		joinLane = flags.Lane
 	}
+
+	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes, joinLane)
+	if joinLane != 0 {
+		pde.JoinLane(joinLane)
+	}
+
 	return append(tss, pde)
 }

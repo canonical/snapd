@@ -120,6 +120,6 @@ func NewSequenceFromRevisionSideInfos(revsSideInfo []*sequence.RevisionSideState
 	return sequence.SnapSequence{Revisions: revsSideInfo}
 }
 
-func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int) *state.TaskSet) (restore func()) {
+func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) *state.TaskSet) (restore func()) {
 	return testutil.Mock(&snapstate.ProcessDelayedSecurityBackendEffects, f)
 }

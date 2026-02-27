@@ -385,9 +385,10 @@ SNAPD_APPARMOR_REEXEC=1
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
 
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed security backend effects")
-		tsk.Set("mock-monitored-lanes", lanes)
+		tsk.Set("monitored-lanes", lanes)
+		tsk.Set("join-lane", joinLane)
 		return state.NewTaskSet(tsk)
 	}))
 
@@ -9228,7 +9229,7 @@ func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// not expecting any calls
 		panic("unexpected call")
 	}))
@@ -9322,7 +9323,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorHookContextCompatibility(c *C) {
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// not expecting any calls
 		panic("unexpected call")
 	}))
@@ -9418,7 +9419,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidCompo
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c *C) {
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// not expecting any calls
 		panic("unexpected call")
 	}))
@@ -9915,7 +9916,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C) {
 	// fail to enforce the validation set at the end to trigger an undo
 
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// not expecting any calls
 		panic("unexpected call")
 	}))
@@ -12158,14 +12159,17 @@ func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
 
-func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int) {
+func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, expectedJoinLane int) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
 	eff := ts.Tasks()[0]
 	var lanes []int
-	eff.Get("mock-monitored-lanes", &lanes)
+	c.Check(eff.Get("monitored-lanes", &lanes), IsNil)
 	sort.Ints(lanes)
 	if expectedLanes != nil {
 		c.Check(lanes, DeepEquals, expectedLanes)
 	}
+	var joinLane int
+	c.Check(eff.Get("join-lane", &joinLane), IsNil)
+	c.Check(joinLane, Equals, expectedJoinLane)
 }

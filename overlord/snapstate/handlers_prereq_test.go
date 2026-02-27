@@ -87,7 +87,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
 
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// only one snap is updated
 		c.Check(lanes, HasLen, 1)
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))

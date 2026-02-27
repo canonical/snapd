@@ -3764,7 +3764,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	c.Assert(err, IsNil)
 	c.Check(tts, HasLen, 4)
 	verifyReRefreshTasks(c, tts[2])
-	verifyDelayedEffectsTasks(c, tts[3], []int{2, 3})
+	verifyDelayedEffectsTasks(c, tts[3], []int{2, 3}, 0)
 	sort.Strings(updates)
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 
@@ -4335,7 +4335,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 			c.Assert(len(tts), Equals, pruneTsCnt+snapTtsCnt+rerefTsCnt+delayedEffTsCnt)
 			verifyReRefreshTasks(c, tts[pruneTsCnt+snapTtsCnt])
 			// do not check lanes, too much hassle
-			verifyDelayedEffectsTasks(c, tts[pruneTsCnt+snapTtsCnt+1], nil)
+			verifyDelayedEffectsTasks(c, tts[pruneTsCnt+snapTtsCnt+1], nil, 0)
 		}
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
@@ -5396,6 +5396,7 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	verifyReRefreshTasks(c, tts[2])
+	verifyDelayedEffectsTasks(c, tts[3], []int{1}, 1)
 	c.Assert(updates, HasLen, 2)
 
 	// Last task is re-refresh, so it is a different lane
@@ -5737,7 +5738,7 @@ func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannel(c *C) {
 
 	verifyReRefreshTasks(c, uts.Refresh[2])
 	// snap is update in default lane 0
-	verifyDelayedEffectsTasks(c, uts.Refresh[3], []int{0})
+	verifyDelayedEffectsTasks(c, uts.Refresh[3], []int{0}, 0)
 	c.Assert(uts.Refresh[1].Tasks(), HasLen, 1)
 
 	switchTask := uts.Refresh[1].Tasks()[0]
@@ -5820,7 +5821,7 @@ func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannelWithAutoAlias(c *C) {
 	c.Assert(names, testutil.DeepUnsortedMatches, []string{"alias-snap", "some-other-snap"})
 
 	verifyReRefreshTasks(c, uts.Refresh[3])
-	verifyDelayedEffectsTasks(c, uts.Refresh[4], []int{0})
+	verifyDelayedEffectsTasks(c, uts.Refresh[4], []int{0}, 0)
 
 	switchTask := uts.Refresh[2].Tasks()[0]
 	c.Assert(switchTask.Kind(), Equals, "switch-snap-channel")
@@ -5908,7 +5909,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 5)
 	verifyReRefreshTasks(c, tts[3])
-	verifyDelayedEffectsTasks(c, tts[4], []int{1, 2, 3})
+	verifyDelayedEffectsTasks(c, tts[4], []int{1, 2, 3}, 0)
 	c.Check(updates, HasLen, 3)
 
 	// to make TaskSnapSetup work
@@ -5989,7 +5990,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 6)
 	verifyReRefreshTasks(c, tts[4])
-	verifyDelayedEffectsTasks(c, tts[5], []int{1, 2, 3, 4})
+	verifyDelayedEffectsTasks(c, tts[5], []int{1, 2, 3, 4}, 0)
 	c.Check(updates, HasLen, 4)
 
 	// to make TaskSnapSetup work
@@ -6108,7 +6109,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	verifyReRefreshTasks(c, tts[1])
-	verifyDelayedEffectsTasks(c, tts[2], []int{1})
+	verifyDelayedEffectsTasks(c, tts[2], []int{1}, 0)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 	verifyUpdateTasks(c, snap.TypeApp, 0, 0, tts[0])
 
@@ -6153,7 +6154,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	verifyReRefreshTasks(c, tts[2])
-	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2})
+	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2}, 0)
 	// ensure stable ordering of updates list
 	if updates[0] != "some-snap" {
 		updates[1], updates[0] = updates[0], updates[1]
@@ -6233,7 +6234,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 4)
 	verifyReRefreshTasks(c, tts[2])
-	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2})
+	verifyDelayedEffectsTasks(c, tts[3], []int{1, 2}, 0)
 	sort.Strings(updates)
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
 	verifyUpdateTasks(c, snap.TypeApp, 0, 0, tts[0])
@@ -11041,7 +11042,7 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionalWithLane(c *C) {
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tss[2], []int{lane})
+	verifyDelayedEffectsTasks(c, tss[2], []int{lane}, lane)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyNoDelayedEffects(c *C) {
