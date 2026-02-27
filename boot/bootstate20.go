@@ -217,6 +217,9 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 	// So we can safely ignore FDE hooks.
 	resealOpts := ResealKeyToModeenvOptions{IgnoreFDEHooks: true, RevokeOldKeys: u20.revokeOldKeys}
 
+	logger.Noticef("DEBUG XKB: bootStateUpdate20.commit: modeenv: %v", []string(u20.modeenv.CurrentKernelCommandLines))
+	logger.Noticef("DEBUG XKB: bootStateUpdate20.commit: writeModeenv: %v", []string(u20.writeModeenv.CurrentKernelCommandLines))
+
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
 		if err := u20.writeModeenv.Write(); err != nil {

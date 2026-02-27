@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -446,6 +447,9 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
+		logger.Noticef("----------- WARNING STACKTRACE INCOMING -----------")
+		debug.PrintStack()
+		logger.Noticef("----------- WARNING STACKTRACE COMPLETED -----------")
 
 		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdates, params.RoleToBlName, checkResult)
 		if err != nil {

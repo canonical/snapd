@@ -149,3 +149,5 @@ execute: |
   get_snapd_xkb | MATCH '^snapd\.xkb="eg,pc105,basic,compat"$'
   get_modeenv | MATCH "eg,pc105,basic,compat"
   get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="eg,pc105,basic,compat"$'
+
+  exit 1

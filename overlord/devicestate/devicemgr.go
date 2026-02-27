@@ -1224,13 +1224,28 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	return nil
 }
 
-func (m *DeviceManager) ensureBootOk() error {
+func (m *DeviceManager) ensureBootOk() (retErr error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
 		return nil
+	}
+
+	logger.Noticef("DEBUG XKB: entering ensureBootOk")
+	defer func() {
+		if retErr != nil {
+			logger.Noticef("DEBUG XKB: ensureBootOk error: %v", retErr)
+		}
+	}()
+	defer logger.Noticef("DEBUG XKB: existing ensureBootOk")
+
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil {
+		logger.Noticef("DEBUG XKB: ensureBootOk: modeenv read error: %v", err)
+	} else {
+		logger.Noticef("DEBUG XKB: ensureBootOk: modeenv: %v", []string(modeenv.CurrentKernelCommandLines))
 	}
 
 	if !m.bootOkRan {
@@ -1984,6 +1999,13 @@ func (m *DeviceManager) ensureExtraSnapdKernelCommandLineFragmentsApplied() erro
 	if m.changeInFlight("apply-extra-snapd-kcmdline-fragments") {
 		// avoid creating a change if one is already in-progress
 		return nil
+	}
+
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil {
+		logger.Noticef("DEBUG XKB: ensureExtraSnapdKernelCommandLineFragmentsApplied: modeenv read error: %v", err)
+	} else {
+		logger.Noticef("DEBUG XKB: ensureExtraSnapdKernelCommandLineFragmentsApplied: modeenv: %v", []string(modeenv.CurrentKernelCommandLines))
 	}
 
 	logger.Noticef("applying pending extra snapd kernel cmdline fragments")

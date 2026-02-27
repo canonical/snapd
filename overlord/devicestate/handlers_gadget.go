@@ -340,6 +340,28 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 		return err
 	}
 
+	if fromExtraSnapdFragments {
+		logger.Noticef("DEBUG XKB: entering doUpdateGadgetCommandLine (from-extra-snapd-fragments)")
+	} else {
+		logger.Noticef("DEBUG XKB: entering doUpdateGadgetCommandLine")
+	}
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil {
+		logger.Noticef("DEBUG XKB: doUpdateGadgetCommandLine: modeenv read error: %v", err)
+	} else {
+		logger.Noticef("DEBUG XKB: doUpdateGadgetCommandLine: modeenv: %v", []string(modeenv.CurrentKernelCommandLines))
+	}
+
+	defer func() {
+		modeenv, err := boot.ReadModeenv("")
+		if err != nil {
+			logger.Noticef("DEBUG XKB: doUpdateGadgetCommandLine: modeenv read error: %v", err)
+		} else {
+			logger.Noticef("DEBUG XKB: doUpdateGadgetCommandLine: modeenv: %v", []string(modeenv.CurrentKernelCommandLines))
+		}
+		logger.Noticef("DEBUG XKB: exiting doUpdateGadgetCommandLine")
+	}()
+
 	// Find out if the update has been triggered by setting a system
 	// option that modifies the kernel command line.
 	fromSysOption := fromSystemOption(t)
