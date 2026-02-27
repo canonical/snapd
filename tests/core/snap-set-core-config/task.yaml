@@ -79,7 +79,9 @@ execute: |
         MATCH ^#hdmi_mode=1 < /boot/uboot/config.txt
 
         echo "Ensure the config.txt are fully undo when an option is unset"
-        if ! diff -u /boot/uboot/config.txt config.txt.save; then
+        # The diff ignores the line with the hdmi_mode setting, as it is expected
+        # to be changed by the test, but any other change would be unexpected.
+        if ! diff -u -I '^#hdmi_mode=1$' /boot/uboot/config.txt config.txt.save; then
             echo "error: unexpected diff in /boot/uboot/config.txt"
             exit 1
         fi
