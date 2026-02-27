@@ -297,7 +297,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	})
 	s.AddCleanup(s.restoreProcessAutoImportAssertion)
 
-	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, applyInLane int) *state.TaskSet {
 		// no reason for devicestate to set up tasks for delayed effects
 		panic("unexpected call")
 	}))
