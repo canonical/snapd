@@ -243,7 +243,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		return snapasserts.NewValidationSets(), nil
 	}
 
-	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "mock process delayed effects"))
 	}))
 }
