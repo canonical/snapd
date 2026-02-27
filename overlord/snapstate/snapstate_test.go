@@ -12171,7 +12171,7 @@ func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, exp
 	c.Check(eff.Get("mock-monitored-lanes", &lanes), IsNil)
 	sort.Ints(lanes)
 	if expectedLanes != nil {
-		c.Check(data["monitored-lanes"], testutil.JsonEquals, expectedLanes)
+		c.Check(lanes, testutil.JsonEquals, expectedLanes)
 	}
 	var applyInLane int = -42
 	c.Check(eff.Get("mock-apply-in-lane", &applyInLane), IsNil)
