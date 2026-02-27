@@ -81,7 +81,7 @@ var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ sn
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 
-var ProcessDelayedSecurityBackendEffects = func(st *state.State, lanes []int) (ts *state.TaskSet) {
+var ProcessDelayedSecurityBackendEffects = func(st *state.State, lanes []int, applyInLane int) (ts *state.TaskSet) {
 	panic("internal error: snapstate.ProcessDelayedSecurityBackendEffects is unset")
 }
 
