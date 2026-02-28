@@ -85,7 +85,11 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime time.Time `json:"receive-time"`
+	ReceiveTime time.Time             `json:"receive-time"`
+	Status      asserts.MessageStatus `json:"status,omitempty"`
+	Error       string                `json:"error,omitempty"`
+	// Subsystem change applying this message.
+	ChangeID string `json:"change-id,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -114,6 +118,22 @@ type deviceMgmtState struct {
 
 	// LastExchangeTime is the timestamp of the last message exchange.
 	LastExchangeTime time.Time `json:"last-exchange-time"`
+}
+
+// getMessage retrieves a request message from pending requests.
+func (ms *deviceMgmtState) getMessage(t *state.Task) (*RequestMessage, error) {
+	var id string
+	err := t.Get("id", &id)
+	if err != nil {
+		return nil, err
+	}
+
+	msg, ok := ms.PendingRequests[id]
+	if !ok {
+		return nil, fmt.Errorf("cannot find message with id %q", id)
+	}
+
+	return msg, nil
 }
 
 // enqueueRequests queues incoming request messages for processing
@@ -313,7 +333,44 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 
 // doApplyMessage dispatches the message to its subsystem handler for processing.
 func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getMessage(t)
+	if err != nil {
+		return err
+	}
+
+	if msg.Error != "" {
+		// No-op if validation failed
+		return nil
+	}
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		msg.Status = asserts.MessageStatusError
+		msg.Error = fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)
+
+		m.setState(ms)
+
+		return nil
+	}
+
+	changeID, err := handler.Apply(m.state, msg)
+	if err != nil {
+		msg.Status = asserts.MessageStatusError
+		msg.Error = fmt.Sprintf("cannot apply message: %v", err)
+	} else {
+		msg.ChangeID = changeID
+	}
+
+	m.setState(ms)
+
 	return nil
 }
 

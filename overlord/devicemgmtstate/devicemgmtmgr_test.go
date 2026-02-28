@@ -57,6 +57,24 @@ func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExch
 	return s.exchangeMessages(ctx, req)
 }
 
+type mockMessageHandler struct {
+	validate      func(st *state.State, msg *devicemgmtstate.RequestMessage) error
+	apply         func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error)
+	buildResponse func(chg *state.Change) (map[string]any, asserts.MessageStatus)
+}
+
+func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
+	return h.validate(st, msg)
+}
+
+func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+	return h.apply(st, msg)
+}
+
+func (h *mockMessageHandler) BuildResponse(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+	return h.buildResponse(chg)
+}
+
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
 	tr := config.NewTransaction(st)
 	_, confOption := features.RemoteDeviceManagement.ConfigOption()
@@ -466,6 +484,141 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 	c.Assert(err, ErrorMatches, "network timeout")
 }
 
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	handler := &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsys-op", "subsystem operation")
+			return chg.ID(), nil
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"msg1": makeRequestMessage("msg1", 0, "test-kind", ""),
+		},
+	}
+	s.mgr.SetState(ms)
+
+	t := s.st.NewTask("apply-mgmt-message", "test apply-mgmt-message task")
+	t.Set("id", "msg1")
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.PendingRequests["msg1"]
+	c.Check(msg.ChangeID, Not(Equals), "")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfValidationFailed(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	msg := makeRequestMessage("msg1", 0, "test-kind", "")
+	msg.Status = asserts.MessageStatusRejected
+	msg.Error = "cannot parse payload: missing required field"
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{"msg1": msg},
+	}
+	s.mgr.SetState(ms)
+
+	handler := &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			c.Log("call not expected")
+			c.Fail()
+
+			return "", fmt.Errorf("call not expected")
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	t := s.st.NewTask("apply-mgmt-message", "test apply-mgmt-message task")
+	t.Set("id", "msg1")
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg = ms.PendingRequests["msg1"]
+	c.Check(msg.ChangeID, Equals, "")
+	c.Check(msg.Status, Equals, asserts.MessageStatusRejected) // unchanged
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageNoHandlerForKind(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"msg1": makeRequestMessage("msg1", 0, "unknown-kind", ""),
+		},
+	}
+	s.mgr.SetState(ms)
+
+	t := s.st.NewTask("apply-mgmt-message", "test apply-mgmt-message task")
+	t.Set("id", "msg1")
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.PendingRequests["msg1"]
+	c.Check(msg.ChangeID, Equals, "")
+	c.Check(msg.Status, Equals, asserts.MessageStatusError)
+	c.Check(msg.Error, Equals, `cannot find handler for message kind "unknown-kind"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	handler := &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			return "", fmt.Errorf("system in inconsistent state")
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"msg1": makeRequestMessage("msg1", 0, "test-kind", ""),
+		},
+	}
+	s.mgr.SetState(ms)
+
+	t := s.st.NewTask("apply-mgmt-message", "test apply-mgmt-message task")
+	t.Set("id", "msg1")
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.PendingRequests["msg1"]
+	c.Check(msg.ChangeID, Equals, "")
+	c.Check(msg.Status, Equals, asserts.MessageStatusError)
+	c.Check(msg.Error, Equals, "cannot apply message: system in inconsistent state")
+}
+
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 	type test struct {
 		name        string
@@ -506,5 +659,23 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 		msg, err := devicemgmtstate.ParseRequestMessage(tt.message)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(msg, IsNil, cmt)
+	}
+}
+
+func makeRequestMessage(baseID string, seqNum int, kind string, changeID string) *devicemgmtstate.RequestMessage {
+	wayback := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
+
+	return &devicemgmtstate.RequestMessage{
+		AccountID:   "my-brand",
+		AuthorityID: "my-brand",
+		BaseID:      baseID,
+		SeqNum:      seqNum,
+		Kind:        kind,
+		Devices:     []string{"serial-1.my-model.my-brand"},
+		ValidSince:  wayback,
+		ValidUntil:  wayback.Add(24 * time.Hour),
+		Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+		ReceiveTime: wayback.Add(6 * time.Hour),
+		ChangeID:    changeID,
 	}
 }
