@@ -47,6 +47,9 @@ apps:
   dcdbas-control:
     command: bin/run
     plugs: [ dcdbas-control ]
+  desktop-files:
+    command: bin/run
+    plugs: [ desktop-files ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
