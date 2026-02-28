@@ -5824,3 +5824,45 @@ func (s *secbootSuite) TestActivateStateDegraded(c *C) {
 		c.Check(secboot.ActivateStateHasDegradedErrors(state), Equals, true)
 	}
 }
+
+func (s *secbootSuite) TestShouldAttemptRepair(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncorrectUserAuth,
+			},
+		},
+		"ignored": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+	}
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+}

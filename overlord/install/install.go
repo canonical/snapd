@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -207,7 +208,7 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 }
 
 // MockSecbootPreinstallCheck mocks secbootPreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+func MockSecbootPreinstallCheck(f func(ctx context.Context, postInstall bool, bootImagePaths []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootPreinstallCheck can only be mocked in tests")
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
@@ -401,7 +402,8 @@ func encryptionAvailabilityCheck(
 			preinstallErrorDetails, err = secbootPreinstallCheckAction(checkContext, ctx, checkAction)
 			newCheckContext = checkContext
 		} else {
-			newCheckContext, preinstallErrorDetails, err = secbootPreinstallCheck(ctx, images)
+			const postInstall = false
+			newCheckContext, preinstallErrorDetails, err = secbootPreinstallCheck(ctx, postInstall, images)
 		}
 
 		if err != nil {
@@ -461,7 +463,7 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 	return cmp >= 0, nil
 }
 
-func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
+func orderedCurrentBootImages(model *asserts.Model) ([]bootloader.BootFile, error) {
 	if model.HybridClassic() {
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
@@ -473,7 +475,7 @@ func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
 	return nil, nil
 }
 
-func orderedCurrentBootImagesHybrid() ([]string, error) {
+func orderedCurrentBootImagesHybrid() ([]bootloader.BootFile, error) {
 	imageInfo := []struct {
 		name string
 		glob string
@@ -483,7 +485,7 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
 	}
 
-	var bootImagePaths []string
+	var bootImagePaths []bootloader.BootFile
 	for _, info := range imageInfo {
 		matches, err := filepath.Glob(info.glob)
 		if err != nil {
@@ -495,7 +497,7 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 		if len(matches) > 1 {
 			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
 		}
-		bootImagePaths = append(bootImagePaths, matches[0])
+		bootImagePaths = append(bootImagePaths, bootloader.NewBootFile("", matches[0], bootloader.RoleRunMode))
 	}
 
 	return bootImagePaths, nil

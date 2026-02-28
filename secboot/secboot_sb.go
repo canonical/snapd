@@ -108,6 +108,82 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
+func shouldAttemptRepairOnFailure(a *ActivateState) bool {
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorNone:
+				return false
+			case sb.KeyslotErrorIncorrectUserAuth:
+				return false
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+			// FIXME: add this case after updating secboot when we have this error
+			//case sb.KeyslotErrorIncorrectRoleParams:
+			//	return false
+			case sb.KeyslotErrorIncompatibleRoleParams:
+				// FIXME: we should ignore this case only if the given keyslot is not expected
+				// to work for the boot mode. For now we just ignore it for every keyslot.
+			}
+		}
+	}
+	// We only encountered IncompatibleRoleParams errors. That
+	// means it could be repaired.
+	return true
+}
+
+// ShouldAttemptRepair reads an activate state and decides whether
+// a repair should be attempted.
+func ShouldAttemptRepair(a *ActivateState) bool {
+	// First case: recovery. We do attempt repair if all keyslots
+	// of any disk unlocked with recovery key failed with
+	// IncompatibleRoleParams
+	for _, activation := range a.Activations {
+		if activation.Status == sb.ActivationSucceededWithRecoveryKey || activation.Status == sb.ActivationFailed {
+			return shouldAttemptRepairOnFailure(a)
+		}
+	}
+
+	// Second case: degraded. All disk were unlocked
+	// successfully. But we check for some specific errors.
+	for _, activation := range a.Activations {
+		for _, errorType := range activation.KeyslotErrors {
+			switch errorType {
+			// No error
+			case sb.KeyslotErrorNone:
+			case sb.KeyslotErrorIncorrectUserAuth:
+
+			// Require reprovision:
+			case sb.KeyslotErrorInvalidKeyData:
+				return false
+			case sb.KeyslotErrorInvalidPrimaryKey:
+				return false
+			case sb.KeyslotErrorPlatformFailure:
+				return false
+			case sb.KeyslotErrorUnknown:
+				return false
+
+			// Repair
+			case sb.KeyslotErrorIncompatibleRoleParams:
+				// FIXME: we need to verify the keyslot is expected to work in the current mode.
+				// For now, it is likely we attempted the "default" keyslots first and we are in run mode.
+				return true
+				// FIXME: add this case after updating secboot when we have this error
+				//case sb.KeyslotErrorIncorrectRoleParams:
+				//      return true
+			}
+		}
+	}
+
+	return false
+}
+
 // ActivateStateHasDegradedErrors looks for any error that is not
 // ignorable and should be reported on an ActivateState.
 // This function assumes all activations have been unlocked using
