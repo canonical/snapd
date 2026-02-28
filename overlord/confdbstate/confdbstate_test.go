@@ -19,6 +19,7 @@
 package confdbstate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1727,7 +1728,8 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"private", "ssids"}, map[string]any{"placeholder": "foo"})
+	val := map[string]any{"placeholder": "foo"}
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private", "ssids"}, val)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1756,8 +1758,8 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
-	val := apiData["values"]
-	c.Assert(val, DeepEquals, map[string]any{
+	vals := apiData["values"]
+	c.Assert(vals, DeepEquals, map[string]any{
 		"private": map[string]any{"foo": "bar"},
 		"ssids":   []any{"abc", "xyz"},
 	})
@@ -1783,7 +1785,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 	requests := []string{"private", "ssids"}
 	constraints := map[string]any{"placeholder": "foo"}
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, requests, constraints)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, requests, constraints)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1815,7 +1817,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1850,7 +1852,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	defer restore()
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1885,7 +1887,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 
 	view := s.dbSchema.View("setup-wifi")
 	// reading from API
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access confdb view %s/network/setup-wifi: ongoing write transaction", s.devAccID))
 
 	// reading from the snap
@@ -1924,7 +1926,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
 
 	// we can read from the API and the snap concurrently with other reads
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"}, nil)
@@ -1986,11 +1988,11 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 	// can't read an ephemeral path w/o a load-view hook
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"eph"}, nil)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"eph"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// but reading a non-ephemeral path succeeds
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -2010,7 +2012,7 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"foo"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"foo"}, nil)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"foo"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)

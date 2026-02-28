@@ -190,11 +190,31 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 type confdbTransactions struct {
 	ReadTxIDs []string `json:"read-tx-ids,omitempty"`
 	WriteTxID string   `json:"write-tx-id,omitempty"`
+
+	// pending holds accesses that are waiting to be scheduled. It's read from
+	// the state cache so it's only kept in-memory, never persisted into state.
+	pending []pendingAccess
 }
 
-func (txs *confdbTransactions) CanStartReadTx() bool { return txs.WriteTxID == "" }
+// CanStartReadTx returns true if there isn't a write transaction running or
+// waiting to run.
+func (txs *confdbTransactions) CanStartReadTx() bool {
+	if txs.WriteTxID != "" {
+		return false
+	}
+
+	for _, access := range txs.pending {
+		if access.accessType == writeAccess {
+			return false
+		}
+	}
+
+	return true
+}
+
+// CanStartWriteTx returns true if there is no running or pending transaction.
 func (txs *confdbTransactions) CanStartWriteTx() bool {
-	return txs.WriteTxID == "" && len(txs.ReadTxIDs) == 0
+	return txs.WriteTxID == "" && len(txs.ReadTxIDs) == 0 && len(txs.pending) == 0
 }
 
 // addReadTransaction adds a read transaction for the specified confdb, if no
@@ -203,10 +223,6 @@ func addReadTransaction(st *state.State, account, confdbName, id string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
 		return err
-	}
-
-	if txs == nil {
-		txs = &confdbTransactions{}
 	}
 
 	if txs.WriteTxID != "" {
@@ -227,10 +243,6 @@ func setWriteTransaction(st *state.State, account, schemaName, id string) error 
 		return err
 	}
 
-	if txs == nil {
-		txs = &confdbTransactions{}
-	}
-
 	if txs.WriteTxID != "" || len(txs.ReadTxIDs) != 0 {
 		op := "read"
 		if txs.WriteTxID != "" {
@@ -245,10 +257,10 @@ func setWriteTransaction(st *state.State, account, schemaName, id string) error 
 	return nil
 }
 
-// getOngoingTxs returns a confdbTransactions struct with the task IDs associated
-// with the ongoing transactions for that confdb-schema, it may be nil if there
-// aren't any. It also returns a function to update the state with a modified struct,
-// which should be used without unlocking and re-locking the state.
+// getOngoingTxs returns a representation of the ongoing and pending transaction
+// for the given confdb schema. It's never nil even if there no transactions.
+// It also returns a function to update the state with a modified struct, which
+// should be used without unlocking and re-locking the state.
 func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {
 	var confdbTxs map[string]*confdbTransactions
 	err = st.Get("confdb-ongoing-txs", &confdbTxs)
@@ -261,6 +273,10 @@ func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 	}
 
 	ref := account + "/" + schemaName
+	if confdbTxs[ref] == nil {
+		confdbTxs[ref] = &confdbTransactions{}
+	}
+
 	updateTxStateFunc = func(ongoingTxs *confdbTransactions) {
 		if ongoingTxs == nil || (ongoingTxs.WriteTxID == "" && len(ongoingTxs.ReadTxIDs) == 0) {
 			delete(confdbTxs, ref)
@@ -273,7 +289,19 @@ func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 		} else {
 			st.Set("confdb-ongoing-txs", confdbTxs)
 		}
+
+		st.Cache(cachedConfdbReqs{}, ongoingTxs.pending)
 	}
+
+	cached := st.Cached(cachedConfdbReqs{})
+	if cached != nil {
+		queue, ok := cached.([]pendingAccess)
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: cannot access confdb pending transaction queue")
+		}
+		confdbTxs[ref].pending = queue
+	}
+
 	return confdbTxs[ref], updateTxStateFunc, nil
 }
 
@@ -285,11 +313,6 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 		return err
 	}
 
-	if txs == nil {
-		// no ongoing txs, nothing to unset
-		return nil
-	}
-
 	if txs.WriteTxID == id {
 		txs.WriteTxID = ""
 	} else {
@@ -299,6 +322,12 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 				break
 			}
 		}
+	}
+
+	// unblock any waiting routine
+	if len(txs.pending) > 0 {
+		logger.Debugf("remove pending access %s", txs.pending[0].id)
+		close(txs.pending[0].waitChan)
 	}
 
 	updateTxStateFunc(txs)

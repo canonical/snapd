@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -78,6 +79,7 @@ type cmdGet struct {
 	List     bool     `short:"l"`
 	Default  string   `long:"default" unquote:"false"`
 	With     []string `long:"with" value-name:"<param>=<constraint>"`
+	Timeout  string   `long:"access-timeout"`
 }
 
 func init() {
@@ -101,6 +103,8 @@ func init() {
 			"default": i18n.G("A strictly typed default value to be used when none is found"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"with": i18n.G("Parameter constraints for filtering confdb queries"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"access-timeout": i18n.G("The timeout for waiting to access confdb"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -278,12 +282,18 @@ func (x *cmdGet) Execute(args []string) error {
 		// first argument is a confdbViewID, use the confdb API
 		conf, err = x.getConfdb(snapName, confKeys)
 	} else {
-		if x.Default != "" {
-			return fmt.Errorf(`cannot use --default in non-confdb read`)
+		var flag string
+		switch {
+		case x.Timeout != "":
+			flag = "access-timeout"
+		case x.Default != "":
+			flag = "default"
+		case len(x.With) > 0:
+			flag = "with"
 		}
 
-		if len(x.With) > 0 {
-			return fmt.Errorf(`cannot use --with in non-confdb read`)
+		if flag != "" {
+			return fmt.Errorf("cannot use --%s with non-confdb read", flag)
 		}
 
 		conf, err = x.client.Conf(snapName, confKeys)
@@ -318,13 +328,23 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	opts := clientutil.ConfdbOptions{Typed: x.Typed}
-	constraints, err := clientutil.ParseConfdbConstraints(x.With, opts)
+	parseOpts := clientutil.ConfdbOptions{Typed: x.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(x.With, parseOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys, constraints)
+	var opts client.ConfdbOptions
+	if x.Timeout != "" {
+		timeout, err := time.ParseDuration(x.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse --access-timeout value: %v", err)
+		}
+
+		opts.Timeout = timeout
+	}
+
+	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys, constraints, opts)
 	if err != nil {
 		return nil, err
 	}
