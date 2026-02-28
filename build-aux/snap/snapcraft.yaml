@@ -464,6 +464,8 @@ parts:
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
 
+      install -Dm644 data/logrotate/snapd "${CRAFT_PART_INSTALL}/etc/logrotate.d/snapd"
+
       # TODO: For now snapd expects a renamed apparmor profile to
       # work-around LP#1673247. We should fix that since the snapd
       # should not need that work-around.

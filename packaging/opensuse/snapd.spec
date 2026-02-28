@@ -403,6 +403,9 @@ ln -sf %{_sbindir}/service %{buildroot}%{_sbindir}/rcsnapd.apparmor
 %endif
 
 
+# Install logrotate configuration
+install -pm 644 -D %{indigo_srcdir}/data/logrotate/snapd %{buildroot}%{_sysconfdir}/logrotate.d/snapd
+
 # Install the "info" data file with snapd version
 # TODO: This should be handled by data makefile.
 install -pm 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/info
@@ -500,6 +503,7 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
+%config(noreplace) %{_sysconfdir}/logrotate.d/snapd
 
 # Directories
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void

@@ -684,6 +684,9 @@ install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/
 install -p -m 0644 data/selinux/snappy.pp.bz2 %{buildroot}%{_datadir}/selinux/packages
 %endif
 
+# Install logrotate configuration
+install -m 644 -D data/logrotate/snapd %{buildroot}%{_sysconfdir}/logrotate.d/snapd
+
 # Install the "info" data file with snapd version
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 
@@ -856,6 +859,7 @@ make -C data -k check
 %{_prefix}/lib/dracut/dracut.conf.d/50-snapd.conf
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
+%config(noreplace) %{_sysconfdir}/logrotate.d/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cookie
@@ -4643,7 +4647,7 @@ fi
    specific cgroup (2.53)
  - interfaces/u2f-devices: add Nitrokey 3
  - Update the ubuntu-image channel to candidate
- - Allow hostnames up to 253 characters, with dot-delimited elements 
+ - Allow hostnames up to 253 characters, with dot-delimited elements
    (as suggested by man 7 hostname).
  - Disable i386 until it is possible to build snapd using lxd
  - o/snapstate, hookstate: print remaining hold time on snapctl
@@ -5645,7 +5649,7 @@ fi
 
 * Wed May 19 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.50.1
- - interfaces: update permitted /lib/.. paths to be compatible with 
+ - interfaces: update permitted /lib/.. paths to be compatible with
    UC20
  - interfaces: builtin: update permitted paths to be compatible with
    UC20
