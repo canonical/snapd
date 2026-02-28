@@ -61,6 +61,16 @@ apps:
 	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "storage-framework-service")
 }
 
+func (s *StorageFrameworkServiceInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.PermanentSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
 	c.Check(s.iface.Name(), Equals, "storage-framework-service")
 }

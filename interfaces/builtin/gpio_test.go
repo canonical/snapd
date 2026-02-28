@@ -113,6 +113,16 @@ slots:
 	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, appSet, nil, nil)
 }
 
+func (s *GpioInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// systemd
+	_, ok = s.iface.(systemd.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *GpioInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "gpio")
 }

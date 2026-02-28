@@ -60,6 +60,12 @@ func (s *DesktopLegacyInterfaceSuite) SetUpTest(c *C) {
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, desktopLegacyCoreYaml, nil, "desktop-legacy")
 }
 
+func (s *DesktopLegacyInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *DesktopLegacyInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "desktop-legacy")
 }

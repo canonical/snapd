@@ -323,45 +323,53 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 
 // Implementation of methods required by interfaces.Specification
 
+// ConnectedPlugDefiner can be implemented by interfaces that need to add mount entries for connected plugs.
+type ConnectedPlugDefiner interface {
+	MountConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records mount-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		MountConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		return iface.MountConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
+// ConnectedSlotDefiner can be implemented by interfaces that need to add mount entries for connected slots.
+type ConnectedSlotDefiner interface {
+	MountConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		MountConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		return iface.MountConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent mount entries for plugs.
+type PermanentPlugDefiner interface {
+	MountPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
 // AddPermanentPlug records mount-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
-	type definer interface {
-		MountPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		return iface.MountPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent mount entries for slots.
+type PermanentSlotDefiner interface {
+	MountPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 // AddPermanentSlot records mount-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		MountPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		return iface.MountPermanentSlot(spec, slot)
 	}
 	return nil

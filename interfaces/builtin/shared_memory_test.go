@@ -121,6 +121,18 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 	s.privateSlot, s.privateSlotInfo = MockConnectedSlot(c, sharedMemoryCoreYaml, nil, "shared-memory")
 }
 
+func (s *SharedMemoryInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+	_, ok = s.iface.(apparmor.ConnectedSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	// mount
+	_, ok = s.iface.(mount.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "shared-memory")
 }

@@ -102,45 +102,53 @@ func (spec *Specification) DisallowedModules() []string {
 
 // Implementation of methods required by interfaces.Specification
 
+// ConnectedPlugDefiner can be implemented by interfaces that need to add kernel modules for connected plugs.
+type ConnectedPlugDefiner interface {
+	KModConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedPlug records kmod-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		KModConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedPlugDefiner); ok {
 		return iface.KModConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
+// ConnectedSlotDefiner can be implemented by interfaces that need to add kernel modules for connected slots.
+type ConnectedSlotDefiner interface {
+	KModConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+
 // AddConnectedSlot records kmod-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	type definer interface {
-		KModConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(ConnectedSlotDefiner); ok {
 		return iface.KModConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }
 
+// PermanentPlugDefiner can be implemented by interfaces that need to add permanent kernel modules for plugs.
+type PermanentPlugDefiner interface {
+	KModPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
+}
+
 // AddPermanentPlug records kmod-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
-	type definer interface {
-		KModPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentPlugDefiner); ok {
 		return iface.KModPermanentPlug(spec, plug)
 	}
 	return nil
 }
 
+// PermanentSlotDefiner can be implemented by interfaces that need to add permanent kernel modules for slots.
+type PermanentSlotDefiner interface {
+	KModPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
+}
+
 // AddPermanentSlot records kmod-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	type definer interface {
-		KModPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
-	}
-	if iface, ok := iface.(definer); ok {
+	if iface, ok := iface.(PermanentSlotDefiner); ok {
 		return iface.KModPermanentSlot(spec, slot)
 	}
 	return nil

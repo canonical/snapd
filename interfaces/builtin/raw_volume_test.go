@@ -156,6 +156,16 @@ apps:
 	s.testPlugPart3 = interfaces.NewConnectedPlug(s.testPlugPart3Info, appSet, nil, nil)
 }
 
+func (s *rawVolumeInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *rawVolumeInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "raw-volume")
 }

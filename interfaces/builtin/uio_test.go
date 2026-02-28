@@ -90,6 +90,16 @@ apps:
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, appSet, nil, nil)
 }
 
+func (s *uioInterfaceSuite) TestImplementedDefinerInterfaces(c *C) {
+	// apparmor
+	_, ok := s.iface.(apparmor.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// udev
+	_, ok = s.iface.(udev.ConnectedPlugDefiner)
+	c.Assert(ok, Equals, true)
+}
+
 func (s *uioInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "uio")
 }
