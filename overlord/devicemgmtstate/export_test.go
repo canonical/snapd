@@ -35,6 +35,13 @@ var (
 	DefaultExchangeInterval = defaultExchangeInterval
 )
 
+func NewSequenceCache() *sequenceCache {
+	return &sequenceCache{
+		Applied: make(map[string]int),
+		LRU:     make([]string, 0),
+	}
+}
+
 type DeviceMgmtState deviceMgmtState
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
