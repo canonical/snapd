@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/changeslogger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,9 +52,67 @@ func (s *changesLoggerSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
+func (s *changesLoggerSuite) setChangesLogEnabled(c *C, enabled bool) {
+	s.st.Lock()
+	defer s.st.Unlock()
+	tr := config.NewTransaction(s.st)
+	err := tr.Set("core", "system.enable-changes-log", enabled)
+	c.Assert(err, IsNil)
+	tr.Commit()
+}
+
 func (s *changesLoggerSuite) TestNew(c *C) {
 	m := changeslogger.New(s.st)
 	c.Assert(m, NotNil)
+}
+
+func (s *changesLoggerSuite) TestEnsureLogsWhenConfigUnset(c *C) {
+	logDir, err := os.MkdirTemp("", "snapd-changes-log-test-")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(logDir)
+
+	logFile := filepath.Join(logDir, "changes.log")
+
+	m := changeslogger.NewTestManager(s.st, logFile)
+
+	// Create a change in state without setting the config
+	s.st.Lock()
+	s.st.NewChange("install", "Install snap")
+	s.st.Unlock()
+
+	// Ensure should log since default is enabled
+	err = m.Ensure()
+	c.Assert(err, IsNil)
+
+	// Log file should exist
+	_, err = os.Stat(logFile)
+	c.Assert(err, IsNil)
+}
+
+func (s *changesLoggerSuite) TestEnsureSkipsWhenExplicitlyDisabled(c *C) {
+	logDir, err := os.MkdirTemp("", "snapd-changes-log-test-")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(logDir)
+
+	logFile := filepath.Join(logDir, "changes.log")
+
+	m := changeslogger.NewTestManager(s.st, logFile)
+
+	// Explicitly disable the config
+	s.setChangesLogEnabled(c, false)
+
+	// Create a change in state
+	s.st.Lock()
+	s.st.NewChange("install", "Install snap")
+	s.st.Unlock()
+
+	// Ensure should not log anything
+	err = m.Ensure()
+	c.Assert(err, IsNil)
+
+	// Log file should not exist
+	_, err = os.Stat(logFile)
+	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
 func (s *changesLoggerSuite) TestEnsureLogsNewChange(c *C) {

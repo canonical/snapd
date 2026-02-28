@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -80,15 +81,14 @@ func (m *Manager) Ensure() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.state.Lock()
-	changes := m.state.Changes()
-
-	// Extract info for all changes while holding lock
-	changeInfos := make(map[string]ChangeInfo)
-	for _, chg := range changes {
-		changeInfos[chg.ID()] = ExtractChangeInfo(chg)
+	changeInfos, err := m.readState()
+	if err != nil {
+		return err
 	}
-	m.state.Unlock()
+
+	if changeInfos == nil {
+		return nil
+	}
 
 	// Track which change IDs we've seen this pass
 	currentChangeIDs := make(map[string]bool)
@@ -116,6 +116,35 @@ func (m *Manager) Ensure() error {
 	}
 
 	return nil
+}
+
+// readState reads the enabled config and extracts change info from state.
+// It returns a map of change ID to ChangeInfo, or a nil map if logging
+// is disabled.
+func (m *Manager) readState() (changeInfos map[string]ChangeInfo, err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// Check if changes-log is enabled via core config (default: enabled)
+	tr := config.NewTransaction(m.state)
+	var enabled bool
+	err = tr.Get("core", "system.enable-changes-log", &enabled)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
+	if err == nil && !enabled {
+		// Explicitly set to false: skip logging
+		return nil, nil
+	}
+
+	changes := m.state.Changes()
+	changeInfos = make(map[string]ChangeInfo, len(changes))
+	for _, chg := range changes {
+		changeInfos[chg.ID()] = ExtractChangeInfo(chg)
+	}
+
+	return changeInfos, nil
 }
 
 // logChange writes a change entry to the log file in APT history.log format
@@ -167,6 +196,7 @@ func (m *Manager) logChange(info ChangeInfo) error {
 // StartUp performs any necessary initialization
 func (m *Manager) StartUp() error {
 	// Ensure the log directory exists on startup
+	// This is still created in Ensure/logChange to be resilient against the directory being deleted while snapd is running
 	logDir := filepath.Dir(m.changeLogPath)
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("cannot create changes log directory: %v", err)
