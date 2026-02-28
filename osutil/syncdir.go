@@ -25,6 +25,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 )
 
@@ -135,6 +137,22 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileStat
 		}
 		if ok, _, _ := matchAny(globs, baseName); !ok {
 			if len(globs) == 1 {
+				const currentStackFilepath = "/tmp/failure-reproducer-current-stack"
+				const allStacksFilepath = "/tmp/failure-reproducer-all-stacks"
+				// get all stacks (copied from runtime/debug.Stack() but with true for all stacks)
+				buf := make([]byte, 1024)
+				for {
+					n := runtime.Stack(buf, true)
+					if n < len(buf) {
+						buf = buf[:n]
+						break
+					}
+					buf = make([]byte, 2*len(buf))
+				}
+				AtomicWriteFile(allStacksFilepath, buf, 0o666, 0)
+				// get current stack
+				currentStack := debug.Stack()
+				AtomicWriteFile(currentStackFilepath, currentStack, 0o666, 0)
 				return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0])
 			}
 			return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match any glob patterns %q", baseName, globs)
