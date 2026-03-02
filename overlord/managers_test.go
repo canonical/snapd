@@ -4573,6 +4573,7 @@ version: @VERSION@`
 
 	chg := st.NewChange("refresh", "...")
 	for _, ts := range tts {
+		// skip rerefresh because we're messing with individual tasks
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
 			c.Logf("skipping rerefresh")
 			continue
