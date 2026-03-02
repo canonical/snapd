@@ -1,3 +1,4 @@
 0003-cmd-snap-seccomp-skip-tests-that-use-m32.patch
 0004-cmd-snap-skip-tests-depending-on-text-wrapping.patch
+0005-tests-adjust-gendeveloper1-to-older-github.com-jesse.patch
 0010-man-page-sections.patch
