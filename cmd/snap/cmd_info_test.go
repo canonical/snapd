@@ -888,7 +888,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1)  1024B disabled,blocked
+installed:    2.10 (1) 1024B disabled,blocked
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -946,7 +946,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (100)  1024B disabled
+installed:    2.10 (100) 1024B disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -1188,7 +1188,7 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: TOTALLY NOT A ROBOT
-installed:    2.10 (100)  1024B disabled
+installed:    2.10 (100) 1024B disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
