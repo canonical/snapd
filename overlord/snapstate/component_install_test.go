@@ -1342,7 +1342,7 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 	c.Assert(err.Error(), Equals, expectedErrorMsg)
 
 	// Set up enforced validation set mocking to test without passing the validation sets to the function
-	snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vsets := snapasserts.NewValidationSets()
 
 		err := vsets.Add(validSet)
@@ -1352,6 +1352,7 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 
 		return vsets, nil
 	})
+	defer restore()
 
 	_, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, nil, snapstate.Options{})
 	c.Assert(err, NotNil)
