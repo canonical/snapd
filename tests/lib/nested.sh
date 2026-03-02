@@ -1909,19 +1909,20 @@ nested_get_core_revision_installed() {
 }
 
 nested_fetch_spread() {
-    if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
-        mkdir -p "$NESTED_WORK_DIR"
-        if os.query is-arm; then
-            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-arm64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
-        elif nested_is_core_ge 22; then
-            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
-        else
-            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
-        fi
-        # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"
+    mkdir -p "$NESTED_WORK_DIR"
+    rm -f "$NESTED_WORK_DIR/spread"
+
+    if os.query is-arm; then
+        curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-arm64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        echo "$NESTED_WORK_DIR/spread"
+        return 
     fi
-    echo "$NESTED_WORK_DIR/spread"
+
+    if [ ! -f /snap/bin/spread-plus.spread ]; then
+        snap install spread-plus --beta --devmode &>/dev/null
+    fi
+    echo "/snap/bin/spread-plus.spread"
+
 }
 
 nested_build_seed_cdrom() {

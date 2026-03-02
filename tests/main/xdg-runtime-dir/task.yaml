@@ -4,6 +4,11 @@ details: |
     Ensure that the XDG_RUNTIME_DIR is created when a snap is launched.
 
 prepare: |
+    if [ ! -d /run/user/0 ]; then
+        mkdir -p /run/user/0
+        chmod 700 /run/user/0
+    fi
+
     echo Testing XDG_RUNTIME_DIR
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-runtime-dir
     rm -f /run/user/0/snap.test-snapd-xdg-runtime-dir

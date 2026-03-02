@@ -17,7 +17,7 @@ skip:
       if: |
         # Core images created using spread have a fake "gpio-pin" interface.
         # Official images do not. Only run the test if the interface is present
-        not snap interfaces | grep -q gpio-pin
+        snap interfaces | NOMATCH gpio-pin
 
 prepare: |
     echo "Create/enable fake gpio"
