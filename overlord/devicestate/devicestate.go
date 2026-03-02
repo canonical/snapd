@@ -297,6 +297,7 @@ func delayedCrossMgrInit() {
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
+	snapstate.SeedRefreshTasks = SeedRefreshTasks
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1755,6 +1756,45 @@ func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, e
 	})
 
 	return state.NewTaskSet(remove), nil
+}
+
+// SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
+// tasks needed to refresh the seed managed by seed-refresh mode. The caller
+// must provide the tasks IDs that can be used by the seed creation tasks to
+// find the new snaps to include in the seed. Otherwise, already installed snaps
+// will be used to create the seed.
+func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+	labelBase := timeNow().Format("20060102")
+	label, err := pickRecoverySystemLabel(labelBase)
+	if err != nil {
+		return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+	}
+
+	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var create, finalize *state.Task
+	for _, t := range ts.Tasks() {
+		switch t.Kind() {
+		case "create-recovery-system":
+			create = t
+		case "finalize-recovery-system":
+			finalize = t
+		}
+	}
+
+	if create == nil || finalize == nil {
+		return nil, errors.New("internal error: expected create and finalize recovery system tasks")
+	}
+
+	return &snapstate.SeedRefreshTaskSet{
+		Create:   create,
+		Finalize: finalize,
+	}, nil
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
