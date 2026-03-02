@@ -100,7 +100,7 @@ func (x *cmdComponent) showComponents() error {
 		fmt.Fprintf(Stdout, "summary: %s\n", comp.Summary)
 		fmt.Fprintf(Stdout, "description: |\n  %s\n", comp.Description)
 		if comp.Version != "" {
-			fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), formatSize(comp.InstalledSize))
+			fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), fmtSize(comp.InstalledSize))
 		}
 
 		if i < len(comps)-1 {

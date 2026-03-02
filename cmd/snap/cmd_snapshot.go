@@ -34,6 +34,7 @@ import (
 )
 
 func fmtSize(size int64) string {
+	// -1 for auto-width of 5 chars
 	return quantity.FormatAmount(uint64(size), -1) + "B"
 }
 
