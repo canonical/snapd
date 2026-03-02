@@ -486,11 +486,14 @@ func storeUpdatePlanCore(
 	// make sure to explicitly request the components from the store.
 	requestComponentsFromStore := false
 
-	// make sure that all requested updates are currently installed
+	// make sure that all requested updates can be handled by this planner
 	for _, update := range updates {
 		snapst, ok := allSnaps[update.InstanceName]
 		if !ok {
-			return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+			if !update.InstallIfMissing {
+				return updatePlan{}, snap.NotInstalledError{Snap: update.InstanceName}
+			}
+			snapst = &SnapState{}
 		}
 
 		if snapst.HasActiveComponents() || len(update.AdditionalComponents) > 0 {
@@ -541,7 +544,16 @@ func storeUpdatePlanCore(
 	}
 
 	for _, name := range noStoreUpdates {
-		hasLocalRevision[name] = allSnaps[name]
+		snapst, ok := allSnaps[name]
+		if !ok {
+			// if the caller explicitly requested an installation, we should
+			// fail if we can't make it happen
+			if updates[name].InstallIfMissing {
+				return updatePlan{}, fmt.Errorf("cannot install snap %q: %w", name, store.ErrSnapNotFound)
+			}
+			continue
+		}
+		hasLocalRevision[name] = snapst
 	}
 
 	for _, sar := range sars {
@@ -552,11 +564,11 @@ func storeUpdatePlanCore(
 
 		snapst, ok := allSnaps[sar.InstanceName()]
 		if !ok {
-			return updatePlan{}, fmt.Errorf("internal error: snap %q not found", sar.InstanceName())
+			snapst = &SnapState{}
 		}
 
 		currentComps, err := snapst.CurrentComponentInfos()
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrNoCurrent) {
 			return updatePlan{}, err
 		}
 
@@ -571,29 +583,12 @@ func storeUpdatePlanCore(
 		// installed
 		compNames = unique(append(compNames, up.AdditionalComponents...))
 
-		// compTargets will be filtered down to only the components that appear
-		// in the action result, meaning that we might install fewer components
-		// than we have installed right now
-		compTargets, err := componentTargetsFromActionResult("refresh", sar, compNames)
+		target, err := targetFromActionResult(sar, snapst, up.RevOpts, compNames)
 		if err != nil {
-			return updatePlan{}, fmt.Errorf("cannot extract components from snap resources: %w", err)
+			return updatePlan{}, err
 		}
 
-		// if we still have no channel here, this means that we refreshed
-		// by-revision without specifying a channel. make sure we continue to
-		// track the channel that the snap is currently on
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
-
-		plan.targets = append(plan.targets, target{
-			info:   sar.Info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				DownloadInfo: &sar.DownloadInfo,
-				Channel:      up.RevOpts.Channel,
-				CohortKey:    up.RevOpts.CohortKey,
-			},
-			components: compTargets,
-		})
+		plan.targets = append(plan.targets, target)
 	}
 
 	// consider snaps that already have a local copy of the revision that we are
@@ -604,66 +599,14 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: unexpected update to local revision: %q", snapst.InstanceName())
 		}
 
-		var si *snap.SideInfo
-		if !up.RevOpts.Revision.Unset() {
-			si = snapst.Sequence.Revisions[snapst.LastIndex(up.RevOpts.Revision)].Snap
-		} else {
-			si = snapst.CurrentSideInfo()
-		}
-
-		info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
+		// construct the target from a combination of the local snap and
+		// component information fetched from the store
+		target, err := targetFromLocalSnapWithStoreComponents(ctx, st, snapst, up, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
 
-		// here, we attempt to refresh components that are currently installed.
-		// first, we take the list of currently installed components and remove
-		// any components that are not available in the target snap revision.
-		// then we check with the store to get the revisions of the desired
-		// components.
-		compsToInstall, err := currentComponentsAvailableInRevision(snapst, info)
-		if err != nil {
-			return updatePlan{}, err
-		}
-
-		// add the additional components that the caller requested to be
-		// installed
-		compsToInstall = unique(append(compsToInstall, up.AdditionalComponents...))
-
-		compsups, err := componentSetupsForInstall(ctx, st, compsToInstall, *snapst, RevisionOptions{
-			Channel:        up.RevOpts.Channel,
-			Revision:       si.Revision,
-			ValidationSets: up.RevOpts.ValidationSets,
-		}, opts)
-		if err != nil {
-			return updatePlan{}, err
-		}
-
-		// this must happen after the call to componentSetupsForInstall, since
-		// we can't set the channel to the tracking channel if we don't know
-		// that the requested revision is part of this channel
-		up.RevOpts.setChannelIfUnset(snapst.TrackingChannel)
-
-		// make sure that we switch the current channel of the snap that we're
-		// switching to
-		info.Channel = up.RevOpts.Channel
-
-		plan.targets = append(plan.targets, target{
-			info:   info,
-			snapst: *snapst,
-			setup: SnapSetup{
-				Channel:   up.RevOpts.Channel,
-				CohortKey: up.RevOpts.CohortKey,
-				SnapPath:  info.MountFile(),
-
-				// if the caller specified a revision, then we always run
-				// through the entire update process. this enables something
-				// like "snap refresh --revision=n", where revision n is already
-				// installed
-				AlwaysUpdate: !up.RevOpts.Revision.Unset(),
-			},
-			components: compsups,
-		})
+		plan.targets = append(plan.targets, target)
 	}
 
 	for _, t := range plan.targets {
@@ -672,7 +615,12 @@ func storeUpdatePlanCore(
 			return updatePlan{}, fmt.Errorf("internal error: target created for snap without an update: %s", t.info.InstanceName())
 		}
 
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "refresh", up.RevOpts.ValidationSets); err != nil {
+		action := "refresh"
+		if !t.snapst.IsInstalled() {
+			action = "install"
+		}
+
+		if err := checkSnapAgainstValidationSets(t.info, t.components, action, up.RevOpts.ValidationSets); err != nil {
 			return updatePlan{}, err
 		}
 	}
@@ -818,6 +766,25 @@ func collectCurrentSnapsAndActions(
 		return nil, nil, nil, err
 	}
 
+	// do a second pass to create actions for new installations, since
+	// collectCurrentSnaps only iterates over installed snaps
+	for name, req := range updates {
+		if _, ok := allSnaps[name]; ok || !req.InstallIfMissing {
+			continue
+		}
+
+		action := &store.SnapAction{
+			Action:       "install",
+			InstanceName: req.InstanceName,
+		}
+
+		if err := completeStoreAction(action, req.RevOpts, opts.Flags.IgnoreValidation); err != nil {
+			return nil, nil, nil, err
+		}
+
+		actionsByUserID[fallbackID] = append(actionsByUserID[fallbackID], action)
+	}
+
 	return actionsByUserID, hasLocalRevision, current, nil
 }
 
@@ -827,6 +794,9 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 	for _, up := range updates {
 		var snapst SnapState
 		if err := Get(st, up.InstanceName, &snapst); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
 			return nil, nil, err
 		}
 
