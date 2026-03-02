@@ -181,8 +181,9 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 
 	// also create the modeenv to make sure we don't peek there either
 	m := boot.Modeenv{
-		Mode:      boot.ModeRun,
-		BootFlags: []string{},
+		Mode:         boot.ModeRun,
+		BootFlags:    []string{},
+		LastBootOkID: "1234",
 	}
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0755)
@@ -216,8 +217,9 @@ func (s *bootFlagsSuite) testInitramfsActiveBootFlagsUC20RRunModeHappy(c *C, fla
 
 	// setup a basic empty modeenv
 	m := boot.Modeenv{
-		Mode:      boot.ModeRun,
-		BootFlags: []string{},
+		Mode:         boot.ModeRun,
+		BootFlags:    []string{},
+		LastBootOkID: "1234",
 	}
 
 	err := os.MkdirAll(flagsDir, 0755)
@@ -335,8 +337,9 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 	uc20Dev := boottest.MockUC20Device("run", nil)
 
 	m := boot.Modeenv{
-		Mode:      boot.ModeInstall,
-		BootFlags: []string{},
+		Mode:         boot.ModeInstall,
+		BootFlags:    []string{},
+		LastBootOkID: "1234",
 	}
 
 	for _, t := range tt {

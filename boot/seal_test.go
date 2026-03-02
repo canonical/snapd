@@ -63,6 +63,7 @@ func (s *sealSuite) SetUpTest(c *C) {
 	}
 	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
 	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
+	s.AddCleanup(boot.MockOsutilBootID("1234"))
 }
 
 func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
@@ -151,6 +152,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			BrandID:        model.BrandID(),
 			Grade:          string(model.Grade()),
 			ModelSignKeyID: model.SignKeyID(),
+
+			LastBootOkID: "1234",
 		}
 
 		// mock asset cache
@@ -364,6 +367,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 			BrandID:        model.BrandID(),
 			Grade:          string(model.Grade()),
 			ModelSignKeyID: model.SignKeyID(),
+
+			LastBootOkID: "1234",
 		}
 
 		// set a mock recovery kernel
@@ -608,6 +613,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	// set a mock recovery kernel
@@ -807,6 +814,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	// match one of current kernels
@@ -1034,6 +1043,8 @@ func (s *sealSuite) TestRunModeBootChains(c *C) {
 			Model:          model.Model(),
 			ModelSignKeyID: model.SignKeyID(),
 			Grade:          string(model.Grade()),
+
+			LastBootOkID: "1234",
 		}
 
 		grubDir := filepath.Join(rootdir, "run/mnt/ubuntu-seed")
@@ -1345,6 +1356,8 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			Model:          model.Model(),
 			ModelSignKeyID: model.SignKeyID(),
 			Grade:          string(model.Grade()),
+
+			LastBootOkID: "1234",
 		}
 
 		includeTryModel := false
@@ -1607,6 +1620,8 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	myKey := secboot.CreateMockBootstrappedContainer()
@@ -1669,6 +1684,8 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorSad(c *C) {
 
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
+
+		LastBootOkID: "1234",
 	}
 	key := secboot.CreateMockBootstrappedContainer()
 	saveKey := secboot.CreateMockBootstrappedContainer()
@@ -1719,6 +1736,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
 	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
@@ -1756,6 +1775,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
 	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
@@ -1816,6 +1837,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 		TryBrandID:        tryModel.BrandID(),
 		TryGrade:          string(tryModel.Grade()),
 		TryModelSignKeyID: tryModel.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	// set a mock recovery kernel
@@ -2009,6 +2032,8 @@ func (s *sealSuite) TestWithBootChains(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	c.Assert(modeenv.WriteTo(dirs.GlobalRootDir), IsNil)
@@ -2110,6 +2135,8 @@ func (s *sealSuite) TestWithBootChainsFDEHook(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	c.Assert(modeenv.WriteTo(dirs.GlobalRootDir), IsNil)

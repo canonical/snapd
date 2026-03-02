@@ -128,6 +128,8 @@ func (s *modelSuite) SetUpTest(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 

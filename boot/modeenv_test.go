@@ -50,6 +50,8 @@ var _ = Suite(&modeenvSuite{})
 func (s *modeenvSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	s.mockModeenvPath = filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
+
+	s.AddCleanup(boot.MockOsutilBootID("1234"))
 }
 
 func (s *modeenvSuite) TestKnownKnown(c *C) {
@@ -77,6 +79,8 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"current_kernel_command_lines":         true,
 		"current_trusted_boot_assets":          true,
 		"current_trusted_recovery_boot_assets": true,
+
+		"last_boot_id_ok": true,
 	})
 }
 
@@ -135,6 +139,7 @@ base_status=try
 		Gadget:         "pc_1.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
 	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
@@ -165,6 +170,7 @@ current_kernel_command_lines=["foo", "bar"]
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"foo", "bar",
 		},
+		LastBootOkID: "not-booted",
 	}
 
 	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
@@ -191,6 +197,7 @@ recovery_system=20191126
 base=core20_123.snap
 try_base=core20_124.snap
 base_status=try
+last_boot_id_ok=1234
 `)
 
 	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -368,6 +375,7 @@ mode=recovery
 recovery_system=20191126
 unknown_key=some unknown value
 a_key=other
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -379,6 +387,7 @@ a_key=other
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=recovery
 recovery_system=20191126
+last_boot_id_ok=1234
 a_key=other
 first_unknown=thing
 unknown_key=some unknown value
@@ -395,6 +404,7 @@ unknown_key=some unknown value
 current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
 a_key=other
+last_boot_id_ok=1234
 `)
 
 	modeenvWithExtraKeys, err := boot.ReadModeenv(s.tmpdir)
@@ -415,6 +425,7 @@ a_key=other
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 			"grubx64.efi": []string{"recovery-hash1"},
 		},
+		LastBootOkID: "1234",
 	}), Equals, true)
 }
 
@@ -424,6 +435,7 @@ recovery_system=20191126
 base=core20_123.snap
 try_base=core20_124.snap
 base_status=try
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -446,6 +458,7 @@ grade=dangerous
 
 	s.makeMockModeenvFile(c, `mode=run
 grade=some-random-grade-string
+last_boot_id_ok=1234
 `)
 	modeenv, err = boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -534,15 +547,19 @@ current_kernels=`+t.kernelString+"\n")
 func (s *modeenvSuite) TestWriteToNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
-	modeenv := &boot.Modeenv{Mode: "run"}
+	modeenv := &boot.Modeenv{
+		Mode: "run",
+
+		LastBootOkID: "1234",
+	}
 	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\nlast_boot_id_ok=1234\n")
 }
 
 func (s *modeenvSuite) TestWriteToExisting(c *C) {
-	s.makeMockModeenvFile(c, "mode=run")
+	s.makeMockModeenvFile(c, "mode=run\nlast_boot_id_ok=1234")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -550,11 +567,11 @@ func (s *modeenvSuite) TestWriteToExisting(c *C) {
 	err = modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\nlast_boot_id_ok=1234\n")
 }
 
 func (s *modeenvSuite) TestWriteExisting(c *C) {
-	s.makeMockModeenvFile(c, "mode=run")
+	s.makeMockModeenvFile(c, "mode=run\nlast_boot_id_ok=1234")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -562,11 +579,15 @@ func (s *modeenvSuite) TestWriteExisting(c *C) {
 	err = modeenv.Write()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\nlast_boot_id_ok=1234\n")
 }
 
 func (s *modeenvSuite) TestWriteFreshError(c *C) {
-	modeenv := &boot.Modeenv{Mode: "recovery"}
+	modeenv := &boot.Modeenv{
+		Mode: "recovery",
+
+		LastBootOkID: "1234",
+	}
 
 	err := modeenv.Write()
 	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
@@ -576,6 +597,8 @@ func (s *modeenvSuite) TestWriteIncompleteModelBrand(c *C) {
 	modeenv := &boot.Modeenv{
 		Mode:  "run",
 		Grade: "dangerous",
+
+		LastBootOkID: "1234",
 	}
 
 	err := modeenv.WriteTo(s.tmpdir)
@@ -611,6 +634,8 @@ func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 		TryBase:        "core20_322.snap",
 		BaseStatus:     boot.TryStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+
+		LastBootOkID: "1234",
 	}
 	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -622,6 +647,7 @@ base=core20_321.snap
 try_base=core20_322.snap
 base_status=try
 current_kernels=pc-kernel_1.snap,pc-kernel_2.snap
+last_boot_id_ok=1234
 `)
 }
 
@@ -647,6 +673,7 @@ func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
 recovery_system=20191126
 current_recovery_systems=%[1]s
 good_recovery_systems=%[1]s
+last_boot_id_ok=1234
 `, t.systemsString))
 
 		modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -750,6 +777,8 @@ func (s *modeenvSuite) TestMarshalCurrentTrustedBootAssets(c *C) {
 			"grubx64.efi": []string{"recovery-hash1"},
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 		},
+
+		LastBootOkID: "1234",
 	}
 	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -758,6 +787,7 @@ func (s *modeenvSuite) TestMarshalCurrentTrustedBootAssets(c *C) {
 recovery_system=20191128
 current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
+last_boot_id_ok=1234
 `)
 
 	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
@@ -781,6 +811,7 @@ func (s *modeenvSuite) TestMarshalKernelCommandLines(c *C) {
 			`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
 			`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
 		},
+		LastBootOkID: "1234",
 	}
 	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -788,6 +819,7 @@ func (s *modeenvSuite) TestMarshalKernelCommandLines(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
 current_kernel_command_lines=["snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8","snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8"]
+last_boot_id_ok=1234
 `)
 
 	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
@@ -806,6 +838,7 @@ model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08Bt
 try_model=developer1/testkeys-snapd-secured-core-20-amd64
 try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -842,6 +875,7 @@ model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mR
 try_model=foo/bar
 try_grade=dangerous
 try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+last_boot_id_ok=1234
 `)
 }
 
@@ -854,6 +888,7 @@ model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08Bt
 try_model=developer1/testkeys-snapd-secured-classic-20-amd64
 try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -891,6 +926,7 @@ model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mR
 try_model=foo/bar
 try_grade=dangerous
 try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+last_boot_id_ok=1234
 `)
 }
 
@@ -902,6 +938,7 @@ model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08Bt
 try_model=developer1/testkeys-snapd-secured-core-20-amd64
 try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -937,6 +974,7 @@ model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08Bt
 try_model=developer1/testkeys-snapd-secured-core-20-amd64
 try_grade=secured
 try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+last_boot_id_ok=1234
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -970,7 +1008,9 @@ func (s *modeenvSuite) TestModeenvAccessFailsDuringPreseeding(c *C) {
 	_, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be read during preseeding`)
 
-	var modeenv boot.Modeenv
+	modeenv := &boot.Modeenv{
+		LastBootOkID: "1234",
+	}
 	err = modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be written during preseeding`)
 }
@@ -993,6 +1033,7 @@ func (s *modeenvSuite) TestMaybeReadModeenv(c *C) {
 	s.makeMockModeenvFile(c, `mode=run
 model=canonical/ubuntu-core-20-amd64
 classic=true
+last_boot_id_ok=1234
 `)
 
 	modeenv, err = boot.MaybeReadModeenv()
@@ -1020,6 +1061,7 @@ func (s *modeenvSuite) TestSystemMode(c *C) {
 
 	s.makeMockModeenvFile(c, `mode=run
 model=canonical/ubuntu-core-20-amd64
+last_boot_id_ok=1234
 `)
 
 	mode, exp, err = boot.SystemMode("")
@@ -1029,6 +1071,7 @@ model=canonical/ubuntu-core-20-amd64
 
 	s.makeMockModeenvFile(c, `mode=recover
 recovery_system=20191126
+last_boot_id_ok=1234
 `)
 
 	mode, exp, err = boot.SystemMode("")
@@ -1038,6 +1081,7 @@ recovery_system=20191126
 
 	s.makeMockModeenvFile(c, `mode=factory-reset
 recovery_system=20191126
+last_boot_id_ok=1234
 `)
 
 	mode, exp, err = boot.SystemMode("")

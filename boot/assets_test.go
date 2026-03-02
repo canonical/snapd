@@ -709,6 +709,7 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	err = os.WriteFile(filepath.Join(d, "shim"), shim, 0644)
 	c.Assert(err, IsNil)
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -718,6 +719,7 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{beforeHash},
 		},
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -838,6 +840,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
 	})
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -848,6 +851,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 			// from cache
 			"shim": []string{shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -926,9 +930,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
 	c.Assert(err, IsNil)
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		// nothing is tracked in modeenv yet
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1041,8 +1047,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateTrivialErr(c *C) {
 	c.Assert(err, ErrorMatches, `cannot load modeenv: .* no such file or directory`)
 	c.Check(res, Equals, gadget.ChangeAbort)
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1074,6 +1082,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	// we are already tracking 2 assets, this is an unexpected state for observing content updates
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1082,6 +1091,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"one", "two"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1131,6 +1141,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)),
 	})
 	// and similarly, only the new asset in modeenv
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1139,6 +1150,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{dataHash},
 		},
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1235,6 +1247,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	// the list of trusted assets is obtained upfront
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1249,6 +1262,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 			// completely new file
 			"other-asset": []string{"newotherhash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1317,6 +1331,8 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	// list of trusted assets is obtained upfront
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 
+	defer boot.MockOsutilBootID("1234")()
+
 	// sane state of modeenv before rollback
 	m := boot.Modeenv{
 		Mode: "run",
@@ -1328,6 +1344,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 			// same thing
 			"asset": []string{"newhash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1350,6 +1367,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 
 	// new observer
 	obs, _ = s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+	defer boot.MockOsutilBootID("1234")()
 	m = boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1360,6 +1378,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 			// same thing
 			"asset": []string{"newhash", "bogushash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1472,6 +1491,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	}
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "grub", "*"), cacheContentBefore)
 	// current files are tracked
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1481,6 +1501,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 			"grubx64.efi": []string{"6c3e6fc78ade5aadc5f9f0603a127346cc174436eb5e0188e108a376c3ba4d8951c460a8f51674e797c06951f74cb10d"},
 			"bootx64.efi": []string{"c0437507ac094a7e9c699725cc0a4726cd10799af9eb79bbeaa136c2773163c80432295c2a04d3aa2ddd535ce8f1a12b"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1577,6 +1598,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1586,6 +1609,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"recoveryhash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1716,6 +1740,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1725,6 +1751,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"shim": []string{shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1785,6 +1812,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1794,6 +1823,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"recoveryhash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1865,8 +1895,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	// cancel an update where the maps of trusted assets are nil/empty
 	d := c.MkDir()
 	root := c.MkDir()
+
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1917,6 +1951,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1925,6 +1961,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"assethash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1980,6 +2017,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	d := c.MkDir()
 	root := c.MkDir()
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1988,6 +2027,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"recoveryhash"},
 		},
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -2064,6 +2104,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoTrusted(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		// no trusted assets
+		LastBootOkID: "1234",
 	}
 	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
@@ -2125,6 +2166,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 			"asset": []string{"recoveryassethash", dataHash},
 			"shim":  []string{"recoveryshimhash", shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
@@ -2181,6 +2223,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootRevocation(c *C) {
 			"asset": []string{"recoveryassethash", dataHash},
 			"shim":  []string{"recoveryshimhash", shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	newM, drop, revokeOldKeys, err := boot.ObserveSuccessfulBootWithAssets(m)
@@ -2240,6 +2283,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoRevocation(c *C) {
 			// No old hash to drop, so no update, so no revocation
 			"shim": []string{shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	newM, drop, revokeOldKeys, err := boot.ObserveSuccessfulBootWithAssets(m)
@@ -2294,6 +2338,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"recoveryassethash", dataHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
@@ -2340,6 +2385,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 			"asset": []string{dataHash},
 			"shim":  []string{shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	// nothing is changed
@@ -2377,6 +2423,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{maybeDropHash, dataHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	// nothing is changed
@@ -2423,6 +2470,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 			"asset": []string{"oldhash", dataHash},
 			"shim":  []string{shimHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
@@ -2466,6 +2514,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{dataHash},
 		},
+		LastBootOkID: "1234",
 	}
 
 	// nothing is changed
@@ -2486,6 +2535,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"hash-3", "hash-4"},
 		},
+		LastBootOkID: "1234",
 	}
 
 	// if we were in run mode, this would error out because the assets don't
@@ -2617,6 +2667,8 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	// we get an observer for UC20
 	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -2632,6 +2684,8 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		BrandID:        uc20model.BrandID(),
 		Grade:          string(uc20model.Grade()),
 		ModelSignKeyID: uc20model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -2772,6 +2826,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	// we get an observer for UC20
 	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -2790,6 +2846,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		BrandID:        uc20model.BrandID(),
 		Grade:          string(uc20model.Grade()),
 		ModelSignKeyID: uc20model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -2923,8 +2981,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 	err := os.WriteFile(filepath.Join(d, "foobar"), data, 0644)
 	c.Assert(err, IsNil)
 
+	defer boot.MockOsutilBootID("1234")()
 	m := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -3030,8 +3090,11 @@ func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(obs, NotNil)
 
+	defer boot.MockOsutilBootID("1234")()
+
 	m := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)

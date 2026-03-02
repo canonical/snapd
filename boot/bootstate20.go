@@ -217,12 +217,25 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 	// So we can safely ignore FDE hooks.
 	resealOpts := ResealKeyToModeenvOptions{IgnoreFDEHooks: true, RevokeOldKeys: u20.revokeOldKeys}
 
-	// next write the modeenv if it changed
-	if !u20.writeModeenv.deepEqual(u20.modeenv) {
+	noChange := u20.writeModeenv.deepEqual(u20.modeenv)
+
+	if !noChange {
+		resealOpts.ExpectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
+	}
+
+	bootId, err := osutilBootID()
+	if err != nil {
+		return fmt.Errorf("internal error: cannot read boot-id: %w", err)
+	}
+
+	if markedSuccessful {
+		u20.writeModeenv.LastBootOkID = bootId
+	}
+
+	if !noChange || markedSuccessful {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
-		resealOpts.ExpectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
 	}
 
 	if markedSuccessful {

@@ -258,3 +258,9 @@ func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
 		return support
 	})
 }
+
+func MockOsutilBootID(bootId string) (restore func()) {
+	return testutil.Mock(&osutilBootID, func() (string, error) {
+		return bootId, nil
+	})
+}

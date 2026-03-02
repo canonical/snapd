@@ -74,6 +74,8 @@ func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
 	restore = kcmdline.MockProcCmdline(s.cmdlineFile)
 	s.AddCleanup(restore)
+
+	s.AddCleanup(boot.MockOsutilBootID("1234"))
 }
 
 func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
@@ -169,6 +171,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			Mode: "run",
 			// RecoverySystem is unset, as it should be during run mode
 			RecoverySystem: "",
+
+			LastBootOkID: "1234",
 		},
 		// enabled kernel is kern1
 		kern: s.kern1,
@@ -193,6 +197,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			Gadget: s.gadget2.Filename(),
 			// current kernels is kern1 + kern2
 			CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
+
+			LastBootOkID: "1234",
 		},
 		// enabled kernel is kern1
 		kern: s.kern1,
@@ -253,6 +259,7 @@ type bootenv20Setup struct {
 	kern       snap.PlaceInfo
 	tryKern    snap.PlaceInfo
 	kernStatus string
+	bootOkID   string
 }
 
 func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (restore func()) {
@@ -260,13 +267,23 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 
 	// write the modeenv
 	if opts.modeenv != nil {
+		bootId := opts.bootOkID
+		if opts.bootOkID == "" {
+			bootId = "1234"
+		}
+		defer boot.MockOsutilBootID(bootId)()
+		opts.modeenv.LastBootOkID = bootId
 		c.Assert(opts.modeenv.WriteTo(""), IsNil)
 		// this isn't strictly necessary since the modeenv will be written to
 		// the test's private dir anyways, but it's nice to have so we can write
 		// multiple modeenvs from a single test and just call the restore
 		// function in between the parts of the test that use different modeenvs
 		r := func() {
-			defaultModeenv := &boot.Modeenv{Mode: "run"}
+			defaultModeenv := &boot.Modeenv{
+				Mode:         "run",
+				LastBootOkID: "reset",
+			}
+			defer boot.MockOsutilBootID("reset")()
 			c.Assert(defaultModeenv.WriteTo(""), IsNil)
 		}
 		cleanups = append(cleanups, r)
@@ -1548,6 +1565,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -1565,6 +1583,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	c.Assert(nDisableTryCalls, Equals, 1)
 
 	// do it again, verify it's still okay
+	defer boot.MockOsutilBootID("boot-3")()
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
@@ -1606,6 +1625,7 @@ func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelStatusTryingN
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -1649,6 +1669,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCl
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
+	defer boot.MockOsutilBootID("boot1")()
+
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
@@ -1659,6 +1681,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCl
 	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
 	c.Assert(m2.Base, Equals, m.Base)
 	c.Assert(m2.TryBase, Equals, m.TryBase)
+
+	defer boot.MockOsutilBootID("boot2")()
 
 	// do it again, verify it's still okay
 	err = boot.MarkBootSuccessful(coreDev)
@@ -1796,6 +1820,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 	)
 	defer r()
 
+	defer boot.MockOsutilBootID("boot1")()
+
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -1821,6 +1847,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 	c.Assert(m2.TryBase, Equals, "")
 	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
+
+	defer boot.MockOsutilBootID("boot2")()
 
 	// do it again, verify its still valid
 	err = boot.MarkBootSuccessful(coreDev)
@@ -1860,6 +1888,7 @@ func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	)
 	defer r()
 
+	defer boot.MockOsutilBootID("boot-1")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -1954,6 +1983,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -1975,6 +2005,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
 
 	// do it again, verify its still valid
+	defer boot.MockOsutilBootID("boot-3")()
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
@@ -2069,6 +2100,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	defer restore()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2111,6 +2143,7 @@ func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelUpdate(c *C) 
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-1")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2128,6 +2161,7 @@ func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelUpdate(c *C) 
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
 
 	// do it again, verify its still valid
+	defer boot.MockOsutilBootID("boot-2")()
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
@@ -2157,6 +2191,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
+	defer boot.MockOsutilBootID("boot1")()
+
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
@@ -2167,6 +2203,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	c.Assert(m2.Base, Equals, s.base2.Filename())
 	c.Assert(m2.TryBase, Equals, "")
 	c.Assert(m2.BaseStatus, Equals, "")
+
+	defer boot.MockOsutilBootID("boot2")()
 
 	// do it again, verify its still valid
 	err = boot.MarkBootSuccessful(coreDev)
@@ -2341,6 +2379,7 @@ func (s *bootenv20Suite) testMarkBootSuccessful20BootAssetsUpdateHappy(c *C, rev
 	defer restore()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2464,6 +2503,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	})
 	defer restore()
 
+	defer boot.MockOsutilBootID("boot1")()
+
 	// mark successful
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
@@ -2579,6 +2620,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	defer restore()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2652,6 +2694,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mark boot successful: cannot mark successful boot assets: system booted with unexpected run mode bootloader asset "EFI/asset" hash %s`, dataHash))
 
@@ -2717,6 +2760,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
 	)
 	defer r()
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2752,6 +2796,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2787,6 +2832,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: current command line content "snapd_recovery_mode=run different" not matching any expected entry`)
 }
@@ -2812,6 +2858,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2845,6 +2892,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, ErrorMatches, `cannot mark boot successful: cannot mark successful boot command line: unexpected current command line: "snapd_recovery_mode=run panic=-1 unexpected"`)
 }
@@ -2915,6 +2963,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedNoFDEManagedB
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -2989,6 +3038,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -3030,6 +3080,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsPopulated(c *C) {
 	c.Assert(err, IsNil)
 
 	// check the modeenv
+	defer boot.MockOsutilBootID("boot-2")()
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	// good recovery systems has been populated
@@ -3066,6 +3117,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20ModelSignKeyIDPopulated(c *C) {
 	defer r()
 
 	// mark successful
+	defer boot.MockOsutilBootID("boot-2")()
 	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
@@ -3194,6 +3246,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"snapd_recovery_mode=run this is mocked panic=-1",
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3244,6 +3297,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"hash-1"},
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3306,6 +3360,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyNoChange(c *C, cmdlineAppend 
 			strutil.JoinNonEmpty([]string{
 				"snapd_recovery_mode=run mocked unchanged panic=-1", cmdlineAppend}, " "),
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3362,6 +3417,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"snapd_recovery_mode=run this is mocked panic=-1",
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3378,7 +3434,8 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	m := &boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3399,7 +3456,8 @@ func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
 	defer bootloader.Force(nil)
 
 	m := &boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3417,7 +3475,8 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 	defer bootloader.ForceError(nil)
 
 	m := &boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3471,6 +3530,7 @@ volumes:
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"hash-1"},
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3532,6 +3592,7 @@ volumes:
 			// command line already
 			"snapd_recovery_mode=run foo bar baz",
 		},
+		LastBootOkID: "1234",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3630,6 +3691,7 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{dataHash},
 		},
+		LastBootOkID: "1234",
 	}
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_kernel": "pc-kernel_500.snap",
@@ -4132,6 +4194,7 @@ volumes:
 	})
 
 	// REBOOT
+	defer boot.MockOsutilBootID("boot-2")()
 	resealPanic = false
 	err = boot.MarkBootSuccessful(s.uc20dev)
 	c.Assert(err, IsNil)
@@ -4168,6 +4231,7 @@ volumes:
 	})
 
 	// REBOOT
+	defer boot.MockOsutilBootID("boot-3")()
 	err = boot.MarkBootSuccessful(s.uc20dev)
 	c.Assert(err, IsNil)
 	// we resealed after reboot again
@@ -4627,6 +4691,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+		LastBootOkID:   "1234",
 	}
 
 	r := setupUC20Bootenv(
@@ -4738,6 +4803,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 		BrandID:        uc20Model.BrandID(),
 		Grade:          string(uc20Model.Grade()),
 		ModelSignKeyID: uc20Model.SignKeyID(),
+		LastBootOkID:   "1234",
 	}
 
 	r := setupUC20Bootenv(
@@ -4850,6 +4916,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 		BrandID:        uc20Model.BrandID(),
 		Grade:          string(uc20Model.Grade()),
 		ModelSignKeyID: uc20Model.SignKeyID(),
+		LastBootOkID:   "1234",
 	}
 
 	r := setupUC20Bootenv(
@@ -4947,6 +5014,8 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 		BrandID:        uc20Model.BrandID(),
 		Grade:          string(uc20Model.Grade()),
 		ModelSignKeyID: uc20Model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 
 	r := setupUC20Bootenv(
@@ -5003,8 +5072,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallSame(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	m := &boot.Modeenv{
-		Mode: "run",
-		Base: s.base1.Filename(),
+		Mode:         "run",
+		Base:         s.base1.Filename(),
+		LastBootOkID: "1234",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -5042,8 +5112,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNew(c *C) {
 
 	// default state
 	m := &boot.Modeenv{
-		Mode: "run",
-		Base: s.base1.Filename(),
+		Mode:         "run",
+		Base:         s.base1.Filename(),
+		LastBootOkID: "1234",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -5121,6 +5192,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+		LastBootOkID:   "1234",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -5169,6 +5241,8 @@ func (s *bootenv20Suite) TestInUseClassicWithModes(c *C) {
 				Mode: "run",
 				// RecoverySystem is unset, as it should be during run mode
 				RecoverySystem: "",
+
+				LastBootOkID: "1234",
 			},
 			// enabled kernel is kern1
 			kern: s.kern1,
@@ -5239,6 +5313,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulClassModes(c *C) {
 	m := &boot.Modeenv{
 		Mode:           "run",
 		CurrentKernels: []string{s.kern1.Filename()},
+		LastBootOkID:   "1234",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -5269,6 +5344,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulAutoRepair(c *C) {
 	m := &boot.Modeenv{
 		Mode:           "run",
 		CurrentKernels: []string{s.kern1.Filename()},
+		LastBootOkID:   "1234",
 	}
 	defer setupUC20Bootenv(
 		c,
@@ -5306,6 +5382,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulAutoRepair(c *C) {
 
 	dev := boottest.MockClassicWithModesDevice("", nil)
 
+	defer boot.MockOsutilBootID("boot-2")()
 	err = boot.MarkBootSuccessful(dev)
 	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 1)

@@ -161,7 +161,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 		// default base path
 		{
-			m:           &boot.Modeenv{Mode: "run", Base: base1.Filename()},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				Base:         base1.Filename(),
+				LastBootOkID: "1234",
+			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
@@ -170,7 +174,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// gadget base path
 		{
-			m:           &boot.Modeenv{Mode: "run", Gadget: gadget.Filename()},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				Gadget:       gadget.Filename(),
+				LastBootOkID: "1234",
+			},
 			typs:        []snap.Type{gadgetT},
 			snapsToMake: []snap.PlaceInfo{gadget},
 			expected:    map[snap.Type]snap.PlaceInfo{gadgetT: gadget},
@@ -179,7 +187,10 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// gadget base path, but not in modeenv, so it is not selected
 		{
-			m:           &boot.Modeenv{Mode: "run"},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				LastBootOkID: "1234",
+			},
 			typs:        []snap.Type{gadgetT},
 			snapsToMake: []snap.PlaceInfo{gadget},
 			expected:    map[snap.Type]snap.PlaceInfo{},
@@ -188,7 +199,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// default kernel path
 		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:      kernel1,
 			typs:        []snap.Type{kernelT},
 			snapsToMake: []snap.PlaceInfo{kernel1},
@@ -198,7 +213,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// gadget base path for classic with modes
 		{
-			m:           &boot.Modeenv{Mode: "run", Gadget: gadget.Filename()},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				Gadget:       gadget.Filename(),
+				LastBootOkID: "1234",
+			},
 			typs:        []snap.Type{gadgetT},
 			snapsToMake: []snap.PlaceInfo{gadget},
 			expected:    map[snap.Type]snap.PlaceInfo{gadgetT: gadget},
@@ -207,7 +226,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// default kernel path for classic with modes
 		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:      kernel1,
 			typs:        []snap.Type{kernelT},
 			snapsToMake: []snap.PlaceInfo{kernel1},
@@ -217,7 +240,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// dangling link for try kernel should be ignored if not trying status
 		{
-			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"},
+				LastBootOkID:   "1234",
+			},
 			kernel:                 kernel1,
 			typs:                   []snap.Type{kernelT},
 			blvars:                 map[string]string{"kernel_status": boot.DefaultStatus},
@@ -235,7 +262,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 		// kernel upgrade path
 		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:      kernel1,
 			trykernel:   kernel2,
 			typs:        []snap.Type{kernelT},
@@ -253,7 +284,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// the real world is robust enough to only boot the try kernel if and
 		// only if kernel_status is not DefaultStatus
 		{
-			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:      kernel1,
 			trykernel:   kernel2,
 			typs:        []snap.Type{kernelT},
@@ -270,7 +305,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 		// kernel upgrade path, but reboots to fallback due to untrusted kernel from modeenv
 		{
-			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:         kernel1,
 			trykernel:      kernel2,
 			typs:           []snap.Type{kernelT},
@@ -282,7 +321,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// kernel upgrade path, but reboots to fallback due to try kernel file not existing
 		{
-			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:         kernel1,
 			trykernel:      kernel2,
 			typs:           []snap.Type{kernelT},
@@ -294,7 +337,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// kernel upgrade path, but reboots to fallback due to invalid kernel_status
 		{
-			m:              &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:         kernel1,
 			trykernel:      kernel2,
 			typs:           []snap.Type{kernelT},
@@ -306,7 +353,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// bad try status and no try kernel found
 		{
-			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"},
+				LastBootOkID:   "1234",
+			},
 			kernel:                 kernel1,
 			typs:                   []snap.Type{kernelT},
 			blvars:                 map[string]string{"kernel_status": boot.TryStatus},
@@ -325,7 +376,10 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 		// fallback kernel not trusted in modeenv
 		{
-			m:           &boot.Modeenv{Mode: "run"},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				LastBootOkID: "1234",
+			},
 			kernel:      kernel1,
 			typs:        []snap.Type{kernelT},
 			snapsToMake: []snap.PlaceInfo{kernel1},
@@ -335,7 +389,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// fallback kernel file doesn't exist
 		{
-			m:          &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
+			m: &boot.Modeenv{
+				Mode:           "run",
+				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
+			},
 			kernel:     kernel1,
 			typs:       []snap.Type{kernelT},
 			errPattern: fmt.Sprintf("kernel snap %q does not exist on ubuntu-data", kernel1.Filename()),
@@ -350,16 +408,18 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// successful base upgrade path
 		{
 			m: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.TryStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.TryStatus,
+				LastBootOkID: "1234",
 			},
 			expectedM: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.TryingStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.TryingStatus,
+				LastBootOkID: "1234",
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
@@ -370,16 +430,18 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// base upgrade path, but uses fallback due to try base file not existing
 		{
 			m: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.TryStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.TryStatus,
+				LastBootOkID: "1234",
 			},
 			expectedM: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.TryStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.TryStatus,
+				LastBootOkID: "1234",
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
@@ -390,16 +452,18 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// base upgrade path, but uses fallback due to base_status trying
 		{
 			m: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.TryingStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.TryingStatus,
+				LastBootOkID: "1234",
 			},
 			expectedM: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.DefaultStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.DefaultStatus,
+				LastBootOkID: "1234",
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
@@ -410,16 +474,18 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// base upgrade path, but uses fallback due to base_status default
 		{
 			m: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.DefaultStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.DefaultStatus,
+				LastBootOkID: "1234",
 			},
 			expectedM: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    base2.Filename(),
-				BaseStatus: boot.DefaultStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      base2.Filename(),
+				BaseStatus:   boot.DefaultStatus,
+				LastBootOkID: "1234",
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
@@ -434,7 +500,10 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 
 		// base snap unset
 		{
-			m:           &boot.Modeenv{Mode: "run"},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				LastBootOkID: "1234",
+			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			errPattern:  "no currently usable base snaps: cannot get snap revision: modeenv base boot variable is empty",
@@ -443,7 +512,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		},
 		// base snap file doesn't exist
 		{
-			m:          &boot.Modeenv{Mode: "run", Base: base1.Filename()},
+			m: &boot.Modeenv{
+				Mode:         "run",
+				Base:         base1.Filename(),
+				LastBootOkID: "1234",
+			},
 			typs:       []snap.Type{baseT},
 			errPattern: fmt.Sprintf("base snap %q does not exist on ubuntu-data", base1.Filename()),
 			rootfsDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
@@ -452,10 +525,11 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		// unhappy, but silent path with fallback, due to invalid try base snap name
 		{
 			m: &boot.Modeenv{
-				Mode:       "run",
-				Base:       base1.Filename(),
-				TryBase:    "bogusname",
-				BaseStatus: boot.TryStatus,
+				Mode:         "run",
+				Base:         base1.Filename(),
+				TryBase:      "bogusname",
+				BaseStatus:   boot.TryStatus,
+				LastBootOkID: "1234",
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
@@ -474,11 +548,13 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			typs:        []snap.Type{baseT, kernelT},
@@ -496,11 +572,13 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			trykernel:   kernel2,
@@ -522,6 +600,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.TryStatus,
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
@@ -529,6 +608,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.TryingStatus,
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			typs:        []snap.Type{baseT, kernelT},
@@ -548,6 +628,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.TryStatus,
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
@@ -555,6 +636,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.TryingStatus,
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			trykernel:   kernel2,
@@ -574,11 +656,13 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
 				Base:           base1.Filename(),
 				CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			trykernel:   kernel2,
@@ -600,6 +684,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.TryingStatus,
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			expectedM: &boot.Modeenv{
 				Mode:           "run",
@@ -607,6 +692,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				TryBase:        base2.Filename(),
 				BaseStatus:     boot.DefaultStatus,
 				CurrentKernels: []string{kernel1.Filename()},
+				LastBootOkID:   "1234",
 			},
 			kernel:      kernel1,
 			typs:        []snap.Type{baseT, kernelT},

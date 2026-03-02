@@ -104,6 +104,9 @@ type Modeenv struct {
 	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
 	// TODO:UC20 add a per recovery system list of kernel command lines
 
+	// LastBootOkID is the boot-id of the latest boot verified by MarkBootSuccessful
+	LastBootOkID string `key:"last_boot_id_ok"`
+
 	// read is set to true when a modenv was read successfully
 	read bool
 
@@ -116,6 +119,10 @@ type Modeenv struct {
 	// extra keys and need to rewrite it, we will write those new keys as well
 	extrakeys map[string]string
 }
+
+var (
+	osutilBootID = osutil.BootID
+)
 
 var modeenvKnownKeys = make(map[string]bool)
 
@@ -211,6 +218,11 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
 
+	unmarshalModeenvValueFromCfg(cfg, "last_boot_id_ok", &m.LastBootOkID)
+	if m.LastBootOkID == "" {
+		m.LastBootOkID = "not-booted"
+	}
+
 	// save all the rest of the keys we don't understand
 	keys, err := cfg.Options("")
 	if err != nil {
@@ -277,6 +289,17 @@ func (m *Modeenv) Write() error {
 
 // WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) WriteTo(rootdir string) error {
+	if m.LastBootOkID != "not-booted" {
+		bootId, err := osutilBootID()
+		if err != nil {
+			return fmt.Errorf("internal error: cannot read boot-id: %w", err)
+		}
+
+		if bootId != m.LastBootOkID {
+			return fmt.Errorf("modeenv boot-id is not matching the current boot id")
+		}
+	}
+
 	if snapdenv.Preseeding() {
 		return fmt.Errorf("internal error: modeenv cannot be written during preseeding")
 	}
@@ -329,6 +352,10 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
 	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
+
+	if m.LastBootOkID != "not-booted" {
+		marshalModeenvEntryTo(buf, "last_boot_id_ok", m.LastBootOkID)
+	}
 
 	// write all the extra keys at the end
 	// sort them for test convenience

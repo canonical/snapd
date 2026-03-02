@@ -547,6 +547,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		Classic:        model.Classic(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	// Note on classic systems there is no boot base, the system boots
 	// from debs.

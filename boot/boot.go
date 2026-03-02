@@ -370,6 +370,20 @@ func MarkBootSuccessful(dev snap.Device) error {
 	modeenvLock()
 	defer modeenvUnlock()
 
+	if dev.HasModeenv() {
+		m, err := loadModeenv()
+		if err != nil {
+			return err
+		}
+		bootId, err := osutilBootID()
+		if err != nil {
+			return err
+		}
+		if m.LastBootOkID == bootId {
+			return nil
+		}
+	}
+
 	const errPrefix = "cannot mark boot successful: %s"
 
 	var u bootStateUpdate

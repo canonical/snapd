@@ -128,6 +128,8 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	blKernelAfterReboot snap.PlaceInfo,
 	comment string,
 ) {
+	defer boot.MockOsutilBootID("boot1")()
+
 	if panicFunc != "" {
 		// setup a panic during the given bootloader function
 		restoreBootloaderPanic := s.bootloader.SetMockToPanic(panicFunc)
@@ -159,6 +161,8 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	kern, err := s.bootloader.Kernel()
 	c.Assert(err, IsNil, Commentf(comment))
 	c.Assert(kern, Equals, blKernelAfterReboot, Commentf(comment))
+
+	defer boot.MockOsutilBootID("boot2")()
 
 	// mark the boot successful like we were rebooted
 	err = boot.MarkBootSuccessful(dev)
@@ -233,11 +237,14 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 	}
 
 	for _, t := range tt {
+		state := s.normalTryingKernelState
+		state.bootOkID = "1234"
+
 		// setup the bootloader per test
 		restore := setupUC20Bootenv(
 			c,
 			s.bootloader,
-			s.normalTryingKernelState,
+			state,
 		)
 
 		s.checkBootStateAfterUnexpectedRebootAndCleanup(
@@ -290,6 +297,10 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 	}
 
 	for _, t := range tt {
+		state := s.normalDefaultState
+		// same boot
+		state.bootOkID = "boot1"
+
 		// setup the bootloader per test
 		restore := setupUC20Bootenv(
 			c,

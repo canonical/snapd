@@ -132,6 +132,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -216,6 +218,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}), Equals, true)
 }
 
@@ -253,6 +257,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -354,6 +360,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 		TryBrandID:        newModel.BrandID(),
 		TryGrade:          string(newModel.Grade()),
 		TryModelSignKeyID: newModel.SignKeyID(),
+
+		LastBootOkID: "1234",
 	})
 }
 
@@ -372,6 +380,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -401,6 +411,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	})
 }
 
@@ -413,6 +425,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -483,6 +497,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -587,6 +603,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -701,6 +719,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -817,6 +837,8 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
 		Mode: boot.ModeRun,
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"29112019", "1234"},
+
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -841,6 +863,8 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeFailureMissingSystemInMod
 		Mode: boot.ModeRun,
 		// we don't have the tried recovery system in the modeenv
 		CurrentRecoverySystems: []string{"29112019"},
+
+		LastBootOkID: "1234",
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -958,6 +982,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	if tc.systemLabel != "" {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, tc.systemLabel)
@@ -1038,6 +1064,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		ModelSignKeyID: model.SignKeyID(),
 
 		// try model if set, has been cleared
+
+		LastBootOkID: "1234",
 	})
 }
 
@@ -1222,6 +1250,8 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -1345,6 +1375,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	if tc.systemLabelAddToCurrent {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
@@ -1609,6 +1641,8 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "1234",
 	}
 	if tc.systemLabelAddToCurrent {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
