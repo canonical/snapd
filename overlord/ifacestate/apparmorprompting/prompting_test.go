@@ -620,6 +620,260 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	}
 }
 
+func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+	defer func() {
+		c.Check(mgr.Stop(), IsNil)
+	}()
+
+	const (
+		uid           = 1000
+		pid           = 1234
+		apparmorLabel = "snap.firefox.firefox"
+		goodIface     = "audio-record"
+	)
+
+	// Ask for invalid interface
+	badIfaces := []string{"home", "camera", "foo"}
+	for _, iface := range badIfaces {
+		timeoutChan := make(chan struct{})
+		go func() {
+			time.Sleep(time.Second)
+			close(timeoutChan)
+		}()
+		outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, iface)
+		c.Check(outcome, Equals, prompting.OutcomeUnset, Commentf("unexpected outcome for supposedly invalid interface: %s", outcome))
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
+		var unsupportedValueErr *prompting_errors.UnsupportedValueError
+		if errors.As(err, &unsupportedValueErr) {
+			c.Check(unsupportedValueErr.Supported, DeepEquals, prompting.NonAppArmorInterfaces())
+		} else {
+			c.Errorf("error was not an UnsupportedValueError: %v", err)
+		}
+	}
+
+	// Mock bad cgroup lookup
+	restore = apparmorprompting.MockCgroupProcessPathInTrackingCgroup(func(p int) (string, error) {
+		c.Check(p, Equals, pid)
+		return "", fmt.Errorf("could not find cgroup")
+	})
+	defer restore()
+
+	timeoutChan := make(chan struct{})
+	go func() {
+		time.Sleep(time.Second)
+		close(timeoutChan)
+	}()
+	outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, goodIface)
+	c.Check(outcome, Equals, prompting.OutcomeUnset)
+	c.Check(err, ErrorMatches, "cannot read cgroup path for request process with PID 1234: could not find cgroup")
+}
+
+func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	const (
+		uid           = 1000
+		pid           = 1234
+		apparmorLabel = "snap.firefox.firefox"
+		iface         = "audio-record"
+	)
+
+	// Stop the manager now so that it will not receive the request.
+	//
+	// Unfortunately, there's not a way to test the snapdShuttingDown channel
+	// closing as well, since if the manager has not stopped, there is a race
+	// where the run loop may receive the request. So we close the listener to
+	// ensure the run loop does not receive the request.
+	//
+	// XXX: in the future, when we remove the snapdShuttingDown channel in
+	// favor of a manager-level shutdown triggered by the daemon stopping, most
+	// of this comment can be removed.
+	c.Check(mgr.Stop(), IsNil)
+
+	timeoutChan := make(chan struct{})
+	go func() {
+		time.Sleep(time.Second)
+		close(timeoutChan)
+	}()
+	outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, iface)
+	c.Check(outcome, Equals, prompting.OutcomeUnset)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+}
+
+func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
+	proceedWithClose, _, _, restore := apparmorprompting.MockListenerWithDelayedClose()
+	defer restore()
+
+	const (
+		uid           = 1000
+		pid           = 1234
+		apparmorLabel = "snap.firefox.firefox"
+		iface         = "audio-record"
+		promptID      = prompting.IDType(1)
+	)
+
+	// Write a mapping from an API request to a prompt ID so that the prompts
+	// backend is not immediately ready. We do this so we can easily use the
+	// readiness signal to know when the request has been received and fully
+	// processed.
+	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	neverClose := make(chan struct{})
+
+	// Call Ask, then signal when response has been validated
+	doneChan := make(chan struct{})
+	go func() {
+		outcome, err := mgr.Ask(neverClose, uid, pid, apparmorLabel, iface)
+		c.Check(outcome, Equals, prompting.OutcomeUnset)
+		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+		close(doneChan)
+	}()
+
+	// Wait for the manager to be ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after receiving request")
+	}
+
+	// Now Ask should be waiting for a reply. Stop the manager instead.
+	stopResultChan := make(chan error)
+	go func() {
+		select {
+		case stopResultChan <- mgr.Stop():
+			// all good
+		case <-time.After(time.Second):
+			stopResultChan <- fmt.Errorf("timed out waiting for Stop to return")
+		}
+	}()
+
+	select {
+	case <-doneChan:
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("Ask failed to finish after manager stopped")
+	}
+
+	// Since we delayed the listener close, the prompts backend should not have
+	// closed yet.
+	clientActivity := false
+	prompts, err := mgr.PromptDB().Prompts(uid, clientActivity)
+	c.Check(prompts, HasLen, 1)
+	c.Check(err, IsNil)
+
+	// Try to reply, see that we get ErrPromptingClosed from the Reply closure
+	outcome := prompting.OutcomeAllow
+	_, err = mgr.PromptDB().Reply(uid, promptID, outcome, clientActivity)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+
+	// To confirm this was not because the prompts backend was closed, check
+	// that it is still not closed, and that the prompt still exists, so it can
+	// be recreated if/when snapd restarts.
+	prompts, err = mgr.PromptDB().Prompts(uid, clientActivity)
+	c.Check(prompts, HasLen, 1)
+	c.Check(err, IsNil)
+
+	// Check that manager.Stop() has not returned yet
+	select {
+	case err = <-stopResultChan:
+		c.Errorf("received unexpected result from stopResultChan: %v", err)
+	default:
+		// all good
+	}
+
+	// Proceed with closing the manager
+	close(proceedWithClose)
+
+	// Now wait for manager.Stop() to finish
+	select {
+	case err = <-stopResultChan:
+		c.Check(err, IsNil)
+	case <-time.After(time.Second):
+		c.Errorf("timed out waiting for result from mgr.Stop()")
+	}
+}
+
+// XXX: this test only exists since there are currently two ways to tell Ask to
+// stop waiting: the manager closing, and the snapdShuttingDown channel closing.
+// Once the latter is removed in favor of a proper shutdown of the manager
+// triggered from the daemon, this test should be removed.
+func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
+	_, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	const (
+		uid           = 1000
+		pid           = 1234
+		apparmorLabel = "snap.firefox.firefox"
+		iface         = "audio-record"
+		promptID      = prompting.IDType(1)
+	)
+
+	// Write a mapping from an API request to a prompt ID so that the prompts
+	// backend is not immediately ready. We do this so we can easily use the
+	// readiness signal to know when the request has been received and fully
+	// processed.
+	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	snapdShuttingDown := make(chan struct{})
+
+	// Call Ask, then signal when response has been validated
+	doneChan := make(chan struct{})
+	go func() {
+		outcome, err := mgr.Ask(snapdShuttingDown, uid, pid, apparmorLabel, iface)
+		c.Check(outcome, Equals, prompting.OutcomeUnset)
+		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+		close(doneChan)
+	}()
+
+	// Wait for the manager to be ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after receiving request")
+	}
+
+	// Now Ask should be waiting for a reply. Close snapdShuttingDown instead.
+	close(snapdShuttingDown)
+
+	select {
+	case <-doneChan:
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("Ask failed to finish after closing snapdShuttingDown")
+	}
+
+	// Check that calls to Reply() also return immediately now that the shutdown
+	// channel has closed.
+	outcome := prompting.OutcomeAllow
+	clientActivity := false
+	_, err = mgr.PromptDB().Reply(uid, promptID, outcome, clientActivity)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+}
+
 func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	_, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -1547,6 +1801,76 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfN
 	})
 }
 
+func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfOtherRequestsAlreadyReceived(c *C) {
+	listenerReady, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	// Write a mapping from kernel request to prompt ID so the prompts backend
+	// will not immediately be ready
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000002","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Check that the prompts are not ready yet
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager readied before listener signalled ready")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Ask for other request in the background so we can see and respond to the prompt
+	whenSent := time.Now()
+	go func() {
+		snapdShuttingDown := make(chan struct{})
+		mgr.Ask(snapdShuttingDown, 1000, 1234, "snap.firefox.firefox", "audio-record")
+	}()
+	// Wait for a notice
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
+		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+		After: whenSent,
+	})
+	c.Check(err, IsNil)
+	c.Assert(n, HasLen, 1)
+	c.Check(n[0].Key(), Equals, "0000000000000002")
+
+	// Check that the prompts are still not ready yet
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager readied before listener signalled ready")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Signal ready from the listener
+	close(listenerReady)
+
+	// Check that the prompts backend is now ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after listener readied")
+	}
+
+	c.Assert(mgr.Stop(), IsNil)
+
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "requests timed out in the kernel while snapd was restarting: \"kernel:0000000000000001\"\n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
+	})
+}
+
 func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadyingIfOtherRequests(c *C) {
 	listenerReady, reqChan, restore := apparmorprompting.MockListener()
 	defer restore()
@@ -1557,7 +1881,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	// Write a mapping from several kernel request to prompt IDs, and at least
 	// one request from elsewhere, so the listener signalling readiness will
 	// not cause the prompts backend to ready.
-	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:foo":{"prompt-id":"0000000000000003","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:audio-record:1000:12345:snap.firefox.firefox":{"prompt-id":"0000000000000003","user-id":1000},"api:audio-record:1000:67890:snap.obs-studio.obs-studio":{"prompt-id":"0000000000000004","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -1606,10 +1930,70 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
 	})
 
+	// Now add remaining API requests via Ask()
+
+	shutDownChan := make(chan struct{})
+	outcomeChan := make(chan prompting.OutcomeType)
+	errChan := make(chan error)
+	go func() {
+		outcome, err := mgr.Ask(shutDownChan, 1000, 12345, "snap.firefox.firefox", "audio-record")
+		outcomeChan <- outcome
+		errChan <- err
+	}()
+
+	// Check that the prompts backend is still not ready
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager unexpectedly readied even though other requests were outstanding")
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	go func() {
+		outcome, err := mgr.Ask(shutDownChan, 1000, 67890, "snap.obs-studio.obs-studio", "audio-record")
+		outcomeChan <- outcome
+		errChan <- err
+	}()
+
+	// Check that prompts backend is now ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after listener readied")
+	}
+
+	// Check that neither API request has returned yet
+	select {
+	case outcome := <-outcomeChan:
+		c.Errorf("outcomeChan unexpectedly yielded outcome: %s", outcome)
+	case err := <-errChan:
+		c.Errorf("errChan unexpectedly yielded error: %v", err)
+	case <-time.After(10 * time.Millisecond):
+		// all good
+	}
+
+	// Signal that snapd is shutting down and Ask calls should return
+	close(shutDownChan)
+	for i := 0; i < 2; i++ {
+		select {
+		case outcome := <-outcomeChan:
+			c.Check(outcome, Equals, prompting.OutcomeUnset)
+		case <-time.After(time.Second):
+			c.Errorf("failed to receive outcome after signalling shutdown")
+		}
+		select {
+		case err := <-errChan:
+			c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+		case <-time.After(time.Second):
+			c.Errorf("failed to receive error after signalling shutdown")
+		}
+	}
+
 	c.Assert(mgr.Stop(), IsNil)
 
 	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart:")
 	})
 }
 
