@@ -38,7 +38,9 @@ jobs:
       run: |
           sudo apt clean
           sudo apt update
-          sudo apt build-dep -y "${{ github.workspace }}/src/github.com/snapcore/snapd"
+          cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
+          ln -s packaging/ubuntu-16.04 debian
+          sudo apt build-dep -y .
 
     - name: Install the go version
       uses: actions/setup-go@v6
