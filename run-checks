@@ -187,24 +187,24 @@ missing_interface_spread_test() {
 }
 
 forbidden_cmd_go_deps() {
-    local -a go_list_tags=()
     local -a forbidden_deps=(
         "github.com/snapcore/snapd/testutil"
         "gopkg.in/check.v1"
     )
+    local -a go_list_cmd=(go list)
 
     if [ -n "${GO_BUILD_TAGS:-}" ]; then
-        go_list_tags=(-tags "$GO_BUILD_TAGS")
+        go_list_cmd+=(-tags "$GO_BUILD_TAGS")
     fi
 
     local cmd_mains
-    cmd_mains=$(go list "${go_list_tags[@]}" -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...)
+    cmd_mains=$("${go_list_cmd[@]}" -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...)
 
     local -a violations=()
     local cmd_main
     for cmd_main in $cmd_mains; do
         local deps
-        deps=$(go list "${go_list_tags[@]}" -deps "$cmd_main")
+        deps=$("${go_list_cmd[@]}" -deps "$cmd_main")
 
         local dep
         for dep in "${forbidden_deps[@]}"; do
