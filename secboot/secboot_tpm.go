@@ -75,12 +75,12 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled                        = (*sb_tpm2.Connection).IsEnabled
-	lockoutAuthSet                      = (*sb_tpm2.Connection).LockoutAuthSet
-	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
-	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
-	tpmReleaseResources                 = tpmReleaseResourcesImpl
-	tpmGetCapabilityHandles             = (*sb_tpm2.Connection).GetCapabilityHandles
+	isTPMEnabled            = (*sb_tpm2.Connection).IsEnabled
+	lockoutAuthSet          = (*sb_tpm2.Connection).LockoutAuthSet
+	sbTPMEnsureProvisioned  = (*sb_tpm2.Connection).EnsureProvisioned
+	sbWithCustomSRKTemplate = sb_tpm2.WithCustomSRKTemplate
+	tpmReleaseResources     = tpmReleaseResourcesImpl
+	tpmGetCapabilityHandles = (*sb_tpm2.Connection).GetCapabilityHandles
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
 
@@ -453,7 +453,7 @@ func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 		return fmt.Errorf("cannot read SRK template: %v", err)
 	}
 
-	err = sbTPMEnsureProvisionedWithCustomSRK(tpm, sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl)
+	err = sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionWithoutLockout(), sbWithCustomSRKTemplate(srkTmpl))
 	if err != nil && err != sb_tpm2.ErrTPMProvisioningRequiresLockout {
 		return fmt.Errorf("cannot prepare TPM: %v", err)
 	}
@@ -1047,7 +1047,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 		// provisioning
 		tpm.LockoutHandleContext().SetAuthValue(currentLockoutAuth)
 	}
-	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
+	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.WithProvisionNewLockoutAuthValue(lockoutAuth)); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}

@@ -62,7 +62,7 @@ func getAskPasswordMessage(authType sb.UserAuthType, name, path string) (string,
 }
 
 // RequestUserCredential implements AuthRequestor.RequestUserCredential
-func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, path string, authTypes sb.UserAuthType) (string, error) {
+func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, path string, authTypes sb.UserAuthType) (string, sb.UserAuthType, error) {
 	enableCredential := true
 	err := systemd.EnsureAtLeast(249)
 	if systemd.IsSystemdTooOld(err) {
@@ -80,7 +80,7 @@ func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, 
 
 	msg, err := getAskPasswordMessage(authTypes, name, path)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	args = append(args, msg)
 
@@ -91,14 +91,19 @@ func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, 
 	cmd.Stdout = out
 	cmd.Stdin = os.Stdin
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("cannot execute systemd-ask-password: %w", err)
+		return "", 0, fmt.Errorf("cannot execute systemd-ask-password: %w", err)
 	}
 	result, err := out.ReadString('\n')
 	if err != nil {
 		// The only error returned from bytes.Buffer.ReadString is io.EOF.
-		return "", errors.New("systemd-ask-password output is missing terminating newline")
+		return "", 0, errors.New("systemd-ask-password output is missing terminating newline")
 	}
-	return strings.TrimRight(result, "\n"), nil
+	return strings.TrimRight(result, "\n"), authTypes, nil
+}
+
+func (r *systemdAuthRequestor) NotifyUserAuthResult(ctx context.Context, result sb.UserAuthResult, authTypes, exhaustedAuthTypes sb.UserAuthType) error {
+	// let secboot complain that we do not support it
+	return sb.ErrAuthRequestorNotAvailable
 }
 
 // NewSystemdAuthRequestor creates an AuthRequestor
