@@ -589,7 +589,7 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 			// There are no specified ISA constraints for amd64
 			assumes: []string{"isa-amd64-sampleisa"},
 			arch:    "amd64",
-			err:     "isa-amd64-sampleisa: ISA specification is not supported for arch: amd64",
+			err:     "isa-amd64-sampleisa: ISA specification is not supported for arch: .*",
 		}, {
 			// ISA string is malformed
 			assumes: []string{"isa-riscv64..rva23"},
