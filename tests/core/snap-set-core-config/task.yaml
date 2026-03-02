@@ -147,7 +147,7 @@ execute: |
     echo "and timezone setting shows up in the document"
     snap get system -d | MATCH "Europe/Malta"
     echo "but the timezone is not stored in the config state"
-    python3 -c 'import json,sys; j=json.loads(sys.stdin.read()); print(j["data"]["config"]);' < /var/lib/snapd/state.json | NOMATCH Europe/Malta
+    gojq -r '.data.config' < /var/lib/snapd/state.json | NOMATCH Europe/Malta
 
     echo "and setting it again in snapd also works"
     snap set system system.timezone=America/Lima
@@ -177,7 +177,7 @@ execute: |
         snap get system -d | MATCH "Test MOTD"
 
         echo "but the motd is not stored in the config state"
-        python3 -c 'import json,sys; j=json.loads(sys.stdin.read()); print(j["data"]["config"]);' < /var/lib/snapd/state.json | NOMATCH "Test MOTD"
+        gojq -r '.data.config' < /var/lib/snapd/state.json | NOMATCH "Test MOTD"
 
         echo "setting the motd to empty string resets to the default motd"
         snap set system system.motd=""
