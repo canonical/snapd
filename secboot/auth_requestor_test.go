@@ -83,7 +83,7 @@ func (s *authRequestorSuite) TestRequestPassphrase(c *C) {
 	s.setInput(c, "thepassphrase\n")
 	s.setSystemdVersion(c, "256")
 
-	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
+	input, _, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, IsNil)
 	c.Check(input, Equals, "thepassphrase")
 
@@ -97,7 +97,7 @@ func (s *authRequestorSuite) TestRequestPassphraseOldSystemd(c *C) {
 	s.setInput(c, "thepassphrase\n")
 	s.setSystemdVersion(c, "248")
 
-	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
+	input, _, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, IsNil)
 	c.Check(input, Equals, "thepassphrase")
 
@@ -111,7 +111,7 @@ func (s *authRequestorSuite) TestRequestPassphraseFailure(c *C) {
 	s.setError(c, "blah blah\n")
 	s.setSystemdVersion(c, "256")
 
-	_, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
+	_, _, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, ErrorMatches, "cannot execute systemd-ask-password: exit status 1")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
@@ -124,7 +124,7 @@ func (s *authRequestorSuite) TestRequestPassphraseMissingNewLine(c *C) {
 	s.setInput(c, "blah blah")
 	s.setSystemdVersion(c, "256")
 
-	_, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
+	_, _, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, ErrorMatches, "systemd-ask-password output is missing terminating newline")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
@@ -137,7 +137,7 @@ func (s *authRequestorSuite) TestRequestRecoveryKey(c *C) {
 	s.setInput(c, "00001-00002-00003-00004-00005-00006-00007-00008\n")
 	s.setSystemdVersion(c, "256")
 
-	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypeRecoveryKey)
+	input, _, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypeRecoveryKey)
 	c.Assert(err, IsNil)
 	c.Check(input, Equals, "00001-00002-00003-00004-00005-00006-00007-00008")
 
