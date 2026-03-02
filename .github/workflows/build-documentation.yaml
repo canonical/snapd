@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Build and Lint REST OpenAPI Documentation
+name: Prepare the REST OpenAPI Specification
 on:
   pull_request:
 
@@ -18,39 +18,38 @@ jobs:
           fetch-depth: 0
       - name: Check if changes occurred in the API documentation
         id: changed-api
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+        uses: tj-actions/changed-files@v47
         with:
           files: docs/api/**
 
-  build-documentation:
+  process-specification:
     needs: check-api
     if: needs.check-api.outputs.api_changed == 'true'
     runs-on: ubuntu-latest
-    name: Build REST API documentation
+    name: Bundle REST API documentation
     
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Check Licensing/Copyright Compliance
         uses: docker://fsfe/reuse
         with:
           entrypoint: /bin/sh
           args: -c "cd docs/api && reuse lint"
-      - name: Check API specification
+
+      - name: Lint API specification
         uses: docker://redocly/cli
         with:
           args: lint ./docs/api/openapi.yaml
-      - name: Build generated documentation
+
+      - name: Bundle OpenAPI to JSON
         uses: docker://redocly/cli
         with:
-          args: build-docs ./docs/api/openapi.yaml --output ./docs/api/redoc-static.html
-      - name: Create dark mode version
-        run: |
-          sudo chown $USER ./docs/api/redoc-static.html
-          python3 ./docs/api/tools/post-process.py ./docs/api/redoc-static.html ./docs/api/tools/dark-theme.css "</head>"
-      - name: Store generated artifact
+          args: bundle ./docs/api/openapi.yaml --output ./docs/api/openapi.json --ext json
+
+      - name: Store generated JSON artifact
         uses: actions/upload-artifact@v6
         with:
-          name: rest-api-documentation
-          path: |
-            ./docs/api/redoc-static.html
+          name: openapi-spec
+          path: docs/api/openapi.json
