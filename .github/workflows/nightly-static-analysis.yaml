@@ -3,7 +3,8 @@ name: Nightly static code analysis
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'
+    # Run every Friday morning 5:00 AM UTC
+    - cron: '0 5 * * 5'
 
 jobs:
 
