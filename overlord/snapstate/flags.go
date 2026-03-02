@@ -114,7 +114,7 @@ type Flags struct {
 	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
 	Lane int `json:"lane,omitempty"`
 
-	// NoDelayedEffects prevents from delaying side effects of security backend
+	// NoDelayedSideEffects prevents delaying side effects of security backend
 	// setup, making them be applied immediately when the security backend(s)
 	// are being set up.
 	NoDelayedSideEffects bool `json:"no-delayed-effects,omitempty"`
