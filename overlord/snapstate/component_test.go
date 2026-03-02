@@ -237,8 +237,11 @@ func (s *snapmgrTestSuite) TestComponentEnforcedValidationSet(c *C) {
 	s.testComponentRemoveValidationSet(c, "mysnap", "mycomp", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", expectedErr)
 }
 
-func (s *snapmgrTestSuite) TestComponentEnforcedValidationSetOtherComponent(c *C) {
-	s.testComponentRemoveValidationSet(c, "mysnap", "othercomp", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
+func (s *snapmgrTestSuite) TestComponentEnforcedValidationSetOptionalComponent(c *C) {
+	// "mysnap" is enforced by the validation set, but "othercomp2" is explicitly
+	// marked as PresenceOptional in the mock headers.
+	// We expect no error ("") when attempting to remove it.
+	s.testComponentRemoveValidationSet(c, "mysnap", "othercomp2", "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
 }
 
 func (s *snapmgrTestSuite) TestComponentUnenforcedValidationSet(c *C) {
@@ -252,33 +255,57 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	const enforcedCompName = "mycomp"
 	const enforcedSnapID = "3wdHCAVyZEmYsCMFDE9qt92UV8rC8Wdk"
 
-	compName := targetCompName
+	optionalCompName := "othercomp2"
 	snapRev := snap.R(1)
 	compRev := snap.R(33)
-
-	snapYaml := fmt.Sprintf(`name: %s
-version: 1
-components:
-  %s:
-    type: standard
-`, targetSnapName, compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ssi := &snap.SideInfo{RealName: targetSnapName, Revision: snapRev,
 		SnapID: targetSnapID}
-	cref := naming.NewComponentRef(targetSnapName, compName)
+	cref := naming.NewComponentRef(targetSnapName, targetCompName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
+	otherCref := naming.NewComponentRef(enforcedSnapName, optionalCompName)
+	otherCsi := snap.NewComponentSideInfo(otherCref, compRev)
 
-	s.mockComponentInfos(c, targetSnapName, []string{compName}, []snap.Revision{compRev})
+	var compStates []*sequence.ComponentState
+	compStates = append(compStates, sequence.NewComponentState(csi, snap.StandardComponent))
+
+	var snapYaml string
+
+	s.mockComponentInfos(c, targetSnapName, []string{targetCompName}, []snap.Revision{compRev})
+
+	if targetCompName != optionalCompName {
+		compStates = append(compStates, sequence.NewComponentState(otherCsi, snap.StandardComponent))
+		s.mockComponentInfos(c, targetSnapName, []string{optionalCompName}, []snap.Revision{compRev})
+
+		snapYaml = fmt.Sprintf(
+			"name: %s\n"+
+				"version: 1\n"+
+				"components:\n"+
+				"  %s:\n"+
+				"    type: standard\n"+
+				"  %s:\n"+
+				"    type: standard\n",
+			targetSnapName, targetCompName, optionalCompName,
+		)
+	} else {
+		snapYaml = fmt.Sprintf(
+			"name: %s\n"+
+				"version: 1\n"+
+				"components:\n"+
+				"  %s:\n"+
+				"    type: standard\n",
+			targetSnapName, targetCompName,
+		)
+	}
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideState(ssi,
-					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})}),
+				sequence.NewRevisionSideState(ssi, compStates)}),
 		Current: snapRev,
 	}
 	compSt := snapSt.CurrentComponentState(cref)
@@ -296,10 +323,13 @@ components:
 			map[string]any{
 				"name":     enforcedSnapName,
 				"id":       enforcedSnapID,
-				"presence": "required",
+				"presence": string(asserts.PresenceRequired),
 				"components": map[string]any{
 					enforcedCompName: map[string]any{
-						"presence": "required",
+						"presence": string(asserts.PresenceRequired),
+					},
+					optionalCompName: map[string]any{
+						"presence": string(asserts.PresenceOptional),
 					},
 				},
 			},
