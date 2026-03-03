@@ -93,7 +93,7 @@ execute: |
   CURRENT_RAW=$(numfmt --from=iec "${CURRENT%[Bb]}")
 
   if [[ "$CURRENT_RAW" -gt "$QUOTA_RAW" ]]; then
-    echo "Current usage "$CURRENT" is greater than the quota $QUOTA"
+    echo "Current usage $CURRENT is greater than the quota $QUOTA"
     exit 1
   fi
 
