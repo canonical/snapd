@@ -12,6 +12,7 @@ systems:
     - ubuntu-2*
 
 environment:
+    # use a fake video device path which is extremely unlikely to actually exist
     TARGET_FILE: /dev/video9
 
     PROMPT_RESPONSE/allow_single: "allow"
@@ -48,7 +49,11 @@ skip:
      reason: Ubuntu 22.04 AppArmor parser doesn't support prompting without reexec
 
 prepare: |
+    tests.session prepare -u test
+    tests.cleanup defer tests.session restore -u test
+
     snap set system experimental.user-daemons=true
+
     # make sure the video dev file exists
     touch "$TARGET_FILE"
 
@@ -70,6 +75,13 @@ restore: |
 debug: |
     uname -a
     snap debug api /v2/system-info
+    snap debug api /v2/interfaces/requests/prompts
+
+    for i_r_dir in /run/snapd/interfaces-requests /var/lib/snapd/interfaces-requests ; do
+        if [ -d "$i_r_dir" ] ; then
+            ls -al "$i_r_dir"
+        fi
+    done
 
 execute: |
     echo "Remove any existing listener ID file so snapd will register new listener"
@@ -126,7 +138,7 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-        "allow") MATCH "" < "$TMP_STDOUT";;
+        "allow") test ! -s "$TMP_STDOUT";;
         "deny")
             MATCH "failed" < "$TMP_STDOUT"
             MATCH "/bin/cat: $TARGET_FILE: Permission denied" < "$TMP_STDERR"
@@ -219,7 +231,7 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-        "allow") MATCH "" < "$TMP_STDOUT";;
+        "allow") test ! -s "$TMP_STDOUT";;
         "deny")
             MATCH "failed" < "$TMP_STDOUT"
             MATCH "/bin/cat: $TARGET_FILE: Permission denied" < "$TMP_STDERR"
