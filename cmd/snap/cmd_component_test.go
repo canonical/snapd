@@ -109,7 +109,7 @@ type: app
 summary: The runtime component
 description: |
   Handles runtime execution
-installed: 1.2 (10) 10MB
+installed: 1.2 (10) 10.0MB
 `
 
 	c.Assert(err, check.IsNil)

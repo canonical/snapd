@@ -584,7 +584,7 @@ func (chInfos *channelInfos) add(indent, name, version string, revision snap.Rev
 		name:     name,
 		version:  version,
 		revision: fmt.Sprintf("(%s)", revision),
-		size:     strutil.SizeToStr(size),
+		size:     fmtSize(size),
 		notes:    notes.String(),
 	}
 	if !released.IsZero() {

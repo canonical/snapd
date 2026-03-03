@@ -34,7 +34,9 @@ import (
 )
 
 func fmtSize(size int64) string {
-	return quantity.FormatAmount(uint64(size), -1) + "B"
+	// -1 for auto-width of 5 chars, but could potentially include a single
+	// -whitespace prefix if the number fit in, so drop that
+	return strings.TrimSpace(quantity.FormatAmount(uint64(size), -1) + "B")
 }
 
 var (
