@@ -26,12 +26,33 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func addMountUnit(c snap.ContainerPlaceInfo, mountFlags systemd.EnsureMountUnitFlags, sysd systemd.Systemd) error {
+// MountUnitFlags contains flags that modify behavior of addMountUnit
+type MountUnitFlags struct {
+	// PreventRestartIfModified is set if we do not want to restart the
+	// mount unit if even though it was modified
+	PreventRestartIfModified bool
+	// StartBeforeDriversLoad is set if the unit is needed before
+	// udevd starts to run rules
+	StartBeforeDriversLoad bool
+}
+
+func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags MountUnitFlags) error {
 	squashfsPath := dirs.StripRootDir(c.MountFile())
 	whereDir := dirs.StripRootDir(c.MountDir())
 
-	_, err := sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs",
-		mountFlags)
+	mountOptions := &systemd.MountUnitOptions{
+		Lifetime:                 systemd.Persistent,
+		Description:              c.MountDescription(),
+		What:                     squashfsPath,
+		Where:                    whereDir,
+		PreventRestartIfModified: mountFlags.PreventRestartIfModified,
+	}
+
+	if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", mountFlags.StartBeforeDriversLoad); err != nil {
+		return err
+	}
+
+	_, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
 	return err
 }
 

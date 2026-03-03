@@ -359,18 +359,6 @@ const (
 	MountCreated
 )
 
-// EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
-// TODO should we call directly EnsureMountUnitFileWithOptions and
-// remove this type instead?
-type EnsureMountUnitFlags struct {
-	// PreventRestartIfModified is set if we do not want to restart the
-	// mount unit if even though it was modified
-	PreventRestartIfModified bool
-	// StartBeforeDriversLoad is set if the unit is needed before
-	// udevd starts to run rules
-	StartBeforeDriversLoad bool
-}
-
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -425,9 +413,10 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
+	// ConfigureMountUnitOptions configures several options of the mount unit in-place.
+	ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	// TODO: s/EnsureMountUnitFileWithOptions/EnsureMountUnitFile
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
@@ -1508,25 +1497,33 @@ func HostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
-	hostFsType, options := HostFsTypeAndMountOptions(fstype)
-	if osutil.IsDirectory(what) {
-		options = append(options, "bind")
+func (s *systemd) ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error {
+	if o.What == "" {
+		return errors.New(`internal error: cannot configure mount unit options: "What" cannot be unset`)
+	}
+	if o.Fstype != "" {
+		return errors.New(`internal error: cannot configure mount unit options: "Fstype" cannot be set`)
+	}
+	if len(o.Options) > 0 {
+		return errors.New(`internal error: cannot configure mount unit options: "Options" cannot be set`)
+	}
+
+	hostFsType, fsOpts := HostFsTypeAndMountOptions(fstype)
+	if osutil.IsDirectory(o.What) {
+		fsOpts = append(fsOpts, "bind")
 		hostFsType = "none"
 	}
-	mountOptions := &MountUnitOptions{
-		Lifetime:                 Persistent,
-		Description:              description,
-		What:                     what,
-		Where:                    where,
-		Fstype:                   hostFsType,
-		Options:                  options,
-		PreventRestartIfModified: flags.PreventRestartIfModified,
+
+	mountUnitType := RegularMountUnit
+	if startBeforeDrivers {
+		mountUnitType = BeforeDriversLoadMountUnit
 	}
-	if flags.StartBeforeDriversLoad {
-		mountOptions.MountUnitType = BeforeDriversLoadMountUnit
-	}
-	return s.EnsureMountUnitFileWithOptions(mountOptions)
+
+	o.Fstype = hostFsType
+	o.MountUnitType = mountUnitType
+	o.Options = fsOpts
+
+	return nil
 }
 
 func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
