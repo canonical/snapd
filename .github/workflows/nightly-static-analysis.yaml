@@ -84,7 +84,8 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          # Version 2025.1.1 is the last version to use Go 1.23
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
 
     - name: TICS scan
       run: |
