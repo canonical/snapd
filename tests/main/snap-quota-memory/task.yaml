@@ -196,7 +196,7 @@ execute: |
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, which is observed
   # to be up to 262KiB due to cached memory.
-  if [ "$snapdSaysMemUsage" -gt 262144 ]; then
+  if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" -gt 262144 ]; then
       echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
       exit 1
   fi
@@ -204,7 +204,7 @@ execute: |
   # Sporadically the system could take a while to adjust the memory usage like it happens in Arch-linux
   for iter in $(seq 5); do
       snapdSaysMemUsage="$(snap debug api /v2/quotas/group-four | gojq -r '.result.current.memory')"
-      if [ "$snapdSaysMemUsage" -le 262144 ]; then
+      if [ "$snapdSaysMemUsage" = null ] || [ "$snapdSaysMemUsage" -le 262144 ]; then
           break
       fi
       sleep 5
