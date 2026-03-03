@@ -34,11 +34,12 @@ prepare: |
     remote.push new-pc-kernel.snap
 
 execute: |
+    boot_id="$(tests.nested boot-id)"
     remote.exec "sudo snap wait system seed.loaded"
 
     remote.exec "sudo systemctl stop snapd.socket snapd.service"
 
-    remote.exec "sudo journalctl -u snapd.service" >snapd.before.log
+    remote.exec "sudo journalctl -u snapd.service -b 0" >snapd.before.log
     NOMATCH "WARNING: primary key is not matching the FDE state" <snapd.before.log
     NOMATCH "WARNING: policy counter handle .* is not matching the FDE state" <snapd.before.log
 
@@ -53,8 +54,10 @@ execute: |
 
     remote.exec "sudo systemctl start snapd.socket snapd.service"
 
-    # Note installing a kernel snap reboots. So we need to inhibit it
-    # until we captured the journal.
-    remote.exec "sudo systemd-inhibit bash -c 'snap install --dangerous new-pc-kernel.snap; journalctl -u snapd.service'" >snapd.log
+    # Note installing a kernel snap reboots
+    REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous --no-wait new-pc-kernel.snap")
+    remote.wait-for reboot "${boot_id}"
+    remote.exec sudo snap watch "$REMOTE_CHG_ID"
+    remote.exec "sudo journalctl -u snapd.service -b -1" >snapd.log
     MATCH "WARNING: primary key is not matching the FDE state" <snapd.log
     MATCH "WARNING: policy counter handle .* is not matching the FDE state" <snapd.log
