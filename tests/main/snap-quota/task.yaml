@@ -86,10 +86,8 @@ execute: |
   MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 
   echo "Checking current usage"
-  read -ra mems <<< "$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+')"
-
-  QUOTA="${mems[0]}"
-  CURRENT="${mems[1]}"
+  QUOTA="$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+' | sed -n '1p')"
+  CURRENT="$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+' | sed -n '2p')"
 
   # Strip trailing 'B' or 'b' and convert to raw bytes
   QUOTA_RAW=$(numfmt --from=iec "${QUOTA%[Bb]}")
