@@ -1714,6 +1714,10 @@ type recoverySystemSetup struct {
 	// MarkDefault is set to true if the new recovery system should be marked as
 	// the default recovery system.
 	MarkDefault bool `json:"mark-default,omitempty"`
+	// SeedRefresh is set to true if the recovery system is being created as part
+	// of seed-refresh mode. This enables recording seeded-system state in
+	// finalize.
+	SeedRefresh bool `json:"seed-refresh,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1771,7 +1775,9 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 	}
 
 	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
-		TestSystem: true,
+		TestSystem:  true,
+		MarkDefault: true,
+		SeedRefresh: true,
 	})
 	if err != nil {
 		return nil, err
@@ -1820,6 +1826,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 		LocalComponents:     opts.LocalComponents,
 		TestSystem:          opts.TestSystem,
 		MarkDefault:         opts.MarkDefault,
+		SeedRefresh:         opts.SeedRefresh,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1882,6 +1889,10 @@ type CreateRecoverySystemOptions struct {
 	// MarkDefault is set to true if the new recovery system should be marked as
 	// the default recovery system.
 	MarkDefault bool
+
+	// SeedRefresh is set to true if the recovery system was created by
+	// seed-refresh mode and should update seeded-system state in finalize.
+	SeedRefresh bool
 
 	// Offline is true if the recovery system should be created without reaching
 	// out to the store. Offline must be set to true if LocalSnaps is provided.

@@ -2164,6 +2164,8 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		"directory":             filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"snap-setup-tasks":      []any{tSnap1.ID(), tSnap2.ID()},
 		"component-setup-tasks": []any{tComp1.ID()},
+		"mark-default":          true,
+		"seed-refresh":          true,
 		"test-system":           true,
 	})
 
@@ -2206,6 +2208,8 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Check(systemSetupData["label"], Equals, expectedLabel)
 	c.Check(systemSetupData["directory"], Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel))
 	c.Check(systemSetupData["snap-setup-tasks"], DeepEquals, []any{tSnap.ID()})
+	c.Check(systemSetupData["mark-default"], Equals, true)
+	c.Check(systemSetupData["seed-refresh"], Equals, true)
 	c.Check(systemSetupData["test-system"], Equals, true)
 }
 
