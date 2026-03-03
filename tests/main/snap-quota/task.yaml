@@ -86,7 +86,7 @@ execute: |
   MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 
   echo "Checking current usage"
-  mems=($(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+'))
+  read -a mems <<< "$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+')"
   QUOTA="${mems[0]}"
   QUOTA_RAW=$(numfmt --from=iec "${QUOTA%[Bb]}")
   CURRENT="${mems[1]}"
