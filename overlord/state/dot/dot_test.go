@@ -229,3 +229,31 @@ func (s *changeGraphSuite) TestExportTagFilenameSanitization(c *C) {
 	c.Assert(mock.Calls(), HasLen, 1)
 	c.Check(strings.Contains(svg, "tasks_w_o_change"), Equals, true)
 }
+
+func (s *changeGraphSuite) TestDotTaskStatusNodeColors(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("chg", "test change")
+
+	done := st.NewTask("done-task", "done")
+	done.SetStatus(state.DoneStatus)
+	chg.AddTask(done)
+
+	errored := st.NewTask("error-task", "error")
+	errored.SetStatus(state.ErrorStatus)
+	chg.AddTask(errored)
+
+	undone := st.NewTask("undone-task", "undone")
+	undone.SetStatus(state.UndoneStatus)
+	chg.AddTask(undone)
+
+	g, err := dot.NewChangeGraph(chg, taskLabel, "TestDotTaskStatusNodeColors")
+	c.Assert(err, IsNil)
+
+	graphDot := g.Dot()
+	c.Check(strings.Contains(graphDot, `"done-task" [style=filled, fillcolor=lightgreen]`), Equals, true)
+	c.Check(strings.Contains(graphDot, `"error-task" [style=filled, fillcolor=mistyrose]`), Equals, true)
+	c.Check(strings.Contains(graphDot, `"undone-task" [style=filled, fillcolor=moccasin]`), Equals, true)
+}

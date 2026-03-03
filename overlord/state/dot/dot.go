@@ -66,11 +66,20 @@ func (gclusterEnd) appendTo(w io.Writer, withAttrs bool) error {
 }
 
 type gnode struct {
-	name string
+	name  string
+	attrs string
 }
 
 func (gn gnode) appendTo(w io.Writer, withAttrs bool) error {
-	_, err := fmt.Fprintf(w, "  \"%s\"\n", gn.name)
+	_, err := fmt.Fprintf(w, "  \"%s\"", gn.name)
+	if err != nil {
+		return err
+	}
+	if withAttrs && gn.attrs != "" {
+		_, err := fmt.Fprintf(w, " [%s]\n", gn.attrs)
+		return err
+	}
+	_, err = io.WriteString(w, "\n")
 	return err
 }
 
@@ -142,7 +151,7 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 		clulabel := clusterLabel(clu)
 		addToDef(gcluster{clulabel})
 		for _, t := range clusterTasks[clulabel] {
-			addToDef(gnode{labels[t]})
+			addToDef(gnode{name: labels[t], attrs: nodeAttrs(t.Status())})
 		}
 		addToDef(gclusterEnd{})
 	}
@@ -288,4 +297,17 @@ func sortTasks(tasks []*state.Task, labels map[*state.Task]string) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return labels[tasks[i]] < labels[tasks[j]]
 	})
+}
+
+func nodeAttrs(status state.Status) string {
+	switch status {
+	case state.DoneStatus:
+		return "style=filled, fillcolor=lightgreen"
+	case state.ErrorStatus:
+		return "style=filled, fillcolor=mistyrose"
+	case state.UndoneStatus:
+		return "style=filled, fillcolor=moccasin"
+	default:
+		return ""
+	}
 }
