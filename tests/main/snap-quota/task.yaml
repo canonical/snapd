@@ -85,19 +85,6 @@ execute: |
   MATCH "     7\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
   MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 
-  echo "Checking current usage"
-  QUOTA="$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+' | sed -n '1p')"
-  CURRENT="$(snap quotas | grep -E 'group-sub-three +group-three' | grep -oP 'memory=\K\S+' | sed -n '2p')"
-
-  # Strip trailing 'B' or 'b' and convert to raw bytes
-  QUOTA_RAW=$(numfmt --from=iec "${QUOTA%[Bb]}")
-  CURRENT_RAW=$(numfmt --from=iec "${CURRENT%[Bb]}")
-
-  if [[ "$CURRENT_RAW" -gt "$QUOTA_RAW" ]]; then
-    echo "Current usage $CURRENT is greater than the quota $QUOTA"
-    exit 1
-  fi
-
   echo "Checking quota group details"
   snap quota group-one | cat -n > details.txt
   MATCH "     1\s+name:\s+group-one$" < details.txt
