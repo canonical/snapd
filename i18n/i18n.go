@@ -99,8 +99,12 @@ func setLocale(loc string) {
 
 func simplifyLocale(loc string) string {
 	// de_DE.UTF-8, de_DE@euro all need to get simplified
-	loc = strings.Split(loc, "@")[0]
-	loc = strings.Split(loc, ".")[0]
+	if base, _, found := strings.Cut(loc, "@"); found {
+		loc = base
+	}
+	if base, _, found := strings.Cut(loc, "."); found {
+		loc = base
+	}
 
 	return loc
 }
