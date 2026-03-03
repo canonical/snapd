@@ -1438,7 +1438,7 @@ func (s *autorefreshGatingSuite) TestAffectingSnapsForAffectedByRefreshCandidate
 }
 
 func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
-	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) (ts *state.TaskSet) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed backend effects")
 		tsk.Set("mock-monitored-lanes", lanes)
 		return state.NewTaskSet(tsk)

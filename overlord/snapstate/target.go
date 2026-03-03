@@ -786,7 +786,15 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		infos = append(infos, t.info)
 	}
 
-	tasksets = setupDelayedSecurityBackendEffects(st, tasksets, keys(snapLanes), &opts.Flags)
+	if len(tasksets) > 0 {
+		// guard against a theoretically possible scenario in which install is
+		// called with SkipIfPresent set for every requested snap, and each of
+		// the requested snaps is already installed
+		// XXX however, this place would not even be reached when the request to
+		// the store with an empty snaps list (after pruning) yields similarly
+		// empty list of results
+		tasksets = setupDelayedSecurityBackendEffects(st, tasksets, keys(snapLanes), &opts.Flags)
+	}
 
 	return infos, tasksets, nil
 }

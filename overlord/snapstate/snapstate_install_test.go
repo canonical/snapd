@@ -4234,7 +4234,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tts[2], []int{1, 2})
+	verifyDelayedEffectsTasks(c, tts[2], []int{1, 2}, 0)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
@@ -4309,7 +4309,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tts[2], []int{1})
+	verifyDelayedEffectsTasks(c, tts[2], []int{1}, 1)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
@@ -4341,7 +4341,7 @@ func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tts[2], []int{1})
+	verifyDelayedEffectsTasks(c, tts[2], []int{1}, 1)
 
 	// Create change with tasks and run
 	chg := s.state.NewChange("install", "install some snaps")
@@ -5638,7 +5638,7 @@ func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(installed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 3)
-	verifyDelayedEffectsTasks(c, ts[2], []int{1, 2})
+	verifyDelayedEffectsTasks(c, ts[2], []int{1, 2}, 0)
 }
 
 type installFn func(info *snap.SideInfo) (*state.TaskSet, error)
@@ -5752,7 +5752,7 @@ epoch: 1
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tss[2], []int{1, 2})
+	verifyDelayedEffectsTasks(c, tss[2], []int{1, 2}, 0)
 
 	chg := s.state.NewChange("install", "install local snaps")
 	for _, ts := range tss {
@@ -5858,7 +5858,7 @@ epoch: 1
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tss[2], []int{1})
+	verifyDelayedEffectsTasks(c, tss[2], []int{1}, 1)
 
 	chg := s.state.NewChange("install", "install local snaps")
 	for _, ts := range tss {
@@ -6300,7 +6300,7 @@ type: base
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 4)
 
-	verifyDelayedEffectsTasks(c, tss[3], []int{1, 2, 3})
+	verifyDelayedEffectsTasks(c, tss[3], []int{1, 2, 3}, 0)
 
 	chg := s.state.NewChange("install", "install local snaps")
 	for _, ts := range tss {
@@ -6485,7 +6485,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionalWithLane(c *C) {
 		}
 	}
 
-	verifyDelayedEffectsTasks(c, tss[2], []int{lane})
+	verifyDelayedEffectsTasks(c, tss[2], []int{lane}, lane)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyErrorsWithLaneButNoTransaction(c *C) {

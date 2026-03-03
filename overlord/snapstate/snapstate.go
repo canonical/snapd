@@ -1437,13 +1437,13 @@ func canSplitRefresh(deviceCtx DeviceContext, updates []update) (essential, nonE
 // dependency is snapd which, if present, must refresh before all other snaps.
 func splitRefresh(st *state.State, essential, nonEssential []update, userID int, flags *Flags, updateFunc func([]update) ([]string, bool, *UpdateTaskSets, error)) ([]string, *UpdateTaskSets, error) {
 	// taskset with essential snaps (snapd, kernel, gadget and the model base)
-	essentialUpdated, essentialSnapsChanged, essentialTss, err := updateFunc(essential)
+	essentialUpdated, essentialSnapsRevsChanged, essentialTss, err := updateFunc(essential)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// taskset with non-essential snaps (apps and their bases)
-	nonEssentialUpdated, nonEssentialSnapsChanged, nonEssentialTss, err := updateFunc(nonEssential)
+	nonEssentialUpdated, nonEssentialSnapsRevsChanged, nonEssentialTss, err := updateFunc(nonEssential)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1485,7 +1485,7 @@ func splitRefresh(st *state.State, essential, nonEssential []update, userID int,
 			}
 		}
 
-		nonEssentialTss.Refresh = finalizeUpdate(st, nonEssentialTss.Refresh, nonEssentialSnapsChanged, nonEssentialUpdated, considerTasks, userID, flags)
+		nonEssentialTss.Refresh = finalizeUpdate(st, nonEssentialTss.Refresh, nonEssentialSnapsRevsChanged, nonEssentialUpdated, considerTasks, userID, flags)
 	}
 
 	uts := &UpdateTaskSets{
@@ -1495,7 +1495,7 @@ func splitRefresh(st *state.State, essential, nonEssential []update, userID int,
 		Lanes:       append(essentialTss.Lanes, nonEssentialTss.Lanes...),
 	}
 
-	if len(allUpdated) > 0 && (essentialSnapsChanged || nonEssentialSnapsChanged) {
+	if len(allUpdated) > 0 && (essentialSnapsRevsChanged || nonEssentialSnapsRevsChanged) {
 		// delayed effects for indirectly affected snaps are possible either
 		// class of snaps
 		uts.Refresh = setupDelayedSecurityBackendEffects(st, uts.Refresh, uts.Lanes, flags)
@@ -1615,7 +1615,7 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 		opts.Flags.Lane = st.NewLane()
 	}
 
-	updated, snapsChanged, uts, err := doUpdate(st, requested, updates, opts)
+	updated, snapRevsChanged, uts, err := doUpdate(st, requested, updates, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1623,8 +1623,8 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 	// if there are only pre-downloads, don't add a check-rerefresh or side
 	// effect processing tasks
 	if len(uts.Refresh) > 0 {
-		uts.Refresh = finalizeUpdate(st, uts.Refresh, snapsChanged, updated, nil, opts.UserID, &opts.Flags)
-		if snapsChanged {
+		uts.Refresh = finalizeUpdate(st, uts.Refresh, snapRevsChanged, updated, nil, opts.UserID, &opts.Flags)
+		if snapRevsChanged {
 			uts.Refresh = setupDelayedSecurityBackendEffects(st, uts.Refresh, uts.Lanes, &opts.Flags)
 		}
 	}
@@ -1632,7 +1632,12 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 	return updated, uts, nil
 }
 
-func doUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, bool, *UpdateTaskSets, error) {
+// doUpdate processes the list of requested updates and return a list of updated
+// snaps, indicate whether any snaps got their revisions changed (which may
+// require a re-refresh check) and constructs update task sets.
+func doUpdate(st *state.State, requested []string, updates []update, opts Options) (
+	updatedSnaps []string, snapRevisionsChanged bool, uts *UpdateTaskSets, err error,
+) {
 	var tss []*state.TaskSet
 	var predownloadTSS []*state.TaskSet
 
@@ -1685,11 +1690,6 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	// cohort
 	var alreadySatisfied []update
 
-	// keep track of any snaps that we requested to refresh actually got
-	// refreshed. if any do, tell the caller that we need check for potential
-	// re-refreshes
-	needsRerefreshCheck := false
-
 	var snapInstallTSS []snapInstallTaskSet
 	snapLanes := map[int]struct{}{}
 
@@ -1698,7 +1698,9 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	for _, up := range updates {
 		up := up
 
-		// if the update is already satisfied, then we can skip it
+		// if the update is already satisfied, such as we're switching a channel
+		// which carries the same revision as currently installed, then we can
+		// skip it
 		ok, err := up.satisfied()
 		if err != nil {
 			return nil, false, nil, err
@@ -1717,9 +1719,10 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			return nil, false, nil, err
 		}
 
-		// if any snaps actually get a revision change, we need to do a
-		// re-refresh check
-		needsRerefreshCheck = true
+		// keep track of any snaps that we requested to refresh actually got
+		// their revisions changed. if any did, pass that up to the caller so
+		// that they may set up a re-refresh if applicable
+		snapRevisionsChanged = true
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
@@ -1795,7 +1798,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		Lanes:       keys(snapLanes),
 	}
 
-	return updated, needsRerefreshCheck, updateTss, nil
+	return updated, snapRevisionsChanged, updateTss, nil
 }
 
 func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst SnapState, opts Options) (*state.TaskSet, error) {
@@ -4364,11 +4367,15 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 		return tss
 	}
 
-	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes)
+	var joinLane int
 	if flags.Transaction == client.TransactionAllSnaps {
-		// TODO: when doing an all-snap transaction, the per snap snap
-		// apply-effects tasks should be forced onto the same lane
-		pde.JoinLane(flags.Lane)
+		joinLane = flags.Lane
 	}
+
+	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes, joinLane)
+	if joinLane != 0 {
+		pde.JoinLane(joinLane)
+	}
+
 	return append(tss, pde)
 }

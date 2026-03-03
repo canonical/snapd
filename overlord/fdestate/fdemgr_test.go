@@ -134,7 +134,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int) *state.TaskSet {
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "mock process backend effects"))
 	}))
 }
