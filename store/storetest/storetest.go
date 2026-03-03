@@ -132,7 +132,7 @@ func (Store) CleanDownloadsCache() error {
 }
 
 func (Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
-	panic("CleaupnDownloadArtifacts not expected")
+	panic("CleanupDownloadArtifacts not expected")
 }
 
 func (Store) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {

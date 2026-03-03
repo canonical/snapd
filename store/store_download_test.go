@@ -818,7 +818,7 @@ func (co *cacheObserver) Drop(cacheKey string) error {
 	return nil
 }
 
-func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, error) {
+func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
 	if co.inCache[cacheKey] {
 		s := "content"
 
@@ -830,9 +830,9 @@ func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, error) {
 			*strings.Reader
 			io.Closer
 		}{sr, io.NopCloser(nil)}
-		return rsc, nil
+		return rsc, int64(len(s)), nil
 	}
-	return nil, errors.New("not found in cache")
+	return nil, 0, errors.New("not found in cache")
 }
 
 func (co *cacheObserver) Cleanup() error {
@@ -1166,36 +1166,63 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
+	// sha3_384 of "content"
+	contentSha3 := "21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848"
+	fakeSha3 := "fake-sha3"
 	obs := &cacheObserver{
 		inCache: map[string]bool{
-			"sha3_384-of-foo": true,
-		},
-		dropErr: map[string]error{
-			"sha3_384-of-unhappy": errors.New("mock error"),
+			contentSha3: true,
+			fakeSha3:    true,
 		},
 	}
 	defer s.store.MockCacher(obs)()
 
-	snapHappy := &snap.Info{}
-	snapHappy.RealName = "foo"
-	snapHappy.DownloadURL = "URL"
-	snapHappy.Size = 123
-	snapHappy.Sha3_384 = "sha3_384-of-foo"
-
-	err := s.store.CleanupDownloadArtifacts("foo.snap", &snapHappy.DownloadInfo)
+	snapInCache := &snap.Info{}
+	snapInCache.RealName = "foo"
+	snapInCache.DownloadURL = "URL"
+	snapInCache.Size = int64(len("content"))
+	snapInCache.Sha3_384 = contentSha3
+	// Size and hash ok, do not drop
+	err := s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
 	c.Assert(err, IsNil)
+	c.Check(obs.drops, IsNil)
 
-	c.Check(obs.drops, DeepEquals, []string{"sha3_384-of-foo"})
+	// Size does not match, we drop
+	snapInCache.Size = int64(len("content")) + 1
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	// Hash does not match, we drop
+	snapInCache.Size = int64(len("content"))
+	// This actually does not match "content", but it forces the hash check to fail
+	snapInCache.Sha3_384 = fakeSha3
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{fakeSha3})
+
+	// Error while dropping due to wrong size
+	snapInCache.Size = int64(len("content")) + 1
+	snapInCache.Sha3_384 = contentSha3
+	obs.dropErr = map[string]error{
+		contentSha3: errors.New("mock error"),
+	}
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot drop: mock error")
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	snapNotInCache := &snap.Info{}
+	snapNotInCache.RealName = "unhappy"
+	snapNotInCache.DownloadURL = "URL"
+	snapNotInCache.Size = 7
+	snapNotInCache.Sha3_384 = "sha3_384-of-unhappy"
 	obs.drops = nil
 
-	// errors are forwarded
-	snapUnhappy := &snap.Info{}
-	snapUnhappy.RealName = "unhappy"
-	snapUnhappy.DownloadURL = "URL"
-	snapUnhappy.Size = 123
-	snapUnhappy.Sha3_384 = "sha3_384-of-unhappy"
-
-	err = s.store.CleanupDownloadArtifacts("unhappy.snap", &snapUnhappy.DownloadInfo)
+	// Error, cannot open
+	err = s.store.CleanupDownloadArtifacts("unhappy.snap", &snapNotInCache.DownloadInfo)
 	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot open: not found in cache")
 
 	c.Check(obs.drops, IsNil)
@@ -1222,7 +1249,7 @@ func (co *fakeCacher) Drop(cacheKey string) error {
 	panic("unexpected call")
 }
 
-func (co *fakeCacher) Open(cacheKey string) (io.ReadSeekCloser, error) {
+func (co *fakeCacher) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
 	panic("unexpected call")
 }
 

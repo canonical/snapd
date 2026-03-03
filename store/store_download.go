@@ -949,7 +949,7 @@ func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo)
 
 	if dl != nil {
 		maybeDropIfCorrupted := func() error {
-			f, oerr := s.cacher.Open(dl.Sha3_384)
+			f, sz, oerr := s.cacher.Open(dl.Sha3_384)
 			if oerr != nil {
 				if errors.Is(oerr, fs.ErrNotExist) {
 					return nil
@@ -958,18 +958,22 @@ func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo)
 			}
 			defer f.Close()
 
-			h := crypto.SHA3_384.New()
-			if _, cerr := io.Copy(h, f); cerr != nil {
-				return fmt.Errorf("cannot read: %w", cerr)
+			// If different size, we drop directly, otherwise we check also the hash
+			if sz == dl.Size {
+				h := crypto.SHA3_384.New()
+				if _, cerr := io.Copy(h, f); cerr != nil {
+					return fmt.Errorf("cannot read: %w", cerr)
+				}
+
+				actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+				if dl.Sha3_384 == actualSha3 {
+					// the cached entry appears to be correct, let's keep it
+					return nil
+				}
 			}
 
-			actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
-			if dl.Sha3_384 == actualSha3 {
-				// the cached entry appears to be correct, let's keep it
-				return nil
-			}
-
-			// takes a lock inside, could block
+			// takes a lock inside, could block, ignore ENOENT as the entry may have
+			// been dropped while we were processing it
 			if derr := s.cacher.Drop(dl.Sha3_384); derr != nil && !errors.Is(derr, fs.ErrNotExist) {
 				return fmt.Errorf("cannot drop: %w", derr)
 			}
