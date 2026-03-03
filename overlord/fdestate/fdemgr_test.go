@@ -129,7 +129,8 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir)))
 
 	m := boot.Modeenv{
-		Mode: boot.ModeRun,
+		Mode:         boot.ModeRun,
+		LastBootOkID: "not-booted",
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
@@ -533,6 +534,7 @@ func (s *fdeMgrSuite) TestStateInitMountResolveError_Recover(c *C) {
 	m := boot.Modeenv{
 		Mode:           boot.ModeRecover,
 		RecoverySystem: "1234",
+		LastBootOkID:   "not-booted",
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
@@ -548,6 +550,7 @@ func (s *fdeMgrSuite) TestMountResolveError_FactoryReset(c *C) {
 	m := boot.Modeenv{
 		Mode:           boot.ModeFactoryReset,
 		RecoverySystem: "1234",
+		LastBootOkID:   "not-booted",
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)

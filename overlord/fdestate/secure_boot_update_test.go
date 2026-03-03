@@ -1340,6 +1340,8 @@ func (s *fdeMgrSuite) mockBootAssetsStateForModeenv(c *C) *asserts.Model {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 
 	c.Assert(modeenv.WriteTo(rootdir), IsNil)
