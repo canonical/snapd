@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -599,6 +600,9 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 	}
 
 	for _, test := range assumesTests {
+		current := arch.DpkgArchitecture()
+		defer func() { arch.SetArchitecture(arch.ArchitectureType(current)) }()
+		arch.SetArchitecture(arch.ArchitectureType(test.arch))
 		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
 		if test.err == "" {
