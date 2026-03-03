@@ -349,11 +349,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(snapdShuttingDown <-chan struct{}, uid uint32, pid int32, apparmorLabel string, iface string) (prompting.OutcomeType, error) {
-	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
-	if err != nil {
-		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
-	}
+func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, iface string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
 	if supported := prompting.NonAppArmorInterfaces(); !strutil.ListContains(supported, iface) {
 		return prompting.OutcomeUnset, prompting_errors.NewInvalidInterfaceError(iface, supported)
 	}
@@ -362,7 +358,18 @@ func (m *InterfacesRequestsManager) Ask(snapdShuttingDown <-chan struct{}, uid u
 		// This should never occur since interface is validated above
 		return prompting.OutcomeUnset, err
 	}
-	key := fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, apparmorLabel)
+
+	cgroupPath, err := cgroupProcessPathInTrackingCgroup(int(pid))
+	if err != nil {
+		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
+	securityTag := cgroup.SecurityTagFromCgroupPath(cgroupPath)
+	if securityTag == nil {
+		return prompting.OutcomeUnset, fmt.Errorf("cannot find snap security tag for request process with PID %d", pid)
+	}
+	snap := securityTag.InstanceName()
+
+	key := fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap)
 	// We need a placeholder path until we can work with requests/prompts/rules
 	// for interfaces which don't care about paths. This placeholder path will
 	// not be included in prompts, and path patterns for rules for interfaces
@@ -373,14 +380,14 @@ func (m *InterfacesRequestsManager) Ask(snapdShuttingDown <-chan struct{}, uid u
 	replyChan := make(chan []string)
 
 	req := &prompting.Request{
-		Key:           key,
-		UID:           uid,
-		PID:           pid,
-		Cgroup:        cgroup,
-		AppArmorLabel: apparmorLabel,
-		Interface:     iface,
-		Permissions:   permissions,
-		Path:          path,
+		Key:         key,
+		UID:         uid,
+		PID:         pid,
+		Cgroup:      cgroupPath,
+		Snap:        snap,
+		Interface:   iface,
+		Permissions: permissions,
+		Path:        path,
 		Reply: func(allowedPerms []string) error {
 			select {
 			case replyChan <- allowedPerms:

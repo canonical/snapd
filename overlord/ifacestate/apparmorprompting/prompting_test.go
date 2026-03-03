@@ -50,7 +50,9 @@ type apparmorpromptingSuite struct {
 
 	st *state.State
 
-	defaultUser uint32
+	defaultUser   uint32
+	defaultCgroup string
+	defaultSnap   string
 }
 
 var _ = Suite(&apparmorpromptingSuite{})
@@ -64,8 +66,11 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.defaultUser = 1000
 
+	s.defaultCgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.mysnapname.myappname-someuuid.scope"
+	s.defaultSnap = "mysnapname"
+
 	restore := apparmorprompting.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "some-cgroup-path", nil
+		return s.defaultCgroup, nil
 	})
 	s.AddCleanup(restore)
 }
@@ -530,10 +535,9 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	}
 
 	const (
-		uid           uint32 = 1234
-		pid           int32  = 5678
-		apparmorLabel string = "snap.foo.bar"
-		iface         string = "audio-record"
+		uid   uint32 = 1234
+		pid   int32  = 5678
+		iface string = "audio-record"
 	)
 
 	// There should be no prompts at first
@@ -547,7 +551,7 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	errChan := make(chan error)
 	go func() {
 		snapdShuttingDown := make(chan struct{})
-		out, err := mgr.Ask(snapdShuttingDown, uid, pid, apparmorLabel, iface)
+		out, err := mgr.Ask(uid, pid, iface, snapdShuttingDown)
 		logger.WithLoggerLock(func() {
 			c.Check(err, IsNil, Commentf(logbuf.String()))
 		})
@@ -575,15 +579,15 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 
 	// Check its contents
 	c.Check(prompt.ID, Equals, prompting.IDType(1))
-	c.Check(prompt.Snap, Equals, "foo")
+	c.Check(prompt.Snap, Equals, s.defaultSnap)
 	c.Check(prompt.PID, Equals, pid)
-	c.Check(prompt.Cgroup, Equals, "some-cgroup-path")
+	c.Check(prompt.Cgroup, Equals, s.defaultCgroup)
 	c.Check(prompt.Interface, Equals, iface)
 	c.Check(prompt.Constraints.Path(), Equals, "/api-request-placeholder")
 	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"access"})
 
 	// Check the request mapping
-	expected := fmt.Sprintf(`{"request-mapping":{"api:%s:%d:%d:%s":{"prompt-id":"0000000000000001","user-id":%d}}}`, iface, uid, pid, apparmorLabel, uid)
+	expected := fmt.Sprintf(`{"request-mapping":{"api:%s:%d:%d:%s":{"prompt-id":"0000000000000001","user-id":%d}}}`, iface, uid, pid, s.defaultSnap, uid)
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Check(requestMapFilepath, testutil.FileEquals, expected)
 
@@ -631,10 +635,9 @@ func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
 	}()
 
 	const (
-		uid           = 1000
-		pid           = 1234
-		apparmorLabel = "snap.firefox.firefox"
-		goodIface     = "audio-record"
+		uid       = 1000
+		pid       = 1234
+		goodIface = "audio-record"
 	)
 
 	// Ask for invalid interface
@@ -645,7 +648,7 @@ func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
 			time.Sleep(time.Second)
 			close(timeoutChan)
 		}()
-		outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, iface)
+		outcome, err := mgr.Ask(uid, pid, iface, timeoutChan)
 		c.Check(outcome, Equals, prompting.OutcomeUnset, Commentf("unexpected outcome for supposedly invalid interface: %s", outcome))
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
 		var unsupportedValueErr *prompting_errors.UnsupportedValueError
@@ -668,9 +671,24 @@ func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
 		time.Sleep(time.Second)
 		close(timeoutChan)
 	}()
-	outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, goodIface)
+	outcome, err := mgr.Ask(uid, pid, goodIface, timeoutChan)
 	c.Check(outcome, Equals, prompting.OutcomeUnset)
 	c.Check(err, ErrorMatches, "cannot read cgroup path for request process with PID 1234: could not find cgroup")
+
+	// Mock cgroup for which security tag can't be parsed
+	restore = apparmorprompting.MockCgroupProcessPathInTrackingCgroup(func(p int) (string, error) {
+		return "/not-a-security-tag", nil
+	})
+	defer restore()
+
+	timeoutChan = make(chan struct{})
+	go func() {
+		time.Sleep(time.Second)
+		close(timeoutChan)
+	}()
+	outcome, err = mgr.Ask(uid, pid, goodIface, timeoutChan)
+	c.Check(outcome, Equals, prompting.OutcomeUnset)
+	c.Check(err, ErrorMatches, "cannot find snap security tag for request process with PID 1234")
 }
 
 func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
@@ -681,10 +699,9 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 	c.Assert(err, IsNil)
 
 	const (
-		uid           = 1000
-		pid           = 1234
-		apparmorLabel = "snap.firefox.firefox"
-		iface         = "audio-record"
+		uid   = 1000
+		pid   = 1234
+		iface = "audio-record"
 	)
 
 	// Stop the manager now so that it will not receive the request.
@@ -704,7 +721,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 		time.Sleep(time.Second)
 		close(timeoutChan)
 	}()
-	outcome, err := mgr.Ask(timeoutChan, uid, pid, apparmorLabel, iface)
+	outcome, err := mgr.Ask(uid, pid, iface, timeoutChan)
 	c.Check(outcome, Equals, prompting.OutcomeUnset)
 	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
@@ -714,18 +731,17 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	defer restore()
 
 	const (
-		uid           = 1000
-		pid           = 1234
-		apparmorLabel = "snap.firefox.firefox"
-		iface         = "audio-record"
-		promptID      = prompting.IDType(1)
+		uid      = 1000
+		pid      = 1234
+		iface    = "audio-record"
+		promptID = prompting.IDType(1)
 	)
 
 	// Write a mapping from an API request to a prompt ID so that the prompts
 	// backend is not immediately ready. We do this so we can easily use the
 	// readiness signal to know when the request has been received and fully
 	// processed.
-	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:mysnapname":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -738,7 +754,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(neverClose, uid, pid, apparmorLabel, iface)
+		outcome, err := mgr.Ask(uid, pid, iface, neverClose)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -818,18 +834,17 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	defer restore()
 
 	const (
-		uid           = 1000
-		pid           = 1234
-		apparmorLabel = "snap.firefox.firefox"
-		iface         = "audio-record"
-		promptID      = prompting.IDType(1)
+		uid      = 1000
+		pid      = 1234
+		iface    = "audio-record"
+		promptID = prompting.IDType(1)
 	)
 
 	// Write a mapping from an API request to a prompt ID so that the prompts
 	// backend is not immediately ready. We do this so we can easily use the
 	// readiness signal to know when the request has been received and fully
 	// processed.
-	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:mysnapname":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -842,7 +857,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(snapdShuttingDown, uid, pid, apparmorLabel, iface)
+		outcome, err := mgr.Ask(uid, pid, iface, snapdShuttingDown)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -1810,7 +1825,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 
 	// Write a mapping from kernel request to prompt ID so the prompts backend
 	// will not immediately be ready
-	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:audio-record:1000:1234:snap.firefox.firefox":{"prompt-id":"0000000000000002","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:audio-record:1000:1234:mysnapname":{"prompt-id":"0000000000000002","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -1830,7 +1845,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 	whenSent := time.Now()
 	go func() {
 		snapdShuttingDown := make(chan struct{})
-		mgr.Ask(snapdShuttingDown, 1000, 1234, "snap.firefox.firefox", "audio-record")
+		mgr.Ask(1000, 1234, "audio-record", snapdShuttingDown)
 	}()
 	// Wait for a notice
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1881,7 +1896,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	// Write a mapping from several kernel request to prompt IDs, and at least
 	// one request from elsewhere, so the listener signalling readiness will
 	// not cause the prompts backend to ready.
-	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:audio-record:1000:12345:snap.firefox.firefox":{"prompt-id":"0000000000000003","user-id":1000},"api:audio-record:1000:67890:snap.obs-studio.obs-studio":{"prompt-id":"0000000000000004","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:audio-record:1000:12345:mysnapname":{"prompt-id":"0000000000000003","user-id":1000},"api:audio-record:1000:67890:mysnapname":{"prompt-id":"0000000000000004","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -1936,7 +1951,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		outcome, err := mgr.Ask(shutDownChan, 1000, 12345, "snap.firefox.firefox", "audio-record")
+		outcome, err := mgr.Ask(1000, 12345, "audio-record", shutDownChan)
 		outcomeChan <- outcome
 		errChan <- err
 	}()
@@ -1950,7 +1965,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	}
 
 	go func() {
-		outcome, err := mgr.Ask(shutDownChan, 1000, 67890, "snap.obs-studio.obs-studio", "audio-record")
+		outcome, err := mgr.Ask(1000, 67890, "audio-record", shutDownChan)
 		outcomeChan <- outcome
 		errChan <- err
 	}()
