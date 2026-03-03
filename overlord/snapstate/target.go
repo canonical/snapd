@@ -93,6 +93,10 @@ type target struct {
 	snapst SnapState
 	// components is a list of components to install with this snap.
 	components []ComponentSetup
+	// satisfied is true if the target is already met by a snap installed in the
+	// system, in which case snapst and info are set, but the setup related
+	// fields are left uninitialized
+	satisfied bool
 }
 
 // targetFromLocalSnapWithStoreComponents builds a target for an installed snap
@@ -325,6 +329,9 @@ type storeInstallGoal struct {
 	// snap to install. It maintains the order of the snaps as they were
 	// provided.
 	snaps []StoreSnap
+	// satisfied is a list of snaps that were found to be already present
+	// during pruning
+	satisfied []*SnapState
 }
 
 func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
@@ -395,47 +402,68 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
+	// TODO: does pruning need to account for components?
 	if err := s.validateAndPrune(st, allSnaps, opts); err != nil {
 		return nil, err
 	}
 
-	results, err := sendInstallActions(ctx, st, s.snaps, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	installs := make([]target, 0, len(results))
-	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName())
-		if !ok {
-			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
-		}
-
-		snapst, ok := allSnaps[r.InstanceName()]
-		if !ok {
-			snapst = &SnapState{}
-		}
-
-		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
+	var satisfiedTargets []target
+	// some or even all snaps may already be satisfied, mark related targets as
+	// such
+	for _, snapst := range s.satisfied {
+		ci, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
 
-		installs = append(installs, target)
+		satisfiedTargets = append(satisfiedTargets, target{
+			satisfied: true,
+			snapst:    *snapst,
+			info:      ci,
+		})
 	}
 
-	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName())
-		if !ok {
-			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
-		}
-
-		if err := checkSnapAgainstValidationSets(t.info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
+	var installs []target
+	if len(s.snaps) > 0 {
+		results, err := sendInstallActions(ctx, st, s.snaps, opts)
+		if err != nil {
 			return nil, err
 		}
+
+		installs = make([]target, 0, len(results))
+		for _, r := range results {
+			sn, ok := s.snap(r.InstanceName())
+			if !ok {
+				return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
+			}
+
+			snapst, ok := allSnaps[r.InstanceName()]
+			if !ok {
+				snapst = &SnapState{}
+			}
+
+			target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
+			if err != nil {
+				return nil, err
+			}
+
+			installs = append(installs, target)
+		}
+
+		for _, t := range installs {
+			sn, ok := s.snap(t.info.InstanceName())
+			if !ok {
+				return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
+			}
+
+			if err := checkSnapAgainstValidationSets(t.info, t.components, "install", sn.RevOpts.ValidationSets); err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	return installs, err
+	// TODO: need to preserve the order of s.snaps?
+	return append(installs, satisfiedTargets...), err
 }
 
 func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup, action string, vsets *snapasserts.ValidationSets) error {
@@ -740,6 +768,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			if !sn.SkipIfPresent {
 				return &snap.AlreadyInstalledError{Snap: sn.InstanceName}
 			}
+			s.satisfied = append(s.satisfied, snapst)
 			continue
 		}
 
@@ -830,18 +859,29 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 	sortComponentsOnTargets(targets)
 
-	installInfos := make([]minimalInstallInfo, 0, len(targets))
-	for _, t := range targets {
-		installInfos = append(installInfos, installSnapInfo{t.info})
+	infosForSizeCheck := func() []minimalInstallInfo {
+		installInfos := make([]minimalInstallInfo, 0, len(targets))
+		for _, t := range targets {
+			if t.satisfied {
+				continue
+			}
+			installInfos = append(installInfos, installSnapInfo{t.info})
+		}
+		return installInfos
 	}
 
-	if err = checkDiskSpace(st, "install", installInfos, opts.UserID, opts.PrereqTracker); err != nil {
+	if err = checkDiskSpace(st, "install", infosForSizeCheck(), opts.UserID, opts.PrereqTracker); err != nil {
 		return nil, nil, err
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(targets))
 	infos := make([]*snap.Info, 0, len(targets))
 	for _, t := range targets {
+		if t.satisfied {
+			infos = append(infos, t.info)
+			continue
+		}
+
 		if t.setup.SnapPath != "" && t.setup.DownloadInfo != nil {
 			return nil, nil, errors.New("internal error: target cannot specify both a path and a download info")
 		}
