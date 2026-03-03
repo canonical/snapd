@@ -503,3 +503,11 @@ func (s *certsTestSuite) TestCustomCertificatesReturnsInfoAndSkipsBroken(c *C) {
 	_, exists := byName["broken"]
 	c.Check(exists, Equals, false)
 }
+
+func (s *certsTestSuite) TestCustomCertificatesMissingDirReturnsNil(c *C) {
+	c.Assert(os.RemoveAll(dirs.SnapdPKIV1Dir), IsNil)
+
+	infos, err := certstate.CustomCertificates()
+	c.Assert(err, IsNil)
+	c.Check(infos, IsNil)
+}
