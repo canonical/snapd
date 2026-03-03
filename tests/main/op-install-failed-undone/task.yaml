@@ -48,8 +48,8 @@ execute: |
     check_empty_glob "$HOME"/snap/test-snapd-sh [0-9]+
     check_empty_glob /var/snap/test-snapd-sh [0-9]+
 
-    echo "And the Security Profiles Setup subtask is actually undone"
-    snap change "$failed_task_id" | grep -Pq 'Undone +.*?Setup snap "test-snapd-sh" \(unset\) security profiles'
+    echo "And the Prepare Security Profiles Setup subtask is actually undone"
+    snap change "$failed_task_id" | grep -Pq 'Undone +.*?Prepare snap "test-snapd-sh" \(unset\) for security profile setup'
     check_empty_glob /var/lib/snapd/apparmor/profiles snap.test-snapd-sh.*
     check_empty_glob /var/lib/snapd/seccomp/bpf snap.test-snapd-sh.*
     check_empty_glob /etc/dbus-1/system.d snap.test-snapd-sh.*.conf
