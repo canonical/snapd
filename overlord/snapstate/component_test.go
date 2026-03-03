@@ -265,7 +265,7 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	otherCsi := snap.NewComponentSideInfo(otherCref, compRev)
 
 	componentsMap := map[string]any{
-		targetCompName : map[string]any{
+		targetCompName: map[string]any{
 			"type": "standard",
 		},
 	}
@@ -290,8 +290,8 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	}
 
 	snapYamlObj := map[string]any{
-		"name": targetSnapName,
-		"version": 1,
+		"name":       targetSnapName,
+		"version":    1,
 		"components": componentsMap,
 	}
 
