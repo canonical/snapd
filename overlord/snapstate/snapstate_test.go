@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/dot/dottest"
 	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
@@ -398,6 +399,9 @@ SNAPD_APPARMOR_REEXEC=1
 	// mock so the actual notification code isn't called. It races with the SetRootDir
 	// call in the TearDown function. It's harmless but triggers go test -race
 	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.PendingSnapRefreshInfo) {}))
+
+	restore = dottest.RegisterChangeExporter(c, s.state)
+	s.AddCleanup(restore)
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {

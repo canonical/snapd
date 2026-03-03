@@ -33,18 +33,61 @@ import (
 var exportChangeGraphs = flag.Bool("snapd.export-change-graphs", false, "export change graphs during tests")
 var openChangeGraphs = flag.Bool("snapd.open-change-graphs", false, "open exported change graphs during tests (implies -snapd.export-change-graphs)")
 
-// ExportChangeGraphs creates change graphs for tasks that are not associated
-// with any change when either -snapd.export-change-graphs or
-// -snapd.open-change-graphs is set. If -snapd.open-change-graphs is set, then
-// the exported graphs are opened.
-func ExportChangeGraphs(c *check.C, st *state.State) {
+// RegisterChangeExporter integrates change graph creation with a test suite.
+// Changes are exported as graphs as they enter key states by the task runner.
+// Additionally, a function is returned that should be called during test
+// cleanup. This function ensures that any changes that have not been executed
+// are exported. Additionally, any tasks that are not associated with a change
+// are grouped together and exported as a graph.
+//
+// The flags -snapd.export-change-graphs and -snapd.open-change-graphs control
+// the behavior of this function.
+func RegisterChangeExporter(c *check.C, st *state.State) func() {
 	if !*exportChangeGraphs && !*openChangeGraphs {
-		return
+		return func() {}
 	}
 
 	st.Lock()
 	defer st.Unlock()
 
+	show := map[state.Status]bool{
+		state.DefaultStatus: true,
+		state.WaitStatus:    true,
+		state.ErrorStatus:   true,
+		state.AbortStatus:   true,
+		state.DoneStatus:    true,
+		state.UndoneStatus:  true,
+	}
+
+	exported := make(map[string]bool)
+	id := st.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
+		if exported[chg.ID()] && !show[new] {
+			return
+		}
+
+		exported[chg.ID()] = true
+		export(c, chg)
+	})
+
+	return func() {
+		st.Lock()
+		defer st.Unlock()
+
+		st.RemoveChangeStatusChangedHandler(id)
+
+		for _, chg := range st.Changes() {
+			if exported[chg.ID()] {
+				continue
+			}
+
+			export(c, chg)
+		}
+
+		exportUnlinkedChanges(c, st)
+	}
+}
+
+func exportUnlinkedChanges(c *check.C, st *state.State) {
 	tasks := st.AllTasksForTests()
 	withoutChange := make([]*state.Task, 0, len(tasks))
 	for _, t := range tasks {
@@ -60,26 +103,30 @@ func ExportChangeGraphs(c *check.C, st *state.State) {
 	// since not all tests end up adding their tasks to a change, we group all
 	// of the change-less tasks into a fake change to make this helper useful in
 	// those contexts.
-	const fakeChangeName = "tasks w/o change"
-	chg := st.NewChange(fakeChangeName, c.TestName())
+	chg := st.NewChange("tasks w/o change", c.TestName())
 	for _, t := range withoutChange {
 		chg.AddTask(t)
 	}
 
-	g, err := dot.NewChangeGraph(chg, c.TestName())
+	export(c, chg)
+}
+
+func export(c *check.C, chg *state.Change) {
+	g, err := dot.NewChangeGraph(chg, fmt.Sprintf("%s - %s", chg.Status(), c.TestName()))
 	c.Assert(err, check.IsNil)
 
 	graphPath, err := g.Export()
 	if err != nil {
-		c.Logf("cannot export %q graph: %v", fakeChangeName, err)
+		c.Logf("cannot export %q graph: %v", chg.Kind(), err)
 		return
 	}
-	fmt.Printf("%s %q => %s\n", fakeChangeName, c.TestName(), graphPath)
+
+	fmt.Printf("%s - %s - %q => %s\n", chg.Kind(), chg.Status(), c.TestName(), graphPath)
 
 	if !*openChangeGraphs {
 		return
 	}
 	if err := exec.Command("xdg-open", graphPath).Run(); err != nil {
-		c.Logf("cannot open %q graph: %v", fakeChangeName, err)
+		c.Logf("cannot open %q graph: %v", chg.Kind(), err)
 	}
 }

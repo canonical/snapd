@@ -47,7 +47,8 @@ func (s *rebootSuite) SetUpTest(c *C) {
 }
 
 func (s *rebootSuite) TearDownTest(c *C) {
-	dottest.ExportChangeGraphs(c, s.state)
+	restore := dottest.RegisterChangeExporter(c, s.state)
+	s.BaseTest.AddCleanup(restore)
 	s.BaseTest.TearDownTest(c)
 }
 
