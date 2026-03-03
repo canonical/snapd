@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -589,7 +590,7 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 			// There are no specified ISA constraints for amd64
 			assumes: []string{"isa-amd64-sampleisa"},
 			arch:    "amd64",
-			err:     "isa-amd64-sampleisa: ISA specification is not supported for arch: .*",
+			err:     "isa-amd64-sampleisa: ISA specification is not supported for arch: amd64",
 		}, {
 			// ISA string is malformed
 			assumes: []string{"isa-riscv64..rva23"},
@@ -599,6 +600,9 @@ func (s *ValidateSuite) TestValidateAssumesISAArch(c *C) {
 	}
 
 	for _, test := range assumesTests {
+		current := arch.DpkgArchitecture()
+		defer func() { arch.SetArchitecture(arch.ArchitectureType(current)) }()
+		arch.SetArchitecture(arch.ArchitectureType(test.arch))
 		err := naming.ValidateAssumes(test.assumes, "", nil, test.arch)
 
 		if test.err == "" {
