@@ -710,6 +710,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	modeenv := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20191218",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
@@ -1919,6 +1920,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	modeenv := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20191218",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
@@ -2457,6 +2459,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	modeenv := boot.Modeenv{
 		Mode:           "factory-reset",
 		RecoverySystem: "20191218",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
@@ -3150,6 +3153,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	m := boot.Modeenv{
 		Mode:           "factory-reset",
 		RecoverySystem: "1234",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -3232,6 +3236,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	m := boot.Modeenv{
 		Mode:           "factory-reset",
 		RecoverySystem: "1234",
+		LastBootOkID:   "not-booted",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 

@@ -94,6 +94,7 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 		CurrentKernelCommandLines: []string{
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		},
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)

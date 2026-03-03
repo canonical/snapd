@@ -635,7 +635,8 @@ func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
 
 	// mock the modeenv file
 	m := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "not-booted",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -668,6 +669,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	m := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20191127",
+		LastBootOkID:   "not-booted",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1454,7 +1456,10 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "install"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "install",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 
@@ -1528,7 +1533,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC18(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "install"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "install",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 
@@ -1573,7 +1581,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 
@@ -1618,7 +1629,10 @@ const (
 )
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -1657,7 +1671,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -1691,7 +1708,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -1723,7 +1743,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -1753,7 +1776,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -1775,7 +1801,10 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)
@@ -2443,7 +2472,10 @@ func (s *deviceMgrSuite) mockSystemUser(c *C, username string, expiration time.T
 }
 
 func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
-	modeEnv := &boot.Modeenv{Mode: mode}
+	modeEnv := &boot.Modeenv{
+		Mode:         mode,
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	devicestate.SetSystemMode(s.mgr, mode)
@@ -2731,6 +2763,7 @@ volumes:
 	m := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20220401",
+		LastBootOkID:   "not-booted",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -3149,7 +3182,10 @@ func (m *myStateDeviceInitialized) DeviceInitialized() {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "run"}
+	modeEnv := &boot.Modeenv{
+		Mode:         "run",
+		LastBootOkID: "not-booted",
+	}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 	s.setUC20PCModelInState(c)

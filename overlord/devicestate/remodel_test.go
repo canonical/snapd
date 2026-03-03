@@ -983,6 +983,8 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 		Grade:          string(s.oldModel.Grade()),
 		BrandID:        s.oldModel.BrandID(),
 		ModelSignKeyID: s.oldModel.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)

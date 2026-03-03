@@ -284,6 +284,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 		BrandID:                newModel.BrandID(),
 		Grade:                  string(newModel.Grade()),
 		ModelSignKeyID:         newModel.SignKeyID(),
+		LastBootOkID:           "not-booted",
 	}
 
 	c.Assert(modeenv.WriteTo(""), IsNil)

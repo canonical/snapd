@@ -647,6 +647,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeDangerousWithDevmode
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	s.testPopulateFromSeedCore20Happy(c, &m, asserts.ModelDangerous,
 		populateFromSeedCore20Opts{extraDevModeSnaps: []string{"test-devmode=20"}})
@@ -657,6 +658,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunMode(c *C) {
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade, populateFromSeedCore20Opts{})
@@ -668,6 +670,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeWithComps(c *C) {
 		Mode:           "run",
 		RecoverySystem: "20241018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade,
@@ -680,6 +683,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
 		Mode:           "install",
 		RecoverySystem: "20191019",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade, populateFromSeedCore20Opts{})
@@ -691,6 +695,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallModeWithComps(c *C) 
 		Mode:           "install",
 		RecoverySystem: "20241018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade,
@@ -703,6 +708,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 		Mode:           "recover",
 		RecoverySystem: "20191020",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade, populateFromSeedCore20Opts{})
@@ -714,6 +720,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverModeWithComps(c *C) 
 		Mode:           "recover",
 		RecoverySystem: "20241018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	for _, grade := range allGrades {
 		s.testPopulateFromSeedCore20Happy(c, &m, grade,
@@ -733,6 +740,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 
 	s.earlySetup(c, &m, "signed", "", populateFromSeedCore20Opts{})
@@ -768,6 +776,7 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 
 	s.earlySetup(c, &m, "dangerous", "", populateFromSeedCore20Opts{})
@@ -860,6 +869,7 @@ apps:
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 
 	defaultsGadgetYaml := `
@@ -904,6 +914,7 @@ func (s *firstBoot20Suite) TestUsersCreateAutomaticIsAvailableEarly(c *C) {
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 
 	defaultsGadgetYaml := `
@@ -952,6 +963,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunMode(c *C) {
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 		Classic:        true,
+		LastBootOkID:   "not-booted",
 	}
 	s.testPopulateFromSeedCore20Happy(c, &m, asserts.ModelSigned, populateFromSeedCore20Opts{})
 }
@@ -967,6 +979,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 		Classic:        true,
+		LastBootOkID:   "not-booted",
 	}
 	modelGrade := asserts.ModelSigned
 
@@ -1125,6 +1138,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAn
 		RecoverySystem: "20221129",
 		Base:           "core20_1.snap",
 		Classic:        true,
+		LastBootOkID:   "not-booted",
 	}
 
 	var sysdLog [][]string
@@ -1336,6 +1350,7 @@ base: core20
 		Mode:           mode,
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		LastBootOkID:   "not-booted",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)

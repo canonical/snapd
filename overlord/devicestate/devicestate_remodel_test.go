@@ -5424,6 +5424,8 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -5785,6 +5787,8 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
@@ -6060,6 +6064,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 

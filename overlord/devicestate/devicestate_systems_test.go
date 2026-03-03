@@ -153,6 +153,8 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -457,6 +459,8 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentInRecoveryMode(c *C) {
 		BrandID:        s.mockedSystemSeeds[1].brand.AccountID(),
 		Grade:          string(s.mockedSystemSeeds[1].model.Grade()),
 		ModelSignKeyID: s.mockedSystemSeeds[1].model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -560,7 +564,8 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 		c.Logf("checking mode: %q", mode)
 		// non run modes use modeenv
 		modeenv := boot.Modeenv{
-			Mode: mode,
+			Mode:         mode,
+			LastBootOkID: "not-booted",
 		}
 		if mode != "run" {
 			modeenv.RecoverySystem = s.mockedSystemSeeds[0].label
@@ -610,6 +615,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingSameConflict(c *C) {
 		modeenv := boot.Modeenv{
 			Mode:           mode,
 			RecoverySystem: s.mockedSystemSeeds[0].label,
+			LastBootOkID:   "not-booted",
 		}
 		err := modeenv.WriteTo("")
 		c.Assert(err, IsNil)
@@ -635,6 +641,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingDifferentNoConflict(c *C) {
 	modeenv := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: label,
+		LastBootOkID:   "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -689,6 +696,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallResetForRecover(c *C) {
 	modeenv := boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: s.mockedSystemSeeds[0].label,
+		LastBootOkID:   "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -710,7 +718,8 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
 	devicestate.SetSystemMode(s.mgr, "run")
 	// non run modes use modeenv
 	modeenv := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -799,7 +808,8 @@ func (s *deviceMgrSystemsSuite) TestRequestInstallForOther(c *C) {
 	devicestate.SetSystemMode(s.mgr, "run")
 	// non run modes use modeenv
 	modeenv := boot.Modeenv{
-		Mode: "run",
+		Mode:         "run",
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -952,6 +962,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToOther(c *C) {
 	modeenv := boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: s.mockedSystemSeeds[0].label,
+		LastBootOkID:   "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1063,6 +1074,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 		Mode: boot.ModeRun,
 		// the system is in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019", "1234"},
+		LastBootOkID:           "not-booted",
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1118,6 +1130,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 		Mode: boot.ModeRun,
 		// the system is not in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019"},
+		LastBootOkID:           "not-booted",
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1215,6 +1228,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 		Mode: boot.ModeRun,
 		// the system is in CurrentRecoverySystems
 		CurrentRecoverySystems: []string{"29112019", "1234"},
+		LastBootOkID:           "not-booted",
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1626,6 +1640,8 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1681,6 +1697,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		ModelSignKeyID: s.model.SignKeyID(),
 		// try model is unset as its measured properties are identical
 		// to current
+
+		LastBootOkID: "not-booted",
 	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
@@ -1730,6 +1748,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this
 	// system as seeded
@@ -1862,6 +1882,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 		// try model is unset as its measured properties are identical
+
+		LastBootOkID: "not-booted",
 	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
@@ -1917,6 +1939,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	// since this is part of a remodel, we don't expect any more calls to
 	// SetBootVars
@@ -2070,6 +2094,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 		// try model is unset as its measured properties are identical
+
+		LastBootOkID: "not-booted",
 	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
@@ -2124,6 +2150,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	// since this is part of a remodel, we don't expect any more calls to
 	// SetBootVars
@@ -2287,6 +2315,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	var triedSystemsAfter []string
@@ -2389,6 +2419,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// these things happen on snapd startup
@@ -2429,6 +2461,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	// expect 2 calls to bootloader.SetBootVars: one for do, one for undo
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
@@ -2498,6 +2532,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// these things happen on snapd startup
@@ -2542,6 +2578,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -2624,6 +2662,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 }
 
@@ -2725,6 +2765,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 	var triedSystems []string
 	s.state.Get("tried-systems", &triedSystems)
@@ -3738,6 +3780,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to SetBootVars when system is marked recovery capable
@@ -4113,6 +4157,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// verify that new files are tracked correctly
@@ -4167,6 +4213,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this
@@ -4759,6 +4807,8 @@ func (s *deviceMgrSystemsCreateSuite) validateCreateRecoverySystemChange(
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	var expectedFilesLog bytes.Buffer
@@ -4809,6 +4859,8 @@ func (s *deviceMgrSystemsCreateSuite) validateCreateRecoverySystemChange(
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this
@@ -4964,6 +5016,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// verify that new files are tracked correctly
@@ -5017,6 +5071,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this
@@ -5107,6 +5163,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// verify that new files are tracked correctly
@@ -5156,6 +5214,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this
@@ -5313,6 +5373,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// verify that new files are tracked correctly
@@ -5362,6 +5424,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		BrandID:        s.model.BrandID(),
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
+
+		LastBootOkID: "not-booted",
 	})
 
 	// expect 1 more call to bootloader.SetBootVars, since we're marking this

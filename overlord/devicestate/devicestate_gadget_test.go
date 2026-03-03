@@ -163,6 +163,7 @@ func (s *deviceMgrGadgetSuite) mockModeenvForMode(c *C, mode string) {
 		CurrentKernelCommandLines: []string{
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		},
+		LastBootOkID: "not-booted",
 	}
 	err := modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -360,6 +361,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 		modeenv := boot.Modeenv{
 			Mode:           "run",
 			RecoverySystem: "",
+			LastBootOkID:   "not-booted",
 		}
 		err := modeenv.WriteTo("")
 		c.Assert(err, IsNil)
