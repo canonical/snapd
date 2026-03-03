@@ -55,6 +55,9 @@ skip:
      reason: Ubuntu 22.04 AppArmor parser doesn't support prompting without reexec
 
 prepare: |
+    tests.session prepare -u test
+    tests.cleanup defer tests.session restore -u test
+
     snap set system experimental.user-daemons=true
 
     # create and add text to the target file
@@ -84,6 +87,7 @@ restore: |
 debug: |
     uname -a
     snap debug api /v2/system-info
+    snap debug api /v2/interfaces/requests/prompts
 
 execute: |
     echo "Remove any existing listener ID file so snapd will register new listener"
