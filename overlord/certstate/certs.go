@@ -434,19 +434,18 @@ func WriteCertificate(name, content string) error {
 // to the certificate file in the corresponding directory (added/blocked), or removing any existing
 // symlink if the state is set to "unset".
 func SetCertificateState(name, digest, state string) error {
-	addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
-	blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
-
-	addedPath := certificatePathWithExtension(addedDir, digest)
-	blockedPath := certificatePathWithExtension(blockedDir, digest)
 	customPath := certificatePathWithExtension("..", name)
 
-	if state == CertificateStateAccepted {
+	switch state {
+	case CertificateStateAccepted:
+		addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
+		addedPath := certificatePathWithExtension(addedDir, digest)
 		if err := os.Symlink(customPath, addedPath); err != nil {
 			return err
 		}
-	}
-	if state == CertificateStateBlocked {
+	case CertificateStateBlocked:
+		blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
+		blockedPath := certificatePathWithExtension(blockedDir, digest)
 		if err := os.Symlink(customPath, blockedPath); err != nil {
 			return err
 		}
