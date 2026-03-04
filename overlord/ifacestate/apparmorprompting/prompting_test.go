@@ -543,7 +543,7 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	errChan := make(chan error)
 	go func() {
 		snapdShuttingDown := make(chan struct{})
-		out, err := mgr.Ask(uid, pid, cgroup, snap, iface, snapdShuttingDown)
+		out, err := mgr.Ask(uid, iface, snap, pid, cgroup, snapdShuttingDown)
 		logger.WithLoggerLock(func() {
 			c.Check(err, IsNil, Commentf(logbuf.String()))
 		})
@@ -638,11 +638,8 @@ func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
 	badIfaces := []string{"home", "camera", "foo"}
 	for _, iface := range badIfaces {
 		timeoutChan := make(chan struct{})
-		go func() {
-			time.Sleep(time.Second)
-			close(timeoutChan)
-		}()
-		outcome, err := mgr.Ask(uid, pid, cgroup, snap, iface, timeoutChan)
+		time.AfterFunc(time.Second, func() { close(timeoutChan) })
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, timeoutChan)
 		c.Check(outcome, Equals, prompting.OutcomeUnset, Commentf("unexpected outcome for supposedly invalid interface: %s", outcome))
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
 		var unsupportedValueErr *prompting_errors.UnsupportedValueError
@@ -682,11 +679,8 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 	c.Check(mgr.Stop(), IsNil)
 
 	timeoutChan := make(chan struct{})
-	go func() {
-		time.Sleep(time.Second)
-		close(timeoutChan)
-	}()
-	outcome, err := mgr.Ask(uid, pid, cgroup, snap, iface, timeoutChan)
+	time.AfterFunc(time.Second, func() { close(timeoutChan) })
+	outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, timeoutChan)
 	c.Check(outcome, Equals, prompting.OutcomeUnset)
 	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
@@ -721,7 +715,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(uid, pid, cgroup, snap, iface, neverClose)
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, neverClose)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -826,7 +820,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(uid, pid, cgroup, snap, iface, snapdShuttingDown)
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, snapdShuttingDown)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -1814,7 +1808,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 	whenSent := time.Now()
 	go func() {
 		snapdShuttingDown := make(chan struct{})
-		mgr.Ask(1000, 1234, "some-cgroup", "firefox", "audio-record", snapdShuttingDown)
+		mgr.Ask(1000, "audio-record", "firefox", 1234, "some-cgroup", snapdShuttingDown)
 	}()
 	// Wait for a notice
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1920,7 +1914,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		outcome, err := mgr.Ask(1000, 12345, "/cgroup-path/snap.obs-studio.obs-studio-someuuid.scope", "obs-studio", "audio-record", shutDownChan)
+		outcome, err := mgr.Ask(1000, "audio-record", "obs-studio", 12345, "/cgroup-path/snap.obs-studio.obs-studio-someuuid.scope", shutDownChan)
 		outcomeChan <- outcome
 		errChan <- err
 	}()
@@ -1934,7 +1928,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	}
 
 	go func() {
-		outcome, err := mgr.Ask(1000, 67890, "/cgroup-path/snap.signal-desktop.signal-desktop.someuuid.scope", "signal-desktop", "audio-record", shutDownChan)
+		outcome, err := mgr.Ask(1000, "audio-record", "signal-desktop", 67890, "/cgroup-path/snap.signal-desktop.signal-desktop.someuuid.scope", shutDownChan)
 		outcomeChan <- outcome
 		errChan <- err
 	}()

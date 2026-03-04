@@ -346,7 +346,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, cgroup, snap, iface string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
 	if supported := prompting.NonAppArmorInterfaces(); !strutil.ListContains(supported, iface) {
 		return prompting.OutcomeUnset, prompting_errors.NewInvalidInterfaceError(iface, supported)
 	}
