@@ -2746,7 +2746,7 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		prev = stop
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), name))
-		unlink.Set("unlink-reason", unlinkReasonHomeMigration)
+		unlink.Set("unlink-reason", unlinkCurrentSnapReasonHomeMigration)
 		addTask(unlink)
 		prev = unlink
 
@@ -3160,6 +3160,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	unlinkSnap := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system"), snapsup.InstanceName(), snapst.Current))
 	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
+	unlinkSnap.Set("unlink-reason", unlinkSnapReasonDisable)
 	unlinkSnap.WaitFor(removeAliases)
 
 	removeProfiles := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profiles of snap %q"), snapsup.InstanceName()))
@@ -3429,6 +3430,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 		unlink.Set("snap-setup-task", stopSnapServices.ID())
+		unlink.Set("unlink-reason", unlinkSnapReasonRemove)
 		unlink.WaitFor(removeAliases)
 
 		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))

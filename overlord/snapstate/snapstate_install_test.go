@@ -2737,6 +2737,7 @@ epoch: 1*
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:   "copy-data",
@@ -2881,8 +2882,9 @@ epoch: 1*
 			name: "mock",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "mock/100001"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "mock/100001"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "copy-data",
