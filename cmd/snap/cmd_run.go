@@ -292,6 +292,8 @@ func (x *cmdRun) Usage() string {
 
 func (x *cmdRun) Execute(args []string) error {
 	snapApp := x.Positionals.SnapName.FullName()
+	// snapApp will be empty if the application is called "directly" instead of
+	// using "snap run <snap>.<app>". In that case we must get the app name from args.
 	if len(snapApp) == 0 {
 		if len(args) == 0 {
 			return errors.New(i18n.G("need the application to run as argument 1"))
