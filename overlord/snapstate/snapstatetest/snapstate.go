@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/check.v1"
 )
 
@@ -117,4 +118,8 @@ func NewSequenceFromSnapSideInfos(snapSideInfo []*snap.SideInfo) sequence.SnapSe
 
 func NewSequenceFromRevisionSideInfos(revsSideInfo []*sequence.RevisionSideState) sequence.SnapSequence {
 	return sequence.SnapSequence{Revisions: revsSideInfo}
+}
+
+func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int) *state.TaskSet) (restore func()) {
+	return testutil.Mock(&snapstate.ProcessDelayedSecurityBackendEffects, f)
 }

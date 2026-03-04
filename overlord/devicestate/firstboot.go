@@ -66,6 +66,8 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 		})
 	}
 
+	flags.NoDelayedSideEffects = true
+
 	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
 		Path:       sn.Path,
 		SideInfo:   sn.SideInfo,
@@ -319,9 +321,10 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
-			ApplySnapDevMode: modelIsDangerous,
-			Lane:             essentialLane,
-			Transaction:      client.TransactionAllSnaps,
+			ApplySnapDevMode:     modelIsDangerous,
+			Lane:                 essentialLane,
+			Transaction:          client.TransactionAllSnaps,
+			NoDelayedSideEffects: true,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)

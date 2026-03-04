@@ -156,6 +156,8 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 			for _, t := range tasks {
 				if finalTasks[t.Kind()] {
 					t.WaitAll(ts)
+				} else if t.Kind() == "process-delayed-security-backend-effects" || t.Kind() == "check-rerefresh" {
+					// do not wait for freestanding tasks
 				} else {
 					ts.WaitFor(t)
 				}
