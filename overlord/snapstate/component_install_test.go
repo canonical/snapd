@@ -1249,15 +1249,31 @@ func (s *snapmgrTestSuite) TestInstallComponentPathTooEarly(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallComponentsWithInvalidPresence(c *C) {
 	expectedErr := fmt.Sprintf("cannot install component %q due to enforcing rules of validation set 16/developer/my-set/1", "some-snap+standard-component")
-	s.testInstallComponentsWithValidationSets(c, []string{"standard-component", "kernel-modules-component"}, expectedErr)
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component", "kernel-modules-component"}, true, expectedErr, snapstate.Options{})
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component", "kernel-modules-component"}, false, expectedErr, snapstate.Options{})
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsWithInvalidRevision(c *C) {
 	expectedErr := fmt.Sprintf("cannot install component %q at revision %s without --ignore-validation, revision %s is required by validation sets: 16/developer/my-set/1", "some-snap+standard-component-extra", snap.R(1), snap.R(2))
-	s.testInstallComponentsWithValidationSets(c, []string{"standard-component-extra", "kernel-modules-component"}, expectedErr)
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component-extra", "kernel-modules-component"}, true, expectedErr, snapstate.Options{})
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component-extra", "kernel-modules-component"}, false, expectedErr, snapstate.Options{})
 }
 
-func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNames []string, expectedErrorMsg string) {
+func (s *snapmgrTestSuite) TestInstallComponentsWithValidRevision(c *C) {
+	s.testInstallComponentsWithValidationSets(c, []string{"kernel-modules-component"}, true, "", snapstate.Options{})
+	s.testInstallComponentsWithValidationSets(c, []string{"kernel-modules-component"}, false, "", snapstate.Options{})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsWithIgnoreValidationFlag(c *C) {
+	opts := snapstate.Options{
+		Flags: snapstate.Flags{
+			IgnoreValidation: true,
+		},
+	}
+	s.testInstallComponentsWithValidationSets(c, []string{"standard-component-extra", "kernel-modules-component"}, false, "", opts)
+}
+
+func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNames []string, passValidationSets bool, expectedErrorMsg string, opts snapstate.Options) {
 	snapName := "some-snap"
 	snapID := "aaqKhntON3vR7kwEbVPsILm7bUViPDzx"
 	snapRev := snap.R(1)
@@ -1321,6 +1337,10 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 						"presence": "required",
 						"revision": "2",
 					},
+					"kernel-modules-component": map[string]any{
+						"presence": "required",
+						"revision": "1",
+					},
 				},
 			},
 		},
@@ -1332,30 +1352,46 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 	c.Assert(err, IsNil)
 
 	validSet := assertion.(*asserts.ValidationSet)
-
-	// Test by passing the validation sets to the function
 	vsets := snapasserts.NewValidationSets()
 	vsets.Add(validSet)
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, vsets, snapstate.Options{})
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, expectedErrorMsg)
+	var tss []*state.TaskSet
+	if passValidationSets {
+		// Test by passing the validation sets to the function
+		tss, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, vsets, opts)
+	} else {
+		// Set up enforced validation set mocking to test without passing the validation sets to the function
+		restore := snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+			vsets := snapasserts.NewValidationSets()
 
-	// Set up enforced validation set mocking to test without passing the validation sets to the function
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, vs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		vsets := snapasserts.NewValidationSets()
+			err := vsets.Add(validSet)
+			if err != nil {
+				return nil, err
+			}
 
-		err := vsets.Add(validSet)
-		if err != nil {
-			return nil, err
-		}
+			return vsets, nil
+		})
+		defer restore()
+		tss, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, nil, opts)
+	}
 
-		return vsets, nil
-	})
-	defer restore()
+	if expectedErrorMsg != "" {
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, expectedErrorMsg)
+	} else {
+		c.Assert(err, IsNil)
+		setupTs := tss[len(tss)-1]
 
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, compNames, info, nil, snapstate.Options{})
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, expectedErrorMsg)
+		setupProfiles := setupTs.Tasks()[0]
+		c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+
+		prepareKmodComps := setupTs.Tasks()[1]
+		c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
+
+		snapsupTask, err := setupTs.Edge(snapstate.SnapSetupEdge)
+		c.Assert(err, IsNil)
+		c.Assert(snapsupTask.Kind(), Equals, "setup-profiles")
+		c.Assert(snapsupTask.Has("component-setup-tasks"), Equals, true)
+	}
 
 }
