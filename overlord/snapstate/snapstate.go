@@ -4393,6 +4393,7 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 	}
 
 	var joinLane int
+	// we're intentionally ignoring flags.Lane in other modes
 	if flags.Transaction == client.TransactionAllSnaps {
 		joinLane = flags.Lane
 	}
