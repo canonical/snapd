@@ -21,7 +21,9 @@ package prompting_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
@@ -495,7 +498,7 @@ func (s *promptingSuite) TestNewRequestFromListenerErrors(c *C) {
 	}
 }
 
-func (s *promptingSuite) TestBuildKey(c *C) {
+func (s *promptingSuite) TestBuildListenerRequestKey(c *C) {
 	for _, testCase := range []struct {
 		iface    string
 		id       uint64
@@ -506,6 +509,77 @@ func (s *promptingSuite) TestBuildKey(c *C) {
 		{"camera", 0xdeadbeefdeadbeef, "kernel:camera:DEADBEEFDEADBEEF"},
 	} {
 		key := prompting.BuildListenerRequestKey(testCase.iface, testCase.id)
+		c.Check(key, Equals, testCase.expected)
+	}
+}
+
+func (s *promptingSuite) TestNewRequestFromAskSimple(c *C) {
+	const (
+		uid    uint32 = 1000
+		iface  string = "audio-record"
+		snap   string = "firefox"
+		pid    int32  = 1234
+		cgroup string = "/some-cgroup"
+	)
+
+	replyFunc := func(allowedPerms []string) error {
+		return nil
+	}
+
+	result, err := prompting.NewRequestFromAsk(uid, iface, snap, pid, cgroup, replyFunc)
+	c.Check(err, IsNil)
+
+	c.Check(result.Key, Equals, fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap))
+	c.Check(result.UID, Equals, uid)
+	c.Check(result.PID, Equals, pid)
+	c.Check(result.Cgroup, Equals, cgroup)
+	c.Check(result.Snap, Equals, snap)
+	c.Check(result.Interface, Equals, iface)
+	c.Check(result.Permissions, DeepEquals, []string{"access"})
+	c.Check(result.Path, Equals, "/api-request-placeholder")
+	c.Check(reflect.ValueOf(result.Reply).Pointer(), Equals, reflect.ValueOf(replyFunc).Pointer())
+}
+
+func (s *promptingSuite) TestNewRequestFromAskErrors(c *C) {
+	const (
+		uid    = 1000
+		snap   = "firefox"
+		pid    = 1234
+		cgroup = "/some-cgroup"
+	)
+
+	replyFunc := func(allowedPerms []string) error {
+		return nil
+	}
+
+	// Ask for invalid interface
+	badIfaces := []string{"home", "camera", "foo"}
+	for _, iface := range badIfaces {
+		result, err := prompting.NewRequestFromAsk(uid, iface, snap, pid, cgroup, replyFunc)
+		c.Check(result, IsNil)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
+		var unsupportedValueErr *prompting_errors.UnsupportedValueError
+		if errors.As(err, &unsupportedValueErr) {
+			c.Check(unsupportedValueErr.Supported, DeepEquals, prompting.NonAppArmorInterfaces)
+		} else {
+			c.Errorf("error was not an UnsupportedValueError: %v", err)
+		}
+	}
+}
+
+func (s *promptingSuite) TestBuildAskRequestKey(c *C) {
+	for _, testCase := range []struct {
+		iface    string
+		uid      uint32
+		pid      int32
+		snap     string
+		expected string
+	}{
+		{"audio-record", 1000, 1234, "firefox", "api:audio-record:1000:1234:firefox"},
+		{"audio-record", 1, 2, "obs-studio", "api:audio-record:1:2:obs-studio"},
+		{"foo", 1001, 5678, "bar", "api:foo:1001:5678:bar"},
+	} {
+		key := prompting.BuildAskRequestKey(testCase.iface, testCase.uid, testCase.pid, testCase.snap)
 		c.Check(key, Equals, testCase.expected)
 	}
 }

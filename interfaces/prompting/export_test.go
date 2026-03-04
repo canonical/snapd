@@ -25,6 +25,7 @@ import (
 
 var (
 	BuildListenerRequestKey = buildListenerRequestKey
+	BuildAskRequestKey      = buildAskRequestKey
 
 	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
 
@@ -34,6 +35,7 @@ var (
 
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
+	NonAppArmorInterfaces         = nonAppArmorInterfaces
 )
 
 func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {

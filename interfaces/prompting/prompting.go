@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -150,6 +151,48 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 
 func buildListenerRequestKey(iface string, id uint64) string {
 	return fmt.Sprintf("kernel:%s:%016X", iface, id)
+}
+
+// NewRequestFromAsk constructs a new [Request] with the given fields. The
+// given interface must be a non-AppArmor interface (e.g. "audio-record"), and
+// the request's permissions are set to be all available permissions for that
+// interface.
+func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string, reply func(allowedPerms []string) error) (*Request, error) {
+	if !strutil.ListContains(nonAppArmorInterfaces, iface) {
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, nonAppArmorInterfaces)
+	}
+	permissions, err := AvailablePermissions(iface)
+	if err != nil {
+		// This should never occur since interface is validated above
+		return nil, err
+	}
+
+	key := buildAskRequestKey(iface, uid, pid, snap)
+
+	// We need a placeholder path until we can work with requests/prompts/rules
+	// for interfaces which don't care about paths. This placeholder path will
+	// not be included in prompts, and path patterns for rules for interfaces
+	// with requests from the API will always match it.
+	// TODO: once paths are not necessary for all interfaces, remove this.
+	const path = "/api-request-placeholder"
+
+	req := &Request{
+		Key:         key,
+		UID:         uid,
+		PID:         pid,
+		Cgroup:      cgroup,
+		Snap:        snap,
+		Interface:   iface,
+		Permissions: permissions,
+		Path:        path,
+		Reply:       reply,
+	}
+
+	return req, nil
+}
+
+func buildAskRequestKey(iface string, uid uint32, pid int32, snap string) string {
+	return fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap)
 }
 
 // Metadata stores information about the origin or applicability of a prompt or

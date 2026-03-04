@@ -616,41 +616,6 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	}
 }
 
-func (s *apparmorpromptingSuite) TestAskErrors(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
-	defer restore()
-
-	mgr, err := apparmorprompting.New(s.st)
-	c.Assert(err, IsNil)
-	defer func() {
-		c.Check(mgr.Stop(), IsNil)
-	}()
-
-	const (
-		uid       = 1000
-		pid       = 1234
-		cgroup    = "/some-cgroup"
-		snap      = "firefox"
-		goodIface = "audio-record"
-	)
-
-	// Ask for invalid interface
-	badIfaces := []string{"home", "camera", "foo"}
-	for _, iface := range badIfaces {
-		timeoutChan := make(chan struct{})
-		time.AfterFunc(time.Second, func() { close(timeoutChan) })
-		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, timeoutChan)
-		c.Check(outcome, Equals, prompting.OutcomeUnset, Commentf("unexpected outcome for supposedly invalid interface: %s", outcome))
-		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
-		var unsupportedValueErr *prompting_errors.UnsupportedValueError
-		if errors.As(err, &unsupportedValueErr) {
-			c.Check(unsupportedValueErr.Supported, DeepEquals, prompting.NonAppArmorInterfaces())
-		} else {
-			c.Errorf("error was not an UnsupportedValueError: %v", err)
-		}
-	}
-}
-
 func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
