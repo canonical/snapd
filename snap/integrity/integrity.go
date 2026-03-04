@@ -40,6 +40,7 @@ var (
 // are supported via the GenerateDmVerityData and LookupDmVerityData functions.
 type IntegrityDataParams struct {
 	// Type is the type of integrity data (Currently only "dm-verity" is supported).
+	// TODO: switch to typed value e.g. IntegrityDataType
 	Type string `json:"type"`
 	// Version is the type-specific format type.
 	Version uint `json:"version"`
