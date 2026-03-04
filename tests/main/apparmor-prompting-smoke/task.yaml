@@ -37,7 +37,7 @@ environment:
     TMP_STDOUT: $(mktemp)
     TMP_STDERR: $(mktemp)
     INTERFACE: $(echo "$SCENARIO" | awk -F "_" '{printf $3}')
-    TARGET_FILE: $(if [ "$INTERFACE" = "camera" ]; then echo "/dev/video9"; else echo "/home/test/test_$SCENARIO/foo"; fi)
+    TARGET_DIR: "/home/test/$SCENARIO"
 
 skip:
    - if: os.query is-ubuntu 20.04
@@ -60,23 +60,13 @@ prepare: |
     # Install a snap which will trigger prompts
     "$TESTSTOOLS"/snaps-state install-local prompt-requester
     case "$INTERFACE" in
-        "home")
-            # create and add text to the target file
-            dir="$(dirname $TARGET_FILE)"
-            mkdir -p "$dir"
-            echo "hello-foo" > $TARGET_FILE
-            snap connect prompt-requester:home
-            ;;
-        "camera")
-            # make sure the video dev file exists
-            touch "$TARGET_FILE"
-            snap connect prompt-requester:camera
-            ;;
+        "home") snap connect prompt-requester:home ;;
+        "camera") snap connect prompt-requester:camera ;;
     esac
 
 restore: |
-    if [ "$INTERFACE" = "home" ]; then
-        rm -rf "$(dirname $TARGET_FILE)"
+    if [ -d "$TARGET_DIR" ]; then
+        rm -rf "$TARGET_DIR"
     fi
 
     echo "Remove temporary files"
@@ -105,11 +95,20 @@ execute: |
     LIFESPAN="$(echo "$SCENARIO" | awk -F '_' '{print $2}')"
     case "$INTERFACE" in
         "home")
+            mkdir -p "$TARGET_DIR"
+            # create and add text to the target file
+            TARGET_FILE="$TARGET_DIR/foo"
+            echo "hello-foo" > "$TARGET_FILE"
             PERMISSION="read"
+            # the constraint used in the prompt response
             CONSTRAINT="{\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"$PERMISSION\"]}"
             ;;
         "camera")
+            # use a fake video device path which is extremely unlikely to actually exist
+            TARGET_FILE="/dev/video9"
+            touch "$TARGET_FILE"
             PERMISSION="access"
+            # the constraint used in the prompt response
             CONSTRAINT="{\"permissions\": [\"$PERMISSION\"]}"
             ;;
     esac
@@ -138,7 +137,6 @@ execute: |
     START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
 
     echo "Trigger prompt by reading $TARGET_FILE"
-    echo "$TMP_STDOUT $TMP_STDERR"
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
 
@@ -160,10 +158,10 @@ execute: |
 
     if [ "$LIFESPAN" = "timespan" ]; then
         echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": "$CONSTRAINT"}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": $CONSTRAINT}"
     else
         echo "Reply to the prompt with $PROMPT_RESPONSE for $LIFESPAN"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": "$CONSTRAINT"}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": $CONSTRAINT}"
 
     fi
     echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
@@ -174,12 +172,10 @@ execute: |
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
         "allow")
+            test ! -s "$TMP_STDERR"
             case "$INTERFACE" in
-                "home") MATCH "hello-foo" < "$TMP_STDOUT";;
-                "camera")
-                    test ! -s "$TMP_STDOUT"
-                    test ! -s "$TMP_STDERR"
-                    ;;
+                "home") MATCH "hello-foo" < "$TMP_STDOUT" ;;
+                "camera") test ! -s "$TMP_STDOUT" ;;
             esac
             ;;
         "deny")
@@ -201,7 +197,7 @@ execute: |
         echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".outcome | MATCH "$PROMPT_RESPONSE"
         echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".lifespan | MATCH "$LIFESPAN"
         if [ "$INTERFACE" = "home" ]; then
-          echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
+            echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
         fi
         echo "$RESULT" | MATCH '"status-code": 200'
     fi
@@ -238,7 +234,7 @@ execute: |
         echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".outcome | MATCH "$PROMPT_RESPONSE"
         echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".lifespan | MATCH "$LIFESPAN"
         if [ "$INTERFACE" = "home" ]; then
-          echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
+            echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
         fi
 
         echo "Check rule with ID $RULE_ID has been removed"
@@ -263,7 +259,7 @@ execute: |
         echo "$RESULT" | gojq .result.id | tr -d '"' | MATCH "$PROMPT_ID"
 
         echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": "$CONSTRAINT"}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": $CONSTRAINT}"
         echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
 
         echo "Wait for notices for second replied prompt"
@@ -284,12 +280,10 @@ execute: |
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
         "allow")
+            test ! -s "$TMP_STDERR"
             case "$INTERFACE" in
-                "home") MATCH "hello-foo" < "$TMP_STDOUT";;
-                "camera")
-                    test ! -s "$TMP_STDOUT"
-                    test ! -s "$TMP_STDERR"
-                    ;;
+                "home") MATCH "hello-foo" < "$TMP_STDOUT" ;;
+                "camera") test ! -s "$TMP_STDOUT" ;;
             esac
             ;;
         "deny")
