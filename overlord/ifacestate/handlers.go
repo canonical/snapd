@@ -2399,11 +2399,6 @@ func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, e
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
-type processDelayedSecurityBackendEffectsParamsData struct {
-	MonitoredLanes []int `json:"monitored-lanes"`
-	ApplyInLane    int   `json:"apply-in-lane"`
-}
-
 func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Single catch all task handler for all delayed side effects for snaps.
 	// Looks through all the tasks to identify which snaps are affected, and
@@ -2416,25 +2411,19 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	st.Lock()
 	defer st.Unlock()
 
-	var params processDelayedSecurityBackendEffectsParamsData
+	var snapLanes []int
+	var applyInLane int
 
-	if err := task.Get("params", &params); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-
-		// there was a short time between delayed effects entering master with
-		// "monitored-lanes" and subsequent update to use "params"
-		var snapLanes []int
-		if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		params.MonitoredLanes = snapLanes
+	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if err := task.Get("apply-in-lane", &applyInLane); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
 	}
 
-	logger.Debugf("delayed effects coordination, monitoring lanes: %v", params.MonitoredLanes)
+	logger.Debugf("delayed effects coordination, monitoring lanes: %v", snapLanes)
 
-	if len(params.MonitoredLanes) == 0 {
+	if len(snapLanes) == 0 {
 		task.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -2448,7 +2437,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	considerRestartTriggeringTasks := make(map[string]bool, len(chg.Tasks()))
 
 	unreadyTasks := false
-	for _, lane := range params.MonitoredLanes {
+	for _, lane := range snapLanes {
 		laneFailed := false
 		var seenSnaps []string
 	laneLoop:
@@ -2456,13 +2445,11 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
 			case tsk.ID() == task.ID():
-				if params.ApplyInLane == 0 {
-					// our task should only be present in the default '0'
-					// lane, not a dedicated one unless we're part of a
-					// transaction
-					if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
-						logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
-					}
+				// our task should only be present in the default '0' lane, not
+				// a dedicated one, unless we're part of a all-snap transaction
+				// which already runs in a dedicated lane
+				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != applyInLane) {
+					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
 				}
 				delete(considerRestartTriggeringTasks, tsk.ID())
 				continue
@@ -2559,13 +2546,14 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	}
 
 	if len(perSnapTasks) > 0 {
-		// place each task in a dedicated lane, such that their errors are not
-		// affecting anything else (neither the default lane, nor any other
-		// lanes where the triggering snaps are being processed)
+		// unless apply-in-lane is set to a non-0 value indicating an all-snap
+		// transaction, place each task in a dedicated lane, such that their
+		// errors are not affecting anything else (neither the default lane, nor
+		// any other lanes where the triggering snaps are being processed)
 
 		for _, tsk := range perSnapTasks {
-			if params.ApplyInLane != 0 {
-				tsk.JoinLane(params.ApplyInLane)
+			if applyInLane != 0 {
+				tsk.JoinLane(applyInLane)
 			} else {
 				tsk.JoinLane(st.NewLane())
 			}

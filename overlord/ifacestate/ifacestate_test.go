@@ -12416,16 +12416,16 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Assert(logs, HasLen, 0)
 }
 
-func verifyDelayedEffectsTaskset(c *C, ts *state.TaskSet, expectedLanes []int, applyInLane int) {
+func verifyDelayedEffectsTaskset(c *C, ts *state.TaskSet, expectedLanes []int, expectedApplyInLane int) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	processTask := ts.Tasks()[0]
 	c.Check(processTask.Kind(), Equals, "process-delayed-security-backend-effects")
-	var pdata ifacestate.ProcessDelayedSecurityBackendEffectsParamsData
-	c.Assert(processTask.Get("params", &pdata), IsNil)
-	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecurityBackendEffectsParamsData{
-		MonitoredLanes: expectedLanes,
-		ApplyInLane:    applyInLane,
-	})
+	var monitorLanes []int
+	c.Assert(processTask.Get("monitored-lanes", &monitorLanes), IsNil)
+	c.Check(monitorLanes, DeepEquals, expectedLanes)
+	var applyInLane int
+	c.Assert(processTask.Get("apply-in-lane", &applyInLane), IsNil)
+	c.Check(applyInLane, DeepEquals, expectedApplyInLane)
 }
 
 func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
@@ -12484,12 +12484,12 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	// verify everything is set in order
 	det := ts.Tasks()[0]
 	c.Check(det.Kind(), Equals, "process-delayed-security-backend-effects")
-	var pdata ifacestate.ProcessDelayedSecurityBackendEffectsParamsData
-	c.Assert(det.Get("params", &pdata), IsNil)
-	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecurityBackendEffectsParamsData{
-		MonitoredLanes: []int{0},
-		ApplyInLane:    0,
-	})
+	var monitorLanes []int
+	c.Assert(det.Get("monitored-lanes", &monitorLanes), IsNil)
+	c.Check(monitorLanes, DeepEquals, []int{0})
+	applyInLane := -1
+	c.Assert(det.Get("apply-in-lane", &applyInLane), IsNil)
+	c.Check(applyInLane, Equals, 0)
 	// only in the default lane
 	c.Check(det.Lanes(), DeepEquals, []int{0})
 
