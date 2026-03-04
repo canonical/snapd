@@ -34,6 +34,12 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+const (
+	CertificateStateUnset    = "unset"
+	CertificateStateAccepted = "accepted"
+	CertificateStateBlocked  = "blocked"
+)
+
 type CertificateData struct {
 	Raw    *x509.Certificate
 	Digest string
@@ -309,7 +315,7 @@ func loadCertificates() (*certificates, error) {
 // /var/lib/snapd/pki/v1/blocked/<digest>.crt (symlink)
 // /var/lib/snapd/pki/v1/merged/*.crt (symlinks)
 // /var/lib/snapd/pki/v1/merged/ca-certificates.crt
-// /var/lib/snapd/pki/v1/<digest>.crt
+// /var/lib/snapd/pki/v1/<name>.crt
 func ensureDirectories() error {
 	dirsToEnsure := []string{
 		filepath.Join(dirs.SnapdPKIV1Dir, "added"),
@@ -377,4 +383,147 @@ func GenerateCertificateDatabaseImpl() error {
 	// make sure we catch any error here and restore the backup
 	err = generateCACertificates(certs, mergedDir)
 	return err
+}
+
+func certificatePathWithExtension(dir, name string) string {
+	return filepath.Join(dir, name+".crt")
+}
+
+// CertificatePath returns a path to the certificate file itself,
+// given the name of the certificate (without .crt extension).
+func CertificatePath(name string) string {
+	return certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)
+}
+
+// RemoveCertificateSymlinks removes the symlinks for the given certificate digest
+// from the added and blocked directories.
+func RemoveCertificateSymlinks(digest string) error {
+	addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
+	blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
+
+	if err := os.Remove(certificatePathWithExtension(addedDir, digest)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(certificatePathWithExtension(blockedDir, digest)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// RemoveCertificate removes the certificate file for the given name. This does
+// not remove the symlinks in the added/blocked directories.
+func RemoveCertificate(name string) error {
+	if err := os.Remove(certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// WriteCertificate writes the given contents as a new certificate file. Does not
+// set the state of the certificate (i.e. does not create symlinks in the added/blocked directories).
+func WriteCertificate(name, content string) error {
+	certPath := certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)
+	if err := os.WriteFile(certPath, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("cannot write custom certificate %q: %v", name, err)
+	}
+	return nil
+}
+
+// SetCertificateState sets the state of the certificate with the given name and digest.
+// The state can be either "accepted", "blocked" or "unset". This is done by creating a symlink
+// to the certificate file in the corresponding directory (added/blocked), or removing any existing
+// symlink if the state is set to "unset".
+func SetCertificateState(name, digest, state string) error {
+	customPath := certificatePathWithExtension("..", name)
+
+	switch state {
+	case CertificateStateAccepted:
+		addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
+		addedPath := certificatePathWithExtension(addedDir, digest)
+		if err := os.Symlink(customPath, addedPath); err != nil {
+			return err
+		}
+	case CertificateStateBlocked:
+		blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
+		blockedPath := certificatePathWithExtension(blockedDir, digest)
+		if err := os.Symlink(customPath, blockedPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type CertificateInfo struct {
+	Name        string `json:"name"`
+	Fingerprint string `json:"fingerprint"`
+	State       string `json:"state"`
+}
+
+func certificateDigest(name, baseDir string) (string, error) {
+	certPath := certificatePathWithExtension(baseDir, name)
+	certBytes, err := os.ReadFile(certPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot read certificate %q: %v", name, err)
+	}
+
+	cdata, err := ParseCertificateData(certBytes)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse certificate %q: %v", name, err)
+	}
+	return cdata.Digest, nil
+}
+
+func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateInfo, error) {
+	digest, err := certificateDigest(name, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	state := CertificateStateUnset
+	if osutil.IsSymlink(certificatePathWithExtension(blockedDir, digest)) {
+		state = CertificateStateBlocked
+	} else if osutil.IsSymlink(certificatePathWithExtension(addedDir, digest)) {
+		state = CertificateStateAccepted
+	}
+
+	return &CertificateInfo{
+		Name:        name,
+		Fingerprint: digest,
+		State:       state,
+	}, nil
+}
+
+// CustomCertificates returns the list of custom certificates with their name, fingerprint and state.
+func CustomCertificates() ([]*CertificateInfo, error) {
+	addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
+	blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
+
+	// Read the contents of the custom certificates directory to get the list of all custom certificates, and their content and state.
+	files, err := os.ReadDir(dirs.SnapdPKIV1Dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var certsInfo []*CertificateInfo
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".crt") {
+			continue
+		}
+		name := trimCrtExtension(f.Name())
+		info, err := certificateInfo(name, dirs.SnapdPKIV1Dir, addedDir, blockedDir)
+		if err != nil {
+			// Let us be resilient to errors here, and just skip the certificate if we
+			// cannot read it or parse it, as we don't want one broken certificate to
+			// cause the whole API to be unavailable.
+			logger.Noticef("Failed to read custom certificate %q: %v", name, err)
+			continue
+		}
+		if info != nil {
+			certsInfo = append(certsInfo, info)
+		}
+	}
+	return certsInfo, nil
 }
