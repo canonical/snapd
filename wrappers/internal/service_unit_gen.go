@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
+const GraphicalSessionTarget = "graphical-session.target"
+
 // SnapServicesUnitOptions is a struct for controlling the generated service
 // definition for a snap service.
 type SnapServicesUnitOptions struct {
@@ -144,8 +146,14 @@ Wants={{.PrerequisiteTarget}}
 {{- if .After}}
 After={{ stringsJoin .After " " }}
 {{- end}}
+{{- if .Requisite}}
+Requisite={{ stringsJoin .Requisite " " }}
+{{- end}}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
+{{- end}}
+{{- if .PartOf}}
+PartOf={{ stringsJoin .PartOf " " }}
 {{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
 Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
@@ -285,6 +293,8 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		Requires                 []string
+		PartOf                   []string
+		Requisite                []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -319,8 +329,10 @@ WantedBy={{.ServicesTarget}}
 		BusName:           busName,
 		SuccessExitStatus: appInfo.SuccessExitStatus,
 
-		Before: generateServiceNames(appInfo.Snap, appInfo.Before),
-		After:  generateServiceNames(appInfo.Snap, appInfo.After),
+		Before:    generateServiceNames(appInfo.Snap, appInfo.Before),
+		After:     generateServiceNames(appInfo.Snap, appInfo.After),
+		PartOf:    generateServiceNames(appInfo.Snap, appInfo.PartOf),
+		Requisite: generateServiceNames(appInfo.Snap, appInfo.Requisite),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -338,6 +350,12 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		if appInfo.HasPlug("desktop") {
+			wrapperData.After = append(wrapperData.After, GraphicalSessionTarget)
+			wrapperData.PartOf = append(wrapperData.PartOf, GraphicalSessionTarget)
+			wrapperData.ServicesTarget = GraphicalSessionTarget
+			wrapperData.Requisite = append(wrapperData.Requisite, GraphicalSessionTarget)
+		}
 	default:
 		panic("unknown snap.DaemonScope")
 	}
