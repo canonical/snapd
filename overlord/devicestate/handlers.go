@@ -95,6 +95,8 @@ type seededSystem struct {
 	Timestamp time.Time `json:"timestamp"`
 	// SeedTime holds the timestamp when the system was seeded
 	SeedTime time.Time `json:"seed-time"`
+	// SeedRefresh indicates whether this seed was created by seed-refresh mode.
+	SeedRefresh bool `json:"seed-refresh,omitempty"`
 }
 
 func (s *seededSystem) sameAs(other *seededSystem) bool {

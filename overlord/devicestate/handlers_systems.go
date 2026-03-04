@@ -529,12 +529,13 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 
 			now := time.Now()
 			if err := m.recordSeededSystem(st, &seededSystem{
-				System:    label,
-				Model:     model.Model(),
-				BrandID:   model.BrandID(),
-				Revision:  model.Revision(),
-				Timestamp: model.Timestamp(),
-				SeedTime:  now,
+				System:      label,
+				Model:       model.Model(),
+				BrandID:     model.BrandID(),
+				Revision:    model.Revision(),
+				Timestamp:   model.Timestamp(),
+				SeedTime:    now,
+				SeedRefresh: true,
 			}); err != nil {
 				return fmt.Errorf("cannot record a new seeded system: %v", err)
 			}
