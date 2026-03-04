@@ -78,17 +78,17 @@ func (s *changeGraphSuite) SetUpTest(c *C) {
 	s.chg = chg
 }
 
-func taskLabel(t *state.Task) (string, error) {
+func taskLabel(t *state.Task) (string, []string, error) {
 	label := t.Kind()
 	var param string
 	err := t.Get("param", &param)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
+		return "", nil, err
 	}
 	if param != "" {
 		label += ":" + param
 	}
-	return label, nil
+	return label, nil, nil
 }
 
 func (s *changeGraphSuite) TestString(c *C) {
@@ -256,4 +256,22 @@ func (s *changeGraphSuite) TestDotTaskStatusNodeColors(c *C) {
 	c.Check(strings.Contains(graphDot, `"done-task" [style=filled, fillcolor=lightgreen]`), Equals, true)
 	c.Check(strings.Contains(graphDot, `"error-task" [style=filled, fillcolor=mistyrose]`), Equals, true)
 	c.Check(strings.Contains(graphDot, `"undone-task" [style=filled, fillcolor=moccasin]`), Equals, true)
+}
+
+func (s *changeGraphSuite) TestDotTaskLabelAttrs(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("chg", "test change")
+	t := st.NewTask("task", "task")
+	chg.AddTask(t)
+
+	g, err := dot.NewChangeGraph(chg, func(t *state.Task) (string, []string, error) {
+		return t.Kind(), []string{"shape=box", "penwidth=2"}, nil
+	}, "TestDotTaskLabelAttrs")
+	c.Assert(err, IsNil)
+
+	graphDot := g.Dot()
+	c.Check(strings.Contains(graphDot, `"task" [shape=box, penwidth=2]`), Equals, true)
 }

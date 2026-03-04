@@ -44,7 +44,7 @@ func (s *dotSuite) TestTaskLabelTaskSnapSetupError(c *C) {
 	task := st.NewTask("task-kind", "task-with-snap-setup")
 	task.Set("snap-setup-task", "0")
 
-	_, err := dot.TaskLabel(task)
+	_, _, err := dot.TaskLabel(task)
 	c.Assert(err, ErrorMatches, "internal error: tasks are being pruned")
 }
 
@@ -59,9 +59,10 @@ func (s *dotSuite) TestTaskLabelRunHook(c *C) {
 		"hook": "hook",
 	})
 
-	str, err := dot.TaskLabel(task)
+	str, attrs, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "snap:run-hook[hook] [1]")
+	c.Assert(attrs, HasLen, 0)
 }
 
 func (s *dotSuite) TestTaskLabelRunHookErrorNoHookSetup(c *C) {
@@ -71,7 +72,7 @@ func (s *dotSuite) TestTaskLabelRunHookErrorNoHookSetup(c *C) {
 
 	task := st.NewTask("run-hook", "task-with-run-hook")
 
-	_, err := dot.TaskLabel(task)
+	_, _, err := dot.TaskLabel(task)
 	c.Assert(err, ErrorMatches, "no state entry for key \"hook-setup\"")
 }
 
@@ -87,9 +88,10 @@ func (s *dotSuite) TestTaskLabelWithSnapSetup(c *C) {
 		},
 	})
 
-	str, err := dot.TaskLabel(task)
+	str, attrs, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "snap-name:task-kind [1]")
+	c.Assert(attrs, HasLen, 0)
 }
 
 func (s *dotSuite) TestTaskLabelConnect(c *C) {
@@ -109,9 +111,10 @@ func (s *dotSuite) TestTaskLabelConnect(c *C) {
 	}
 	task.Set("slot", sref)
 
-	str, err := dot.TaskLabel(task)
+	str, attrs, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "connect[plug-snap:plug-name slot-snap:slot-name] [1]")
+	c.Assert(attrs, HasLen, 0)
 }
 
 func (s *dotSuite) TestTaskLabelConnectMissingSnapName(c *C) {
@@ -131,9 +134,10 @@ func (s *dotSuite) TestTaskLabelConnectMissingSnapName(c *C) {
 	}
 	task.Set("slot", sref)
 
-	str, err := dot.TaskLabel(task)
+	str, attrs, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "connect [1]")
+	c.Assert(attrs, HasLen, 0)
 }
 
 func (s *dotSuite) TestTaskLabelWithComponentSetupTask(c *C) {
@@ -157,9 +161,10 @@ func (s *dotSuite) TestTaskLabelWithComponentSetupTask(c *C) {
 	chg.AddTask(setupTask)
 	chg.AddTask(task)
 
-	str, err := dot.TaskLabel(task)
+	str, attrs, err := dot.TaskLabel(task)
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "mysnap:link-component [2]")
+	c.Assert(attrs, HasLen, 0)
 }
 
 func (s *dotSuite) TestNewChangeGraphUsesDefaultTaskLabel(c *C) {
