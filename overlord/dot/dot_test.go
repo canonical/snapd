@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/dot"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -179,4 +180,33 @@ func (s *dotSuite) TestNewChangeGraphUsesDefaultTaskLabel(c *C) {
 	g, err := dot.NewChangeGraph(chg, "my-tag")
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(g.Dot(), `"task-kind [1]"`), Equals, true)
+}
+
+func (s *dotSuite) TestTaskLabelRestartBoundaryAttrs(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task")
+	restart.MarkTaskAsRestartBoundary(task, restart.RestartBoundaryDirectionDo|restart.RestartBoundaryDirectionUndo)
+
+	str, attrs, err := dot.TaskLabel(task)
+	c.Assert(err, IsNil)
+	c.Assert(str, Equals, "task-kind [1]\\nreboot: do|undo")
+	c.Assert(attrs, DeepEquals, []string{"peripheries=2"})
+}
+
+func (s *dotSuite) TestNewChangeGraphIncludesRestartBoundaryAttrs(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("task-kind", "task")
+	restart.MarkTaskAsRestartBoundary(task, restart.RestartBoundaryDirectionDo)
+	chg := st.NewChange("change-kind", "summary")
+	chg.AddTask(task)
+
+	g, err := dot.NewChangeGraph(chg, "my-tag")
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(g.Dot(), `"task-kind [1]\nreboot: do" [peripheries=2]`), Equals, true)
 }

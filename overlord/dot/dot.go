@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	statedot "github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/snap"
@@ -58,6 +59,16 @@ func NewChangeGraph(chg *state.Change, tag string) (*statedot.ChangeGraph, error
 
 // TaskLabel produces a unique label string and optional attrs for the given task.
 func TaskLabel(t *state.Task) (string, []string, error) {
+	reboot, err := taskRebootBoundaryDirection(t)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var attrs []string
+	if reboot != "" {
+		attrs = append(attrs, "peripheries=2")
+	}
+
 	snapName, err := taskSnapName(t)
 	if err != nil {
 		return "", nil, err
@@ -68,11 +79,11 @@ func TaskLabel(t *state.Task) (string, []string, error) {
 		if err := t.Get("hook-setup", &hooksup); err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("%s:run-hook[%s] [%s]", hooksup.Snap, hooksup.Hook, t.ID()), nil, nil
+		return withRebootLabel(fmt.Sprintf("%s:run-hook[%s] [%s]", hooksup.Snap, hooksup.Hook, t.ID()), reboot), attrs, nil
 	}
 
 	if snapName != "" {
-		return fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), nil, nil
+		return withRebootLabel(fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), reboot), attrs, nil
 	}
 
 	label := fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
@@ -91,7 +102,27 @@ func TaskLabel(t *state.Task) (string, []string, error) {
 		label = fmt.Sprintf("%s[%s:%s %s:%s] [%s]", t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name, t.ID())
 	}
 
-	return label, nil, nil
+	return withRebootLabel(label, reboot), attrs, nil
+}
+
+func taskRebootBoundaryDirection(t *state.Task) (string, error) {
+	var boundary restart.RestartBoundaryDirection
+	if err := t.Get("restart-boundary", &boundary); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	return boundary.String(), nil
+}
+
+func withRebootLabel(label, direction string) string {
+	if direction == "" {
+		return label
+	}
+
+	return fmt.Sprintf("%s\\nreboot: %s", label, direction)
 }
 
 // taskSnapName returns the name of the snap with which this task is
