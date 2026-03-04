@@ -173,13 +173,3 @@ func WaitUntilMutexHeld(ntb *noticeTypeBackend, timeout time.Duration) bool {
 		}
 	}
 }
-
-// MockCgroupProcessPathInTrackingCgroup allows tests which build [Request]s
-// to mock cgroup identification.
-func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
-	old := cgroupProcessPathInTrackingCgroup
-	cgroupProcessPathInTrackingCgroup = f
-	return func() {
-		cgroupProcessPathInTrackingCgroup = old
-	}
-}

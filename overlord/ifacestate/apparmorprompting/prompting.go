@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,8 +40,6 @@ var (
 	listenerRegister = func() (listenerBackend, error) {
 		return listener.Register(prompting.NewRequestFromListener)
 	}
-
-	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 )
 
 type listenerBackend interface {
@@ -349,7 +346,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, iface string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, cgroup, snap, iface string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
 	if supported := prompting.NonAppArmorInterfaces(); !strutil.ListContains(supported, iface) {
 		return prompting.OutcomeUnset, prompting_errors.NewInvalidInterfaceError(iface, supported)
 	}
@@ -358,16 +355,6 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, iface string, sna
 		// This should never occur since interface is validated above
 		return prompting.OutcomeUnset, err
 	}
-
-	cgroupPath, err := cgroupProcessPathInTrackingCgroup(int(pid))
-	if err != nil {
-		return prompting.OutcomeUnset, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
-	}
-	securityTag := cgroup.SecurityTagFromCgroupPath(cgroupPath)
-	if securityTag == nil {
-		return prompting.OutcomeUnset, fmt.Errorf("cannot find snap security tag for request process with PID %d", pid)
-	}
-	snap := securityTag.InstanceName()
 
 	key := fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap)
 	// We need a placeholder path until we can work with requests/prompts/rules
@@ -383,7 +370,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, pid int32, iface string, sna
 		Key:         key,
 		UID:         uid,
 		PID:         pid,
-		Cgroup:      cgroupPath,
+		Cgroup:      cgroup,
 		Snap:        snap,
 		Interface:   iface,
 		Permissions: permissions,
