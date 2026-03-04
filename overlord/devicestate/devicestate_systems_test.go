@@ -1807,6 +1807,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedR
 	c.Check(seededSystems[0].Revision, Equals, s.model.Revision())
 	c.Check(seededSystems[0].Timestamp.Equal(s.model.Timestamp()), Equals, true)
 	c.Check(seededSystems[0].SeedTime.IsZero(), Equals, false)
+	c.Check(seededSystems[0].SeedRefresh, Equals, true)
 
 	c.Check(seededSystems[1].System, Equals, previousSeededSystem.System)
 	c.Check(seededSystems[1].Model, Equals, previousSeededSystem.Model)
@@ -1814,6 +1815,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedR
 	c.Check(seededSystems[1].Revision, Equals, previousSeededSystem.Revision)
 	c.Check(seededSystems[1].Timestamp.Equal(previousSeededSystem.Timestamp), Equals, true)
 	c.Check(seededSystems[1].SeedTime.Equal(previousSeededSystem.SeedTime), Equals, true)
+	c.Check(seededSystems[1].SeedRefresh, Equals, false)
 
 	var defaultSystem devicestate.DefaultRecoverySystem
 	err = s.state.Get("default-recovery-system", &defaultSystem)
@@ -2694,6 +2696,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	c.Check(seededSystems[0].Revision, Equals, previousSeededSystem.Revision)
 	c.Check(seededSystems[0].Timestamp.Equal(previousSeededSystem.Timestamp), Equals, true)
 	c.Check(seededSystems[0].SeedTime.Equal(previousSeededSystem.SeedTime), Equals, true)
+	c.Check(seededSystems[0].SeedRefresh, Equals, false)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
