@@ -127,7 +127,7 @@ func (s *changeGraphSuite) TestWriteDotTo(c *C) {
 	err = g.WriteDotTo(b)
 	c.Assert(err, IsNil)
 	c.Check(b.String(), Equals, `digraph {
-label=<<b>1-chg - TestWriteDotTo</b>>; labelloc=top; fontsize=24
+label=<<b>chg [1] - TestWriteDotTo</b>>; labelloc=top; fontsize=24
 subgraph "cluster[0]" {
 label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
   "d"
@@ -159,7 +159,7 @@ func (s *changeGraphSuite) TestDot(c *C) {
 	g, err := dot.NewChangeGraph(s.chg, taskLabel, "TestDot")
 	c.Assert(err, IsNil)
 	c.Check(g.Dot(), Equals, `digraph {
-label=<<b>1-chg - TestDot</b>>; labelloc=top; fontsize=24
+label=<<b>chg [1] - TestDot</b>>; labelloc=top; fontsize=24
 subgraph "cluster[0]" {
 label=<<b>Tasks on lanes: [0]</b>>; fontsize=18
   "d"
@@ -208,4 +208,24 @@ func (s *changeGraphSuite) TestExport(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(graphSVG), "digraph {"), Equals, true)
 	c.Check(strings.Contains(string(graphSVG), "TestExport"), Equals, true)
+}
+
+func (s *changeGraphSuite) TestExportTagFilenameSanitization(c *C) {
+	// just write the stdin of the command to the filename passed to "dot"
+	mock := testutil.MockCommand(c, "dot", `cat > "${2#-o}"`)
+	defer mock.Restore()
+
+	st := s.chg.State()
+	st.Lock()
+	defer st.Unlock()
+
+	g, err := dot.NewChangeGraph(st.NewChange("tasks w/o change", "..."), taskLabel, "Test")
+	c.Assert(err, IsNil)
+
+	svg, err := g.Export()
+	c.Assert(err, IsNil)
+	defer os.Remove(svg)
+
+	c.Assert(mock.Calls(), HasLen, 1)
+	c.Check(strings.Contains(svg, "tasks_w_o_change"), Equals, true)
 }
