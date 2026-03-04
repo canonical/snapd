@@ -1,37 +1,34 @@
-summary: Check that AppArmor Prompting works end-to-end for camera interface
+summary: Check that AppArmor Prompting works end-to-end for home and camera interfaces
 
 details: |
-    Test that AppArmor Prompting is working for the camera interface. The test checks for the
+    Test that AppArmor Prompting is working for the home and camera interfaces. The test checks for the
     correct handling of permission prompts as well as rules created by responses to prompts.
-    To do so, it uses the prompt-requester to read a video device file to trigger the camera
-    access prompt which is allowed or denied for either a single request, some duration, a session,
-    or forever. The test then checks if the rules created as a result of prompt response have
-    the correct effect on the original and a following request.
+    To do so, it uses the prompt-requester to attempt to read a file which it does not have
+    read permission for triggering a prompt which is allowed or denied for either a single
+    request, some duration, a session, or forever. The test then checks if the rules created as
+    a result of prompt response have the correct effect on the original and a following request.
 
 systems:
     - ubuntu-2*
 
 environment:
-    # use a fake video device path which is extremely unlikely to actually exist
-    TARGET_FILE: /dev/video9
+    SCENARIO/allow_single_home: "allow_single_home"
+    SCENARIO/deny_single_home: "deny_single_home"
+    SCENARIO/allow_timespan_home: "allow_timespan_home"
+    SCENARIO/deny_timespan_home: "deny_timespan_home"
+    SCENARIO/allow_session_home: "allow_session_home"
+    SCENARIO/deny_session_home: "deny_session_home"
+    SCENARIO/allow_forever_home: "allow_forever_home"
+    SCENARIO/deny_forever_home: "deny_forever_home"
 
-    PROMPT_RESPONSE/allow_single: "allow"
-    PROMPT_RESPONSE/deny_single: "deny"
-    PROMPT_RESPONSE/allow_timespan: "allow"
-    PROMPT_RESPONSE/deny_timespan: "deny"
-    PROMPT_RESPONSE/allow_session: "allow"
-    PROMPT_RESPONSE/deny_session: "deny"
-    PROMPT_RESPONSE/allow_forever: "allow"
-    PROMPT_RESPONSE/deny_forever: "deny"
-
-    LIFESPAN/allow_single: "single"
-    LIFESPAN/deny_single: "single"
-    LIFESPAN/allow_timespan: "timespan"
-    LIFESPAN/deny_timespan: "timespan"
-    LIFESPAN/allow_session: "session"
-    LIFESPAN/deny_session: "session"
-    LIFESPAN/allow_forever: "forever"
-    LIFESPAN/deny_forever: "forever"
+    SCENARIO/allow_single_camera: "allow_single_camera"
+    SCENARIO/deny_single_camera: "deny_single_camera"
+    SCENARIO/allow_timespan_camera: "allow_timespan_camera"
+    SCENARIO/deny_timespan_camera: "deny_timespan_camera"
+    SCENARIO/allow_session_camera: "allow_session_camera"
+    SCENARIO/deny_session_camera: "deny_session_camera"
+    SCENARIO/allow_forever_camera: "allow_forever_camera"
+    SCENARIO/deny_forever_camera: "deny_forever_camera"
 
     # The duration for the lifespan timespan response to the prompt
     DURATION: "20s"
@@ -39,6 +36,8 @@ environment:
     # temporary files are used to redirect stdout and stderr from attempts to read the target file
     TMP_STDOUT: $(mktemp)
     TMP_STDERR: $(mktemp)
+    INTERFACE: $(echo "$SCENARIO" | awk -F "_" '{printf $3}')
+    TARGET_FILE: $(if [ "$INTERFACE" = "camera" ]; then echo "/dev/video9"; else echo "/home/test/test_$SCENARIO/foo"; fi)
 
 skip:
    - if: os.query is-ubuntu 20.04
@@ -54,18 +53,35 @@ prepare: |
 
     snap set system experimental.user-daemons=true
 
-    # make sure the video dev file exists
-    touch "$TARGET_FILE"
-
     # Install a snap which identifies itself to snapd as a prompting handler-service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
     # Install a snap which will trigger prompts
     "$TESTSTOOLS"/snaps-state install-local prompt-requester
-    snap connect prompt-requester:camera
+    case "$INTERFACE" in
+        "home")
+            # create and add text to the target file
+            dir="$(dirname $TARGET_FILE)"
+            mkdir -p "$dir"
+            echo "hello-foo" > $TARGET_FILE
+            snap connect prompt-requester:home
+            ;;
+        "camera")
+            # make sure the video dev file exists
+            touch "$TARGET_FILE"
+            snap connect prompt-requester:camera
+            ;;
+    esac
 
 restore: |
+    if [ "$INTERFACE" = "home" ]; then
+        rm -rf "$(dirname $TARGET_FILE)"
+    fi
+
+    echo "Remove temporary files"
+    rm -f "$TMP_STDOUT" "$TMP_STDERR"
+
     echo "Disable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=false
 
@@ -76,6 +92,7 @@ debug: |
     uname -a
     snap debug api /v2/system-info
     snap debug api /v2/interfaces/requests/prompts
+    snap debug api /v2/interfaces/requests/rules
 
     for i_r_dir in /run/snapd/interfaces-requests /var/lib/snapd/interfaces-requests ; do
         if [ -d "$i_r_dir" ] ; then
@@ -84,6 +101,19 @@ debug: |
     done
 
 execute: |
+    PROMPT_RESPONSE="$(echo "$SCENARIO" | awk -F '_' '{print $1}')"
+    LIFESPAN="$(echo "$SCENARIO" | awk -F '_' '{print $2}')"
+    case "$INTERFACE" in
+        "home")
+            PERMISSION="read"
+            CONSTRAINT="{\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"$PERMISSION\"]}"
+            ;;
+        "camera")
+            PERMISSION="access"
+            CONSTRAINT="{\"permissions\": [\"$PERMISSION\"]}"
+            ;;
+    esac
+
     echo "Remove any existing listener ID file so snapd will register new listener"
     rm -f /run/snapd/interfaces-requests/listener-id
 
@@ -108,6 +138,7 @@ execute: |
     START="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
 
     echo "Trigger prompt by reading $TARGET_FILE"
+    echo "$TMP_STDOUT $TMP_STDERR"
     tests.session -u test exec prompt-requester.cat "$TARGET_FILE" >"$TMP_STDOUT" 2>"$TMP_STDERR" &
     REQUESTER_PID="$!"
 
@@ -122,14 +153,18 @@ execute: |
     echo "Check that the prompt with the ID given by the first notice is present"
     RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID")"
     echo "$RESULT" | MATCH '"status-code": 200'
+    if [ "$INTERFACE" = "home" ]; then
+        echo "$RESULT" | gojq .result.constraints.path | MATCH "$TARGET_FILE"
+    fi
     echo "$RESULT" | gojq .result.id | tr -d '"' | MATCH "$PROMPT_ID"
 
     if [ "$LIFESPAN" = "timespan" ]; then
         echo "Reply to the prompt with $PROMPT_RESPONSE for timespan lifespan for a duration of $DURATION"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": {\"permissions\": [\"access\"]}}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"timespan\", \"duration\": \"$DURATION\", \"constraints\": "$CONSTRAINT"}"
     else
         echo "Reply to the prompt with $PROMPT_RESPONSE for $LIFESPAN"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": {\"permissions\": [\"access\"]}}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": "$CONSTRAINT"}"
+
     fi
     echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
 
@@ -138,10 +173,18 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-        "allow") test ! -s "$TMP_STDOUT";;
+        "allow")
+            case "$INTERFACE" in
+                "home") MATCH "hello-foo" < "$TMP_STDOUT";;
+                "camera")
+                    test ! -s "$TMP_STDOUT"
+                    test ! -s "$TMP_STDERR"
+                    ;;
+            esac
+            ;;
         "deny")
             MATCH "failed" < "$TMP_STDOUT"
-            MATCH "/bin/cat: $TARGET_FILE: Permission denied" < "$TMP_STDERR"
+            MATCH "Permission denied" < "$TMP_STDERR"
             ;;
     esac
 
@@ -154,9 +197,12 @@ execute: |
 
         echo "Check that the rule with the corresponding ID exists"
         RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_ID")"
-        echo "$RESULT" | gojq .result.interface | MATCH "camera"
-        echo "$RESULT" | gojq .result.constraints.permissions.access.outcome | MATCH "$PROMPT_RESPONSE"
-        echo "$RESULT" | gojq .result.constraints.permissions.access.lifespan | MATCH "$LIFESPAN"
+        echo "$RESULT" | gojq .result.interface | MATCH "$INTERFACE"
+        echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".outcome | MATCH "$PROMPT_RESPONSE"
+        echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".lifespan | MATCH "$LIFESPAN"
+        if [ "$INTERFACE" = "home" ]; then
+          echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
+        fi
         echo "$RESULT" | MATCH '"status-code": 200'
     fi
 
@@ -188,9 +234,12 @@ execute: |
         echo "Remove rule with ID $RULE_ID"
         RESULT="$(echo '{"action":"remove"}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/rules/$RULE_ID")"
         echo "$RESULT" | MATCH '"status-code": 200'
-        echo "$RESULT" | gojq .result.interface | MATCH "camera"
-        echo "$RESULT" | gojq .result.constraints.permissions.access.outcome | MATCH "$PROMPT_RESPONSE"
-        echo "$RESULT" | gojq .result.constraints.permissions.access.lifespan | MATCH "$LIFESPAN"
+        echo "$RESULT" | gojq .result.interface | MATCH "$INTERFACE"
+        echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".outcome | MATCH "$PROMPT_RESPONSE"
+        echo "$RESULT" | gojq .result.constraints.permissions."$PERMISSION".lifespan | MATCH "$LIFESPAN"
+        if [ "$INTERFACE" = "home" ]; then
+          echo "$RESULT" | gojq '.result.constraints."path-pattern"' | MATCH "$TARGET_FILE"
+        fi
 
         echo "Check rule with ID $RULE_ID has been removed"
         RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/rules/$RULE_ID")"
@@ -208,10 +257,13 @@ execute: |
         echo "Check that the prompt with the ID given by this notice is present"
         RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID")"
         echo "$RESULT" | MATCH '"status-code": 200'
+        if [ "$INTERFACE" = "home" ]; then
+            echo "$RESULT" | gojq .result.constraints.path | MATCH "$TARGET_FILE"
+        fi
         echo "$RESULT" | gojq .result.id | tr -d '"' | MATCH "$PROMPT_ID"
 
         echo "Reply to the prompt with $PROMPT_RESPONSE for single lifespan"
-        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"single\", \"constraints\": {\"permissions\": [\"access\"]}}"
+        RESPONSE="{\"action\": \"$PROMPT_RESPONSE\", \"lifespan\": \"$LIFESPAN\", \"constraints\": "$CONSTRAINT"}"
         echo "$RESPONSE" | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code": 200'
 
         echo "Wait for notices for second replied prompt"
@@ -231,10 +283,17 @@ execute: |
 
     echo "Check the process exited correctly"
     case "$PROMPT_RESPONSE" in
-        "allow") test ! -s "$TMP_STDOUT";;
+        "allow")
+            case "$INTERFACE" in
+                "home") MATCH "hello-foo" < "$TMP_STDOUT";;
+                "camera")
+                    test ! -s "$TMP_STDOUT"
+                    test ! -s "$TMP_STDERR"
+                    ;;
+            esac
+            ;;
         "deny")
             MATCH "failed" < "$TMP_STDOUT"
-            MATCH "/bin/cat: $TARGET_FILE: Permission denied" < "$TMP_STDERR"
+            MATCH "Permission denied" < "$TMP_STDERR"
             ;;
     esac
-
