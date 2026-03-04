@@ -167,7 +167,7 @@ func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string,
 		return nil, err
 	}
 
-	key := buildAskRequestKey(iface, uid, pid, snap)
+	key := buildAskRequestKey(uid, iface, snap, pid)
 
 	// We need a placeholder path until we can work with requests/prompts/rules
 	// for interfaces which don't care about paths. This placeholder path will
@@ -191,8 +191,8 @@ func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string,
 	return req, nil
 }
 
-func buildAskRequestKey(iface string, uid uint32, pid int32, snap string) string {
-	return fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap)
+func buildAskRequestKey(uid uint32, iface, snap string, pid int32) string {
+	return fmt.Sprintf("api:%d:%s:%s:%d", uid, iface, snap, pid)
 }
 
 // Metadata stores information about the origin or applicability of a prompt or

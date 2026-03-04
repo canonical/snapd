@@ -529,7 +529,7 @@ func (s *promptingSuite) TestNewRequestFromAskSimple(c *C) {
 	result, err := prompting.NewRequestFromAsk(uid, iface, snap, pid, cgroup, replyFunc)
 	c.Check(err, IsNil)
 
-	c.Check(result.Key, Equals, fmt.Sprintf("api:%s:%d:%d:%s", iface, uid, pid, snap))
+	c.Check(result.Key, Equals, fmt.Sprintf("api:%d:%s:%s:%d", uid, iface, snap, pid))
 	c.Check(result.UID, Equals, uid)
 	c.Check(result.PID, Equals, pid)
 	c.Check(result.Cgroup, Equals, cgroup)
@@ -569,17 +569,17 @@ func (s *promptingSuite) TestNewRequestFromAskErrors(c *C) {
 
 func (s *promptingSuite) TestBuildAskRequestKey(c *C) {
 	for _, testCase := range []struct {
-		iface    string
 		uid      uint32
-		pid      int32
+		iface    string
 		snap     string
+		pid      int32
 		expected string
 	}{
-		{"audio-record", 1000, 1234, "firefox", "api:audio-record:1000:1234:firefox"},
-		{"audio-record", 1, 2, "obs-studio", "api:audio-record:1:2:obs-studio"},
-		{"foo", 1001, 5678, "bar", "api:foo:1001:5678:bar"},
+		{1000, "audio-record", "firefox", 1234, "api:1000:audio-record:firefox:1234"},
+		{1, "audio-record", "obs-studio", 2, "api:1:audio-record:obs-studio:2"},
+		{1001, "foo", "bar", 5678, "api:1001:foo:bar:5678"},
 	} {
-		key := prompting.BuildAskRequestKey(testCase.iface, testCase.uid, testCase.pid, testCase.snap)
+		key := prompting.BuildAskRequestKey(testCase.uid, testCase.iface, testCase.snap, testCase.pid)
 		c.Check(key, Equals, testCase.expected)
 	}
 }

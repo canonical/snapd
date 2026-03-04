@@ -579,7 +579,7 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"access"})
 
 	// Check the request mapping
-	expected := fmt.Sprintf(`{"request-mapping":{"api:%s:%d:%d:%s":{"prompt-id":"0000000000000001","user-id":%d}}}`, iface, uid, pid, snap, uid)
+	expected := fmt.Sprintf(`{"request-mapping":{"api:%d:%s:%s:%d":{"prompt-id":"0000000000000001","user-id":%d}}}`, uid, iface, snap, pid, uid)
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Check(requestMapFilepath, testutil.FileEquals, expected)
 
@@ -667,7 +667,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	// backend is not immediately ready. We do this so we can easily use the
 	// readiness signal to know when the request has been received and fully
 	// processed.
-	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:obs-studio":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"api:1000:audio-record:obs-studio:1234":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -772,7 +772,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	// backend is not immediately ready. We do this so we can easily use the
 	// readiness signal to know when the request has been received and fully
 	// processed.
-	const requestMapping = `{"request-mapping":{"api:audio-record:1000:1234:obs-studio":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"api:1000:audio-record:obs-studio:1234":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -1753,7 +1753,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 
 	// Write a mapping from kernel request to prompt ID so the prompts backend
 	// will not immediately be ready
-	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:audio-record:1000:1234:firefox":{"prompt-id":"0000000000000002","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:1000:audio-record:firefox:1234":{"prompt-id":"0000000000000002","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
@@ -1824,7 +1824,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	// Write a mapping from several kernel request to prompt IDs, and at least
 	// one request from elsewhere, so the listener signalling readiness will
 	// not cause the prompts backend to ready.
-	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:audio-record:1000:12345:obs-studio":{"prompt-id":"0000000000000003","user-id":1000},"api:audio-record:1000:67890:signal-desktop":{"prompt-id":"0000000000000004","user-id":1000}}}`
+	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:1000:audio-record:obs-studio:12345":{"prompt-id":"0000000000000003","user-id":1000},"api:1000:audio-record:signal-desktop:67890":{"prompt-id":"0000000000000004","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
