@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var shortComponentHelp = i18n.G("Show detailed information about snap components")
@@ -101,7 +100,7 @@ func (x *cmdComponent) showComponents() error {
 		fmt.Fprintf(Stdout, "summary: %s\n", comp.Summary)
 		fmt.Fprintf(Stdout, "description: |\n  %s\n", comp.Description)
 		if comp.Version != "" {
-			fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), strutil.SizeToStr(comp.InstalledSize))
+			fmt.Fprintf(Stdout, "installed: %s (%s) %s\n", comp.Version, comp.Revision.String(), fmtSize(comp.InstalledSize))
 		}
 
 		if i < len(comps)-1 {

@@ -3,7 +3,8 @@ name: Nightly static code analysis
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 0 * * *'
+    # Run every Friday morning 5:00 AM UTC
+    - cron: '0 5 * * 5'
 
 jobs:
 
@@ -38,7 +39,9 @@ jobs:
       run: |
           sudo apt clean
           sudo apt update
-          sudo apt build-dep -y "${{ github.workspace }}/src/github.com/snapcore/snapd"
+          cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
+          ln -s packaging/ubuntu-16.04 debian
+          sudo apt build-dep -y .
 
     - name: Install the go version
       uses: actions/setup-go@v6
@@ -81,7 +84,8 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          # Version 2025.1.1 is the last version to use Go 1.23
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
 
     - name: TICS scan
       run: |

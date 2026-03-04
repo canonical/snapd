@@ -690,7 +690,7 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 // delayed effects should join (such as when using all-snaps transaction).
 func ProcessDelayedSecurityBackendEffects(st *state.State, monitoredLanes []int, applyInLane int) (ts *state.TaskSet) {
 	delayedCoordinationTask := st.NewTask("process-delayed-security-backend-effects", "Process delayed security backend side effects for affected snaps")
-	delayedCoordinationTask.Set("params", processDelayedSecuritybackendEffectsParamsData{
+	delayedCoordinationTask.Set("params", processDelayedSecurityBackendEffectsParamsData{
 		MonitoredLanes: monitoredLanes,
 		ApplyInLane:    applyInLane,
 	})

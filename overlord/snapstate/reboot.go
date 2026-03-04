@@ -22,6 +22,8 @@ package snapstate
 import (
 	"errors"
 
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -138,6 +140,104 @@ func contains[T comparable](items []T, item T) bool {
 	return false
 }
 
+// addEarlyDownloadDeps sets up dependencies so that all early-download snaps'
+// beforeLocalSystemModificationsTasks complete before any snap's
+// upToLinkSnapAndBeforeReboot tasks begin. The head of each snap's
+// upToLinkSnapAndBeforeReboot chain waits on the tail of each early-download
+// snap's beforeLocalSystemModificationsTasks chain.
+func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]bool) error {
+	if len(earlyDownloads) == 0 {
+		return nil
+	}
+
+	head := func(tasks []*state.Task) *state.Task {
+		return tasks[0]
+	}
+
+	tail := func(tasks []*state.Task) *state.Task {
+		return tasks[len(tasks)-1]
+	}
+
+	// since there are already some cross-snap dependencies established, we use
+	// a smarter WaitFor alternative here that considers existing transitive
+	// dependencies. this reduces the number of superfluous dependencies in the
+	// final graph of tasks.
+	waitForIfNeeded := func(waiter, target *state.Task) {
+		stack := append([]*state.Task(nil), waiter.WaitTasks()...)
+		seen := make(map[*state.Task]bool, len(stack))
+		for len(stack) > 0 {
+			cur := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			if cur == target {
+				return
+			}
+
+			if seen[cur] {
+				continue
+			}
+			seen[cur] = true
+			stack = append(stack, cur.WaitTasks()...)
+		}
+		waiter.WaitFor(target)
+	}
+
+	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
+	for _, sts := range stss {
+		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
+			len(sts.upToLinkSnapAndBeforeReboot) == 0 {
+			return errors.New("internal error: snap install task set has empty slices")
+		}
+
+		name := sts.snapsup.InstanceName()
+		if earlyDownloads[name] {
+			downloadTails[name] = tail(sts.beforeLocalSystemModificationsTasks)
+		}
+	}
+
+	for _, sts := range stss {
+		firstLocalMod := head(sts.upToLinkSnapAndBeforeReboot)
+		for name, tail := range downloadTails {
+			if name == sts.snapsup.InstanceName() {
+				continue
+			}
+			waitForIfNeeded(firstLocalMod, tail)
+		}
+	}
+
+	return nil
+}
+
+// seedRefreshEarlyDownloads checks if the experimental seed-refresh feature
+// flag is set, and if so, returns the set of seed snaps that are being
+// refreshed and should be treated as early-downloads.
+func seedRefreshEarlyDownloads(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (map[string]bool, error) {
+	tr := config.NewTransaction(st)
+	seedRefresh, err := features.Flag(tr, features.SeedRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
+	if !seedRefresh {
+		return nil, nil
+	}
+
+	seedSnaps, err := currentSeedSnapNames(st, deviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	earlyDownloads := make(map[string]bool, len(stss))
+	for _, sts := range stss {
+		name := sts.snapsup.InstanceName()
+		if seedSnaps[name] {
+			earlyDownloads[name] = true
+		}
+	}
+
+	return earlyDownloads, nil
+}
+
 // arrangeInstallTasksForSingleReboot arranges the correct link-order between all the
 // provided snap install task-sets, and sets up restart boundaries for essential
 // snaps (base, gadget, kernel).
@@ -148,7 +248,7 @@ func contains[T comparable](items []T, item T) bool {
 // However this may be configured into the following if conditions are right for single-reboot:
 // snapd => boot-base (up to auto-connect) => gadget(up to auto-connect) =>
 // -  kernel (up to auto-connect, then reboot) => boot-base => gadget => kernel => bases => apps.
-func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskSet) error {
+func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskSet, earlyDownloads map[string]bool) error {
 	for _, sts := range stss {
 		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
 			len(sts.upToLinkSnapAndBeforeReboot) == 0 ||
@@ -242,10 +342,18 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 			continue
 		}
 
-		// if we refreshed snapd, force all of the downloads to start after it
-		// is done. note: we don't add this to the chain of tasks we're building
-		// because we don't want to serialize the download tasks.
-		if finalSnapdTask != nil {
+		// if this essential snap is not one of the early downloads, we ensure
+		// that this snap's first before-local-modifications task waits on the
+		// final snapd task. this results in the new version of snapd executing
+		// all tasks created for this essential snap.
+		//
+		// alternatively, when this essential snap is part of the early download
+		// cohort, we omit this dependency, and we only require that this snap's
+		// modification inducing tasks wait for snapd. this frees up this
+		// essential snap's before-local-modifications tasks so that they can be
+		// freely arranged before all local modification inducing tasks, across
+		// all snaps.
+		if finalSnapdTask != nil && !earlyDownloads[sts.snapsup.InstanceName()] {
 			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalSnapdTask)
 		}
 
@@ -351,10 +459,22 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 		}
 	}
 
+	// some non-essential snaps might have been a part of the early download
+	// cohort. in that case, we need to make sure that we don't accidentally
+	// create a dependency cycle. thus, early downloaded snaps will have their
+	// first modification-inducing task wait on the final essential snap, rather
+	// than their first download task.
+	nonEssentialWaitHead := func(sts snapInstallTaskSet) *state.Task {
+		if earlyDownloads[sts.snapsup.InstanceName()] {
+			return head(sts.upToLinkSnapAndBeforeReboot)
+		}
+		return head(sts.beforeLocalSystemModificationsTasks)
+	}
+
 	// make the bases just wait on the final essential snap to finish up
 	for _, sts := range nonEssentialBases {
 		if finalEssential != nil {
-			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalEssential)
+			nonEssentialWaitHead(sts).WaitFor(finalEssential)
 		}
 	}
 
@@ -362,12 +482,16 @@ func arrangeInstallTasksForSingleReboot(st *state.State, stss []snapInstallTaskS
 	// base, if it is being refreshed too
 	for _, sts := range apps {
 		if finalEssential != nil {
-			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalEssential)
+			nonEssentialWaitHead(sts).WaitFor(finalEssential)
 		}
 
 		if baseSTS, ok := nonEssentialBases[sts.snapsup.Base]; ok {
-			head(sts.beforeLocalSystemModificationsTasks).WaitFor(tail(baseSTS.afterLinkSnapAndPostReboot))
+			nonEssentialWaitHead(sts).WaitFor(tail(baseSTS.afterLinkSnapAndPostReboot))
 		}
+	}
+
+	if err := addEarlyDownloadDeps(stss, earlyDownloads); err != nil {
+		return err
 	}
 
 	return nil

@@ -2399,7 +2399,7 @@ func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, e
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
-type processDelayedSecuritybackendEffectsParamsData struct {
+type processDelayedSecurityBackendEffectsParamsData struct {
 	MonitoredLanes []int `json:"monitored-lanes"`
 	ApplyInLane    int   `json:"apply-in-lane"`
 }
@@ -2416,9 +2416,15 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	st.Lock()
 	defer st.Unlock()
 
-	var params processDelayedSecuritybackendEffectsParamsData
+	var params processDelayedSecurityBackendEffectsParamsData
 
 	if err := task.Get("params", &params); err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		// there was a short time between delayed effects entering master with
+		// "monitored-lanes" and subsequent update to use "params"
 		var snapLanes []int
 		if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
@@ -2450,9 +2456,13 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
 			case tsk.ID() == task.ID():
-				// our task should only be present in the default '0' lane, not a dedicated one
-				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
-					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
+				if params.ApplyInLane == 0 {
+					// our task should only be present in the default '0'
+					// lane, not a dedicated one unless we're part of a
+					// transaction
+					if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
+						logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
+					}
 				}
 				delete(considerRestartTriggeringTasks, tsk.ID())
 				continue

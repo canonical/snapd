@@ -12420,9 +12420,9 @@ func verifyDelayedEffectsTaskset(c *C, ts *state.TaskSet, expectedLanes []int, a
 	c.Assert(ts.Tasks(), HasLen, 1)
 	processTask := ts.Tasks()[0]
 	c.Check(processTask.Kind(), Equals, "process-delayed-security-backend-effects")
-	var pdata ifacestate.ProcessDelayedSecuritybackendEffectsParamsData
+	var pdata ifacestate.ProcessDelayedSecurityBackendEffectsParamsData
 	c.Assert(processTask.Get("params", &pdata), IsNil)
-	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecuritybackendEffectsParamsData{
+	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecurityBackendEffectsParamsData{
 		MonitoredLanes: expectedLanes,
 		ApplyInLane:    applyInLane,
 	})
@@ -12484,9 +12484,9 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	// verify everything is set in order
 	det := ts.Tasks()[0]
 	c.Check(det.Kind(), Equals, "process-delayed-security-backend-effects")
-	var pdata ifacestate.ProcessDelayedSecuritybackendEffectsParamsData
+	var pdata ifacestate.ProcessDelayedSecurityBackendEffectsParamsData
 	c.Assert(det.Get("params", &pdata), IsNil)
-	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecuritybackendEffectsParamsData{
+	c.Check(pdata, DeepEquals, ifacestate.ProcessDelayedSecurityBackendEffectsParamsData{
 		MonitoredLanes: []int{0},
 		ApplyInLane:    0,
 	})
@@ -12760,9 +12760,10 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 		})
 
 		if opts.ApplyInLane != 0 {
+			// task is in the configured lane
 			c.Check(delForSnap.Lanes(), DeepEquals, []int{opts.ApplyInLane})
 		} else {
-			// there's one snap an we put the application task in a new lane in a separate lane
+			// there's one snap an we put the application task in a new lane
 			c.Check(delForSnap.Lanes(), DeepEquals, []int{2})
 		}
 	} else {

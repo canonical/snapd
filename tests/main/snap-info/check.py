@@ -45,12 +45,12 @@ verNotesRx = re.compile(r"^\w\S*\s+-$")
 
 
 def verRevNotesRx(s):
-    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$")
+    return re.compile(r"^\w\S*\s+\(\d+\)\s+[1-9][.0-9]*\w+\s+" + s + "$")
 
 
 def verRelRevNotesRx(s):
     return re.compile(
-        r"^\w\S*\s+\d{4}-\d{2}-\d{2}\s+\(\d+\)\s+[1-9][0-9]*\w+\s+" + s + "$"
+        r"^\w\S*\s+\d{4}-\d{2}-\d{2}\s+\(\d+\)\s+[1-9][.0-9]*\w+\s+" + s + "$"
     )
 
 
@@ -186,7 +186,9 @@ check(
 )
 
 check(
-    "error", res[5], ("warning", equals, 'no snap found for "/etc/passwd"'),
+    "error",
+    res[5],
+    ("warning", equals, 'no snap found for "/etc/passwd"'),
 )
 
 # not installed snaps have "contact" information
@@ -203,4 +205,3 @@ check(
     ("snap-id", equals, snap_ids["test-snapd-python-webserver"]),
     ("license", equals, "Other Open Source"),
 )
-

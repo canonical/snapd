@@ -387,8 +387,16 @@ SNAPD_APPARMOR_REEXEC=1
 
 	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed security backend effects")
-		tsk.Set("monitored-lanes", lanes)
-		tsk.Set("join-lane", joinLane)
+
+		sortedLanes := make([]int, len(lanes))
+		copy(sortedLanes, lanes)
+		sort.Ints(sortedLanes)
+		// keep in sync with ifacestate.ProcessDelayedSecurityBackendEffects so
+		// that we stay close to the real implementation
+		tsk.Set("params", map[string]any{
+			"monitored-lanes": sortedLanes,
+			"apply-in-lane":   joinLane,
+		})
 		return state.NewTaskSet(tsk)
 	}))
 
@@ -12163,13 +12171,14 @@ func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, exp
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
 	eff := ts.Tasks()[0]
-	var lanes []int
-	c.Check(eff.Get("monitored-lanes", &lanes), IsNil)
-	sort.Ints(lanes)
+	// this should match what the mocked handler sets on the task, and should be
+	// mostly the same as the actual
+	// ifacestate.ProcessDelayedSecurityBackendEffects
+	var data map[string]any
+	c.Check(eff.Get("params", &data), IsNil)
+	c.Check(len(data), Equals, 2)
 	if expectedLanes != nil {
-		c.Check(lanes, DeepEquals, expectedLanes)
+		c.Check(data["monitored-lanes"], testutil.JsonEquals, expectedLanes)
 	}
-	var joinLane int
-	c.Check(eff.Get("join-lane", &joinLane), IsNil)
-	c.Check(joinLane, Equals, expectedJoinLane)
+	c.Check(data["apply-in-lane"], testutil.JsonEquals, expectedJoinLane)
 }
