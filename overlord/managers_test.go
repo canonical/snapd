@@ -15013,7 +15013,14 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsApplied(c *C) {
 	c.Check(effectsAppliedFor, DeepEquals, []string{"consumer1", "consumer2"})
 }
 
-func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyApplied(c *C) {
+type testDelayedSecurityBackendSideEffectsTransactionallyAppliedScenario int
+
+const (
+	success testDelayedSecurityBackendSideEffectsTransactionallyAppliedScenario = iota
+	failure
+)
+
+func (s *mgrsSuite) testDelayedSecurityBackendSideEffectsTransactionallyApplied(c *C, scenario testDelayedSecurityBackendSideEffectsTransactionallyAppliedScenario) {
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
@@ -15073,6 +15080,7 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyApplied(
 	ifacemgrReinitDone := false
 	var b interfaces.SecurityBackend
 	var effectsAppliedFor []string
+	var nonDelayedSetupCallsForConsumers int
 	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{
 			BackendName: "test",
@@ -15097,6 +15105,8 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyApplied(
 								Description: fmt.Sprintf("mock effect for %s", name),
 							})
 
+						} else {
+							nonDelayedSetupCallsForConsumers++
 						}
 						return nil
 					default:
@@ -15107,7 +15117,11 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyApplied(
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName())
+			name := appSet.InstanceName()
+			effectsAppliedFor = append(effectsAppliedFor, name)
+			if name == "consumer2" && scenario == failure {
+				return fmt.Errorf("mock error")
+			}
 			return nil
 		},
 	}
@@ -15191,10 +15205,55 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyApplied(
 
 	dumpTasks(c, "after settle", chg.Tasks())
 	verifyApplyDelayedEffectsForSnaps(c, chg.Tasks(), []string{"consumer1", "consumer2"}, tlane)
-	sort.Strings(effectsAppliedFor)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Check(chg.Err(), IsNil)
-	c.Check(effectsAppliedFor, DeepEquals, []string{"consumer1", "consumer2"})
+
+	switch scenario {
+	case success:
+		sort.Strings(effectsAppliedFor)
+		c.Check(chg.Status(), Equals, state.DoneStatus)
+		c.Check(chg.Err(), IsNil)
+		c.Check(effectsAppliedFor, DeepEquals, []string{"consumer1", "consumer2"})
+		c.Check(nonDelayedSetupCallsForConsumers, Equals, 0)
+	case failure:
+		// depending on how the tasks happened to run, the consumer1 effect
+		// may or may not have been applied
+		c.Check(effectsAppliedFor, testutil.Contains, "consumer2")
+		c.Check(chg.Status(), Equals, state.ErrorStatus)
+		c.Check(chg.Err(), ErrorMatches,
+			`(?ms)cannot perform .* Apply delayed security backend side effects for snap "consumer2" \(mock error\).*$`)
+		for _, t := range chg.Tasks() {
+			switch t.Kind() {
+			case "apply-delayed-snap-security-backend-effects":
+				var data struct {
+					AffectedSnapInstance string `json:"affected-snap-instance"`
+				}
+				c.Assert(t.Get("effects-data", &data), IsNil)
+				if data.AffectedSnapInstance == "consumer2" {
+					c.Check(t.Status(), Equals, state.ErrorStatus)
+				} else {
+					// the task for consumer1 may have run, in which case it
+					// would be done (as the task has no 'undo'), otherwise it
+					// should have been held back
+					c.Check([]state.Status{state.DoneStatus, state.HoldStatus}, testutil.Contains, t.Status())
+				}
+			case "link-snap", "auto-connect":
+				// treating them as canaries with known statuses in failure mode
+				c.Check(t.Status(), Equals, state.UndoneStatus)
+			}
+		}
+		// Setup() calls in undo path have no delayed effects, we're expecting
+		// 2, one for each consumer
+		c.Check(nonDelayedSetupCallsForConsumers, Equals, 2)
+	default:
+		c.Fatalf("unexpected scenario %v", scenario)
+	}
 
 	c.Logf("log:\n%s", s.logbuf.String())
+}
+
+func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyAppliedCompletes(c *C) {
+	s.testDelayedSecurityBackendSideEffectsTransactionallyApplied(c, success)
+}
+
+func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsTransactionallyAppliedErr(c *C) {
+	s.testDelayedSecurityBackendSideEffectsTransactionallyApplied(c, failure)
 }
