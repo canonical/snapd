@@ -154,6 +154,9 @@ execute: |
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
 
     if test -f enforcing.mode; then
-        # there should have been no denials
-        ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+        # Ignore expected SELinux denials from syslogd_t using netlink_tcpdiag_socket
+        # Fail on any other unexpected AVCs.
+        ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+        grep -v -E 'avc:  denied  \{ .* \} .* scontext=.*:syslogd_t:s0 .* tclass=netlink_tcpdiag_socket' < avc-after | \
+        NOMATCH 'type=AVC'
     fi
