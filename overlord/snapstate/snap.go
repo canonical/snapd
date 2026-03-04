@@ -211,7 +211,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(
 			i18n.G("Make current revision for snap %q unavailable"), sc.snapsup.InstanceName()))
-		unlink.Set("unlink-reason", unlinkReasonRefresh)
+		unlink.Set("unlink-reason", unlinkCurrentSnapReasonRefresh)
 		s.Append(unlink)
 	}
 

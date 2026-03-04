@@ -1614,6 +1614,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
 		otherInstances:         linkCtx.HasOtherInstances,
+		inhibitHint:            linkCtx.RunInhibitHint,
 	})
 	return f.maybeErrForLastOp()
 }

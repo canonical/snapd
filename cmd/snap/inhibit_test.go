@@ -305,12 +305,12 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	checkHintFileLocked(c, "snapname")
 }
 
-func (s *RunSuite) testWaitWhileInhibitedRemoveInhibition(c *C, svc bool) {
+func (s *RunSuite) testWaitWhileInhibitedRemoveOrDisableInhibition(c *C, svc bool, hint runinhibit.Hint, errMsg string) {
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R(11)})
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, inhibitInfo, nil), IsNil)
+	c.Assert(runinhibit.LockWithHint("snapname", hint, inhibitInfo, nil), IsNil)
 
 	inhibitionFlow := fakeInhibitionFlow{
 		start: func(ctx context.Context) error {
@@ -329,7 +329,7 @@ func (s *RunSuite) testWaitWhileInhibitedRemoveInhibition(c *C, svc bool) {
 	}
 
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", appName)
-	c.Assert(err, ErrorMatches, "snap is being removed")
+	c.Assert(err, ErrorMatches, errMsg)
 	c.Assert(hintLock, IsNil)
 	c.Check(info, IsNil)
 	c.Check(app, IsNil)
@@ -338,13 +338,31 @@ func (s *RunSuite) testWaitWhileInhibitedRemoveInhibition(c *C, svc bool) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedRemoveInhibition(c *C) {
-	const svc = false
-	s.testWaitWhileInhibitedRemoveInhibition(c, svc)
+	svc := false
+	hint := runinhibit.HintInhibitedForRemove
+	errMsg := "snap is being removed"
+	s.testWaitWhileInhibitedRemoveOrDisableInhibition(c, svc, hint, errMsg)
 }
 
-func (s *RunSuite) TestWaitWhileInhibitedRemoveInhibitionSevice(c *C) {
-	const svc = false
-	s.testWaitWhileInhibitedRemoveInhibition(c, svc)
+func (s *RunSuite) TestWaitWhileInhibitedRemoveInhibitionService(c *C) {
+	svc := true
+	hint := runinhibit.HintInhibitedForRemove
+	errMsg := "snap is being removed"
+	s.testWaitWhileInhibitedRemoveOrDisableInhibition(c, svc, hint, errMsg)
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedDisableInhibition(c *C) {
+	svc := false
+	hint := runinhibit.HintInhibitedForDisable
+	errMsg := "snap is disabled"
+	s.testWaitWhileInhibitedRemoveOrDisableInhibition(c, svc, hint, errMsg)
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedDisableInhibitionService(c *C) {
+	svc := true
+	hint := runinhibit.HintInhibitedForDisable
+	errMsg := "snap is disabled"
+	s.testWaitWhileInhibitedRemoveOrDisableInhibition(c, svc, hint, errMsg)
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedNotInhibitedNoNotification(c *C) {

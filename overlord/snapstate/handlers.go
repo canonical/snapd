@@ -68,6 +68,22 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
+// unlink-reason for "unlink-current-snap" task
+type unlinkCurrentSnapReason string
+
+const (
+	unlinkCurrentSnapReasonRefresh       unlinkCurrentSnapReason = "refresh"
+	unlinkCurrentSnapReasonHomeMigration unlinkCurrentSnapReason = "home-migration"
+)
+
+// unlink-reason for "unlink-snap" task
+type unlinkSnapReason string
+
+const (
+	unlinkSnapReasonRemove  unlinkSnapReason = "remove"
+	unlinkSnapReasonDisable unlinkSnapReason = "disable"
+)
+
 // SnapServiceOptions is a hook set by servicestate.
 var SnapServiceOptions = func(st *state.State, snapInfo *snap.Info, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	panic("internal error: snapstate.SnapServiceOptions is unset")
@@ -1420,13 +1436,6 @@ func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) 
 	return m.backend.QueryDisabledServices(info, pb)
 }
 
-type unlinkReason string
-
-const (
-	unlinkReasonRefresh       unlinkReason = "refresh"
-	unlinkReasonHomeMigration unlinkReason = "home-migration"
-)
-
 // restoreUnlinkOnError assumes that state is locked.
 func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, otherInstances bool, tm timings.Measurer) error {
 	st := t.State()
@@ -1594,7 +1603,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 	// symlink to a new revision of the snapd snap, so only do the actual
 	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
-		var reason unlinkReason
+		var reason unlinkCurrentSnapReason
 		if err := t.Get("unlink-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -1602,7 +1611,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		if err != nil && !config.IsNoOption(err) {
 			return err
 		}
-		skipBinaries := reason == unlinkReasonRefresh && refreshAppAwarenessEnabled && experimentalRefreshAppAwarenessUX
+		skipBinaries := reason == unlinkCurrentSnapReasonRefresh && refreshAppAwarenessEnabled && experimentalRefreshAppAwarenessUX
 
 		otherInstances, err := hasOtherInstances(st, oldInfo.InstanceName())
 		if err != nil {
@@ -3722,10 +3731,19 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var reason unlinkSnapReason
+	if err := t.Get("unlink-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	// do the final unlink
 	unlinkCtx := backend.LinkContext{
 		FirstInstall:      false,
 		HasOtherInstances: otherInstances,
+	}
+	if reason == unlinkSnapReasonDisable {
+		unlinkCtx.RunInhibitHint = runinhibit.HintInhibitedForDisable
+		unlinkCtx.StateUnlocker = st.Unlocker() // needed for runinhibit in backend.UnlinkSnap
 	}
 	err = m.backend.UnlinkSnap(info, unlinkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
