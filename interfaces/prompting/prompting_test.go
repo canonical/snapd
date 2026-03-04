@@ -70,7 +70,8 @@ func (s *promptingSuite) TestNewRequestFromListenerSimple(c *C) {
 	var (
 		protoVersion = notify.ProtocolVersion(2)
 		id           = uint64(123)
-		label        = "snap.foo.bar"
+		label        = "snap.mysnapname.bar"
+		snap         = "mysnapname"
 		path         = "/home/Documents/foo"
 		aBits        = uint32(0b1010) // write (and append)
 		dBits        = uint32(0b0101) // read, exec
@@ -105,10 +106,64 @@ func (s *promptingSuite) TestNewRequestFromListenerSimple(c *C) {
 	c.Check(result.UID, Equals, msg.SUID)
 	c.Check(result.PID, Equals, msg.Pid)
 	c.Check(result.Cgroup, Equals, "some-cgroup-path")
-	c.Check(result.AppArmorLabel, Equals, label)
+	c.Check(result.Snap, Equals, snap)
 	c.Check(result.Interface, Equals, iface)
 	c.Check(result.Permissions, DeepEquals, expectedPerms)
 	c.Check(result.Path, Equals, path)
+}
+
+func (s *promptingSuite) TestNewRequestFromListenerSnapSelection(c *C) {
+	var (
+		protoVersion = notify.ProtocolVersion(2)
+		id           = uint64(123)
+		path         = "/home/Documents/foo"
+		aBits        = uint32(0b1010) // write (and append)
+		dBits        = uint32(0b0101) // read, exec
+
+		tagsets = notify.TagsetMap{
+			notify.FilePermission(0b1100): notify.MetadataTags{"tag1", "tag2"},
+			notify.FilePermission(0b0010): notify.MetadataTags{"tag3"},
+			notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
+		}
+
+		iface = "home"
+	)
+
+	restore := prompting.MockApparmorInterfaceForMetadataTag(func(tag string) (string, bool) {
+		switch tag {
+		case "tag2", "tag4":
+			return iface, true
+		default:
+			return "", false
+		}
+	})
+	defer restore()
+
+	for _, testCase := range []struct {
+		label        string
+		expectedSnap string
+	}{
+		{"snap.foo.bar", "foo"},
+		{"snap.firefox.firefox", "firefox"},
+		{"snap.libreoffice.writer", "libreoffice"},
+		{"snap.obs-studio.obs-studio", "obs-studio"},
+		// missing app
+		{"snap.foo", "snap.foo"},
+		// missing app
+		{"snap.firefox", "snap.firefox"},
+		// missing "snap." prefix
+		{"firefox.firefox", "firefox.firefox"},
+		// extra after app
+		{"snap.firefox.firefox.firefox", "snap.firefox.firefox.firefox"},
+	} {
+		msg := newMsgNotificationFile(protoVersion, id, testCase.label, path, aBits, dBits, tagsets)
+
+		result, err := prompting.NewRequestFromListener(msg, nil)
+		c.Assert(err, IsNil)
+		c.Assert(result, NotNil)
+
+		c.Check(result.Snap, Equals, testCase.expectedSnap)
+	}
 }
 
 func (s *promptingSuite) TestNewRequestFromListenerInterfaceSelection(c *C) {

@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -250,18 +249,13 @@ func (m *InterfacesRequestsManager) handleRequest(req *prompting.Request) error 
 		// Deny any request for the root user
 		return req.Reply(nil)
 	}
-	snap := req.AppArmorLabel // Default to apparmor label, in case process is not a snap
-	if tag, err := naming.ParseSecurityTag(req.AppArmorLabel); err == nil {
-		// the triggering process is a snap, so use instance name as snap field
-		snap = tag.InstanceName()
-	}
 
 	// we're done with early checks, serious business starts now, and we can
 	// take the lock
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, snap, req.Interface, req.Path, req.Permissions)
+	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, req.Snap, req.Interface, req.Path, req.Permissions)
 	if err != nil || matchedDenyRule || len(outstandingPerms) == 0 {
 		switch {
 		case err != nil:
@@ -281,7 +275,7 @@ func (m *InterfacesRequestsManager) handleRequest(req *prompting.Request) error 
 
 	metadata := &prompting.Metadata{
 		User:      req.UID,
-		Snap:      snap,
+		Snap:      req.Snap,
 		PID:       req.PID,
 		Cgroup:    req.Cgroup,
 		Interface: req.Interface,

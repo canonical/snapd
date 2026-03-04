@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -253,13 +252,13 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
 		req := &prompting.Request{
-			PID:           1234,
-			Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-			AppArmorLabel: "snap.firefox.firefox",
-			UID:           s.defaultUser,
-			Path:          fmt.Sprintf("/home/test/%d", i),
-			Interface:     "home",
-			Permissions:   []string{"write"},
+			PID:         1234,
+			Cgroup:      "0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-someuuid.scope",
+			Snap:        "firefox",
+			UID:         s.defaultUser,
+			Path:        fmt.Sprintf("/home/test/%d", i),
+			Interface:   "home",
+			Permissions: []string{"write"},
 		}
 		reqChan <- req
 	}
@@ -275,13 +274,13 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 	})
 
 	req, replyChan := requestWithReplyChan(&prompting.Request{
-		PID:           1234,
-		Cgroup:        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-		AppArmorLabel: "snap.firefox.firefox",
-		UID:           s.defaultUser,
-		Path:          fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
-		Interface:     "home",
-		Permissions:   []string{"write"},
+		PID:         1234,
+		Cgroup:      "0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-someuuid.scope",
+		Snap:        "firefox",
+		UID:         s.defaultUser,
+		Path:        fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
+		Interface:   "home",
+		Permissions: []string{"write"},
 	})
 	reqChan <- req
 	allowedPermissions, err := waitForReply(replyChan)
@@ -374,13 +373,8 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 		break
 	}
 	c.Assert(prompt, NotNil)
-	expectedSnap := req.AppArmorLabel
-	labelComponents := strings.Split(req.AppArmorLabel, ".")
-	if len(labelComponents) == 3 {
-		expectedSnap = labelComponents[1]
-	}
 
-	c.Check(prompt.Snap, Equals, expectedSnap)
+	c.Check(prompt.Snap, Equals, req.Snap)
 	c.Check(prompt.PID, Equals, req.PID)
 	c.Check(prompt.Cgroup, Equals, req.Cgroup)
 	c.Check(prompt.Interface, Equals, "home")
@@ -402,10 +396,10 @@ func (s *apparmorpromptingSuite) fillInPartialRequest(req *prompting.Request) {
 		req.PID = 1234
 	}
 	if req.Cgroup == "" {
-		req.Cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"
+		req.Cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox-someuuid.scope"
 	}
-	if req.AppArmorLabel == "" {
-		req.AppArmorLabel = "snap.firefox.firefox"
+	if req.Snap == "" {
+		req.Snap = "firefox"
 	}
 	if req.UID == uint32(0) {
 		req.UID = s.defaultUser
