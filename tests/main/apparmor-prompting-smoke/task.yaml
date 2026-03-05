@@ -37,6 +37,8 @@ environment:
     TMP_STDOUT: $(mktemp)
     TMP_STDERR: $(mktemp)
     INTERFACE: $(echo "$SCENARIO" | awk -F "_" '{printf $1}')
+    PROMPT_RESPONSE: $(echo "$SCENARIO" | awk -F '_' '{print $2}')
+    LIFESPAN: $(echo "$SCENARIO" | awk -F '_' '{print $3}')
     TARGET_DIR: "/home/test/$SCENARIO"
 
 skip:
@@ -93,8 +95,6 @@ debug: |
     done
 
 execute: |
-    PROMPT_RESPONSE="$(echo "$SCENARIO" | awk -F '_' '{print $2}')"
-    LIFESPAN="$(echo "$SCENARIO" | awk -F '_' '{print $3}')"
     case "$INTERFACE" in
         "home")
             mkdir -p "$TARGET_DIR"
