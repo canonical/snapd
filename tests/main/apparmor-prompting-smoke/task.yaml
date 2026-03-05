@@ -12,23 +12,23 @@ systems:
     - ubuntu-2*
 
 environment:
-    SCENARIO/allow_single_home: "allow_single_home"
-    SCENARIO/deny_single_home: "deny_single_home"
-    SCENARIO/allow_timespan_home: "allow_timespan_home"
-    SCENARIO/deny_timespan_home: "deny_timespan_home"
-    SCENARIO/allow_session_home: "allow_session_home"
-    SCENARIO/deny_session_home: "deny_session_home"
-    SCENARIO/allow_forever_home: "allow_forever_home"
-    SCENARIO/deny_forever_home: "deny_forever_home"
+    SCENARIO/home_allow_single: "home_allow_single"
+    SCENARIO/home_deny_single: "home_deny_single"
+    SCENARIO/home_allow_timespan: "home_allow_timespan"
+    SCENARIO/home_deny_timespan: "home_deny_timespan"
+    SCENARIO/home_allow_session: "home_allow_session"
+    SCENARIO/home_deny_session: "home_deny_session"
+    SCENARIO/home_allow_forever: "home_allow_forever"
+    SCENARIO/home_deny_forever: "home_deny_forever"
 
-    SCENARIO/allow_single_camera: "allow_single_camera"
-    SCENARIO/deny_single_camera: "deny_single_camera"
-    SCENARIO/allow_timespan_camera: "allow_timespan_camera"
-    SCENARIO/deny_timespan_camera: "deny_timespan_camera"
-    SCENARIO/allow_session_camera: "allow_session_camera"
-    SCENARIO/deny_session_camera: "deny_session_camera"
-    SCENARIO/allow_forever_camera: "allow_forever_camera"
-    SCENARIO/deny_forever_camera: "deny_forever_camera"
+    SCENARIO/camera_allow_single: "camera_allow_single"
+    SCENARIO/camera_deny_single: "camera_deny_single"
+    SCENARIO/camera_allow_timespan: "camera_allow_timespan"
+    SCENARIO/camera_deny_timespan: "camera_deny_timespan"
+    SCENARIO/camera_allow_session: "camera_allow_session"
+    SCENARIO/camera_deny_session: "camera_deny_session"
+    SCENARIO/camera_allow_forever: "camera_allow_forever"
+    SCENARIO/camera_deny_forever: "camera_deny_forever"
 
     # The duration for the lifespan timespan response to the prompt
     DURATION: "20s"
@@ -36,7 +36,7 @@ environment:
     # temporary files are used to redirect stdout and stderr from attempts to read the target file
     TMP_STDOUT: $(mktemp)
     TMP_STDERR: $(mktemp)
-    INTERFACE: $(echo "$SCENARIO" | awk -F "_" '{printf $3}')
+    INTERFACE: $(echo "$SCENARIO" | awk -F "_" '{printf $1}')
     TARGET_DIR: "/home/test/$SCENARIO"
 
 skip:
@@ -81,8 +81,10 @@ restore: |
 debug: |
     uname -a
     snap debug api /v2/system-info
-    snap debug api /v2/interfaces/requests/prompts
-    snap debug api /v2/interfaces/requests/rules
+    if id -u test ; then
+        snap debug api "/v2/interfaces/requests/prompts?user-id=$(id -u test)"
+        snap debug api "/v2/interfaces/requests/rules?user-id=$(id -u test)"
+    fi
 
     for i_r_dir in /run/snapd/interfaces-requests /var/lib/snapd/interfaces-requests ; do
         if [ -d "$i_r_dir" ] ; then
@@ -91,8 +93,8 @@ debug: |
     done
 
 execute: |
-    PROMPT_RESPONSE="$(echo "$SCENARIO" | awk -F '_' '{print $1}')"
-    LIFESPAN="$(echo "$SCENARIO" | awk -F '_' '{print $2}')"
+    PROMPT_RESPONSE="$(echo "$SCENARIO" | awk -F '_' '{print $2}')"
+    LIFESPAN="$(echo "$SCENARIO" | awk -F '_' '{print $3}')"
     case "$INTERFACE" in
         "home")
             mkdir -p "$TARGET_DIR"
