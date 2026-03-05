@@ -58,13 +58,12 @@ func NewChangeGraph(chg *state.Change, tag string) (*statedot.ChangeGraph, error
 }
 
 // TaskLabel produces a unique label string and optional attrs for the given task.
-func TaskLabel(t *state.Task) (string, []string, error) {
+func TaskLabel(t *state.Task) (label string, attrs []string, err error) {
 	reboot, err := taskRebootBoundaryDirection(t)
 	if err != nil {
 		return "", nil, err
 	}
 
-	var attrs []string
 	if reboot != "" {
 		attrs = append(attrs, "peripheries=2")
 	}
@@ -86,7 +85,7 @@ func TaskLabel(t *state.Task) (string, []string, error) {
 		return withRebootLabel(fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), reboot), attrs, nil
 	}
 
-	label := fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
+	label = fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
 
 	var plugRef interfaces.PlugRef
 	if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
