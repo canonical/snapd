@@ -2830,7 +2830,9 @@ func (*viewSuite) TestContentInheritsAccess(c *C) {
 						"content": []any{
 							map[string]any{
 								"storage": "bar",
-							}}},
+							},
+						},
+					},
 				},
 			},
 		}, confdb.NewJSONSchema())
@@ -2869,7 +2871,13 @@ func (*viewSuite) TestInheritedAccessInSeveralNestedContents(c *C) {
 							"content": []any{
 								map[string]any{
 									"storage": "baz",
-								}}}}}}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
@@ -2898,7 +2906,9 @@ func (*viewSuite) TestContentForbidsOverridingAccess(c *C) {
 							map[string]any{
 								"storage": "bar",
 								"access":  "read",
-							}}},
+							},
+						},
+					},
 				},
 			},
 		}, confdb.NewJSONSchema())
@@ -3559,7 +3569,6 @@ func (*viewSuite) TestViewRequestPathCannotHaveIndexLiteral(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 	c.Assert(schema, NotNil)
-
 }
 
 func (*viewSuite) TestGetListLiteral(c *C) {
@@ -4608,11 +4617,12 @@ func (s *viewSuite) TestConfdbSchemaParameters(c *C) {
 			err: `.*: expected "presence" to be one of "optional", "required-on-write", "required-on-read", "required" or empty but was "invalid"`,
 		},
 		{
-			parameters: []map[string]any{{
-				"status": map[string]any{
-					"presence": "invalid",
+			parameters: []map[string]any{
+				{
+					"status": map[string]any{
+						"presence": "invalid",
+					},
 				},
-			},
 			},
 			err: `.*expected optional "parameters" to be map but got \[\]map\[string\]interface {}`,
 		},
@@ -5252,8 +5262,10 @@ var indexReg = `\[[^.\[]*`
 // matches everything except for a '[' or a '.'
 var variables = `[^.\[]+`
 
-var subkeyOnlyReg = regexp.MustCompile(fmt.Sprintf("%s|%s|%s", fieldFilterReg, indexReg, variables))
-var subkeyWithDot = regexp.MustCompile(fmt.Sprintf("%s|[.]", subkeyOnlyReg))
+var (
+	subkeyOnlyReg = regexp.MustCompile(fmt.Sprintf("%s|%s|%s", fieldFilterReg, indexReg, variables))
+	subkeyWithDot = regexp.MustCompile(fmt.Sprintf("%s|[.]", subkeyOnlyReg))
+)
 
 func (*viewSuite) TestSubkeyRegex(c *C) {
 	s := "[∀.∃][.0][..[.a={e}]]"
