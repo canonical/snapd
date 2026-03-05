@@ -61,15 +61,12 @@ prepare: |
 
     # Install a snap which will trigger prompts
     "$TESTSTOOLS"/snaps-state install-local prompt-requester
-    case "$INTERFACE" in
-        "home") snap connect prompt-requester:home ;;
-        "camera") snap connect prompt-requester:camera ;;
-    esac
+    # shellcheck disable=SC2086,SC2154
+    snap connect prompt-requester:$INTERFACE
 
 restore: |
-    if [ -d "$TARGET_DIR" ]; then
-        rm -rf "$TARGET_DIR"
-    fi
+    echo "Remove $TARGET_DIR"
+    rm -rf "$TARGET_DIR"
 
     echo "Remove temporary files"
     rm -f "$TMP_STDOUT" "$TMP_STDERR"
@@ -95,6 +92,23 @@ debug: |
     done
 
 execute: |
+    check_process_exit () {
+        echo "Check the process exited correctly"
+        case "$PROMPT_RESPONSE" in
+            "allow")
+                test ! -s "$TMP_STDERR"
+                case "$INTERFACE" in
+                    "home") MATCH "hello-foo" < "$TMP_STDOUT" ;;
+                    "camera") test ! -s "$TMP_STDOUT" ;;
+                esac
+                ;;
+            "deny")
+                MATCH "failed" < "$TMP_STDOUT"
+                MATCH "Permission denied" < "$TMP_STDERR"
+                ;;
+        esac
+    }
+
     case "$INTERFACE" in
         "home")
             mkdir -p "$TARGET_DIR"
@@ -170,21 +184,7 @@ execute: |
 
     echo "Wait for requester process to finish"
     wait "$REQUESTER_PID" || true
-
-    echo "Check the process exited correctly"
-    case "$PROMPT_RESPONSE" in
-        "allow")
-            test ! -s "$TMP_STDERR"
-            case "$INTERFACE" in
-                "home") MATCH "hello-foo" < "$TMP_STDOUT" ;;
-                "camera") test ! -s "$TMP_STDOUT" ;;
-            esac
-            ;;
-        "deny")
-            MATCH "failed" < "$TMP_STDOUT"
-            MATCH "Permission denied" < "$TMP_STDERR"
-            ;;
-    esac
+    check_process_exit
 
     if [ "$LIFESPAN" != "single" ]; then
         echo "Check that there is a notice for rule creation"
@@ -278,18 +278,4 @@ execute: |
 
     echo "Wait for requester process to finish"
     wait "$REQUESTER_PID" || true
-
-    echo "Check the process exited correctly"
-    case "$PROMPT_RESPONSE" in
-        "allow")
-            test ! -s "$TMP_STDERR"
-            case "$INTERFACE" in
-                "home") MATCH "hello-foo" < "$TMP_STDOUT" ;;
-                "camera") test ! -s "$TMP_STDOUT" ;;
-            esac
-            ;;
-        "deny")
-            MATCH "failed" < "$TMP_STDOUT"
-            MATCH "Permission denied" < "$TMP_STDERR"
-            ;;
-    esac
+    check_process_exit
