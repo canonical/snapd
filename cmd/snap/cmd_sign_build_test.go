@@ -78,7 +78,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
+		data, err := os.ReadFile(filepath.Join("testdata", fileName))
 		c.Assert(err, IsNil)
 		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
@@ -113,7 +113,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorksDevelGrade(c *C) {
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := os.ReadFile(filepath.Join("test-data", fileName))
+		data, err := os.ReadFile(filepath.Join("testdata", fileName))
 		c.Assert(err, IsNil)
 		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)

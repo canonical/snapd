@@ -25,7 +25,9 @@ vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir un
 #   with_apparmor: set to 1 to build snapd with apparmor support
 #   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
 #   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
-vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir
+#   with_vendor: set to 1 to build snapd using the vendor directory for dependencies
+#   with_static_pie: set to 1 to build static binaries in PIE mode if
+vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir with_vendor with_static_pie
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
@@ -37,6 +39,13 @@ $(foreach var,$(vars),$(if $(value $(var)),,$(error $(var) is empty or unset, ch
 
 # Import path of snapd.
 import_path = github.com/snapcore/snapd
+
+# Trusted account keys that must be present in production builds.
+# These are used by check-trusted-account-keys target to verify that
+# test keys are not accidentally included in production builds.
+SNAPD_STORE_ROOT_KEY = -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+SNAPD_STORE_GENERIC_MODELS_KEY = d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa
+SNAPD_REPAIR_ROOT_KEY = nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t
 
 
 # This is usually set by %make_install. It is defined here to avoid warnings or
@@ -81,10 +90,34 @@ endif
 # Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
 EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
+# sourcedir is the path to the source directory tree (where the go source files are).
+# This is used by prepare-build-tree to remove unnecessary code.
+# For Debian/dh-golang, this would be: sourcedir=_build/src/github.com/snapcore/snapd
+sourcedir ?= $(CURDIR)
+
+# Prepare the build tree by removing code that is not used in non-embedded builds.
+# This removes snap-bootstrap, snap-fde-keymgr, and secboot-related code that
+# is only needed for embedded systems and UC20+ builds. This could be somewhat
+# avoided if we had all the dependencies in Debian OR if dh-golang supported
+# build tags properly.
+.PHONY: prepare-build-tree
+prepare-build-tree:
+	# exclude certain parts that won't be used by debian
+	find $(sourcedir)/cmd/snap-bootstrap -name "*.go" 2>/dev/null | xargs rm -f
+	find $(sourcedir)/cmd/snap-fde-keymgr -name "*.go" 2>/dev/null | xargs rm -f
+	find $(sourcedir)/gadget/install -name "*.go" -not -name "params.go" -not -name "install_placeholder.go" -not -name "kernel.go" 2>/dev/null | xargs rm -f
+	# XXX: once dh-golang understands go build tags this would not be needed
+	find $(sourcedir)/secboot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go|.*_tpm(_test)?\.go|secboot_hooks.go|auth_requestor.go|keymgr/)' | xargs rm -f
+	# Rename plainkey files to indicate they are secboot variants
+	if [ -f $(sourcedir)/secboot/keys/plainkey.go ]; then mv $(sourcedir)/secboot/keys/plainkey.go $(sourcedir)/secboot/keys/plainkey_sb.go; fi
+	if [ -f $(sourcedir)/secboot/keys/plainkey_test.go ]; then mv $(sourcedir)/secboot/keys/plainkey_test.go $(sourcedir)/secboot/keys/plainkey_sb_test.go; fi
+	find $(sourcedir)/secboot/keys/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs rm -f
+	find $(sourcedir)/boot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs rm -f
+
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
-all: $(go_binaries) 
+all: $(go_binaries)
 
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
@@ -108,6 +141,24 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS)" \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
+
+# Check that critical binaries are statically linked.
+# These binaries execute inside mount namespaces and cannot depend on external libraries.
+# builddir: the directory containing the built binaries (e.g., _build/bin)
+.PHONY: check-static-binaries
+check-static-binaries:
+	@echo "Checking that critical binaries are statically linked..."
+	@for binary in snap-exec snap-update-ns snapctl; do \
+		if [ -f "$(builddir)/$$binary" ]; then \
+			if ldd "$(builddir)/$$binary" >/dev/null 2>&1; then \
+				echo "ERROR: $$binary is dynamically linked, must be static"; \
+				ldd "$(builddir)/$$binary"; \
+				exit 1; \
+			fi; \
+			echo "  $$binary: OK (static)"; \
+		fi; \
+	done
+	@echo "All static binary checks passed."
 
 # XXX see the note about build ID in rule for building 'snap'
 # Snapd can be built with test keys. This is only used by the internal test
@@ -185,7 +236,7 @@ install:: | $(DESTDIR)$(snap_mount_dir)
 install::
 	install -m 755 -d $(DESTDIR)$(snap_mount_dir)/bin
 
-# Install misc directories: 
+# Install misc directories:
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
@@ -225,4 +276,79 @@ check:
 
 .PHONY: clean
 clean:
-	rm -f $(go_binaries) 
+	rm -f $(go_binaries)
+
+# Check that production builds contain only the expected trusted account keys.
+# This verifies that test keys are not accidentally included in production builds.
+# builddir: the directory containing the built binaries (e.g., _build/bin)
+.PHONY: check-trusted-account-keys
+check-trusted-account-keys:
+	@echo "Checking trusted account keys in snapd and related binaries..."
+	@# Check snapd binary (2 keys expected)
+	@if [ -f "$(builddir)/snapd" ]; then \
+		count=$$(strings $(builddir)/snapd | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snapd, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snapd store root key not found"; exit 1; }; \
+		strings $(builddir)/snapd | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snapd store generic models key not found"; exit 1; }; \
+		echo "  snapd: OK (2 keys)"; \
+	fi
+	@# Check snap binary (2 keys expected)
+	@if [ -f "$(builddir)/snap" ]; then \
+		count=$$(strings $(builddir)/snap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap store root key not found"; exit 1; }; \
+		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap store generic models key not found"; exit 1; }; \
+		echo "  snap: OK (2 keys)"; \
+	fi
+	@# Check snap-bootstrap if it exists (Ubuntu 16.04+)
+	@if [ -f "$(builddir)/snap-bootstrap" ]; then \
+		count=$$(strings $(builddir)/snap-bootstrap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap-bootstrap, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-bootstrap store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-bootstrap store generic models key not found"; exit 1; }; \
+		echo "  snap-bootstrap: OK (2 keys)"; \
+	fi
+	@# Check snap-preseed if it exists (Ubuntu 16.04+)
+	@if [ -f "$(builddir)/snap-preseed" ]; then \
+		count=$$(strings $(builddir)/snap-preseed | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 2 ]; then \
+			echo "ERROR: Expected 2 public keys in snap-preseed, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-preseed store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-preseed store generic models key not found"; exit 1; }; \
+		echo "  snap-preseed: OK (2 keys)"; \
+	fi
+	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
+	@if [ -f "$(builddir)/snap-repair" ]; then \
+		count=$$(strings $(builddir)/snap-repair | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		if [ "$$count" -ne 3 ]; then \
+			echo "ERROR: Expected 3 public keys in snap-repair, found $$count"; \
+			exit 1; \
+		fi; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-repair store root key not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
+			{ echo "ERROR: snap-repair store generic models key not found"; exit 1; }; \
+		strings $(builddir)/snap-repair | grep -q "^public-key-sha3-384: $(SNAPD_REPAIR_ROOT_KEY)$$" || \
+			{ echo "ERROR: snap-repair repair-root key not found"; exit 1; }; \
+		echo "  snap-repair: OK (3 keys)"; \
+	fi
+	@echo "All trusted account key checks passed."
