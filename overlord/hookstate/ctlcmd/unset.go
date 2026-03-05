@@ -22,7 +22,6 @@ package ctlcmd
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/features"
@@ -112,10 +111,5 @@ func (s *unsetCommand) Execute(args []string) error {
 		confs[key] = nil
 	}
 
-	uid, err := strconv.Atoi(s.baseCommand.uid)
-	if err != nil {
-		return err
-	}
-
-	return setConfdbValues(context, plugName, confs, uid)
+	return setConfdbValues(context, plugName, confs)
 }

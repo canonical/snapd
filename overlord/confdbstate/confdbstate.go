@@ -51,13 +51,13 @@ var (
 )
 
 // SetViaView uses the view to set the requests in the transaction's databag.
-func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any, userID int) error {
+func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, request, userID)
+			err = view.Unset(bag, request)
 		} else {
-			err = view.Set(bag, request, value, userID)
+			err = view.Set(bag, request, value)
 		}
 
 		if err != nil {

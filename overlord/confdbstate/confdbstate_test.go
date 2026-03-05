@@ -264,7 +264,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"}, 0)
+	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
@@ -280,7 +280,7 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"}, 0)
+	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
@@ -301,7 +301,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil}, 0)
+	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)

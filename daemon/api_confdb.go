@@ -160,12 +160,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return toAPIError(err)
-	}
-
-	err = confdbstateSetViaView(tx, view, action.Values, int(ucred.Uid))
+	err = confdbstateSetViaView(tx, view, action.Values)
 	if err != nil {
 		return toAPIError(err)
 	}
