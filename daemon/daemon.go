@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
@@ -599,6 +600,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 	}
 	d.overlord.Stop()
+
+	if d.requestedRestart == restart.RestartDaemon {
+		logger.Noticef("restarting daemon after update")
+		if err := wrappers.Restart(); err != nil {
+			logger.Noticef("while restarting snapd: %v", err)
+		}
+	}
 
 	if err := d.tomb.Wait(); err != nil {
 		if err == context.DeadlineExceeded {

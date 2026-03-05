@@ -415,10 +415,10 @@ func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
 	defer restore()
 
 	var called bool
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
 		c.Check(opts.Preseeding, Equals, true)
 		called = true
-		return nil, nil
+		return nil
 	})
 	defer restoreAddSnapdSnapWrappers()
 
@@ -1089,58 +1089,6 @@ type OverridenSnapdRestart struct {
 
 func (r *OverridenSnapdRestart) Restart() error {
 	return r.callback()
-}
-
-func (s *linkSuite) TestLinkSnapdSnapSetSymlinks(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	const yaml = `name: snapd
-version: 1.0
-type: snapd
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-	mountDir := info.MountDir()
-	dataDir := info.DataDir()
-	currentActiveSymlink := filepath.Join(filepath.Dir(mountDir), "current")
-	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
-	err := os.Symlink("oldactivevalue", currentActiveSymlink)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dataDir), os.ModePerm)
-	c.Assert(err, IsNil)
-	err = os.Symlink("olddatavalue", currentDataSymlink)
-	c.Assert(err, IsNil)
-
-	var restartDone bool
-	restartFunc := func() error {
-		restartDone = true
-		mountTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
-		dataTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
-		c.Check(mountTarget, Equals, filepath.Base(mountDir))
-		c.Check(dataTarget, Equals, filepath.Base(dataDir))
-		return fmt.Errorf("BROKEN")
-	}
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
-		return &OverridenSnapdRestart{callback: restartFunc}, nil
-	})
-	defer restoreAddSnapdSnapWrappers()
-
-	be := backend.NewForPreseedMode()
-	coreDev := boottest.MockUC20Device("run", nil)
-
-	err = be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
-	c.Assert(err, ErrorMatches, `BROKEN`)
-	c.Assert(restartDone, Equals, true)
-
-	readMountTarget, err := os.Readlink(currentActiveSymlink)
-	c.Assert(err, IsNil)
-	readDataTarget, err := os.Readlink(currentDataSymlink)
-	c.Assert(err, IsNil)
-
-	c.Check(readMountTarget, Equals, "oldactivevalue")
-	c.Check(readDataTarget, Equals, "olddatavalue")
 }
 
 func (s *linkSuite) TestLinkComponentIdempotent(c *C) {

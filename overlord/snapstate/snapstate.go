@@ -312,16 +312,9 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 		// snapd wrappers again with current snapd, as the logic of generating
 		// wrappers may have changed between previous and new snapd code.
 		if !release.OnClassic {
-			// TODO: if future changes to wrappers need one more snapd restart,
-			// then it should be handled here as well.
-			restart, err := generateSnapdWrappers(snapdInfo, nil)
+			err := generateSnapdWrappers(snapdInfo, nil)
 			if err != nil {
 				return err
-			}
-			if restart != nil {
-				if err := restart.Restart(); err != nil {
-					return err
-				}
 			}
 		}
 	}
