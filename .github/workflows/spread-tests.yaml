@@ -90,7 +90,7 @@ jobs:
 
           # Kill any leftover spread processes
           echo "Leftover spread processes:"
-          ps -e -o cmd | grep spread | grep -v grep
+          ps -e -o cmd | grep spread | grep -v grep || true
           killall -9 spread || true
 
     - name: Checkout code
@@ -450,7 +450,7 @@ jobs:
       run: |
         # Kill any leftover spread processes
         echo "Leftover spread processes:"
-        ps -e -o cmd | grep spread | grep -v grep
+        ps -e -o cmd | grep spread | grep -v grep || true
         killall -9 spread || true
 
         shopt -s nullglob;
