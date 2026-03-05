@@ -11,7 +11,7 @@ details: |
     of a snap that was in the seed, as actually used, even though the revision
     published to the selected channel is different.
 
-    A local variant of the test downloads the the wrong revision from the store,
+    A local variant of the test downloads the wrong revision from the store,
     passing it to "snap prepare-image" to show that enforced validation
     correctly selects the revision indicated by the validation set.
 
