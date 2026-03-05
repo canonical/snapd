@@ -54,8 +54,8 @@ const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -113,8 +113,8 @@ var (
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=%s-xkcd\x2dwebserver-44.mount
-Wants=network.target
-After=%s-xkcd\x2dwebserver-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-xkcd\x2dwebserver-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -171,8 +171,8 @@ func (s *serviceUnitGenSuite) TestGenerateSnapServiceOnCore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application foo.app
 Requires=snap-foo-44.mount
-Wants=network.target
-After=snap-foo-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=snap-foo-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -228,8 +228,8 @@ apps:
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application foo.app
 Requires=snap-foo-44.mount
-Wants=network.target
-After=snap-foo-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=snap-foo-44.mount snapd.system-services-pre.target
 Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
@@ -523,8 +523,8 @@ func (s *serviceUnitGenSuite) TestServiceAfterBefore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target %s snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target %s
 Before=%s
 X-Snappy=yes
 
@@ -631,8 +631,8 @@ func (s *serviceUnitGenSuite) TestKillModeSig(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -673,8 +673,8 @@ func (s *serviceUnitGenSuite) TestRestartDelay(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -714,8 +714,8 @@ func (s *serviceUnitGenSuite) TestVitalityScore(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -758,8 +758,8 @@ func (s *serviceUnitGenSuite) TestQuotaGroupSlice(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -801,8 +801,8 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespace(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=systemd-journald@snap-foo.socket %s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target systemd-journald@snap-foo.socket snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target systemd-journald@snap-foo.socket
 X-Snappy=yes
 
 [Service]

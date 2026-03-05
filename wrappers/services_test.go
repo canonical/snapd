@@ -140,8 +140,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -207,8 +207,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -253,8 +253,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -355,8 +355,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -453,8 +453,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -544,8 +544,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=systemd-journald@snap-foogroup.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
+After=%[1]s systemd-journald@snap-foogroup.socket
 X-Snappy=yes
 
 [Service]
@@ -658,8 +657,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=systemd-journald@snap-foogroup.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target systemd-journald@snap-foogroup.socket
 X-Snappy=yes
 
 [Service]
@@ -775,8 +774,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=systemd-journald@snap-foogroup.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target systemd-journald@snap-foogroup.socket
 X-Snappy=yes
 
 [Service]
@@ -920,8 +919,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=systemd-journald@snap-my-root.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target systemd-journald@snap-my-root.socket
 X-Snappy=yes
 
 [Service]
@@ -945,8 +944,8 @@ WantedBy=multi-user.target
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc2
 Requires=systemd-journald@snap-my-root.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target systemd-journald@snap-my-root.socket
 X-Snappy=yes
 
 [Service]
@@ -1112,8 +1111,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc2
 Requires=systemd-journald@snap-my-root.socket %[1]s
-Wants=network.target
-After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
+After=%[1]s systemd-journald@snap-my-root.socket
 X-Snappy=yes
 
 [Service]
@@ -1327,8 +1325,8 @@ TasksAccounting=true
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -1428,8 +1426,8 @@ TasksMax=%[3]d
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -1605,8 +1603,8 @@ TasksAccounting=true
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application %[1]s.svc1
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -1724,8 +1722,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application %[1]s.svc1
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -1837,8 +1835,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -1914,8 +1912,8 @@ apps:
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application %[1]s.svc1
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
@@ -1967,8 +1965,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2057,8 +2055,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2126,8 +2124,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2193,8 +2191,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2255,8 +2253,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2337,8 +2335,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) 
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2414,8 +2412,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c 
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
 Requires=%[2]s
-Wants=network.target
-After=%[2]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[2]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
@@ -2638,8 +2636,8 @@ plugs:
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]
