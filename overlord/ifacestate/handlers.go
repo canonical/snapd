@@ -2412,7 +2412,12 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	defer st.Unlock()
 
 	var snapLanes []int
+	var applyInLane int
+
 	if err := task.Get("monitored-lanes", &snapLanes); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if err := task.Get("apply-in-lane", &applyInLane); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -2440,8 +2445,10 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
 			case tsk.ID() == task.ID():
-				// our task should only be present in the default '0' lane, not a dedicated one
-				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != 0) {
+				// our task should only be present in the default '0' lane, not
+				// a dedicated one, unless we're part of a all-snap transaction
+				// which already runs in a dedicated lane
+				if lanes := tsk.Lanes(); len(lanes) >= 2 || (len(lanes) == 1 && lanes[0] != applyInLane) {
 					logger.Noticef("process delayed effects in unexpected lanes: %v", lanes)
 				}
 				delete(considerRestartTriggeringTasks, tsk.ID())
@@ -2539,14 +2546,17 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	}
 
 	if len(perSnapTasks) > 0 {
-		// place each task in a dedicated lane, such that their errors are not
-		// affecting anything else (neither the default lane, nor any other
-		// lanes where the triggering snaps are being processed)
+		// unless apply-in-lane is set to a non-0 value indicating an all-snap
+		// transaction, place each task in a dedicated lane, such that their
+		// errors are not affecting anything else (neither the default lane, nor
+		// any other lanes where the triggering snaps are being processed)
 
-		// TODO in case some effects would need to be able to trigger undo, this
-		// may need additional task sharing the same lane as the snap
 		for _, tsk := range perSnapTasks {
-			tsk.JoinLane(st.NewLane())
+			if applyInLane != 0 {
+				tsk.JoinLane(applyInLane)
+			} else {
+				tsk.JoinLane(st.NewLane())
+			}
 		}
 
 		ts := state.NewTaskSet(perSnapTasks...)
