@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
-	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -75,8 +74,7 @@ var (
 
 	secbootMarkSuccessful = secboot.MarkSuccessful
 
-	osutilBootID             = osutil.BootID
-	fdestateLastResealBootID = fdestate.LastResealBootID
+	osutilBootID = osutil.BootID
 )
 
 var (
@@ -159,7 +157,6 @@ type DeviceManager struct {
 	// newStore can make new stores for remodeling
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
 
-	bootOkRan            bool
 	bootRevisionsUpdated bool
 
 	seedTimings *timings.Timings
@@ -1227,6 +1224,21 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	return nil
 }
 
+var bootOkRanForBootID = bootOkRanForBootIDImpl
+
+func bootOkRanForBootIDImpl(st *state.State, currentBootID string) (bool, error) {
+	var lastBootID string
+	if err := st.Get("ensure-boot-ok-boot-id", &lastBootID); err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+
+	return currentBootID == lastBootID, nil
+}
+
+func markBootOkRanForBootID(st *state.State, currentBootID string) {
+	st.Set("ensure-boot-ok-boot-id", currentBootID)
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1241,18 +1253,14 @@ func (m *DeviceManager) ensureBootOk() error {
 		return err
 	}
 
-	lastResealBootID, err := fdestateLastResealBootID(m.state)
+	bootOkRan, err := bootOkRanForBootID(m.state, currentBootID)
 	if err != nil {
 		return err
 	}
 
-	if currentBootID == lastResealBootID {
-		// a reseal already ran, nothing to do
-		logger.Debugf("reseal already ran for boot-id %q, skipping boot ok check", currentBootID)
-		return nil
-	}
+	if !bootOkRan {
+		markBootOkRanForBootID(m.state, currentBootID)
 
-	if !m.bootOkRan {
 		deviceCtx, err := DeviceCtx(m.state, nil, nil)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
@@ -1265,9 +1273,11 @@ func (m *DeviceManager) ensureBootOk() error {
 				return err
 			}
 		}
-
-		m.bootOkRan = true
+	} else {
+		// a reseal already ran, nothing to do
+		logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
 	}
+
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
 
 	if !m.bootRevisionsUpdated {
@@ -2099,7 +2109,7 @@ func (m *DeviceManager) Ensure() error {
 // ResetToPostBootState is only useful for integration testing.
 func (m *DeviceManager) ResetToPostBootState() {
 	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
-	m.bootOkRan = false
+	m.state.Set("ensure-boot-ok-boot-id", "")
 	m.bootRevisionsUpdated = false
 	m.ensureTriedRecoverySystemRan = false
 }

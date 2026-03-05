@@ -53,7 +53,6 @@ var (
 	bootHostUbuntuDataForMode            = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                   = keys.NewRecoveryKey
 	timeNow                              = time.Now
-	osutilBootID                         = osutil.BootID
 	secbootCheckRecoveryKey              = secboot.CheckRecoveryKey
 	secbootReadContainerKeyData          = secboot.ReadContainerKeyData
 	secbootListContainerRecoveryKeyNames = secboot.ListContainerRecoveryKeyNames
@@ -215,28 +214,6 @@ func (m *FDEManager) Reinitialize() {
 	osutil.MustBeTestBinary("Reinitialize can only be called from tests")
 	m.initErr = ErrNotInitialized
 	m.DeviceInitialized()
-}
-
-// UpdateLastResealBootID updates FDE state with current boot-id corresponding
-// to the latest reseal attempt.
-func (m *FDEManager) UpdateLastResealBootID() error {
-	return withFdeState(m.state, func(fde *FdeState) (modified bool, err error) {
-		currentBootID, err := osutilBootID()
-		if err != nil {
-			return false, err
-		}
-		fde.LastResealBootID = currentBootID
-		return true, nil
-	})
-}
-
-// LastResealBootID returns the boot-id corresponding to the latest reseal attempt.
-func LastResealBootID(st *state.State) (string, error) {
-	var s FdeState
-	if err := st.Get(fdeStateKey, &s); err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
-	}
-	return s.LastResealBootID, nil
 }
 
 type unlockedStateManager struct {

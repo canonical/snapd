@@ -189,9 +189,6 @@ type FDEStateManager interface {
 	// VerifyPrimaryKeyAgainstState verifies that a raw primary key matches
 	// the digest of primary key indexed by its state ID.
 	VerifyPrimaryKeyAgainstState(primaryKeyID int, primaryKey []byte) bool
-	// UpdateLastResealBootID updates FDE state with current boot-id corresponding
-	// to the latest reseal attempt.
-	UpdateLastResealBootID() error
 }
 
 // comparableModel is just a representation of secboot.ModelForSealing
@@ -406,11 +403,6 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 	}
 
 	if err := newParameters.apply(manager); err != nil {
-		return err
-	}
-
-	// Update boot-id corresponding to current reseal attempt.
-	if err := manager.UpdateLastResealBootID(); err != nil {
 		return err
 	}
 
