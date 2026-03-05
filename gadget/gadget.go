@@ -2118,16 +2118,37 @@ func flatten(path string, cfg any, out map[string]any) {
 	}
 }
 
-// SystemDefaults returns default system configuration from gadget defaults.
-func SystemDefaults(gadgetDefaults map[string]map[string]any) map[string]any {
-	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
-		if defaults, ok := gadgetDefaults[systemSnap]; ok {
-			coreDefaults := map[string]any{}
-			flatten("", defaults, coreDefaults)
-			return coreDefaults
+func setFallbackDefaults(values map[string]any) {
+	hasNetplan := false
+	for key, _ := range values {
+		if key == "system.network.netplan" {
+			hasNetplan = true
+		} else if strings.HasPrefix(key, "system.network.netplan.") {
+			hasNetplan = true
 		}
 	}
-	return nil
+	// Also check for the configuration file. If the file exists
+	// already it either was already seeded or the core base contains the configuration.
+	if !hasNetplan && !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "etc/netplan/00-snapd-config.yaml")) {
+		values["system.network.netplan.network.version"] = 2
+		values["system.network.netplan.network.ethernets.all-en.match.name"] = "en*"
+		values["system.network.netplan.network.ethernets.all-en.dhcp4"] = true
+		values["system.network.netplan.network.ethernets.all-eth.match.name"] = "eth*"
+		values["system.network.netplan.network.ethernets.all-eth.dhcp4"] = true
+	}
+}
+
+// SystemDefaults returns default system configuration from gadget defaults.
+func SystemDefaults(gadgetDefaults map[string]map[string]any) map[string]any {
+	coreDefaults := map[string]any{}
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			flatten("", defaults, coreDefaults)
+			break
+		}
+	}
+	setFallbackDefaults(coreDefaults)
+	return coreDefaults
 }
 
 // See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
