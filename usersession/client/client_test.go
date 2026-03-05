@@ -487,6 +487,108 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 	})
 }
 
+func (s *clientSuite) TestServicesEnable(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesEnable(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesEnableFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to enable services",
+    "value": {
+      "enable-errors": {
+        "service2.service": "failed to enable"
+      }
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesEnable(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, ErrorMatches, "failed to enable services")
+	c.Check(failures, HasLen, 2)
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
+	}
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to enable",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to enable",
+	})
+}
+
+func (s *clientSuite) TestServicesDisable(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesDisable(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesDisableFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to disable services",
+    "value": {
+      "disable-errors": {
+        "service2.service": "failed to disable"
+      }
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesDisable(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, ErrorMatches, "failed to disable services")
+	c.Check(failures, HasLen, 2)
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
+	}
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to disable",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to disable",
+	})
+}
+
 func (s *clientSuite) TestServicesRestart(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
