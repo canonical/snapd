@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/go-gettext"
+	gettext "github.com/chai2010/gettext-go"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -36,10 +36,17 @@ import (
 // TEXTDOMAIN is the message domain used by snappy; see dgettext(3)
 // for more information.
 var (
-	TEXTDOMAIN   = "snappy"
-	locale       gettext.Catalog
-	translations gettext.Translations
+	TEXTDOMAIN = "snappy"
+	locale     localeCatalog
+
+	translationDomain string
+	translationDir    string
 )
+
+type localeCatalog interface {
+	Gettext(msgid string) string
+	NGettext(msgid string, msgidPlural string, n uint32) string
+}
 
 func init() {
 	bindTextDomain(TEXTDOMAIN, "/usr/share/locale")
@@ -78,7 +85,8 @@ func langpackResolver(baseRoot string, locale string, domain string) string {
 }
 
 func bindTextDomain(domain, dir string) {
-	translations = gettext.NewTranslations(dir, domain, langpackResolver)
+	translationDomain = domain
+	translationDir = dir
 }
 
 func setLocale(loc string) {
@@ -86,13 +94,17 @@ func setLocale(loc string) {
 		loc = localeFromEnv()
 	}
 
-	locale = translations.Locale(simplifyLocale(loc))
+	locale = newGettextCatalog(translationDir, translationDomain, simplifyLocale(loc), langpackResolver)
 }
 
 func simplifyLocale(loc string) string {
 	// de_DE.UTF-8, de_DE@euro all need to get simplified
-	loc = strings.Split(loc, "@")[0]
-	loc = strings.Split(loc, ".")[0]
+	if base, _, found := strings.Cut(loc, "@"); found {
+		loc = base
+	}
+	if base, _, found := strings.Cut(loc, "."); found {
+		loc = base
+	}
 
 	return loc
 }
@@ -134,11 +146,74 @@ func NG(msgid string, msgidPlural string, n int) string {
 	return locale.NGettext(msgid, msgidPlural, ngn(n))
 }
 
-func MockLocale(l gettext.Catalog) (restore func()) {
+func MockLocale(l interface {
+	Gettext(string) string
+	NGettext(string, string, uint32) string
+}) (restore func()) {
 	osutil.MustBeTestBinary("cannot mock locale in a non-test binary")
 	old := locale
 	locale = l
 	return func() {
 		locale = old
 	}
+}
+
+type chaiCatalog struct {
+	gettexter gettext.Gettexter
+}
+
+func (c chaiCatalog) Gettext(msgid string) string {
+	return c.gettexter.Gettext(msgid)
+}
+
+func (c chaiCatalog) NGettext(msgid string, msgidPlural string, n uint32) string {
+	translated := c.gettexter.NGettext(msgid, msgidPlural, int(n))
+	if translated == msgid && msgidPlural != "" && n != 1 {
+		return msgidPlural
+	}
+	return translated
+}
+
+type snapdLocaleFS struct {
+	baseRoot string
+	resolver func(baseRoot string, locale string, domain string) string
+}
+
+func (fs snapdLocaleFS) LocaleList() []string {
+	return nil
+}
+
+func (fs snapdLocaleFS) LoadMessagesFile(domain, locale, ext string) ([]byte, error) {
+	if ext != ".mo" {
+		return nil, os.ErrNotExist
+	}
+
+	file := fs.resolver(fs.baseRoot, locale, domain)
+	if file == "" {
+		return nil, os.ErrNotExist
+	}
+
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (fs snapdLocaleFS) LoadResourceFile(domain, locale, name string) ([]byte, error) {
+	return nil, os.ErrNotExist
+}
+
+func (fs snapdLocaleFS) String() string {
+	return fmt.Sprintf("snapdLocaleFS(%s)", fs.baseRoot)
+}
+
+func newGettextCatalog(baseDir, domain, loc string, resolver func(baseRoot string, locale string, domain string) string) localeCatalog {
+	g := gettext.New(domain, "", snapdLocaleFS{
+		baseRoot: baseDir,
+		resolver: resolver,
+	})
+	g.SetLanguage(loc)
+	return chaiCatalog{gettexter: g}
 }
