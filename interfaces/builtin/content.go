@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
@@ -201,11 +202,18 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 	return out
 }
 
+type resolveSide int
+
+const (
+	sourceSide resolveSide = iota
+	targetSide
+)
+
 // resolveSpecialVariable resolves one of the three $SNAP* variables at the
 // beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
-func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+func resolveSpecialVariable(path string, snapInfo *snap.Info, forSide resolveSide) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
 	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
@@ -218,15 +226,21 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	}
 	// Always prefix with $SNAP if nothing else is provided or the path
 	// contains invalid variables.
-	return snapInfo.ExpandSnapVariables(filepath.Join("$SNAP", path))
+	persp := snap.PerspectiveSelf
+	if forSide == sourceSide {
+		// connecting source to other snap
+		// TODO: fix this for self consumed slots
+		persp = snap.PerspectiveOther
+	}
+	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, persp)
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
 	var target string
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
-	source := resolveSpecialVariable(relSrc, slot.Snap())
-	target = resolveSpecialVariable(target, plug.Snap())
+	source := resolveSpecialVariable(relSrc, slot.Snap(), sourceSide)
+	target = resolveSpecialVariable(target, plug.Snap(), targetSide)
 
 	// Check if the "source" section is present.
 	var unused map[string]any
@@ -263,7 +277,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for i, w := range writePaths {
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
-				resolveSpecialVariable(w, slot.Snap()))
+				resolveSpecialVariable(w, slot.Snap(), sourceSide))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
@@ -288,7 +302,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for i, r := range readPaths {
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
-				resolveSpecialVariable(r, slot.Snap()))
+				resolveSpecialVariable(r, slot.Snap(), sourceSide))
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)

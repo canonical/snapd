@@ -1763,6 +1763,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			return nil, false, nil, err
 		}
 		lane := generateLane(st, opts)
+		fmt.Printf("lane for update: %v\n", lane)
 		snapLanes[lane] = struct{}{}
 
 		sts.ts.JoinLane(lane)
@@ -1908,7 +1909,9 @@ func splitEssentialUpdates(deviceCtx DeviceContext, updates []update) (essential
 }
 
 func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool, updated, considerTasks []string, userID int, globalFlags *Flags) []*state.TaskSet {
+	fmt.Printf("updates? %v updated: %v no reref %v\n", hasUpdates, updated, globalFlags.NoReRefresh)
 	if hasUpdates && !globalFlags.NoReRefresh {
+		fmt.Printf("add reref\n")
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
@@ -4392,11 +4395,16 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 		return tss
 	}
 
-	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes)
+	fmt.Printf("trans: %v\n", flags.Transaction)
+	var joinLane int
 	if flags.Transaction == client.TransactionAllSnaps {
-		// TODO: when doing an all-snap transaction, the per snap snap
-		// apply-effects tasks should be forced onto the same lane
-		pde.JoinLane(flags.Lane)
+		joinLane = flags.Lane
 	}
+
+	pde := ProcessDelayedSecurityBackendEffects(st, monitoredLanes, joinLane)
+	if joinLane != 0 {
+		pde.JoinLane(joinLane)
+	}
+
 	return append(tss, pde)
 }

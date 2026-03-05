@@ -806,20 +806,31 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
+	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, PerspectiveSelf)
 }
+
+type ExpandSnapPerspective int
+
+const (
+	PerspectiveSelf ExpandSnapPerspective = iota
+	PerspectiveOther
+)
 
 // ExpandSnapVariablesSetSnapMountDir resolves $SNAP, $SNAP_DATA and
 // $SNAP_COMMON in path for this snap using snapMountDir as root directory.
-func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
+func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
+	name := s.SnapName()
+	if expandFor == PerspectiveOther {
+		name = s.InstanceName()
+	}
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
-			return filepath.Join(snapMountDir, s.SnapName(), s.Revision.String())
+			return filepath.Join(snapMountDir, name, s.Revision.String())
 		case "SNAP_DATA":
-			return DataDir(s.SnapName(), s.Revision)
+			return DataDir(name, s.Revision)
 		case "SNAP_COMMON":
-			return CommonDataDir(s.SnapName())
+			return CommonDataDir(name)
 		}
 		return ""
 	})

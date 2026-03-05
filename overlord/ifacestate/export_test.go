@@ -70,7 +70,8 @@ var (
 )
 
 type (
-	DelayedEffectsForSnapData = delayedEffectsForSnapData
+	DelayedEffectsForSnapData                      = delayedEffectsForSnapData
+	ProcessDelayedSecurityBackendEffectsParamsData = processDelayedSecurityBackendEffectsParamsData
 )
 
 func NewInterfaceManagerWithAppArmorPrompting(useAppArmorPrompting bool) *InterfaceManager {

@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 )
@@ -49,6 +50,7 @@ func runNamespaceTool(toolName, snapName string, runOpts runNamespaceToolOpts) (
 			return nil, err
 		}
 
+		logger.Noticef(">>>> running %v for snap %q", toolName, snapName)
 		var opts []string
 		if runOpts.SnapIsLocked {
 			opts = append(opts, "--snap-already-locked")
@@ -56,6 +58,7 @@ func runNamespaceTool(toolName, snapName string, runOpts runNamespaceToolOpts) (
 		opts = append(opts, snapName)
 		cmd := exec.Command(toolPath, opts...)
 		output, err := cmd.CombinedOutput()
+		logger.Debugf("output:\n%v", string(output))
 		return output, err
 	}
 	return nil, nil

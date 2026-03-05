@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "hello from app $SNAP_INSTANCE_NAME"
