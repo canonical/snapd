@@ -90,7 +90,19 @@ func InstallComponents(
 		return nil, err
 	}
 
-	// TODO:COMPS: verify validation sets here
+	pres, err := revOpts.ValidationSets.Presence(info)
+	if err != nil {
+		return nil, err
+	}
+
+	comps := make(map[string]snap.Revision, len(compsups))
+	for _, comp := range compsups {
+		comps[comp.ComponentName()] = comp.Revision()
+	}
+
+	if err := checkComponentsPresenceAndRevision(info.SnapName(), comps, pres, "install"); err != nil {
+		return nil, err
+	}
 
 	snapsup := SnapSetup{
 		Base:                        info.Base,
