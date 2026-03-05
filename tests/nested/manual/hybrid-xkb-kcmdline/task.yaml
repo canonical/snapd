@@ -141,6 +141,11 @@ execute: |
   get_snapd_xkb | MATCH '^snapd\.xkb="uk,pc105,basic,compat"$'
   get_modeenv | MATCH "uk,pc105,basic,compat"
 
+  # Force restart snapd to make sure ensureBootOk does not overwrite the modeenv
+  remote.exec "sudo systemctl stop snapd.service snapd.socket"
+  remote.exec "sudo systemctl start snapd.service snapd.socket"
+  get_modeenv | MATCH "uk,pc105,basic,compat"
+
   # But not yet reflected in kcmdline because we didn't reboot yet
   get_kcmdline | NOMATCH "uk"
 

@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -73,6 +74,9 @@ var (
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
 	secbootMarkSuccessful = secboot.MarkSuccessful
+
+	osutilBootID             = osutil.BootID
+	fdestateLastResealBootID = fdestate.LastResealBootID
 )
 
 var (
@@ -1229,6 +1233,22 @@ func (m *DeviceManager) ensureBootOk() error {
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
+		return nil
+	}
+
+	currentBootID, err := osutilBootID()
+	if err != nil {
+		return err
+	}
+
+	lastResealBootID, err := fdestateLastResealBootID(m.state)
+	if err != nil {
+		return err
+	}
+
+	if currentBootID == lastResealBootID {
+		// a reseal already ran, nothing to do
+		logger.Debugf("reseal already ran for boot-id %q, skipping boot ok check", currentBootID)
 		return nil
 	}
 

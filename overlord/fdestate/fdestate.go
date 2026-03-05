@@ -173,6 +173,10 @@ type FdeState struct {
 	// PendingExternalOperations keeps a list of changes that capture FDE
 	// related operations running outside of snapd.
 	PendingExternalOperations []externalOperation `json:"pending-external-operations"`
+
+	// LastResealBootID is the boot-id corresponding to the latest reseal
+	// attempt.
+	LastResealBootID string `json:"last-reseal-boot-id"`
 }
 
 const fdeStateKey = "fde"

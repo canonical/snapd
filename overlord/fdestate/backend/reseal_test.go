@@ -133,12 +133,13 @@ func (s *resealTestSuite) SetUpTest(c *C) {
 }
 
 type fakeState struct {
-	state               map[string]*backend.SealingParameters
-	isUnlocked          bool
-	hasUnlocked         int
-	EncryptedContainers []backend.EncryptedContainer
-	brokenPrimaryKey    bool
-	policyCounterHandle uint32
+	state                       map[string]*backend.SealingParameters
+	isUnlocked                  bool
+	hasUnlocked                 int
+	EncryptedContainers         []backend.EncryptedContainer
+	brokenPrimaryKey            bool
+	policyCounterHandle         uint32
+	updateLastResealBootIDCalls int
 }
 
 func (fs *fakeState) Update(role string, containerRole string, params *backend.SealingParameters) error {
@@ -188,6 +189,11 @@ func (fs *fakeState) GetEncryptedContainers() ([]backend.EncryptedContainer, err
 		return nil, fmt.Errorf("EncryptedContainers were not set")
 	}
 	return fs.EncryptedContainers, nil
+}
+
+func (fs *fakeState) UpdateLastResealBootID() error {
+	fs.updateLastResealBootIDCalls++
+	return nil
 }
 
 type fakeSealedKey struct {
@@ -598,6 +604,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 
 	c.Check(resealCalls, Equals, 3)
 	c.Check(loadCheckResultCalls, Equals, 1)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
@@ -1335,8 +1342,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		if tc.resealErr != nil {
 			// mocked error is returned on first reseal
 			c.Assert(resealKeysCalls, Equals, 1)
+			c.Check(myState.updateLastResealBootIDCalls, Equals, 0)
 		} else {
 			c.Assert(resealKeysCalls, Equals, 3)
+			c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 		}
 		if tc.err != "" {
 			continue
@@ -1673,6 +1682,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 
 	// verify the boot chains data file for run key
 	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -2014,6 +2024,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 
 	// verify the boot chains data file for run key
 	runPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -2221,6 +2232,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 
 	// verify the boot chains data file
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
@@ -2346,6 +2358,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 }
 
 func (s *resealTestSuite) TestHooksResealIgnoreFDEHooks(c *C) {
@@ -2423,6 +2436,8 @@ func (s *resealTestSuite) TestHooksResealIgnoreFDEHooks(c *C) {
 	opts := boot.ResealKeyToModeenvOptions{IgnoreFDEHooks: true}
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
 	c.Assert(err, IsNil)
+
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 0)
 }
 
 func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
@@ -2597,6 +2612,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	// reseal was called
 	c.Check(buildProfileCalls, Equals, 3)
 	c.Check(resealKeysCalls, Equals, 3)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 }
 
 func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
@@ -2769,4 +2785,5 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 
 	c.Check(resealCalls, Equals, 3)
 	c.Check(provisioned, Equals, 1)
+	c.Check(myState.updateLastResealBootIDCalls, Equals, 1)
 }

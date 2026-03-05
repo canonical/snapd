@@ -81,6 +81,10 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	return testutil.Mock(&timeNow, f)
 }
 
+func MockOsutilBootID(bootID string) (restore func()) {
+	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
+}
+
 var NewModel = newModel
 
 func (m *FDEManager) IsFunctional() error { return m.isFunctional() }

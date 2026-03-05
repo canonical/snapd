@@ -666,6 +666,41 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *
 	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
+	s.setPCModelInState(c)
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	restore = devicestate.MockOsutilBootID("boot-id-1")
+	defer restore()
+	restore = devicestate.MockFdestateLastResealBootID("boot-id-1")
+	defer restore()
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	// last reseal boot ID matches current boot id -> no reseal
+	c.Check(secbootMarkSuccessfulCalled, Equals, 0)
+	c.Check(logbuf.String(), testutil.Contains, `reseal already ran for boot-id "boot-id-1", skipping boot ok check`)
+	logbuf.Reset()
+
+	restore = devicestate.MockOsutilBootID("boot-id-2")
+	defer restore()
+
+	err = devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	// last reseal boot ID does not matche current boot id -> no reseal
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+	c.Check(logbuf.String(), Equals, "")
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 

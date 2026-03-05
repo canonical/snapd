@@ -1593,3 +1593,43 @@ func (s *fdeMgrSuite) TestNextUniqueKeyslotNoSlotsAvailableError(c *C) {
 		c.Assert(err, ErrorMatches, `internal error: cannot find a unique keyslot for container role "system-data" with prefix "tmp"`)
 	}
 }
+
+func (s *fdeMgrSuite) TestUpdateLastResealBootID(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+
+	restore := fdestate.MockOsutilBootID("boot-id-1")
+	defer restore()
+
+	st.Lock()
+	defer st.Unlock()
+
+	checkBootID := func(expectedBootID string) {
+		var fde fdestate.FdeState
+		err := st.Get("fde", &fde)
+		c.Assert(err, IsNil)
+
+		c.Check(fde.LastResealBootID, Equals, expectedBootID)
+		bootID, err := fdestate.LastResealBootID(st)
+		c.Assert(err, IsNil)
+		c.Check(bootID, Equals, expectedBootID)
+	}
+
+	checkBootID("")
+
+	mgr.UpdateLastResealBootID()
+	checkBootID("boot-id-1")
+	mgr.UpdateLastResealBootID()
+	// same boot-id
+	checkBootID("boot-id-1")
+
+	restore = fdestate.MockOsutilBootID("boot-id-2")
+	defer restore()
+
+	// still same boot-id because UpdateLastResealBootID was not called
+	checkBootID("boot-id-1")
+
+	mgr.UpdateLastResealBootID()
+	checkBootID("boot-id-2")
+}
