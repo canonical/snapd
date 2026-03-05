@@ -1,0 +1,32 @@
+From: Zygmunt Krynicki <me@zygoon.pl>
+Date: Wed, 13 Aug 2025 21:57:38 +0000
+Subject: tests: adjust gendeveloper1 to older github.com/jessevdk/go-flags
+Forwarded: no
+Origin: upstream
+Last-Update: 2025-11-21
+
+Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+---
+ tests/lib/gendeveloper1/main.go | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/tests/lib/gendeveloper1/main.go b/tests/lib/gendeveloper1/main.go
+index 41ddab3..b8b4f48 100644
+--- a/tests/lib/gendeveloper1/main.go
++++ b/tests/lib/gendeveloper1/main.go
+@@ -125,14 +125,6 @@ var parser = flags.NewParser(&options, flags.Default)
+ 
+ func main() {
+ 	if _, err := parser.Parse(); err != nil {
+-		switch flagsErr := err.(type) {
+-		case flags.ErrorType:
+-			if flagsErr == flags.ErrHelp {
+-				os.Exit(0)
+-			}
+-			os.Exit(1)
+-		default:
+-			os.Exit(1)
+-		}
++		os.Exit(1)
+ 	}
+ }
