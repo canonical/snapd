@@ -84,6 +84,8 @@ type InterfacesRequestsManager struct {
 	// listener readiness.
 	listenerAlreadySignalled chan struct{}
 
+	askRequests chan *prompting.Request
+
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 }
@@ -147,6 +149,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		prompts:                  promptsBackend,
 		rules:                    rulesBackend,
 		listenerAlreadySignalled: make(chan struct{}),
+		askRequests:              make(chan *prompting.Request),
 		notifyPrompt:             notifyPrompt,
 		notifyRule:               notifyRule,
 	}
@@ -214,6 +217,11 @@ run_loop:
 			}
 
 			logger.Debugf("received from kernel requests channel: %+v", req)
+			if err := m.handleRequest(req); err != nil {
+				logger.Noticef("error while handling request: %+v", err)
+			}
+		case req := <-m.askRequests:
+			logger.Debugf("received from API request channel: %+v", req)
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
@@ -319,6 +327,74 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	}
 
 	return strutil.JoinErrors(errs...)
+}
+
+// Ask creates a request with the given contents and feeds it into the
+// prompting manager, either matching it against an existing rule or creating
+// a prompt and waiting for a reply.
+//
+// If the prompt times out due to inactivity from prompting clients, then the
+// request will be automatically denied and [prompting.OutcomeDeny] will be
+// returned.
+//
+// If the given channel closes or the prompting subsystem is shutting down,
+// then returns [prompting_errors.ErrPromptingClosed].
+// TODO: replace this ad-hoc channel with a proper shutdown handler in the
+// manager itself, so this method will observe the shutdown from within the
+// manager and act accordingly.
+//
+// The given interface must be one for which we expect requests to be created
+// directly, rather than via AppArmor. The requested permissions will include
+// all available permissions for the given interface.
+func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+	replyChan := make(chan []string)
+
+	reply := func(allowedPerms []string) error {
+		select {
+		case replyChan <- allowedPerms:
+			return nil
+		case <-snapdShuttingDown:
+			return prompting_errors.ErrPromptingClosed
+		case <-m.tomb.Dying():
+			return prompting_errors.ErrPromptingClosed
+		}
+	}
+
+	req, err := prompting.NewRequestFromAsk(uid, iface, snap, pid, cgroup, reply)
+	if err != nil {
+		return prompting.OutcomeUnset, err
+	}
+
+	requestedPermissions := req.Permissions
+
+	// Send request to manager
+	select {
+	case m.askRequests <- req:
+		// request received and being processed
+	case <-snapdShuttingDown:
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	case <-m.tomb.Dying():
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	}
+
+	// Wait for reply
+	var allowedPermissions []string
+	select {
+	case allowedPermissions = <-replyChan:
+		// received reply
+	case <-snapdShuttingDown:
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	case <-m.tomb.Dying():
+		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
+	}
+
+	// If any requested permissions are not allowed, then reply with OutcomeDeny
+	for _, perm := range requestedPermissions {
+		if !strutil.ListContains(allowedPermissions, perm) {
+			return prompting.OutcomeDeny, nil
+		}
+	}
+	return prompting.OutcomeAllow, nil
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and

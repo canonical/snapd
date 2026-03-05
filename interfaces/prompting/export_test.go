@@ -25,6 +25,7 @@ import (
 
 var (
 	BuildListenerRequestKey = buildListenerRequestKey
+	BuildAskRequestKey      = buildAskRequestKey
 
 	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
 
