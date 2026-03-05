@@ -670,7 +670,12 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 }
 
 func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
-	s.expectWriteAccess(daemon.OpenAccess{})
+	s.expectWriteAccess(daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{
+			"ask": daemon.OpenAccess{},
+		},
+		Default: daemon.RootAccess{},
+	})
 
 	s.daemon(c)
 
@@ -723,7 +728,12 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 }
 
 func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
-	s.expectWriteAccess(daemon.OpenAccess{})
+	s.expectWriteAccess(daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{
+			"ask": daemon.OpenAccess{},
+		},
+		Default: daemon.RootAccess{},
+	})
 
 	s.daemon(c)
 

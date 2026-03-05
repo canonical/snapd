@@ -43,10 +43,15 @@ var (
 	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 
 	interfacesRequestsCmd = &Command{
-		Path:        "/v2/interfaces/requests",
-		POST:        postInterfacesRequests,
-		Actions:     []string{"ask"},
-		WriteAccess: openAccess{},
+		Path:    "/v2/interfaces/requests",
+		POST:    postInterfacesRequests,
+		Actions: []string{"ask"},
+		WriteAccess: byActionAccess{
+			ByAction: map[string]accessChecker{
+				"ask": openAccess{},
+			},
+			Default: rootAccess{},
+		},
 	}
 
 	requestsPromptsCmd = &Command{
