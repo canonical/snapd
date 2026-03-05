@@ -7,7 +7,7 @@ plugs:
     mntctl:
         interface: mount-control
         mount:
-            - what: /var/tmp/**
+            - what: /var/log/**
               where: $SNAP_COMMON/target1
               options: [rw, bind]
               persistent: true
