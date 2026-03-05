@@ -311,6 +311,8 @@ func nodeAttrs(status state.Status) []string {
 		return []string{"style=filled", "fillcolor=mistyrose"}
 	case state.UndoneStatus:
 		return []string{"style=filled", "fillcolor=moccasin"}
+	case state.WaitStatus:
+		return []string{"style=filled", "fillcolor=lightblue"}
 	default:
 		return nil
 	}

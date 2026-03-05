@@ -249,6 +249,10 @@ func (s *changeGraphSuite) TestDotTaskStatusNodeColors(c *C) {
 	undone.SetStatus(state.UndoneStatus)
 	chg.AddTask(undone)
 
+	waiting := st.NewTask("waiting-task", "waiting")
+	waiting.SetToWait(state.DoneStatus)
+	chg.AddTask(waiting)
+
 	g, err := dot.NewChangeGraph(chg, taskLabel, "TestDotTaskStatusNodeColors")
 	c.Assert(err, IsNil)
 
@@ -256,6 +260,7 @@ func (s *changeGraphSuite) TestDotTaskStatusNodeColors(c *C) {
 	c.Check(strings.Contains(graphDot, `"done-task" [style=filled, fillcolor=lightgreen]`), Equals, true)
 	c.Check(strings.Contains(graphDot, `"error-task" [style=filled, fillcolor=mistyrose]`), Equals, true)
 	c.Check(strings.Contains(graphDot, `"undone-task" [style=filled, fillcolor=moccasin]`), Equals, true)
+	c.Check(strings.Contains(graphDot, `"waiting-task" [style=filled, fillcolor=lightblue]`), Equals, true)
 }
 
 func (s *changeGraphSuite) TestDotTaskLabelAttrs(c *C) {
