@@ -69,7 +69,7 @@ execute: |
 
     echo "Verify installation change shows error"
     snap change --last refresh > change.out
-    MATCH "found corrupted snap file" < change.out
+    MATCH "ERROR cannot verify snap" < change.out
     MATCH "Undone.*Download snap.*test-snapd-sh-core24" < change.out
 
     echo "Verify undo cleaned up the corrupted file and the cache file"
