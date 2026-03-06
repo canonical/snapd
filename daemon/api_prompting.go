@@ -27,16 +27,33 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var (
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+
+	interfacesRequestsCmd = &Command{
+		Path:    "/v2/interfaces/requests",
+		POST:    postInterfacesRequests,
+		Actions: []string{"ask"},
+		WriteAccess: byActionAccess{
+			ByAction: map[string]accessChecker{
+				"ask": openAccess{},
+			},
+			Default: rootAccess{},
+		},
+	}
+
 	requestsPromptsCmd = &Command{
 		Path:       "/v2/interfaces/requests/prompts",
 		GET:        getPrompts,
@@ -303,7 +320,17 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 	return c.d.overlord.InterfaceManager()
 }
 
-type postPromptBody struct {
+type postInterfacesRequestsRequestBody struct {
+	Action    string `json:"action"`
+	Interface string `json:"interface"`
+	PID       int32  `json:"pid"`
+}
+
+type postInterfacesRequestsResponse struct {
+	Outcome prompting.OutcomeType `json:"outcome"`
+}
+
+type postPromptRequestBody struct {
 	Outcome     prompting.OutcomeType     `json:"action"`
 	Lifespan    prompting.LifespanType    `json:"lifespan"`
 	Duration    string                    `json:"duration,omitempty"`
@@ -335,6 +362,101 @@ type postRulesRequestBody struct {
 type postRuleRequestBody struct {
 	Action    string             `json:"action"`
 	PatchRule *patchRuleContents `json:"rule,omitempty"`
+}
+
+func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) Response {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
+	}
+	reqUID := ucred.Uid
+	// XXX: do we want to auto-deny the request if it comes from the root user?
+	// The request will otherwise be auto-denied by the manager.
+
+	if !getInterfaceManager(c).AppArmorPromptingRunning() {
+		return promptingNotRunningError()
+	}
+
+	var postBody postInterfacesRequestsRequestBody
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&postBody); err != nil {
+		return BadRequest("cannot decode request body into ask for prompting access: %v", err)
+	}
+
+	switch postBody.Action {
+	case "ask":
+		// all good
+	default:
+		return BadRequest(`"action" field must be "ask"`)
+	}
+
+	if postBody.Interface == "" {
+		return BadRequest(`"interface" field must be non-empty`)
+	}
+
+	if postBody.PID == 0 {
+		return BadRequest(`"pid" field must be non-zero`)
+	}
+
+	// TODO: validate that the request originator has permission to query for
+	// this interface. E.g. if originator is WirePlumber, it may query for the
+	// "audio-record" interface.
+
+	cgroupPath, err := cgroupProcessPathInTrackingCgroup(int(postBody.PID))
+	if err != nil {
+		return BadRequest("cannot find cgroup path for process with PID %d: %v", postBody.PID, err)
+	}
+	securityTag := cgroup.SecurityTagFromCgroupPath(cgroupPath)
+	if securityTag == nil {
+		return BadRequest("cannot find snap security tag for process with PID %d", postBody.PID)
+	}
+	snapName := securityTag.InstanceName()
+
+	if errorResp := validateSnapHasInterfaceConnection(c.d, snapName, postBody.Interface); errorResp != nil {
+		return errorResp
+	}
+
+	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath, c.d.tomb.Dying())
+	if err != nil {
+		return promptingError(err)
+	}
+
+	result := postInterfacesRequestsResponse{
+		Outcome: outcome,
+	}
+
+	return SyncResponse(result)
+}
+
+var validateSnapHasInterfaceConnection = validateSnapHasInterfaceConnectionImpl
+
+// validateSnapHasInterfaceConnectionImpl returns nil if the given snap has a
+// connected plug with the given interface. If the connections cannot be
+// retrieved or parsed or there is no such connection, the returns an error
+// response.
+func validateSnapHasInterfaceConnectionImpl(d *Daemon, snapName, iface string) Response {
+	st := d.state
+	st.Lock()
+	defer st.Unlock()
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return InternalError("cannot get connections: %v", err)
+	}
+	for refStr, connState := range conns {
+		if !connState.Active() || iface != connState.Interface {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			// ConnectionStates calls and validates ParseConnRef, so an error
+			// here should be impossible
+			return InternalError("internal error: %w", err)
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return nil
+		}
+	}
+	return BadRequest("cannot find interface connection for snap %q: %q", snapName, iface)
 }
 
 func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -406,7 +528,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return promptingNotRunningError()
 	}
 
-	var reply postPromptBody
+	var reply postPromptRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&reply); err != nil {
 		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))

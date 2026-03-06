@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+post:
+  tags:
+    - Experimental
+    - Interfaces
+    - OpenAccess
+    - Prompting
+    - Sync
+  summary: Ask for application access
+  description: Ask whether an application should be given access via an interface.
+  operationId: postInterfacesRequests
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/PromptingActionAsk.yaml'
+  responses:
+    200:
+      description: The outcome of whether to allow or deny the application access.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - type: object
+                required:
+                  - outcome
+                properties:
+                  outcome:
+                    type: string
+                    enum:
+                      - allow
+                      - deny
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+    503:
+      $ref: '../components/responses/ServiceUnavailable.yaml'

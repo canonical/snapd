@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable error message explaining the conflict.
+    example: 'cannot add rule: a rule with conflicting path pattern and permission already exists in the rule database'
+  kind:
+    type: string
+    description: A machine-readable string identifying the error type.
+    enum: 
+      - interfaces-requests-rule-conict
+  value:
+    type: object
+    description: Additional structured data about the conflict.
+    required:
+      - conflicts
+    properties:
+      conflicts:
+        type: array
+        description: Information about the existing rules which conflict with the new rule.
+        items:
+          type: object
+          required:
+            - conflicting-id
+            - permission
+            - variant
+          properties:
+            conflicting-id:
+              type: string
+              description: The ID of the conflicting rule.
+              example: 00000000000001B2
+            permission:
+              type: string
+              description: The permission for which the rule conflicts.
+              example: read
+            variant:
+              type: string
+              description: The path pattern variant which conflicts.
+              example: '/home/ubuntu/Pictures/**/*.jpg'

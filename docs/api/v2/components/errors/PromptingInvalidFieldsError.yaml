@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable error message explaining the error.
+    example: 'invalid interface: "audio-playback"'
+  kind:
+    type: string
+    description: A machine-readable string identifying the error type.
+    enum:
+      - interfaces-requests-invalid-fields
+  value:
+    type: object
+    description: A map from field name to more information about the invalid value.
+    additionalProperties:
+      type: object
+      description: Details about an invalid value for a field.
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          enum:
+            - parse-error
+            - unsupported-value
+        value:
+          oneOf:
+            - type: array
+              description: The list of unsupported values which were received for this field.
+              items:
+                type: string
+            - type: string
+              description: The invalid value received for this field.
+        supported:
+          type: array
+          description: The list of supported values for this field.
+          items:
+            type: string

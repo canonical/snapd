@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: The schema the API uses for the 'ask' action of /v2/interfaces/requests.
+required:
+  - action
+  - interface
+  - pid
+properties:
+  action:
+    type: string
+    description: The action to perform on the interfaces requests endpoint.
+    enum:
+      - ask
+  interface:
+    type: string
+    description: The interface for which to ask permission.
+    enum:
+      - audio-record
+  pid:
+    type: integer
+    description: The PID of the process for which to request access.
