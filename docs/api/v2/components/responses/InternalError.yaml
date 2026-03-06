@@ -21,4 +21,6 @@ content:
           enum: 
             - error
         result:
-          $ref: '../errors/InternalServerError.yaml'
+          oneOf:
+            - $ref: '../errors/InternalServerError.yaml'
+            - $ref: '../errors/PromptingNotRunningError.yaml'

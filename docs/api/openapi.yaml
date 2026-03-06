@@ -84,6 +84,8 @@ components:
       $ref: './v2/components/responses/MethodNotAllowed.yaml'
     NotFound:
       $ref: './v2/components/responses/NotFound.yaml'
+    ServiceUnavailable:
+      $ref: './v2/components/responses/ServiceUnavailable.yaml'
 
   schemas:
     ConfdbError:
@@ -106,6 +108,14 @@ components:
       $ref: './v2/components/errors/SnapNotInstalledError.yaml'
     UserNotFoundError:
       $ref: './v2/components/errors/UserNotFoundError.yaml'
+    PromptingNotRunningError:
+      $ref: './v2/components/errors/PromptingNotRunningError.yaml'
+    PromptingRuleConflictError:
+      $ref: './v2/components/errors/PromptingRuleConflictError.yaml'
+    PromptingInvalidFieldsError:
+      $ref: './v2/components/errors/PromptingInvalidFieldsError.yaml'
+    PromptingReplyNotMatchRequestError:
+      $ref: './v2/components/errors/PromptingReplyNotMatchRequestError.yaml'
 
     Activator:
       $ref: './v2/components/schemas/Activator.yaml'
@@ -153,10 +163,16 @@ components:
       $ref: './v2/components/schemas/PlugRef.yaml'
     Progress:
       $ref: './v2/components/schemas/Progress.yaml'
+    PromptingActionAsk:
+      $ref: './v2/components/schemas/PromptingActionAsk.yaml'
+    PromptingConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingConstraintsAudioRecord.yaml'
     PromptingConstraintsCamera:
       $ref: './v2/components/schemas/PromptingConstraintsCamera.yaml'
     PromptingConstraintsHome:
       $ref: './v2/components/schemas/PromptingConstraintsHome.yaml'
+    PromptingPatchConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingPatchConstraintsAudioRecord.yaml'
     PromptingPatchConstraintsCamera:
       $ref: './v2/components/schemas/PromptingPatchConstraintsCamera.yaml'
     PromptingPatchConstraintsHome:
@@ -167,12 +183,16 @@ components:
       $ref: './v2/components/schemas/PromptingPermissionRuleEntry.yaml'
     PromptingPrompt:
       $ref: './v2/components/schemas/PromptingPrompt.yaml'
+    PromptingPromptConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingPromptConstraintsAudioRecord.yaml'
     PromptingPromptConstraintsCamera:
       $ref: './v2/components/schemas/PromptingPromptConstraintsCamera.yaml'
     PromptingPromptConstraintsHome:
       $ref: './v2/components/schemas/PromptingPromptConstraintsHome.yaml'
     PromptingReply:
       $ref: './v2/components/schemas/PromptingReply.yaml'
+    PromptingReplyConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingReplyConstraintsAudioRecord.yaml'
     PromptingReplyConstraintsCamera:
       $ref: './v2/components/schemas/PromptingReplyConstraintsCamera.yaml'
     PromptingReplyConstraintsHome:
@@ -187,6 +207,8 @@ components:
       $ref: './v2/components/schemas/PromptingRuleActionRemove.yaml'
     PromptingRuleActionRemoveByID:
       $ref: './v2/components/schemas/PromptingRuleActionRemoveById.yaml'
+    PromptingRuleConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingRuleConstraintsAudioRecord.yaml'
     PromptingRuleConstraintsCamera:
       $ref: './v2/components/schemas/PromptingRuleConstraintsCamera.yaml'
     PromptingRuleConstraintsHome:
@@ -265,6 +287,8 @@ paths:
     $ref: './v2/paths/icons-name-icon.yaml'
   /v2/interfaces:
     $ref: './v2/paths/interfaces.yaml'
+  /v2/interfaces/requests:
+    $ref: './v2/paths/interfaces-requests.yaml'
   /v2/interfaces/requests/prompts:
     $ref: './v2/paths/interfaces-requests-prompts.yaml'
   /v2/interfaces/requests/prompts/{id}:

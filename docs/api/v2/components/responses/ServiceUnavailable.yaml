@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+description: |-
+  Service Unavailable. The server is not ready to handle the request.
+  This is likely because snapd is attempting to restart, so the request should
+  be retried.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status-code:
+          type: integer
+          enum:
+            - 503
+        status:
+          type: string
+          enum:
+            - Service Unavailable
+        type:
+          type: string
+          enum:
+            - error
+        result:
+          type: object
+          properties:
+            message:
+              type: string
+              description: A human-readable error message.
+              example: prompting subsystem has already been closed

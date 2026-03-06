@@ -23,4 +23,6 @@ content:
           enum:
             - error
         result:
-          $ref: '../errors/ConflictError.yaml'
+          oneOf:
+            - $ref: '../errors/ConflictError.yaml'
+            - $ref: '../errors/PromptingRuleConflictError.yaml'
