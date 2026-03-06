@@ -23,7 +23,7 @@
 %bcond_with testkeys
 
 # Enable apparmor on Tumbleweed and Leap 15.3+
-%if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
+%if 0%{?suse_version} >= 1550
 %bcond_without apparmor
 %else
 %bcond_with apparmor
@@ -167,7 +167,7 @@ Requires:       (snapd-selinux = %{version} if selinux-policy-%{selinuxtype})
 # Old versions of xdg-document-portal can expose data belonging to
 # other confied apps.  Older OpenSUSE releases are unlikely to change,
 # so for now limit this to Tumbleweed.
-%if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
+%if 0%{?suse_version} >= 1550
 Conflicts:      xdg-desktop-portal < 0.11
 %endif
 
