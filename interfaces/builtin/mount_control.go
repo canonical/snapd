@@ -623,7 +623,7 @@ func expandMountWhereVariable(where string, si *snap.Info) (string, error) {
 func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	mountControlSnippet := bytes.NewBuffer(nil)
 	emit := func(f string, args ...any) {
-		fmt.Fprintf(mountControlSnippet, f, args...)
+		mountControlSnippet.WriteString(fmt.Sprintf(f, args...))
 	}
 	snapInfo := plug.Snap()
 

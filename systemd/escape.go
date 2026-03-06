@@ -49,7 +49,7 @@ func EscapeUnitNamePath(in string) string {
 	}
 	// leading "." is special
 	if in[0] == '.' {
-		fmt.Fprintf(buf, `\x%x`, in[0])
+		buf.WriteString(fmt.Sprintf(`\x%x`, in[0]))
 		in = in[1:]
 	}
 
@@ -61,7 +61,7 @@ func EscapeUnitNamePath(in string) string {
 		} else if strings.IndexByte(allowed, c) >= 0 {
 			buf.WriteByte(c)
 		} else {
-			fmt.Fprintf(buf, `\x%x`, []byte{in[i]})
+			buf.WriteString(fmt.Sprintf(`\x%x`, []byte{in[i]}))
 		}
 	}
 

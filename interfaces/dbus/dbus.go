@@ -42,9 +42,9 @@ func SafePath(s string) string {
 
 	for _, c := range []byte(s) {
 		if strings.IndexByte(allowed, c) >= 0 {
-			fmt.Fprintf(buf, "%c", c)
+			buf.WriteByte(c)
 		} else {
-			fmt.Fprintf(buf, "_%02x", c)
+			buf.WriteString(fmt.Sprintf("_%02x", c))
 		}
 	}
 

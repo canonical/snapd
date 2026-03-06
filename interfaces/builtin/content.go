@@ -254,7 +254,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	writePaths := iface.path(slot, "write")
 	emit := spec.AddUpdateNSf
 	if len(writePaths) > 0 {
-		fmt.Fprintf(contentSnippet, `
+		contentSnippet.WriteString(`
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files. Due
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
@@ -262,8 +262,8 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # directory.
 `)
 		for i, w := range writePaths {
-			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
-				resolveSpecialVariable(w, slot.Snap()))
+			contentSnippet.WriteString(fmt.Sprintf("\"%s/**\" mrwklix,\n",
+				resolveSpecialVariable(w, slot.Snap())))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
@@ -281,14 +281,14 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 	readPaths := iface.path(slot, "read")
 	if len(readPaths) > 0 {
-		fmt.Fprintf(contentSnippet, `
+		contentSnippet.WriteString(`
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
 `)
 		for i, r := range readPaths {
-			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
-				resolveSpecialVariable(r, slot.Snap()))
+			contentSnippet.WriteString(fmt.Sprintf("\"%s/**\" mrkix,\n",
+				resolveSpecialVariable(r, slot.Snap())))
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
@@ -311,7 +311,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
 	if len(writePaths) > 0 {
-		fmt.Fprintf(contentSnippet, `
+		contentSnippet.WriteString(`
 # When the content interface is writable, allow this slot
 # implementation to access the slot's exported files at the plugging
 # snap's mountpoint to accommodate software where the plugging app
@@ -319,8 +319,8 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 `)
 		for _, w := range writePaths {
 			_, target := sourceTarget(plug, slot, w)
-			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
-				target)
+			contentSnippet.WriteString(fmt.Sprintf("\"%s/**\" mrwklix,\n",
+				target))
 		}
 	}
 

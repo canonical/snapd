@@ -274,7 +274,7 @@ func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharacteris
 		c.Logf("tc: %v %v %v", i, tc.role, tc.label)
 		b := &bytes.Buffer{}
 
-		fmt.Fprint(b, `
+		b.WriteString(`
 volumes:
   pc:
     bootloader: grub
@@ -282,19 +282,19 @@ volumes:
     structure:`)
 
 		if tc.role == "system-seed" {
-			fmt.Fprint(b, `
+			b.WriteString(`
       - name: Recovery
         size: 10M
         type: 83
         role: system-seed`)
 		}
 
-		fmt.Fprintf(b, `
+		b.WriteString(fmt.Sprintf(`
       - name: Data
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, tc.label)
+        filesystem-label: %s`, tc.label))
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 		ginfo, err := gadget.ReadInfo(s.dir, nil)
@@ -358,16 +358,16 @@ volumes:
 		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.hasModes)
 		b := &bytes.Buffer{}
 
-		fmt.Fprint(b, bloader)
+		b.WriteString(bloader)
 		if tc.addSeed {
-			fmt.Fprint(b, `
+			b.WriteString(`
       - name: Recovery
         size: 10M
         type: 83
         role: system-seed`)
 		}
 		if tc.addBoot {
-			fmt.Fprint(b, `
+			b.WriteString(`
       - name: Boot
         size: 10M
         type: 83
@@ -375,23 +375,23 @@ volumes:
 		}
 
 		if !tc.noData {
-			fmt.Fprintf(b, `
+			b.WriteString(fmt.Sprintf(`
       - name: Data
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, tc.dataLabel)
+        filesystem-label: %s`, tc.dataLabel))
 		}
 
 		if tc.addSave {
-			fmt.Fprint(b, `
+			b.WriteString(`
       - name: Save
         size: 10M
         type: 83
         role: system-save`)
 			if tc.saveLabel != "" {
-				fmt.Fprintf(b, `
-        filesystem-label: %s`, tc.saveLabel)
+				b.WriteString(fmt.Sprintf(`
+        filesystem-label: %s`, tc.saveLabel))
 
 			}
 		}

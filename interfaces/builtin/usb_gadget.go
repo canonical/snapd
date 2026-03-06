@@ -160,7 +160,7 @@ func (iface *usbGadgetInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlu
 func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	usbGadgetSnippet := bytes.NewBuffer(nil)
 	emit := func(f string, args ...any) {
-		fmt.Fprintf(usbGadgetSnippet, f, args...)
+		usbGadgetSnippet.WriteString(fmt.Sprintf(f, args...))
 	}
 	snapInfo := plug.Snap()
 

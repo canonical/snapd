@@ -266,11 +266,11 @@ func (grp *Group) SliceFileName() string {
 	}
 
 	buf := &bytes.Buffer{}
-	fmt.Fprintf(buf, "snap.")
+	buf.WriteString("snap.")
 	for _, parentGrpName := range grpNames {
-		fmt.Fprintf(buf, "%s-", systemd.EscapeUnitNamePath(parentGrpName))
+		buf.WriteString(fmt.Sprintf("%s-", systemd.EscapeUnitNamePath(parentGrpName)))
 	}
-	fmt.Fprintf(buf, "%s.slice", escapedGrpName)
+	buf.WriteString(fmt.Sprintf("%s.slice", escapedGrpName))
 	return buf.String()
 }
 

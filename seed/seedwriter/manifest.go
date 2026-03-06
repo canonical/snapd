@@ -384,10 +384,10 @@ func (sm *Manifest) Write(filePath string) error {
 
 	buf := bytes.NewBuffer(nil)
 	for _, key := range vsKeys {
-		fmt.Fprintf(buf, "%s\n", sm.vsSeeded[key])
+		buf.WriteString(fmt.Sprintf("%s\n", sm.vsSeeded[key]))
 	}
 	for _, key := range revisionKeys {
-		fmt.Fprintf(buf, "%s\n", sm.revsSeeded[key])
+		buf.WriteString(fmt.Sprintf("%s\n", sm.revsSeeded[key]))
 	}
 	return os.WriteFile(filePath, buf.Bytes(), 0755)
 }

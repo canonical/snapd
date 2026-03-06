@@ -49,12 +49,12 @@ CPUAccounting=true
 		cpuQuotaMax := runtime.NumCPU() * 100
 
 		// The CPUQuota setting is only available since systemd 213
-		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
+		buf.WriteString(fmt.Sprintf("CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax)))
 	}
 
 	if grp.CPULimit != nil && len(grp.CPULimit.CPUSet) != 0 {
 		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.CPUSet)
-		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+		buf.WriteString(fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue))
 	}
 
 	buf.WriteString("\n")
@@ -72,7 +72,7 @@ MemoryAccounting=true
 MemoryLimit=%[1]d
 
 `
-		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
+		buf.WriteString(fmt.Sprintf(valuesTemplate, grp.MemoryLimit))
 	}
 	return buf.String()
 }
@@ -85,7 +85,7 @@ TasksAccounting=true
 	buf := bytes.NewBufferString(header)
 
 	if grp.ThreadLimit != 0 {
-		fmt.Fprintf(buf, "TasksMax=%d\n", grp.ThreadLimit)
+		buf.WriteString(fmt.Sprintf("TasksMax=%d\n", grp.ThreadLimit))
 	}
 	return buf.String()
 }
@@ -106,7 +106,7 @@ X-Snappy=yes
 [Slice]
 `
 
-	fmt.Fprintf(&buf, template, grp.Name)
-	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
+	buf.WriteString(fmt.Sprintf(template, grp.Name))
+	buf.WriteString(cpuOptions + memoryOptions + taskOptions)
 	return buf.Bytes()
 }

@@ -2003,7 +2003,7 @@ func (s *gadgetYamlTestSuite) TestReadInfoAndValidateConsistencyWithoutModelChar
 		c.Logf("tc: %v %v %v", i, tc.role, tc.label)
 		b := &bytes.Buffer{}
 
-		fmt.Fprintf(b, `
+		b.WriteString(`
 volumes:
   pc:
     bootloader: grub
@@ -2011,19 +2011,19 @@ volumes:
     structure:`)
 
 		if tc.role == "system-seed" {
-			fmt.Fprintf(b, `
+			b.WriteString(`
       - name: Recovery
         size: 10M
         type: 83
         role: system-seed`)
 		}
 
-		fmt.Fprintf(b, `
+		b.WriteString(fmt.Sprintf(`
       - name: Data
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, tc.label)
+        filesystem-label: %s`, tc.label))
 
 		err := os.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)

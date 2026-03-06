@@ -67,13 +67,13 @@ func (e *ValidationSetsConflictError) Error() string {
 	buf := bytes.NewBufferString("validation sets are in conflict:")
 	seen := make(map[string]bool)
 	for id, err := range e.Snaps {
-		fmt.Fprintf(buf, "\n- %v", err)
+		buf.WriteString(fmt.Sprintf("\n- %v", err))
 		seen[id] = true
 
 		// if we have any component errors, we should put them next to the snap
 		// errors
 		for _, err := range e.Components[id] {
-			fmt.Fprintf(buf, "\n- %v", err)
+			buf.WriteString(fmt.Sprintf("\n- %v", err))
 		}
 	}
 
@@ -84,7 +84,7 @@ func (e *ValidationSetsConflictError) Error() string {
 			continue
 		}
 		for _, err := range errs {
-			fmt.Fprintf(buf, "\n- %v", err)
+			buf.WriteString(fmt.Sprintf("\n- %v", err))
 		}
 	}
 
@@ -178,21 +178,21 @@ func (e *ValidationSetsValidationError) Error() string {
 	buf := bytes.NewBufferString("validation sets assertions are not met:")
 
 	if len(e.MissingSnaps) > 0 {
-		fmt.Fprintf(buf, "\n- missing required snaps:")
+		buf.WriteString("\n- missing required snaps:")
 		for name, revisions := range e.MissingSnaps {
 			writeMissingError(buf, name, revisions)
 		}
 	}
 
 	if len(e.InvalidSnaps) > 0 {
-		fmt.Fprintf(buf, "\n- invalid snaps:")
+		buf.WriteString("\n- invalid snaps:")
 		for snapName, validationSetKeys := range e.InvalidSnaps {
-			fmt.Fprintf(buf, "\n  - %s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
+			buf.WriteString(fmt.Sprintf("\n  - %s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ",")))
 		}
 	}
 
 	if len(e.WrongRevisionSnaps) > 0 {
-		fmt.Fprint(buf, "\n- snaps at wrong revisions:")
+		buf.WriteString("\n- snaps at wrong revisions:")
 		for snapName, revisions := range e.WrongRevisionSnaps {
 			writeWrongRevisionError(buf, snapName, revisions)
 		}
