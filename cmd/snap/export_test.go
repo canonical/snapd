@@ -496,3 +496,11 @@ func MockTimeAfter(f func(d time.Duration) <-chan time.Time) (restore func()) {
 func MockSnapdtoolIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
+
+func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, string) error) (restore func()) {
+	return testutil.Mock(&squashfsGenerateDelta, f)
+}
+
+func MockSquashfsApplyDelta(f func(context.Context, string, string, string) error) (restore func()) {
+	return testutil.Mock(&squashfsApplyDelta, f)
+}
