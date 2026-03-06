@@ -428,13 +428,11 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 	return SyncResponse(result)
 }
 
-var validateSnapHasInterfaceConnection = validateSnapHasInterfaceConnectionImpl
-
-// validateSnapHasInterfaceConnectionImpl returns nil if the given snap has a
+// validateSnapHasInterfaceConnection returns nil if the given snap has a
 // connected plug with the given interface. If the connections cannot be
 // retrieved or parsed or there is no such connection, then returns an error
 // response.
-func validateSnapHasInterfaceConnectionImpl(d *Daemon, snapName, iface string) Response {
+func validateSnapHasInterfaceConnection(d *Daemon, snapName, iface string) Response {
 	st := d.state
 	st.Lock()
 	defer st.Unlock()

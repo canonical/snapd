@@ -677,7 +677,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 		Default: daemon.RootAccess{},
 	})
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	const (
 		fakeUID    = uint32(1000)
@@ -694,12 +694,14 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, ifaceName string) daemon.Response {
-		c.Check(snapName, Equals, expectedSnap)
-		c.Check(ifaceName, Equals, iface)
-		return nil
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"foo:audio-record core:audio-record": map[string]any{
+			"interface": "audio-record",
+		},
 	})
-	defer restore()
+	st.Unlock()
 
 	s.manager.ask = prompting.OutcomeAllow
 
@@ -735,15 +737,13 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 		Default: daemon.RootAccess{},
 	})
 
-	s.daemon(c)
+	d := s.daemon(c)
 
 	const (
 		fakeUID    = uint32(1000)
 		fakePID    = int32(1234)
 		fakeCgroup = "/path/to/cgroup/snap.foo.bar-someuuid.scope"
 		iface      = "audio-record"
-
-		expectedSnap = "foo"
 	)
 
 	restore := daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
@@ -752,12 +752,14 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, ifaceName string) daemon.Response {
-		c.Check(snapName, Equals, expectedSnap)
-		c.Check(ifaceName, Equals, iface)
-		return nil
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"foo:audio-record core:audio-record": map[string]any{
+			"interface": "audio-record",
+		},
 	})
-	defer restore()
+	st.Unlock()
 
 	contents := &daemon.PostInterfacesRequestsRequestBody{
 		Action:    "ask",
@@ -841,21 +843,44 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	restore()
 
 	// Can't find valid interface connection for snap
-	for _, validateErrorResp := range []daemon.Response{
-		daemon.InternalError("something happened"),
-		daemon.BadRequest("the request was bad"),
+	for _, testCase := range []struct {
+		connsMap map[string]any
+		expected daemon.Response
+	}{
+		{
+			map[string]any{},
+			daemon.BadRequest(`cannot find interface connection for snap "foo": "audio-record"`),
+		},
+		{
+			map[string]any{
+				"malformed": map[string]any{
+					"interface": "audio-record",
+				},
+			},
+			daemon.InternalError(`cannot get connections: malformed connection identifier: "malformed"`),
+		},
 	} {
-		restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
-			return validateErrorResp
-		})
+		st := d.Overlord().State()
+		st.Lock()
+		st.Set("conns", testCase.connsMap)
+		st.Unlock()
+
 		body = bytes.NewReader(marshalled)
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 		c.Assert(err, IsNil)
 		req.RemoteAddr = "pid=100;uid=1000;socket=;"
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
-		c.Check(rspe, Equals, validateErrorResp)
+		c.Check(rspe, DeepEquals, testCase.expected)
 		restore()
 	}
+
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"foo:audio-record core:audio-record": map[string]any{
+			"interface": "audio-record",
+		},
+	})
+	st.Unlock()
 
 	// Error from Ask()
 	s.manager.err = prompting_errors.ErrPromptingClosed
@@ -869,7 +894,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	s.manager.err = nil
 }
 
-func (s *promptingSuite) TestValidateSnapHasInterfaceConnectionImpl(c *C) {
+func (s *promptingSuite) TestValidateSnapHasInterfaceConnection(c *C) {
 	d := s.daemon(c)
 
 	s.mockSnap(c, `
@@ -934,7 +959,7 @@ plugs:
 			daemon.BadRequest(`cannot find interface connection for snap "another-snap": "foo"`),
 		},
 	} {
-		result := daemon.ValidateSnapHasInterfaceConnectionImpl(d, testCase.snap, testCase.iface)
+		result := daemon.ValidateSnapHasInterfaceConnection(d, testCase.snap, testCase.iface)
 		c.Check(result, DeepEquals, testCase.expected)
 	}
 
@@ -947,7 +972,7 @@ plugs:
 	})
 	st.Unlock()
 
-	result := daemon.ValidateSnapHasInterfaceConnectionImpl(d, "some-snap", "foo")
+	result := daemon.ValidateSnapHasInterfaceConnection(d, "some-snap", "foo")
 	c.Check(result, DeepEquals, daemon.InternalError(`cannot get connections: malformed connection identifier: "is-bad"`))
 }
 

@@ -29,7 +29,7 @@ var (
 	PromptingNotRunningError = promptingNotRunningError
 	PromptingError           = promptingError
 
-	ValidateSnapHasInterfaceConnectionImpl = validateSnapHasInterfaceConnectionImpl
+	ValidateSnapHasInterfaceConnection = validateSnapHasInterfaceConnection
 )
 
 type PostInterfacesRequestsRequestBody postInterfacesRequestsRequestBody
@@ -62,8 +62,4 @@ func MockInterfaceManager(manager interfaceManager) (restore func()) {
 
 func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
 	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
-}
-
-func MockValidateSnapHasInterfaceConnection(f func(d *Daemon, snapName, iface string) Response) (restore func()) {
-	return testutil.Mock(&validateSnapHasInterfaceConnection, f)
 }
