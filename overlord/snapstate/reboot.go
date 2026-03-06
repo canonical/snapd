@@ -50,6 +50,21 @@ var essentialSnapsRestartOrder = []snap.Type{
 	snap.TypeKernel,
 }
 
+// SeedRefreshTaskSet carries the tasks needed to perform a seed refresh.
+type SeedRefreshTaskSet struct {
+	Create   *state.Task
+	Finalize *state.Task
+
+	// TODO: this will also carry the tasks that will remove any seeds that
+	// should no longer be tracked by the seed-refresh mode
+}
+
+// SeedRefreshTasks is set by devicestate to avoid an import cycle. See
+// devicestate.SeedRefreshTasks.
+var SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*SeedRefreshTaskSet, error) {
+	panic("internal error: snapstate.SeedRefreshTasks is unset")
+}
+
 func maybeTaskSetSnapSetup(ts *state.TaskSet) *SnapSetup {
 	for _, t := range ts.Tasks() {
 		snapsup, err := TaskSnapSetup(t)

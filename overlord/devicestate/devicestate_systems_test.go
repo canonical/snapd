@@ -1737,6 +1737,97 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedRefreshRecordsSeededSystem(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	previousSeededTs := time.Now().Add(-time.Hour)
+	previousSeededSystem := devicestate.SeededSystem{
+		System:    "0000",
+		Model:     s.model.Model(),
+		BrandID:   s.model.BrandID(),
+		Revision:  s.model.Revision(),
+		Timestamp: s.model.Timestamp(),
+		SeedTime:  previousSeededTs,
+	}
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{previousSeededSystem})
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem:  true,
+		MarkDefault: true,
+		SeedRefresh: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	create := tsks[0]
+	finalize := tsks[1]
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	// these things happen on snapd startup
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(create.Status(), Equals, state.DoneStatus)
+	c.Assert(finalize.Status(), Equals, state.DoneStatus)
+
+	var seededSystems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystems, HasLen, 2)
+
+	c.Check(seededSystems[0].System, Equals, "1234")
+	c.Check(seededSystems[0].Model, Equals, s.model.Model())
+	c.Check(seededSystems[0].BrandID, Equals, s.model.BrandID())
+	c.Check(seededSystems[0].Revision, Equals, s.model.Revision())
+	c.Check(seededSystems[0].Timestamp.Equal(s.model.Timestamp()), Equals, true)
+	c.Check(seededSystems[0].SeedTime.IsZero(), Equals, false)
+	c.Check(seededSystems[0].SeedRefresh, Equals, true)
+
+	c.Check(seededSystems[1].System, Equals, previousSeededSystem.System)
+	c.Check(seededSystems[1].Model, Equals, previousSeededSystem.Model)
+	c.Check(seededSystems[1].BrandID, Equals, previousSeededSystem.BrandID)
+	c.Check(seededSystems[1].Revision, Equals, previousSeededSystem.Revision)
+	c.Check(seededSystems[1].Timestamp.Equal(previousSeededSystem.Timestamp), Equals, true)
+	c.Check(seededSystems[1].SeedTime.Equal(previousSeededSystem.SeedTime), Equals, true)
+	c.Check(seededSystems[1].SeedRefresh, Equals, false)
+
+	var defaultSystem devicestate.DefaultRecoverySystem
+	err = s.state.Get("default-recovery-system", &defaultSystem)
+	c.Assert(err, IsNil)
+	c.Check(defaultSystem.System, Equals, "1234")
+	c.Check(defaultSystem.Model, Equals, s.model.Model())
+	c.Check(defaultSystem.BrandID, Equals, s.model.BrandID())
+	c.Check(defaultSystem.Revision, Equals, s.model.Revision())
+	c.Check(defaultSystem.Timestamp.Equal(s.model.Timestamp()), Equals, true)
+	c.Check(defaultSystem.TimeMadeDefault.IsZero(), Equals, false)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelDownloadingSnapsHappy(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -2446,6 +2537,166 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	err = s.state.Get("default-recovery-system", &defaultSystem)
 	c.Assert(err, IsNil)
 	c.Check(defaultSystem, Equals, previousDefault)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystemSeedRefresh(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	previousDefault := devicestate.DefaultRecoverySystem{
+		System:   "previous",
+		Model:    "model",
+		BrandID:  "brand",
+		Revision: 1,
+	}
+	s.state.Set("default-recovery-system", previousDefault)
+
+	previousSeededTime := time.Now().Add(-time.Hour)
+	previousSeededSystem := devicestate.SeededSystem{
+		System:    "0000",
+		Model:     "model",
+		BrandID:   "brand",
+		Revision:  1,
+		Timestamp: previousSeededTime,
+		SeedTime:  previousSeededTime,
+	}
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{previousSeededSystem})
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
+		TestSystem:  true,
+		MarkDefault: true,
+		SeedRefresh: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	create := tsks[0]
+	finalize := tsks[1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(finalize)
+	chg.AddTask(terr)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	snaptest.PopulateDir(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps"), [][]string{
+		{"core20_10.snap", "canary"},
+		{"some-snap_1.snap", "canary"},
+	})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	// validity check asserted snaps location
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_2.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc_1.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+	// do more extensive validation
+	validateCore20Seed(c, "1234undo", s.model, s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234undo",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234undo"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	// these things happen on snapd startup
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234undo"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(create.Status(), Equals, state.UndoneStatus)
+	c.Assert(finalize.Status(), Equals, state.UndoneStatus)
+
+	var triedSystemsAfter []string
+	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+	// expect 2 calls to bootloader.SetBootVars: one for do, one for undo
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
+	// system directory was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
+	// only the canary files are left now
+	p, err = filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+
+	var defaultSystem devicestate.DefaultRecoverySystem
+	err = s.state.Get("default-recovery-system", &defaultSystem)
+	c.Assert(err, IsNil)
+	c.Check(defaultSystem, Equals, previousDefault)
+
+	var seededSystems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystems, HasLen, 1)
+	c.Check(seededSystems[0].System, Equals, previousSeededSystem.System)
+	c.Check(seededSystems[0].Model, Equals, previousSeededSystem.Model)
+	c.Check(seededSystems[0].BrandID, Equals, previousSeededSystem.BrandID)
+	c.Check(seededSystems[0].Revision, Equals, previousSeededSystem.Revision)
+	c.Check(seededSystems[0].Timestamp.Equal(previousSeededSystem.Timestamp), Equals, true)
+	c.Check(seededSystems[0].SeedTime.Equal(previousSeededSystem.SeedTime), Equals, true)
+	c.Check(seededSystems[0].SeedRefresh, Equals, false)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
