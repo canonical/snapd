@@ -45,6 +45,7 @@
 # If this spec file is integrated into Fedora then consider
 # adding global with_alt_snap_mount_dir 1 then.
 %global snap_mount_dir /snap
+%global alt_snap_mount_dir %{_localstatedir}/lib/snapd/snap
 
 %global selinuxtype targeted
 
@@ -112,8 +113,6 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
-BuildRequires:  m4
-# /usr/libexec/snapd/snap-mgmt: line 46: /etc/os-release: No such file or directory
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
 BuildRequires:  glibc-devel-static
@@ -221,6 +220,8 @@ pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
 %autopatch -p1
 
+popd
+
 build_with_static_pie=0
 # PIE static binaries are not supported on all architectures. We detect the
 # availability of the runtime object here, and GCC's support for such binaries.
@@ -228,7 +229,14 @@ if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; t
 build_with_static_pie=1
 fi
 
-popd
+%ifarch s390x
+# disabling static PIE on s390x, too fragile apparently
+build_with_static_pie=0
+%endif
+
+if [ "$build_with_static_pie" = "1" ]; then
+    touch build-with-static-pie
+fi
 
 # Generate snapd.defines.mk, this file is included by snapd.mk. It contains a
 # number of variable definitions that are set based on their RPM equivalents.
@@ -258,7 +266,7 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version that is compiled into the various executables/
+# Set the version and configuration that is compiled into the various executables/
 pushd %{indigo_srcdir}
 ./mkversion.sh %{version}
 popd
@@ -280,14 +288,14 @@ export CGO_CFLAGS="$CFLAGS"
 export CGO_CXXFLAGS="$CXXFLAGS"
 export CGO_LDFLAGS="$LDFLAGS"
 
+static_pie=
+if [ -e build-with-static-pie ]; then
+    static_pie=--enable-static-PIE
+fi
+
 # Generate autotools build system files.
 pushd %{indigo_srcdir}/cmd
 autoreconf -i -f
-
-static_pie=
-if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
-    static_pie=--enable-static-PIE
-fi
 
 %configure \
     %{!?with_apparmor:--disable-apparmor} \
@@ -326,17 +334,24 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 		USE_ALT_SNAP_MOUNT_DIR=true
 
 %check
+
+static_pie=
+if [ -e build-with-static-pie ]; then
+    static_pie=1
+fi
+
 # These binaries execute inside the mount namespace thus they must be built statically
 pushd %{buildroot}/%{_libexecdir}/snapd/
-for binary in snap-exec snap-update-ns snapctl snap-gdb{,server}-shim; do
+for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
     ldd $binary 2>&1 | grep 'statically linked\|not a dynamic executable'
 done
 
-if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
-for binary in snap-exec snap-update-ns snapctl snap-gdb{,server}-shim; do
-    file $binary | grep -F pie
-done
+if [ -n "$static_pie" ]; then
+    for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
+        file $binary | grep -F pie
+    done
 fi
+
 popd
 
 export CFLAGS="$RPM_OPT_FLAGS -fpie"
@@ -436,6 +451,15 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
+
+# TODO: starting with 2.74 default to %{alt_snap_mount_dir}
+if test ! -e %{snap_mount_dir} && test ! -e %{alt_snap_mount_dir} ; then
+    # neither location exists, it's likely a new installation, but we
+    # need one of the directories to exist for snapd and snap-confine
+    # to be able to figure out the desired configuration at runtime
+    echo "Using %{snap_mount_dir} as snap mount directory"
+    mkdir -p -m 755 %{snap_mount_dir} || :
+fi
 
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
@@ -543,8 +567,12 @@ fi
 %dir %{_tmpfilesdir}
 %dir %{_systemdgeneratordir}
 %dir %{_userunitdir}
-%dir %{snap_mount_dir}
-%dir %{snap_mount_dir}/bin
+%ghost %dir %{snap_mount_dir}
+%ghost %dir %{snap_mount_dir}/bin
+# Ghost entries for alternative mount directory
+%ghost %dir %{alt_snap_mount_dir}
+%ghost %dir %{alt_snap_mount_dir}/bin
+
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
@@ -563,6 +591,7 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
+%ghost %{alt_snap_mount_dir}/README
 # capabilities and permissions are set through permctl and set_permissions snippet in post
 %verify(not caps) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-confine.v2-only.caps
@@ -618,6 +647,7 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%ghost /tmp/snap-private-tmp
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
