@@ -57,6 +57,7 @@ execute: |
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
     # parallel-installs: $SNAP_NAME is always _the_ snap name
     MATCH '^SNAP_NAME=test-snapd-tools$'                                  < snap-vars.txt
+    MATCH '^SNAP_APP_NAME=env$'                                           < snap-vars.txt
     # parallel-install: name of a particular instance
     MATCH "^SNAP_INSTANCE_NAME=$NAME$"                                    < snap-vars.txt
     # parallel-installs: empty if none is set
@@ -67,11 +68,11 @@ execute: |
     # if on UC20+, then we should see an additional variable (SNAP_SAVE_DATA)
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-2* ]]; then
         MATCH "^SNAP_SAVE_DATA=/var/lib/snapd/save/snap/$NAME$"           < snap-vars.txt
-        # 18 variables are expected on ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 18 || { cat snap-vars.txt; exit 1; }
+        # 19 variables are expected on ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 19 || { cat snap-vars.txt; exit 1; }
     else
-        # 17 variables are expected on non ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 17 || { cat snap-vars.txt; exit 1; }
+        # 18 variables are expected on non ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 18 || { cat snap-vars.txt; exit 1; }
     fi
 
     echo "Ensure that XDG environment variables are what we expect"
