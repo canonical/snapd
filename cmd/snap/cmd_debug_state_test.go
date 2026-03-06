@@ -278,7 +278,7 @@ func (s *SnapSuite) TestDebugChangeDot(c *C) {
 		"label=<<b>install-snap [9]</b>>; labelloc=top; fontsize=24\n"+
 		"subgraph \"cluster[0]\" {\n"+
 		"label=<<b>Tasks on lanes: [0]</b>>; fontsize=18\n"+
-		"  \"a:download-snap [11]\"\n"+
+		"  \"a:download-snap [11]\" [style=filled, fillcolor=lightgreen]\n"+
 		"  \"some-other-task [12]\"\n"+
 		"}\n"+
 		"\"a:download-snap [11]\" -> \"some-other-task [12]\"\n"+

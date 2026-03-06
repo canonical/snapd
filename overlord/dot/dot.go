@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	statedot "github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/snap"
@@ -56,42 +57,71 @@ func NewChangeGraph(chg *state.Change, tag string) (*statedot.ChangeGraph, error
 	return statedot.NewChangeGraph(chg, TaskLabel, tag)
 }
 
-// TaskLabel produces a unique label string for the given task.
-func TaskLabel(t *state.Task) (string, error) {
+// TaskLabel produces a unique label string and optional attrs for the given task.
+func TaskLabel(t *state.Task) (label string, attrs []string, err error) {
+	reboot, err := taskRebootBoundaryDirection(t)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if reboot != "" {
+		attrs = append(attrs, "peripheries=2")
+	}
+
 	snapName, err := taskSnapName(t)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if t.Kind() == "run-hook" {
 		var hooksup hookSetup
 		if err := t.Get("hook-setup", &hooksup); err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return fmt.Sprintf("%s:run-hook[%s] [%s]", hooksup.Snap, hooksup.Hook, t.ID()), nil
+		return withRebootLabel(fmt.Sprintf("%s:run-hook[%s] [%s]", hooksup.Snap, hooksup.Hook, t.ID()), reboot), attrs, nil
 	}
 
 	if snapName != "" {
-		return fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), nil
+		return withRebootLabel(fmt.Sprintf("%s:%s [%s]", snapName, t.Kind(), t.ID()), reboot), attrs, nil
 	}
 
-	label := fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
+	label = fmt.Sprintf("%s [%s]", t.Kind(), t.ID())
 
 	var plugRef interfaces.PlugRef
 	if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
+		return "", nil, err
 	}
 
 	var slotRef interfaces.SlotRef
 	if err := t.Get("slot", &slotRef); err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
+		return "", nil, err
 	}
 
 	if plugRef.Snap != "" && slotRef.Snap != "" {
 		label = fmt.Sprintf("%s[%s:%s %s:%s] [%s]", t.Kind(), plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name, t.ID())
 	}
 
-	return label, nil
+	return withRebootLabel(label, reboot), attrs, nil
+}
+
+func taskRebootBoundaryDirection(t *state.Task) (string, error) {
+	var boundary restart.RestartBoundaryDirection
+	if err := t.Get("restart-boundary", &boundary); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	return boundary.String(), nil
+}
+
+func withRebootLabel(label, direction string) string {
+	if direction == "" {
+		return label
+	}
+
+	return fmt.Sprintf("%s\\nreboot: %s", label, direction)
 }
 
 // taskSnapName returns the name of the snap with which this task is

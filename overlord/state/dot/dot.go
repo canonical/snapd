@@ -66,11 +66,20 @@ func (gclusterEnd) appendTo(w io.Writer, withAttrs bool) error {
 }
 
 type gnode struct {
-	name string
+	name  string
+	attrs []string
 }
 
 func (gn gnode) appendTo(w io.Writer, withAttrs bool) error {
-	_, err := fmt.Fprintf(w, "  \"%s\"\n", gn.name)
+	_, err := fmt.Fprintf(w, "  \"%s\"", gn.name)
+	if err != nil {
+		return err
+	}
+	if withAttrs && len(gn.attrs) != 0 {
+		_, err := fmt.Fprintf(w, " [%s]\n", strings.Join(gn.attrs, ", "))
+		return err
+	}
+	_, err = io.WriteString(w, "\n")
 	return err
 }
 
@@ -103,17 +112,20 @@ type ChangeGraph struct {
 // of the task dependency graph of the given Change. taskLabeler should return
 // unique labels for tasks in the change, usually of the form "<task-kind>" for
 // unparameterized tasks or "<task-kind>:<params-repr>" for parameterized
-// tasks. tag can be used to trace the context of origin of the change, and
-// will appear in the graphical representation of the graph.
-func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label string, err error), tag string) (*ChangeGraph, error) {
+// tasks. taskLabeler may also return extra graphviz node attributes. tag can
+// be used to trace the context of origin of the change, and will appear in the
+// graphical representation of the graph.
+func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label string, attrs []string, err error), tag string) (*ChangeGraph, error) {
 	tasks := chg.Tasks()
 	labels := make(map[*state.Task]string, len(tasks))
+	taskAttrs := make(map[*state.Task][]string, len(tasks))
 	for _, t := range tasks {
-		label, err := taskLabeler(t)
+		label, attrs, err := taskLabeler(t)
 		if err != nil {
 			return nil, err
 		}
 		labels[t] = label
+		taskAttrs[t] = attrs
 	}
 	sortTasks(tasks, labels)
 	// use cluster subgraphs for tasks in the same lanes
@@ -142,7 +154,8 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 		clulabel := clusterLabel(clu)
 		addToDef(gcluster{clulabel})
 		for _, t := range clusterTasks[clulabel] {
-			addToDef(gnode{labels[t]})
+			attrs := append(nodeAttrs(t.Status()), taskAttrs[t]...)
+			addToDef(gnode{name: labels[t], attrs: attrs})
 		}
 		addToDef(gclusterEnd{})
 	}
@@ -288,4 +301,19 @@ func sortTasks(tasks []*state.Task, labels map[*state.Task]string) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return labels[tasks[i]] < labels[tasks[j]]
 	})
+}
+
+func nodeAttrs(status state.Status) []string {
+	switch status {
+	case state.DoneStatus:
+		return []string{"style=filled", "fillcolor=lightgreen"}
+	case state.ErrorStatus:
+		return []string{"style=filled", "fillcolor=mistyrose"}
+	case state.UndoneStatus:
+		return []string{"style=filled", "fillcolor=moccasin"}
+	case state.WaitStatus:
+		return []string{"style=filled", "fillcolor=lightblue"}
+	default:
+		return nil
+	}
 }
