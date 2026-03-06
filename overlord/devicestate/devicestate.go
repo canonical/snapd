@@ -1138,10 +1138,7 @@ func shouldRegenerateCertificateDatabase(current, new *asserts.Model) bool {
 		}
 		return ch.Track
 	}
-
-	currentBase := current.BaseSnap()
-	newBase := new.BaseSnap()
-	if currentBase != nil && newBase != nil && baseTrack(currentBase) != baseTrack(newBase) {
+	if baseTrack(current.BaseSnap()) != baseTrack(new.BaseSnap()) {
 		return true
 	}
 	return false
