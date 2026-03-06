@@ -937,3 +937,53 @@ func (s *Store) SetCachePolicy(policy CachePolicy) {
 func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
 }
+
+// CleanupDownloadArtifacts attempts to clean up download artifacts associated
+// with a given snap.
+func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
+	var err error
+	// TODO:GOVERSION: use errors.Join
+	if rerr := os.Remove(targetFn); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove downloaded file: %w", rerr))
+	}
+
+	if dl != nil {
+		maybeDropIfCorrupted := func() error {
+			f, sz, oerr := s.cacher.Open(dl.Sha3_384)
+			if oerr != nil {
+				if errors.Is(oerr, fs.ErrNotExist) {
+					return nil
+				}
+				return fmt.Errorf("cannot open: %w", oerr)
+			}
+			defer f.Close()
+
+			// If different size, we drop directly, otherwise we check also the hash
+			if sz == dl.Size {
+				h := crypto.SHA3_384.New()
+				if _, cerr := io.Copy(h, f); cerr != nil {
+					return fmt.Errorf("cannot read: %w", cerr)
+				}
+
+				actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+				if dl.Sha3_384 == actualSha3 {
+					// the cached entry appears to be correct, let's keep it
+					return nil
+				}
+			}
+
+			// takes a lock inside, could block, ignore ENOENT as the entry may have
+			// been dropped while we were processing it
+			if derr := s.cacher.Drop(dl.Sha3_384); derr != nil && !errors.Is(derr, fs.ErrNotExist) {
+				return fmt.Errorf("cannot drop: %w", derr)
+			}
+
+			return nil
+		}
+
+		if merr := maybeDropIfCorrupted(); merr != nil {
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot drop cached download entry: %w", merr))
+		}
+	}
+	return err
+}

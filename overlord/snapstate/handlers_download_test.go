@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -520,4 +521,64 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 		},
 	})
 
+}
+
+type testUndoDownloadSnapFileCorruptedScenario int
+
+const (
+	cleanupOk = iota
+	cleanupErr
+)
+
+func (s *downloadSnapSuite) testUndoDownloadSnapFile(c *C, scenario testUndoDownloadSnapFileCorruptedScenario) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	t := s.state.NewTask("download-snap", "test")
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			Sha3_384: "some-hash",
+		},
+	}
+	t.Set("snap-setup", sup)
+	t.SetStatus(state.UndoStatus)
+
+	switch scenario {
+	case cleanupOk:
+	case cleanupErr:
+		s.fakeStore.cleanupDownloadArtifactsError = map[string]error{
+			"some-hash": errors.New("mock error"),
+		}
+	default:
+		panic("unexpected scenario")
+	}
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "some-hash",
+			path: sup.BlobPath(),
+		},
+	})
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapFileDone(c *C) {
+	s.testUndoDownloadSnapFile(c, cleanupOk)
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapCleanupErrorNotFatal(c *C) {
+	s.testUndoDownloadSnapFile(c, cleanupErr)
 }

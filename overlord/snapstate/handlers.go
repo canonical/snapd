@@ -866,6 +866,32 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, theStore, _, err := downloadSnapParams(st, t)
+	if err != nil {
+		t.Logf("cannot obtain download info: %v", err)
+		return nil
+	}
+
+	fname := snapsup.BlobPath()
+
+	err = func() error {
+		st.Unlock()
+		defer st.Lock()
+		return theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
+	}()
+	if err != nil {
+		t.Logf("cannot clean up downloaded snap artifacts: %v", err)
+		return nil
+	}
+
+	return nil
+}
+
 func waitForPreDownload(task *state.Task, snapsup *SnapSetup) error {
 	st := task.State()
 	st.Lock()

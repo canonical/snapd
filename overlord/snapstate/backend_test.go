@@ -105,6 +105,8 @@ type fakeOp struct {
 
 	snapLocked bool
 	isUndo     bool
+
+	sha3 string
 }
 
 type fakeOps []fakeOp
@@ -212,6 +214,8 @@ type fakeStore struct {
 	idsToNames         map[string]string
 
 	mutateSnapInfo func(*snap.Info) error
+
+	cleanupDownloadArtifactsError map[string]error
 }
 
 func (f *fakeStore) registerID(name, id string) {
@@ -642,6 +646,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Version: name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		Confinement:   confinement,
 		Architectures: []string{"all"},
@@ -1012,6 +1017,25 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 }
 
 func (f *fakeStore) CleanDownloadsCache() error {
+	return nil
+}
+
+func (f *fakeStore) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
+	f.pokeStateLock()
+
+	cksum := "<not-provided>"
+	if dl != nil {
+		cksum = dl.Sha3_384
+	}
+
+	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-cleanup-download-artifacts",
+		sha3: cksum,
+		path: targetFn,
+	})
+
+	if f.cleanupDownloadArtifactsError != nil {
+		return f.cleanupDownloadArtifactsError[cksum]
+	}
 	return nil
 }
 

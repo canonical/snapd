@@ -22,6 +22,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -70,6 +71,11 @@ type downloadCache interface {
 	Put(cacheKey, sourcePath string) error
 	// Get full path of the file in cache
 	GetPath(cacheKey string) string
+	// Drop an entry. Ignores errors when entry does not exist.
+	Drop(cacheKey string) error
+	// Open a stream to entry under a given key. Returns an
+	// io.ReadSeekCloser and the stream size.
+	Open(cacheKey string) (io.ReadSeekCloser, int64, error)
 	// Best effort cleanup of outstanding cache items. Returns ErrCleanupBusy
 	// when the cache is in use and cleanup should be retried at some later
 	// time.
@@ -86,6 +92,12 @@ func (cm *nullCache) GetPath(cacheKey string) string {
 	return ""
 }
 func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
+
+func (cm *nullCache) Drop(cacheKey string) error { return nil }
+
+func (cm *nullCache) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
+	return nil, 0, fs.ErrNotExist
+}
 
 func (cm *nullCache) Cleanup() error { return nil }
 
@@ -183,6 +195,58 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 	}
 
 	return cm.opportunisticCleanup()
+}
+
+// Drop drops an entry at given key.
+func (cm *CacheManager) Drop(cacheKey string) error {
+	if cacheKey == "" {
+		return nil
+	}
+
+	// always try to create the cache dir first or the following
+	// osutil.IsWritable will always fail if the dir is missing
+	_ = os.MkdirAll(cm.cacheDir, 0700)
+
+	// happens on e.g. `snap download` which runs as the user
+	if !osutil.IsWritable(cm.cacheDir) {
+		return nil
+	}
+
+	return func() error {
+		cm.cleanupLock.RLock()
+		defer cm.cleanupLock.RUnlock()
+
+		err := os.Remove(cm.path(cacheKey))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
+	}()
+}
+
+// Open a stream for reading from an entry under a given key.
+func (cm *CacheManager) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
+	if cacheKey == "" {
+		return nil, 0, fs.ErrNotExist
+	}
+
+	// always try to create the cache dir first or the following
+	// osutil.IsWritable will always fail if the dir is missing
+	_ = os.MkdirAll(cm.cacheDir, 0700)
+
+	cm.cleanupLock.RLock()
+	defer cm.cleanupLock.RUnlock()
+
+	f, err := os.Open(cm.path(cacheKey))
+	if err != nil {
+		return nil, 0, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return f, fi.Size(), nil
 }
 
 // count returns the number of items in the cache

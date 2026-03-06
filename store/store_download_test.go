@@ -770,12 +770,15 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 type cacheObserver struct {
 	inCache map[string]bool
 
-	gets []string
-	puts []string
+	gets  []string
+	puts  []string
+	drops []string
 
 	// list of errors to return on Put() to a specific key
 	putFailForKey map[string][]error
 	putErrHits    map[string]int
+
+	dropErr map[string]error
 
 	cleanupCalls int
 }
@@ -806,6 +809,32 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	return nil
 }
 
+func (co *cacheObserver) Drop(cacheKey string) error {
+	co.drops = append(co.drops, cacheKey)
+
+	if co.dropErr != nil {
+		return co.dropErr[cacheKey]
+	}
+	return nil
+}
+
+func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
+	if co.inCache[cacheKey] {
+		s := "content"
+
+		// strings.NewReader returns an *strings.Reader that implements io.{Reader,Seeker}
+		sr := strings.NewReader(s)
+
+		// io.NopCloser adds a no-op Close() method
+		var rsc io.ReadSeekCloser = struct {
+			*strings.Reader
+			io.Closer
+		}{sr, io.NopCloser(nil)}
+		return rsc, int64(len(s)), nil
+	}
+	return nil, 0, errors.New("not found in cache")
+}
+
 func (co *cacheObserver) Cleanup() error {
 	co.cleanupCalls++
 	return nil
@@ -831,6 +860,7 @@ func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
+	c.Check(obs.drops, IsNil)
 	c.Check(obs.cleanupCalls, Equals, 0)
 }
 
@@ -856,6 +886,7 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
@@ -940,6 +971,7 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 	})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
 	c.Check(obs.cleanupCalls, Equals, 0)
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
@@ -1133,6 +1165,69 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 	c.Check(stream, IsNil)
 }
 
+func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
+	// sha3_384 of "content"
+	contentSha3 := "21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848"
+	fakeSha3 := "fake-sha3"
+	obs := &cacheObserver{
+		inCache: map[string]bool{
+			contentSha3: true,
+			fakeSha3:    true,
+		},
+	}
+	defer s.store.MockCacher(obs)()
+
+	snapInCache := &snap.Info{}
+	snapInCache.RealName = "foo"
+	snapInCache.DownloadURL = "URL"
+	snapInCache.Size = int64(len("content"))
+	snapInCache.Sha3_384 = contentSha3
+	// Size and hash ok, do not drop
+	err := s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, IsNil)
+
+	// Size does not match, we drop
+	snapInCache.Size = int64(len("content")) + 1
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	// Hash does not match, we drop
+	snapInCache.Size = int64(len("content"))
+	// This actually does not match "content", but it forces the hash check to fail
+	snapInCache.Sha3_384 = fakeSha3
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{fakeSha3})
+
+	// Error while dropping due to wrong size
+	snapInCache.Size = int64(len("content")) + 1
+	snapInCache.Sha3_384 = contentSha3
+	obs.dropErr = map[string]error{
+		contentSha3: errors.New("mock error"),
+	}
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot drop: mock error")
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	snapNotInCache := &snap.Info{}
+	snapNotInCache.RealName = "unhappy"
+	snapNotInCache.DownloadURL = "URL"
+	snapNotInCache.Size = 7
+	snapNotInCache.Sha3_384 = "sha3_384-of-unhappy"
+	obs.drops = nil
+
+	// Error, cannot open
+	err = s.store.CleanupDownloadArtifacts("unhappy.snap", &snapNotInCache.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot open: not found in cache")
+
+	c.Check(obs.drops, IsNil)
+}
+
 type fakeCacher struct {
 	getPathCalls []string
 }
@@ -1147,6 +1242,14 @@ func (co *fakeCacher) GetPath(cacheKey string) string {
 }
 
 func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Drop(cacheKey string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
 	panic("unexpected call")
 }
 

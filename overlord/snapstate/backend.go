@@ -77,6 +77,10 @@ type StoreService interface {
 	// busy and the cleanup could not run.
 	CleanDownloadsCache() error
 
+	// CleanupDownloadArtifacts attempts to remove unused download artifacts of
+	// a given snap.
+	CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error
+
 	ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
