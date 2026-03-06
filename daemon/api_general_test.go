@@ -1242,15 +1242,22 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 	setExpectedStatus := func(status string) {
 		expectedStatus = status
 		expectedResponse["status"] = status
+		expectedResponse["auto-repair-result"] = "not-initialized"
 	}
 
 	defer daemon.MockFdestateSystemState(func(*state.State) (*fdestate.FDESystemState, error) {
 		switch expectedStatus {
 		case "active":
-			return &fdestate.FDESystemState{Status: fdestate.FDEStatusActive}, nil
+			return &fdestate.FDESystemState{
+				Status:           fdestate.FDEStatusActive,
+				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+			}, nil
 
 		case "inactive":
-			return &fdestate.FDESystemState{Status: fdestate.FDEStatusInactive}, nil
+			return &fdestate.FDESystemState{
+				Status:           fdestate.FDEStatusInactive,
+				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+			}, nil
 		}
 
 		return nil, errors.New("cannot set unsupported expected status")

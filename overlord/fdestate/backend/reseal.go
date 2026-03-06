@@ -631,11 +631,10 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 			bootChains: params.BootChains,
 		},
 		resealOptions{
-			ExpectReseal:      params.Options.ExpectReseal,
-			Force:             params.Options.Force,
-			EnsureProvisioned: params.Options.EnsureProvisioned,
-			IgnoreFDEHooks:    params.Options.IgnoreFDEHooks,
-			Revoke:            params.Options.RevokeOldKeys,
+			ExpectReseal:   params.Options.ExpectReseal,
+			Force:          params.Options.Force,
+			IgnoreFDEHooks: params.Options.IgnoreFDEHooks,
+			Revoke:         params.Options.RevokeOldKeys,
 		})
 }
 
@@ -669,11 +668,10 @@ type resealInputs struct {
 }
 
 type resealOptions struct {
-	ExpectReseal      bool
-	Force             bool
-	EnsureProvisioned bool
-	Revoke            bool
-	IgnoreFDEHooks    bool
+	ExpectReseal   bool
+	Force          bool
+	Revoke         bool
+	IgnoreFDEHooks bool
 }
 
 func resealKeys(
@@ -688,12 +686,7 @@ func resealKeys(
 		}
 
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		if opts.EnsureProvisioned {
-			lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
-			if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
-				return err
-			}
-		}
+
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}

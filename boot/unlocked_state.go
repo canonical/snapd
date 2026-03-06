@@ -95,20 +95,3 @@ func LoadDiskUnlockState(name string) (*DiskUnlockState, error) {
 
 	return ret, nil
 }
-
-// isUnlockedWithRecoveryKey tells whether a recovery key has been
-// typed to unlock a disk during boot.
-func isUnlockedWithRecoveryKey() (bool, error) {
-	state, err := LoadDiskUnlockState(UnlockedStateFileName)
-	if err != nil {
-		return false, err
-	}
-
-	if state.State != nil {
-		return state.State.NumActivatedContainersWithRecoveryKey() != 0, nil
-	} else {
-		// This is a case of an old snap-boostrap that does not provide the activate state API result.
-		// We still can guess based on the old status.
-		return state.UbuntuData.UnlockKey == "recovery" || state.UbuntuSave.UnlockKey == "recovery", nil
-	}
-}
