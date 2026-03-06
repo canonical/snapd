@@ -394,8 +394,8 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 		return BadRequest(`"interface" field must be non-empty`)
 	}
 
-	if postBody.PID == 0 {
-		return BadRequest(`"pid" field must be non-zero`)
+	if postBody.PID <= 0 {
+		return BadRequest(`"pid" field must be a positive integer`)
 	}
 
 	// TODO: validate that the request originator has permission to query for
@@ -432,7 +432,7 @@ var validateSnapHasInterfaceConnection = validateSnapHasInterfaceConnectionImpl
 
 // validateSnapHasInterfaceConnectionImpl returns nil if the given snap has a
 // connected plug with the given interface. If the connections cannot be
-// retrieved or parsed or there is no such connection, the returns an error
+// retrieved or parsed or there is no such connection, then returns an error
 // response.
 func validateSnapHasInterfaceConnectionImpl(d *Daemon, snapName, iface string) Response {
 	st := d.state
@@ -450,7 +450,7 @@ func validateSnapHasInterfaceConnectionImpl(d *Daemon, snapName, iface string) R
 		if err != nil {
 			// ConnectionStates calls and validates ParseConnRef, so an error
 			// here should be impossible
-			return InternalError("internal error: %w", err)
+			return InternalError("internal error: %v", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
 			return nil

@@ -694,9 +694,9 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
+	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, ifaceName string) daemon.Response {
 		c.Check(snapName, Equals, expectedSnap)
-		c.Check(iface, Equals, iface)
+		c.Check(ifaceName, Equals, iface)
 		return nil
 	})
 	defer restore()
@@ -752,9 +752,9 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, iface string) daemon.Response {
+	restore = daemon.MockValidateSnapHasInterfaceConnection(func(d *daemon.Daemon, snapName, ifaceName string) daemon.Response {
 		c.Check(snapName, Equals, expectedSnap)
-		c.Check(iface, Equals, iface)
+		c.Check(ifaceName, Equals, iface)
 		return nil
 	})
 	defer restore()
@@ -812,7 +812,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Matches, `"pid" field must be non-zero`)
+	c.Check(rspe.Message, Matches, `"pid" field must be a positive integer`)
 
 	// Can't find cgroup
 	restore = daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
