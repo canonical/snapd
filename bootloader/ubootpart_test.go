@@ -40,6 +40,14 @@ type ubootpartTestSuite struct {
 
 var _ = Suite(&ubootpartTestSuite{})
 
+func (s *ubootpartTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
+	// At prepare-image time, envDevice() writes to filepath.Dir(rootdir)
+	// which is the shared check.v1 temp directory. Clean up any leftover
+	// env file from a previous test so tests start with a clean state.
+	os.Remove(filepath.Join(filepath.Dir(s.rootdir), "ubuntu-boot-state.img"))
+}
+
 func (s *ubootpartTestSuite) TestNewUbootPart(c *C) {
 	// no files means bl is not present, but we can still create the bl object
 	opts := &bootloader.Options{PrepareImageTime: true}
@@ -80,7 +88,7 @@ func (s *ubootpartTestSuite) TestUbootPartEnvPath(c *C) {
 
 	envPath, err := bootloader.UbootPartEnvDevice(u)
 	c.Assert(err, IsNil)
-	c.Assert(envPath, Equals, filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img"))
+	c.Assert(envPath, Equals, filepath.Join(filepath.Dir(s.rootdir), "ubuntu-boot-state.img"))
 }
 
 func (s *ubootpartTestSuite) TestUbootPartRedundantEnv(c *C) {
@@ -163,7 +171,7 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	c.Assert(err, IsNil)
 
 	// Verify the environment file was created
-	envPath := filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img")
+	envPath := filepath.Join(filepath.Dir(s.rootdir), "ubuntu-boot-state.img")
 	c.Assert(osutil.FileExists(envPath), Equals, true)
 
 	// Verify it's a valid redundant environment with the default size
@@ -215,7 +223,7 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigMatchingSize(c *C) {
 	c.Assert(err, IsNil)
 
 	// Verify the installed environment uses the default size
-	envPath := filepath.Join(s.rootdir, "/boot/uboot/ubuntu-boot-state.img")
+	envPath := filepath.Join(filepath.Dir(s.rootdir), "ubuntu-boot-state.img")
 	env, err := ubootenv.OpenRedundant(envPath, ubootenv.DefaultRedundantEnvSize)
 	c.Assert(err, IsNil)
 	c.Assert(env.Redundant(), Equals, true)

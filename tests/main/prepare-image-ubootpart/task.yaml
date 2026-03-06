@@ -110,11 +110,12 @@ execute: |
     find "$ROOT/system-seed/" -ls
 
     echo Verify the boot state environment image
-    # The image should be in resolved-content/<vol>/part<N>/<partname>.img
-    img=$(find "$ROOT/resolved-content/" -name "ubuntu-boot-state.img" -print -quit)
-    test -n "$img"
+    # The image is created at the top-level prepare-image directory by
+    # MakeBootableImage (InstallBootConfig + SetBootVars). The build tool
+    # is responsible for placing it on the correct partition.
+    test -e "$ROOT/ubuntu-boot-state.img"
     # Size must be 2 x 8192 = 16384 bytes (two redundant env copies)
-    img_size=$(stat -c %s "$img")
+    img_size=$(stat -c %s "$ROOT/ubuntu-boot-state.img")
     test "$img_size" -eq 16384
 
     echo Verify kernel files

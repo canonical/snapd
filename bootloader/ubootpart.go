@@ -143,8 +143,11 @@ func diskFromEFI() (disks.Disk, error) {
 // envDevice returns the path to the environment device/file.
 func (u *ubootpart) envDevice() (string, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, use a file in the build directory
-		return filepath.Join(u.assetsDir(), "ubuntu-boot-state.img"), nil
+		// At prepare-image time, write to the top-level prepare-image
+		// directory (one level above the seed dir) so the file does not
+		// end up on the ubuntu-seed filesystem. Image builders pick it
+		// up from resolved-content which is populated separately.
+		return filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img"), nil
 	}
 
 	// At runtime, lazily initialise the disk. Try EFI first, then
@@ -207,8 +210,7 @@ func (u *ubootpart) envDevice() (string, error) {
 
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, check for the installed environment file
-		envFile := filepath.Join(u.assetsDir(), "ubuntu-boot-state.img")
+		envFile := filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img")
 		return osutil.FileExists(envFile), nil
 	}
 
