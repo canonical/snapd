@@ -70,18 +70,27 @@ const (
 
 type ubootpart struct {
 	rootdir          string
+	basedir          string
 	prepareImageTime bool
-	role             Role
 
 	// blDisk is the disk to search for the boot state partition,
 	// as specified by the snapd_system_disk kernel command line parameter
 	blDisk disks.Disk
 }
 
+func (u *ubootpart) setDefaults() {
+	u.basedir = "/boot/uboot/"
+}
+
 func (u *ubootpart) processBlOpts(blOpts *Options) {
 	if blOpts != nil {
-		u.prepareImageTime = blOpts.PrepareImageTime
-		u.role = blOpts.Role
+		switch {
+		case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
+			u.basedir = "/uboot/ubuntu/"
+			fallthrough
+		default:
+			u.prepareImageTime = blOpts.PrepareImageTime
+		}
 	}
 }
 
@@ -90,6 +99,7 @@ func newUbootPart(rootdir string, blOpts *Options) Bootloader {
 	u := &ubootpart{
 		rootdir: rootdir,
 	}
+	u.setDefaults()
 	u.processBlOpts(blOpts)
 	return u
 }
@@ -105,10 +115,7 @@ func (u *ubootpart) assetsDir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")
 	}
-	if u.role == RoleRecovery {
-		return filepath.Join(u.rootdir, "/uboot/ubuntu/")
-	}
-	return filepath.Join(u.rootdir, "/boot/uboot/")
+	return filepath.Join(u.rootdir, u.basedir)
 }
 
 // diskFromEFI attempts to find the boot disk using the EFI LoaderDevicePartUUID variable
@@ -233,6 +240,9 @@ func checkGadgetEnvSize(gadgetDir string) error {
 }
 
 func (u *ubootpart) InstallBootConfig(gadgetDir string, blOpts *Options) error {
+	// InstallBootConfig gets called on a uboot that does not come from newUboot
+	// so we need to apply the defaults here
+	u.setDefaults()
 	u.processBlOpts(blOpts)
 
 	if err := checkGadgetEnvSize(gadgetDir); err != nil {
