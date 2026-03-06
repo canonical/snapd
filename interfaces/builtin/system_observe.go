@@ -208,6 +208,8 @@ const systemObserveConnectedPlugSecComp = `
 # it gives privileged read access to all processes on the system and should
 # only be used with trusted apps.
 
+lsm_get_self_attr
+
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
 # so we deny the ptrace here to make sure we are always safe. Note: may
