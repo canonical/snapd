@@ -24,6 +24,7 @@ tool_version() {
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format)
         $tool --version
         ;;
@@ -49,6 +50,7 @@ tool_install() {
     shellcheck) ;& # fallthrough
     python3) ;&    # fallthrough
     pytest-3) ;&   # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -79,6 +81,7 @@ tool_configure() {
     modernize) ;&     # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -372,6 +375,13 @@ if [ "$STATIC" = 1 ]; then
         echo 'Found usages of deprecated io/ioutil, please use "io" or "os" equivalents' >&2
         echo "$got" >&2
         exit 1
+    fi
+
+    if command -v dbus-launch>/dev/null && [ -z "${SKIP_DBUS_LAUNCH:-}" ]; then
+        echo ">> [Shell] Checking for dbus-launch"
+        dbus-launch --version
+    else
+        echo ">> [Shell] Skipping tests that require dbus-launch"
     fi
 
     echo ">> [Go] Checking cmd binaries for forbidden dependencies"
