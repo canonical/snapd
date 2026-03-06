@@ -127,7 +127,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
+	buffer.Write([]byte(fmt.Sprintf("\n<%s>", abortOrTimeoutError)))
 
 	return buffer.Bytes(), abortOrTimeoutError
 }

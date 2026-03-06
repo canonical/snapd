@@ -344,7 +344,7 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	snippet := &bytes.Buffer{}
 	emitRule := func(paths []string, permissions string) {
 		for _, path := range paths {
-			fmt.Fprintf(snippet, "\"%s\" %s,\n", path, permissions)
+			snippet.WriteString(fmt.Sprintf("\"%s\" %s,\n", path, permissions))
 		}
 	}
 
@@ -448,20 +448,20 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 			deviceKey = overrideDeviceName
 		}
 
-		fmt.Fprintf(rule, `KERNEL=="%s"`, deviceName)
+		rule.WriteString(fmt.Sprintf(`KERNEL=="%s"`, deviceName))
 
 		if subsystem, ok := udevTaggingRule["subsystem"].(string); ok {
-			fmt.Fprintf(rule, `, SUBSYSTEM=="%s"`, subsystem)
+			rule.WriteString(fmt.Sprintf(`, SUBSYSTEM=="%s"`, subsystem))
 		}
 
 		environment := iface.extractStringMapAttribute(udevTaggingRule, "environment")
 		for variable, value := range environment {
-			fmt.Fprintf(rule, `, ENV{%s}=="%s"`, variable, value)
+			rule.WriteString(fmt.Sprintf(`, ENV{%s}=="%s"`, variable, value))
 		}
 
 		attributes := iface.extractStringMapAttribute(udevTaggingRule, "attributes")
 		for variable, value := range attributes {
-			fmt.Fprintf(rule, `, ATTR{%s}=="%s"`, variable, value)
+			rule.WriteString(fmt.Sprintf(`, ATTR{%s}=="%s"`, variable, value))
 		}
 
 		deviceRules[deviceKey] = rule.String()

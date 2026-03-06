@@ -577,12 +577,12 @@ func (me *multiError) nestedError(level int) string {
 	for i, err := range me.errs {
 		switch v := err.(type) {
 		case *multiError:
-			fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1))
+			buf.WriteString(fmt.Sprintf("%s- %v", indent, v.nestedError(level+1)))
 		default:
-			fmt.Fprintf(buf, "%s- %v", indent, err)
+			buf.WriteString(fmt.Sprintf("%s- %v", indent, err))
 		}
 		if i < len(me.errs)-1 {
-			fmt.Fprintf(buf, "\n")
+			buf.WriteByte('\n')
 		}
 	}
 	return buf.String()

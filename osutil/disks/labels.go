@@ -41,7 +41,7 @@ func BlkIDEncodeLabel(in string) string {
 		case utf8.RuneLen(r) > 1:
 			buf.WriteRune(r)
 		case !strings.ContainsRune(allowed, r):
-			fmt.Fprintf(buf, `\x%02x`, r)
+			buf.WriteString(fmt.Sprintf(`\x%02x`, r))
 		default:
 			buf.WriteRune(r)
 		}

@@ -82,7 +82,7 @@ func allowPathAccess(buf *bytes.Buffer, perm filesAAPerm, paths []any) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(buf, "%s %s,\n", p, perm)
+		buf.WriteString(fmt.Sprintf("%s %s,\n", p, perm))
 	}
 	return nil
 }

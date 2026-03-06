@@ -263,8 +263,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 		node := deviceName(dl.Device, pIndex)
 
 		// format sfdisk input for creating this partition
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			startInSectors, newSizeInSectors, ptype, vs.Name)
+		buf.WriteString(fmt.Sprintf("%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
+			startInSectors, newSizeInSectors, ptype, vs.Name))
 
 		diskSt := &gadget.OnDiskStructure{
 			Name:             vs.Name,
