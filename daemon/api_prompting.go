@@ -450,7 +450,7 @@ func validateSnapHasInterfaceConnectionImpl(d *Daemon, snapName, iface string) R
 		if err != nil {
 			// ConnectionStates calls and validates ParseConnRef, so an error
 			// here should be impossible
-			return InternalError("internal error: %v", err)
+			return InternalError("internal error: invalid connection state string %q in interface state: %v", refStr, err)
 		}
 		if connRef.PlugRef.Snap == snapName {
 			return nil
