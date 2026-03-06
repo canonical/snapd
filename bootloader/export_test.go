@@ -333,8 +333,10 @@ func MockUbootPartFiles(c *C, rootdir string, blOpts *Options) func() {
 	c.Assert(err, IsNil)
 
 	if blOpts == nil || blOpts.PrepareImageTime {
-		// At prepare-image time, create the environment file
-		envFile := filepath.Join(confDir, "ubuntu-boot-state.img")
+		// At prepare-image time, create the environment file in the
+		// parent of rootdir (matching envDevice() which uses
+		// filepath.Dir(u.rootdir))
+		envFile := filepath.Join(filepath.Dir(rootdir), "ubuntu-boot-state.img")
 		env, err := ubootenv.CreateRedundant(envFile, ubootenv.DefaultRedundantEnvSize)
 		c.Assert(err, IsNil)
 		err = env.Save()

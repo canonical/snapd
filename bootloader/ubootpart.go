@@ -143,8 +143,11 @@ func diskFromEFI() (disks.Disk, error) {
 // envDevice returns the path to the environment device/file.
 func (u *ubootpart) envDevice() (string, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, use a file in the build directory
-		return filepath.Join(u.assetsDir(), "ubuntu-boot-state.img"), nil
+		// At prepare-image time, write to the top-level prepare-image
+		// directory (one level above the seed dir) so the file does not
+		// end up on the ubuntu-seed filesystem. Image builders pick it
+		// up from resolved-content which is populated separately.
+		return filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img"), nil
 	}
 
 	// At runtime, lazily initialise the disk. Try EFI first, then
@@ -207,19 +210,15 @@ func (u *ubootpart) envDevice() (string, error) {
 
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
-		// At prepare-image time, check for the installed environment file
-		envFile := filepath.Join(u.assetsDir(), "ubuntu-boot-state.img")
+		envFile := filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img")
 		return osutil.FileExists(envFile), nil
 	}
 
-	// At runtime, use envDevice() which tries EFI and kernel cmdline
-	// before falling back to partition label. A bare label check
-	// could false-positive on an unrelated removable device.
-	_, err := u.envDevice()
-	if err != nil {
-		return false, nil
-	}
-	return true, nil
+	// At runtime, check for the partition by label. The more restrictive
+	// disk check (via EFI or snapd_system_disk) is done in envDevice()
+	// when actually accessing the environment.
+	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
+	return osutil.FileExists(partPath), nil
 }
 
 // checkGadgetEnvSize checks that the gadget's reference ubootpart.sel (if
