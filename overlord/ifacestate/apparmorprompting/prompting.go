@@ -52,6 +52,7 @@ type listenerBackend interface {
 // A Manager holds outstanding prompts and mediates their replies, further it
 // stores and applies persistent rules.
 type Manager interface {
+	Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error)
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
 	HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON prompting.ConstraintsJSON, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)

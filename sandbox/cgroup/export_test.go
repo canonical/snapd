@@ -39,8 +39,6 @@ var (
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
 
-	SecurityTagFromCgroupPath = securityTagFromCgroupPath
-
 	ApplyToSnap = applyToSnap
 
 	KillProcessesInCgroup = killProcessesInCgroup

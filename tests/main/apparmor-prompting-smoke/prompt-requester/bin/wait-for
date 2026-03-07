@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Wait until file exists, else give up after a timeout
+#shellcheck disable=SC2034
+for i in $(seq 1 100) ; do
+	if [ -e "$1" ] ; then
+		exit 0
+	fi
+	sleep 1
+done
+exit 1
