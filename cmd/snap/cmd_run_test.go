@@ -356,9 +356,9 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 	checkHintFileNotLocked(c, "snapname")
 }
 
-func (s *RunSuite) testSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C, svc bool) {
+func (s *RunSuite) testSnapRunAppRunsChecksInhibitionLock(c *check.C, svc bool, hint runinhibit.Hint, errMsg string) {
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, inhibitInfo, nil), check.IsNil)
+	c.Assert(runinhibit.LockWithHint("snapname", hint, inhibitInfo, nil), check.IsNil)
 
 	cmd := "snapname.app"
 	if svc {
@@ -366,17 +366,35 @@ func (s *RunSuite) testSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C, svc 
 	}
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", cmd, "--arg1"})
-	c.Assert(err, check.ErrorMatches, `cannot run "snapname", snap is being removed`)
+	c.Assert(err, check.ErrorMatches, errMsg)
 }
 
 func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLock(c *check.C) {
-	const svc = false
-	s.testSnapRunAppRunsChecksRemoveInhibitionLock(c, svc)
+	svc := false
+	hint := runinhibit.HintInhibitedForRemove
+	errorMsg := `cannot run "snapname", snap is being removed`
+	s.testSnapRunAppRunsChecksInhibitionLock(c, svc, hint, errorMsg)
 }
 
 func (s *RunSuite) TestSnapRunAppRunsChecksRemoveInhibitionLockService(c *check.C) {
-	const svc = true
-	s.testSnapRunAppRunsChecksRemoveInhibitionLock(c, svc)
+	svc := true
+	hint := runinhibit.HintInhibitedForRemove
+	errorMsg := `cannot run "snapname", snap is being removed`
+	s.testSnapRunAppRunsChecksInhibitionLock(c, svc, hint, errorMsg)
+}
+
+func (s *RunSuite) TestSnapRunAppRunsChecksDisableInhibitionLock(c *check.C) {
+	svc := false
+	hint := runinhibit.HintInhibitedForDisable
+	errorMsg := `cannot run "snapname", snap is disabled`
+	s.testSnapRunAppRunsChecksInhibitionLock(c, svc, hint, errorMsg)
+}
+
+func (s *RunSuite) TestSnapRunAppRunsChecksDisableInhibitionLockService(c *check.C) {
+	svc := true
+	hint := runinhibit.HintInhibitedForDisable
+	errorMsg := `cannot run "snapname", snap is disabled`
+	s.testSnapRunAppRunsChecksInhibitionLock(c, svc, hint, errorMsg)
 }
 
 func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockWait(c *check.C) {
@@ -861,7 +879,7 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshService
 	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c, svc)
 }
 
-func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *check.C, svc bool) {
+func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisable(c *check.C, svc bool, hint runinhibit.Hint, errMsg string) {
 	_, restore := logger.MockLogger()
 	defer restore()
 
@@ -883,8 +901,8 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *chec
 
 		// mock snap inhibited to trigger race condition detection
 		// i.e. we started without a hint lock file (snap on first install)
-		// then a remove started which created the hint lock file.
-		c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRemove, runinhibit.InhibitInfo{Previous: snap.R("x2")}, nil), check.IsNil)
+		// then a remove or disable started which created the hint lock file.
+		c.Assert(runinhibit.LockWithHint("snapname", hint, runinhibit.InhibitInfo{Previous: snap.R("x2")}, nil), check.IsNil)
 
 		// nil FileLock means no inhibit file exists
 		return nil, nil
@@ -922,9 +940,9 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *chec
 	}
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "--", cmd})
-	c.Assert(err, check.ErrorMatches, `cannot run "snapname", snap is being removed`)
+	c.Assert(err, check.ErrorMatches, errMsg)
 
-	// no retry, sinlge call
+	// no retry, single call
 	c.Check(waitWhileInhibitedCalled, check.Equals, 1)
 	c.Check(confirmCgroupCalled, check.Equals, 1)
 	if svc {
@@ -939,13 +957,31 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *chec
 }
 
 func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c *check.C) {
-	const svc = false
-	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c, svc)
+	svc := false
+	hint := runinhibit.HintInhibitedForRemove
+	errorMsg := `cannot run "snapname", snap is being removed`
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisable(c, svc, hint, errorMsg)
 }
 
 func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveService(c *check.C) {
-	const svc = true
-	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemove(c, svc)
+	svc := true
+	hint := runinhibit.HintInhibitedForRemove
+	errorMsg := `cannot run "snapname", snap is being removed`
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisable(c, svc, hint, errorMsg)
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingDisable(c *check.C) {
+	svc := false
+	hint := runinhibit.HintInhibitedForDisable
+	errorMsg := `cannot run "snapname", snap is disabled`
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisable(c, svc, hint, errorMsg)
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingDisableService(c *check.C) {
+	svc := true
+	hint := runinhibit.HintInhibitedForDisable
+	errorMsg := `cannot run "snapname", snap is disabled`
+	s.testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisable(c, svc, hint, errorMsg)
 }
 
 func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissingCurrent(c *check.C) {

@@ -625,6 +625,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 	})
 	verifyStopReason(c, ts, "remove")
+	verifyUnlinkSnapReason(c, ts, "remove")
 }
 
 func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
@@ -639,6 +640,7 @@ func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 	})
 	verifyStopReason(c, ts, "remove")
+	verifyUnlinkSnapReason(c, ts, "remove")
 }
 
 func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
@@ -1092,6 +1094,17 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func verifyUnlinkSnapReason(c *C, ts *state.TaskSet, reason string) {
+	tl := tasksWithKind(ts, "unlink-snap")
+	c.Check(tl, HasLen, 1)
+
+	var unlinkReason string
+	err := tl[0].Get("unlink-reason", &unlinkReason)
+	c.Assert(err, IsNil)
+	c.Check(unlinkReason, Equals, reason)
+
+}
+
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1115,6 +1128,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"remove-profiles",
 	})
 	verifyStopReason(c, ts, "disable")
+	verifyUnlinkSnapReason(c, ts, "disable")
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -1712,6 +1726,7 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1986,8 +2001,9 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				name: "snap-core18-to-core22",
 			},
 			{
-				op:   "unlink-snap",
-				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				op:          "unlink-snap",
+				path:        filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				inhibitHint: "refresh",
 			},
 			{
 				op:    "setup-profiles:Doing",
@@ -2084,6 +2100,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 		{
 			op:             "unlink-snap",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			inhibitHint:    "refresh",
 			otherInstances: true,
 		},
 		{
@@ -2231,8 +2248,9 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2326,8 +2344,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2445,8 +2464,9 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3238,8 +3258,9 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			inhibitHint: "disable",
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -3408,6 +3429,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 			op:             "unlink-snap",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			otherInstances: true,
+			inhibitHint:    "disable",
 		},
 		{
 			op:    "remove-profiles:Doing",

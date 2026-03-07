@@ -492,10 +492,11 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(42))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	// no mount namespace discard, no inhibition
+	// no mount namespace discard
 	expected := fakeOps{{
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		inhibitHint: "refresh",
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(called, Equals, true)
@@ -586,8 +587,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesModeEndure(c *C) {
 			name:        "pkg",
 			inhibitHint: "refresh",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -606,8 +608,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyServicesAllStopped(c *C) {
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -626,8 +629,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesNothingRunning(c *C) 
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -645,8 +649,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyAppsNothingRunning(c *C) {
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -727,8 +732,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 			name: "pkg",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -808,8 +814,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 		op:   "discard-namespace-locked",
 		name: "pkg",
 	}, {
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		inhibitHint: "refresh",
 	}, {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
@@ -887,8 +894,9 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			name: "foo",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "foo/11"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:           "link-snap",
@@ -1039,6 +1047,7 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	})
 
 	task := s.state.NewTask("unlink-snap", "")
+	task.Set("unlink-reason", "disable")
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
@@ -1062,8 +1071,9 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	// backend was called to unlink the snap
 	expected := fakeOps{{
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "snapd/20"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "snapd/20"),
+		inhibitHint: "disable",
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
@@ -1131,8 +1141,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	expected := fakeOps{
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "foo/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "foo/42"),
+			inhibitHint: "refresh",
 		},
 		// We should see link-snap restoring the snap again as unlink-snap fails
 		{
