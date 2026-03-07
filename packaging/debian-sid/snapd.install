@@ -1,5 +1,7 @@
 # apt hook
 data/apt/20snapd.conf /etc/apt/apt.conf.d/
+# logrotate
+data/logrotate/snapd /etc/logrotate.d/
 data/completion/bash/complete.sh /usr/lib/snapd/
 data/completion/bash/etelpmoc.sh /usr/lib/snapd/
 # bash completion

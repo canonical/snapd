@@ -78,6 +78,9 @@ func init() {
 
 	// interface.*.allow-auto-connection
 	addWithStateHandler(validateAllowAutoConnectionValue, nil, &flags{validatedOnlyStateConfig: true})
+
+	// system.enable-changes-log
+	addWithStateHandler(validateChangesLogSetting, nil, validateOnly)
 }
 
 // RunTransaction is an interface describing how to access

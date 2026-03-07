@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/certstate"
+	"github.com/snapcore/snapd/overlord/changeslogger"
 	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
@@ -105,24 +106,25 @@ type Overlord struct {
 	startOfOperationTime time.Time
 
 	// managers
-	inited        bool
-	startedUp     bool
-	runner        *state.TaskRunner
-	restartMgr    *restart.RestartManager
-	snapMgr       *snapstate.SnapManager
-	serviceMgr    *servicestate.ServiceManager
-	assertMgr     *assertstate.AssertManager
-	ifaceMgr      *ifacestate.InterfaceManager
-	hookMgr       *hookstate.HookManager
-	deviceMgr     *devicestate.DeviceManager
-	clusterMgr    *clusterstate.ClusterManager
-	cmdMgr        *cmdstate.CommandManager
-	shotMgr       *snapshotstate.SnapshotManager
-	fdeMgr        *fdestate.FDEManager
-	noticeMgr     *notices.NoticeManager
-	confdbMgr     *confdbstate.ConfdbManager
-	deviceMgmtMgr *devicemgmtstate.DeviceMgmtManager
-	certStateMgr  *certstate.CertManager
+	inited           bool
+	startedUp        bool
+	runner           *state.TaskRunner
+	restartMgr       *restart.RestartManager
+	snapMgr          *snapstate.SnapManager
+	serviceMgr       *servicestate.ServiceManager
+	assertMgr        *assertstate.AssertManager
+	ifaceMgr         *ifacestate.InterfaceManager
+	hookMgr          *hookstate.HookManager
+	deviceMgr        *devicestate.DeviceManager
+	clusterMgr       *clusterstate.ClusterManager
+	cmdMgr           *cmdstate.CommandManager
+	shotMgr          *snapshotstate.SnapshotManager
+	fdeMgr           *fdestate.FDEManager
+	noticeMgr        *notices.NoticeManager
+	confdbMgr        *confdbstate.ConfdbManager
+	deviceMgmtMgr    *devicemgmtstate.DeviceMgmtManager
+	certStateMgr     *certstate.CertManager
+	changesLoggerMgr *changeslogger.Manager
 
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
@@ -206,6 +208,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
 	o.addManager(certstate.Manager(s, o.runner))
 
+	o.addManager(changeslogger.New(s))
+
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
 	}
@@ -258,6 +262,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgmtMgr = x
 	case *certstate.CertManager:
 		o.certStateMgr = x
+	case *changeslogger.Manager:
+		o.changesLoggerMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
