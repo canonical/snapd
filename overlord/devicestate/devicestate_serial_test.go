@@ -2511,7 +2511,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	// mark it as seeded
 	s.state.Set("seeded", true)
 	// skip boot ok logic
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// runs the whole device registration process
 	s.state.Unlock()

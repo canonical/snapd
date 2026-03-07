@@ -54,7 +54,8 @@ func (s *deviceMgrBootconfigSuite) mockGadget(c *C, yaml string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(33),
@@ -161,6 +162,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	// Override the gadget from SetupTest to add allowed arguments
 	yaml := gadgetYaml + `
 kernel-cmdline:
@@ -251,6 +255,9 @@ kernel-cmdline:
 
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts testBootConfigUpdateOpts, errMatch string) {
 	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restore = devicestate.SetBootOkRan(s.mgr, true)
 	defer restore()
 
 	// Override the gadget from SetupTest to add allowed arguments
@@ -700,6 +707,9 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.SetBootOkRan(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()

@@ -267,8 +267,11 @@ func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
 
-func SetBootOkRan(m *DeviceManager, b bool) {
-	m.bootOkRan = b
+func SetBootOkRan(m *DeviceManager, b bool) (restore func()) {
+	f := func(st *state.State, currentBootID string) (bool, error) {
+		return b, nil
+	}
+	return testutil.Mock(&bootOkRanForBootID, f)
 }
 
 func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
@@ -729,4 +732,8 @@ func MockFdestateGetKeyslots(f func(st *state.State, keyslotRefs []fdestate.Keys
 
 func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error)) (restore func()) {
 	return testutil.Mock(&snapstateGadgetInfo, f)
+}
+
+func MockOsutilBootID(bootID string) (restore func()) {
+	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
 }

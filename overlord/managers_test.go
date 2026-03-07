@@ -11415,8 +11415,8 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 
 		// reset bootstate, so that after-reboot command line is
 		// asserted
-		st.Unlock()
 		s.o.DeviceManager().ResetToPostBootState()
+		st.Unlock()
 		err = s.o.DeviceManager().Ensure()
 		st.Lock()
 		c.Assert(err, IsNil)

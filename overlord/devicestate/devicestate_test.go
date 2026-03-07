@@ -666,6 +666,51 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *
 	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
+	s.setPCModelInState(c)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = devicestate.MockOsutilBootID("boot-id-1")
+	defer restore()
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	var lastBootID string
+	s.state.Lock()
+	err := s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
+	s.state.Unlock()
+	// ensure-boot-ok-boot-id is unset
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+
+	// last reseal boot ID does not match current boot id so a reseal
+	// is expected
+	err = devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+	c.Check(logbuf.String(), Equals, "")
+	logbuf.Reset()
+
+	s.state.Lock()
+	err = s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(lastBootID, Equals, "boot-id-1")
+
+	// now last reseal boot ID matches current boot id so no reseal
+	// is expected
+	err = devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1) // unchanged
+	c.Check(logbuf.String(), testutil.Contains, `skipping boot ok check since it already ran for boot-id "boot-id-1"`)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 
@@ -786,7 +831,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -808,7 +854,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
@@ -2254,7 +2301,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2276,7 +2324,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
 	transitionCalls := 0
-	restore := devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
 		transitionCalls++
 		return nil
 	})
@@ -2375,7 +2423,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2416,7 +2465,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2743,9 +2793,6 @@ volumes:
 	// reload device seed
 	_, _, err = devicestate.ReloadEarlyDeviceSeed(s.mgr, state.ErrNoState)
 	c.Assert(err, IsNil)
-
-	// not fully realistic but avoids more mocking
-	devicestate.SetBootOkRan(s.mgr, true)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
