@@ -1528,14 +1528,24 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
-				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{
-					PreventRestartIfModified: true,
-					// We need early mounts only for UC20+/hybrid, also 16.04
-					// systemd seems to be buggy if we enable this.
-					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
+
+			// We need early mounts only for UC20+/hybrid, also 16.04
+			// systemd seems to be buggy if we enable this.
+			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+
+			mountOptions := &systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              info.MountDescription(),
+				What:                     squashfsPath,
+				Where:                    whereDir,
+				PreventRestartIfModified: true,
+			}
+
+			if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", startBeforeDriversLoad); err != nil {
+				return err
+			}
+
+			if _, err := sysd.EnsureMountUnitFileWithOptions(mountOptions); err != nil {
 				return err
 			}
 		}
