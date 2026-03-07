@@ -18,10 +18,15 @@ environment:
 prepare: |
   VERSION="$(tests.nested show version)"
 
-  snap install remarshal lxd
+  snap install lxd
   snap install --edge test-snapd-swtpm
   snap install snapcraft --classic
 
+  # The rev1 model used by this test adds one application snap. Keep the
+  # selected snap name/id in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
+  #
+  # On 22 we use jq-core22 (existing store snap), while on 24 we use the
+  # test-owned core24 equivalent test-snapd-jq-core24.
   case "${VERSION}" in
     22)
       snap_app_name=jq-core22
@@ -53,14 +58,14 @@ prepare: |
 
   case "${VERSION}" in
     22)
-      # use 23.10 instead
-      snap download pc-kernel --channel=23.10/beta  --basename="pc-kernel-23.10"
+      # use 24.04 instead
+      snap download pc-kernel --channel=24/edge  --basename="pc-kernel-24.04"
       rm -rf pc-kernel-repacked/
       mkdir -p pc-kernel-repacked/
-      uc20_build_initramfs_kernel_snap pc-kernel-23.10.snap pc-kernel-repacked/
-      mv pc-kernel-repacked/pc-kernel_*.snap "${extra_snaps}/pc-kernel-23.10.snap"
+      uc20_build_initramfs_kernel_snap pc-kernel-24.04.snap pc-kernel-repacked/
+      mv pc-kernel-repacked/pc-kernel_*.snap "${extra_snaps}/pc-kernel-24.04.snap"
       rmdir pc-kernel-repacked
-      pc_kernel_orig="${extra_snaps}/pc-kernel-23.10.snap"
+      pc_kernel_orig="${extra_snaps}/pc-kernel-24.04.snap"
       "${TESTSTOOLS}"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "${pc_kernel_orig}" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
     ;;
     *)
@@ -174,6 +179,8 @@ execute: |
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
+  # Verify remodel installed the app snap added in rev1 (jq-core22 on 22,
+  # test-snapd-jq-core24 on 24).
   remote.exec "snap list" | MATCH "jq-core${VERSION}"
 
   case "$VERSION" in
