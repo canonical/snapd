@@ -89,7 +89,11 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return toAPIError(err)
+	}
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints, int(ucred.Uid))
 	if err != nil {
 		return toAPIError(err)
 	}

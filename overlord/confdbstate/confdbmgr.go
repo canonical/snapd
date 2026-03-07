@@ -153,11 +153,16 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf(`internal error: cannot get "constraints" from task: %w`, err)
 	}
+	var userID int
+	err = t.Get("userID", &userID)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf(`internal error: cannot get "userID" from task: %w`, err)
+	}
 
-	return readViewIntoChange(t.Change(), tx, view, requests, cstrs)
+	return readViewIntoChange(t.Change(), tx, view, requests, cstrs, userID)
 }
 
-func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]any) error {
+func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]any, userID int) error {
 	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -168,7 +173,7 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 		apiData = make(map[string]any)
 	}
 
-	result, err := GetViaView(tx, view, requests, constraints)
+	result, err := GetViaView(tx, view, requests, constraints, userID)
 	if err != nil {
 		if !errors.Is(err, &confdb.NoDataError{}) {
 			// other errors (no match/view) would be detected before the change is created

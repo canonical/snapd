@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
@@ -457,7 +458,12 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		bag = tx.Previous()
 	}
 
-	res, err := confdbstate.GetViaView(bag, view, requests, constraints)
+	uid, err := strconv.Atoi(c.baseCommand.uid)
+	if err != nil {
+		return err
+	}
+
+	res, err := confdbstate.GetViaView(bag, view, requests, constraints, uid)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err
