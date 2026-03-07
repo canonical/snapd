@@ -169,15 +169,21 @@ func (s *OpenglInterfaceSuite) TestMountSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/wsl"), 0777), IsNil)
 
 	spec := mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	entries := spec.MountEntries()
-	c.Assert(entries, HasLen, 1)
+	c.Assert(entries, HasLen, 2)
 
 	const hostfs = "/var/lib/snapd/hostfs"
+
 	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, tmpdir, "/usr/share/nvidia"))
 	c.Check(entries[0].Dir, Equals, "/usr/share/nvidia")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
+
+	c.Check(entries[1].Name, Equals, filepath.Join(hostfs, tmpdir, "/usr/lib/wsl"))
+	c.Check(entries[1].Dir, Equals, "/usr/lib/wsl")
+	c.Check(entries[1].Options, DeepEquals, []string{"rbind"})
 }
