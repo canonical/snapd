@@ -1,0 +1,309 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+// ubootpart implements a bootloader that stores the U-Boot environment in a raw partition with
+// redundancy support. This is used when the gadget defines a system-boot-state partition role.
+//
+// Unlike the standard 'uboot' bootloader which stores the environment in a file on a FAT
+// filesystem, ubootpart writes directly to a raw partition. This provides true redundancy with
+// two environment copies that are not affected by filesystem corruption, as there is no
+// filesystem.
+//
+// At prepare-image time, an initial environment image is created. At runtime, the environment is
+// read from and written to the partition device node
+// (e.g., /dev/disk/by-partlabel/ubuntu-boot-state).
+//
+// For security, the kernel command line parameter "snapd_system_disk" restricts which disk
+// snapd will search for the boot state partition.
+//
+// Bootloader selection: Name() returns ubootpartName and gadgets use a ubootpart.conf marker
+// file. This makes ubootpart a first-class bootloader discoverable through the standard
+// bootloader machinery, without special-casing in ForGadget().
+
+package bootloader
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/bootloader/efi"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/snap"
+)
+
+// ubootpart implements the Bootloader interface for U-Boot with the
+// environment stored in a raw partition (system-boot-state role).
+var (
+	_ Bootloader                             = (*ubootpart)(nil)
+	_ ExtractedRecoveryKernelImageBootloader = (*ubootpart)(nil)
+)
+
+const (
+	// ubootpartName is the bootloader name for the partition-based U-Boot implementation.
+	ubootpartName = "ubootpart"
+
+	// ubuntuBootStateLabel is the partition label for the boot state partition
+	ubuntuBootStateLabel = "ubuntu-boot-state"
+)
+
+type ubootpart struct {
+	rootdir          string
+	basedir          string
+	prepareImageTime bool
+
+	// blDisk is the disk to search for the boot state partition,
+	// as specified by the snapd_system_disk kernel command line parameter
+	blDisk disks.Disk
+}
+
+func (u *ubootpart) setDefaults() {
+	u.basedir = "/boot/uboot/"
+}
+
+func (u *ubootpart) processBlOpts(blOpts *Options) {
+	if blOpts != nil {
+		switch {
+		case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
+			u.basedir = "/uboot/ubuntu/"
+			fallthrough
+		default:
+			u.prepareImageTime = blOpts.PrepareImageTime
+		}
+	}
+}
+
+// newUbootPart creates a new ubootpart bootloader instance.
+func newUbootPart(rootdir string, blOpts *Options) Bootloader {
+	u := &ubootpart{
+		rootdir: rootdir,
+	}
+	u.setDefaults()
+	u.processBlOpts(blOpts)
+	return u
+}
+
+func (u *ubootpart) Name() string {
+	return ubootpartName
+}
+
+// assetsDir returns the directory for kernel assets and the environment
+// file at prepare-image time. At runtime this is either /boot/uboot/
+// (run mode) or /uboot/ubuntu/ (recovery / NoSlashBoot), matching uboot.
+func (u *ubootpart) assetsDir() string {
+	if u.rootdir == "" {
+		panic("internal error: unset rootdir")
+	}
+	return filepath.Join(u.rootdir, u.basedir)
+}
+
+// diskFromEFI attempts to find the boot disk using the EFI LoaderDevicePartUUID variable
+// set by shim or U-Boot during boot. It returns nil if EFI is not available or the variable
+// is not set.
+func diskFromEFI() (disks.Disk, error) {
+	partuuid, err := efi.ReadLoaderDevicePartUUID()
+	if err != nil {
+		return nil, nil
+	}
+
+	partNode := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partuuid)
+	resolved, err := filepath.EvalSymlinks(partNode)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve EFI boot partition %q: %v", partNode, err)
+	}
+
+	disk, err := disks.DiskFromPartitionDeviceNode(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk for EFI boot partition %q: %v", resolved, err)
+	}
+	return disk, nil
+}
+
+// envDevice returns the path to the environment device/file.
+func (u *ubootpart) envDevice() (string, error) {
+	if u.prepareImageTime {
+		// At prepare-image time, write to the top-level prepare-image
+		// directory (one level above the seed dir) so the file does not
+		// end up on the ubuntu-seed filesystem. Image builders pick it
+		// up from resolved-content which is populated separately.
+		return filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img"), nil
+	}
+
+	// At runtime, lazily initialise the disk. Try EFI first, then
+	// fall back to the snapd_system_disk kernel command line parameter.
+	if u.blDisk == nil {
+		disk, err := diskFromEFI()
+		if err != nil {
+			return "", err
+		}
+		u.blDisk = disk
+		// diskFromEFI returns (nil, nil) when EFI is not available
+		if u.blDisk != nil {
+			logger.Debugf("ubootpart: found boot disk via EFI")
+		}
+	}
+
+	if u.blDisk == nil {
+		m, err := kcmdline.KeyValues("snapd_system_disk")
+		if err != nil {
+			return "", err
+		}
+		if diskName, ok := m["snapd_system_disk"]; ok {
+			// Try device name first, then fall back to device path
+			disk, err := disks.DiskFromDeviceName(diskName)
+			if err != nil {
+				disk, err = disks.DiskFromDevicePath(diskName)
+				if err != nil {
+					return "", fmt.Errorf("cannot find disk %q: %v", diskName, err)
+				}
+			}
+			logger.Debugf("ubootpart: found boot disk via snapd_system_disk=%q", diskName)
+			u.blDisk = disk
+		}
+	}
+
+	if u.blDisk != nil {
+		partUUID, err := u.blDisk.FindMatchingPartitionUUIDWithPartLabel(ubuntuBootStateLabel)
+		if err != nil {
+			return "", err
+		}
+		partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid", partUUID)
+		resolved, err := filepath.EvalSymlinks(partPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve boot state partition %q: %v", partPath, err)
+		}
+		logger.Debugf("ubootpart: env device %s (partuuid %s)", resolved, partUUID)
+		return resolved, nil
+	}
+
+	// Neither EFI nor snapd_system_disk available: fall back to
+	// partition by label.
+	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
+	resolved, err := filepath.EvalSymlinks(partPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve boot state partition: %v", err)
+	}
+	logger.Debugf("ubootpart: env device %s (by partlabel fallback)", resolved)
+	return resolved, nil
+}
+
+func (u *ubootpart) Present() (bool, error) {
+	if u.prepareImageTime {
+		envFile := filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img")
+		return osutil.FileExists(envFile), nil
+	}
+
+	// At runtime, check for the partition by label. The more restrictive
+	// disk check (via EFI or snapd_system_disk) is done in envDevice()
+	// when actually accessing the environment.
+	partPath := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", ubuntuBootStateLabel)
+	return osutil.FileExists(partPath), nil
+}
+
+// checkGadgetEnvSize checks that the gadget's reference ubootpart.sel (if
+// present) uses the expected DefaultRedundantEnvSize.  A mismatch would mean
+// the gadget was compiled with a different CONFIG_ENV_SIZE, which is not
+// currently supported.
+func checkGadgetEnvSize(gadgetDir string) error {
+	ref, err := ubootenv.OpenWithFlags(filepath.Join(gadgetDir, "ubootpart.sel"), ubootenv.OpenBestEffort)
+	if err != nil {
+		// No reference file is fine — use the default size
+		return nil
+	}
+	if ref.Size() != ubootenv.DefaultRedundantEnvSize {
+		return fmt.Errorf("gadget ubootpart.sel has env size %d, expected %d",
+			ref.Size(), ubootenv.DefaultRedundantEnvSize)
+	}
+	return nil
+}
+
+func (u *ubootpart) InstallBootConfig(gadgetDir string, blOpts *Options) error {
+	// InstallBootConfig gets called on a uboot that does not come from newUboot
+	// so we need to apply the defaults here
+	u.setDefaults()
+	u.processBlOpts(blOpts)
+
+	if err := checkGadgetEnvSize(gadgetDir); err != nil {
+		return err
+	}
+
+	envPath, err := u.envDevice()
+	if err != nil {
+		return err
+	}
+
+	// Create directory if needed (for prepare-image time)
+	if u.prepareImageTime {
+		if err := os.MkdirAll(filepath.Dir(envPath), 0755); err != nil {
+			return err
+		}
+	}
+
+	_, err = ubootenv.CreateRedundant(envPath, ubootenv.DefaultRedundantEnvSize)
+	return err
+}
+
+func (u *ubootpart) SetBootVars(values map[string]string) error {
+	envPath, err := u.envDevice()
+	if err != nil {
+		return err
+	}
+
+	env, err := ubootenv.OpenRedundantWithFlags(envPath, ubootenv.DefaultRedundantEnvSize, ubootenv.OpenBestEffort)
+	if err != nil {
+		return err
+	}
+	return setBootVarsInEnv(env, values)
+}
+
+func (u *ubootpart) GetBootVars(names ...string) (map[string]string, error) {
+	envPath, err := u.envDevice()
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := ubootenv.OpenRedundantWithFlags(envPath, ubootenv.DefaultRedundantEnvSize, ubootenv.OpenBestEffort)
+	if err != nil {
+		return nil, err
+	}
+	return getBootVarsFromEnv(env, names...), nil
+}
+
+func (u *ubootpart) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+	dstDir := filepath.Join(u.assetsDir(), s.Filename())
+	return extractKernelAssetsToBootDir(dstDir, snapf, ubootKernelAssets)
+}
+
+func (u *ubootpart) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	if recoverySystemDir == "" {
+		return fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+
+	recoveryKernelAssetsDir := filepath.Join(u.rootdir, recoverySystemDir, "kernel")
+	return extractKernelAssetsToBootDir(recoveryKernelAssetsDir, snapf, ubootKernelAssets)
+}
+
+func (u *ubootpart) RemoveKernelAssets(s snap.PlaceInfo) error {
+	return removeKernelAssetsFromBootDir(u.assetsDir(), s)
+}
