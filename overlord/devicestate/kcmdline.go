@@ -71,28 +71,27 @@ const (
 //
 // Note that this only updates the specified fragment in snapd state and
 // does not directly update the command line and key polices.
-func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSnapdKernelCommandLineFragmentID, fragment string) (updated bool, err error) {
+func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSnapdKernelCommandLineFragmentID, fragment string) error {
 	if err := fragmentID.validate(fragment); err != nil {
-		return false, err
+		return err
 	}
 
 	var seeded bool
-	err = st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
 	}
 	if !seeded {
-		return false, fmt.Errorf("cannot set extra snapd kernel command line fragments until fully seeded")
+		return fmt.Errorf("cannot set extra snapd kernel command line fragments until fully seeded")
 	}
 
 	var currentFragments map[extraSnapdKernelCommandLineFragmentID]string
 	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &currentFragments); err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
+		return err
 	}
 	currentFragment := currentFragments[fragmentID]
 	if fragment == currentFragment {
 		// Nothing changed, no-op.
-		return false, nil
+		return nil
 	}
 
 	if currentFragments == nil {
@@ -106,7 +105,9 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 	}
 	st.Set(kcmdlineExtraSnapdFragmentsKey, currentFragments)
 	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, true)
-	return true, nil
+	// Make sure the pending changes are picked up soon.
+	st.EnsureBefore(0)
+	return nil
 }
 
 // kernelCommandLineAppendArgsFromSnapd returns extra arguments that snapd

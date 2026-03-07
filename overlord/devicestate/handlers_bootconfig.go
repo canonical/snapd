@@ -86,6 +86,10 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 
 	// Any pending extra snapd kernel command line fragments should have
 	// been applied by now.
+	//
+	// Note that the state lock must be held for the duration of the
+	// task so that we do not accidentally unset the pending state
+	// that might have been set externally if the state was unlocked.
 	st.Set(kcmdlinePendingExtraSnapdFragmentsKey, false)
 
 	// set this status already before returning to minimize wasteful redos
