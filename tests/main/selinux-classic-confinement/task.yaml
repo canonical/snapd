@@ -38,7 +38,14 @@ restore: |
 execute: |
     snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap"
 
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # This is a first checkpoint after the session was started, so if denials
+    # were logged, they it will show up now, but not for subsequent checkpoints.
+    ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+
+    # Ignore expected SELinux denials from syslogd_t using netlink_tcpdiag_socket
+    # Fail on any other unexpected AVCs.
+    grep -v -E 'avc:  denied  \{ .* \} .* scontext=.*:syslogd_t:s0 .* tclass=netlink_tcpdiag_socket' < avc-after | \
+    NOMATCH 'type=AVC'
 
     MATCH 'install hook' < "/var/snap/$CLASSIC_SNAP/common/log"
     MATCH 'configure hook' < "/var/snap/$CLASSIC_SNAP/common/log"
