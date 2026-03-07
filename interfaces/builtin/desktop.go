@@ -98,6 +98,9 @@ owner /run/user/[0-9]*/doc/{,*/} r,
 # the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
+# Permissions to ensure that access via the Document Portal is equivalent to access via the removable-media interface.
+/run/user/[0-9]*/doc/*/** mklix,
+
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
     bus=session
