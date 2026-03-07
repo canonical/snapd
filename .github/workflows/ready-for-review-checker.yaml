@@ -41,13 +41,15 @@ jobs:
           ref_head=$(gh pr view $PR_NUMBER --json headRefName --jq .headRefName)
           run_id=$(gh run list --workflow .github/workflows/ci-test.yaml --branch "$ref_head" --limit 1 --json databaseId -q '.[0].databaseId')
           status=$(gh run view "$run_id" --json status -q .status)
-          if [ "$status" = "in_progress" ]; then
-            message="## Unable to automatically rerun workflow - manually rerun at least the read-systems job to trigger spread tests on all systems"
-            if ! gh pr comment "$PR_NUMBER" --body "$message" --edit-last; then
-              gh pr comment "$PR_NUMBER" --body "$message"
-            fi
-            exit 0
-          fi
+          case "$status" in
+            in_progress|queued|requested|expected|pending|waiting)
+              message="## Unable to automatically rerun workflow - manually rerun at least the read-systems job to trigger spread tests on all systems"
+              if ! gh pr comment "$PR_NUMBER" --body "$message" --edit-last; then
+                gh pr comment "$PR_NUMBER" --body "$message"
+              fi
+              exit 0
+              ;;
+          esac
           job_id=$(gh run view "$run_id" --json jobs --jq '.jobs[] | select(.name == "read-systems") | .databaseId')
           echo "Rerunning the read-systems job in run https://github.com/canonical/snapd/actions/runs/$run_id"
           gh run rerun "$run_id" --job "$job_id"
