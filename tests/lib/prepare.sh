@@ -430,24 +430,27 @@ prepare_classic() {
             ;;
     esac
 
-    if snap --version |MATCH unknown; then
-        echo "Package build incorrect, 'snap --version' mentions 'unknown'"
-        snap --version
-        distro_query_package_info snapd
-        exit 1
-    fi
-    if snapd.tool exec snap-confine --version | MATCH unknown; then
-        echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        snapd.tool exec snap-confine --version
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                apt-cache policy snapd
-                ;;
-            fedora-*)
-                dnf info snapd
-                ;;
-        esac
-        exit 1
+    # When snapd is from archive, we don't need to check the version of snapd in the system as it is expected to be the one from the archive
+    if not tests.info is-snapd-from-archive; then
+        if snap --version |MATCH unknown; then
+            echo "Package build incorrect, 'snap --version' mentions 'unknown'"
+            snap --version
+            distro_query_package_info snapd
+            exit 1
+        fi
+        if snapd.tool exec snap-confine --version | MATCH unknown; then
+            echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
+            snapd.tool exec snap-confine --version
+            case "$SPREAD_SYSTEM" in
+                ubuntu-*|debian-*)
+                    apt-cache policy snapd
+                    ;;
+                fedora-*)
+                    dnf info snapd
+                    ;;
+            esac
+            exit 1
+        fi
     fi
 
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
