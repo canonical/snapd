@@ -6702,9 +6702,70 @@ func (s *snapmgrTestSuite) TestInstallManyNoSnaps(c *C) {
 	defer s.state.Unlock()
 
 	// try to install an empty list of snaps
-	_, _, err := snapstate.InstallMany(s.state, nil, nil, s.user.ID, nil)
-	c.Check(err, ErrorMatches, "no install/refresh information results from the store")
-	c.Check(err, FitsTypeOf, &store.SnapActionError{})
+	toInstall, tss, err := snapstate.InstallMany(s.state, nil, nil, s.user.ID, nil)
+	c.Check(err, IsNil)
+	c.Check(toInstall, HasLen, 0)
+	c.Check(tss, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallManySomePresent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// one of the requested snaps is present
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(42), SnapID: "other-snap-id"},
+		}),
+		Current:  snap.R(42),
+		SnapType: "app",
+	})
+
+	snapNames := []string{"some-snap", "other-snap"}
+	installed, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(installed, DeepEquals, snapNames)
+	// one taskset for some-snap installation
+	c.Assert(tss, HasLen, 1)
+	snapsupVerified := false
+	for _, tsk := range tss[0].Tasks()[:1] {
+		snapsup, err := snapstate.TaskSnapSetup(tsk)
+		c.Assert(err, IsNil)
+		c.Check(snapsup.InstanceName(), Equals, "some-snap")
+		snapsupVerified = true
+	}
+	c.Check(snapsupVerified, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyAllPresent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// all of the requested snaps are present
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-id"},
+		}),
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(42), SnapID: "other-snap-id"},
+		}),
+		Current:  snap.R(42),
+		SnapType: "app",
+	})
+
+	snapNames := []string{"some-snap", "other-snap"}
+	installed, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(installed, DeepEquals, snapNames)
+	c.Check(tss, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestInstallNoResults(c *C) {
