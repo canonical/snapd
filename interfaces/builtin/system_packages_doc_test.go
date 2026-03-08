@@ -96,6 +96,8 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/libreoffice/help/{,**} r,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/sphinx_rtd_theme/{,**} r,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/xubuntu-docs/{,**} r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/man/{,**} r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/help/{,**} r,")
 
 	updateNS := spec.UpdateNS()
 	c.Check(updateNS, testutil.Contains, "  # Mount documentation of system packages\n")
@@ -134,6 +136,15 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/xubuntu-docs/,\n")
+
+	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/man/ -> /usr/share/man/,\n")
+	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/man/,\n")
+	c.Check(updateNS, testutil.Contains, "  umount /usr/share/man/,\n")
+
+	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/help/ -> /usr/share/help/,\n")
+	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/help/,\n")
+	c.Check(updateNS, testutil.Contains, "  umount /usr/share/help/,\n")
+
 	// check mimic bits
 	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share/libreoffice\n")
 	c.Check(updateNS, testutil.Contains, "  mount fstype=tmpfs options=(rw) tmpfs -> \"/usr/share/\",\n")
@@ -145,6 +156,8 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  \"/usr/share/javascript/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/usr/share/libreoffice/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/usr/share/sphinx_rtd_theme/*/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/usr/share/man/*/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/usr/share/help/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/cups/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/cups/*/\" rw,\n")
@@ -156,6 +169,10 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/libreoffice/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/sphinx_rtd_theme/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/sphinx_rtd_theme/*/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/man/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/man/*/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/help/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/help/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind, rw) \"/tmp/.snap/usr/share/*\" -> \"/usr/share/*\",\n")
 }
 
@@ -194,6 +211,12 @@ func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
 	c.Check(entries[8].Name, Equals, "/var/lib/snapd/hostfs/usr/share/xubuntu-docs")
 	c.Check(entries[8].Dir, Equals, "/usr/share/xubuntu-docs")
 	c.Check(entries[8].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[9].Name, Equals, "/var/lib/snapd/hostfs/usr/share/man")
+	c.Check(entries[9].Dir, Equals, "/usr/share/man")
+	c.Check(entries[9].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[10].Name, Equals, "/var/lib/snapd/hostfs/usr/share/help")
+	c.Check(entries[10].Dir, Equals, "/usr/share/help")
+	c.Check(entries[10].Options, DeepEquals, []string{"bind", "ro"})
 
 	entries = spec.UserMountEntries()
 	c.Assert(entries, HasLen, 0)

@@ -47,6 +47,8 @@ const systemPackagesDocConnectedPlugAppArmor = `
 /usr/share/libreoffice/help/{,**} r,
 /usr/share/sphinx_rtd_theme/{,**} r,
 /usr/share/xubuntu-docs/{,**} r,
+/usr/share/man/{,**} r,
+/usr/share/help/{,**} r,
 `
 
 type systemPackagesDocInterface struct {
@@ -84,6 +86,12 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/man/ -> /usr/share/man/,\n")
+	emit("  remount options=(bind, ro) /usr/share/man/,\n")
+	emit("  umount /usr/share/man/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/help/ -> /usr/share/help/,\n")
+	emit("  remount options=(bind, ro) /usr/share/help/,\n")
+	emit("  umount /usr/share/help/,\n")
 	// The mount targets under /usr/share/ do not necessarily exist in the
 	// base image, in which case, we need to create a writable mimic.
 	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
@@ -92,6 +100,8 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/sphinx_rtd_theme/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/local/share/doc/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/man/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/help/", 3)
 
 	if base := plug.Snap().Base; base == "bare" || base == "test-snapd-base-bare" {
 		// The bare snap does not have enough mount points, causing us to create a mimic over /
@@ -161,6 +171,16 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/xubuntu-docs",
 		Dir:     "/usr/share/xubuntu-docs",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/man",
+		Dir:     "/usr/share/man",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/help",
+		Dir:     "/usr/share/help",
 		Options: []string{"bind", "ro"},
 	})
 	return nil
