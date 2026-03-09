@@ -72,9 +72,9 @@ jobs:
           cd "${{ github.workspace }}/src/github.com/snapcore/snapd/cmd"
           sudo apt install -y gcovr
           HAVE_GCOV=/usr/bin/gcov ./autogen.sh --enable-test-coverage
-          mkdir -p .coverage
+          mkdir -p ../.coverage
           make coverage.xml
-          mv coverage.xml .coverage/c-coverage.xml
+          mv coverage.xml ../.coverage/c-coverage.xml
 
     - name: Test Go with coverage
       run: |
