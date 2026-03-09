@@ -1856,7 +1856,10 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		// "auto-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
 		// them so they can be automatically connected if the snap is installed again.
-		ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
+		ts, err := disconnectTasks(st, conn, disconnectOpts{
+			AutoDisconnect:  true,
+			IgnoreHookError: true,
+		})
 		if err != nil {
 			return err
 		}

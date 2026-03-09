@@ -91,7 +91,7 @@ func NewConnectOptsWithAutoSet() connectOpts {
 }
 
 func NewDisconnectOptsWithAutoSet() disconnectOpts {
-	return disconnectOpts{AutoDisconnect: true}
+	return disconnectOpts{AutoDisconnect: true, IgnoreHookError: true}
 }
 
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {

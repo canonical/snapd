@@ -1713,17 +1713,17 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
-	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: false})
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: true})
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
-	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true, IgnoreError: false})
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true, IgnoreError: true})
 
 	task = ts.Tasks()[1]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hookSetup)
 	c.Assert(err, IsNil)
-	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true})
+	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
-	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true, IgnoreError: false})
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true, IgnoreError: true})
 
 	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
@@ -5849,7 +5849,17 @@ plugs:
 	})
 }
 
-func (s *interfaceManagerSuite) TestAutoDisconnectIgnoreHookError(c *C) {
+type disconnectOperationIgnoreHookErrorScenario int
+
+const (
+	snapRemove disconnectOperationIgnoreHookErrorScenario = iota
+	snapDisconnect
+	snapDisconnectForget
+)
+
+func (s *interfaceManagerSuite) testDisconnectOperationIgnoreHookError(
+	c *C, scenario disconnectOperationIgnoreHookErrorScenario,
+) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	mgr := s.hookManager(c)
 
@@ -5894,8 +5904,21 @@ hooks:
 		Slot: interfaces.NewConnectedSlot(producerAppSet.Info().Slots["slot"], producerAppSet, nil, nil),
 	}
 
-	// call disconnect with the AutoDisconnect flag (used when removing a snap)
-	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithAutoSet())
+	var ts *state.TaskSet
+	var err error
+	switch scenario {
+	case snapRemove:
+		// call disconnect with the AutoDisconnect flag (used when removing a snap)
+		ts, err = ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithAutoSet())
+	case snapDisconnect:
+		ts, err = ifacestate.Disconnect(s.state, conn)
+	case snapDisconnectForget:
+		ts, err = ifacestate.Forget(s.state, s.privateMgr.Repository(),
+			&interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+				SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+			})
+	}
 	c.Assert(err, IsNil)
 
 	change := s.state.NewChange("disconnect", "")
@@ -5931,6 +5954,22 @@ hooks:
 	// the change should not have failed
 	c.Check(change.Err(), IsNil)
 	c.Assert(change.Status(), Equals, state.DoneStatus)
+	log := s.log.String()
+	// errors were logged though
+	c.Check(log, testutil.Contains, `ignoring failure in hook "disconnect-slot-slot": test`)
+	c.Check(log, testutil.Contains, `ignoring failure in hook "disconnect-plug-plug": test`)
+}
+
+func (s *interfaceManagerSuite) TestRemoveAutoDisconnectIgnoreHookError(c *C) {
+	s.testDisconnectOperationIgnoreHookError(c, snapRemove)
+}
+
+func (s *interfaceManagerSuite) TestDisconnectIgnoreHookError(c *C) {
+	s.testDisconnectOperationIgnoreHookError(c, snapDisconnect)
+}
+
+func (s *interfaceManagerSuite) TestForgetIgnoreHookError(c *C) {
+	s.testDisconnectOperationIgnoreHookError(c, snapDisconnectForget)
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
