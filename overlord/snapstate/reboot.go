@@ -206,6 +206,47 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 	return nil
 }
 
+func mergeEssentialAndSeedLanes(
+	essentials map[snap.Type]snapInstallTaskSet, seedUpdates map[string]snapInstallTaskSet, seedTS *SeedRefreshTaskSet,
+) {
+	merge := make(map[string]snapInstallTaskSet)
+	for _, sts := range seedUpdates {
+		merge[sts.snapsup.InstanceName()] = sts
+	}
+
+	for _, sts := range essentials {
+		if sts.snapsup.Type == snap.TypeSnapd {
+			continue
+		}
+		merge[sts.snapsup.InstanceName()] = sts
+	}
+
+	rebootLanes := make(map[string][]int, len(merge))
+	all := make([]int, 0, len(merge))
+	for _, sts := range merge {
+		lanes := unique(sts.upToLinkSnapAndBeforeReboot[len(sts.upToLinkSnapAndBeforeReboot)-1].Lanes())
+		rebootLanes[sts.snapsup.InstanceName()] = lanes
+		all = unique(append(all, lanes...))
+	}
+
+	for _, sts := range merge {
+		for _, l := range all {
+			if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
+				sts.ts.JoinLane(l)
+			}
+		}
+	}
+
+	if seedTS == nil {
+		return
+	}
+
+	for _, lane := range all {
+		seedTS.Create.JoinLane(lane)
+		seedTS.Finalize.JoinLane(lane)
+	}
+}
+
 // arrangeRebootAndUpdateSeed arranges the correct link-order between all the
 // provided snap install task-sets, sets up restart boundaries for essential
 // snaps (base, gadget, kernel), and returns the task set needed to update the
@@ -380,27 +421,6 @@ func arrangeRebootAndUpdateSeed(
 	// code requires essential snap presence.
 	finalEssential := prev
 
-	// ensure essential snaps that are transactional have their lanes merged.
-	// this will ensure that essential snaps will be undone together, if one
-	// of the updates fails.
-	mergeSnapInstallTaskSetLanes := func(stss []snapInstallTaskSet) {
-		rebootLanes := make(map[string][]int)
-		all := make([]int, 0, len(stss))
-		for _, sts := range stss {
-			lanes := unique(tail(sts.upToLinkSnapAndBeforeReboot).Lanes())
-			rebootLanes[sts.snapsup.InstanceName()] = lanes
-			all = unique(append(all, lanes...))
-		}
-
-		for _, sts := range stss {
-			for _, l := range all {
-				if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
-					sts.ts.JoinLane(l)
-				}
-			}
-		}
-	}
-
 	// UC16 systems enforce different reboot boundaries, which can result in
 	// multiple reboots while refreshing many essential snaps.
 	if !isUC16 {
@@ -444,16 +464,7 @@ func arrangeRebootAndUpdateSeed(
 			break
 		}
 
-		// since the essential snaps are sharing a reboot, they should also
-		// share lanes so that they're undone together if one fails
-		var merge []snapInstallTaskSet
-		for _, sts := range essentials {
-			if sts.snapsup.Type == snap.TypeSnapd {
-				continue
-			}
-			merge = append(merge, sts)
-		}
-		mergeSnapInstallTaskSetLanes(merge)
+		mergeEssentialAndSeedLanes(essentials, seedSnapUpdates, seedTS)
 	} else {
 		// legacy behavior, set the do and undo reboot boundaries on all
 		// essential snaps, with the exception of snapd

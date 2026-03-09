@@ -154,6 +154,21 @@ func taskSetsFromInstallSets(stss []snapstate.SnapInstallTaskSet) []*state.TaskS
 	return tss
 }
 
+func taskSetLanes(ts *state.TaskSet) []int {
+	var lanes []int
+	seen := make(map[int]bool)
+	for _, t := range ts.Tasks() {
+		for _, l := range t.Lanes() {
+			if seen[l] {
+				continue
+			}
+			seen[l] = true
+			lanes = append(lanes, l)
+		}
+	}
+	return lanes
+}
+
 func (s *rebootSuite) TestTaskSetsByTypeForEssentialSnapsNoBootBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -979,6 +994,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 
 	c.Check(seedCreate.WaitTasks(), testutil.Contains, lastBeforeLocalTask)
 	c.Check(snapSetupTask.WaitTasks(), testutil.Contains, seedFinalize)
+	c.Check(taskSetLanes(seedUpdateTS), DeepEquals, taskSetLanes(stss[0].TaskSet()))
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapd(c *C) {
