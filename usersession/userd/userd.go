@@ -89,7 +89,7 @@ func checkServicePlacement(targetName, snapTarget string) error {
 	}
 	wantedBy := ""
 	if section := targetIni.Section("Install"); section != nil {
-		wantedBy = section.Key("WantedBy").String()
+		wantedBy = strings.Trim(section.Key("WantedBy").String(), " ")
 	}
 	if wantedBy != targetName {
 		// the symlink is in the wrong folder. Re-enable the service
