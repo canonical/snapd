@@ -9,7 +9,7 @@ on:
 jobs:
 
   tics:
-    runs-on: [self-hosted, linux, amd64, tiobe, jammy]
+    runs-on: [self-hosted, linux, amd64, tiobe, noble]
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin and
