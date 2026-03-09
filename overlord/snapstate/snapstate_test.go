@@ -6873,6 +6873,22 @@ func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 }
 
+func (s *snapmgrTestSuite) TestConflictSeedRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("refresh-snap", "...")
+	chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+}
+
 func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

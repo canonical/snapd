@@ -20556,6 +20556,71 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Check(seedSetup.ComponentSetupTasks, DeepEquals, appCompSetupTaskIDs)
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlockedByOtherChanges(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}))
+	defer restore()
+
+	kernel := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(7),
+		SnapID:   "kernel-id",
+	}
+	base := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(7),
+		SnapID:   "core18-snap-id",
+	}
+
+	types := map[string]string{
+		"kernel": "kernel",
+		"core18": "base",
+	}
+
+	snaptest.MockSnap(c, fmt.Sprintf("name: %s", kernel.RealName), &kernel)
+	snaptest.MockSnap(c, fmt.Sprintf("name: %s\ntype: base", base.RealName), &base)
+
+	for _, si := range []snap.SideInfo{kernel, base} {
+		si := si
+		s.fakeStore.registerID(si.RealName, si.SnapID)
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[si.RealName],
+		})
+	}
+
+	chg := s.state.NewChange("unrelated", "...")
+	chg.AddTask(s.state.NewTask("task", "..."))
+
+	updates := []snapstate.StoreUpdate{{InstanceName: "kernel"}, {InstanceName: "core18"}}
+	goal := snapstate.StoreUpdateGoal(updates...)
+
+	_, _, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{
+		UserID: s.user.ID,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+	})
+	c.Assert(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "seed refresh" not allowed until they are done`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshDisabled(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

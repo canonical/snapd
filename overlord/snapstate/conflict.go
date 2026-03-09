@@ -151,6 +151,15 @@ func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
 	return res == 1, nil
 }
 
+func changeCreatesRecoverySystem(chg *state.Change) bool {
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "create-recovery-system" {
+			return true
+		}
+	}
+	return false
+}
+
 func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() || (ignoreChangeID != "" && chg.ID() == ignoreChangeID) {
@@ -200,6 +209,14 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			if downgrading {
 				return &ChangeConflictError{
 					Message:    "snapd downgrade in progress, no other changes allowed until this is done",
+					ChangeKind: chg.Kind(),
+					ChangeID:   chg.ID(),
+				}
+			}
+
+			if changeCreatesRecoverySystem(chg) {
+				return &ChangeConflictError{
+					Message:    "seed refresh in progress, no other changes allowed until this is done",
 					ChangeKind: chg.Kind(),
 					ChangeID:   chg.ID(),
 				}

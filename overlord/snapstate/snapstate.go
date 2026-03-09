@@ -1669,6 +1669,9 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	}
 
 	if seedTS != nil {
+		if err := checkChangeConflictExclusiveKinds(st, "seed refresh", opts.FromChange); err != nil {
+			return nil, false, nil, err
+		}
 		tss = append(tss, seedTS)
 	}
 
