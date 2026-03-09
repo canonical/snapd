@@ -1313,17 +1313,28 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 // canSplitRefresh returns whether the refresh is a standard refresh of a mix
 // of essential and non-essential snaps on a hybrid system. If the refresh
 // can be split, it also returns the two split update groups.
-func canSplitRefresh(deviceCtx DeviceContext, updates []update) (essential, nonEssential []update, split bool) {
+func canSplitRefresh(st *state.State, deviceCtx DeviceContext, updates []update) (essential, nonEssential []update, split bool, err error) {
+	seedRefresh, err := seedRefreshEnabled(st)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	// TODO: teach split refresh to keep all seed snaps on the essential
+	// side so seed creation can still happen in one pass.
+	if seedRefresh {
+		return nil, nil, false, nil
+	}
+
 	if !deviceCtx.IsCoreBoot() || !release.OnClassic {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 
 	essential, nonEssential = splitEssentialUpdates(deviceCtx, updates)
 	if len(essential) == 0 || len(nonEssential) == 0 {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 
-	return essential, nonEssential, true
+	return essential, nonEssential, true, nil
 }
 
 // splitRefresh creates independent refresh task chains for the essential and
@@ -1490,7 +1501,12 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 
 	// if we're on classic with a kernel/gadget, split refreshes with essential
 	// snaps and apps so that the apps don't have to wait for a reboot
-	if essential, nonEssential, ok := canSplitRefresh(opts.DeviceCtx, updates); ok {
+	essential, nonEssential, split, err := canSplitRefresh(st, opts.DeviceCtx, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if split {
 		updateFunc := func(updates []update) ([]string, bool, *UpdateTaskSets, error) {
 			// names are used to determine if the refresh is general, if it was
 			// requested for a snap to update aliases and if it should be

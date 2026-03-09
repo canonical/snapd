@@ -19465,9 +19465,10 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c *C) {
-	restore := release.MockOnClassic(false)
+func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c *C, classic bool) {
+	restore := release.MockOnClassic(classic)
 	defer restore()
+
 	restore = snapstate.MockRevisionDate(nil)
 	defer restore()
 
@@ -19628,6 +19629,18 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 
 	// non-model app starts download after all essential snaps are complete
 	c.Check(firstTaskOfExtraSnap.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c *C) {
+	const classic = false
+	s.testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c, classic)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnapOnClassic(c *C) {
+	// TODO: this variant will need to be more complex once seed-refresh mode
+	// does not disable split refresh.
+	const classic = true
+	s.testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c, classic)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c *C) {
