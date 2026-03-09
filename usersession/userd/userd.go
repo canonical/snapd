@@ -115,7 +115,13 @@ func sanitizeUserServices() error {
 	//   will be updated, and so these entries will have to be updated too.
 	// * when a snap adds or removes the `desktop` plug in a daemon
 
-	userSystemdQuery := path.Join(os.Getenv("HOME"), ".config", "systemd", "user", "*.target.wants")
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		logger.Noticef("cannot determine user home directory, skipping user service sanitization: %v", err)
+		return nil
+	}
+
+	userSystemdQuery := path.Join(homeDir, ".config", "systemd", "user", "*.target.wants")
 	entries, err := filepath.Glob(userSystemdQuery)
 	if err != nil {
 		return err
