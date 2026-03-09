@@ -180,7 +180,9 @@ func (ud *Userd) Init() error {
 		}
 	}
 
-	sanitizeUserServices()
+	if err := sanitizeUserServices(); err != nil {
+		logger.Noticef("cannot sanitize user services: %v", err)
+	}
 	return nil
 }
 
