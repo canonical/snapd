@@ -6853,6 +6853,33 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
 }
 
+func (s *snapmgrTestSuite) TestConflictExclusiveBlockedByRefreshOrRevert(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, kind := range []string{"refresh-snap", "revert-snap"} {
+		chg := s.state.NewChange(kind, "...")
+		t := s.state.NewTask("prepare-snap", "task")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: "some-snap",
+				Revision: snap.R(2),
+			},
+		})
+		chg.AddTask(t)
+		chg.SetStatus(state.DoingStatus)
+
+		err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+		c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{}, Commentf("change kind: %s", kind))
+		c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "`+kind+`"\), change "remodel" not allowed until they are done`)
+
+		cerr := err.(*snapstate.ChangeConflictError)
+		c.Check(cerr.ChangeID, Equals, chg.ID())
+
+		chg.SetStatus(state.DoneStatus)
+	}
+}
+
 type contentStore struct {
 	*fakeStore
 	state *state.State
