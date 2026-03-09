@@ -224,6 +224,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
+	oldCreateRecoverySystemTasks := snapstate.SeedRefreshTasks
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
 	snapstate.SetupPostRefreshComponentHook = hookstate.SetupPostRefreshComponentHook
@@ -233,6 +234,24 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+		create := st.NewTask("create-recovery-system", "Create recovery system")
+		create.Set("recovery-system-setup", map[string]any{
+			"snap-setup-tasks":      snapSetupTasks,
+			"component-setup-tasks": compSetupTasks,
+		})
+
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
+		finalize.WaitFor(create)
+		finalize.Set("recovery-system-setup-task", create.ID())
+
+		return &snapstate.SeedRefreshTaskSet{
+			Create:   create,
+			Finalize: finalize,
+		}, nil
+	}
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
@@ -276,6 +295,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
+		snapstate.SeedRefreshTasks = oldCreateRecoverySystemTasks
 
 		dirs.SetRootDir("/")
 	})

@@ -1526,6 +1526,10 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 func doUpdate(st *state.State, requested []string, updates []update, opts Options) (
 	updatedSnaps []string, snapRevisionsChanged bool, uts *UpdateTaskSets, err error,
 ) {
+	if opts.DeviceCtx == nil {
+		return nil, false, nil, errors.New("internal error: device context is expected at this point")
+	}
+
 	var tss []*state.TaskSet
 	var predownloadTSS []*state.TaskSet
 
@@ -1643,13 +1647,13 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	earlyDownloads, err := seedRefreshEarlyDownloads(st, snapInstallTSS, opts.DeviceCtx)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts.DeviceCtx)
 	if err != nil {
 		return nil, false, nil, err
 	}
 
-	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS, earlyDownloads); err != nil {
-		return nil, false, nil, err
+	if seedTS != nil {
+		tss = append(tss, seedTS)
 	}
 
 	if len(newAutoAliases) != 0 {

@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,51 +42,121 @@ var SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []st
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
-// currentSeedSnapNames returns the snap names that should be treated as part
-// of the current seed.
-func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]bool, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make(map[string]bool)
-	for _, sn := range deviceCtx.Model().AllSnaps() {
-		names[sn.SnapName()] = true
-	}
-
-	// some models have an implicit snapd, make sure that we account for it here
-	names["snapd"] = true
-
-	return names, nil
-}
-
-// seedRefreshEarlyDownloads checks if the experimental seed-refresh feature
-// flag is set, and if so, returns the set of seed snaps that are being
-// refreshed and should be treated as early-downloads.
-func seedRefreshEarlyDownloads(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (map[string]bool, error) {
+// seedRefreshEnabled reports whether the experimental seed-refresh feature is
+// enabled.
+func seedRefreshEnabled(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	seedRefresh, err := features.Flag(tr, features.SeedRefresh)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		return false, err
+	}
+	return seedRefresh, nil
+}
+
+// seedRefreshTasksAndUpdates returns the seed-refresh tasks and the task sets
+// for snaps that are involved in the seed refresh.
+func seedRefreshTasksAndUpdates(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+	enabled, err := seedRefreshEnabled(st)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if !seedRefresh {
-		return nil, nil
+	if !enabled {
+		return nil, nil, nil
 	}
 
-	seedSnaps, err := currentSeedSnapNames(st, deviceCtx)
+	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	seedSnapUpdates := seedSnapsToUpdate(stss, deviceCtx)
+
+	// none of the seed snaps are being updated, in that case there isn't
+	// anything to do.
+	if len(seedSnapUpdates) == 0 {
+		return nil, nil, nil
+	}
+
+	seedSnapTSS := make([]snapInstallTaskSet, 0, len(seedSnapUpdates))
+	for _, sts := range stss {
+		name := sts.snapsup.InstanceName()
+		if _, ok := seedSnapUpdates[name]; ok {
+			seedSnapTSS = append(seedSnapTSS, sts)
+		}
+	}
+
+	seedTS, err := seedRefreshTasksFromUpdates(st, seedSnapTSS)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return seedTS, seedSnapUpdates, nil
+}
+
+// setupTaskIDsForSeedCreation collects the snap and component setup task IDs
+// that seed creation should consume.
+func setupTaskIDsForSeedCreation(stss []snapInstallTaskSet) (snapsupIDs, compsupIDs []string, err error) {
+	for _, sts := range stss {
+		t, err := sts.ts.Edge(SnapSetupEdge)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if !snapsup.ComponentExclusiveOperation {
+			snapsupIDs = append(snapsupIDs, t.ID())
+		}
+
+		var compsups []string
+		if err := t.Get("component-setup-tasks", &compsups); err != nil && !errors.Is(err, state.ErrNoState) {
+			return nil, nil, err
+		}
+
+		compsupIDs = append(compsupIDs, compsups...)
+	}
+
+	return snapsupIDs, compsupIDs, nil
+}
+
+// seedRefreshTasksFromUpdates builds the seed-refresh task set from the given
+// refresh task sets.
+func seedRefreshTasksFromUpdates(st *state.State, stss []snapInstallTaskSet) (*SeedRefreshTaskSet, error) {
+	snapsupIDs, compsupIDs, err := setupTaskIDsForSeedCreation(stss)
 	if err != nil {
 		return nil, err
 	}
 
-	earlyDownloads := make(map[string]bool, len(stss))
+	seedTS, err := SeedRefreshTasks(st, snapsupIDs, compsupIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return seedTS, nil
+}
+
+// seedSnapsToUpdate returns the task sets that correspond to snaps present in
+// the model.
+func seedSnapsToUpdate(stss []snapInstallTaskSet, dctx DeviceContext) map[string]snapInstallTaskSet {
+	seedSnaps := make(map[string]bool)
+	for _, sn := range dctx.Model().AllSnaps() {
+		seedSnaps[sn.SnapName()] = true
+	}
+
+	// some models have an implicit snapd, make sure that we account for it here
+	seedSnaps["snapd"] = true
+
+	seedUpdates := make(map[string]snapInstallTaskSet, len(seedSnaps))
 	for _, sts := range stss {
 		name := sts.snapsup.InstanceName()
 		if seedSnaps[name] {
-			earlyDownloads[name] = true
+			seedUpdates[name] = sts
 		}
 	}
 
-	return earlyDownloads, nil
+	return seedUpdates
 }
