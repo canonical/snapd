@@ -1113,23 +1113,6 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
-func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]bool, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make(map[string]bool)
-	for _, sn := range deviceCtx.Model().AllSnaps() {
-		names[sn.SnapName()] = true
-	}
-
-	// some models have an implicit snapd, make sure that we account for it here
-	names["snapd"] = true
-
-	return names, nil
-}
-
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
 // meet the validation set constraints reported in the ValidationSetsValidationError..
 func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {

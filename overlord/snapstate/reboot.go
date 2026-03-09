@@ -22,8 +22,6 @@ package snapstate
 import (
 	"errors"
 
-	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -48,21 +46,6 @@ var essentialSnapsRestartOrder = []snap.Type{
 	// because the gadget always waits for the kernel and if the
 	// kernel aborts the wait tasks (the gadget) is put on "Hold".
 	snap.TypeKernel,
-}
-
-// SeedRefreshTaskSet carries the tasks needed to perform a seed refresh.
-type SeedRefreshTaskSet struct {
-	Create   *state.Task
-	Finalize *state.Task
-
-	// TODO: this will also carry the tasks that will remove any seeds that
-	// should no longer be tracked by the seed-refresh mode
-}
-
-// SeedRefreshTasks is set by devicestate to avoid an import cycle. See
-// devicestate.SeedRefreshTasks.
-var SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*SeedRefreshTaskSet, error) {
-	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
 func maybeTaskSetSnapSetup(ts *state.TaskSet) *SnapSetup {
@@ -221,36 +204,6 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 	}
 
 	return nil
-}
-
-// seedRefreshEarlyDownloads checks if the experimental seed-refresh feature
-// flag is set, and if so, returns the set of seed snaps that are being
-// refreshed and should be treated as early-downloads.
-func seedRefreshEarlyDownloads(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (map[string]bool, error) {
-	tr := config.NewTransaction(st)
-	seedRefresh, err := features.Flag(tr, features.SeedRefresh)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
-
-	if !seedRefresh {
-		return nil, nil
-	}
-
-	seedSnaps, err := currentSeedSnapNames(st, deviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	earlyDownloads := make(map[string]bool, len(stss))
-	for _, sts := range stss {
-		name := sts.snapsup.InstanceName()
-		if seedSnaps[name] {
-			earlyDownloads[name] = true
-		}
-	}
-
-	return earlyDownloads, nil
 }
 
 // arrangeInstallTasksForSingleReboot arranges the correct link-order between all the
