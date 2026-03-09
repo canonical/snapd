@@ -622,7 +622,7 @@ coverage.lcov: check
 
 CLEANFILES += coverage.xml
 coverage.xml: check
-	$(HAVE_GCOVR) $(GCOVR_OPTS) --xml -o $@ $(builddir)
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --xml-pretty -o $@ $(builddir)
 
 CLEANFILES += coverage.html coverage.*.html
 coverage.html: check
