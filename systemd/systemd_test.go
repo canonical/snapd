@@ -775,7 +775,7 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
-func (s *SystemdTestSuite) TestDaemonDisableEnable(c *C) {
+func (s *SystemdTestSuite) TestDaemonReEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.DaemonReEnable([]string{"foo"})
 	c.Assert(err, IsNil)

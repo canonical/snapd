@@ -106,12 +106,11 @@ func sessionInfo(c *Command, r *http.Request) Response {
 // lacks a graphical system, but still wants to install a snap that has a daemon
 // that is designed for it (for example, because it contains other tools that
 // are useful in a text-only system; another case is for spread tests).
-
 func checkWantedByForService(sysd systemdService, originalError error, service string) error {
-	// first, get the path where the .target file of this service is, load it as an INI file,
+	// first, get the path where the .service file of this service is, load it as an INI file,
 	// and read the `WantedBy` section to get in which target this service should be launched.
 	servicePath, err := sysd.GetServicePath(service)
-	if err != nil {
+	if err != nil || servicePath == "" {
 		newError := fmt.Errorf("cannot get the systemd service file path for %s: %w", service, err)
 		return strutil.JoinErrors(originalError, newError)
 	}
@@ -135,7 +134,7 @@ func checkWantedByForService(sysd systemdService, originalError error, service s
 
 	// Now that we know in which target this service wants to run, we must get the
 	// state of that target. For this, first we ask systemd what DBus object refers
-	// to the desired target by using the `GetUnit()`` method, and then we check in
+	// to the desired target by using the `GetUnit()` method, and then we check in
 	// that object the `ActiveState` property, to know if that desired target is
 	// currently active or not.
 	conn, err := dbusutil.SessionBus()
@@ -218,6 +217,9 @@ func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Respons
 				startErrors[service] = err2.Error()
 				break
 			}
+			// Start failure was acceptable (e.g. target inactive); do not
+			// treat the service as started and skip cleanup stop  attempts.
+			continue
 		}
 		started = append(started, service)
 	}

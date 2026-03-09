@@ -1446,7 +1446,7 @@ func (s *systemdMock) GetServicePath(service string) (string, error) {
 	if p, ok := s.services[service]; ok {
 		return p, nil
 	}
-	return "", fmt.Errorf("Unknown service %s", service)
+	return "", fmt.Errorf("unknown service %s", service)
 }
 
 type objectPath struct {
@@ -1546,7 +1546,7 @@ func sendStringAnswer(msg *dbus.Message, val string) []*dbus.Message {
 	}}
 }
 
-func (s *restSuite) TestCheckWantedForService(c *C) {
+func (s *restSuite) TestCheckWantedForServiceWithNonGraphicalService(c *C) {
 	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		// no dbus messages expected
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
@@ -1568,7 +1568,7 @@ WantedBy=default.target`)
 	c.Assert(err.Error(), Equals, "Test error")
 }
 
-func (s *restSuite) TestCheckWantedForService2(c *C) {
+func (s *restSuite) TestCheckWantedForServiceWithGraphicalServiceInactive(c *C) {
 	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		header, body := parseDbusMsg(msg)
 		if header.path.compare("/org/freedesktop/systemd1") &&
@@ -1591,7 +1591,7 @@ func (s *restSuite) TestCheckWantedForService2(c *C) {
 			}
 		}
 
-		return nil, fmt.Errorf("Unexpected DBus message\n%s", header.ToString())
+		return nil, fmt.Errorf("unexpected DBus message\n%s", header.ToString())
 	})
 	c.Assert(err, IsNil)
 	defer stub.Close()
@@ -1609,7 +1609,7 @@ WantedBy=graphical-session.target`)
 	c.Assert(err, IsNil)
 }
 
-func (s *restSuite) TestCheckWantedForService3(c *C) {
+func (s *restSuite) TestCheckWantedForServiceWithGraphicalServiceActive(c *C) {
 	stub, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		header, body := parseDbusMsg(msg)
 		if header.path.compare("/org/freedesktop/systemd1") &&
@@ -1632,7 +1632,7 @@ func (s *restSuite) TestCheckWantedForService3(c *C) {
 			}
 		}
 
-		return nil, fmt.Errorf("Unexpected DBus message\n%s", header.ToString())
+		return nil, fmt.Errorf("unexpected DBus message\n%s", header.ToString())
 	})
 	c.Assert(err, IsNil)
 	defer stub.Close()

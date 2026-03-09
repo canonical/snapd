@@ -567,7 +567,7 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	}
 	if len(es.reEnableUnits) != 0 {
 		if err := userDaemonReEnable(es.reEnableUnits); err != nil {
-			es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
+			es.inter.Notify(fmt.Sprintf("while trying to reenable user systemd units: %v", err))
 		}
 	}
 	if es.systemDaemonReloadNeeded {
