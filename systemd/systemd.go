@@ -404,7 +404,7 @@ type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
 	// DaemonReEnable disables a daemon and re-enables it again
-	DaemonReEnable([]string) error
+	DaemonReEnable(services []string) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
