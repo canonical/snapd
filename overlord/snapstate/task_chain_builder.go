@@ -247,3 +247,14 @@ func findHeadAndTailTasks(tasks []*state.Task) (heads, tails, remainder []*state
 
 	return heads, tails, remainder
 }
+
+func serializeTaskSets(prev, next *state.TaskSet) {
+	_, tails, _ := findHeadAndTailTasks(prev.Tasks())
+	heads, _, _ := findHeadAndTailTasks(next.Tasks())
+
+	for _, h := range heads {
+		for _, t := range tails {
+			h.WaitFor(t)
+		}
+	}
+}

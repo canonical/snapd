@@ -1113,25 +1113,6 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
-func currentEssentialSnapNames(st *state.State, providedDeviceCtx DeviceContext) ([]string, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, sn := range deviceCtx.Model().EssentialSnaps() {
-		names = append(names, sn.SnapName())
-	}
-
-	// some models have an implicit snapd, make sure that we account for it here
-	if !strutil.ListContains(names, "snapd") {
-		names = append(names, "snapd")
-	}
-
-	return names, nil
-}
-
 func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]bool, error) {
 	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil {
@@ -1185,101 +1166,66 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// resolved. we won't need to resolve any of their component errors
 	// explicitly.
 	resolved := make(map[string]bool)
+	missingComponentsFor := func(name string) []string {
+		cerr, ok := valErr.ComponentErrors[name]
+		if !ok {
+			return nil
+		}
 
-	essential, err := currentEssentialSnapNames(st, nil)
-	if err != nil {
-		return nil, nil, err
+		comps := keys(cerr.MissingComponents)
+		sort.Strings(comps)
+		return comps
 	}
 
-	var wrongRevs, wrongRevsEssential []StoreUpdate
+	updates := make([]StoreUpdate, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
 	for name := range valErr.WrongRevisionSnaps {
 		resolved[name] = true
 
-		var additionalComps []string
-		if cerr, ok := valErr.ComponentErrors[name]; ok {
-			additionalComps = keys(cerr.MissingComponents)
-		}
-
-		update := StoreUpdate{
+		updates = append(updates, StoreUpdate{
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
-			AdditionalComponents: additionalComps,
-		}
-
-		if strutil.ListContains(essential, name) {
-			wrongRevsEssential = append(wrongRevsEssential, update)
-		} else {
-			wrongRevs = append(wrongRevs, update)
-		}
+			AdditionalComponents: missingComponentsFor(name),
+		})
 	}
 
-	var missing []StoreSnap
 	for name := range valErr.MissingSnaps {
-		var comps []string
-		if cerr, ok := valErr.ComponentErrors[name]; ok {
-			comps = keys(cerr.MissingComponents)
-		}
-
 		resolved[name] = true
-		missing = append(missing, StoreSnap{
+		updates = append(updates, StoreUpdate{
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
-			Components: comps,
+			AdditionalComponents: missingComponentsFor(name),
+			InstallIfMissing:     true,
 		})
+	}
+
+	opts := Options{
+		Flags: Flags{
+			Transaction:          client.TransactionAllSnaps,
+			Lane:                 lane,
+			NoReRefresh:          true,
+			NoDelayedSideEffects: true,
+		},
+		UserID: userID,
 	}
 
 	// disable delayed side effects for all operations triggered by validation
 	// sets
-	var essentialTss []*state.TaskSet
-	if len(wrongRevsEssential) > 0 {
-		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevsEssential...), nil, Options{
-			Flags: Flags{
-				Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true,
-				NoDelayedSideEffects: true,
-			},
-		})
+	var tasksets []*state.TaskSet
+	if len(updates) > 0 {
+		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(updates...), nil, opts)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		essentialTss = append(essentialTss, uts.Refresh...)
+		tasksets = append(tasksets, uts.Refresh...)
 		affected = append(affected, updated...)
 	}
 
-	var updateTss []*state.TaskSet
-	if len(wrongRevs) > 0 {
-		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
-			Flags: Flags{
-				Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true,
-				NoDelayedSideEffects: true,
-			},
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
-		}
-
-		updateTss = append(updateTss, uts.Refresh...)
-		affected = append(affected, updated...)
-	}
-
-	var installed []*snap.Info
-	var installTss []*state.TaskSet
-	if len(missing) > 0 {
-		var err error
-		installed, installTss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
-			Flags: Flags{
-				Transaction: client.TransactionAllSnaps, Lane: lane,
-				NoDelayedSideEffects: true,
-			},
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
-		}
-	}
+	componentTasksets := make([]*state.TaskSet, 0, len(valErr.ComponentErrors))
 
 	for snapName, cerr := range valErr.ComponentErrors {
 		if resolved[snapName] {
@@ -1295,44 +1241,24 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			return nil, nil, err
 		}
 
-		compTasks, err := InstallComponents(ctx, st, comps, info, vsets, Options{})
+		compTasks, err := InstallComponents(ctx, st, comps, info, vsets, opts)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		affected = append(affected, snapName)
-		installTss = append(installTss, compTasks...)
+		componentTasksets = append(componentTasksets, compTasks...)
 	}
 
-	for _, i := range installed {
-		affected = append(affected, i.InstanceName())
-	}
-
-	// here we enforce some ordering constraints:
-	//  * essential snaps are updated first; this ensures that all reboots are
-	//    grouped together and subsequent updates/installs will see the new
-	//    versions of the essential snaps
-	//  * non-essential bases are installed next. this ensures that the
-	//    following updates and installs have their bases available. without this
-	//    ordering constraint, updates that bring in a new base will create a
-	//    circular dependency on the update's "prerequisites" task.
-	//  * the remaining updates and installs are done last
-
-	// installTss is made up of the install tasks for snaps and components (in
-	// that order). we only care about the snap ones, so we take a subslice.
-	var baseInstalls, nonBaseInstalls []*state.TaskSet
-	for i, ts := range installTss[:len(installed)] {
-		if installed[i].Type() == snap.TypeBase {
-			baseInstalls = append(baseInstalls, ts)
-		} else {
-			nonBaseInstalls = append(nonBaseInstalls, ts)
+	// all components-only ops wait for all installs/refreshes
+	for _, ts := range tasksets {
+		for _, cts := range componentTasksets {
+			serializeTaskSets(ts, cts)
 		}
 	}
+	tasksets = append(tasksets, componentTasksets...)
 
-	nonBaseInstalls = append(nonBaseInstalls, installTss[len(installed):]...)
-
-	// TODO: make use of EndEdges to make this chaining result in cleaner graphs
-	tasksets := flattenAndWaitTaskSets(essentialTss, baseInstalls, updateTss, nonBaseInstalls)
+	sort.Strings(affected)
 
 	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
 	for vsStr, vs := range valErr.Sets {
@@ -1343,45 +1269,15 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	enforceTask.Set("validation-sets", encodedAsserts)
 	enforceTask.Set("pinned-sequence-numbers", pinnedSeqs)
 	enforceTask.Set("userID", userID)
+	enforceTS := state.NewTaskSet(enforceTask)
+	enforceTS.JoinLane(lane)
 
 	for _, ts := range tasksets {
-		enforceTask.WaitAll(ts) // TODO: make this not a WaitAll
+		serializeTaskSets(ts, enforceTS)
 	}
-	ts := state.NewTaskSet(enforceTask)
-	ts.JoinLane(lane)
-	tasksets = append(tasksets, ts)
+	tasksets = append(tasksets, enforceTS)
 
 	return tasksets, affected, nil
-}
-
-// flattenAndWaitTaskSets merges a slice of [state.TaskSet] slices into one flat
-// slice. It also enforces ordering so that every [state.Task] in chain[i] waits
-// for each [state.Task] in chain[i-1].
-//
-// TODO: This implementation could be better if we relied on each task set to
-// have an [EndEdge]. This isn't true at the moment.
-func flattenAndWaitTaskSets(chain ...[]*state.TaskSet) []*state.TaskSet {
-	if len(chain) == 0 {
-		return nil
-	}
-
-	prev := chain[0]
-	flattened := make([]*state.TaskSet, len(prev))
-	copy(flattened, prev)
-
-	for _, tss := range chain[1:] {
-		// all of the tasks in tss must go after all of the tasks in prev
-		// thus, all of the tasks in tss must wait on all of the tasks in prev
-		for _, ts := range tss {
-			for _, prevTs := range prev {
-				ts.WaitAll(prevTs) // TODO: make this not a WaitAll
-			}
-		}
-		flattened = append(flattened, tss...)
-		prev = tss
-	}
-
-	return flattened
 }
 
 func keys[K comparable, V any](m map[K]V) []K {
