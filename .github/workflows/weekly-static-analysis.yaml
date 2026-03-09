@@ -74,7 +74,7 @@ jobs:
           HAVE_GCOV=/usr/bin/gcov ./autogen.sh --enable-test-coverage
           mkdir -p .coverage
           make coverage.xml
-          cp coverage.xml .coverage/c-coverage.xml
+          mv coverage.xml .coverage/c-coverage.xml
 
     - name: Test Go with coverage
       run: |
