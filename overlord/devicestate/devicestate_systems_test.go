@@ -1748,7 +1748,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedRefreshRecordsSeededSystem(c *C) {
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	s.state.Lock()
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -2555,7 +2556,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystemSeedRefresh(c *C) {
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
