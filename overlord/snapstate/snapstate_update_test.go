@@ -14023,9 +14023,7 @@ func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
 // with an app depending on the model base, to test that the update doesn't make
 // apps wait for the reboot required by the essential snaps.
 func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18BasedApp bool) (names []string, infos []*snap.SideInfo) {
-	restore := release.MockOnClassic(true)
-	s.AddCleanup(restore)
-	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	restore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	s.AddCleanup(restore)
 
 	snaps := []string{"snapd", "kernel", "core18", "gadget", "some-base", "some-base-snap"}
@@ -14116,6 +14114,9 @@ func (s *snapmgrTestSuite) setupSplitRefreshAppDependsOnModelBase(c *C, core18Ba
 func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithSharedBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
 
 	sharedBase := true
 	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
@@ -14309,6 +14310,9 @@ func (s *snapmgrTestSuite) checkSplitRefreshWithSharedBase(c *C, chg *state.Chan
 func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
 
 	sharedBase := false
 	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)

@@ -6615,6 +6615,9 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithSharedBase(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
+
 	sharedBase := true
 	paths, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)
 
@@ -6644,6 +6647,9 @@ func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithSharedBase(c *C)
 func (s *snapmgrTestSuite) TestInstallPathManySplitEssentialWithoutSharedBased(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
 
 	sharedBase := false
 	paths, infos := s.setupSplitRefreshAppDependsOnModelBase(c, sharedBase)

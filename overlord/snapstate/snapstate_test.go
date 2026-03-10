@@ -9749,6 +9749,176 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering
 	s.testResolveValidationSetsEnforcementErrorComponents(c, opts)
 }
 
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSplitRefreshClassic(c *C) {
+	const classic = true
+	s.testResolveValidationSetsEnforcementErrorSplitRefresh(c, classic)
+}
+
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSplitRefreshCore(c *C) {
+	const classic = false
+	s.testResolveValidationSetsEnforcementErrorSplitRefresh(c, classic)
+}
+
+func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh(c *C, classic bool) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
+		panic("unexpected call")
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(classic)
+	s.AddCleanup(restore)
+
+	_, infos := s.setupSplitRefreshAppDependsOnModelBase(c, true)
+
+	// since the fake store doesn't use real snap ids for these snaps, but
+	// validation set assertions require real ids, we have to do this hack here.
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		switch info.SnapName() {
+		case "snapd":
+			info.SnapType = snap.TypeSnapd
+		case "kernel":
+			info.SnapType = snap.TypeKernel
+		case "gadget":
+			info.SnapType = snap.TypeGadget
+			info.Base = "core18"
+		case "core18":
+			info.SnapType = snap.TypeBase
+		case "some-base":
+			info.SnapType = snap.TypeBase
+		case "some-base-snap":
+			info.Base = "some-base"
+		case "some-snap-with-core18-base":
+			info.Base = "core18"
+		}
+		return nil
+	}
+
+	for _, info := range infos {
+		info.SnapID = snaptest.AssertedSnapID(info.RealName)
+		s.fakeStore.registerID(info.RealName, info.SnapID)
+
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, info.RealName, &snapst)
+		c.Assert(err, IsNil)
+
+		snapstate.Set(s.state, info.RealName, &snapstate.SnapState{
+			Active: snapst.Active,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+				RealName: info.RealName, SnapID: info.SnapID, Revision: snapst.Current},
+			}),
+			Current:         snapst.Current,
+			TrackingChannel: snapst.TrackingChannel,
+			SnapType:        snapst.SnapType,
+		})
+	}
+
+	validationSnaps := make([]any, 0, len(infos))
+	expectedAffected := make([]string, 0, len(infos))
+	for _, info := range infos {
+		validationSnaps = append(validationSnaps, map[string]any{
+			"name":     info.RealName,
+			"id":       info.SnapID,
+			"presence": "required",
+			"revision": fmt.Sprintf("%d", info.Revision.N),
+		})
+		expectedAffected = append(expectedAffected, info.RealName)
+	}
+
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps":        validationSnaps,
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+
+	installed, _, err := snapstate.InstalledSnaps(s.state)
+	c.Assert(err, IsNil)
+
+	err = vsets.CheckInstalledSnaps(installed, nil)
+	c.Assert(err, NotNil)
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	c.Assert(ok, Equals, true)
+
+	restore = snapstate.MockEnforceValidationSets(func(_ *state.State, usrKeysToVss map[string]*asserts.ValidationSet, pinned map[string]int, snaps []*snapasserts.InstalledSnap, snapsToIgnore map[string]bool, _ int) error {
+		return nil
+	})
+	defer restore()
+
+	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, nil, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, expectedAffected)
+
+	chg := s.state.NewChange("refresh-to-enforce", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	validateEnforcementOrder(c, tss)
+
+	// stop at the daemon restart caused by refreshing snapd
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+
+	// continue until the essential refreshes block on reboot
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	if classic {
+		// snapd, the application snaps, and the non-essential bases are done
+		for _, name := range []string{"snapd", "some-base", "some-base-snap", "some-snap-with-core18-base"} {
+			t := findTaskForSnap(c, chg, "auto-connect", name)
+			c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be done before reboot: %s", t.Kind(), name, t.Status()))
+		}
+
+		// essential set is not yet done, since these require a reboot
+		for _, name := range []string{"kernel", "gadget", "core18"} {
+			t := findTaskForSnap(c, chg, "auto-connect", name)
+			c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to still be pending reboot: %s", t.Kind(), name, t.Status()))
+		}
+	} else {
+		t := findTaskForSnap(c, chg, "auto-connect", "snapd")
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be done before reboot: %s", t.Kind(), "snapd", t.Status()))
+
+		for _, name := range []string{"some-base", "some-base-snap", "some-snap-with-core18-base", "kernel", "gadget", "core18"} {
+			t := findTaskForSnap(c, chg, "auto-connect", name)
+			c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to still be pending reboot: %s", t.Kind(), name, t.Status()))
+		}
+	}
+
+	link := findTaskForSnap(c, chg, "link-snap", "kernel")
+	c.Assert(link.Status(), Equals, state.WaitStatus, Commentf("expected kernel link-snap to wait for restart"))
+
+	enforce := findLastTask(chg, "enforce-validation-sets")
+	c.Assert(enforce, NotNil)
+	c.Check(enforce.Status(), Equals, state.DoStatus)
+
+	// one final reboot, for all of the essential snaps to share
+	s.mockRestartAndSettle(c, chg)
+
+	for _, name := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
+		t := findTaskForSnap(c, chg, "auto-connect", name)
+		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be done after reboot: %s", t.Kind(), name, t.Status()))
+	}
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
 type testResolveValidationSetsEnforcementErrorComponentsOpts struct {
 	expected          []*snapasserts.InstalledSnap
 	affected          []string
