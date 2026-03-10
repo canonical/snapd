@@ -248,6 +248,8 @@ func findHeadAndTailTasks(tasks []*state.Task) (heads, tails, remainder []*state
 	return heads, tails, remainder
 }
 
+// serializeTaskSets makes next wait on prev without creating superfluous
+// dependencies between the two task sets.
 func serializeTaskSets(prev, next *state.TaskSet) {
 	_, tails, _ := findHeadAndTailTasks(prev.Tasks())
 	heads, _, _ := findHeadAndTailTasks(next.Tasks())
