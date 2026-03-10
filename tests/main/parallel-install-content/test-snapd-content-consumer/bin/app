@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo "hello from app $SNAP_INSTANCE_NAME"
+
+cd "$SNAP" || exit 1
+
+for f in connected-content{,-2,-v2}/special-content-file; do
+    if [ -f "$f" ]; then
+        echo "$(dirname "$f"): $(cat "$f")" || true
+    else
+        echo "$(dirname "$f"): <not found>"
+    fi
+done
