@@ -1225,7 +1225,7 @@ func (l *mockLocale) Gettext(msgid string) string {
 	return "i18n"
 }
 
-func (l *mockLocale) NGettext(msgid string, msgid_plural string, n uint32) string {
+func (l *mockLocale) NGettext(msgid string, msgid_plural string, n int) string {
 	return "i18n"
 }
 

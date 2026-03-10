@@ -92,7 +92,7 @@ func (l *mockLocaleToUpper) Gettext(msgid string) string {
 	return strings.ToUpper(msgid)
 }
 
-func (l *mockLocaleToUpper) NGettext(msgid string, msgid_plural string, n uint32) string {
+func (l *mockLocaleToUpper) NGettext(msgid string, msgid_plural string, n int) string {
 	return strings.ToUpper(msgid)
 }
 

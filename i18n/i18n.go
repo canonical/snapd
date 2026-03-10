@@ -46,7 +46,7 @@ var (
 // LocaleCatalog provides singular and plural translation lookups.
 type LocaleCatalog interface {
 	Gettext(msgid string) string
-	NGettext(msgid string, msgidPlural string, n uint32) string
+	NGettext(msgid string, msgidPlural string, n int) string
 }
 
 func init() {
@@ -129,22 +129,9 @@ func G(msgid string) string {
 	return locale.Gettext(msgid)
 }
 
-// https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html
-// (search for 1000)
-func ngn(d int) uint32 {
-	const max = 1000000
-	if d < 0 {
-		d = -d
-	}
-	if d > max {
-		return uint32((d % max) + max)
-	}
-	return uint32(d)
-}
-
 // NG is the shorthand for NGettext
 func NG(msgid string, msgidPlural string, n int) string {
-	return locale.NGettext(msgid, msgidPlural, ngn(n))
+	return locale.NGettext(msgid, msgidPlural, n)
 }
 
 func MockLocale(l LocaleCatalog) (restore func()) {
@@ -164,8 +151,8 @@ func (c chaiCatalog) Gettext(msgid string) string {
 	return c.gettexter.Gettext(msgid)
 }
 
-func (c chaiCatalog) NGettext(msgid string, msgidPlural string, n uint32) string {
-	translated := c.gettexter.NGettext(msgid, msgidPlural, int(n))
+func (c chaiCatalog) NGettext(msgid string, msgidPlural string, n int) string {
+	translated := c.gettexter.NGettext(msgid, msgidPlural, n)
 	// Work around gettext-go fallback behavior for missing/untranslated plurals.
 	// Upstream references (github.com/chai2010/gettext-go v1.0.3):
 	// - locale.go: (*_Locale).syncTrMap() uses nilTranslator when no catalog exists.
