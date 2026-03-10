@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
@@ -65,11 +66,20 @@ func (gclusterEnd) appendTo(w io.Writer, withAttrs bool) error {
 }
 
 type gnode struct {
-	name string
+	name  string
+	attrs []string
 }
 
 func (gn gnode) appendTo(w io.Writer, withAttrs bool) error {
-	_, err := fmt.Fprintf(w, "  \"%s\"\n", gn.name)
+	_, err := fmt.Fprintf(w, "  \"%s\"", gn.name)
+	if err != nil {
+		return err
+	}
+	if withAttrs && len(gn.attrs) != 0 {
+		_, err := fmt.Fprintf(w, " [%s]\n", strings.Join(gn.attrs, ", "))
+		return err
+	}
+	_, err = io.WriteString(w, "\n")
 	return err
 }
 
@@ -102,17 +112,20 @@ type ChangeGraph struct {
 // of the task dependency graph of the given Change. taskLabeler should return
 // unique labels for tasks in the change, usually of the form "<task-kind>" for
 // unparameterized tasks or "<task-kind>:<params-repr>" for parameterized
-// tasks. tag can be used to trace the context of origin of the change, and
-// will appear in the graphical representation of the graph.
-func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label string, err error), tag string) (*ChangeGraph, error) {
+// tasks. taskLabeler may also return extra graphviz node attributes. tag can
+// be used to trace the context of origin of the change, and will appear in the
+// graphical representation of the graph.
+func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label string, attrs []string, err error), tag string) (*ChangeGraph, error) {
 	tasks := chg.Tasks()
 	labels := make(map[*state.Task]string, len(tasks))
+	taskAttrs := make(map[*state.Task][]string, len(tasks))
 	for _, t := range tasks {
-		label, err := taskLabeler(t)
+		label, attrs, err := taskLabeler(t)
 		if err != nil {
 			return nil, err
 		}
 		labels[t] = label
+		taskAttrs[t] = attrs
 	}
 	sortTasks(tasks, labels)
 	// use cluster subgraphs for tasks in the same lanes
@@ -141,7 +154,8 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 		clulabel := clusterLabel(clu)
 		addToDef(gcluster{clulabel})
 		for _, t := range clusterTasks[clulabel] {
-			addToDef(gnode{labels[t]})
+			attrs := append(nodeAttrs(t.Status()), taskAttrs[t]...)
+			addToDef(gnode{name: labels[t], attrs: attrs})
 		}
 		addToDef(gclusterEnd{})
 	}
@@ -162,7 +176,7 @@ func NewChangeGraph(chg *state.Change, taskLabeler func(*state.Task) (label stri
 			})
 		}
 	}
-	tags := []string{fmt.Sprintf("%s-%s", chg.ID(), chg.Kind())}
+	tags := []string{fmt.Sprintf("%s [%s]", chg.Kind(), chg.ID())}
 	if tag != "" {
 		tags = append(tags, tag)
 	}
@@ -214,22 +228,51 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 // Export invokes the dot command and writes the graphviz representation of the
 // change dependency graph into a temporary SVG file, returning the SVG path.
 func (g *ChangeGraph) Export() (svgPath string, err error) {
-	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(strings.Fields(strings.Join(g.tags, "-")), "-")))
+	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", filenamePrefix(g.tags)))
 	if err != nil {
 		return "", fmt.Errorf("cannot create .svg file: %v", err)
 	}
+
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
 	svgPath = f.Name()
-	f.Close()
+
 	dotCmd := exec.Command("dot", "-Tsvg", "-o"+svgPath)
 	gbuf := new(bytes.Buffer)
 	if err := g.WriteDotTo(gbuf); err != nil {
 		return "", err
 	}
+
 	dotCmd.Stdin = gbuf
 	if o, err := dotCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot process dot definition: %v", osutil.OutputErr(o, err))
 	}
 	return svgPath, nil
+}
+
+func filenamePrefix(tags []string) string {
+	frags := make([]string, 0, len(tags))
+	for _, t := range tags {
+		f := strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' {
+				return r
+			}
+			return ' '
+		}, t)
+		f = strings.Join(strings.Fields(f), "_")
+		if f == "" {
+			continue
+		}
+		frags = append(frags, f)
+	}
+
+	if len(frags) == 0 {
+		return "change-graph"
+	}
+
+	return strings.Join(frags, "-")
 }
 
 func clusterLabel(lanes []int) string {
@@ -258,4 +301,19 @@ func sortTasks(tasks []*state.Task, labels map[*state.Task]string) {
 	sort.Slice(tasks, func(i, j int) bool {
 		return labels[tasks[i]] < labels[tasks[j]]
 	})
+}
+
+func nodeAttrs(status state.Status) []string {
+	switch status {
+	case state.DoneStatus:
+		return []string{"style=filled", "fillcolor=lightgreen"}
+	case state.ErrorStatus:
+		return []string{"style=filled", "fillcolor=mistyrose"}
+	case state.UndoneStatus:
+		return []string{"style=filled", "fillcolor=moccasin"}
+	case state.WaitStatus:
+		return []string{"style=filled", "fillcolor=lightblue"}
+	default:
+		return nil
+	}
 }

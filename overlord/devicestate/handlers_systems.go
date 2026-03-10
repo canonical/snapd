@@ -515,6 +515,32 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 			return err
 		}
 
+		// in seed refresh mode, this task also marks the newly created system
+		// as the most recently seeded system. during a remodel, this happens
+		// during set-model.
+		if setup.SeedRefresh {
+			var previousSeededSystems []seededSystem
+			err := st.Get("seeded-systems", &previousSeededSystems)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+
+			t.Set("previous-seeded-systems", previousSeededSystems)
+
+			now := time.Now()
+			if err := m.recordSeededSystem(st, &seededSystem{
+				System:      label,
+				Model:       model.Model(),
+				BrandID:     model.BrandID(),
+				Revision:    model.Revision(),
+				Timestamp:   model.Timestamp(),
+				SeedTime:    now,
+				SeedRefresh: true,
+			}); err != nil {
+				return fmt.Errorf("cannot record a new seeded system: %v", err)
+			}
+		}
+
 		// tried systems should be a one item list, we can clear it now
 		st.Set("tried-systems", nil)
 	}
@@ -635,6 +661,15 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 		// this undoes what happens in markSystemRecoveryCapableAndDefault
 		if err := unmarkSystemRecoveryCapableAndDefault(t, label); err != nil {
 			return err
+		}
+
+		// undo the seeded-systems update done in finalize for seed-refresh mode
+		if setup.SeedRefresh {
+			var previousSeededSystems []seededSystem
+			if err := t.Get("previous-seeded-systems", &previousSeededSystems); err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			st.Set("seeded-systems", previousSeededSystems)
 		}
 	}
 

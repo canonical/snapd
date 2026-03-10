@@ -54,7 +54,8 @@ func (s *deviceMgrBootconfigSuite) mockGadget(c *C, yaml string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(33),
@@ -161,6 +162,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	// Override the gadget from SetupTest to add allowed arguments
 	yaml := gadgetYaml + `
 kernel-cmdline:
@@ -182,11 +186,18 @@ kernel-cmdline:
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test "update-managed-boot-config" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
+		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
-		c.Check(updated, Equals, true)
 	}
 	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
 		checkPendingExtraSnapdFragments(c, s.state, false)
@@ -253,6 +264,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts tes
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	// Override the gadget from SetupTest to add allowed arguments
 	yaml := gadgetYaml + `
 kernel-cmdline:
@@ -274,11 +288,18 @@ kernel-cmdline:
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test "update-managed-boot-config" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
+		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
-		c.Check(updated, Equals, true)
 	}
 	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
 		checkPendingExtraSnapdFragments(c, s.state, false)
@@ -700,6 +721,9 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.SetBootOkRan(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()

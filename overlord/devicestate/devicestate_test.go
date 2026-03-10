@@ -297,7 +297,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	})
 	s.AddCleanup(s.restoreProcessAutoImportAssertion)
 
-	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, applyInLine int) *state.TaskSet {
+	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, applyInLane int) *state.TaskSet {
 		// no reason for devicestate to set up tasks for delayed effects
 		panic("unexpected call")
 	}))
@@ -666,6 +666,51 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *
 	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
+	s.setPCModelInState(c)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = devicestate.MockOsutilBootID("boot-id-1")
+	defer restore()
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	var lastBootID string
+	s.state.Lock()
+	err := s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
+	s.state.Unlock()
+	// ensure-boot-ok-boot-id is unset
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+
+	// last reseal boot ID does not match current boot id so a reseal
+	// is expected
+	err = devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+	c.Check(logbuf.String(), Equals, "")
+	logbuf.Reset()
+
+	s.state.Lock()
+	err = s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(lastBootID, Equals, "boot-id-1")
+
+	// now last reseal boot ID matches current boot id so no reseal
+	// is expected
+	err = devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1) // unchanged
+	c.Check(logbuf.String(), testutil.Contains, `skipping boot ok check since it already ran for boot-id "boot-id-1"`)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 
@@ -786,7 +831,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -808,7 +854,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
@@ -2141,6 +2188,83 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }
 
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 8, 30, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	tSnap1 := s.state.NewTask("fake-download", "...")
+	tSnap2 := s.state.NewTask("fake-download", "...")
+	tComp1 := s.state.NewTask("fake-download-component", "...")
+
+	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{tSnap1.ID(), tSnap2.ID()}, []string{tComp1.ID()})
+	c.Assert(err, IsNil)
+
+	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
+	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+
+	const expectedLabel = "20260227"
+
+	var systemSetupData map[string]any
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &systemSetupData), IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]any{
+		"label":                 expectedLabel,
+		"directory":             filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"snap-setup-tasks":      []any{tSnap1.ID(), tSnap2.ID()},
+		"component-setup-tasks": []any{tComp1.ID()},
+		"mark-default":          true,
+		"seed-refresh":          true,
+		"test-system":           true,
+	})
+
+	var setupTaskID string
+	c.Assert(seedTS.Finalize.Get("recovery-system-setup-task", &setupTaskID), IsNil)
+	c.Check(setupTaskID, Equals, seedTS.Create.ID())
+
+	var boundary restart.RestartBoundaryDirection
+	c.Assert(seedTS.Create.Get("restart-boundary", &boundary), IsNil)
+	c.Check(boundary, Equals, restart.RestartBoundaryDirectionDo)
+}
+
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 9, 0, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	const labelBase = "20260227"
+	systemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+	c.Assert(os.MkdirAll(filepath.Join(systemsDir, labelBase), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(systemsDir, labelBase+"-1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(systemsDir, labelBase+"-2"), 0755), IsNil)
+
+	tSnap := s.state.NewTask("fake-download", "...")
+
+	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{tSnap.ID()}, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
+	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+
+	const expectedLabel = labelBase + "-3"
+
+	var systemSetupData map[string]any
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &systemSetupData), IsNil)
+	c.Check(systemSetupData["label"], Equals, expectedLabel)
+	c.Check(systemSetupData["directory"], Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel))
+	c.Check(systemSetupData["snap-setup-tasks"], DeepEquals, []any{tSnap.ID()})
+	c.Check(systemSetupData["mark-default"], Equals, true)
+	c.Check(systemSetupData["seed-refresh"], Equals, true)
+	c.Check(systemSetupData["test-system"], Equals, true)
+}
+
 func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2254,7 +2378,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2276,7 +2401,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
 	transitionCalls := 0
-	restore := devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
 		transitionCalls++
 		return nil
 	})
@@ -2375,7 +2500,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2416,7 +2542,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRan(s.mgr, false)
+	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
@@ -2610,11 +2737,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	})
 	defer restore()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	c.Check(logbuf.String(), Equals, "")
-
 	for i := 0; i < 10; i++ {
 		err := devicestate.EnsureEarlyBootXKBConfigUpdated(s.mgr)
 		c.Assert(err, IsNil)
@@ -2629,8 +2751,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, true)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="uk,pc105,,")`)
-	logbuf.Reset()
 
 	mockConf.Model = "pc104"
 	mockConf.Layouts = []string{"us"}
@@ -2640,8 +2760,6 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, true)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), testutil.Contains, `Extra snapd kernel cmdline fragment is updated (snapd.xkb="us,pc104,,")`)
-	logbuf.Reset()
 
 	// Run one more time with args unchanged, nothing should be logged
 	ensureCallback(&mockConf)
@@ -2650,11 +2768,98 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	checkPendingExtraSnapdFragments(c, s.state, false)
 	s.state.Set("kcmdline-pending-extra-snapd-fragments", false)
 	s.state.Unlock()
-	c.Check(logbuf.String(), Equals, "")
-	logbuf.Reset()
 
 	// Double check that initialization ran once.
 	c.Assert(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	c.Check(s.state.Changes(), HasLen, 0)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(logbuf.String(), Equals, "")
+
+	s.state.Unlock()
+	err := devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// no pending fragments, no changes created
+	checkPendingExtraSnapdFragments(c, s.state, false)
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(logbuf.String(), Equals, "")
+
+	// now set pending fragments that need to be applied
+	err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, "xkb", "some fragment")
+	c.Assert(err, IsNil)
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 0)
+	c.Check(logbuf.String(), Equals, "")
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// no actual task ran to unset pending state
+	checkPendingExtraSnapdFragments(c, s.state, true)
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Tasks(), HasLen, 1)
+	t := chg.Tasks()[0]
+	c.Check(t.Kind(), Equals, "update-gadget-cmdline")
+	var fromExtraSnapdFragment bool
+	err = t.Get("from-extra-snapd-fragments", &fromExtraSnapdFragment)
+	c.Assert(err, IsNil)
+	c.Check(fromExtraSnapdFragment, Equals, true)
+	c.Check(logbuf.String(), testutil.Contains, "applying pending extra snapd kernel cmdline fragments")
+}
+
+func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsAppliedConflictCheck(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, "xkb", "some fragment")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	c.Check(logbuf.String(), Equals, "")
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(logbuf.String(), testutil.Contains, "cannot apply extra snapd kernel command line fragments: remodeling in progress, no other changes allowed until this is done")
+	// no new change created
+	c.Assert(s.state.Changes(), HasLen, 1)
+
+	chg.SetStatus(state.DoneStatus)
+
+	chg = s.state.NewChange("apply-extra-snapd-kcmdline-fragments", "...")
+	chg.SetStatus(state.DoingStatus)
+	c.Assert(s.state.Changes(), HasLen, 2)
+
+	s.state.Unlock()
+	err = devicestate.EnsureExtraSnapdKernelCommandLineFragmentsApplied(s.mgr)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	// no new change created
+	c.Assert(s.state.Changes(), HasLen, 2)
 }
 
 func (s *deviceMgrSuite) cacheDeviceCore20Seed(c *C) {
@@ -2743,9 +2948,6 @@ volumes:
 	// reload device seed
 	_, _, err = devicestate.ReloadEarlyDeviceSeed(s.mgr, state.ErrNoState)
 	c.Assert(err, IsNil)
-
-	// not fully realistic but avoids more mocking
-	devicestate.SetBootOkRan(s.mgr, true)
 }
 
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {

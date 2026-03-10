@@ -1235,7 +1235,6 @@ nested_print_serial_log() {
 
 nested_force_stop_vm() {
     systemctl stop "$NESTED_VM"
-    systemctl stop "${NESTED_VM}-flush-serial" || true
 }
 
 nested_ensure_ovmf() {
@@ -1253,11 +1252,6 @@ nested_ensure_ovmf() {
 }
 
 nested_force_start_vm() {
-    if [ -e "${NESTED_WORK_DIR}"/serial.in ]; then
-        rm -f "${NESTED_WORK_DIR}"/serial.{in,out}
-        mkfifo "${NESTED_WORK_DIR}"/serial.{in,out}
-        systemctl start "${NESTED_VM}-flush-serial"
-    fi
     # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
     if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
@@ -1271,6 +1265,13 @@ nested_create_vm_service() {
     CURRENT_IMAGE=$1
     PARAM_OPT="${2:-}"
     QEMU=$(nested_qemu_name)
+
+    # Due to a bug in apparmor, on 26.04 the netcat apparmor profile is not
+    # allowing access to the ports exposed by qemu, remove it for the moment.
+    # Note that this function might be called for different tests running on
+    # the same host, so we ensure that the call does not fail.
+    # TODO remove once LP#2143151 is fixed.
+    apparmor_parser -R /etc/apparmor.d/nc.openbsd || true
 
     # Now qemu parameters are defined
 
@@ -1310,16 +1311,17 @@ nested_create_vm_service() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
+    # Open port 7777 on the host so that failures in the nested VM (e.g. to
+    # create users) can be debugged interactively via
+    # "telnet localhost 7777". Also keeps the logs
+    #
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        rm -f "${NESTED_WORK_DIR}"/serial.{in,out}
-        mkfifo "${NESTED_WORK_DIR}"/serial.{in,out}
-        tests.systemd create-and-start-unit "${NESTED_VM}-flush-serial" "$(command -v cat) ${NESTED_WORK_DIR}/serial.out" "[Service]\nStandardOutput=null\n"
-        PARAM_SERIAL="-chardev pipe,id=char0,path=${NESTED_WORK_DIR}/serial,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
 
     # save logs from previous runs

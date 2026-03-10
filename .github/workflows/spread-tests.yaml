@@ -88,6 +88,11 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
 
+          # Kill any leftover spread processes
+          echo "Leftover spread processes:"
+          ps -e -o cmd | grep spread | grep -v grep || true
+          killall -9 spread || true
+
     - name: Checkout code
       uses: actions/checkout@v6
       with:
@@ -455,6 +460,11 @@ jobs:
     - name: Discard spread workers
       if: always()
       run: |
+        # Kill any leftover spread processes
+        echo "Leftover spread processes:"
+        ps -e -o cmd | grep spread | grep -v grep || true
+        killall -9 spread || true
+
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";

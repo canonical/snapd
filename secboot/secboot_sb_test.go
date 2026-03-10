@@ -533,13 +533,21 @@ func (s *secbootSuite) TestProvisionForCVM(c *C) {
 	defer f.Close()
 	mu.MustMarshalToWriter(f, mu.Sized(expectedTemplate))
 
+	withCustomSRKTemplateCalls := 0
+	defer secboot.MockSbWithCustomSRKTemplate(func(srkTemplate *tpm2.Public) sb_tpm2.EnsureProvisionedOption {
+		withCustomSRKTemplateCalls += 1
+		c.Check(srkTemplate, DeepEquals, expectedTemplate)
+		return nil // We cannot produce the type because of private parameters
+	})()
+
 	provisioningCalls := 0
-	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+	restore = secboot.MockSbTPMEnsureProvisioned(func(tpm *sb_tpm2.Connection, options ...sb_tpm2.EnsureProvisionedOption) error {
 		provisioningCalls += 1
 		c.Check(tpm, Equals, mockTpm)
-		c.Check(mode, Equals, sb_tpm2.ProvisionModeWithoutLockout)
-		c.Check(lockoutAuth, IsNil)
-		c.Check(srkTemplate, DeepEquals, expectedTemplate)
+		c.Check(withCustomSRKTemplateCalls, Equals, 1)
+		c.Assert(options, HasLen, 2)
+		// options[0] is ProvisionWithoutLockout
+		c.Check(options[1], IsNil) // We cannot produce the type because of private parameters
 		return nil
 	})
 	defer restore()
@@ -552,7 +560,12 @@ func (s *secbootSuite) TestProvisionForCVMNoTPM(c *C) {
 	_, restore := mockSbTPMConnection(c, sb_tpm2.ErrNoTPM2Device)
 	defer restore()
 
-	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+	defer secboot.MockSbWithCustomSRKTemplate(func(srkTemplate *tpm2.Public) sb_tpm2.EnsureProvisionedOption {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	restore = secboot.MockSbTPMEnsureProvisioned(func(tpm *sb_tpm2.Connection, options ...sb_tpm2.EnsureProvisionedOption) error {
 		c.Error("unexpected provisioning call")
 		return nil
 	})
@@ -571,7 +584,12 @@ func (s *secbootSuite) TestProvisionForCVMTPMNotEnabled(c *C) {
 	})
 	defer restore()
 
-	restore = secboot.MockSbTPMEnsureProvisionedWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+	defer secboot.MockSbWithCustomSRKTemplate(func(srkTemplate *tpm2.Public) sb_tpm2.EnsureProvisionedOption {
+		c.Errorf("unexpected call")
+		return nil
+	})()
+
+	restore = secboot.MockSbTPMEnsureProvisioned(func(tpm *sb_tpm2.Connection, options ...sb_tpm2.EnsureProvisionedOption) error {
 		c.Error("unexpected provisioning call")
 		return nil
 	})
@@ -1134,10 +1152,11 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 
 		// mock provisioning
 		provisioningCalls := 0
-		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
+		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, options ...sb_tpm2.EnsureProvisionedOption) error {
 			provisioningCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
+			c.Check(options, HasLen, 1)
+			// options[0] is a new random lockout value
 			return tc.provisioningErr
 		})
 		defer restore()

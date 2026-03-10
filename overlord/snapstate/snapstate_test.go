@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/dot/dottest"
 	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
@@ -387,16 +388,8 @@ SNAPD_APPARMOR_REEXEC=1
 
 	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		tsk := st.NewTask("mock-process-delayed-security-backend-effects", "Process delayed security backend effects")
-
-		sortedLanes := make([]int, len(lanes))
-		copy(sortedLanes, lanes)
-		sort.Ints(sortedLanes)
-		// keep in sync with ifacestate.ProcessDelayedSecurityBackendEffects so
-		// that we stay close to the real implementation
-		tsk.Set("params", map[string]any{
-			"monitored-lanes": sortedLanes,
-			"apply-in-lane":   joinLane,
-		})
+		tsk.Set("mock-monitored-lanes", lanes)
+		tsk.Set("mock-apply-in-lane", joinLane)
 		return state.NewTaskSet(tsk)
 	}))
 
@@ -406,6 +399,9 @@ SNAPD_APPARMOR_REEXEC=1
 	// mock so the actual notification code isn't called. It races with the SetRootDir
 	// call in the TearDown function. It's harmless but triggers go test -race
 	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.PendingSnapRefreshInfo) {}))
+
+	restore = dottest.RegisterChangeExporter(c, s.state)
+	s.AddCleanup(restore)
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -12171,14 +12167,13 @@ func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, exp
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})
 	eff := ts.Tasks()[0]
-	// this should match what the mocked handler sets on the task, and should be
-	// mostly the same as the actual
-	// ifacestate.ProcessDelayedSecurityBackendEffects
-	var data map[string]any
-	c.Check(eff.Get("params", &data), IsNil)
-	c.Check(len(data), Equals, 2)
+	var lanes []int
+	c.Check(eff.Get("mock-monitored-lanes", &lanes), IsNil)
+	sort.Ints(lanes)
 	if expectedLanes != nil {
 		c.Check(data["monitored-lanes"], testutil.JsonEquals, expectedLanes)
 	}
-	c.Check(data["apply-in-lane"], testutil.JsonEquals, expectedJoinLane)
+	var applyInLane int = -42
+	c.Check(eff.Get("mock-apply-in-lane", &applyInLane), IsNil)
+	c.Check(applyInLane, Equals, expectedJoinLane)
 }

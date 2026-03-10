@@ -263,16 +263,23 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
+	// Mock in-progress apply-extra-snapd-kcmdline-fragments change so that
+	// ensure loop does not affect the test.
+	s.state.Lock()
+	chg := s.state.NewChange("apply-extra-snapd-kcmdline-fragments", "...")
+	chg.SetStatus(state.DoingStatus)
+	s.state.Unlock()
+
 	s.mockModelWithModeenv(modelGrade, isClassic)
 	s.mockGadget(c)
 	doHandlerCalls := 0
 	extraChange := true
 	expectedHandlerCalls := 1
-	expectedChanges := 2
+	expectedChanges := 3 // 2 + apply-extra-snapd-kcmdline-fragments mocked above
 	if (modelGrade != "dangerous" && len(option) == 1 && option[0].name == "system.kernel.dangerous-cmdline-append") || !seeded {
 		extraChange = false
 		expectedHandlerCalls = 0
-		expectedChanges = 1
+		expectedChanges = 2 // 1 + apply-extra-snapd-kcmdline-fragments mocked above
 	}
 
 	s.overlord.TaskRunner().AddHandler("update-gadget-cmdline",
@@ -333,7 +340,7 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 	hookCtx.Unlock()
 
 	s.state.Lock()
-	chg := s.state.NewChange("system-option", "...")
+	chg = s.state.NewChange("system-option", "...")
 	chg.AddTask(ts)
 	s.state.EnsureBefore(0)
 	s.state.Unlock()
@@ -363,6 +370,7 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 			soCh = ch
 		case "apply-cmdline-append":
 			aecCh = ch
+		case "apply-extra-snapd-kcmdline-fragments":
 		default:
 			c.Fatal("unexpected change kind")
 		}

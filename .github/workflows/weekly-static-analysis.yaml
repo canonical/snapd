@@ -1,4 +1,4 @@
-name: Nightly static code analysis
+name: Weekly static code analysis
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 jobs:
 
   tics:
-    runs-on: [self-hosted, linux, amd64, tiobe, jammy]
+    runs-on: [self-hosted, linux, amd64, tiobe, noble]
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin and
@@ -48,6 +48,10 @@ jobs:
       with:
         go-version: ${{ matrix.gochannel }}
 
+    - name: Reset code coverage data
+      run: |
+          rm -rf "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage"
+
     - name: Get deps
       run: |
           cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
@@ -63,14 +67,14 @@ jobs:
       run: |
           go build github.com/snapcore/snapd/...
 
-    - name: Test C
+    - name: Test C with coverage
       run: |
           cd "${{ github.workspace }}/src/github.com/snapcore/snapd/cmd"
-          make distcheck
-
-    - name: Reset code coverage data
-      run: |
-          rm -rf "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage"
+          sudo apt install -y gcovr
+          HAVE_GCOV=/usr/bin/gcov ./autogen.sh --enable-test-coverage
+          mkdir -p ../.coverage
+          make coverage.xml
+          mv coverage.xml ../.coverage/c-coverage.xml
 
     - name: Test Go with coverage
       run: |
@@ -80,7 +84,7 @@ jobs:
         COVERAGE_OUT=.coverage/coverage.txt \
           IGNORE_MISSING=1 \
           ./run-checks --unit
-        gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
+        gocover-cobertura < .coverage/coverage.txt > .coverage/go-coverage.xml
 
     - name: Install TICS dependencies
       run: |

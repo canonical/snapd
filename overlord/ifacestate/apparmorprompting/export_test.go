@@ -37,9 +37,10 @@ func MockListenerRegister(f func() (listenerBackend, error)) (restore func()) {
 }
 
 type fakeListener struct {
-	readyChan chan struct{}
-	reqsChan  chan *prompting.Request
-	closeChan chan struct{}
+	readyChan        chan struct{}
+	reqsChan         chan *prompting.Request
+	closeChan        chan struct{}
+	proceedWithClose chan struct{}
 }
 
 func (l *fakeListener) Close() error {
@@ -48,7 +49,6 @@ func (l *fakeListener) Close() error {
 		return listener.ErrAlreadyClosed
 	default:
 		close(l.reqsChan)
-		close(l.closeChan)
 	}
 	select {
 	case <-l.readyChan:
@@ -56,6 +56,8 @@ func (l *fakeListener) Close() error {
 	default:
 		close(l.readyChan)
 	}
+	<-l.proceedWithClose
+	close(l.closeChan)
 	return nil
 }
 
@@ -76,6 +78,18 @@ func (l *fakeListener) Reqs() <-chan *prompting.Request {
 }
 
 func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
+	proceedWithClose := make(chan struct{})
+	close(proceedWithClose)
+	return mockListenerInternal(proceedWithClose)
+}
+
+func MockListenerWithDelayedClose() (proceedWithClose, readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
+	proceedWithClose = make(chan struct{})
+	readyChan, reqChan, restore = mockListenerInternal(proceedWithClose)
+	return proceedWithClose, readyChan, reqChan, restore
+}
+
+func mockListenerInternal(proceedWithClose chan struct{}) (readyChan chan struct{}, reqChan chan *prompting.Request, restore func()) {
 	// The readyChan should be closed once all pending previously-sent requests
 	// have been re-sent.
 	readyChan = make(chan struct{})
@@ -86,9 +100,10 @@ func MockListener() (readyChan chan struct{}, reqChan chan *prompting.Request, r
 
 	restore = MockListenerRegister(func() (listenerBackend, error) {
 		return &fakeListener{
-			readyChan: readyChan,
-			reqsChan:  reqChan,
-			closeChan: closeChan,
+			readyChan:        readyChan,
+			reqsChan:         reqChan,
+			closeChan:        closeChan,
+			proceedWithClose: proceedWithClose,
 		}, nil
 	})
 	return readyChan, reqChan, restore

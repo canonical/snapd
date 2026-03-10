@@ -36,6 +36,8 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -56,9 +58,9 @@ type Request struct {
 	PID int32
 	// Cgroup is the cgroup path of the process which triggered the request.
 	Cgroup string
-	// AppArmorLabel is the AppArmor security label of the process which
-	// triggered the request. E.g. snap.libreoffice.writer
-	AppArmorLabel string
+	// Snap is the name of the snap which triggered the request.
+	// If the snap name cannot be determined, the process label may be used.
+	Snap string
 	// Interface is the snapd interface associated with this request.
 	Interface string
 	// Permissions is the abstract permissions being requested.
@@ -79,10 +81,12 @@ type Request struct {
 // `sendResponse` function to actually send the resulting response back to the
 // kernel.
 func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse listener.SendResponseFunc) (*Request, error) {
-	pid := msg.PID()
-	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	// XXX: we get the snap name from the process label in the message, but we
+	// could try to get it from the cgroup path instead.
+	snap := msg.ProcessLabel() // default to apparmor label, in case process is not a snap
+	if tag, err := naming.ParseSecurityTag(msg.ProcessLabel()); err == nil {
+		// the triggering process is a snap, so use instance name as snap field
+		snap = tag.InstanceName()
 	}
 	path := msg.Name()
 	tagsets := msg.DeniedMetadataTagsets()
@@ -109,22 +113,27 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 	if err != nil {
 		return nil, err
 	}
-	requestedPerms, err := AbstractPermissionsFromAppArmorPermissions(iface, aaRequested)
+	requestedPerms, err := abstractPermissionsFromAppArmorPermissions(iface, aaRequested)
 	if err != nil {
 		return nil, err
 	}
+	pid := msg.PID()
+	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
 	req := &Request{
-		Key:           key,
-		UID:           msg.SubjectUID(),
-		PID:           pid,
-		Cgroup:        cgroup,
-		AppArmorLabel: msg.ProcessLabel(),
-		Interface:     iface,
-		Permissions:   requestedPerms,
-		Path:          path,
+		Key:         key,
+		UID:         msg.SubjectUID(),
+		PID:         pid,
+		Cgroup:      cgroup,
+		Snap:        snap,
+		Interface:   iface,
+		Permissions: requestedPerms,
+		Path:        path,
 	}
 	req.Reply = func(allowedPermissions []string) error {
-		userAllowed, err := AbstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
+		userAllowed, err := abstractPermissionsToAppArmorPermissions(iface, allowedPermissions)
 		if err != nil {
 			return err
 		}
@@ -142,6 +151,48 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 
 func buildListenerRequestKey(iface string, id uint64) string {
 	return fmt.Sprintf("kernel:%s:%016X", iface, id)
+}
+
+// NewRequestFromAsk constructs a new [Request] with the given fields. The
+// given interface must be a non-AppArmor interface (e.g. "audio-record"), and
+// the request's permissions are set to be all available permissions for that
+// interface.
+func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string, reply func(allowedPerms []string) error) (*Request, error) {
+	if !strutil.ListContains(nonAppArmorInterfaces, iface) {
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, nonAppArmorInterfaces)
+	}
+	permissions, err := AvailablePermissions(iface)
+	if err != nil {
+		// This should never occur since interface is validated above
+		return nil, err
+	}
+
+	key := buildAskRequestKey(uid, iface, snap, pid)
+
+	// We need a placeholder path until we can work with requests/prompts/rules
+	// for interfaces which don't care about paths. This placeholder path will
+	// not be included in prompts, and path patterns for rules for interfaces
+	// with requests from the API will always match it.
+	// TODO: once paths are not necessary for all interfaces, remove this.
+	const path = "/api-request-placeholder"
+
+	req := &Request{
+		Key:         key,
+		UID:         uid,
+		PID:         pid,
+		Cgroup:      cgroup,
+		Snap:        snap,
+		Interface:   iface,
+		Permissions: permissions,
+		Path:        path,
+		Reply:       reply,
+	}
+
+	return req, nil
+}
+
+func buildAskRequestKey(uid uint32, iface, snap string, pid int32) string {
+	return fmt.Sprintf("api:%d:%s:%s:%d", uid, iface, snap, pid)
 }
 
 // Metadata stores information about the origin or applicability of a prompt or

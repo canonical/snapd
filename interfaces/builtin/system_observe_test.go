@@ -103,6 +103,7 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "lsm_get_self_attr\n")
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace\n")
 }
 

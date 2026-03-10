@@ -13,6 +13,10 @@ systems:
 
 execute: |
     case "$SPREAD_SYSTEM" in
+      ubuntu-core-26-*)
+        base_snap=core26
+        run_mnt_pts=()
+        ;;
       ubuntu-core-24-*)
         base_snap=core24
         run_mnt_pts=()
@@ -42,7 +46,15 @@ execute: |
 
     echo "Check that a simple shell snap"
     SHELL_SNAP="test-snapd-sh-${base_snap}"
-    snap install "$SHELL_SNAP"
+    case "${base_snap}" in
+      core26)
+        # TODO_UC26RELEASE: when core26 is release we can drop edge
+        snap install --edge "$SHELL_SNAP"
+        ;;
+      *)
+        snap install "$SHELL_SNAP"
+        ;;
+    esac
     "${SHELL_SNAP}.sh" -c 'echo hello' | MATCH hello
 
     if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
@@ -142,7 +154,7 @@ execute: |
 
         not mountpoint /run/mnt/base
         loop="$(findmnt -o source / -n)"
-        losetup -O back-file -n --raw "$loop" | MATCH '/run/mnt/data/.*/core24_.*'
+        losetup -O back-file -n --raw "$loop" | MATCH "/run/mnt/data/.*/${base_snap}_.*"
     fi
 
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags

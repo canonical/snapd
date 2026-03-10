@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/dot"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -143,22 +144,12 @@ func (c *cmdDebugState) writeDotOutput(st *state.State, changeID string) error {
 		return fmt.Errorf("no such change: %s", changeID)
 	}
 
-	fmt.Fprintf(Stdout, "digraph D{\n")
-	tasks := chg.Tasks()
-	for _, t := range tasks {
-		if c.NoHoldState && t.Status() == state.HoldStatus {
-			continue
-		}
-		fmt.Fprintf(Stdout, "  %s [label=\"%v\\n%v\"];\n", t.ID(), t.Kind(), strings.ReplaceAll(t.Summary(), `"`, `\"`))
-		for _, wt := range t.WaitTasks() {
-			if c.NoHoldState && wt.Status() == state.HoldStatus {
-				continue
-			}
-			fmt.Fprintf(Stdout, "  %s -> %s;\n", t.ID(), wt.ID())
-		}
+	g, err := dot.NewChangeGraph(chg, "")
+	if err != nil {
+		return fmt.Errorf("cannot create dot graph: %w", err)
 	}
-	fmt.Fprintf(Stdout, "}\n")
 
+	fmt.Fprintf(Stdout, "%s", g.Dot())
 	return nil
 }
 

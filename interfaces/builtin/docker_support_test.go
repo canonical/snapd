@@ -239,6 +239,7 @@ func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "# Calls the Docker daemon itself requires\n")
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "lsm_set_self_attr\n")
 }
 
 func (s *DockerSupportInterfaceSuite) TestKModSpec(c *C) {

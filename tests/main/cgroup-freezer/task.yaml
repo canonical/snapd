@@ -18,7 +18,8 @@ systems:
     - -ubuntu-25.*
     - -ubuntu-26.*
     - -ubuntu-core-22-*
-    - -ubuntu-core-24-*    
+    - -ubuntu-core-24-*
+    - -ubuntu-core-26-*
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

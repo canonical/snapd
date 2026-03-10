@@ -5,8 +5,11 @@ details: |
     based on a tmpfs, as part of the work to support homedirs in arbitrary
     locations.
 
-# Skip 32-bit architectures because the core20 snap is not available there
-systems: [-*-32]
+systems:
+  # Skip 32-bit architectures because the core20 snap is not available there
+  - -*-32
+  # pivot_root not on Ubuntu Core 26 either
+  - -ubuntu-core-26*
 
 skip:
     - reason: Unshare command doesn't support saving the namespace

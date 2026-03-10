@@ -482,7 +482,7 @@ func checkSnapAgainstConstraints(
 	return nil
 }
 
-func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
+func checkComponentsPresenceAndRevision(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
 	verb := "install"
 	switch action {
 	case "refresh":
@@ -506,6 +506,21 @@ func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Re
 		if !cp.Revision.Unset() && compRevision != cp.Revision {
 			return invalidComponentRevisionError(action, snapName, compName, cp.Sets, compRevision, cp.Revision)
 		}
+	}
+	return nil
+}
+
+func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
+	verb := "install"
+	switch action {
+	case "refresh":
+		verb = "update"
+	case "download":
+		verb = "download"
+	}
+
+	if err := checkComponentsPresenceAndRevision(snapName, comps, constraints, action); err != nil {
+		return err
 	}
 
 	for compName, compPres := range constraints.RequiredComponents() {

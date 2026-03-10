@@ -372,7 +372,8 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			c.Assert(err, IsNil)
 		}
 	}
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	expectedRst := restart.RestartSystem
 	s.state.Lock()
@@ -1104,7 +1105,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
 	defer restore()
 
 	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -1146,7 +1148,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	defer restore()
 
 	chg, t := s.makeMinimalKernelAssetsUpdateChange(c)
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -1246,11 +1249,19 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		argsAppended = true
 	}
 	checkCmdlineAppendCoreConfig(c, s.state, "", "")
+
+	if len(opts.extraSnapdKernelCmdlineFragments) != 0 {
+		// Mock exclusive change so that ensureExtraSnapdKernelCommandLineFragmentsApplied
+		// does not run and we can test ""update-gadget-cmdline"" actually applies
+		// pending snapd kcmdline fragments.
+		chg := s.state.NewChange("remodel", "...")
+		chg.SetStatus(state.DoingStatus)
+	}
+
 	// Set extra snapd kernel command line args as well
 	for fragmentID, fragment := range opts.extraSnapdKernelCmdlineFragments {
-		updated, err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
+		err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, devicestate.ExtraSnapdKernelCmdlineFragmentID(fragmentID), fragment)
 		c.Assert(err, IsNil)
-		c.Check(updated, Equals, true)
 	}
 	if len(opts.extraSnapdKernelCmdlineFragments) == 0 {
 		checkPendingExtraSnapdFragments(c, s.state, false)
@@ -1338,8 +1349,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// update the modeenv to have the gadget arguments included to mimic the
 	// state we would have in the system
@@ -1396,8 +1408,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineClassicWithModesWithEx
 	s.state.Lock()
 	s.setupClassicWithModesModel(c, "pc")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// update the modeenv to have the gadget arguments included to mimic the
 	// state we would have in the system
@@ -1454,8 +1467,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1511,8 +1525,9 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetCommandlineWithNewAppendedArgs(c 
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", opts.grade)
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1663,8 +1678,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExtraSnapdArgs(c *
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1714,8 +1730,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 	bootloader.Force(s.managedbl)
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1771,8 +1788,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1813,8 +1831,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
 	// arguments are ignored on non UC20
 	s.state.Lock()
 	s.setupModelWithGadget(c, "pc")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// there is no modeenv either
 
@@ -1844,8 +1863,9 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -1974,8 +1994,9 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	s.state.Lock()
 	s.setupClassicWithModesModel(c, "pc")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -2093,8 +2114,9 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore = devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")
@@ -2167,8 +2189,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc", "dangerous")
 	s.mockModeenvForMode(c, "run")
-	devicestate.SetBootOkRan(s.mgr, true)
 	s.state.Set("seeded", true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
 
 	// mimic system state
 	m, err := boot.ReadModeenv("")

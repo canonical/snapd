@@ -6,6 +6,7 @@ details: |
 
 systems:
     - -ubuntu-14.04-* # systemd is too old for generated mount units
+    - -ubuntu-core* # core26 does not have base-files and this test doesn't need to run on core
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

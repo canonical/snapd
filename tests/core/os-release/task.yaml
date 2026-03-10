@@ -19,6 +19,8 @@ execute: |
         MATCH "DISTRIB_RELEASE=22" < /etc/lsb-release
     elif os.query is-core24; then
         MATCH "DISTRIB_RELEASE=24" < /etc/lsb-release
+    elif os.query is-core26; then
+        MATCH "DISTRIB_RELEASE=26" < /etc/lsb-release
     else
         echo "Unknown Ubuntu Core system!"
         exit 1

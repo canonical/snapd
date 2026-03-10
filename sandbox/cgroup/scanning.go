@@ -43,8 +43,8 @@ var (
 	roughAppTagPatternWithUUID = regexp.MustCompile(`(snap\.[^.]+\.[^.]+)(-` + uuidPattern + `)`)
 )
 
-// securityTagFromCgroupPath returns a security tag from cgroup path.
-func securityTagFromCgroupPath(path string) naming.SecurityTag {
+// SecurityTagFromCgroupPath returns a security tag from cgroup path.
+func SecurityTagFromCgroupPath(path string) naming.SecurityTag {
 	leaf := filepath.Base(filepath.Clean(path))
 
 	// If the security cgroup name doesn't start with "snap." then there is no
@@ -162,7 +162,7 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 		// not all cgroups are related to snaps it is not an error if the
 		// cgroup path does not denote a snap.
 		cgroupPath := filepath.Dir(path)
-		parsedTag := securityTagFromCgroupPath(cgroupPath)
+		parsedTag := SecurityTagFromCgroupPath(cgroupPath)
 		if parsedTag == nil {
 			return nil
 		}
@@ -228,7 +228,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			return nil, err
 		}
 		cgroupPath := filepath.Dir(path)
-		parsedTag := securityTagFromCgroupPath(cgroupPath)
+		parsedTag := SecurityTagFromCgroupPath(cgroupPath)
 		tag := parsedTag.String()
 		pidsByTag[tag] = append(pidsByTag[tag], pids...)
 	}

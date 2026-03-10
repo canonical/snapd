@@ -124,7 +124,6 @@ purge() {
                 fi
                 # generated binaries
                 rm -f "${global_snaps_mount_dir}/bin/$snap"
-                find "${global_snaps_mount_dir}/bin" -maxdepth 1 -name "$snap.*" -delete
                 # snap mount dir
                 umount -l "$snap_mountpoint" 2> /dev/null || true
                 rm -rf "$snap_mountpoint"

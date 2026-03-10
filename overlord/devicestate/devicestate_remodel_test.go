@@ -5277,7 +5277,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
@@ -5394,7 +5396,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 
@@ -5594,7 +5596,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
@@ -5727,7 +5731,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	})
 
 	installWithDeviceContextCalled := 0
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		g := goal.(*pathInstallGoalRecorder)
 
 		installWithDeviceContextCalled++
@@ -5892,7 +5896,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelErr(c *C) {
 			fmt.Errorf("mock reseal error"), // device change pre model write
 		},
 		taskLogMatch: `.* cannot complete remodel: cannot switch device: mock reseal error`,
-		logMatch:     `(?s).* cannot complete remodel: cannot switch device: mock reseal error.`,
+		logMatch:     `(?s).* cannot complete remodel: cannot switch device: mock reseal error.*`,
 	})
 }
 
@@ -5907,7 +5911,9 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRan(s.mgr, true)
+	defer restore()
+
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -6033,7 +6039,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
 		g := goal.(*storeInstallGoalRecorder)
 		name := g.snaps[0].InstanceName
 

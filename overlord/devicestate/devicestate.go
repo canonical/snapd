@@ -297,6 +297,7 @@ func delayedCrossMgrInit() {
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
+	snapstate.SeedRefreshTasks = SeedRefreshTasks
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1713,6 +1714,10 @@ type recoverySystemSetup struct {
 	// MarkDefault is set to true if the new recovery system should be marked as
 	// the default recovery system.
 	MarkDefault bool `json:"mark-default,omitempty"`
+	// SeedRefresh is set to true if the recovery system is being created as part
+	// of seed-refresh mode. This enables recording seeded-system state in
+	// finalize.
+	SeedRefresh bool `json:"seed-refresh,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1757,6 +1762,47 @@ func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, e
 	return state.NewTaskSet(remove), nil
 }
 
+// SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
+// tasks needed to refresh the seed managed by seed-refresh mode. The caller
+// must provide the tasks IDs that can be used by the seed creation tasks to
+// find the new snaps to include in the seed. Otherwise, already installed snaps
+// will be used to create the seed.
+func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+	labelBase := timeNow().Format("20060102")
+	label, err := pickRecoverySystemLabel(labelBase)
+	if err != nil {
+		return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+	}
+
+	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
+		TestSystem:  true,
+		MarkDefault: true,
+		SeedRefresh: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var create, finalize *state.Task
+	for _, t := range ts.Tasks() {
+		switch t.Kind() {
+		case "create-recovery-system":
+			create = t
+		case "finalize-recovery-system":
+			finalize = t
+		}
+	}
+
+	if create == nil || finalize == nil {
+		return nil, errors.New("internal error: expected create and finalize recovery system tasks")
+	}
+
+	return &snapstate.SeedRefreshTaskSet{
+		Create:   create,
+		Finalize: finalize,
+	}, nil
+}
+
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
@@ -1780,6 +1826,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 		LocalComponents:     opts.LocalComponents,
 		TestSystem:          opts.TestSystem,
 		MarkDefault:         opts.MarkDefault,
+		SeedRefresh:         opts.SeedRefresh,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1842,6 +1889,10 @@ type CreateRecoverySystemOptions struct {
 	// MarkDefault is set to true if the new recovery system should be marked as
 	// the default recovery system.
 	MarkDefault bool
+
+	// SeedRefresh is set to true if the recovery system was created by
+	// seed-refresh mode and should update seeded-system state in finalize.
+	SeedRefresh bool
 
 	// Offline is true if the recovery system should be created without reaching
 	// out to the store. Offline must be set to true if LocalSnaps is provided.

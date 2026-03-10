@@ -281,7 +281,8 @@ func (*listenerSuite) TestRunSimple(c *C) {
 	ids := []uint64{0xdead, 0xbeef}
 	requests := make([]*prompting.Request, 0, len(ids))
 
-	label := "snap.foo.bar"
+	label := "snap.mysnapname.foo"
+	snap := "mysnapname"
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010) // write (and append)
 	dBits := uint32(0b0101) // read, exec
@@ -315,7 +316,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 			c.Check(req.UID, Equals, msg.SUID)
 			c.Check(req.PID, Equals, msg.Pid)
 			c.Check(req.Cgroup, Equals, "some-cgroup-path")
-			c.Check(req.AppArmorLabel, Equals, label)
+			c.Check(req.Snap, Equals, snap)
 			c.Check(req.Interface, Equals, iface)
 			c.Check(req.Permissions, DeepEquals, perms)
 			c.Check(req.Path, Equals, path)

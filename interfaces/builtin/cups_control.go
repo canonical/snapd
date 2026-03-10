@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -117,6 +118,10 @@ dbus (receive)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
+const cupsControlPermanentSlotSecComp = `
+lsm_get_self_attr
+`
+
 type cupsControlInterface struct {
 	commonInterface
 }
@@ -163,6 +168,13 @@ func (iface *cupsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	if slot.Snap().Type() == snap.TypeApp || release.OnClassic {
 		snippet := strings.Replace(cupsControlConnectedPlugAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
+	}
+	return nil
+}
+
+func (iface *cupsControlInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(cupsControlPermanentSlotSecComp)
 	}
 	return nil
 }

@@ -76,7 +76,7 @@ environment:
     # List the snaps which are cached
     PRE_CACHE_SNAPS: test-snapd-tools test-snapd-sh
     # always skip removing the rsync snap
-    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20 test-snapd-rsync-core22 test-snapd-rsync-core24'
+    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20 test-snapd-rsync-core22 test-snapd-rsync-core24 test-snapd-rsync-core26'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
@@ -200,7 +200,7 @@ backends:
                   workers: 8
                   storage: 20G
             - ubuntu-core-26-64:
-                  image: ubuntu-2510-64
+                  image: ubuntu-2604-64
                   workers: 8
                   storage: 20G
 
@@ -413,6 +413,9 @@ backends:
             - ubuntu-core-24-64:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
+            - ubuntu-core-26-64:
+                image: snapd-spread/ubuntu-26.04-64-uefi
+                workers: 8
 
             - debian-12-64:
                 image: snapd-spread/debian-12-64
@@ -502,6 +505,20 @@ backends:
                   image: snapd-spread/ubuntu-26.04-64
                   storage: 30G
                   workers: 12
+
+    openstack-ext-dev:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
+        plan: shared.medium
+        storage: 30G
+        halt-timeout: 2h
+        wait-timeout: 10m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        volume-auto-delete: true
+        environment: *openstack-env
+        systems: *openstack-nested-systems
 
     openstack-validation:
         type: openstack
@@ -1684,6 +1701,7 @@ suites:
             - garden
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1763,6 +1781,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1824,6 +1843,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1896,6 +1916,7 @@ suites:
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
+            - openstack-ext-dev
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line

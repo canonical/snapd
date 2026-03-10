@@ -837,7 +837,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// and a new message about being disabled permanently
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `(?s).*System initialized, cloud-init reported to be in error state after 3 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisables(c *C) {
@@ -932,7 +932,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `(?s).*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitTakingTooLongDisablesFasterEnsures(c *C) {
@@ -1031,7 +1031,7 @@ fi`)
 	c.Assert(restrictCalls, Equals, 1)
 
 	// now a message after we timeout waiting for the transition
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `(?s).*System initialized, cloud-init failed to transition to done or error state after 5 minutes, disabled permanently.*`)
 }
 
 func (s *cloudInitSuite) TestCloudInitErrorOnceAllowsFixing(c *C) {

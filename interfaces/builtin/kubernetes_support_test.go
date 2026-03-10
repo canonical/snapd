@@ -225,6 +225,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.default"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "lsm_get_self_attr\n")
 
 	// kubeproxy should have the autobind rules
 	spec = seccomp.NewSpecification(s.plugKubeproxy.AppSet())
@@ -233,6 +234,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kubeproxy"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "lsm_get_self_attr\n")
 
 	// kubelet should have its rules and the autobind rules
 	spec = seccomp.NewSpecification(s.plugKubelet.AppSet())
@@ -241,6 +243,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kubelet"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "lsm_get_self_attr\n")
 
 	// kube-autobind-unix should have the autobind rules
 	spec = seccomp.NewSpecification(s.plugKubeAutobind.AppSet())
@@ -249,6 +252,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kube-autobind-unix"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "lsm_get_self_attr\n")
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
