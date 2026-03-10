@@ -37,13 +37,14 @@ import (
 // for more information.
 var (
 	TEXTDOMAIN = "snappy"
-	locale     localeCatalog
+	locale     LocaleCatalog
 
 	translationDomain string
 	translationDir    string
 )
 
-type localeCatalog interface {
+// LocaleCatalog provides singular and plural translation lookups.
+type LocaleCatalog interface {
 	Gettext(msgid string) string
 	NGettext(msgid string, msgidPlural string, n uint32) string
 }
@@ -146,10 +147,7 @@ func NG(msgid string, msgidPlural string, n int) string {
 	return locale.NGettext(msgid, msgidPlural, ngn(n))
 }
 
-func MockLocale(l interface {
-	Gettext(string) string
-	NGettext(string, string, uint32) string
-}) (restore func()) {
+func MockLocale(l LocaleCatalog) (restore func()) {
 	osutil.MustBeTestBinary("cannot mock locale in a non-test binary")
 	old := locale
 	locale = l
@@ -209,7 +207,7 @@ func (fs snapdLocaleFS) String() string {
 	return fmt.Sprintf("snapdLocaleFS(%s)", fs.baseRoot)
 }
 
-func newGettextCatalog(baseDir, domain, loc string, resolver func(baseRoot string, locale string, domain string) string) localeCatalog {
+func newGettextCatalog(baseDir, domain, loc string, resolver func(baseRoot string, locale string, domain string) string) LocaleCatalog {
 	g := gettext.New(domain, "", snapdLocaleFS{
 		baseRoot: baseDir,
 		resolver: resolver,
