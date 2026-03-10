@@ -53,9 +53,9 @@ func seedRefreshEnabled(st *state.State) (bool, error) {
 	return seedRefresh, nil
 }
 
-// seedRefreshTasksAndUpdates returns the seed-refresh tasks and the task sets
-// for snaps that are involved in the seed refresh.
-func seedRefreshTasksAndUpdates(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+// seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
+// sets for snaps that are involved in the seed refresh.
+func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
 	enabled, err := seedRefreshEnabled(st)
 	if err != nil {
 		return nil, nil, err
@@ -70,34 +70,31 @@ func seedRefreshTasksAndUpdates(st *state.State, stss []snapInstallTaskSet, devi
 		return nil, nil, err
 	}
 
-	seedSnapUpdates := seedSnapsToUpdate(stss, deviceCtx)
+	seedSnapTaskSets := taskSetsForSeedSnaps(stss, deviceCtx)
 
 	// none of the seed snaps are being updated, in that case there isn't
 	// anything to do.
-	if len(seedSnapUpdates) == 0 {
+	if len(seedSnapTaskSets) == 0 {
 		return nil, nil, nil
 	}
 
-	seedSnapTSS := make([]snapInstallTaskSet, 0, len(seedSnapUpdates))
-	for _, sts := range stss {
-		name := sts.snapsup.InstanceName()
-		if _, ok := seedSnapUpdates[name]; ok {
-			seedSnapTSS = append(seedSnapTSS, sts)
-		}
-	}
-
-	seedTS, err := seedRefreshTasksFromUpdates(st, seedSnapTSS)
+	snapsupIDs, compsupIDs, err := setupTaskIDsForSeedCreation(seedSnapTaskSets)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return seedTS, seedSnapUpdates, nil
+	seedTS, err := SeedRefreshTasks(st, snapsupIDs, compsupIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return seedTS, seedSnapTaskSets, nil
 }
 
 // setupTaskIDsForSeedCreation collects the snap and component setup task IDs
 // that seed creation should consume.
-func setupTaskIDsForSeedCreation(stss []snapInstallTaskSet) (snapsupIDs, compsupIDs []string, err error) {
-	for _, sts := range stss {
+func setupTaskIDsForSeedCreation(seedSnapUpdates map[string]snapInstallTaskSet) (snapsupIDs, compsupIDs []string, err error) {
+	for _, sts := range seedSnapUpdates {
 		t, err := sts.ts.Edge(SnapSetupEdge)
 		if err != nil {
 			return nil, nil, err
@@ -123,25 +120,9 @@ func setupTaskIDsForSeedCreation(stss []snapInstallTaskSet) (snapsupIDs, compsup
 	return snapsupIDs, compsupIDs, nil
 }
 
-// seedRefreshTasksFromUpdates builds the seed-refresh task set from the given
-// refresh task sets.
-func seedRefreshTasksFromUpdates(st *state.State, stss []snapInstallTaskSet) (*SeedRefreshTaskSet, error) {
-	snapsupIDs, compsupIDs, err := setupTaskIDsForSeedCreation(stss)
-	if err != nil {
-		return nil, err
-	}
-
-	seedTS, err := SeedRefreshTasks(st, snapsupIDs, compsupIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	return seedTS, nil
-}
-
-// seedSnapsToUpdate returns the task sets that correspond to snaps present in
-// the model.
-func seedSnapsToUpdate(stss []snapInstallTaskSet, dctx DeviceContext) map[string]snapInstallTaskSet {
+// taskSetsForSeedSnaps returns the selected refresh task sets keyed by
+// snap name for snaps present in the model.
+func taskSetsForSeedSnaps(stss []snapInstallTaskSet, dctx DeviceContext) map[string]snapInstallTaskSet {
 	seedSnaps := make(map[string]bool)
 	for _, sn := range dctx.Model().AllSnaps() {
 		seedSnaps[sn.SnapName()] = true

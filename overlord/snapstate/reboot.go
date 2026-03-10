@@ -272,16 +272,16 @@ func arrangeRebootAndUpdateSeed(
 		}
 	}
 
-	seedTS, seedSnapUpdates, err := seedRefreshTasksAndUpdates(st, stss, dctx)
+	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, dctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// since we need seed snaps to be available before we create the seed
 	// itself, we add the seed snaps to the early download cohort
-	for name := range seedSnapUpdates {
+	for name := range seedSnapTaskSets {
 		if earlyDownloads == nil {
-			earlyDownloads = make(map[string]bool, len(seedSnapUpdates))
+			earlyDownloads = make(map[string]bool, len(seedSnapTaskSets))
 		}
 		earlyDownloads[name] = true
 	}
@@ -399,7 +399,7 @@ func arrangeRebootAndUpdateSeed(
 		// this can happen if the seed is being updated due to non-essential
 		// snap refreshes
 		if prev == nil {
-			for _, sts := range seedSnapUpdates {
+			for _, sts := range seedSnapTaskSets {
 				seedTS.Create.WaitFor(tail(sts.beforeLocalSystemModificationsTasks))
 			}
 		}
@@ -464,7 +464,7 @@ func arrangeRebootAndUpdateSeed(
 			break
 		}
 
-		mergeEssentialAndSeedLanes(essentials, seedSnapUpdates, seedTS)
+		mergeEssentialAndSeedLanes(essentials, seedSnapTaskSets, seedTS)
 	} else {
 		// legacy behavior, set the do and undo reboot boundaries on all
 		// essential snaps, with the exception of snapd
