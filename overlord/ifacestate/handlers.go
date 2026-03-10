@@ -2403,11 +2403,6 @@ func getDelayedEffectsForSnaps(deferTask *state.Task) (delayed delayedEffects, e
 
 var delayedEffectsCoordinationRetryTimeout = time.Second / 2
 
-type processDelayedSecurityBackendEffectsParamsData struct {
-	MonitoredLanes []int `json:"monitored-lanes"`
-	ApplyInLane    int   `json:"apply-in-lane"`
-}
-
 func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Task, _ *tomb.Tomb) error {
 	// Single catch all task handler for all delayed side effects for snaps.
 	// Looks through all the tasks to identify which snaps are affected, and
