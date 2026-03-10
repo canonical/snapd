@@ -166,6 +166,14 @@ func (c chaiCatalog) Gettext(msgid string) string {
 
 func (c chaiCatalog) NGettext(msgid string, msgidPlural string, n uint32) string {
 	translated := c.gettexter.NGettext(msgid, msgidPlural, int(n))
+	// Work around gettext-go fallback behavior for missing/untranslated plurals.
+	// Upstream references (github.com/chai2010/gettext-go v1.0.3):
+	// - locale.go: (*_Locale).syncTrMap() uses nilTranslator when no catalog exists.
+	// - tr.go: nilTranslator uses plural.Formula("??").
+	// - plural/table.go: "??" uses nplurals=1; plural=0.
+	// - tr.go: (*translator).PNGettext() rewrites n via PluralFormula and only
+	//   falls back to msgidPlural when the resulting index is > 0.
+	// This can return msgid for n != 1, so keep GNU gettext fallback semantics here.
 	if translated == msgid && msgidPlural != "" && n != 1 {
 		return msgidPlural
 	}
