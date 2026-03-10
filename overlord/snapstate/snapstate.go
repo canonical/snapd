@@ -1669,6 +1669,8 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	}
 
 	if seedTS != nil {
+		// note: seed refresh isn't a real task kind, but a specialization of a
+		// normal refresh
 		if err := checkChangeConflictExclusiveKinds(st, "seed refresh", opts.FromChange); err != nil {
 			return nil, false, nil, err
 		}
