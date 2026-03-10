@@ -1202,6 +1202,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		})
 	}
 
+	// disable delayed side effects for all operations triggered by validation
+	// sets
 	opts := Options{
 		Flags: Flags{
 			Transaction:          client.TransactionAllSnaps,
@@ -1211,9 +1213,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		},
 		UserID: userID,
 	}
-
-	// disable delayed side effects for all operations triggered by validation
-	// sets
 	var tasksets []*state.TaskSet
 	if len(updates) > 0 {
 		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(updates...), nil, opts)
