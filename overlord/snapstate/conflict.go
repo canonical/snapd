@@ -152,24 +152,6 @@ func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
 }
 
 func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
-	checkConflictWithNewChange := func(running *state.Change) *ChangeConflictError {
-		// caller didn't specify the new change kind. in that case, the new
-		// change isn't exclusive
-		if newExclusiveChangeKind == "" {
-			return nil
-		}
-
-		// we want to run a new exclusive change, but other changes are in
-		// progress already
-		msg := fmt.Sprintf("other changes in progress (conflicting change %q), change %q not allowed until they are done", running.Kind(),
-			newExclusiveChangeKind)
-		return &ChangeConflictError{
-			Message:    msg,
-			ChangeKind: running.Kind(),
-			ChangeID:   running.ID(),
-		}
-	}
-
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() || (ignoreChangeID != "" && chg.ID() == ignoreChangeID) {
 			continue
@@ -222,17 +204,22 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 					ChangeID:   chg.ID(),
 				}
 			}
+		}
 
-			// even if this revert/refresh itself isn't exclusive, we still must
-			// consider that the new change might be exclusive, and a
-			// revert/refresh is indeed in progress.
-			if err := checkConflictWithNewChange(chg); err != nil {
-				return err
-			}
-		default:
-			if err := checkConflictWithNewChange(chg); err != nil {
-				return err
-			}
+		// caller didn't specify the new change kind. in that case, the new
+		// change isn't exclusive
+		if newExclusiveChangeKind == "" {
+			continue
+		}
+
+		// we want to run a new exclusive change, but other changes are in
+		// progress already
+		msg := fmt.Sprintf("other changes in progress (conflicting change %q), change %q not allowed until they are done", chg.Kind(),
+			newExclusiveChangeKind)
+		return &ChangeConflictError{
+			Message:    msg,
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
 		}
 	}
 	return nil
