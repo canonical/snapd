@@ -177,7 +177,6 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 %endif
 
 %if ! 0%{?with_bundled}
-BuildRequires: golang(go.etcd.io/bbolt)
 BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/chai2010/gettext-go)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
@@ -190,6 +189,7 @@ BuildRequires: golang(github.com/kr/pretty)
 BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
+BuildRequires: golang(go.etcd.io/bbolt)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
