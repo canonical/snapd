@@ -3312,8 +3312,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 29)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 15)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 30)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 16)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
