@@ -30,7 +30,7 @@ execute: |
     fi
 
     echo "Ensure that 'snap run test-snapd-sh.sh' returns a meaningful error"
-    snap run test-snapd-sh.sh -c 'echo Hello' 2>&1 | MATCH 'error: cannot run "test-snapd-sh", snap is disabled'
+    snap run test-snapd-sh.sh -c 'echo Hello' 2>&1 | MATCH 'error: cannot run "test-snapd-sh.sh", snap is disabled'
 
     if [ "$(snap debug confinement)" = strict ]; then
         echo "Ensure the test-snapd-sh security profiles are no longer there"
@@ -53,7 +53,6 @@ execute: |
 
     echo "Ensure test-snapd-sh runs normally after it was enabled"
     test-snapd-sh.sh -c 'echo Hello' | MATCH Hello
-    snap run test-snapd-sh.sh -c 'echo Hello' | MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
     snap install bare core24
