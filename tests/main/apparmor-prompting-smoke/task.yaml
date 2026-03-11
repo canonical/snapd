@@ -112,9 +112,11 @@ execute: |
     case "$INTERFACE" in
         "home")
             mkdir -p "$TARGET_DIR"
+            chown test:test "$TARGET_DIR"
             # create and add text to the target file
             TARGET_FILE="$TARGET_DIR/foo"
             echo "hello-foo" > "$TARGET_FILE"
+            chown test:test "$TARGET_FILE"
             PERMISSION="read"
             # the constraint used in the prompt response
             CONSTRAINT="{\"path-pattern\": \"$TARGET_FILE\", \"permissions\": [\"$PERMISSION\"]}"
