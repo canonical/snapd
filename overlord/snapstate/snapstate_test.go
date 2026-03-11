@@ -9868,7 +9868,9 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh
 		chg.AddAll(ts)
 	}
 
-	validateEnforcementOrder(c, tss)
+	if !classic {
+		validateEnforcementOrder(c, s.state, tss)
+	}
 
 	// stop at the daemon restart caused by refreshing snapd
 	s.settle(c)
@@ -9929,10 +9931,26 @@ type testResolveValidationSetsEnforcementErrorComponentsOpts struct {
 	current           []snapstate.SnapState
 }
 
-func validateEnforcementOrder(c *C, tss []*state.TaskSet) {
+func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet) {
+	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
+	c.Assert(err, IsNil)
+
+	essentials := []string{"snapd"}
+	for _, sn := range deviceCtx.Model().EssentialSnaps() {
+		essentials = append(essentials, sn.SnapName())
+	}
+
+	type snapTaskSet struct {
+		ts      *state.TaskSet
+		begin   *state.Task
+		snapsup *snapstate.SnapSetup
+	}
+
 	var (
-		snaps, comps []*state.Task
-		enforce      *state.Task
+		stss             []snapTaskSet
+		snaps, comps     []*state.Task
+		enforce          *state.Task
+		essentialTaskIDs []string
 	)
 	for _, ts := range tss {
 		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "enforce-validation-sets" {
@@ -9945,8 +9963,58 @@ func validateEnforcementOrder(c *C, tss []*state.TaskSet) {
 
 		if snapsup.ComponentExclusiveOperation {
 			comps = append(comps, ts.Tasks()...)
-		} else {
-			snaps = append(snaps, ts.Tasks()...)
+			continue
+		}
+
+		snaps = append(snaps, ts.Tasks()...)
+
+		stss = append(stss, snapTaskSet{
+			ts:      ts,
+			begin:   ts.MaybeEdge(snapstate.BeginEdge),
+			snapsup: snapsup,
+		})
+
+		if strutil.ListContains(essentials, snapsup.SideInfo.RealName) {
+			for _, t := range ts.Tasks() {
+				essentialTaskIDs = append(essentialTaskIDs, t.ID())
+			}
+		}
+	}
+
+	tasksByName := make(map[string]*state.TaskSet)
+	for _, sts := range stss {
+		tasksByName[sts.snapsup.InstanceName()] = sts.ts
+	}
+
+	// verify ordering between snaps
+	for _, sts := range stss {
+		switch {
+		case strutil.ListContains(essentials, sts.snapsup.InstanceName()):
+			// essential snap updates may depend on other essential snaps, but not
+			// on non-essential work.
+			for _, t := range sts.begin.WaitTasks() {
+				c.Assert(strutil.ListContains(essentialTaskIDs, t.ID()), Equals, true)
+			}
+		case sts.snapsup.Type == snap.TypeBase:
+			// non-essential bases should only wait on tasks that come from
+			// essential snap updates
+			for _, t := range sts.begin.WaitTasks() {
+				c.Assert(strutil.ListContains(essentialTaskIDs, t.ID()), Equals, true)
+			}
+		default:
+			// all other updates and installs should at a minimum wait on snapd if
+			// it is part of the change. if the snap uses a base, it should also
+			// wait for that base to link before it starts local modifications.
+			if snapdTS := tasksByName["snapd"]; snapdTS != nil {
+				for _, t := range snapdTS.Tasks() {
+					c.Assert(waitsOnTransitively(sts.begin, t), Equals, true)
+				}
+			}
+
+			if baseTS := tasksByName[sts.snapsup.Base]; baseTS != nil {
+				firstLocal := firstTaskAfterLocalModifications(c, sts.ts)
+				c.Assert(waitsOnTransitively(firstLocal, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+			}
 		}
 	}
 
@@ -10054,7 +10122,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 		chg.AddAll(ts)
 	}
 
-	validateEnforcementOrder(c, tss)
+	validateEnforcementOrder(c, s.state, tss)
 
 	s.settle(c)
 	c.Assert(chg.Err(), IsNil)
