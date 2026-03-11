@@ -1606,16 +1606,13 @@ func (u *update) satisfied() (bool, error) {
 }
 
 func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
+	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
+		opts.Flags.Lane = st.NewLane()
+	}
+
 	// if we're on classic with a kernel/gadget, split refreshes with essential
 	// snaps and apps so that the apps don't have to wait for a reboot
 	if essential, nonEssential, ok := canSplitRefresh(opts.DeviceCtx, updates); ok {
-		// if we're putting all of the snaps in the same lane, create the lane
-		// now so that it can be shared between the essential and non-essential
-		// sets
-		if opts.Flags.Transaction == client.TransactionAllSnaps {
-			opts.Flags.Lane = st.NewLane()
-		}
-
 		updateFunc := func(updates []update) ([]string, bool, *UpdateTaskSets, error) {
 			// names are used to determine if the refresh is general, if it was
 			// requested for a snap to update aliases and if it should be
@@ -1626,10 +1623,6 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 
 		// splitRefresh already creates a check-rerefresh task as needed
 		return splitRefresh(st, essential, nonEssential, opts.UserID, &opts.Flags, updateFunc)
-	}
-
-	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
-		opts.Flags.Lane = st.NewLane()
 	}
 
 	updated, snapRevsChanged, uts, err := doUpdate(st, requested, updates, opts)

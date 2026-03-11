@@ -14380,8 +14380,23 @@ func (s *snapmgrTestSuite) TestUpdateManySplitEssentialWithoutSharedBase(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
+	const createLane = false
+	s.testSplitRefreshUsesSameTransaction(c, createLane)
+}
+
+func (s *snapmgrTestSuite) TestSplitRefreshUsesProvidedTransactionLane(c *C) {
+	const createLane = true
+	s.testSplitRefreshUsesSameTransaction(c, createLane)
+}
+
+func (s *snapmgrTestSuite) testSplitRefreshUsesSameTransaction(c *C, createLane bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	providedLane := 0
+	if createLane {
+		providedLane = s.state.NewLane()
+	}
 
 	restore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer restore()
@@ -14419,17 +14434,28 @@ func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
 		})
 	}
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
-		snaps, nil, s.user.ID, &snapstate.Flags{NoReRefresh: true, Transaction: client.TransactionAllSnaps})
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, snaps, nil, s.user.ID, &snapstate.Flags{
+		NoReRefresh: true,
+		Transaction: client.TransactionAllSnaps,
+		Lane:        providedLane,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(affected, testutil.DeepUnsortedMatches, snaps)
+
+	lanes := tss[0].Tasks()[0].Lanes()
+	c.Assert(lanes, HasLen, 1)
+	lane := lanes[0]
+	c.Assert(lane, Not(Equals), 0)
+	if createLane {
+		c.Assert(lane, Equals, providedLane)
+	}
 
 	// fail the kernel refresh at the end
 	ts, err := snapstate.MaybeFindTasksetForSnap(tss, "kernel")
 	c.Assert(err, IsNil)
 	lastTask := ts.MaybeEdge(snapstate.EndEdge)
 	failTask := s.state.NewTask("fail", "")
-	failTask.JoinLane(tss[0].Tasks()[0].Lanes()[0])
+	failTask.JoinLane(lane)
 	failTask.WaitFor(lastTask)
 	ts.AddTask(failTask)
 
@@ -14440,7 +14466,7 @@ func (s *snapmgrTestSuite) TestSplitRefreshUsesSameTransaction(c *C) {
 
 	for _, ts := range tss {
 		for _, t := range ts.Tasks() {
-			c.Assert(t.Lanes(), DeepEquals, []int{1})
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
 		}
 	}
 
