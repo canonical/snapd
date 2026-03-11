@@ -1857,7 +1857,8 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
 		// them so they can be automatically connected if the snap is installed again.
 		ts, err := disconnectTasks(st, conn, disconnectOpts{
-			AutoDisconnect:  true,
+			AutoDisconnect: true,
+			// Ignore errors from disconnect hooks.
 			IgnoreHookError: true,
 		})
 		if err != nil {
