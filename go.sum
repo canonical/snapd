@@ -2,8 +2,8 @@ github.com/bmatcuk/doublestar/v4 v4.6.1 h1:FH9SifrbvJhnlQpztAx++wlkk70QBf0iBWDwN
 github.com/bmatcuk/doublestar/v4 v4.6.1/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
 github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb h1:+kA/9oHTqUx4P08ywKvmd7a1wOL3RLTrE0K958C15x8=
 github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb/go.mod h1:6j8Sw3dwYVcBXltEeGklDoK/8UJVJNQPUkg1ZdQUgbk=
-github.com/canonical/go-efilib v1.7.0 h1:QLtWh/x9rtBjokext9c6e+hT/AR3X9D0U8DQN+/BVbM=
-github.com/canonical/go-efilib v1.7.0/go.mod h1:n0Ttsy1JuHAvqaFbZBs6PAzoiiJdfkHsAmDOEbexYEQ=
+github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24 h1:WCrkrG2hJuPQXt+mIrCyYWY+hsXO9y/R9i/EOrt/T0M=
+github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24/go.mod h1:n0Ttsy1JuHAvqaFbZBs6PAzoiiJdfkHsAmDOEbexYEQ=
 github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9 h1:Twk1ZSTWRClfGShP16ePf2JIiayqWS4ix1rkAR6baag=
 github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9/go.mod h1:IneQ5/yQcfPXrGekEXpR6yeea55ZD24N5+kHzeDseOM=
 github.com/canonical/go-password-validator v0.0.0-20250617132709-1b205303ca54 h1:JO3wAsxjrvQDf/X3q4RLIdzDCWrFjzhwUmCKrhnrIO8=
