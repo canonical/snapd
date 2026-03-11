@@ -39,6 +39,8 @@ var (
 
 type (
 	ConfdbTransactions = confdbTransactions
+	CachedConfdbReqs   = cachedConfdbReqs
+	PendingAccess      = pendingAccess
 )
 
 const (
@@ -84,4 +86,16 @@ func MockTransactionTimeout(dur time.Duration) func() {
 	return func() {
 		transactionTimeout = old
 	}
+}
+
+func MockDefaultWaitTimeout(dur time.Duration) func() {
+	old := defaultWaitTimeout
+	defaultWaitTimeout = dur
+	return func() {
+		defaultWaitTimeout = old
+	}
+}
+
+func SetBlockingSignalChan(signalChan chan struct{}) {
+	blockingSignalChan = signalChan
 }
