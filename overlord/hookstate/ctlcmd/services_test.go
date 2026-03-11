@@ -1199,14 +1199,14 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	c.Assert(taskKinds(laneTasks), DeepEquals, append(installTaskKinds,
 		"process-delayed-security-backend-effects", "exec-command", "service-control", "exec-command", "service-control", "exec-command", "service-control"))
 	c.Check(laneTasks[13].Summary(), Matches, `Run configure hook of .* snap if present`)
-	stopTask := laneTasks[15]
+	stopTask := laneTasks[16]
 	c.Check(stopTask.Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(taskKinds(stopTask.WaitTasks()), DeepEquals, installTaskKinds)
-	startTask := laneTasks[17]
+	startTask := laneTasks[18]
 	c.Check(startTask.Summary(), Equals, "start of [test-snap.test-service]")
 	c.Check(taskKinds(startTask.WaitTasks()), DeepEquals,
 		append(installTaskKinds, stopTask.Kind(), "service-control"))
-	restartTask := laneTasks[19]
+	restartTask := laneTasks[20]
 	c.Check(restartTask.Summary(), Equals, "restart of [test-snap.test-service]")
 	// tasks get queued up more and more
 	c.Check(taskKinds(restartTask.WaitTasks()), DeepEquals,
