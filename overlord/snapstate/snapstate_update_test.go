@@ -19446,9 +19446,12 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
 
-	basePostRebootTask, err := baseTS.Edge(snapstate.MaybeRebootWaitEdge)
+	baseEndTask, err := baseTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	c.Check(seedEnd.HaltTasks(), testutil.Contains, basePostRebootTask)
+	kernelEndTask, err := kernelTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, baseEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, kernelEndTask), Equals, true)
 
 	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
 	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
@@ -19598,9 +19601,15 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 	c.Assert(err, IsNil)
 	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
 
-	basePostRebootTask, err := baseTS.Edge(snapstate.MaybeRebootWaitEdge)
+	baseEndTask, err := baseTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	c.Check(seedEnd.HaltTasks(), testutil.Contains, basePostRebootTask)
+	kernelEndTask, err := kernelTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	appEndTask, err := appTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, baseEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, kernelEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
 
 	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
 	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
@@ -19629,6 +19638,11 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 
 	// non-model app starts download after all essential snaps are complete
 	c.Check(firstTaskOfExtraSnap.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
+
+	// ensure that seed finalize task doens't wait on non-seed snap
+	extraAppEndTask, err := extraAppTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, extraAppEndTask), Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c *C) {
@@ -19785,9 +19799,18 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 	c.Assert(err, IsNil)
 	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
 
-	basePostRebootTask, err := baseTS.Edge(snapstate.MaybeRebootWaitEdge)
+	snapdEndTask, err := snapdTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	c.Check(seedEnd.HaltTasks(), testutil.Contains, basePostRebootTask)
+	baseEndTask, err := baseTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	kernelEndTask, err := kernelTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	appEndTask, err := appTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, snapdEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, baseEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, kernelEndTask), Equals, true)
+	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
 
 	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
 	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
@@ -19827,6 +19850,11 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 
 	// non-model app starts download after all essential snaps are complete.
 	c.Check(firstTaskOfExtraSnap.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
+
+	// ensure that seed finalize task doens't wait on non-seed snap
+	extraAppEndTask, err := extraAppTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, extraAppEndTask), Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshUndo(c *C) {
@@ -19975,12 +20003,13 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshUndo(c *C) {
 
 	checkUndone(baseTS)
 	checkUndone(kernelTS)
+	checkUndone(appTS)
 	c.Check(seedTS.Tasks()[0].Status(), Equals, state.UndoneStatus)
 
-	// non-essential snaps don't continue after the seed fails to refresh
+	// all snaps in the seed cohort are rolled back when finalize fails
 	appLinkTask, err := appTS.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
-	c.Check(appLinkTask.Status(), Equals, state.HoldStatus)
+	c.Check(appLinkTask.Status(), Equals, state.UndoneStatus)
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(finalize seed refresh mock error\)`)
@@ -20325,7 +20354,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshKernelPostRebootFailureU
 	checkUndone(baseTS)
 	checkUndone(kernelTS)
 	c.Check(seedTS.Tasks()[0].Status(), Equals, state.UndoneStatus)
-	c.Check(seedTS.Tasks()[1].Status(), Equals, state.UndoneStatus)
+	c.Check(seedTS.Tasks()[1].Status(), Equals, state.HoldStatus)
 
 	// non-essential snaps don't continue after the essential seed cohort rolls back
 	appLinkTask, err := appTS.Edge(snapstate.MaybeRebootEdge)
@@ -20423,10 +20452,14 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentials(c *C) {
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
 
 	seedCreate := seedTS.Tasks()[0]
+	seedEnd := seedTS.Tasks()[len(seedTS.Tasks())-1]
 
 	appLastBefore, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	c.Check(seedCreate.WaitTasks(), testutil.Contains, appLastBefore)
+	appEndTask, err := appTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAdditionalComponents(c *C) {
@@ -20538,10 +20571,14 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
 
 	seedCreate := seedTS.Tasks()[0]
+	seedEnd := seedTS.Tasks()[len(seedTS.Tasks())-1]
 
 	appLastBefore, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	c.Check(seedCreate.WaitTasks(), testutil.Contains, appLastBefore)
+	appEndTask, err := appTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
 
 	appSnapSetupTask, err := appTS.Edge(snapstate.SnapSetupEdge)
 	c.Assert(err, IsNil)

@@ -984,16 +984,16 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	c.Assert(err, IsNil)
 	c.Assert(seedUpdateTS, NotNil)
 
-	snapSetupTask, err := stss[0].TaskSet().Edge(snapstate.SnapSetupEdge)
-	c.Assert(err, IsNil)
 	lastBeforeLocalTask, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+	snapEndTask, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
 
 	seedCreate := seedUpdateTS.Tasks()[0]
 	seedFinalize := seedUpdateTS.Tasks()[len(seedUpdateTS.Tasks())-1]
 
 	c.Check(seedCreate.WaitTasks(), testutil.Contains, lastBeforeLocalTask)
-	c.Check(snapSetupTask.WaitTasks(), testutil.Contains, seedFinalize)
+	c.Check(waitsOnTransitively(seedFinalize, snapEndTask), Equals, true)
 	c.Check(taskSetLanes(seedUpdateTS), DeepEquals, taskSetLanes(stss[0].TaskSet()))
 }
 

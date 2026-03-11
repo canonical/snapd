@@ -138,6 +138,28 @@ func contains[T comparable](items []T, item T) bool {
 	return false
 }
 
+// waitForIfNeeded makes waiter wait on target, if there isn't already an
+// implicit dependency present between the two.
+func waitForIfNeeded(waiter, target *state.Task) {
+	stack := append([]*state.Task(nil), waiter.WaitTasks()...)
+	seen := make(map[*state.Task]bool, len(stack))
+	for len(stack) > 0 {
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if cur == target {
+			return
+		}
+
+		if seen[cur] {
+			continue
+		}
+		seen[cur] = true
+		stack = append(stack, cur.WaitTasks()...)
+	}
+	waiter.WaitFor(target)
+}
+
 // addEarlyDownloadDeps sets up dependencies so that all early-download snaps'
 // beforeLocalSystemModificationsTasks complete before any snap's
 // upToLinkSnapAndBeforeReboot tasks begin. The head of each snap's
@@ -154,30 +176,6 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 
 	tail := func(tasks []*state.Task) *state.Task {
 		return tasks[len(tasks)-1]
-	}
-
-	// since there are already some cross-snap dependencies established, we use
-	// a smarter WaitFor alternative here that considers existing transitive
-	// dependencies. this reduces the number of superfluous dependencies in the
-	// final graph of tasks.
-	waitForIfNeeded := func(waiter, target *state.Task) {
-		stack := append([]*state.Task(nil), waiter.WaitTasks()...)
-		seen := make(map[*state.Task]bool, len(stack))
-		for len(stack) > 0 {
-			cur := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-
-			if cur == target {
-				return
-			}
-
-			if seen[cur] {
-				continue
-			}
-			seen[cur] = true
-			stack = append(stack, cur.WaitTasks()...)
-		}
-		waiter.WaitFor(target)
 	}
 
 	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
@@ -199,6 +197,11 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 			if name == sts.snapsup.InstanceName() {
 				continue
 			}
+
+			// since there are already some cross-snap dependencies established, we use
+			// a smarter WaitFor alternative here that considers existing transitive
+			// dependencies. this reduces the number of superfluous dependencies in the
+			// final graph of tasks.
 			waitForIfNeeded(firstLocalMod, tail)
 		}
 	}
@@ -404,7 +407,7 @@ func arrangeRebootAndUpdateSeed(
 			}
 		}
 
-		chain(seedTS.Create, seedTS.Finalize)
+		chain(seedTS.Create, seedTS.Create)
 	}
 
 	// then all the post-reboot tasks for essential snaps, in order
@@ -519,6 +522,13 @@ func arrangeRebootAndUpdateSeed(
 
 	if seedTS == nil {
 		return nil, nil
+	}
+
+	// finalize-recovery-system only waits on create-recovery-system by default.
+	// since finalize marks the system as seeded with the new snaps, we should
+	// wait until all the seed snaps are done.
+	for _, sts := range seedSnapTaskSets {
+		waitForIfNeeded(seedTS.Finalize, tail(sts.afterLinkSnapAndPostReboot))
 	}
 
 	return state.NewTaskSet(seedTS.Create, seedTS.Finalize), nil
