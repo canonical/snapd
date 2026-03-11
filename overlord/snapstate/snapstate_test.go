@@ -9885,7 +9885,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh
 			c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be done before reboot: %s", t.Kind(), name, t.Status()))
 		}
 
-		// essential set is not yet done, since these require a reboot
+		// the essential set is still pending at the shared reboot boundary
 		for _, name := range []string{"kernel", "gadget", "core18"} {
 			t := findTaskForSnap(c, chg, "auto-connect", name)
 			c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to still be pending reboot: %s", t.Kind(), name, t.Status()))
@@ -9894,6 +9894,8 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh
 		t := findTaskForSnap(c, chg, "auto-connect", "snapd")
 		c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("expected task %q for %q to be done before reboot: %s", t.Kind(), "snapd", t.Status()))
 
+		// on core, without split refresh, the non-essential snaps are still
+		// behind the essential reboot boundary
 		for _, name := range []string{"some-base", "some-base-snap", "some-snap-with-core18-base", "kernel", "gadget", "core18"} {
 			t := findTaskForSnap(c, chg, "auto-connect", name)
 			c.Assert(t.Status(), Equals, state.DoStatus, Commentf("expected task %q for %q to still be pending reboot: %s", t.Kind(), name, t.Status()))
@@ -9907,7 +9909,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh
 	c.Assert(enforce, NotNil)
 	c.Check(enforce.Status(), Equals, state.DoStatus)
 
-	// one final reboot, for all of the essential snaps to share
+	// one final reboot, shared by the essential snaps
 	s.mockRestartAndSettle(c, chg)
 
 	for _, name := range []string{"kernel", "gadget", "core18", "some-snap-with-core18-base"} {
