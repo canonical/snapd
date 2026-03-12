@@ -113,14 +113,6 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "/run/pressure-vessel/** mrw,")
 	c.Check(snippet, testutil.Contains, "/var/pressure-vessel/** mrw,")
 
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/ rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/UMU/ rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/App/UMU/** rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/umu/ rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/umu/** rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/Steam/ rwklix,")
-	c.Check(snippet, testutil.Contains, "owner @{HOME}/Steam/** rwklix,")
-
 	c.Check(snippet, testutil.Contains, "/media/ r,")
 	c.Check(snippet, testutil.Contains, "/mnt/ r,")
 	c.Check(snippet, testutil.Contains, "/run/media/ r,")

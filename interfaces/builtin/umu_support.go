@@ -75,15 +75,6 @@ userns,
 /run/pressure-vessel/** mrw,
 /var/pressure-vessel/** mrw,
 
-# Permissions to test UMU without access to the home interface.
-owner @{HOME}/App/ rwklix,
-owner @{HOME}/App/UMU/ rwklix,
-owner @{HOME}/App/UMU/** rwklix,
-owner @{HOME}/umu/ rwklix,
-owner @{HOME}/umu/** rwklix,
-owner @{HOME}/Steam/ rwklix,
-owner @{HOME}/Steam/** rwklix,
-
 # Access to mounting points
 /media/ r,
 /mnt/ r,
