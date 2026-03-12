@@ -90,7 +90,7 @@ func (s *userdSuite) TestSanitizeUserServices(c *C) {
 	err = os.MkdirAll(graphicalWanted, 0755)
 	c.Assert(err, IsNil)
 
-	_, err = createFakeUnitService(defaultWanted, "snap.test1", "default.target")
+	service1Path, err := createFakeUnitService(defaultWanted, "snap.test1", "default.target")
 	c.Assert(err, IsNil)
 	_, err = createFakeUnitService(defaultWanted, "snap.test2", "graphical-session.target")
 	c.Assert(err, IsNil)
@@ -108,8 +108,31 @@ func (s *userdSuite) TestSanitizeUserServices(c *C) {
 	_, err = createFakeUnitService(graphicalWanted, "test8", "graphical-session.target")
 	c.Assert(err, IsNil)
 
+	// soft link to an existing file
+	softlink1 := path.Join(defaultWanted, "snap.test9.service")
+	softlink2 := path.Join(defaultWanted, "snap.test10.service")
+	err = os.Symlink(service1Path, softlink1)
+	c.Assert(err, IsNil)
+	err = os.Symlink(service1Path+".not-exist", softlink2)
+	c.Assert(err, IsNil)
+
+	_, err = os.Lstat(softlink1)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(softlink2)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(softlink1)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(softlink2)
+	c.Assert(err, NotNil)
+
 	userd.SanitizeUserServices()
 	c.Assert(len(reenabledServices), Equals, 2)
 	c.Assert(slices.Contains(reenabledServices, "snap.test2.service"), Equals, true)
 	c.Assert(slices.Contains(reenabledServices, "snap.test3.service"), Equals, true)
+	_, err = os.Lstat(softlink1)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(softlink1)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(softlink2)
+	c.Assert(err, NotNil)
 }
