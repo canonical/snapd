@@ -965,6 +965,8 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
 	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
 		create := st.NewTask("create-recovery-system", "...")
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
 		finalize := st.NewTask("finalize-recovery-system", "...")
 		finalize.WaitFor(create)
 		return &snapstate.SeedRefreshTaskSet{

@@ -209,64 +209,36 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 	return nil
 }
 
-func mergeEssentialAndSeedLanes(
-	essentials map[snap.Type]snapInstallTaskSet, seedUpdates map[string]snapInstallTaskSet, seedTS *SeedRefreshTaskSet,
-) {
-	merge := make(map[string]snapInstallTaskSet)
-	for _, sts := range seedUpdates {
-		merge[sts.snapsup.InstanceName()] = sts
-	}
-
-	for _, sts := range essentials {
-		if sts.snapsup.Type == snap.TypeSnapd {
-			continue
-		}
-		merge[sts.snapsup.InstanceName()] = sts
-	}
-
-	rebootLanes := make(map[string][]int, len(merge))
-	all := make([]int, 0, len(merge))
-	for _, sts := range merge {
-		lanes := unique(sts.upToLinkSnapAndBeforeReboot[len(sts.upToLinkSnapAndBeforeReboot)-1].Lanes())
-		rebootLanes[sts.snapsup.InstanceName()] = lanes
-		all = unique(append(all, lanes...))
-	}
-
-	for _, sts := range merge {
-		for _, l := range all {
-			if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
-				sts.ts.JoinLane(l)
-			}
-		}
-	}
-
-	if seedTS == nil {
-		return
-	}
-
-	for _, lane := range all {
-		seedTS.Create.JoinLane(lane)
-		seedTS.Finalize.JoinLane(lane)
-	}
-}
-
 // arrangeRebootAndUpdateSeed arranges the correct link-order between all the
 // provided snap install task-sets, sets up restart boundaries for essential
 // snaps (base, gadget, kernel), and returns the task set needed to update the
 // seed when seed-refresh applies.
 //
-// Under normal circumstances link-order that will be configured is:
-// snapd => boot-base (reboot) => gadget (reboot) => kernel (reboot) => bases => apps.
+// The resulting ordering is defined here:
 //
-// However this may be configured into the following if conditions are right for single-reboot:
-// snapd => boot-base (up to auto-connect) => gadget(up to auto-connect) =>
-// -  kernel (up to auto-connect, then reboot) => boot-base => gadget => kernel => bases => apps.
+//	early download phase for model snaps (no local system modifications, just downloads)
+//	|
+//	snapd (all tasks)
+//	|
+//	boot-base -> gadget -> kernel (pre-reboot tasks, up to and including link-snap)
+//	|
+//	create-recovery-system (if required)
+//	|
+//	boot-base -> gadget -> kernel (post-reboot tasks, everything after link-snap)
+//	|
+//	non-essential bases and apps
+//
+// finalize-recovery-system's placement is dependent upon which snaps are being
+// refreshed. It runs after create-recovery-system is done, and it also waits
+// for all model snaps to be finished refreshing. The set of model snaps being
+// refreshed might be a combination of essential and non-essential snaps, so
+// that task's placement will vary.
 func arrangeRebootAndUpdateSeed(
 	st *state.State,
 	stss []snapInstallTaskSet,
 	earlyDownloads map[string]bool,
 	dctx DeviceContext,
-) (*state.TaskSet, error) {
+) (seedRefreshTS *state.TaskSet, err error) {
 	for _, sts := range stss {
 		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
 			len(sts.upToLinkSnapAndBeforeReboot) == 0 ||
@@ -275,6 +247,12 @@ func arrangeRebootAndUpdateSeed(
 		}
 	}
 
+	// seedTS will be nil when seed-refresh is disabled or when this refresh does
+	// not touch any model snaps
+	//
+	// note that seedSnapTaskSets will contain all snaps being refreshed that
+	// will go into the seed, and it might contain a combination of essential
+	// and non-essential snaps.
 	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, dctx)
 	if err != nil {
 		return nil, err
@@ -302,6 +280,8 @@ func arrangeRebootAndUpdateSeed(
 		return nil, err
 	}
 
+	// these sets of snaps are mutually exclusive and will not overlap with
+	// each other
 	essentials := make(map[snap.Type]snapInstallTaskSet)
 	nonEssentialBases := make(map[string]snapInstallTaskSet)
 	apps := make(map[string]snapInstallTaskSet)
@@ -318,6 +298,12 @@ func arrangeRebootAndUpdateSeed(
 		}
 	}
 
+	// prev and chain build the ordered spine of the refresh: snapd first, then
+	// the essential pre-reboot chain, then create-recovery-system when present,
+	// and finally the essential post-reboot chain.
+	//
+	// note that these are only used for ordering, and the chain will not
+	// contain all tasks involved in the refresh.
 	var prev *state.Task
 	chain := func(begin, end *state.Task) {
 		if begin == nil || end == nil {
@@ -393,6 +379,10 @@ func arrangeRebootAndUpdateSeed(
 		chain(beforeReboot(sts))
 	}
 
+	// insert the create-recovery-system task after the pre-reboot essential
+	// chain. if we have this task, this is where the reboots will happen. one
+	// reboot to test the system, and another reboot to return to the run
+	// system.
 	if seedTS != nil {
 		// if no tasks have been added to the chain yet, appending the seed task
 		// to the end of the chain will not result in the seed tasks waiting on
@@ -446,6 +436,12 @@ func arrangeRebootAndUpdateSeed(
 				restart.MarkTaskAsRestartBoundary(end, restart.RestartBoundaryDirectionDo)
 
 				break
+			}
+		} else {
+			// we trust devicestate to properly set this reboot boundary, but
+			// double check just to make sure
+			if !restart.TaskIsRestartBoundary(seedTS.Create, restart.RestartBoundaryDirectionDo) {
+				return nil, errors.New("internal error: seed creation task is missing expected reboot boundary")
 			}
 		}
 
@@ -532,6 +528,50 @@ func arrangeRebootAndUpdateSeed(
 	}
 
 	return state.NewTaskSet(seedTS.Create, seedTS.Finalize), nil
+}
+
+// mergeEssentialAndSeedLanes makes essential snaps and refreshed seed snaps
+// share transactional lanes, and adds the given seed-refresh tasks to those
+// lanes as well.
+func mergeEssentialAndSeedLanes(
+	essentials map[snap.Type]snapInstallTaskSet, seedUpdates map[string]snapInstallTaskSet, seedTS *SeedRefreshTaskSet,
+) {
+	merge := make(map[string]snapInstallTaskSet)
+	for _, sts := range seedUpdates {
+		merge[sts.snapsup.InstanceName()] = sts
+	}
+
+	for _, sts := range essentials {
+		if sts.snapsup.Type == snap.TypeSnapd {
+			continue
+		}
+		merge[sts.snapsup.InstanceName()] = sts
+	}
+
+	rebootLanes := make(map[string][]int, len(merge))
+	all := make([]int, 0, len(merge))
+	for _, sts := range merge {
+		lanes := unique(sts.upToLinkSnapAndBeforeReboot[len(sts.upToLinkSnapAndBeforeReboot)-1].Lanes())
+		rebootLanes[sts.snapsup.InstanceName()] = lanes
+		all = unique(append(all, lanes...))
+	}
+
+	for _, sts := range merge {
+		for _, l := range all {
+			if !contains(rebootLanes[sts.snapsup.InstanceName()], l) {
+				sts.ts.JoinLane(l)
+			}
+		}
+	}
+
+	if seedTS == nil {
+		return
+	}
+
+	for _, lane := range all {
+		seedTS.Create.JoinLane(lane)
+		seedTS.Finalize.JoinLane(lane)
+	}
 }
 
 // SetEssentialSnapsRestartBoundaries sets up default restart boundaries for a list of task-sets. If the

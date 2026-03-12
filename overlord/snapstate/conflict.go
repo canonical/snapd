@@ -215,6 +215,8 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			}
 
 			if changeCreatesRecoverySystem(chg) {
+				// TODO: make this less strict once we model conflicts for
+				// seed-managing changes more precisely
 				return &ChangeConflictError{
 					Message:    "seed refresh in progress, no other changes allowed until this is done",
 					ChangeKind: chg.Kind(),
