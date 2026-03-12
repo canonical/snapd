@@ -49,6 +49,8 @@ type Userd struct {
 	dbusIfaces []dbusInterface
 }
 
+var userHomeDir = os.UserHomeDir
+
 // userdBusNames contains the list of bus names userd will acquire on
 // the session bus.  It is unnecessary (and undesirable) to add more
 // names here when adding new interfaces to the daemon.
@@ -72,7 +74,7 @@ func clearBrokenLink(targetPath string) error {
 	return nil
 }
 
-func reenableUserService(serviceName string) error {
+var reenableUserService = func(serviceName string) error {
 	logger.Noticef("re-enabling user service %s", serviceName)
 	sysd := systemd.New(systemd.UserMode, nil)
 	return sysd.DaemonReEnable([]string{serviceName})
@@ -115,7 +117,7 @@ func sanitizeUserServices() error {
 	//   will be updated, and so these entries will have to be updated too.
 	// * when a snap adds or removes the `desktop` plug in a daemon
 
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := userHomeDir()
 	if err != nil || homeDir == "" {
 		logger.Noticef("cannot determine user home directory, skipping user service sanitization: %v", err)
 		return nil

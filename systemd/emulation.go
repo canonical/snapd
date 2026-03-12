@@ -54,8 +54,9 @@ func (s *emulation) DaemonReload() error {
 	return nil
 }
 
-func (s *emulation) DaemonReEnable([]string) error {
-	return nil
+func (s *emulation) DaemonReEnable(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "reenable"}, services...)...)
+	return err
 }
 
 func (s *emulation) DaemonReexec() error {

@@ -35,6 +35,9 @@ var (
 	DesktopFileSearchPath     = desktopFileSearchPath
 	DesktopFileIDToFilename   = desktopFileIDToFilename
 	VerifyDesktopFileLocation = verifyDesktopFileLocation
+	CheckServicePlacement     = checkServicePlacement
+	UserHomeDir               = userHomeDir
+	SanitizeUserServices      = sanitizeUserServices
 )
 
 func MockRegularFileExists(f func(string) (bool, bool, error)) func() {
@@ -42,5 +45,21 @@ func MockRegularFileExists(f func(string) (bool, bool, error)) func() {
 	regularFileExists = f
 	return func() {
 		regularFileExists = old
+	}
+}
+
+func MockReenableUserService(f func(string) error) func() {
+	old := reenableUserService
+	reenableUserService = f
+	return func() {
+		reenableUserService = old
+	}
+}
+
+func MockUserHomeDir(f func() (string, error)) func() {
+	old := userHomeDir
+	userHomeDir = f
+	return func() {
+		userHomeDir = old
 	}
 }
