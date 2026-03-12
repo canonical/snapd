@@ -13837,7 +13837,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 			}
 		case "link-snap":
 			expstatus = []state.Status{state.DoneStatus}
-		case "auto-connect", "setup-profiles":
+		case "prepare-profiles", "auto-connect", "setup-profiles":
 			expstatus = []state.Status{state.UndoneStatus}
 		}
 		c.Check(expstatus, testutil.Contains, tsk.Status())
