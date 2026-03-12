@@ -1078,6 +1078,73 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
+func (s *linkSnapSuite) TestDoUnlinkSnapCleansUpRunInhibitionOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(20),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "unlink-snap" {
+			// first mock the creation of snap inhibition in backend.UnlinkSnap
+			inhibitInfo := runinhibit.InhibitInfo{Previous: si.Revision}
+			err := runinhibit.LockWithHint(si.RealName, runinhibit.HintInhibitedForDisable, inhibitInfo, s.state.Unlocker())
+			c.Assert(err, IsNil)
+			// then actually return an error to test the cleanup of the inhibition
+			return fmt.Errorf("error")
+		}
+		return nil
+	}
+
+	task := s.state.NewTask("unlink-snap", "")
+	task.Set("unlink-reason", "disable")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// task should have errored out due to injected error
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+
+	// snap state should still show the snap as active
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(20))
+
+	// backend was called to unlink the snap
+	expected := fakeOps{{
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "some-snap/20"),
+		inhibitHint: "disable",
+	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// run inhibition should have been cleaned up
+	hint, inhibitInfo, err := runinhibit.IsLocked("some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

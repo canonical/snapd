@@ -3706,7 +3706,7 @@ func (m *SnapManager) undoKillSnapApps(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// invoked only if snap has a current active revision, during remove or
 	// disable
 	// in case of the snapd snap, we only reach here if disabling or removal
@@ -3745,6 +3745,13 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		unlinkCtx.RunInhibitHint = runinhibit.HintInhibitedForDisable
 		unlinkCtx.StateUnlocker = st.Unlocker() // needed for runinhibit in backend.UnlinkSnap
 	}
+	defer func() {
+		if retErr != nil {
+			if unlockErr := runinhibit.Unlock(snapsup.InstanceName(), st.Unlocker()); unlockErr != nil {
+				t.Logf("cannot unlock run inhibition: %v", unlockErr)
+			}
+		}
+	}()
 	err = m.backend.UnlinkSnap(info, unlinkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
