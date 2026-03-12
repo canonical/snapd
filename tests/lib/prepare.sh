@@ -478,19 +478,7 @@ prepare_classic() {
         rm -rf "$build_dir"
         mkdir -p "$build_dir"
         build_snapd_snap "$build_dir"
-        case "$SPREAD_SYSTEM" in
-            ubuntu-fips-24.04-*)
-                # we're expecting snapd installation to fail due to SNAPDENG-35482
-                not snap install --dangerous "$build_dir/"snapd_*.snap
-                journalctl -u snapd | MATCH "opensslcrypto: can't enable FIPS mode for OpenSSL"
-                echo "this failure is expected"
-                exit 1
-                ;;
-            *)
-                # we're expecting snapd installation to fail due to SNAPDENG-
-                snap install --dangerous "$build_dir/"snapd_*.snap
-                ;;
-        esac
+        snap install --dangerous "$build_dir/"snapd_*.snap
         snap wait system seed.loaded
     fi
     snap list snapd
