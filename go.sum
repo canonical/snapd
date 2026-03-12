@@ -68,6 +68,8 @@ github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70 h1:EewX3F1DSpJz8w
 github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70/go.mod h1:+qs2Juv0XZeTmQHJgFTtAd9520h7QUWRDyvSwbJ3xEU=
 github.com/snapcore/secboot v0.0.0-20260129175210-e638825ef829 h1:9qeADnUPs/YhO0tty+j2zxi9dUI2Bn96y9Nc9XOKTOk=
 github.com/snapcore/secboot v0.0.0-20260129175210-e638825ef829/go.mod h1:BeEYaTJC4cqXVgpjjxajO31p2kVDvXwXJJx3YD7nCaE=
+github.com/snapcore/secboot v0.0.0-20260302105957-77bc2457cc76 h1:Vj0VE1XwZTC4YddTYlCYI4X+fukMXkX46d7GRxFbHcg=
+github.com/snapcore/secboot v0.0.0-20260302105957-77bc2457cc76/go.mod h1:BeEYaTJC4cqXVgpjjxajO31p2kVDvXwXJJx3YD7nCaE=
 github.com/snapcore/secboot v0.0.0-20260320145120-26dce572077a h1:eKljZN+SzPKM1ua7KG5E2vQdbw9JQn17tbbukHj6hvw=
 github.com/snapcore/secboot v0.0.0-20260320145120-26dce572077a/go.mod h1:+qs2Juv0XZeTmQHJgFTtAd9520h7QUWRDyvSwbJ3xEU=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
