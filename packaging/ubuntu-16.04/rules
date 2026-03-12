@@ -216,6 +216,7 @@ endif
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
+
 	# this is the main go build
 
 	# note that dh-golang invokes go generate as the first step, which may invoke
