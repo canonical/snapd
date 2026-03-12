@@ -68,8 +68,7 @@ ifneq (${VERSION_ID},"16.04")
 	DH_SYSTEMD_START_OPTS += --restart-after-upgrade
 endif
 
-# this is overridden in the ubuntu/14.04 release branch
-SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
+SYSTEMD_UNITS_DESTDIR="$(shell pkg-config --variable=systemdsystemunitdir systemd)"
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -217,7 +216,6 @@ endif
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
-
 	# this is the main go build
 
 	# note that dh-golang invokes go generate as the first step, which may invoke
