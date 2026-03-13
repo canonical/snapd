@@ -113,22 +113,26 @@ func (s *nfsSuite) TestIsHomeUsingRemoteFS(c *C) {
 }
 
 func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
-	types := map[string]int64{
-		"autofs": 0x0187,
-		"nfs":    0x6969,
-		"cifs":   0xFF534D42,
-	}
-
 	restore := osutil.MockSyscallStatfs(func(path string, statfs *syscall.Statfs_t) error {
 		dir, _ := filepath.Split(path)
 		_, fs := filepath.Split(strings.TrimSuffix(dir, "/"))
 
-		fsMagicNumber, ok := types[fs]
-		if !ok {
+		// statfs.Type is arch dependent:
+		// https://go.googlesource.com/go/+/refs/heads/dev.boringcrypto.go1.16/src/syscall/ztypes_linux_<arch>.go
+		switch fs {
+		case "autofs":
+			statfs.Type = 0x0187
+		case "nfs":
+			statfs.Type = 0x6969
+		case "cifs":
+			// CIFS_MAGIC_NUMBER 0xFF534D42 does not fit int32 (armhf, s390x). For this test focused on NFS,
+			// rather use SMB_SUPER_MAGIC as a stable non-NFS network filesystem value that fits statfs.Type
+			// on both 32-bit and 64-bit arches.
+			statfs.Type = 0x517B
+		default:
 			c.Fatalf("unknown filesystem %q", fs)
 		}
 
-		statfs.Type = fsMagicNumber
 		return nil
 	})
 	defer restore()
@@ -139,7 +143,9 @@ func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
 	})
 	defer restore()
 
-	for typ := range types {
+	types := []string{"autofs", "nfs", "cifs"}
+
+	for _, typ := range types {
 		cmt := Commentf("testcase %q", typ)
 
 		fsDir := filepath.Join(dirPath, typ)
