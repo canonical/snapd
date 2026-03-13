@@ -69,6 +69,7 @@ ifneq (${VERSION_ID},"16.04")
 endif
 
 SYSTEMD_UNITS_DESTDIR="$(shell pkg-config --variable=systemdsystemunitdir systemd)"
+SYSTEMD_UNITS_DESTDIR_UNQUOTED=$(subst ",,$(SYSTEMD_UNITS_DESTDIR))
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -373,4 +374,4 @@ override_dh_systemd_start:
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
