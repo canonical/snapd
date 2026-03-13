@@ -524,7 +524,7 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataLinkBadTypeError(c *C) {
 			Digest: rootHash,
 		},
 	})
-	c.Assert(err, ErrorMatches, `unexpected integrity type "bad-type"`)
+	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyBadTypeError(c *C) {
@@ -545,7 +545,7 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyBadTypeError(c *C) {
 			Digest: rootHash,
 		},
 	})
-	c.Assert(err, ErrorMatches, `unexpected integrity type "bad-type"`)
+	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteLinkedSnapOnVerityLinkError(c *C) {

@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -103,7 +102,7 @@ type linkFunc = func(string, string) error
 
 var errLinkError = errors.New("linking error")
 
-func tryLink(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptions) error {
+func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptions) error {
 	if err := link(snapPath, targetPath); err != nil {
 		// Specifically when link(2) is used, it returns EPERM on filesystems that don't
 		// support hard links (like vfat), so checking the error here doesn't
@@ -116,44 +115,46 @@ func tryLink(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptio
 	}
 
 	if opts != nil && opts.IntegrityDataParams != nil {
-		switch opts.IntegrityDataParams.Type {
-		case "dm-verity":
-			srcVerityPath := integrity.DmVerityHashFileName(snapPath, opts.IntegrityDataParams.Digest)
-			destVerityPath := integrity.DmVerityHashFileName(targetPath, opts.IntegrityDataParams.Digest)
-			if err := link(srcVerityPath, destVerityPath); err != nil {
-				// unlink the snap if linking verity data failed
-				if err := os.Remove(targetPath); err != nil {
-					return err
-				}
+		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
+		if err != nil {
+			return err
+		}
+		destIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(targetPath)
+		if err != nil {
+			return err
+		}
+		if err := link(srcIntegrityFile, destIntegrityFile); err != nil {
+			// unlink the snap if linking verity data failed
+			if err := os.Remove(targetPath); err != nil {
 				return err
 			}
-		default:
-			return fmt.Errorf("unexpected integrity type %q", opts.IntegrityDataParams.Type)
+			return err
 		}
 	}
 
 	return nil
 }
 
-func tryCopy(snapPath, targetPath string, opts *snap.InstallOptions) error {
+func tryCopyWithIntegrityData(snapPath, targetPath string, opts *snap.InstallOptions) error {
 	if err := osutil.CopyFile(snapPath, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
 	}
 
 	if opts != nil && opts.IntegrityDataParams != nil {
-		switch opts.IntegrityDataParams.Type {
-		case "dm-verity":
-			srcVerityPath := integrity.DmVerityHashFileName(snapPath, opts.IntegrityDataParams.Digest)
-			destVerityPath := integrity.DmVerityHashFileName(targetPath, opts.IntegrityDataParams.Digest)
-			if err := osutil.CopyFile(srcVerityPath, destVerityPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				// remove the copy of the snap if copying verity data failed
-				if err := os.Remove(targetPath); err != nil {
-					return err
-				}
+		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
+		if err != nil {
+			return err
+		}
+		destIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(targetPath)
+		if err != nil {
+			return err
+		}
+		if err := osutil.CopyFile(srcIntegrityFile, destIntegrityFile, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+			// remove the copy of the snap if copying verity data failed
+			if err := os.Remove(targetPath); err != nil {
 				return err
 			}
-		default:
-			return fmt.Errorf("unexpected integrity type %q", opts.IntegrityDataParams.Type)
+			return err
 		}
 	}
 
@@ -198,7 +199,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 	if overlayRoot == "" {
 		// try to (hard)link the file, but go on to trying to copy it
 		// if it fails for whatever reason
-		err := tryLink(osLink, s.path, targetPath, opts)
+		err := tryLinkWithIntegrityData(osLink, s.path, targetPath, opts)
 		if err == nil {
 			// Success, no need to do the copy
 			return false, nil
@@ -219,7 +220,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// so we need to check if it has the prefix of the seed dir
 		cleanSrc := filepath.Clean(s.path)
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
-			err := tryLink(os.Symlink, s.path, targetPath, opts)
+			err := tryLinkWithIntegrityData(os.Symlink, s.path, targetPath, opts)
 			if err == nil {
 				// Success, no need to do the copy
 				return false, nil
@@ -230,7 +231,7 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		}
 	}
 
-	return false, tryCopy(s.path, targetPath, opts)
+	return false, tryCopyWithIntegrityData(s.path, targetPath, opts)
 }
 
 // unsquashfsStderrWriter is a helper that captures errors from

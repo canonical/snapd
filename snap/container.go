@@ -78,8 +78,8 @@ type InstallOptions struct {
 	// an installation on ubuntu-data that does not depend or reference
 	// ubuntu-seed at all.
 	MustNotCrossDevices bool
-	// IntegrityDataParams indicates that the snap file contains integrity data
-	// that also need to be linked/copied over to the install location.
+	// IntegrityDataParams contains optional integrity data that also need to be
+	// linked/copied over to the install location if set.
 	IntegrityDataParams *integrity.IntegrityDataParams
 }
 
