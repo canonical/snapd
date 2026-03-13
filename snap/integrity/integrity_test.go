@@ -302,3 +302,21 @@ func (s *IntegrityTestSuite) TestNewIntegrityDataParamsFromRevisionNotFound(c *C
 	_, err := integrity.NewIntegrityDataParamsFromRevision(rev)
 	c.Check(err, Equals, integrity.ErrNoIntegrityDataFoundInRevision)
 }
+
+func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
+	idp := integrity.IntegrityDataParams{
+		Type:   "dm-verity",
+		Digest: "aaa",
+	}
+
+	integrityFile, err := idp.IntegrityFile("/path/to/instance.snap")
+	c.Assert(err, IsNil)
+	c.Check(integrityFile, Equals, "/path/to/instance.snap.dmverity_aaa")
+
+	idp = integrity.IntegrityDataParams{
+		Type:   "bad-type",
+		Digest: "aaa",
+	}
+	integrityFile, err = idp.IntegrityFile("/path/to/instance.snap")
+	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
+}

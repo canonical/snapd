@@ -81,6 +81,8 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+// IntegrityFile returns the integrity file name corresponding to the integrity
+// type. Currently, only dm-verity is supported.
 func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
 	switch params.Type {
 	case "dm-verity":
