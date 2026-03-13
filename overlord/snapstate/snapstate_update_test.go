@@ -502,7 +502,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"unlink-snap",
 		"copy-data",
 		"setup-snap-save-data",
-		"prepare-profiles:Doing",
+		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
 		"maybe-set-next-boot",
@@ -640,7 +640,7 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -1184,7 +1184,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 		"update-gadget-assets:Doing",
 		"copy-data",
 		"setup-snap-save-data",
-		"prepare-profiles:Doing",
+		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
 	}...)
@@ -1446,7 +1446,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap"),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
@@ -1838,7 +1838,7 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap_instance"),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  "services-snap_instance",
 			revno: snap.R(11),
 		},
@@ -2764,7 +2764,7 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -2787,7 +2787,7 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			unlinkSkipBinaries: false,
 		},
 		{
-			op:    "prepare-profiles:Undoing",
+			op:    "setup-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -3112,7 +3112,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -3164,7 +3164,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op:    "prepare-profiles:Undoing",
+			op:    "setup-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
@@ -15318,7 +15318,7 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -15560,7 +15560,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 			inhibitHint: "refresh",
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: prevSnapRev,
 		},
@@ -15606,7 +15606,7 @@ func (s *snapmgrTestSuite) testRevertWithComponents(c *C, undo bool) {
 				path: filepath.Join(dirs.SnapMountDir, instanceName, prevSnapRev.String()),
 			},
 			{
-				op:    "prepare-profiles:Undoing",
+				op:    "setup-profiles:Undoing",
 				name:  instanceName,
 				revno: prevSnapRev,
 			},
@@ -15969,7 +15969,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: prevSnapRev,
 		},
@@ -16320,7 +16320,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 			path: filepath.Join(dirs.SnapDataSaveDir, snapName),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: prevSnapRev,
 		},
@@ -17024,7 +17024,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: newSnapRev,
 		},
@@ -17546,7 +17546,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  snapName,
 			revno: newSnapRev,
 		},
@@ -18272,7 +18272,7 @@ components:
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: snap.R(11),
 		},
@@ -18670,7 +18670,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
 		},
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: oldSnapRev,
 		},
@@ -19156,7 +19156,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 
 	expected = append(expected, fakeOps{
 		{
-			op:    "prepare-profiles:Doing",
+			op:    "setup-profiles:Doing",
 			name:  instanceName,
 			revno: currentSnapRev,
 		},
