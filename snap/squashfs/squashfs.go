@@ -102,7 +102,7 @@ type linkFunc = func(string, string) error
 
 var errLinkError = errors.New("linking error")
 
-func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptions) error {
+func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptions) (retErr error) {
 	if err := link(snapPath, targetPath); err != nil {
 		// Specifically when link(2) is used, it returns EPERM on filesystems that don't
 		// support hard links (like vfat), so checking the error here doesn't
@@ -114,6 +114,15 @@ func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *
 		return errLinkError
 	}
 
+	defer func() {
+		if retErr != nil {
+			// unlink the snap if something below failed
+			if err := os.Remove(targetPath); err != nil {
+				logger.Noticef("cannot remove %q: %v", targetPath, err)
+			}
+		}
+	}()
+
 	if opts != nil && opts.IntegrityDataParams != nil {
 		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
 		if err != nil {
@@ -124,10 +133,6 @@ func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *
 			return err
 		}
 		if err := link(srcIntegrityFile, destIntegrityFile); err != nil {
-			// unlink the snap if linking verity data failed
-			if err := os.Remove(targetPath); err != nil {
-				return err
-			}
 			return err
 		}
 	}
@@ -135,10 +140,19 @@ func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *
 	return nil
 }
 
-func tryCopyWithIntegrityData(snapPath, targetPath string, opts *snap.InstallOptions) error {
+func tryCopyWithIntegrityData(snapPath, targetPath string, opts *snap.InstallOptions) (retErr error) {
 	if err := osutil.CopyFile(snapPath, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
 	}
+
+	defer func() {
+		if retErr != nil {
+			// remove the copy of the snap if something below failed
+			if err := os.Remove(targetPath); err != nil {
+				logger.Noticef("cannot remove %q: %v", targetPath, err)
+			}
+		}
+	}()
 
 	if opts != nil && opts.IntegrityDataParams != nil {
 		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
@@ -150,10 +164,6 @@ func tryCopyWithIntegrityData(snapPath, targetPath string, opts *snap.InstallOpt
 			return err
 		}
 		if err := osutil.CopyFile(srcIntegrityFile, destIntegrityFile, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-			// remove the copy of the snap if copying verity data failed
-			if err := os.Remove(targetPath); err != nil {
-				return err
-			}
 			return err
 		}
 	}

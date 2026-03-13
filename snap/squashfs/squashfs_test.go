@@ -507,9 +507,6 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyError(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataLinkBadTypeError(c *C) {
-	restore := squashfs.MockLink(func(a, b string) error { return nil })
-	defer restore()
-
 	cmd := testutil.MockCommand(c, "cp", "echo error; exit 1;")
 	defer cmd.Restore()
 
@@ -525,14 +522,12 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataLinkBadTypeError(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyBadTypeError(c *C) {
 	// first, disable os.Link
 	defer noLink()()
-
-	cmd := testutil.MockCommand(c, "cp", "")
-	defer cmd.Restore()
 
 	sn := makeSnap(c, "name: test2", "")
 	rootHash := "aaa"
@@ -546,6 +541,7 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataCopyBadTypeError(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
+	c.Check(osutil.FileExists(targetPath), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataDeleteLinkedSnapOnVerityLinkError(c *C) {
