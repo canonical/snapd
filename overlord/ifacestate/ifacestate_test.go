@@ -2490,7 +2490,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 
 	change := s.state.NewChange("test", "")
 
-	prepareTask := s.state.NewTask("prepare-profiles", "")
+	prepareTask := s.state.NewTask("setup-profiles", "")
+	prepareTask.Set("prepare-profiles", true)
 	prepareTask.Set("snap-setup", snapsup)
 	prepareTask.Set("component-setup", compsup)
 	change.AddTask(prepareTask)
@@ -2600,7 +2601,8 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 	change := s.state.NewChange("test", "")
 
-	prepareProfiles := s.state.NewTask("prepare-profiles", "")
+	prepareProfiles := s.state.NewTask("setup-profiles", "")
+	prepareProfiles.Set("prepare-profiles", true)
 	prepareProfiles.Set("snap-setup", snapsup)
 	change.AddTask(prepareProfiles)
 
@@ -10783,7 +10785,8 @@ func (s *interfaceManagerSuite) TestShouldUndoSetupProfilesWithoutPrepareProfile
 	setupAfterAutoConnect.WaitFor(autoConnect)
 	chg.AddTask(setupAfterAutoConnect)
 
-	otherPrepareProfiles := st.NewTask("prepare-profiles", "")
+	otherPrepareProfiles := st.NewTask("setup-profiles", "")
+	otherPrepareProfiles.Set("prepare-profiles", true)
 	otherPrepareProfiles.Set("snap-setup", otherSnapsup)
 	chg.AddTask(otherPrepareProfiles)
 
@@ -12985,7 +12988,7 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 		c.Logf("expecting delayed call")
 		c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 		// already connected scenario so at most the following list of tasks:
-		// prepare-profiles, link-snap, auto-connect, delayed-effects, setup-profiles, delayed-snap-effects
+		// setup-profiles(prepare), link-snap, auto-connect, delayed-effects, setup-profiles, delayed-snap-effects
 		expectingTasks := 6
 		if opts.AddRerefresh {
 			// and optionally check-rerefresh
@@ -13016,7 +13019,7 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 	} else {
 		for _, t := range chg.Tasks() {
 			switch t.Kind() {
-			case "prepare-profiles", "setup-profiles", "run-hook", "link-snap", "process-delayed-security-backend-effects", "auto-connect", "connect":
+			case "setup-profiles", "run-hook", "link-snap", "process-delayed-security-backend-effects", "auto-connect", "connect":
 			case "check-rerefresh":
 				if !opts.AddRerefresh {
 					c.Errorf("unexpected task %v", t.Kind())
@@ -13349,7 +13352,8 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
 		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("prepare-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		setupProfiles.Set("prepare-profiles", true)
 		setupProfiles.Set("snap-setup", snapsup)
 
 		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
@@ -13708,7 +13712,8 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
 		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("prepare-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		setupProfiles.Set("prepare-profiles", true)
 		setupProfiles.Set("snap-setup", snapsup)
 
 		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
@@ -13763,7 +13768,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	c.Check(chg.Err(), ErrorMatches, `(?ms)cannot perform .* Apply delayed security backend side effects for snap "consumer2" \(mock error\).*$`)
 
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 2)
-	// 2 * (prepare-profiles, link-snap, auto-connect, setup-profiles),
+	// 2 * (setup-profiles(prepare), link-snap, auto-connect, setup-profiles),
 	// process-delayed-backend-effects, 2 * process-snap-delayed-backend-effects
 	c.Assert(chg.Tasks(), HasLen, 11)
 	tsks := chg.Tasks()
@@ -13837,7 +13842,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 			}
 		case "link-snap":
 			expstatus = []state.Status{state.DoneStatus}
-		case "prepare-profiles", "auto-connect", "setup-profiles":
+		case "auto-connect", "setup-profiles":
 			expstatus = []state.Status{state.UndoneStatus}
 		}
 		c.Check(expstatus, testutil.Contains, tsk.Status())

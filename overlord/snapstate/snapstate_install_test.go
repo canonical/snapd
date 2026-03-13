@@ -151,7 +151,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 
 	expected = append(expected, "copy-snap-data")
 
-	expected = append(expected, "prepare-profiles", "link-snap")
+	expected = append(expected, "setup-profiles", "link-snap")
 	expected = append(expected, tasksAfterLinkSnap...)
 	expected = append(expected, "auto-connect")
 	expected = append(expected,
@@ -263,7 +263,7 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Assert(err, IsNil)
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
-		case "prepare-profiles", "setup-profiles":
+		case "setup-profiles":
 			c.Assert(t.Has("component-setup-task"), Equals, false)
 			c.Assert(t.Has("component-setup"), Equals, false)
 		}

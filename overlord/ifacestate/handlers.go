@@ -171,6 +171,11 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	var prepareProfiles bool
+	if err := task.Get("prepare-profiles", &prepareProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	var newConns []string
 	if err := task.Get("new-connections", &newConns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -220,6 +225,25 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	appSet, err := appSetForTask(task, snapInfo)
 	if err != nil {
 		return err
+	}
+
+	if prepareProfiles {
+		// In prepare mode we only refresh repository state and run backend
+		// preparation; full profile setup is deferred to the later
+		// setup-profiles task after auto-connect.
+		if _, _, err = m.refreshAppSetConnections(task, appSet); err != nil {
+			return err
+		}
+
+		for _, backend := range m.repo.Backends() {
+			if err := backend.Prepare(appSet); err != nil {
+				return err
+			}
+		}
+
+		// Keep PendingSecurity updated for restart durability while this
+		// revision remains inactive.
+		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
 	}
 
 	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
@@ -590,70 +614,45 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	return nil
 }
 
-// doPrepareProfiles does the minimal amount of setup for auto-connect to work and correctly
-// detect plugs/slots for auto-connection. The real work of setting up profiles is done in
-// setupProfilesForAppSet, and is called after auto-connect in the "setup-profiles" task.
-func (m *InterfaceManager) doPrepareProfiles(task *state.Task, _ *tomb.Tomb) error {
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := snapstate.TaskSnapSetup(task)
-	if err != nil {
-		return err
-	}
-
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
-	if err != nil {
-		return err
-	}
-
-	// For non-installed snaps, we just need to add the app set to the
-	// repo, to ensure auto-connect can find plugs/slots by the snap.
-	if err := addImplicitInterfaces(st, snapInfo); err != nil {
-		return err
-	}
-
-	appSet, err := appSetForTask(task, snapInfo)
-	if err != nil {
-		return err
-	}
-
-	// Refresh slots/plugs for the new snap in the interfaces repository,
-	// to ensure that we are always working on the correct state.
-	if _, _, err = m.refreshAppSetConnections(task, appSet); err != nil {
-		return err
-	}
-
-	securityBackends := m.repo.Backends()
-	for _, backend := range securityBackends {
-		if err := backend.Prepare(appSet); err != nil {
-			return err
-		}
-	}
-
-	// Keep PendingSecurity updated even though prepare-profiles only does
-	// backend preparation now: we still rely on this state for restart
-	// durability during refresh (inactive snaps must be re-added with the
-	// correct revision/components) and to regenerate affected snaps against
-	// the most recent inactive revision in multi-snap updates.
-	return setPendingProfilesSideInfo(st, appSet.InstanceName(), appSet)
-}
-
 // shouldUndoSetupProfiles determines whether the undo is actually required given
 // the current task-set, and based on the name of the current task.
 func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
-	// Check if there is a "prepare-profiles" task in the change.
-	// If there is not, then we've likely hit either a change created
-	// prior to this version of snapd, or it may be a component-only change
-	prepareProfiles := snapstate.FindTaskMatchingKindAndSnap(task.Change().Tasks(), "prepare-profiles", instanceName)
-	if prepareProfiles == nil {
+	// If there are no setup-profiles tasks marked as prepare mode in this
+	// change, we're likely handling either an older change shape or a
+	// component-only change; in those cases undo should run for
+	// setup-profiles tasks.
+	hasPrepareMode := false
+	for _, t := range task.Change().Tasks() {
+		if t.Kind() != "setup-profiles" {
+			continue
+		}
+		taskSnapSetup, err := snapstate.TaskSnapSetup(t)
+		if err != nil || taskSnapSetup.InstanceName() != instanceName {
+			continue
+		}
+
+		var prepareProfiles bool
+		if err := t.Get("prepare-profiles", &prepareProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
+			continue
+		}
+		if prepareProfiles {
+			hasPrepareMode = true
+			break
+		}
+	}
+
+	if !hasPrepareMode {
 		return true
 	}
 
-	// Okay, we have it, now check if this task is "prepare-profiles",
-	// we only do it for the new task kind.
-	return task.Kind() == "prepare-profiles"
+	var prepareProfiles bool
+	if err := task.Get("prepare-profiles", &prepareProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
+		return false
+	}
+
+	// With the split flow encoded as setup-profiles+flag, only the prepare-mode
+	// setup-profiles task should run undo.
+	return task.Kind() == "setup-profiles" && prepareProfiles
 }
 
 func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {

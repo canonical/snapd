@@ -442,6 +442,12 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 		defer task.State().Unlock()
 		kind := task.Kind()
 		status := task.Status()
+		if kind == "setup-profiles" {
+			var prepareProfiles bool
+			if err := task.Get("prepare-profiles", &prepareProfiles); err == nil && prepareProfiles {
+				kind = "prepare-profiles"
+			}
+		}
 		snapsup, err := snapstate.TaskSnapSetup(task)
 		if err != nil {
 			return err
@@ -773,7 +779,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
-		"prepare-profiles",
+		"setup-profiles",
 		"link-snap",
 		"auto-connect",
 		"set-auto-aliases",
@@ -886,7 +892,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
-		"prepare-profiles",
+		"setup-profiles",
 		"link-snap",
 		"auto-connect",
 		"set-auto-aliases",
@@ -8554,7 +8560,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C, withComponents bool) {
 var nonReLinkKinds = []string{
 	"prepare-kernel-snap",
 	"copy-snap-data",
-	"prepare-profiles",
+	"setup-profiles",
 	"setup-profiles",
 	"auto-connect",
 	"set-auto-aliases",
