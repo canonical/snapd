@@ -103,6 +103,7 @@ const umuSupportSteamVRUDevRules = steamSupportSteamVRUDevRules
 type umuSupportInterface struct {
 	commonInterface
 }
+
 func (iface *umuSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(umuSupportSteamInputUDevRules)
 	spec.AddSnippet(umuSupportSteamVRUDevRules)
