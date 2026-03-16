@@ -314,6 +314,9 @@ apps:
   firmware-updater-support:
     command: bin/run
     plugs: [ firmware-updater-support ]
+  umu-support:
+    command: bin/run
+    plugs: [ umu-support ]
 
 plugs:
   custom-device:
