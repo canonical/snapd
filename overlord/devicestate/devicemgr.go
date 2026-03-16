@@ -2145,6 +2145,7 @@ func (m *DeviceManager) Ensure() error {
 func (m *DeviceManager) ResetToPostBootState() {
 	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
 	m.state.Set("ensure-boot-ok-boot-id", "")
+	m.ensureBootOkRan = false
 	m.bootRevisionsUpdated = false
 	m.ensureTriedRecoverySystemRan = false
 }
