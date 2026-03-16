@@ -142,9 +142,33 @@ override_dh_clean:
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 
+version_from_changelog := $(shell dpkg-parsechangelog --show-field Version)
+$(info version_from_changelog is $(version_from_changelog))
+
+# Generate version files
+define snapdtool__version_generated.go
+package snapdtool
+func init() {
+	Version = "$(version_from_changelog)"
+}
+endef
+
+define cmd__VERSION
+$(version_from_changelog)
+endef
+
+define data__info
+VERSION=$(version_from_changelog)
+SNAPD_APPARMOR_REEXEC=0
+SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+endef
+
 override_dh_auto_build:
-	# usually done via `go generate` but that is not supported on powerpc
-	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) GO111MODULE=off GOPATH=$$(pwd)/_build ./mkversion.sh
+	# We used to call mkversion.sh, but since it builds and executes go code
+	# from this package it is significantly easier to do by hand.
+	$(file >_build/src/$(DH_GOPKG)/snapdtool/version_generated.go,$(snapdtool__version_generated.go))
+	$(file >cmd/VERSION,$(cmd__VERSION))
+	$(file >data/info,$(data__info))
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
