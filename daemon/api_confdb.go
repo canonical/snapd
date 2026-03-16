@@ -89,14 +89,11 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return toAPIError(err)
-	}
+	// Allow both root and snap API admins admin access to confdb data
 
 	// TODO: set timeout parsed from URL query parameter
 	ctx := r.Context()
-	chgID, err := confdbstateReadConfdb(ctx, st, view, keys, constraints, int(ucred.Uid))
+	chgID, err := confdbstateReadConfdb(ctx, st, view, keys, constraints, confdb.AdminAccess)
 	if err != nil {
 		return toAPIError(err)
 	}
