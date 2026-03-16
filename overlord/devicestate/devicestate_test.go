@@ -2209,6 +2209,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
 	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+	c.Check(seedTS.Remove, HasLen, 0)
 
 	const expectedLabel = "20260227"
 
@@ -2255,6 +2256,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
 	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+	c.Check(seedTS.Remove, HasLen, 0)
 
 	const expectedLabel = labelBase + "-3"
 
@@ -2266,6 +2268,38 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Check(systemSetupData["mark-default"], Equals, true)
 	c.Check(systemSetupData["seed-refresh"], Equals, true)
 	c.Check(systemSetupData["test-system"], Equals, true)
+}
+
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 9, 0, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{System: "current-seed-refresh", SeedRefresh: true},
+		{System: "non-seed-refresh"},
+		{System: "old-seed-refresh-1", SeedRefresh: true},
+		{System: "old-seed-refresh-2", SeedRefresh: true},
+	})
+
+	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{s.state.NewTask("fake-download", "...").ID()}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedTS.Remove, HasLen, 2)
+	c.Check(seedTS.Remove[0].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
+	c.Check(seedTS.Remove[1].WaitTasks(), DeepEquals, []*state.Task{seedTS.Remove[0]})
+
+	var labels []string
+	for _, remove := range seedTS.Remove {
+		var setup map[string]any
+		c.Assert(remove.Get("remove-recovery-system-setup", &setup), IsNil)
+		labels = append(labels, setup["label"].(string))
+	}
+
+	c.Check(labels, testutil.DeepUnsortedMatches, []string{"old-seed-refresh-1", "old-seed-refresh-2"})
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {

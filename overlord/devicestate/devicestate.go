@@ -1795,20 +1795,21 @@ type removeRecoverySystemSetup struct {
 	Label string `json:"label"`
 }
 
-func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
 	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
 		Label: label,
 	})
-
-	return state.NewTaskSet(remove), nil
+	return remove
 }
 
 // SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
 // tasks needed to refresh the seed managed by seed-refresh mode. The caller
 // must provide the tasks IDs that can be used by the seed creation tasks to
 // find the new snaps to include in the seed. Otherwise, already installed snaps
-// will be used to create the seed.
+// will be used to create the seed. Older seed-refresh systems are removed so
+// that, after finalize records the new system, the two most recently created
+// seed-refresh systems remain tracked.
 func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
 	labelBase := timeNow().Format("20060102")
 	label, err := pickRecoverySystemLabel(labelBase)
@@ -1839,10 +1840,58 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 		return nil, errors.New("internal error: expected create and finalize recovery system tasks")
 	}
 
+	removeLabels, err := seedRefreshLabelsToRemove(st)
+	if err != nil {
+		return nil, err
+	}
+
+	removals := make([]*state.Task, 0, len(removeLabels))
+	previous := finalize
+	for _, l := range removeLabels {
+		remove := removeRecoverySystemTask(st, l)
+		remove.WaitFor(previous)
+		removals = append(removals, remove)
+		previous = remove
+	}
+
 	return &snapstate.SeedRefreshTaskSet{
 		Create:   create,
 		Finalize: finalize,
+		Remove:   removals,
 	}, nil
+}
+
+// seedRefreshLabelsToRemove returns the existing seed-refresh systems that
+// should be removed after the next seed-refresh finalize-recovery-system task
+// runs.
+func seedRefreshLabelsToRemove(st *state.State) ([]string, error) {
+	var systems []seededSystem
+	if err := st.Get("seeded-systems", &systems); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	seenSeedRefresh := false
+	removals := make([]string, 0, len(systems))
+	for _, system := range systems {
+		if !system.SeedRefresh {
+			continue
+		}
+
+		// keep the newest existing seed-refresh entry. finalize-recovery-system
+		// will prepend the new one later, leaving the two most recently created
+		// seed-refresh systems
+		if !seenSeedRefresh {
+			seenSeedRefresh = true
+			continue
+		}
+
+		removals = append(removals, system.System)
+	}
+
+	return removals, nil
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
@@ -1962,12 +2011,8 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 
 	chg := st.NewChange(removeRecoverySystemChangeKind, fmt.Sprintf("Remove recovery system with label %q", label))
 
-	removeTS, err := removeRecoverySystemTasks(st, label)
-	if err != nil {
-		return nil, err
-	}
-
-	chg.AddAll(removeTS)
+	remove := removeRecoverySystemTask(st, label)
+	chg.AddTask(remove)
 
 	return chg, nil
 }

@@ -275,6 +275,10 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("cannot remove recovery system %q: %w", setup.Label, err)
 	}
 
+	if err := dropSeededSystemIfSeedRefresh(st, setup.Label); err != nil {
+		return fmt.Errorf("cannot update seeded systems after removing recovery system %q: %w", setup.Label, err)
+	}
+
 	t.SetStatus(state.DoneStatus)
 
 	return nil

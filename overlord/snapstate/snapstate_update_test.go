@@ -273,12 +273,26 @@ func mustTaskSetForSnap(c *C, taskSetsBySnap map[string]*state.TaskSet, snapName
 	return ts
 }
 
-func seedCreateAndFinalize(c *C, seedTS *state.TaskSet) (create, finalize *state.Task) {
-	tasks := seedTS.Tasks()
-	create, finalize = tasks[0], tasks[len(tasks)-1]
-	c.Assert(create.Kind(), Equals, "create-recovery-system")
-	c.Assert(finalize.Kind(), Equals, "finalize-recovery-system")
-	return create, finalize
+func splitSeedRefreshTasks(c *C, seedTS *state.TaskSet) (create, finalize *state.Task, removals []*state.Task) {
+	for _, task := range seedTS.Tasks() {
+		switch task.Kind() {
+		case "create-recovery-system":
+			create = task
+		case "finalize-recovery-system":
+			finalize = task
+		case "remove-recovery-system":
+			removals = append(removals, task)
+		}
+	}
+	c.Assert(create, NotNil)
+	c.Assert(finalize, NotNil)
+	return create, finalize, removals
+}
+
+func assertTaskSetStatus(c *C, ts *state.TaskSet, expected state.Status) {
+	for _, t := range ts.Tasks() {
+		c.Check(t.Status(), Equals, expected)
+	}
 }
 
 func mockSeedRefreshRebootHandlers(s *snapmgrTestSuite, c *C, finalizeErr error) *[]restart.RestartType {
@@ -19577,7 +19591,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	c.Check(taskSetsShareLane(baseTS, appTS), Equals, false)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
 
-	seedCreate, seedEnd := seedCreateAndFinalize(c, seedTS)
+	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
 	lastBeforeLocalBase, err := baseTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
@@ -19739,7 +19753,7 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 	c.Check(taskSetsShareLane(baseTS, extraAppTS), Equals, false)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
 
-	seedCreate, seedEnd := seedCreateAndFinalize(c, seedTS)
+	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
 	var seedSetup recoverySystemSetupForTest
 	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
@@ -19933,7 +19947,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 	c.Check(taskSetsShareLane(baseTS, extraAppTS), Equals, false)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(snapdTS))
 
-	seedCreate, seedEnd := seedCreateAndFinalize(c, seedTS)
+	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
 	var seedSetup recoverySystemSetupForTest
 	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
@@ -20031,6 +20045,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshUndo(c *C) {
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
 
 	// run the do path until create-recovery-system requests the seed-refresh reboot.
 	s.settle(c)
@@ -20046,7 +20061,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshUndo(c *C) {
 	assertLinkTaskStatus(c, baseTS, state.UndoneStatus)
 	assertLinkTaskStatus(c, kernelTS, state.UndoneStatus)
 	assertLinkTaskStatus(c, appTS, state.UndoneStatus)
-	c.Check(seedTS.Tasks()[0].Status(), Equals, state.UndoneStatus)
+	c.Check(seedCreate.Status(), Equals, state.UndoneStatus)
 
 	// all snaps in the seed cohort are rolled back when finalize fails
 	appLinkTask, err := appTS.Edge(snapstate.MaybeRebootEdge)
@@ -20095,6 +20110,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshExtraSnapFailureDoesNotU
 	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
 	c.Check(taskSetsShareLane(baseTS, extraAppTS), Equals, false)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
 
 	errInjected := 0
 	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
@@ -20111,17 +20127,11 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshExtraSnapFailureDoesNotU
 	// simulate the reboot into the candidate recovery system and continue until
 	// the extra snap fails after the seed-refresh tasks have completed
 	s.mockRestartAndSettle(c, chg)
-	checkDone := func(ts *state.TaskSet) {
-		for _, t := range ts.Tasks() {
-			c.Check(t.Status(), Equals, state.DoneStatus)
-		}
-	}
-
-	checkDone(baseTS)
-	checkDone(kernelTS)
+	assertTaskSetStatus(c, baseTS, state.DoneStatus)
+	assertTaskSetStatus(c, kernelTS, state.DoneStatus)
 	assertLinkTaskStatus(c, extraAppTS, state.UndoneStatus)
-	c.Check(seedTS.Tasks()[0].Status(), Equals, state.DoneStatus)
-	c.Check(seedTS.Tasks()[1].Status(), Equals, state.DoneStatus)
+	c.Check(seedCreate.Status(), Equals, state.DoneStatus)
+	c.Check(seedFinalize.Status(), Equals, state.DoneStatus)
 
 	// the model app is not part of the extra snap undo path
 	appLinkTask, err := appTS.Edge(snapstate.MaybeRebootEdge)
@@ -20132,6 +20142,93 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshExtraSnapFailureDoesNotU
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-extra-snap mock error\)`)
 	c.Check(*restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Check(errInjected, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesNotUndoSeed(c *C) {
+	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-app"},
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
+	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+		create := st.NewTask("create-recovery-system", "Create recovery system")
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
+		finalize.WaitFor(create)
+
+		remove := st.NewTask("remove-recovery-system", "Remove old recovery system")
+		remove.WaitFor(finalize)
+
+		return &snapstate.SeedRefreshTaskSet{
+			Create:   create,
+			Finalize: finalize,
+			Remove:   []*state.Task{remove},
+		}, nil
+	}
+	defer func() {
+		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+	}()
+
+	restartRequested := mockSeedRefreshRebootHandlers(s, c, nil)
+	s.o.TaskRunner().AddHandler("remove-recovery-system", func(*state.Task, *tomb.Tomb) error {
+		return fmt.Errorf("remove seed mock error")
+	}, nil)
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
+	)
+
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+		{InstanceName: "kernel"},
+		{InstanceName: "core18"},
+		{InstanceName: "some-app"},
+	})
+	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
+
+	baseTS := mustTaskSetForSnap(c, taskSetsBySnap, "core18")
+	kernelTS := mustTaskSetForSnap(c, taskSetsBySnap, "kernel")
+	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
+
+	c.Assert(seedTS, NotNil)
+	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
+
+	seedCreate, seedFinalize, seedRemovals := splitSeedRefreshTasks(c, seedTS)
+	c.Assert(seedRemovals, HasLen, 1)
+	c.Check(seedRemovals[0].WaitTasks(), DeepEquals, []*state.Task{seedFinalize})
+
+	// seed removals exist in their own lane. that means we won't attempt to
+	// roll anything back if these tasks fail.
+	seedLanes := taskSetLanes(baseTS)
+	for _, lane := range seedRemovals[0].Lanes() {
+		c.Check(seedLanes, Not(testutil.Contains), lane)
+	}
+
+	// run the do path until create-recovery-system requests the seed-refresh reboot.
+	s.settle(c)
+
+	// simulate the reboot into the candidate recovery system and continue until
+	// pruning fails after the seed cohort has completed.
+	s.mockRestartAndSettle(c, chg)
+
+	assertTaskSetStatus(c, baseTS, state.DoneStatus)
+	assertTaskSetStatus(c, kernelTS, state.DoneStatus)
+	assertTaskSetStatus(c, appTS, state.DoneStatus)
+	c.Check(seedCreate.Status(), Equals, state.DoneStatus)
+	c.Check(seedFinalize.Status(), Equals, state.DoneStatus)
+	c.Check(seedRemovals[0].Status(), Equals, state.ErrorStatus)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*\(remove seed mock error\)`)
+	c.Check(*restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshKernelPostRebootFailureUndoesSeed(c *C) {
@@ -20167,6 +20264,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshKernelPostRebootFailureU
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
 
 	errInjected := 0
 	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
@@ -20190,8 +20288,8 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshKernelPostRebootFailureU
 
 	assertLinkTaskStatus(c, baseTS, state.UndoneStatus)
 	assertLinkTaskStatus(c, kernelTS, state.UndoneStatus)
-	c.Check(seedTS.Tasks()[0].Status(), Equals, state.UndoneStatus)
-	c.Check(seedTS.Tasks()[1].Status(), Equals, state.HoldStatus)
+	c.Check(seedCreate.Status(), Equals, state.UndoneStatus)
+	c.Check(seedFinalize.Status(), Equals, state.HoldStatus)
 
 	// non-essential snaps don't continue after the essential seed cohort rolls back
 	appLinkTask, err := appTS.Edge(snapstate.MaybeRebootEdge)
@@ -20228,7 +20326,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentials(c *C) {
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
 
-	seedCreate, seedEnd := seedCreateAndFinalize(c, seedTS)
+	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
 	appLastBefore, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
@@ -20282,7 +20380,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
 
-	seedCreate, seedEnd := seedCreateAndFinalize(c, seedTS)
+	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
 	appLastBefore, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)

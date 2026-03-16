@@ -6861,6 +6861,112 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystem(c *C) {
 	s.testRemoveRecoverySystem(c, mockRetry)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCleansSeededSystemsForSeedRefresh(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const markDefault = false
+	const keepLabel = "keep"
+	const removeLabel = "remove"
+	s.createSystemForRemoval(c, keepLabel, 0, nil, markDefault)
+	s.createSystemForRemoval(c, removeLabel, 0, nil, markDefault)
+
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:      keepLabel,
+			Model:       s.model.Model(),
+			BrandID:     s.model.BrandID(),
+			Revision:    s.model.Revision(),
+			Timestamp:   s.model.Timestamp(),
+			SeedRefresh: true,
+		},
+		{
+			System:      removeLabel,
+			Model:       s.model.Model(),
+			BrandID:     s.model.BrandID(),
+			Revision:    s.model.Revision(),
+			Timestamp:   s.model.Timestamp(),
+			SeedRefresh: true,
+		},
+	})
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	var seededSystems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystems, HasLen, 1)
+	c.Check(seededSystems[0].System, Equals, keepLabel)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemDoesNotCleanSeededSystemsForNonSeedRefresh(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const markDefault = false
+	const keepLabel = "keep"
+	const removeLabel = "remove"
+	s.createSystemForRemoval(c, keepLabel, 0, nil, markDefault)
+	s.createSystemForRemoval(c, removeLabel, 0, nil, markDefault)
+
+	seededSystemsBefore := []devicestate.SeededSystem{
+		{
+			System:    keepLabel,
+			Model:     s.model.Model(),
+			BrandID:   s.model.BrandID(),
+			Revision:  s.model.Revision(),
+			Timestamp: s.model.Timestamp(),
+		},
+		{
+			System:    removeLabel,
+			Model:     s.model.Model(),
+			BrandID:   s.model.BrandID(),
+			Revision:  s.model.Revision(),
+			Timestamp: s.model.Timestamp(),
+		},
+	}
+	s.state.Set("seeded-systems", seededSystemsBefore)
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	var seededSystems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Check(seededSystems, DeepEquals, seededSystemsBefore)
+}
+
 func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry bool) {
 	restore := seed.MockTrusted(s.storeSigning.Trusted)
 	s.AddCleanup(restore)

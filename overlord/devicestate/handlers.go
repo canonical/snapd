@@ -127,6 +127,33 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	return nil
 }
 
+// dropSeededSystemIfSeedRefresh removes an older seed-refresh entry from
+// seeded-systems after its recovery system has been deleted.
+func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
+	var seeded []seededSystem
+	if err := st.Get("seeded-systems", &seeded); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	filtered := seeded[:0]
+	for _, sys := range seeded {
+		if sys.System == systemLabel && sys.SeedRefresh {
+			continue
+		}
+		filtered = append(filtered, sys)
+	}
+
+	if len(filtered) == len(seeded) {
+		return nil
+	}
+
+	st.Set("seeded-systems", filtered)
+	return nil
+}
+
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()

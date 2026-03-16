@@ -527,7 +527,18 @@ func arrangeRebootAndUpdateSeed(
 		waitForIfNeeded(seedTS.Finalize, tail(sts.afterLinkSnapAndPostReboot))
 	}
 
-	return state.NewTaskSet(seedTS.Create, seedTS.Finalize), nil
+	// the removal tasks are already set up to come after the
+	// finalize-recovery-system task. here, we ensure they're in a different
+	// lane so their potential failure will not undo the rest of the change.
+	if len(seedTS.Remove) != 0 {
+		removeLane := st.NewLane()
+		for _, remove := range seedTS.Remove {
+			remove.JoinLane(removeLane)
+		}
+	}
+
+	tasks := append([]*state.Task{seedTS.Create, seedTS.Finalize}, seedTS.Remove...)
+	return state.NewTaskSet(tasks...), nil
 }
 
 // mergeEssentialAndSeedLanes makes essential snaps and refreshed seed snaps

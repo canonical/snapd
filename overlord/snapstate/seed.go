@@ -31,9 +31,7 @@ import (
 type SeedRefreshTaskSet struct {
 	Create   *state.Task
 	Finalize *state.Task
-
-	// TODO: this will also carry the tasks that will remove any seeds that
-	// should no longer be tracked by the seed-refresh mode
+	Remove   []*state.Task
 }
 
 // SeedRefreshTasks is set by devicestate to avoid an import cycle. See
