@@ -171,10 +171,9 @@ type DeviceManager struct {
 
 	populateStateFromSeed func(timings.Measurer) ([]*state.TaskSet, error)
 
-	ensureBootOkSkipped bool
-
 	ensureSeedInConfigRan bool
 
+	ensureBootOkRan           bool
 	ensureInstalledRan        bool
 	ensureFactoryResetRan     bool
 	ensurePostFactoryResetRan bool
@@ -1251,7 +1250,7 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	if !m.ensureBootOkSkipped {
+	if !m.ensureBootOkRan {
 		currentBootID, err := osutilBootID()
 		if err != nil {
 			return err
@@ -1280,8 +1279,9 @@ func (m *DeviceManager) ensureBootOk() error {
 		} else {
 			// a reseal already ran, nothing to do
 			logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
-			m.ensureBootOkSkipped = true
 		}
+
+		m.ensureBootOkRan = true
 	}
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
