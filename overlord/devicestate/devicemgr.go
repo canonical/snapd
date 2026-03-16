@@ -1251,34 +1251,33 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	currentBootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-
-	bootOkRanForCurrentBootID, err := bootOkRanForBootID(m.state, currentBootID)
-	if err != nil {
-		return err
-	}
-
-	if !bootOkRanForCurrentBootID {
-		markBootOkRanForBootID(m.state, currentBootID)
-
-		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+	if !m.ensureBootOkSkipped {
+		currentBootID, err := osutilBootID()
+		if err != nil {
 			return err
 		}
-		if err == nil && deviceCtx.Model().KernelSnap() != nil {
-			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
-				return err
-			}
+
+		bootOkRanForCurrentBootID, err := bootOkRanForBootID(m.state, currentBootID)
+		if err != nil {
+			return err
 		}
-	} else {
-		// let's log skipping once to avoid spamming the journal log
-		if !m.ensureBootOkSkipped {
+
+		if !bootOkRanForCurrentBootID {
+			markBootOkRanForBootID(m.state, currentBootID)
+
+			deviceCtx, err := DeviceCtx(m.state, nil, nil)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if err == nil && deviceCtx.Model().KernelSnap() != nil {
+				if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+					return err
+				}
+				if err := secbootMarkSuccessful(); err != nil {
+					return err
+				}
+			}
+		} else {
 			// a reseal already ran, nothing to do
 			logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
 			m.ensureBootOkSkipped = true
