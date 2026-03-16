@@ -274,6 +274,10 @@ func SetBootOkRan(m *DeviceManager, b bool) (restore func()) {
 	return testutil.Mock(&bootOkRanForBootID, f)
 }
 
+func SetEnsureBootOkSkipped(m *DeviceManager, b bool) {
+	m.ensureBootOkSkipped = b
+}
+
 func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
 	m.bootRevisionsUpdated = b
 }

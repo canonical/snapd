@@ -703,6 +703,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(lastBootID, Equals, "boot-id-1")
 
+	// mimic a snapd restart
+	devicestate.SetEnsureBootOkSkipped(s.mgr, false)
+
 	// now last reseal boot ID matches current boot id so no reseal
 	// is expected
 	err = devicestate.EnsureBootOk(s.mgr)
