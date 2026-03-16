@@ -859,6 +859,7 @@ func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	refreshSnapAssertions := false
 	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	calledUserID := 0
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		refreshSnapAssertions = true
 		refreshAssertionsOpts = opts
@@ -867,6 +868,7 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 
 	defer daemon.MockSnapstateUpdateWithGoal(func(_ context.Context, s *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
 		goal := g.(*storeUpdateGoalRecorder)
+		calledUserID = opts.UserID
 		c.Check(goal.snaps, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
 		return goal.names(), &snapstate.UpdateTaskSets{Refresh: []*state.TaskSet{state.NewTaskSet(t)}}, nil
@@ -874,6 +876,7 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{Action: "refresh", Snaps: []string{"foo", "bar"}}
+	inst.SetUserID(17)
 	st := d.Overlord().State()
 	st.Lock()
 	res, err := inst.DispatchForMany()(context.Background(), inst, st)
@@ -881,6 +884,7 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(calledUserID, check.Equals, 17)
 	c.Check(refreshSnapAssertions, check.Equals, true)
 	c.Assert(refreshAssertionsOpts, check.NotNil)
 	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)

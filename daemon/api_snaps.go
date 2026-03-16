@@ -1080,7 +1080,8 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 
 	goal := snapstateStoreUpdateGoal(updates...)
 	updated, uts, err := snapstateUpdateWithGoal(ctx, st, goal, nil, snapstate.Options{
-		Flags: flags,
+		Flags:  flags,
+		UserID: inst.userID,
 	})
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
