@@ -1301,7 +1301,7 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	confdbAs := s.setupConfdbAssert(c, nil)
+	confdbAs := s.setupConfdbAssert(c, "my-confdb", nil, false)
 	c.Assert(assertstate.Add(s.state, confdbAs), IsNil)
 
 	// changed snap decl assertion
@@ -1323,9 +1323,9 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	// change confdb-schema assertion
-	s.setupConfdbAssert(c, map[string]any{
+	s.setupConfdbAssert(c, "my-confdb", map[string]any{
 		"revision": "2",
-	})
+	}, false)
 
 	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true})
 	c.Assert(err, IsNil)
@@ -1362,9 +1362,9 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
 	// change the confdb-schema again
-	s.setupConfdbAssert(c, map[string]any{
+	s.setupConfdbAssert(c, "my-confdb", map[string]any{
 		"revision": "3",
-	})
+	}, false)
 
 	// but pretend it's not a refresh of all snaps
 	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: false})
@@ -5794,7 +5794,7 @@ func (s *assertMgrSuite) testValidateComponentNoDownload(c *C, invalid bool) {
 	}
 }
 
-func (s *assertMgrSuite) setupConfdbAssert(c *C, customHeaders map[string]any) *asserts.ConfdbSchema {
+func (s *assertMgrSuite) setupConfdbAssert(c *C, name string, customHeaders map[string]any, skipStoreAdd bool) *asserts.ConfdbSchema {
 	extraHeaders := map[string]any{
 		"revision": "1",
 		"views": map[string]any{
@@ -5818,9 +5818,12 @@ func (s *assertMgrSuite) setupConfdbAssert(c *C, customHeaders map[string]any) *
     }
   }
 }`
-	confdbAs := s.confdbAssertion(c, "my-confdb", extraHeaders, schema)
-	err := s.storeSigning.Add(confdbAs)
-	c.Assert(err, IsNil)
+	confdbAs := s.confdbAssertion(c, name, extraHeaders, schema)
+
+	if !skipStoreAdd {
+		err := s.storeSigning.Add(confdbAs)
+		c.Assert(err, IsNil)
+	}
 	return confdbAs
 }
 
@@ -5830,7 +5833,7 @@ func (s *assertMgrSuite) TestSnapInstallFetchesPluggedConfdbAssertions(c *C) {
 
 	paths, _ := s.prereqSnapAssertions(c, nil, "", 10)
 	snapPath := paths[10]
-	s.setupConfdbAssert(c, nil)
+	s.setupConfdbAssert(c, "my-confdb", nil, false)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -5885,7 +5888,7 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setupConfdbAssert(c, nil)
+	s.setupConfdbAssert(c, "my-confdb", nil, false)
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -5942,7 +5945,7 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	err := s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	confdbAs := s.setupConfdbAssert(c, nil)
+	confdbAs := s.setupConfdbAssert(c, "my-confdb", nil, false)
 
 	// store revision 1 of the confdb assertion locally
 	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, confdbAs} {
@@ -5960,9 +5963,9 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(confdb.Revision(), Equals, 1)
 
-	s.setupConfdbAssert(c, map[string]any{
+	s.setupConfdbAssert(c, "my-confdb", map[string]any{
 		"revision": "2",
-	})
+	}, false)
 
 	// auto-refresh should obtain revision 2
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
@@ -5973,6 +5976,130 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 2)
+}
+
+func (s *assertMgrSuite) TestBulkRefreshLocalConfdbSchemaNotFound(c *C) {
+	s.testRefreshLocalConfdbSchemaNotFound(c)
+}
+
+func (s *assertMgrSuite) TestSingleRefreshLocalConfdbSchemaNotFound(c *C) {
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+
+	log := s.testRefreshLocalConfdbSchemaNotFound(c)
+
+	// remove the log line about the confdb-schema refresh
+	i := strings.LastIndex(log[:len(log)-2], "\n")
+	log = log[:i]
+
+	i = strings.LastIndex(log[:len(log)-2], "\n")
+	c.Assert(log[i+1:], Matches, "(?m).*bulk refresh of confdb assertions failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
+}
+
+func (s *assertMgrSuite) testRefreshLocalConfdbSchemaNotFound(c *C) (log string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// setup a confdb-schema assertion locally but not in the store
+	skipStoreAdd := true
+	confdbAs := s.setupConfdbAssert(c, "my-confdb", nil, skipStoreAdd)
+	// precondition check
+	c.Assert(confdbAs.Revision(), Equals, 1)
+
+	for _, as := range []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey, confdbAs} {
+		err = assertstate.Add(s.state, as)
+		c.Assert(err, IsNil)
+	}
+
+	// simulate a general refresh
+	opts := &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true}
+	c.Assert(assertstate.RefreshSnapAssertions(s.state, 0, opts), IsNil)
+
+	// still on revision 1
+	db := assertstate.DB(s.state)
+	confdb, err := db.Find(asserts.ConfdbSchemaType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "my-confdb",
+	})
+	c.Assert(err, IsNil)
+	c.Check(confdb.Revision(), Equals, 1)
+
+	// logged the confdb-schema that could be found in the store
+	ref := confdbAs.Ref().String()
+	ref = strings.ReplaceAll(ref, "(", `\(`)
+	ref = strings.ReplaceAll(ref, ")", `\)`)
+
+	log = logbuf.String()
+	i := strings.LastIndex(log[:len(log)-2], "\n")
+	c.Assert(log[i+1:], Matches, fmt.Sprintf(".*ignoring not found error when refreshing confdb-schema: %v not found\n", ref))
+
+	return log
+}
+
+func (s *assertMgrSuite) TestBulkRefreshPartLocalConfdbSchemaNotFound(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// setup a confdb-schema assertion locally but not in the store
+	assertions := []asserts.Assertion{s.storeSigning.StoreAccountKey(""), s.dev1Acct, s.dev1AcctKey}
+	skipStoreAdd := true
+	localAs := s.setupConfdbAssert(c, "local-confdb", nil, skipStoreAdd)
+	assertions = append(assertions, localAs)
+
+	// setup another which has an update in the store
+	remoteAs := s.setupConfdbAssert(c, "remote-confdb", nil, skipStoreAdd)
+	assertions = append(assertions, remoteAs)
+
+	skipStoreAdd = false
+	s.setupConfdbAssert(c, "remote-confdb", map[string]any{"revision": "2"}, skipStoreAdd)
+
+	for _, as := range assertions {
+		err = assertstate.Add(s.state, as)
+		c.Assert(err, IsNil)
+	}
+
+	// simulate a general refresh
+	opts := &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true}
+	c.Assert(assertstate.RefreshSnapAssertions(s.state, 0, opts), IsNil)
+
+	// still on revision 1
+	db := assertstate.DB(s.state)
+	confdb, err := db.Find(asserts.ConfdbSchemaType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "local-confdb",
+	})
+	c.Assert(err, IsNil)
+	c.Check(confdb.Revision(), Equals, 1)
+
+	confdb, err = db.Find(asserts.ConfdbSchemaType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "remote-confdb",
+	})
+	c.Assert(err, IsNil)
+	c.Check(confdb.Revision(), Equals, 2)
+
+	// logged the confdb-schema that could be found in the store
+	ref := localAs.Ref().String()
+	ref = strings.ReplaceAll(ref, "(", `\(`)
+	ref = strings.ReplaceAll(ref, ")", `\)`)
+
+	log := logbuf.String()
+	c.Assert(log, Matches, fmt.Sprintf(".*ignoring not found error when refreshing confdb-schema: %v not found\n", ref))
 }
 
 func (s *assertMgrSuite) TestSnapResourcePair(c *C) {

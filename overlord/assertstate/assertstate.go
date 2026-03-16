@@ -472,6 +472,10 @@ func refreshConfdbAssertions(st *state.State, schemaIDs []confdb.SchemaID, userI
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
 		for _, id := range schemaIDs {
 			if err := snapasserts.FetchConfdbSchema(f, id.Account, id.Name); err != nil {
+				if errors.Is(err, &asserts.NotFoundError{}) {
+					logger.Noticef("ignoring not found error when refreshing confdb-schema: %v", err)
+					continue
+				}
 				return err
 			}
 		}
