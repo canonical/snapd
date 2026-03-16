@@ -1435,6 +1435,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"snap-fde-control":                 true,
 		"firmware-updater-support":         true,
 		"devlxd":                           true,
+		"umu-support":                      true,
 	}
 
 	for _, iface := range all {
