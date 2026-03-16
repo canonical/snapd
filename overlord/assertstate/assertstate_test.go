@@ -6201,14 +6201,14 @@ type testValidatedIntegrityDataParams struct {
 }
 
 func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIntegrityDataParams) {
-	const rev = 10
+	rev := snap.Revision{N: 10}
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	if params.createRevision {
-		paths, _ := s.prereqSnapAssertions(c, nil, "", params.integrity, rev)
-		snapPath := paths[rev]
+		paths, _ := s.prereqSnapAssertions(c, nil, "", params.integrity, rev.N)
+		snapPath := paths[rev.N]
 
 		// Compute the expected integrity data size explicitly since the test snap file size
 		// differs between distributions.
@@ -6219,7 +6219,7 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 		}
 
 		if params.createMultiple {
-			snapPath := s.makeTestSnap(c, rev, "")
+			snapPath := s.makeTestSnap(c, rev.N, "")
 			digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
 			c.Assert(err, IsNil)
 
@@ -6253,7 +6253,7 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 			SideInfo: &snap.SideInfo{
 				RealName: "foo",
 				SnapID:   "snap-id-1",
-				Revision: snap.R(rev),
+				Revision: rev,
 			},
 		}
 		t.Set("snap-setup", snapsup)

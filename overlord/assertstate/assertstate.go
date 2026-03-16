@@ -1431,22 +1431,22 @@ func ConfdbSchema(s *state.State, account, schemaName string) (*asserts.ConfdbSc
 
 var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
 
-// snapRevisionFromSnapIdAndRevisionNumber is a helper that searches for a snap revision in the database given
+// snapRevisionFromSnapIdAndRevision is a helper that searches for a snap revision in the database given
 // a snap ID, and a revision number. This is to be used in cases when the sha3 hash which is the primary key
 // for revision assertions is not known or we don't want to incur the cost to compute it.
-func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId string, revN int) (*asserts.SnapRevision, error) {
+func snapRevisionFromSnapIdAndRevision(db asserts.RODatabase, snapId string, rev snap.Revision) (*asserts.SnapRevision, error) {
 	// TODO: Given we don't GC snap-revisions atm, the following db lookup
 	// might need to be optimized by GCing unused snap-revisions.
-	revs, err := db.FindMany(asserts.SnapRevisionType, map[string]string{
+	found, err := db.FindMany(asserts.SnapRevisionType, map[string]string{
 		"snap-id":       snapId,
-		"snap-revision": strconv.Itoa(revN),
+		"snap-revision": strconv.Itoa(rev.N),
 	})
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return nil, err
 	}
 
-	if len(revs) < 1 {
-		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%d).", ErrNoRevisionFound, snapId, revN)
+	if len(found) < 1 {
+		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%s).", ErrNoRevisionFound, snapId, rev)
 	}
 
 	// Despite the set (snap-id, snap-revision) not comprising a primary key for
@@ -1454,12 +1454,11 @@ func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId strin
 	// adding a revision with the same revision number for the same snap-id,
 	// therefore the check here should be redundant but we keep it to as a safeguard
 	// in case that behavior changes.
-	if len(revs) > 1 {
-		return nil, fmt.Errorf("multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%d).", snapId, revN)
+	if len(found) > 1 {
+		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%s).", snapId, rev)
 	}
 
-	rev := revs[0].(*asserts.SnapRevision)
-	return rev, nil
+	return found[0].(*asserts.SnapRevision), nil
 }
 
 // ValidatedIntegrityData returns the integrity parameters found in the assertion database for a specific
@@ -1469,13 +1468,13 @@ func snapRevisionFromSnapIdAndRevisionNumber(db asserts.RODatabase, snapId strin
 //
 // integrity.ErrNoIntegrityDataFoundInRevision is returned if matching revision
 // assertion does not contain integrity data.
-func ValidatedIntegrityData(st *state.State, snapID string, snapRev int) (*integrity.IntegrityDataParams, error) {
+func ValidatedIntegrityData(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
 	db := DB(st)
 
-	rev, err := snapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapRev)
+	revAssertion, err := snapRevisionFromSnapIdAndRevision(db, snapID, rev)
 	if err != nil {
 		return nil, err
 	}
 
-	return integrity.NewIntegrityDataParamsFromRevision(rev)
+	return integrity.NewIntegrityDataParamsFromRevision(revAssertion)
 }

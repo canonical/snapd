@@ -52,7 +52,7 @@ var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, 
 
 // ValidatedIntegrityData allows to hook fetching integrity data for snap-revisions that
 // have been already validated by inclusion in the assertion database. It's hooked from assertstate.
-var ValidatedIntegrityData func(*state.State, string, int) (*integrity.IntegrityDataParams, error)
+var ValidatedIntegrityData func(*state.State, string, snap.Revision) (*integrity.IntegrityDataParams, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
