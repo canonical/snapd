@@ -779,12 +779,12 @@ func (s *SystemdTestSuite) TestDaemonReEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.DaemonReEnable([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "reenable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}, {"--no-reload", "enable", "foo"}})
 
 	s.argses = nil
 	err = sysd.DaemonReEnable([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "reenable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}, {"--no-reload", "enable", "foo", "bar"}})
 
 	s.argses = nil
 	err = sysd.DaemonReEnable([]string{})
@@ -794,7 +794,7 @@ func (s *SystemdTestSuite) TestDaemonReEnable(c *C) {
 	sysd = NewSystemd(RunningSystemdBackend, "/test", SystemMode, s.rep)
 	err = sysd.DaemonReEnable([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "/test", "reenable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "/test", "disable", "foo", "bar"}, {"--root", "/test", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {

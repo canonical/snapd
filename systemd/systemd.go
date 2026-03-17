@@ -708,16 +708,13 @@ func (s *systemd) DaemonReEnable(serviceNames []string) error {
 	if len(serviceNames) == 0 {
 		return nil
 	}
-	var args []string
-	if s.rootDir != "" {
-		// passing root already implies no reload
-		args = append(args, "--root", s.rootDir)
-	} else {
-		args = append(args, "--no-reload")
+	// We can't use `reenable` yet because it was added to Systemd 238,
+	// thus it's available only in Focal and newer.
+	err := s.DisableNoReload(serviceNames)
+	if err != nil {
+		return err
 	}
-	args = append(args, "reenable")
-	args = append(args, serviceNames...)
-	_, err := s.systemctl(args...)
+	err = s.EnableNoReload(serviceNames)
 	return err
 }
 
