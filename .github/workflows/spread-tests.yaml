@@ -577,10 +577,12 @@ jobs:
       run: |
         if [ -f results.json ]; then
             echo "Sending results to Test-Predictor"
+            JOB_ID=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name == \"${{ github.job }}\") | .id")
+
             curl -X POST http://test-predictor.canonical.com:5000/ingest \
               -F "file=@./results.json" \
               -F "attempt=${{ github.run_attempt }}" \
-              -F "job_id=${{ github.job }}" \
+              -F "job_id=$JOB_ID" \
               -F "run_id=${{ github.run_id }}"
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
