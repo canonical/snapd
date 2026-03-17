@@ -173,6 +173,7 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
+	ensureBootOkRan           bool
 	ensureInstalledRan        bool
 	ensureFactoryResetRan     bool
 	ensurePostFactoryResetRan bool
@@ -1249,34 +1250,38 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	currentBootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-
-	bootOkRan, err := bootOkRanForBootID(m.state, currentBootID)
-	if err != nil {
-		return err
-	}
-
-	if !bootOkRan {
-		markBootOkRanForBootID(m.state, currentBootID)
-
-		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+	if !m.ensureBootOkRan {
+		currentBootID, err := osutilBootID()
+		if err != nil {
 			return err
 		}
-		if err == nil && deviceCtx.Model().KernelSnap() != nil {
-			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
-				return err
-			}
+
+		bootOkRanForCurrentBootID, err := bootOkRanForBootID(m.state, currentBootID)
+		if err != nil {
+			return err
 		}
-	} else {
-		// a reseal already ran, nothing to do
-		logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+
+		if !bootOkRanForCurrentBootID {
+			markBootOkRanForBootID(m.state, currentBootID)
+
+			deviceCtx, err := DeviceCtx(m.state, nil, nil)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if err == nil && deviceCtx.Model().KernelSnap() != nil {
+				if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+					return err
+				}
+				if err := secbootMarkSuccessful(); err != nil {
+					return err
+				}
+			}
+		} else {
+			// a reseal already ran, nothing to do
+			logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+		}
+
+		m.ensureBootOkRan = true
 	}
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
@@ -2140,6 +2145,7 @@ func (m *DeviceManager) Ensure() error {
 func (m *DeviceManager) ResetToPostBootState() {
 	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
 	m.state.Set("ensure-boot-ok-boot-id", "")
+	m.ensureBootOkRan = false
 	m.bootRevisionsUpdated = false
 	m.ensureTriedRecoverySystemRan = false
 }

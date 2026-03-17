@@ -267,11 +267,15 @@ func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
 
-func SetBootOkRan(m *DeviceManager, b bool) (restore func()) {
+func SetBootOkRanForCurrentBootID(m *DeviceManager, b bool) (restore func()) {
 	f := func(st *state.State, currentBootID string) (bool, error) {
 		return b, nil
 	}
 	return testutil.Mock(&bootOkRanForBootID, f)
+}
+
+func SetEnsureBootOkRan(m *DeviceManager, b bool) {
+	m.ensureBootOkRan = b
 }
 
 func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
