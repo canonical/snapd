@@ -107,6 +107,12 @@ const (
 	// UnboundedStructureSize is the maximum effective partition size
 	// that we can handle.
 	UnboundedStructureSize = quantity.Size(math.MaxUint64)
+
+	BootLoaderGrub    = "grub"
+	BootLoaderAndroid = "android-boot"
+	BootLoaderLk      = "lk"
+	BootLoaderUboot   = "u-boot"
+	BootLoaderPiboot  = "piboot"
 )
 
 var (
@@ -145,6 +151,17 @@ type Info struct {
 // given role.
 func (i *Info) HasRole(role string) bool {
 	return VolumesHaveRole(i.Volumes, role)
+}
+
+// HasBootloader returns true if the gadget uses the specified bootloader. Note
+// that when validating we ensure there is only one defined across the volumes.
+func (i *Info) HasBootloader(bootloader string) bool {
+	for _, v := range i.Volumes {
+		if v.Bootloader == bootloader {
+			return true
+		}
+	}
+	return false
 }
 
 // PartialProperty is a gadget property that can be partially defined.
@@ -1241,9 +1258,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot", "lk":
+		case BootLoaderGrub, BootLoaderUboot, BootLoaderAndroid, BootLoaderLk:
 			bootloadersFound += 1
-		case "piboot":
+		case BootLoaderPiboot:
 			if !compatWithPibootOrIndeterminate(model) {
 				return nil, errors.New("piboot bootloader valid only for UC20 onwards")
 			}
