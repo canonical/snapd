@@ -316,11 +316,9 @@ func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug
 	}
 
 	/*
-			This mounts the /usr/lib/wsl directory from the hostfs to the expected location inside the snap.
-			A recursive bind mount is required because the wsl directory itself contains additional mounts.
-			The `ro` option can not be specified along with the `rbind` option, and is therefore omitted.
-			The apparmor profile should limit this path to only read/mmap-execute, but AppArmor is not currently active in wsl2.
-		    On wsl2, this directory is therefore writable by the root user in the snap.
+		A recursive bind mount is required here because the wsl directory itself contains additional mounts.
+		The `ro` option can not be specified along with the `rbind` option, and is therefore omitted.
+		AppArmor should limit the directory to read-only, but AppArmor is not currently active on wsl2.
 	*/
 	hostWslDir := filepath.Join(dirs.GlobalRootDir, wslDirInHostNs)
 	if osutil.IsDirectory(hostWslDir) {

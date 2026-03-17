@@ -217,22 +217,6 @@ func execApp(snapTarget, revision, command string, args []string) error {
 		env["CUPS_SERVER"] = "/var/cups/cups.sock"
 	}
 
-	// Using the same workaround as for the CUPS_SERVER env var above,
-	// prepend /usr/lib/wsl/lib to PATH if /usr/lib/wsl is bind-mounted.
-	// This is needed when the opengl interface is connected on WSL2, so that
-	// WSL GPU libraries (e.g. libdxcore) are found in the snap environment.
-	var stUsr, stWsl syscall.Stat_t
-	err1 = syscallStat(dirs.GlobalRootDir+"/usr/lib", &stUsr)
-	err2 = syscallStat(dirs.GlobalRootDir+"/usr/lib/wsl/", &stWsl)
-	if err1 == nil && err2 == nil && stUsr.Dev != stWsl.Dev {
-		const wslLibPath = "/usr/lib/wsl/lib"
-		if existingPath := env["PATH"]; existingPath != "" {
-			env["PATH"] = wslLibPath + ":" + existingPath
-		} else {
-			env["PATH"] = wslLibPath
-		}
-	}
-
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
 	// (see also overlord/snapstate/check_snap.go's normPath)
