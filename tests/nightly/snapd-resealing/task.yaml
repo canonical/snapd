@@ -1,0 +1,35 @@
+summary: Check snapd reseals properly after it is refreshed and system rebooted
+
+details: |
+
+systems: [ubuntu-core-*]
+
+environment:
+  SNAPD_REFRESH_CHANNEL: latest/edge
+  KERNEL_REFRESH_CHANNEL: 24/beta
+
+skip:
+  - reason: Secure boot is not enabled in the current system
+    if: journalctl -b | NOMATCH "secureboot.*enabled"
+
+prepare: |
+  if [ $SPREAD_REBOOT = 0 ]; then
+    snap refresh snapd --revision 25202 --no-wait   # this is the revision 2.71 amd64
+    retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+    REBOOT
+  fi
+  
+  if [ $SPREAD_REBOOT = 1 ]; then
+    snap refresh pc-kernel
+    REBOOT
+  fi
+
+execute: |
+  if [ $SPREAD_REBOOT = 0 ]; then
+    snap refresh snapd --channel="$SNAPD_REFRESH_CHANNEL"
+    snap refresh pc-kernel --channel="$KERNEL_REFRESH_CHANNEL"
+
+    REBOOT
+  fi
+
+  journalctl -b | MATCH "snapd.*re-seal"
