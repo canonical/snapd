@@ -1,3 +1,8 @@
+# New in snapd 2.75.1
+* FDE: limit number of boot check log entries
+* Allow a logged in user to refresh private snaps during a refresh with multiple snaps
+* Use precise prune pattern for tmpfiles (CVE-2026-3888)
+
 # New in snapd 2.75
 * FDE: run early boot check only once per boot
 * FDE: update secboot to revision 77bc2457cc76

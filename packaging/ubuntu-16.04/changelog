@@ -1,3 +1,13 @@
+snapd (2.75.1) xenial; urgency=medium
+
+  * New upstream release, LP: #2143882
+    - FDE: limit number of boot check log entries
+    - Allow a logged in user to refresh private snaps during a refresh
+      with multiple snaps
+    - Use precise prune pattern for tmpfiles (CVE-2026-3888)
+
+ -- Katie May <katie.may@canonical.com>  Wed, 18 Mar 2026 09:59:01 +0100
+
 snapd (2.75) xenial; urgency=medium
 
   * New upstream release, LP: #2143882

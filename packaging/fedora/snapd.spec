@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.75
+Version:        2.75.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1009,6 +1009,13 @@ fi
 %endif
 
 %changelog
+* Wed Mar 18 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.75.1
+ - FDE: limit number of boot check log entries
+ - Allow a logged in user to refresh private snaps during a refresh
+   with multiple snaps
+ - Use precise prune pattern for tmpfiles (CVE-2026-3888)
+
 * Mon Mar 09 2026 Katie May <katie.may@canonical.com>
 - New upstream release 2.75
  - FDE: run early boot check only once per boot
