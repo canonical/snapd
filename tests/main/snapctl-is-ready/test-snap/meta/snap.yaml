@@ -1,0 +1,9 @@
+name: test-snapctl-is-ready
+version: 1.0
+summary: Test snap for snapctl is-ready
+components:
+  comp:
+    type: standard
+apps:
+  app:
+    command: bin/app

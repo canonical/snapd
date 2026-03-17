@@ -451,6 +451,8 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
+	chg.Set("snapctl-initiated-by", hctx.InstanceName())
+	chg.Set("snapctl-last-accessed", time.Now().Format(time.RFC3339))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -489,6 +491,51 @@ func jsonRaw(v any) *json.RawMessage {
 	}
 	raw := json.RawMessage(data)
 	return &raw
+}
+
+var timeSleep = time.Sleep
+
+func getChangeStatus(hctx *hookstate.Context, changeID string) (string, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return "", fmt.Errorf("change %q not found", changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("snapctl-initiated-by", &initiatorSnapName)
+	if err != nil {
+		return "", fmt.Errorf("could not find initiator attribute for change %q", changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return "", fmt.Errorf("change %q was initiated by another snap", changeID)
+	}
+
+	var lastAccess string
+	err = chg.Get("snapctl-last-accessed", &lastAccess)
+	if err != nil {
+		return "", fmt.Errorf("could not find last accessed attribute for change %q", changeID)
+	}
+
+	accessedTime, err := time.Parse(time.RFC3339, lastAccess)
+	if err != nil {
+		return "", fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
+	}
+
+	since := time.Since(accessedTime)
+	if since < 200*time.Millisecond {
+		timeSleep(200*time.Millisecond - since)
+	}
+
+	status := chg.Status()
+	return status.String(), nil
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

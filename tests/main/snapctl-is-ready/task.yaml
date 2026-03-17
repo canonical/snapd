@@ -1,0 +1,57 @@
+summary: Ensure that snapctl is-ready command works.
+
+details: |
+  Verifies that the snapctl is-ready command correctly reports the status of a
+  change initiated by a snap via snapctl. A test snap with a component is
+  installed locally. The component is then removed via snapctl (from within the
+  snap's app context using snap run --shell), which creates a snapctl-initiated
+  change with the required snapctl-initiated-by and snapctl-last-accessed
+  attributes. is-ready is then called against that change ID to verify it
+  reports Done and exits successfully.
+
+  Also verifies that is-ready fails appropriately for invalid change IDs, wrong
+  argument counts, and changes not initiated by the calling snap.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+prepare: |
+  snap pack test-snap/
+  snap pack test-comp/
+  snap install --dangerous test-snapctl-is-ready_1.0_all.snap
+  snap install --dangerous test-snapctl-is-ready+comp_1.0.comp
+
+restore: |
+  snap remove --purge test-snapctl-is-ready || true
+
+execute: |
+  echo "Remove component via snapctl to create a snapctl-remove change"
+  snap run --shell test-snapctl-is-ready.app -c 'snapctl remove +comp'
+
+  CHANGE_ID=$(snap debug api /v2/changes?select=all | \
+    gojq '[.result[] | select(.kind == "snapctl-remove")] | last | .id' | \
+    tr -d '"')
+  test -n "$CHANGE_ID" && test "$CHANGE_ID" != "null"
+
+  echo "snapctl is-ready returns Done for a completed change"
+  OUT=$(snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $CHANGE_ID")
+  echo "$OUT" | MATCH "Done"
+
+  echo "snapctl is-ready exits 0 for a completed change"
+  snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $CHANGE_ID"
+
+  echo "snapctl is-ready fails with exit 1 for an invalid change ID"
+  not snap run --shell test-snapctl-is-ready.app -c 'snapctl is-ready nonexistent-id'
+
+  echo "snapctl is-ready fails with too few arguments"
+  not snap run --shell test-snapctl-is-ready.app -c 'snapctl is-ready'
+
+  echo "snapctl is-ready fails with too many arguments"
+  not snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $CHANGE_ID extra-arg"
+
+  echo "snapctl is-ready fails for a change not initiated by the snap"
+  INSTALL_CHANGE_ID=$(snap debug api /v2/changes?select=all | \
+    gojq '[.result[] | select(.kind == "install-snap")] | last | .id' | \
+    tr -d '"')
+  if [ -n "$INSTALL_CHANGE_ID" ] && [ "$INSTALL_CHANGE_ID" != "null" ]; then
+    not snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $INSTALL_CHANGE_ID"
+  fi

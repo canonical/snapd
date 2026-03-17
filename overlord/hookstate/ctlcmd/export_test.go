@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -51,6 +52,7 @@ var (
 )
 
 type KmodCommand = kmodCommand
+type IsReadyCommand = isReadyCommand
 
 func MockKmodCheckConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
 	r := testutil.Backup(&kmodCheckConnection)
@@ -209,4 +211,10 @@ func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, [
 	return func() {
 		confdbstateTransactionForGet = old
 	}
+}
+
+func MockTimeSleep(f func(time.Duration)) (restore func()) {
+	old := timeSleep
+	timeSleep = f
+	return func() { timeSleep = old }
 }
