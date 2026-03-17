@@ -124,9 +124,10 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
+		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
+			c.Assert(access, Equals, confdb.AdminAccess)
 			return "123", nil
 		})
 
@@ -155,9 +156,10 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Name, Equals, "wifi-setup")
+		c.Assert(access, Equals, confdb.AdminAccess)
 		return "123", nil
 	})
 	defer restore()
@@ -648,39 +650,6 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400, cmt)
 		c.Check(rspe.Message, Matches, tc.err, cmt)
-	}
-}
-
-func (s *confdbSuite) TestGetViewCheckVisibility(c *C) {
-	s.setFeatureFlag(c)
-
-	type test struct {
-		name string
-		uid  string
-		user confdb.Access
-	}
-	restoreGet := daemon.MockConfdbstateGetView(func(_ *state.State, acc, confdbSchema, viewName string) (*confdb.View, error) {
-		return s.schema.View(viewName), nil
-	})
-	defer restoreGet()
-	for _, t := range []test{
-		// Even a non-root user will have admin capabilities since only admins may access the /v2/confdb/{account}/{confdb-schema}/{view} endpoint
-		{name: "non-root", uid: "1000", user: confdb.AdminAccess},
-		{name: "root", uid: "0", user: confdb.AdminAccess},
-	} {
-		cmt := Commentf("%s test", t.name)
-		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, user confdb.Access) (string, error) {
-			c.Assert(user, Equals, t.user)
-			return "123", nil
-		})
-		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
-		c.Assert(err, IsNil, cmt)
-		req.RemoteAddr = fmt.Sprintf("pid=100;uid=%s;socket=;", t.uid)
-
-		rspe := s.asyncReq(c, req, nil, actionIsExpected)
-		c.Check(rspe.Status, Equals, 202, cmt)
-		c.Check(rspe.Change, Equals, "123", cmt)
-		restoreLoad()
 	}
 }
 
