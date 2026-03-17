@@ -577,7 +577,7 @@ jobs:
       run: |
         if [ -f results.json ]; then
             echo "Sending results to Test-Predictor"
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name == \"${{ github.job }}\") | .id")
+            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name == \"${{ github.workflow }}\") | .id")
 
             curl -X POST http://test-predictor.canonical.com:5000/ingest \
               -F "file=@./results.json" \
