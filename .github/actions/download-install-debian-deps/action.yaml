@@ -29,4 +29,6 @@ runs:
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
         sudo apt install -y clang
         sudo apt install -y gcovr lcov
+        # We need dbus-launch for many unit tests
+        sudo apt install -y dbus-x11
         rm -rf ./debian-deps
