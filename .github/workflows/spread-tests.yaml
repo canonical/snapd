@@ -570,3 +570,18 @@ jobs:
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
+
+    - name: Send results to Test-Predictor
+      if: always()
+      continue-on-error: true
+      run: |
+        if [ -f results.json ]; then
+            echo "Sending results to Test-Predictor"
+            curl -X POST http://test-predictor.canonical.com:5000/ingest \
+              -F "file=@./results.json" \
+              -F "attempt=${{ github.run_attempt }}" \
+              -F "job_id=${{ github.job }}" \
+              -F "run_id=${{ github.run_id }}"
+        else
+            echo "No spread results log found, skipping sending results to Test-Predictor"
+        fi
