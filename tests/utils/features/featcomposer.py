@@ -125,7 +125,8 @@ def get_system_list(dir: str) -> set[str]:
 
 def _replace_tests(old_json_file: str, new_json_file: str) -> features.SystemFeatures:
     '''
-    The new_json_file contains a subset of the tests found in the old_json_file.
+    The new_json_file contains a set of the tests, some of which may be found
+    in the old_json_file, some of which may not.
     This function leaves not-rerun tests untouched, while replacing old test
     runs with their rerun counterparts found in new_json_file. The resulting
     json in output therefore contains a mix of tests that were not rerun and
@@ -141,12 +142,16 @@ def _replace_tests(old_json_file: str, new_json_file: str) -> features.SystemFea
     with open(new_json_file, 'r', encoding='utf-8') as f:
         new_json = json.load(f)
     for test in new_json['tests']:
+        found = False
         for old_test in old_json['tests']:
             if old_test['task_name'] == test['task_name'] and old_test['suite'] == test['suite'] and old_test['variant'] == test['variant']:
+                found = True
                 old_test.clear()
                 for key, value in test.items():
                     old_test[key] = value
                 break
+        if not found:
+            old_json['tests'].append(test)
     return old_json
 
 
@@ -227,9 +232,12 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
         if len(original) != 1:
             raise RuntimeError(
                 f'The rerun {rerun} does not have a corresponding original run')
-        tests = _replace_tests(os.path.join(
-            dir, original[0]), os.path.join(dir, rerun))
-        with open(os.path.join(output_dir, result_name + '.json'), 'w', encoding='utf-8') as f:
+        original_file=os.path.join(dir, original[0])
+        result_file=os.path.join(output_dir, result_name + '.json')
+        if os.path.isfile(result_file):
+            original_file = result_file
+        tests = _replace_tests(original_file, os.path.join(dir, rerun))
+        with open(result_file, 'w', encoding='utf-8') as f:
             f.write(json.dumps(tests))
 
     # Search for system test results that had no reruns and

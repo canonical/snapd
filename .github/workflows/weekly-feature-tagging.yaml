@@ -4,10 +4,6 @@ on:
 
   workflow_dispatch:
     inputs:
-      features:
-        type: string
-        description: 'Comma-separated list of features to tag'
-        default: 'cmd,task,change,ensure,endpoint,interface'
       maximum-reruns:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
@@ -26,7 +22,6 @@ jobs:
   set-inputs:
     runs-on: ubuntu-latest
     outputs:
-      features: ${{ steps.set-inputs.outputs.features }}
       maximum-reruns: ${{ steps.set-inputs.outputs.maximum-reruns }}
       run-one-system: ${{ steps.set-inputs.outputs.run-one-system }}
       skip-tests: ${{ steps.set-inputs.outputs.skip-tests }}
@@ -34,7 +29,6 @@ jobs:
       - name: Set inputs
         id: set-inputs
         run: |
-          echo "features=${{ inputs.features || 'cmd,task,change,ensure,endpoint,interface' }}" >> $GITHUB_OUTPUT
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
           echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
@@ -208,65 +202,7 @@ jobs:
 
       - name: Create feature tags
         run: |
-          shopt -s nullglob 
-          
-          featdir="extracted-tags"
-          mkdir -p "$featdir"
-          composedir="composed-tags"
-          mkdir -p "$composedir"
-          IFS=',' read -ra features <<< "${{ needs.set-inputs.outputs.features }}"
-          for file in "feature-tags-artifacts"/*; do
-            mkdir working
-            tar -xzf "$file" -C working
-            if ! [ -d "working/spread-artifacts/feature-tags" ]; then
-              echo "Artifact $file has no artifact data"
-              rm -r working
-              continue
-            fi
-            for dir in "working/spread-artifacts/feature-tags"/*/; do
-              if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
-                ./tests/utils/features/featextractor.py \
-                  -f "${features[@]}" \
-                  --journal "${dir}/journal.txt" \
-                  --state "${dir}/state.json" \
-                  --output "$featdir/$(basename ${dir})"
-              elif [ -f "${dir}/journal.txt" ] && [ ! -f "${dir}/state.json" ]; then
-                ./tests/utils/features/featextractor.py \
-                  -f "${features[@]}" \
-                  --journal "${dir}/journal.txt" \
-                  --output "$featdir/$(basename ${dir})"
-              elif [ ! -f "${dir}/journal.txt" ]; then
-                echo "No journal.txt present in $dir"
-                exit 1
-              fi
-            done
-            ./tests/utils/features/featcomposer.py \
-                --dir "$featdir" \
-                --output "$composedir" \
-                --failed-tests "working/spread-artifacts/failed-tests.txt" \
-                --run-attempt "$(cat "working/spread-artifacts/run-attempt.txt")" \
-                --env-variables "$(cat "working/spread-artifacts/env-variables.txt")"
-            rm -r working
-          done
-          ./tests/utils/features/featcomposer.py \
-            --dir "$composedir" \
-            --output "final-feature-tags" \
-            --replace-old-runs
-
-          for json in final-feature-tags/*; do
-              if grep -qE "-nested.*04-64" <<<"$json"; then
-                  version=${json#*ubuntu-}
-                  version=${version%%.*}
-                  core_file=$(find final-feature-tags -name "*ubuntu-core-$version-64*" || true)
-                  if [ -n "$core_file" ]; then
-                      echo "merging $json into $core_file"
-                      jq -s '.[0].tests += .[1].tests | .[0]' "$core_file" "$json" > temp.json && mv temp.json "$core_file"
-                      rm "$json"
-                  fi
-              fi
-          done
-          
-          ./tests/utils/features/feattranslator.py -f all-features.json -o final-feature-tags/all-features.json
+          WORK_DIR=. ./tests/utils/features/process-features.sh
 
           tar -czf "final-feature-tags.tar.gz" "final-feature-tags"
 

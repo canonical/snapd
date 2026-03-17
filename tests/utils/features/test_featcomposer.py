@@ -141,7 +141,8 @@ class TestReplace(unittest.TestCase):
             original_json = {'system.version': 'my:system.version', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': False, 'cmds': [{'cmd': 'original run'}]},
                                                               {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]}]}
             rerun_json = {'system.version': 'my:system.version', 'tests': [
-                {'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]}]}
+                {'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]},
+                {'task_name': 'task3', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 2'}]}]}
             run_once_json = {'system.version': 'my:other-system.version', 'tests': [
                 {'task_name': 'task', 'suite': 'my/suite', 'variant': 'v1', 'success': True}]}
             with open(original, 'w') as f:
@@ -160,9 +161,10 @@ class TestReplace(unittest.TestCase):
                 actual = json.load(f)
                 assert len(actual) == 2
                 assert 'system.version' in actual and actual['system.version'] == 'my:system.version'
-                assert 'tests' in actual and len(actual['tests']) == 2
+                assert 'tests' in actual and len(actual['tests']) == 3
                 assert {'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]} in actual['tests']
                 assert {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]} in actual['tests']
+                assert {'task_name': 'task3', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 2'}]} in actual['tests']
             with open(os.path.join(tmpdir, output_dir, 'my:other-system.version.json'), 'r') as f:
                 actual = json.load(f)
                 assert len(actual) == 2
