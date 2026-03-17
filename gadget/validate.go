@@ -432,13 +432,6 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
 
-	// The ubootpart bootloader requires a system-boot-state partition
-	if osutil.FileExists(filepath.Join(gadgetSnapRootDir, "ubootpart.conf")) {
-		if !info.HasRole(SystemBootState) {
-			return fmt.Errorf("gadget has ubootpart.conf bootloader marker but no system-boot-state partition role")
-		}
-	}
-
 	var kernelInfo *kernel.Info
 	if kernelSnapRootDir != "" {
 		var err error
