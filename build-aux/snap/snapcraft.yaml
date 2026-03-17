@@ -173,7 +173,7 @@ parts:
 
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
-      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
+      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby --disable-shared
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make -C src install DESTDIR="${CRAFT_PART_INSTALL}"
       make -C include install DESTDIR="${CRAFT_PART_INSTALL}"
@@ -182,7 +182,7 @@ parts:
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1
       install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
