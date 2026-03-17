@@ -95,9 +95,6 @@ execute: |
             size: 1500M
     EOF
 
-    # ubootpart.conf marker file selects the ubootpart bootloader
-    touch "$gadget_dir/ubootpart.conf"
-
     snap pack "$gadget_dir" "$ROOT"
 
     echo Running prepare-image
