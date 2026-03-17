@@ -193,3 +193,7 @@ func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pla
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(u.dir(), s)
 }
+
+func (u *uboot) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(u, gadgetDir)
+}

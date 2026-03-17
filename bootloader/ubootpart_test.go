@@ -134,15 +134,17 @@ func (s *ubootpartTestSuite) TestUbootPartExtractRecoveryKernelAssets(c *C) {
 
 func (s *ubootpartTestSuite) TestUbootPartPresentAfterInstall(c *C) {
 	// Present() at prepare-image time checks for the installed environment
-	// file, not the .conf marker (which lives in gadgetDir, not rootdir).
+	// file, not looking at gadget.yaml (which lives in gadgetDir, not rootdir).
 	// Use separate directories to verify this.
 	opts := &bootloader.Options{PrepareImageTime: true}
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
-	// Marker in a separate gadget dir — not in rootdir
+	// Create a valid gadget.yaml
 	gadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+	yamlDir := filepath.Join(gadgetDir, "meta")
+	c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+		[]byte(uboopartGadget), 0644), IsNil)
 
 	// Before install, not present (no env file yet)
 	present, err := u.Present()
@@ -164,10 +166,12 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfig(c *C) {
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+	yamlDir := filepath.Join(gadgetDir, "meta")
+	c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+		[]byte(uboopartGadget), 0644), IsNil)
 
-	err = u.InstallBootConfig(gadgetDir, opts)
+	err := u.InstallBootConfig(gadgetDir, opts)
 	c.Assert(err, IsNil)
 
 	// Verify the environment file was created
@@ -187,8 +191,10 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigRejectsMismatchedSize
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+	yamlDir := filepath.Join(gadgetDir, "meta")
+	c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+		[]byte(uboopartGadget), 0644), IsNil)
 
 	// Create a reference ubootpart.sel with a non-default size
 	customSize := 16384
@@ -209,8 +215,10 @@ func (s *ubootpartTestSuite) TestUbootPartInstallBootConfigMatchingSize(c *C) {
 	u := bootloader.NewUbootPart(s.rootdir, opts)
 
 	gadgetDir := c.MkDir()
-	err := os.WriteFile(filepath.Join(gadgetDir, "ubootpart.conf"), nil, 0644)
-	c.Assert(err, IsNil)
+	yamlDir := filepath.Join(gadgetDir, "meta")
+	c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+		[]byte(uboopartGadget), 0644), IsNil)
 
 	// Create a reference ubootpart.sel with the default size
 	ref, err := ubootenv.Create(filepath.Join(gadgetDir, "ubootpart.sel"),

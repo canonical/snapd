@@ -21,9 +21,11 @@ package bootloadertest
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -123,6 +125,12 @@ func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Contai
 func (b *MockBootloader) RemoveKernelAssets(s snap.PlaceInfo) error {
 	b.RemoveKernelAssetsCalls = append(b.RemoveKernelAssetsCalls, s)
 	return nil
+}
+
+func (b *MockBootloader) RequiredByGadget(gadgetDir string) bool {
+	markerConf := filepath.Join(gadgetDir, b.Name()+".conf")
+	// do we have a marker file?
+	return osutil.FileExists(markerConf)
 }
 
 func (b *MockBootloader) SetEnabledKernel(s snap.PlaceInfo) (restore func()) {

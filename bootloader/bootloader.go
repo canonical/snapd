@@ -115,6 +115,10 @@ type Bootloader interface {
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
+
+	// RequiredByGadget returns true if this bootloader is necessary for
+	// images using the gadget snap extracted in gadgetDir.
+	RequiredByGadget(gadgetDir string) bool
 }
 
 type RecoveryAwareBootloader interface {
@@ -340,7 +344,8 @@ type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 
 var (
 	//  bootloaders list all possible bootloaders by their constructor
-	//  function.
+	//  function. Order is relevant (ubootpart should be chosen over uboot
+	//  when the system-boot-state partition is defined).
 	bootloaders = []bootloaderNewFunc{
 		newUbootPart,
 		newUboot,
@@ -494,13 +499,20 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	}
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
-		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
-		// do we have a marker file?
-		if osutil.FileExists(markerConf) {
+		if bl.RequiredByGadget(gadgetDir) {
 			return bl, nil
 		}
 	}
 	return nil, ErrBootloader
+}
+
+// checkForBlMarker is a helper used by implementations of RequiredByGadget in
+// case they check for a file marker to determine if they are the right
+// bootloader.
+func checkForBlMarker(bl Bootloader, gadgetDir string) bool {
+	markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
+	// do we have a marker file?
+	return osutil.FileExists(markerConf)
 }
 
 // BootFile represents each file in the chains of trusted assets and

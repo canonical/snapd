@@ -325,13 +325,6 @@ func NewUbootPart(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageB
 }
 
 func MockUbootPartFiles(c *C, rootdir string, blOpts *Options) func() {
-	// Create the ubootpart.conf marker file that indicates ubootpart bootloader
-	confDir := filepath.Join(rootdir, "/boot/uboot")
-	err := os.MkdirAll(confDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(rootdir, "ubootpart.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
 	if blOpts == nil || blOpts.PrepareImageTime {
 		// At prepare-image time, create the environment file in the
 		// parent of rootdir (matching envDevice() which uses

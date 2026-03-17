@@ -32,9 +32,10 @@
 // For security, the kernel command line parameter "snapd_system_disk" restricts which disk
 // snapd will search for the boot state partition.
 //
-// Bootloader selection: Name() returns ubootpartName and gadgets use a ubootpart.conf marker
-// file. This makes ubootpart a first-class bootloader discoverable through the standard
-// bootloader machinery, without special-casing in ForGadget().
+// Bootloader selection: Name() returns ubootpartName and gadgets that use
+// ubootpart have "bootloader: u-boot" and a "role: system-boot-state"
+// partition. This partition in gadget.yaml determines whether snapd uses uboot
+// or ubootpart bootloader code.
 
 package bootloader
 
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -314,4 +316,13 @@ func (u *ubootpart) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap
 
 func (u *ubootpart) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(u.assetsDir(), s)
+}
+
+func (u *ubootpart) RequiredByGadget(gadgetDir string) bool {
+	gInfo, err := gadget.ReadInfo(gadgetDir, nil)
+	if err != nil {
+		logger.Noticef("while reading gadget.yaml from ubootpart: %v", err)
+		return false
+	}
+	return gInfo.HasBootloader(gadget.BootLoaderUboot) && gInfo.HasRole(gadget.SystemBootState)
 }
