@@ -618,15 +618,15 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 				if err != nil {
 					return err
 				}
-				oldKey := ""
-				newKey := ""
+				oldValue := ""
+				newValue := ""
 				if oldSection := oldIni.Section("Install"); oldSection != nil {
-					oldKey = oldSection.Key("WantedBy").String()
+					oldValue = oldSection.Key("WantedBy").String()
 				}
 				if newSection := newIni.Section("Install"); newSection != nil {
-					newKey = newSection.Key("WantedBy").String()
+					newValue = newSection.Key("WantedBy").String()
 				}
-				if oldKey != newKey {
+				if oldValue != newValue {
 					// the daemon must be disabled and re-enabled to ensure that the
 					// .service file is placed in the right wanted-by folder
 					es.reEnableUnits = append(es.reEnableUnits, filepath.Base(path))
