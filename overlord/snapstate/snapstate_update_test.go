@@ -19820,6 +19820,47 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnapOn
 	s.testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c, classic)
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBaseAndModelSnapRun(c *C) {
+	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-snap-with-core18-base"},
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_ = mockSeedRefreshRebootHandlers(s, c, nil)
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "some-snap-with-core18-base", snapID: "some-snap-with-core18-base", snapType: "app", base: "core18"},
+	)
+
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+		{InstanceName: "core18"},
+		{InstanceName: "some-snap-with-core18-base"},
+	})
+
+	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
+	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-snap-with-core18-base")
+	c.Assert(seedTS, NotNil)
+
+	appSnapSetupTask, err := appTS.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	appSnapSetup, err := snapstate.TaskSnapSetup(appSnapSetupTask)
+	c.Assert(err, IsNil)
+	c.Check(appSnapSetup.Base, Equals, "core18")
+
+	s.settle(c)
+	s.mockRestartAndSettle(c, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+}
+
 // TODO: switch this test to the newer seed-refresh helpers
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c *C) {
 	restore := release.MockOnClassic(false)
