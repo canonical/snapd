@@ -19501,6 +19501,141 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 	c.Check(firstTaskOfExtraSnap.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBaseAndModelSnap(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]any{
+		"base":           "core18",
+		"required-snaps": []any{"some-snap-with-core18-base"},
+	}))
+	defer restore()
+
+	base := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(7),
+		SnapID:   "core18-snap-id",
+	}
+	app := snap.SideInfo{
+		RealName: "some-snap-with-core18-base",
+		Revision: snap.R(7),
+		SnapID:   "some-snap-with-core18-base",
+	}
+
+	newBase := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(11),
+		SnapID:   "core18-snap-id",
+	}
+	newApp := snap.SideInfo{
+		RealName: "some-snap-with-core18-base",
+		Revision: snap.R(11),
+		SnapID:   "some-snap-with-core18-base",
+	}
+
+	baseYAML := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: base", base.RealName)
+	appYAML := fmt.Sprintf("name: %s\nversion: 1.0\nepoch: 1\ntype: app\nbase: core18", app.RealName)
+
+	snaptest.MakeTestSnapInfoWithFiles(c, baseYAML, nil, &newBase)
+	snaptest.MakeTestSnapInfoWithFiles(c, appYAML, nil, &newApp)
+	snaptest.MockSnap(c, baseYAML, &base)
+	snaptest.MockSnap(c, appYAML, &app)
+
+	types := map[string]string{
+		"core18":                     "base",
+		"some-snap-with-core18-base": "app",
+	}
+
+	for _, si := range []snap.SideInfo{base, app} {
+		si := si
+		s.fakeStore.registerID(si.RealName, si.SnapID)
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        types[si.RealName],
+		})
+	}
+
+	updates := []snapstate.StoreUpdate{
+		{InstanceName: "core18"},
+		{InstanceName: "some-snap-with-core18-base"},
+	}
+	goal := snapstate.StoreUpdateGoal(updates...)
+
+	affected, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{
+		UserID: s.user.ID,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, []string{"core18", "some-snap-with-core18-base"})
+
+	chg := s.state.NewChange("refresh", "refresh base and model app")
+	var baseTS, appTS *state.TaskSet
+	for _, ts := range uts.Refresh {
+		chg.AddAll(ts)
+		for _, t := range ts.Tasks() {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			if err != nil {
+				continue
+			}
+
+			switch snapsup.InstanceName() {
+			case "core18":
+				baseTS = ts
+			case "some-snap-with-core18-base":
+				appTS = ts
+			}
+
+			break
+		}
+	}
+	c.Check(chg.CheckTaskDependencies(), IsNil)
+	c.Assert(baseTS, NotNil)
+	c.Assert(appTS, NotNil)
+
+	baseLink, err := baseTS.Edge(snapstate.MaybeRebootEdge)
+	c.Assert(err, IsNil)
+	appFirstLocalMod := firstTaskAfterLocalModifications(c, appTS)
+	c.Check(waitsOnTransitively(appFirstLocalMod, baseLink), Equals, true)
+
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+	}
+
+	s.settle(c)
+	c.Check(chg.IsReady(), Equals, false)
+	s.mockRestartAndSettle(c, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	for _, name := range []string{"core18", "some-snap-with-core18-base"} {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.Active, Equals, true)
+		c.Check(snapst.Current, Equals, snap.R(11))
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
