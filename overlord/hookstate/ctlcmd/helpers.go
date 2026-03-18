@@ -519,7 +519,7 @@ func getChangeStatus(hctx *hookstate.Context, changeID string) (string, error) {
 	}
 
 	var lastAccess string
-	err = chg.Get("snapctl-last-accessed", &lastAccess)
+	err = chg.Get("snapctl-last-accessed", &lastAccess) // This may not be the most effective way to handle this
 	if err != nil {
 		return "", fmt.Errorf("could not find last accessed attribute for change %q", changeID)
 	}
@@ -529,10 +529,14 @@ func getChangeStatus(hctx *hookstate.Context, changeID string) (string, error) {
 		return "", fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
 	}
 
+	st.Unlock()
+
 	since := time.Since(accessedTime)
 	if since < 200*time.Millisecond {
 		timeSleep(200*time.Millisecond - since)
 	}
+
+	st.Lock()
 
 	status := chg.Status()
 	return status.String(), nil

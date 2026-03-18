@@ -81,178 +81,221 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, opts
 	return st, ctx, chg.ID()
 }
 
-func (s *isReadySuite) TestIsReadyNoContext(c *C) {
-	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
-	c.Assert(err, ErrorMatches, `cannot invoke snapctl operation commands.*from outside of a snap`)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-}
+func (s *isReadySuite) TestIsReady(c *C) {
+	// changeIDPlaceholder is substituted with the real change ID at runtime.
+	const changeIDPlaceholder = "<change-id>"
 
-func (s *isReadySuite) TestIsReadyInvalidArgsTooFew(c *C) {
-	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
+	tests := []struct {
+		desc        string
+		nilContext  bool
+		taskStatus  state.Status
+		setupOpts   changeSetupOpts
+		args        []string // args after "is-ready"; use changeIDPlaceholder for the real change ID
+		errPattern  string   // if set, expect err to match this regexp
+		errValue    error    // if set, expect err to deep equal this value
+		expectedOut string
+		checkSleep  bool
+	}{
+		{
+			desc:       "no context",
+			nilContext: true,
+			args:       []string{"1"},
+			errPattern: `cannot invoke snapctl operation commands.*from outside of a snap`,
+		},
+		{
+			desc:       "too few args",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:       []string{},
+			errPattern: `invalid number of arguments: expected 1, got 0`,
+		},
+		{
+			desc:       "too many args",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:       []string{changeIDPlaceholder, "extra-arg"},
+			errPattern: `invalid number of arguments: expected 1, got 2`,
+		},
+		{
+			desc:       "change not found",
+			taskStatus: state.DoneStatus,
+			setupOpts:  changeSetupOpts{},
+			args:       []string{"nonexistent-id"},
+			errPattern: `change "nonexistent-id" not found`,
+		},
+		{
+			desc:       "missing initiator attribute",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:       []string{changeIDPlaceholder},
+			errPattern: `could not find initiator attribute for change .*`,
+		},
+		{
+			desc:       "wrong initiator",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "other-snap", // different from context snap "test-snap"
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:       []string{changeIDPlaceholder},
+			errPattern: `change .* was initiated by another snap`,
+		},
+		{
+			desc:       "missing last accessed attribute",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator: true,
+				initiatorSnap: "test-snap",
+			},
+			args:       []string{changeIDPlaceholder},
+			errPattern: `could not find last accessed attribute for change .*`,
+		},
+		{
+			desc:       "invalid last accessed format",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: "not-a-valid-time",
+			},
+			args:       []string{changeIDPlaceholder},
+			errPattern: `invalid last accessed time format for change .*`,
+		},
+		{
+			desc:       "recent access triggers sleep",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				// Use a timestamp in the future to guarantee since < 200ms.
+				lastAccessedTime: time.Now().Add(time.Second).Format(time.RFC3339),
+			},
+			args:        []string{changeIDPlaceholder},
+			expectedOut: "Done",
+			checkSleep:  true,
+		},
+		{
+			desc:       "done status",
+			taskStatus: state.DoneStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:        []string{changeIDPlaceholder},
+			expectedOut: "Done",
+		},
+		{
+			desc:       "doing status",
+			taskStatus: state.DoingStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:        []string{changeIDPlaceholder},
+			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			expectedOut: "Doing",
+		},
+		{
+			desc:       "error status",
+			taskStatus: state.ErrorStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:        []string{changeIDPlaceholder},
+			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			expectedOut: "Error",
+		},
+		{
+			desc:       "hold status",
+			taskStatus: state.HoldStatus,
+			setupOpts: changeSetupOpts{
+				withInitiator:    true,
+				initiatorSnap:    "test-snap",
+				withLastAccessed: true,
+				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
+			},
+			args:        []string{changeIDPlaceholder},
+			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			expectedOut: "Hold",
+		},
+	}
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
-	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
+	for _, tt := range tests {
+		c.Log("test case: ", tt.desc)
 
-func (s *isReadySuite) TestIsReadyInvalidArgsTooMany(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
+		var ctx *hookstate.Context
+		var changeID string
+		if !tt.nilContext {
+			_, ctx, changeID = s.setupChangeAndContext(c, tt.taskStatus, tt.setupOpts)
+		}
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID, "extra-arg"}, 0, nil)
-	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 2`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
+		args := make([]string, 0, len(tt.args)+1)
+		args = append(args, "is-ready")
+		for _, a := range tt.args {
+			if a == changeIDPlaceholder {
+				args = append(args, changeID)
+			} else {
+				args = append(args, a)
+			}
+		}
 
-func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
-	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{})
+		var sleptFor time.Duration
+		var restore func()
+		if tt.checkSleep {
+			restore = ctlcmd.MockTimeSleep(func(d time.Duration) {
+				sleptFor = d
+			})
+		}
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
-	c.Assert(err, ErrorMatches, `change "nonexistent-id" not found`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
+		stdout, stderr, err := ctlcmd.Run(ctx, args, 0, nil)
 
-func (s *isReadySuite) TestIsReadyMissingInitiatorAttr(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		// withInitiator intentionally omitted
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
+		if restore != nil {
+			restore()
+		}
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, ErrorMatches, `could not find initiator attribute for change .*`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
+		switch {
+		case tt.errPattern != "":
+			c.Assert(err, ErrorMatches, tt.errPattern)
+		case tt.errValue != nil:
+			c.Assert(err, DeepEquals, tt.errValue)
+		default:
+			c.Assert(err, IsNil)
+		}
 
-func (s *isReadySuite) TestIsReadyWrongInitiator(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "other-snap", // different from context snap "test-snap"
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
+		if tt.nilContext {
+			c.Check(stdout, IsNil)
+			c.Check(stderr, IsNil)
+		} else {
+			c.Check(string(stdout), Equals, tt.expectedOut)
+			c.Check(string(stderr), Equals, "")
+		}
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, ErrorMatches, `change .* was initiated by another snap`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyMissingLastAccessedAttr(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator: true,
-		initiatorSnap: "test-snap",
-		// withLastAccessed intentionally omitted
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, ErrorMatches, `could not find last accessed attribute for change .*`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyInvalidLastAccessedFormat(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: "not-a-valid-time",
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, ErrorMatches, `invalid last accessed time format for change .*`)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyRecentAccessSleep(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		// Use a timestamp in the future to guarantee since < 200ms.
-		lastAccessedTime: time.Now().Add(time.Second).Format(time.RFC3339),
-	})
-
-	var sleptFor time.Duration
-	s.AddCleanup(ctlcmd.MockTimeSleep(func(d time.Duration) {
-		sleptFor = d
-	}))
-
-	stdout, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-
-	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "Done")
-	// A sleep should have been triggered because the access was very recent.
-	c.Check(sleptFor > 0, Equals, true)
-}
-
-func (s *isReadySuite) TestIsReadyStatusDone(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "Done")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyStatusDoing(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.DoingStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
-	c.Check(string(stdout), Equals, "Doing")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyStatusError(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.ErrorStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
-	c.Check(string(stdout), Equals, "Error")
-	c.Check(string(stderr), Equals, "")
-}
-
-func (s *isReadySuite) TestIsReadyStatusHold(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, state.HoldStatus, changeSetupOpts{
-		withInitiator:    true,
-		initiatorSnap:    "test-snap",
-		withLastAccessed: true,
-		lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-	})
-
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
-	c.Check(string(stdout), Equals, "Hold")
-	c.Check(string(stderr), Equals, "")
+		if tt.checkSleep {
+			c.Check(sleptFor > 0, Equals, true)
+		}
+	}
 }
