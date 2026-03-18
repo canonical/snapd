@@ -577,17 +577,20 @@ jobs:
       run: |
         if [ -f results.json ]; then
             echo "Sending results to Test-Predictor"
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\")) | .id")
 
+            # Get the job ID of the current workflow run by matching job name and matrix group
+            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id")
+
+            echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.canonical.com:5000/ingest \
               -F "file=@./results.json" \
               -F "attempt=${{ github.run_attempt }}" \
               -F "job_id=$JOB_ID" \
               -F "run_id=${{ github.run_id }}")
 
-              if [ "$HTTP_CODE" -ne 200 ]; then
-                echo "Request failed with status $HTTP_CODE"
-                exit 1
+              if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
+                  echo "Request failed with status $HTTP_CODE"
+                  exit 1
               fi
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
