@@ -45,7 +45,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -74,7 +74,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "apply",
+		"delta", "--apply",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "patch.delta",
@@ -95,7 +95,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -112,7 +112,7 @@ func (s *SnapSuite) TestDeltaCommandApplyError(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "apply",
+		"delta", "--apply",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "bad.delta",
@@ -120,19 +120,30 @@ func (s *SnapSuite) TestDeltaCommandApplyError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot apply delta: unknown delta file format")
 }
 
-func (s *SnapSuite) TestDeltaCommandUnknownOperation(c *C) {
+func (s *SnapSuite) TestDeltaCommandBothGenerateAndApply(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "compress",
+		"delta", "--generate", "--apply",
+		"--source", "source.snap",
+		"--target", "target.snap",
+		"--delta", "out.delta",
+		"--format", "snap-1-1-xdelta3",
+	})
+	c.Assert(err, ErrorMatches, `cannot use --generate and --apply together`)
+}
+
+func (s *SnapSuite) TestDeltaCommandNeitherGenerateNorApply(c *C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+		"delta",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
 	})
-	c.Assert(err, ErrorMatches, `unknown operation: compress`)
+	c.Assert(err, ErrorMatches, `one of --generate or --apply must be specified`)
 }
 
 func (s *SnapSuite) TestDeltaCommandMissingSource(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--target", "target.snap",
 		"--delta", "out.delta",
 	})
@@ -141,7 +152,7 @@ func (s *SnapSuite) TestDeltaCommandMissingSource(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandMissingTarget(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--delta", "out.delta",
 	})
@@ -150,7 +161,7 @@ func (s *SnapSuite) TestDeltaCommandMissingTarget(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandMissingDelta(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 	})
@@ -165,22 +176,12 @@ func (s *SnapSuite) TestDeltaCommandMissingFormat(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
 	})
-	c.Assert(err, ErrorMatches, `the --format flag is required for generate.*`)
-}
-
-func (s *SnapSuite) TestDeltaCommandMissingOperation(c *C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta",
-		"--source", "source.snap",
-		"--target", "target.snap",
-		"--delta", "out.delta",
-	})
-	c.Assert(err, ErrorMatches, `the required argument .* was not provided`)
+	c.Assert(err, ErrorMatches, `the --format flag is required for --generate.*`)
 }
 
 func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
@@ -191,7 +192,7 @@ func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -225,7 +226,7 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"-s", "source.snap",
 		"-t", "target.snap",
 		"-d", "diff.delta",
@@ -248,7 +249,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -261,7 +262,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandUnsupportedFormat(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -290,7 +291,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateListensForSignals(c *C) {
 	defer restoreGenerate()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -320,7 +321,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateCancelledOnSignal(c *C) {
 	defer restoreGenerate()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "generate",
+		"delta", "--generate",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "out.delta",
@@ -347,7 +348,7 @@ func (s *SnapSuite) TestDeltaCommandApplyCancelledOnSignal(c *C) {
 	defer restoreApply()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"delta", "apply",
+		"delta", "--apply",
 		"--source", "source.snap",
 		"--target", "target.snap",
 		"--delta", "patch.delta",

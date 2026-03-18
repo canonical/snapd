@@ -75,7 +75,7 @@ execute: |
 
     # Test snap-1-1-xdelta3 format (default)
     echo "Generate a delta between source and target snaps using snap-1-1-xdelta3 format"
-    snap delta generate --source source.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3
+    snap delta --generate --source source.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3
     test -f out.delta
 
     echo "Check that the delta file is smaller than the target snap"
@@ -84,7 +84,7 @@ execute: |
     test "$DELTA_SIZE" -lt "$TARGET_SIZE"
 
     echo "Apply the snap-1-1-xdelta3 delta to reconstruct the target snap"
-    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    snap delta --apply --source source.snap --target reconstructed.snap --delta out.delta
     test -f reconstructed.snap
 
     echo "Verify the reconstructed snap is bit-for-bit identical to the original target"
@@ -99,11 +99,11 @@ execute: |
     rm -f out.delta reconstructed.snap
 
     echo "Generate a delta using plain xdelta3 format"
-    snap delta generate --source source.snap --target target.snap --delta out.delta --format xdelta3
+    snap delta --generate --source source.snap --target target.snap --delta out.delta --format xdelta3
     test -f out.delta
 
     echo "Apply the xdelta3 delta to reconstruct the target snap"
-    snap delta apply --source source.snap --target reconstructed.snap --delta out.delta
+    snap delta --apply --source source.snap --target reconstructed.snap --delta out.delta
     test -f reconstructed.snap
 
     echo "Verify the xdelta3-reconstructed snap is bit-for-bit identical"
@@ -115,22 +115,22 @@ execute: |
 
     echo "Test snap delta with short flags"
     rm -f out.delta reconstructed.snap
-    snap delta generate -s source.snap -t target.snap -d out.delta -f snap-1-1-xdelta3
+    snap delta --generate -s source.snap -t target.snap -d out.delta -f snap-1-1-xdelta3
     test -f out.delta
-    snap delta apply -s source.snap -t reconstructed.snap -d out.delta
+    snap delta --apply -s source.snap -t reconstructed.snap -d out.delta
     test -f reconstructed.snap
 
-    echo "Test error on unknown operation"
-    not snap delta compress --source source.snap --target target.snap --delta out.delta 2>&1 | MATCH "unknown operation"
+    echo "Test error when neither --generate nor --apply is specified"
+    not snap delta --source source.snap --target target.snap --delta out.delta 2>&1 | MATCH "one of --generate or --apply must be specified"
 
     echo "Test error when source file does not exist"
-    not snap delta generate --source nonexistent.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3 2>&1
+    not snap delta --generate --source nonexistent.snap --target target.snap --delta out.delta --format snap-1-1-xdelta3 2>&1
 
     # --- Test with real snapd snaps ---
     rm -f out.delta reconstructed.snap
 
     echo "Generate a snap-1-1-xdelta3 delta between two real snapd revisions"
-    snap delta generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format snap-1-1-xdelta3
+    snap delta --generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format snap-1-1-xdelta3
     test -f out.delta
 
     echo "Check that the delta is smaller than the target snapd snap"
@@ -139,7 +139,7 @@ execute: |
     test "$DELTA_SIZE" -lt "$TARGET_SIZE"
 
     echo "Apply the snap-1-1-xdelta3 delta to reconstruct the target snapd snap"
-    snap delta apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
+    snap delta --apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
     test -f reconstructed.snap
 
     echo "Verify the reconstructed snapd snap is bit-for-bit identical"
@@ -153,11 +153,11 @@ execute: |
     rm -f out.delta reconstructed.snap
 
     echo "Generate a plain xdelta3 delta between two real snapd revisions"
-    snap delta generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format xdelta3
+    snap delta --generate --source snapd-old.snap --target snapd-new.snap --delta out.delta --format xdelta3
     test -f out.delta
 
     echo "Apply the plain xdelta3 delta to reconstruct the target snapd snap"
-    snap delta apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
+    snap delta --apply --source snapd-old.snap --target reconstructed.snap --delta out.delta
     test -f reconstructed.snap
 
     echo "Verify the xdelta3-reconstructed snapd snap is bit-for-bit identical"
