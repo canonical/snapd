@@ -579,7 +579,7 @@ jobs:
             echo "Sending results to Test-Predictor"
 
             # Get the job ID of the current workflow run by matching job name and matrix group
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id")
+            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
 
             echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.canonical.com:5000/ingest \
