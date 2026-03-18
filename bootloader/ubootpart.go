@@ -66,6 +66,11 @@ const (
 
 	// ubuntuBootStateLabel is the partition label for the boot state partition
 	ubuntuBootStateLabel = "ubuntu-boot-state"
+
+	// UbuntuBootStatePrepareTimeFile is the file name with the content that will
+	// be copied to the system-boot-state partition at image preparation
+	// time. We export it so ubuntu-image can use it.
+	UbuntuBootStatePrepareTimeFile = "ubuntu-boot-state.img"
 )
 
 type ubootpart struct {
@@ -147,7 +152,7 @@ func (u *ubootpart) envDevice() (string, error) {
 		// directory (one level above the seed dir) so the file does not
 		// end up on the ubuntu-seed filesystem. Image builders pick it
 		// up from resolved-content which is populated separately.
-		return filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img"), nil
+		return filepath.Join(filepath.Dir(u.rootdir), UbuntuBootStatePrepareTimeFile), nil
 	}
 
 	// At runtime, lazily initialise the disk. Try EFI first, then
@@ -210,7 +215,7 @@ func (u *ubootpart) envDevice() (string, error) {
 
 func (u *ubootpart) Present() (bool, error) {
 	if u.prepareImageTime {
-		envFile := filepath.Join(filepath.Dir(u.rootdir), "ubuntu-boot-state.img")
+		envFile := filepath.Join(filepath.Dir(u.rootdir), UbuntuBootStatePrepareTimeFile)
 		return osutil.FileExists(envFile), nil
 	}
 
