@@ -1,0 +1,9 @@
+name: test-snapd-provider-1
+summary: Content provider snap 1 for mimic missing target test
+version: 1.0
+base: core24
+slots:
+  provider:
+    interface: content
+    read:
+      - $SNAP
