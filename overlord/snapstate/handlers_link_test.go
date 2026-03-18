@@ -3130,6 +3130,48 @@ func (s *linkSnapSuite) TestDoKillSnapAppsWithServices(c *C) {
 	s.testDoKillSnapApps(c, svc)
 }
 
+func (s *linkSnapSuite) TestDoKillSnapAppsErrorsIfHintNotUpdatedBasedOnReason(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		return info, nil
+	})
+	defer restore()
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.AppKillReason("something-else"))
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// task should error and there should be no run inhibition
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+	c.Check(task.Log(), HasLen, 1)
+	c.Check(task.Log()[0], Matches, `.*ERROR internal error: runinhibit hint cannot be HintNotInhibited, update it based on the kill-reason`)
+	hint, info, err := runinhibit.IsLocked("some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(info, Equals, runinhibit.InhibitInfo{})
+}
+
 func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
