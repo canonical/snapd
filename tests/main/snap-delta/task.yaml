@@ -58,6 +58,17 @@ prepare: |
 
     snap pack "$TARGET_DIR" --filename="target.snap"
 
+    # TODO: to detect squashfs tooling changes that could break delta
+    # compatibility across snapd versions, we could patch the
+    # modification_time field in the squashfs superblock (offset 8, 4
+    # bytes) to a fixed constant after snap pack, then verify both the
+    # target and reconstructed snaps match a known constant hash
+    # (SNAP_HASH=<fixed_string>). If that hash stops matching, it means
+    # mksquashfs output has changed and deltas in the store might not
+    # produce the right snap when generation and reconstruction use
+    # different snapd/squashfs-tools versions.
+    # https://github.com/canonical/snapd/pull/16615#discussion_r2953194911
+
     # Download two real snapd snap revisions for end-to-end testing
     snap download snapd --revision=25585 --basename=snapd-old
     snap download snapd --revision=25839 --basename=snapd-new
@@ -90,11 +101,6 @@ execute: |
     echo "Verify the reconstructed snap is bit-for-bit identical to the original target"
     cmp target.snap reconstructed.snap
 
-    echo "Verify using hash comparison"
-    TARGET_HASH=$(md5sum target.snap | cut -d' ' -f1)
-    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
-    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
-
     # Test plain xdelta3 format
     rm -f out.delta reconstructed.snap
 
@@ -108,10 +114,6 @@ execute: |
 
     echo "Verify the xdelta3-reconstructed snap is bit-for-bit identical"
     cmp target.snap reconstructed.snap
-
-    echo "Verify xdelta3 format using hash comparison"
-    RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
-    test "$TARGET_HASH" = "$RECONSTRUCTED_HASH"
 
     echo "Test snap delta with short flags"
     rm -f out.delta reconstructed.snap
@@ -144,10 +146,6 @@ execute: |
 
     echo "Verify the reconstructed snapd snap is bit-for-bit identical"
     cmp snapd-new.snap reconstructed.snap
-
-    SNAPD_TARGET_HASH=$(md5sum snapd-new.snap | cut -d' ' -f1)
-    SNAPD_RECONSTRUCTED_HASH=$(md5sum reconstructed.snap | cut -d' ' -f1)
-    test "$SNAPD_TARGET_HASH" = "$SNAPD_RECONSTRUCTED_HASH"
 
     # Test plain xdelta3 on real snapd snaps
     rm -f out.delta reconstructed.snap
