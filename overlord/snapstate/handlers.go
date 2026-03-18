@@ -542,6 +542,19 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, err
 	}
 
+	// TODO:SEEDREFRESH: lift this restriction. this can currently be avoided by
+	// ensuring that the content-provider prereq is a part of the original
+	// refresh. without this guard, the create-recovery-system task will not
+	// know about this incoming snap, and the seed won't end up using this new
+	// revision of the content-provider.
+	if changeCreatesRecoverySystem(t.Change()) {
+		for _, sn := range deviceCtx.Model().AllSnaps() {
+			if snapName == sn.Name {
+				return nil, errors.New("cannot update seed while also automatically updating content provider")
+			}
+		}
+	}
+
 	// TODO: as a temporary workaround for a bug that occurs when a snap updates
 	// a prereq, we disable rerefreshes.
 	//
