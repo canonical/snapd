@@ -1846,12 +1846,10 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 	}
 
 	removals := make([]*state.Task, 0, len(removeLabels))
-	previous := finalize
 	for _, l := range removeLabels {
 		remove := removeRecoverySystemTask(st, l)
-		remove.WaitFor(previous)
+		remove.WaitFor(finalize)
 		removals = append(removals, remove)
-		previous = remove
 	}
 
 	return &snapstate.SeedRefreshTaskSet{

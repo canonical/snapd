@@ -2290,7 +2290,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seedTS.Remove, HasLen, 2)
 	c.Check(seedTS.Remove[0].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
-	c.Check(seedTS.Remove[1].WaitTasks(), DeepEquals, []*state.Task{seedTS.Remove[0]})
+	c.Check(seedTS.Remove[1].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
 
 	var labels []string
 	for _, remove := range seedTS.Remove {
@@ -2300,6 +2300,29 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 	}
 
 	c.Check(labels, testutil.DeepUnsortedMatches, []string{"old-seed-refresh-1", "old-seed-refresh-2"})
+}
+
+func (s *deviceMgrSuite) TestRemoveRecoverySystemBlockedWhenAnotherRemovalRunning(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	other := s.state.NewTask("remove-recovery-system", "remove one")
+	otherRemove := s.state.NewTask("remove-recovery-system", "remove two")
+	otherRemove.SetStatus(state.DoingStatus)
+
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(other, []*state.Task{otherRemove}), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestRemoveRecoverySystemDoesNotBlockOtherTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	remove := s.state.NewTask("remove-recovery-system", "remove one")
+	other := s.state.NewTask("other-task", "other")
+	other.SetStatus(state.DoingStatus)
+
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(remove, []*state.Task{other}), Equals, false)
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(other, []*state.Task{remove}), Equals, false)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {

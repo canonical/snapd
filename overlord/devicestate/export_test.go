@@ -345,8 +345,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked = gadgetUpdateBlocked
-	PendingGadgetInfo   = pendingGadgetData
+	GadgetUpdateBlocked         = gadgetUpdateBlocked
+	RemoveRecoverySystemBlocked = removeRecoverySystemBlocked
+	PendingGadgetInfo           = pendingGadgetData
 
 	CriticalTaskEdges = criticalTaskEdges
 

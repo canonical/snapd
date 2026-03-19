@@ -294,6 +294,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("install-preseed", m.doInstallPreseed, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
+	runner.AddBlocked(removeRecoverySystemBlocked)
 
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
@@ -568,6 +569,23 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 		if other.Kind() == "update-gadget-assets" {
 			// no other task can be started when
 			// update-gadget-assets is running
+			return true
+		}
+	}
+
+	return false
+}
+
+func removeRecoverySystemBlocked(cand *state.Task, running []*state.Task) bool {
+	// remove-recovery-system computes task-local cleanup state that depends on
+	// the current set of recovery systems before dropping the state lock, so
+	// always keep these tasks serialized
+	if cand.Kind() != "remove-recovery-system" {
+		return false
+	}
+
+	for _, other := range running {
+		if other.Kind() == "remove-recovery-system" {
 			return true
 		}
 	}
