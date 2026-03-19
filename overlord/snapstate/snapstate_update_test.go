@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -20163,13 +20164,16 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
 		finalize.WaitFor(create)
 
-		remove := st.NewTask("remove-recovery-system", "Remove old recovery system")
-		remove.WaitFor(finalize)
+		remove1 := st.NewTask("remove-recovery-system", "Remove old recovery system 1")
+		remove1.WaitFor(finalize)
+
+		remove2 := st.NewTask("remove-recovery-system", "Remove old recovery system 2")
+		remove2.WaitFor(finalize)
 
 		return &snapstate.SeedRefreshTaskSet{
 			Create:   create,
 			Finalize: finalize,
-			Remove:   []*state.Task{remove},
+			Remove:   []*state.Task{remove1, remove2},
 		}, nil
 	}
 	defer func() {
@@ -20177,8 +20181,16 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	}()
 
 	restartRequested := mockSeedRefreshRebootHandlers(s, c, nil)
-	s.o.TaskRunner().AddHandler("remove-recovery-system", func(*state.Task, *tomb.Tomb) error {
-		return fmt.Errorf("remove seed mock error")
+	var mu sync.Mutex
+	var removeCalls []string
+	s.o.TaskRunner().AddHandler("remove-recovery-system", func(t *state.Task, _ *tomb.Tomb) error {
+		mu.Lock()
+		defer mu.Unlock()
+		removeCalls = append(removeCalls, t.Summary())
+		if len(removeCalls) == 1 {
+			return fmt.Errorf("remove seed mock error")
+		}
+		return nil
 	}, nil)
 
 	s.installSeedRefreshSnaps(c,
@@ -20202,15 +20214,22 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
 
 	seedCreate, seedFinalize, seedRemovals := splitSeedRefreshTasks(c, seedTS)
-	c.Assert(seedRemovals, HasLen, 1)
+	c.Assert(seedRemovals, HasLen, 2)
 	c.Check(seedRemovals[0].WaitTasks(), DeepEquals, []*state.Task{seedFinalize})
+	c.Check(seedRemovals[1].WaitTasks(), DeepEquals, []*state.Task{seedFinalize})
 
-	// seed removals exist in their own lane. that means we won't attempt to
-	// roll anything back if these tasks fail.
+	// seed removals exist in their own lanes. that means we won't attempt to
+	// roll anything back if these tasks fail, and a failed cleanup will not
+	// abort sibling cleanup tasks.
 	seedLanes := taskSetLanes(baseTS)
-	for _, lane := range seedRemovals[0].Lanes() {
+	removalLanes := make(map[int]bool, len(seedRemovals))
+	for _, remove := range seedRemovals {
+		c.Assert(remove.Lanes(), HasLen, 1)
+		lane := remove.Lanes()[0]
+		removalLanes[lane] = true
 		c.Check(seedLanes, Not(testutil.Contains), lane)
 	}
+	c.Check(removalLanes, HasLen, 2)
 
 	// run the do path until create-recovery-system requests the seed-refresh reboot.
 	s.settle(c)
@@ -20224,7 +20243,23 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	assertTaskSetStatus(c, appTS, state.DoneStatus)
 	c.Check(seedCreate.Status(), Equals, state.DoneStatus)
 	c.Check(seedFinalize.Status(), Equals, state.DoneStatus)
-	c.Check(seedRemovals[0].Status(), Equals, state.ErrorStatus)
+
+	failed := 0
+	done := 0
+	for _, remove := range seedRemovals {
+		switch remove.Status() {
+		case state.ErrorStatus:
+			failed++
+		case state.DoneStatus:
+			done++
+		default:
+			c.Fatalf("unexpected removal task status: %v", remove.Status())
+		}
+	}
+	c.Check(failed, Equals, 1)
+	c.Check(done, Equals, 1)
+
+	c.Check(removeCalls, testutil.DeepUnsortedMatches, []string{"Remove old recovery system 1", "Remove old recovery system 2"})
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(remove seed mock error\)`)

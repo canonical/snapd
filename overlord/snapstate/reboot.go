@@ -528,12 +528,11 @@ func arrangeRebootAndUpdateSeed(
 	}
 
 	// the removal tasks are already set up to come after the
-	// finalize-recovery-system task. here, we ensure they're in a different
-	// lane so their potential failure will not undo the rest of the change.
+	// finalize-recovery-system task. put each one in its own lane so a failure
+	// in one cleanup neither undoes the refresh nor aborts sibling removals.
 	if len(seedTS.Remove) != 0 {
-		removeLane := st.NewLane()
 		for _, remove := range seedTS.Remove {
-			remove.JoinLane(removeLane)
+			remove.JoinLane(st.NewLane())
 		}
 	}
 
