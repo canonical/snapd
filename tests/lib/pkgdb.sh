@@ -190,6 +190,7 @@ distro_install_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
+            apt update
             # shellcheck disable=SC2086
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
@@ -555,13 +556,17 @@ pkg_dependencies_ubuntu_nested(){
         kpartx
         mtools
         ovmf
-        qemu-kvm
         qemu-utils
         snapd
         sshpass
         xdelta3
         xz-utils
         "
+    if os.query is-ubuntu-lt 26; then
+        echo qemu-kvm
+    else
+        echo qemu-system
+    fi
 }
 
 pkg_dependencies_ubuntu_classic(){
@@ -654,7 +659,7 @@ pkg_dependencies_ubuntu_classic(){
                 libvirt-daemon-system
                 linux-tools-$(uname -r)
                 lz4
-                qemu-kvm
+                qemu-system
                 qemu-utils
                 systemd-dev
                 "
