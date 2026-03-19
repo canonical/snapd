@@ -187,11 +187,11 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockConfdbstateTransactionForSet(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
-	old := confdbstateTransactionForSet
-	confdbstateTransactionForSet = f
+func MockConfdbstateWriteConfdb(f func(*hookstate.Context, *confdb.View, map[string]any) error) (restore func()) {
+	old := confdbstateWriteConfdb
+	confdbstateWriteConfdb = f
 	return func() {
-		confdbstateTransactionForSet = old
+		confdbstateWriteConfdb = old
 	}
 }
 
@@ -203,10 +203,10 @@ func MockConfdbstateGetView(f func(st *state.State, account, confdbName, viewNam
 	}
 }
 
-func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error)) (restore func()) {
-	old := confdbstateTransactionForGet
-	confdbstateTransactionForGet = f
+func MockConfdbstateReadConfdb(f func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error)) (restore func()) {
+	old := confdbstateReadConfdb
+	confdbstateReadConfdb = f
 	return func() {
-		confdbstateTransactionForGet = old
+		confdbstateReadConfdb = old
 	}
 }

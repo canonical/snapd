@@ -35,9 +35,14 @@ import (
 )
 
 const (
-	// cacheKeyPrefix is the prefix to be concatenated with confdb IDs to form a
-	// cache key used to store pending access data.
-	cacheKeyPrefix = "confdb-accesses-"
+	// pendingCachePrefix is the prefix to be concatenated with confdb IDs to
+	// form a cache key used to store pending access data.
+	pendingCachePrefix = "pending-confdb-"
+
+	// processingCachePrefix is the prefix to be concatenated with confdb IDs to
+	// form a cache key used to store access data that was unblocked and is being
+	// processed.
+	processingCachePrefix = "processing-confdb-"
 )
 
 func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
@@ -123,7 +128,6 @@ func (m *ConfdbManager) clearOngoingTransaction(t *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 
-	// TODO: unblock next waiting confdb writer once we add the blocking logic
 	return nil
 }
 
@@ -202,9 +206,13 @@ type confdbTransactions struct {
 	ReadTxIDs []string `json:"read-tx-ids,omitempty"`
 	WriteTxID string   `json:"write-tx-id,omitempty"`
 
-	// pending holds accesses that are waiting to be scheduled. It's read from
+	// Pending holds accesses that are waiting to be scheduled. It's read from
 	// the state cache so it's only kept in-memory, never persisted into state.
-	pending []pendingAccess
+	Pending []pendingAccess `json:"-"`
+
+	// Processing holds accesses that have been unblocked (moved from pending)
+	// but have not yet finished scheduling tasks/exiting.
+	Processing []pendingAccess `json:"-"`
 }
 
 // CanStartReadTx returns true if there isn't a write transaction running or
@@ -214,7 +222,10 @@ func (txs *confdbTransactions) CanStartReadTx() bool {
 		return false
 	}
 
-	for _, access := range txs.pending {
+	accesses := append([]pendingAccess{}, txs.Pending...)
+	accesses = append(accesses, txs.Processing...)
+
+	for _, access := range accesses {
 		if access.AccessType == writeAccess {
 			return false
 		}
@@ -223,9 +234,11 @@ func (txs *confdbTransactions) CanStartReadTx() bool {
 	return true
 }
 
-// CanStartWriteTx returns true if there is no running or pending transaction.
+// CanStartWriteTx returns true if there is no access currently running or
+// waiting to run.
 func (txs *confdbTransactions) CanStartWriteTx() bool {
-	return txs.WriteTxID == "" && len(txs.ReadTxIDs) == 0 && len(txs.pending) == 0
+	return txs.WriteTxID == "" && len(txs.ReadTxIDs) == 0 &&
+		len(txs.Pending) == 0 && len(txs.Processing) == 0
 }
 
 // addReadTransaction adds a read transaction for the specified confdb, if no
@@ -301,16 +314,35 @@ func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 			st.Set("confdb-ongoing-txs", confdbTxs)
 		}
 
-		st.Cache(cacheKeyPrefix+ref, ongoingTxs.pending)
+		if len(ongoingTxs.Pending) == 0 {
+			st.Cache(pendingCachePrefix+ref, nil)
+		} else {
+			st.Cache(pendingCachePrefix+ref, ongoingTxs.Pending)
+		}
+
+		if len(ongoingTxs.Processing) == 0 {
+			st.Cache(processingCachePrefix+ref, nil)
+		} else {
+			st.Cache(processingCachePrefix+ref, ongoingTxs.Processing)
+		}
 	}
 
-	cached := st.Cached(cacheKeyPrefix + ref)
+	cached := st.Cached(pendingCachePrefix + ref)
 	if cached != nil {
 		queue, ok := cached.([]pendingAccess)
 		if !ok {
 			return nil, nil, fmt.Errorf("internal error: cannot access confdb pending transaction queue")
 		}
-		confdbTxs[ref].pending = queue
+		confdbTxs[ref].Pending = queue
+	}
+
+	cached = st.Cached(processingCachePrefix + ref)
+	if cached != nil {
+		queue, ok := cached.([]pendingAccess)
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: cannot access confdb processing list")
+		}
+		confdbTxs[ref].Processing = queue
 	}
 
 	return confdbTxs[ref], updateTxStateFunc, nil
@@ -338,34 +370,49 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 
 	if len(txs.ReadTxIDs) > 0 {
 		// there are other transactions running (can only be reads) so skip this.
-		// The last one will unblock the next access
+		// The last one will unblock the next accesses
 		return nil
 	}
 
-	// unblock any waiting routine
-	if len(txs.pending) > 0 {
-		logger.Debugf("remove pending access %s", txs.pending[0].ID)
-		close(txs.pending[0].WaitChan)
-	}
-
-	return nil
+	return maybeUnblockAccesses(txs)
 }
 
-func unblockNextAccess(st *state.State, account, schemaName string) error {
-	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
-	if err != nil {
-		return err
-	}
-
-	if len(txs.pending) == 0 {
+// maybeUnblockAccesses unblocks pending accesses (either one write or several
+// sequential reads) and puts their IDs in the confdbTransactions.processing list.
+func maybeUnblockAccesses(txs *confdbTransactions) error {
+	if len(txs.Pending) == 0 || txs.WriteTxID != "" || len(txs.ReadTxIDs) > 0 || len(txs.Processing) != 0 {
+		// only the last running transaction can unblock as it finalizes
 		return nil
 	}
 
-	// unblock any waiting routine
-	logger.Debugf("remove pending access %s", txs.pending[0].ID)
-	close(txs.pending[0].WaitChan)
+	unblock := func(acc pendingAccess) {
+		// we shouldn't unblock the same access more than once but let's be robust
+		select {
+		case acc.WaitChan <- struct{}{}:
+			logger.Debugf("unblocking pending %s access %s", acc.AccessType, acc.ID)
+		default:
+			logger.Noticef("%s access %s has already been unblocked", acc.AccessType, acc.ID)
+		}
+	}
 
-	updateTxStateFunc(txs)
+	var upTo int
+	for i, acc := range txs.Pending {
+		if acc.AccessType == writeAccess {
+			if i == 0 {
+				unblock(acc)
+				upTo = i
+			}
+
+			break
+		}
+
+		unblock(acc)
+		upTo = i
+	}
+
+	txs.Processing = txs.Pending[:upTo+1]
+	txs.Pending = txs.Pending[upTo+1:]
+
 	return nil
 }
 
