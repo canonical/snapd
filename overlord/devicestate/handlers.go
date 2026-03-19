@@ -138,7 +138,7 @@ func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
 		return err
 	}
 
-	filtered := seeded[:0]
+	filtered := make([]seededSystem, 0, len(seeded))
 	for _, sys := range seeded {
 		if sys.System == systemLabel && sys.SeedRefresh {
 			continue
