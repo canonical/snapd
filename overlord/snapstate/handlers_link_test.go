@@ -3165,7 +3165,7 @@ func (s *linkSnapSuite) TestDoKillSnapAppsErrorsIfHintNotUpdatedBasedOnReason(c 
 	// task should error and there should be no run inhibition
 	c.Assert(task.Status(), Equals, state.ErrorStatus)
 	c.Check(task.Log(), HasLen, 1)
-	c.Check(task.Log()[0], Matches, `.*ERROR internal error: runinhibit hint cannot be HintNotInhibited, update it based on the kill-reason`)
+	c.Check(task.Log()[0], Matches, `.*ERROR internal error: unexpected kill-reason`)
 	hint, info, err := runinhibit.IsLocked("some-snap", nil)
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
