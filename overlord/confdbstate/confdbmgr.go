@@ -35,6 +35,8 @@ import (
 )
 
 const (
+	// cacheKeyPrefix is the prefix to be concatenated with confdb IDs to form a
+	// cache key used to store pending access data.
 	cacheKeyPrefix = "confdb-accesses-"
 )
 
