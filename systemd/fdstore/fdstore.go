@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2025 Canonical Ltd
+ * Copyright (C) 2025-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,7 @@ const (
 	FdNameMemfdSecretState FdName = "memfd-secret-state"
 )
 
+// All names that are not sockets that are maintained within snapd.
 var knownFdNames = map[FdName]bool{
 	FdNameMemfdSecretState: true,
 }
@@ -67,6 +68,7 @@ var (
 )
 
 var fdstore map[FdName][]int
+var consumed map[FdName]bool
 var mu sync.RWMutex
 
 func initFdstore() {
@@ -88,6 +90,7 @@ func initFdstore() {
 	// Initialize fdstore before any processing so
 	// it is only done once.
 	fdstore = make(map[FdName][]int)
+	consumed = make(map[FdName]bool)
 
 	pid, err := strconv.Atoi(osGetenv("LISTEN_PID"))
 	if err != nil || pid != osGetpid() {
@@ -142,8 +145,8 @@ func initFdstore() {
 		}
 		if shouldRemove {
 			logger.Noticef("removing unexpected fdstore entry %q", name)
-			if err := removeUnlocked(name); err != nil {
-				logger.Noticef("internal error: cannot remove fdstore entry %q: %v\n", name, err)
+			if err := remove(name); err != nil {
+				logger.Noticef("internal error: cannot remove fdstore entry %q: %v", name, err)
 				continue
 			}
 		}
@@ -165,10 +168,13 @@ func Remove(name FdName) (err error) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	return removeUnlocked(name)
+	return remove(name)
 }
 
-func removeUnlocked(name FdName) (err error) {
+// remove file descriptors from systemd given their name.
+//
+// Caller must hold the fdstore lock.
+func remove(name FdName) (err error) {
 	// FDSTOREREMOVE=1 was added in systemd v236
 	//
 	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDSTOREREMOVE=1
@@ -181,6 +187,7 @@ func removeUnlocked(name FdName) (err error) {
 		return err
 	}
 
+	// XXX: should consumed fds be closed on removal?
 	var closeErrs []error
 	for _, fd := range fdstore[name] {
 		if err := unixClose(fd); err != nil {
@@ -190,31 +197,43 @@ func removeUnlocked(name FdName) (err error) {
 	}
 
 	delete(fdstore, name)
+	delete(consumed, name)
 	return strutil.JoinErrors(closeErrs...)
 }
 
-// Get retrieves file descriptors passed from systemd by their name.
-// close-on-exec is set on the returned file descriptor. -1 is returned
-// if no matching file descriptor is found or if the passed name
-// corresponds to a socket (i.e. ends in ".socket"). To get activation
-// sockets use fdstore.ActivationSocketFds() instead.
-func Get(name FdName) (fd int) {
+// Get retrieves file descriptor passed from systemd by their name.
+// close-on-exec is set on the returned file descriptor. An error is
+// returned if no matching file descriptor is found, if more than one
+// matching file descriptors are found or if the passed name corresponds
+// to a socket (i.e. ends in ".socket"). To get activation sockets use
+// fdstore.ActivationSocketFds() instead.
+func Get(name FdName) (fd int, err error) {
 	initFdstore()
 
 	mu.RLock()
 	defer mu.RUnlock()
 
+	errPrefix := fmt.Sprintf("cannot get file descriptor named %q", name)
+
+	if consumed[name] {
+		return -1, fmt.Errorf("%s: file descriptor already consumed", errPrefix)
+	}
+
 	if name.isSocket() {
 		// Activation socket file descriptors should be accessed
 		// through ActivationSocketFds.
-		return -1
+		return -1, fmt.Errorf("%s: socket found, use ActivationSocketFds instead", errPrefix)
 	}
 
 	fds := fdstore[name]
 	if len(fds) != 1 {
-		return -1
+		return -1, fmt.Errorf("%s: no matching file descriptor found", errPrefix)
+	} else if len(fds) > 1 {
+		return -1, fmt.Errorf("%s: found more than one matching file descriptors", errPrefix)
 	}
-	return fds[0]
+
+	consumed[name] = true
+	return fds[0], nil
 }
 
 // Add passes a file descriptor to systemd associated with a name
@@ -274,8 +293,9 @@ func ActivationSocketFds() (socketFds map[string][]int) {
 	//
 	// `FileDescriptorName=` was added in systemd version 227.
 	for name, fds := range fdstore {
-		if name.isSocket() {
+		if name.isSocket() && !consumed[name] {
 			socketFds[string(name)] = append(socketFds[string(name)], fds...)
+			consumed[name] = true
 		}
 	}
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2025 Canonical Ltd
+ * Copyright (C) 2025-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -103,15 +103,22 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:invalid:snapd.socket:memfd-secret-state:snapd.socket"
 	// fds starts from 3
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 6)
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 6)
 
 	// fdstore is lazily initialized once, and clears passed environment
 	c.Assert(s.fakeEnv, HasLen, 0)
 
 	// more checks
-	c.Check(fdstore.Get("no-fd"), Equals, -1)        // doesn't exist
-	c.Check(fdstore.Get("invalid"), Equals, -1)      // should have been pruned by initialization
-	c.Check(fdstore.Get("snapd.socket"), Equals, -1) // sockets are not returned
+	_, err = fdstore.Get("no-fd") // doesn't exist
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "no-fd": no matching file descriptor found`)
+	_, err = fdstore.Get("invalid") // should have been pruned by initialization
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "invalid": no matching file descriptor found`)
+	_, err = fdstore.Get("snapd.socket") // sockets are not returned
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "snapd.socket": socket found, use ActivationSocketFds instead`)
+	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor already consumed`)
 
 	// check remove call for "invalid" fd
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
@@ -128,14 +135,16 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 
 	// PID mismatch ignores passed fds
 	c.Check(fdstore.ActivationSocketFds(), DeepEquals, map[string][]int{})
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
 
 	// passed environment variables are cleared
 	c.Assert(s.fakeEnv, HasLen, 0)
 }
 
 func (s *fdstoreTestSuite) TestInitNoFds(c *C) {
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
 	c.Check(fdstore.ActivationSocketFds(), DeepEquals, map[string][]int{})
 }
 
@@ -144,7 +153,8 @@ func (s *fdstoreTestSuite) TestInitEnvMismatchError(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "2"
 	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:other.socket:memfd-secret-state"
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
 	c.Check(fdstore.ActivationSocketFds(), DeepEquals, map[string][]int{})
 }
 
@@ -155,7 +165,8 @@ func (s *fdstoreTestSuite) TestInitPruneMoreThanOneFdOnCloseError(c *C) {
 	// erroring on the last entry, will make subsequent calls
 	s.errOn = []string{"close-fd: 4"}
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
 
 	// remove from systemd fdstore as part of the cleanup
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
@@ -167,9 +178,14 @@ func (s *fdstoreTestSuite) TestInitPruneMoreThanOneFdOnCloseError(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestAdd(c *C) {
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), IsNil)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 7)
+
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 7)
 
 	// but only once
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 8), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
@@ -188,9 +204,11 @@ func (s *fdstoreTestSuite) TestAddExistingFdError(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "1"
 	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state"
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
+
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 3)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 }
@@ -198,12 +216,18 @@ func (s *fdstoreTestSuite) TestAddExistingFdError(c *C) {
 func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 	s.errOn = []string{"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [7]"}
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
+
+	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
 
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 8), IsNil)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 8)
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 8)
 }
 
 func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
@@ -220,12 +244,19 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "3"
 	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket:snapd.socket"
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
+
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 3)
+
 	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), IsNil)
+
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), IsNil)
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 7)
+
+	fd, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 7)
 
 	// cannot remove socket fds
 	c.Check(fdstore.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor from fdstore: sockets cannot be removed")
@@ -244,9 +275,11 @@ func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
 
 	s.errOn = []string{"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state"}
 
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
 	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, "boom!")
-	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
+
+	fd, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+	c.Check(fd, Equals, 3)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 	c.Check(s.closedFds, HasLen, 0)
@@ -275,6 +308,10 @@ func (s *fdstoreTestSuite) TestActivationSocketFiles(c *C) {
 		"snapd.socket":               {3, 6},
 		"snapd.session-agent.socket": {4},
 	})
+
+	// now should be consumed
+	socketFds = fdstore.ActivationSocketFds()
+	c.Check(socketFds, DeepEquals, map[string][]int{})
 }
 
 func (s *fdstoreTestSuite) TestActivationSocketFilesMissingFdNamesEnv(c *C) {
