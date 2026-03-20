@@ -34,6 +34,10 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+const (
+	cacheKeyPrefix = "confdb-accesses-"
+)
+
 func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
 	hookSup := &hookstate.HookSetup{
 		Snap:        snapName,
@@ -262,8 +266,6 @@ func setWriteTransaction(st *state.State, account, schemaName, id string) error 
 	return nil
 }
 
-type cachedConfdbReqs struct{}
-
 // getOngoingTxs returns a representation of the ongoing and pending transaction
 // for the given confdb schema. It's never nil even if there no transactions.
 // It also returns a function to update the state with a modified struct, which
@@ -297,10 +299,10 @@ func getOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 			st.Set("confdb-ongoing-txs", confdbTxs)
 		}
 
-		st.Cache(cachedConfdbReqs{}, ongoingTxs.pending)
+		st.Cache(cacheKeyPrefix+ref, ongoingTxs.pending)
 	}
 
-	cached := st.Cached(cachedConfdbReqs{})
+	cached := st.Cached(cacheKeyPrefix + ref)
 	if cached != nil {
 		queue, ok := cached.([]pendingAccess)
 		if !ok {

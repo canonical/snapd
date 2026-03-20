@@ -39,7 +39,6 @@ var (
 
 type (
 	ConfdbTransactions = confdbTransactions
-	CachedConfdbReqs   = cachedConfdbReqs
 	PendingAccess      = pendingAccess
 )
 

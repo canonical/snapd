@@ -59,8 +59,9 @@ type confdbTestSuite struct {
 	state *state.State
 	o     *overlord.Overlord
 
-	dbSchema *confdb.Schema
-	devAccID string
+	dbSchema    *confdb.Schema
+	otherSchema *confdb.Schema
+	devAccID    string
 
 	repo *interfaces.Repository
 }
@@ -160,6 +161,33 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 
 	s.devAccID = devAccKey.AccountID()
 	s.dbSchema = as.(*asserts.ConfdbSchema).Schema()
+
+	// another confdb
+	headers = map[string]any{
+		"authority-id": devAccKey.AccountID(),
+		"account-id":   devAccKey.AccountID(),
+		"name":         "other",
+		"views": map[string]any{
+			"other": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"timestamp": "2030-11-06T09:16:26Z",
+	}
+	body = []byte(`{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`)
+
+	as, err = signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, as), IsNil)
+	s.otherSchema = as.(*asserts.ConfdbSchema).Schema()
 
 	tr := config.NewTransaction(s.state)
 	_, confOption := features.Confdb.ConfigOption()
@@ -790,20 +818,27 @@ slots:
 	c.Assert(err, IsNil)
 
 	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
+		var custodianSnippet string
+		if isCustodian {
+			custodianSnippet = `    role: custodian`
+		}
+
 		snapYaml := fmt.Sprintf(`name: %s
 version: 1
 type: app
 plugs:
   setup:
     interface: confdb
-    account: %s
+    account: %[2]s
     view: network/setup-wifi
-`, snapName, s.devAccID)
+%[3]s
 
-		if isCustodian {
-			snapYaml +=
-				`    role: custodian`
-		}
+  other:
+    interface: confdb
+    account: %[2]s
+    view: other/other
+%[3]s
+`, snapName, s.devAccID, custodianSnippet)
 
 		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
 		for _, hook := range hooks {
@@ -818,12 +853,19 @@ plugs:
 		err = s.repo.AddAppSet(appSet)
 		c.Assert(err, IsNil)
 
-		ref := &interfaces.ConnRef{
+		setupRef := &interfaces.ConnRef{
 			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "setup"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
-		_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
-		c.Assert(err, IsNil)
+		otherRef := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "other"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+		}
+
+		for _, ref := range []*interfaces.ConnRef{setupRef, otherRef} {
+			_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
+			c.Assert(err, IsNil)
+		}
 	}
 
 	// mock custodians
@@ -2291,4 +2333,29 @@ func (s *confdbTestSuite) TestBlockingAccessTimedOut(c *C) {
 		c.Fatal("expected access to block but timed out")
 	}
 	c.Assert(readErr, ErrorMatches, ".*timed out waiting for access")
+}
+
+func (s *confdbTestSuite) TestAccessDifferentConfdbIndependently(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	view := s.dbSchema.View("setup-wifi")
+	ctx := context.Background()
+	_, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	// testing helper closed when the access is about to block
+	blockingChan := make(chan struct{})
+	confdbstate.SetBlockingSignalChan(blockingChan)
+
+	restore = confdbstate.MockDefaultWaitTimeout(time.Millisecond)
+	defer restore()
+
+	view = s.otherSchema.View("other")
+	_, err = confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"foo": "bar"})
+	c.Assert(err, IsNil)
 }
