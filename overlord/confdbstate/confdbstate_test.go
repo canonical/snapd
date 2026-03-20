@@ -291,11 +291,22 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
+
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	bag, err := confdbstate.ReadDatabag(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
@@ -307,11 +318,11 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"})
+	_, err = confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
@@ -325,19 +336,35 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
+
+	bag, err := confdbstate.ReadDatabag(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = bag.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
+
+	err = confdbstate.WriteDatabag(s.state, bag, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	bag, err = confdbstate.ReadDatabag(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	_, err = bag.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
-	c.Assert(val, Equals, nil)
 }
 
 func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {

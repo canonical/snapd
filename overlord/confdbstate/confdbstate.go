@@ -58,6 +58,7 @@ var (
 )
 
 // SetViaView uses the view to set the requests in the transaction's databag.
+// TODO: unexport this once the next PR refactors the writing from snapctl
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
 	for request, value := range requests {
 		var err error
@@ -289,6 +290,12 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 		return "", fmt.Errorf("cannot modify confdb through view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
+	err = SetViaView(tx, view, values)
+	if err != nil {
+		return "", err
+	}
+
+	// the hooks we schedule depend on the paths written so this must happen after writing
 	ts, err := createChangeConfdbTasks(st, tx, view, "")
 	if err != nil {
 		return "", err
@@ -298,11 +305,6 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 	chg.AddAll(ts)
 
 	commitTask, err := ts.Edge(commitEdge)
-	if err != nil {
-		return "", err
-	}
-
-	err = SetViaView(tx, view, values)
 	if err != nil {
 		return "", err
 	}
