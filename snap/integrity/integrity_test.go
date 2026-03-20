@@ -317,6 +317,6 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 		Type:   "bad-type",
 		Digest: "aaa",
 	}
-	integrityFile, err = idp.IntegrityFile("/path/to/instance.snap")
+	_, err = idp.IntegrityFile("/path/to/instance.snap")
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
