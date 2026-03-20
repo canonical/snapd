@@ -268,6 +268,8 @@ func Add(name FdName, fd int) error {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %q already exists", name)
 	}
 
+	// XXX: set O_CLOEXEC on added fd?
+
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
 	if err := sdNotifyWithFds(state, fd); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
