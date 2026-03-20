@@ -453,9 +453,8 @@ type Systemd interface {
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// ConfigureMountUnitOptions configures several options of the mount unit in-place.
 	ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error
-	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
-	// TODO: s/EnsureMountUnitFileWithOptions/EnsureMountUnitFile
-	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
+	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
+	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
@@ -1579,7 +1578,7 @@ func (s *systemd) ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, 
 	return nil
 }
 
-func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 

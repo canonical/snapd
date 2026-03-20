@@ -1545,7 +1545,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 				return err
 			}
 
-			if _, err := sysd.EnsureMountUnitFileWithOptions(mountOptions); err != nil {
+			if _, err := sysd.EnsureMountUnitFile(mountOptions); err != nil {
 				return err
 			}
 		}

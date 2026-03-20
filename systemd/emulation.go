@@ -136,7 +136,7 @@ func (s *emulation) ConfigureMountUnitOptions(o *MountUnitOptions, fstype string
 	return nil
 }
 
-func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error) {
 	if osutil.IsDirectory(unitOptions.What) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}

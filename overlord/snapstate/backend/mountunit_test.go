@@ -44,13 +44,13 @@ type ResultForConfigureMountUnitOptions struct {
 	mountUnitType systemd.MountUnitType
 }
 
-type ParamsForEnsureMountUnitFileWithOptions struct {
+type ParamsForEnsureMountUnitFile struct {
 	description string
 	where       string
 	options     []string
 }
 
-type ResultForEnsureMountUnitFileWithOptions struct {
+type ResultForEnsureMountUnitFile struct {
 	path string
 	err  error
 }
@@ -61,8 +61,8 @@ type FakeSystemd struct {
 	ConfigureMountUnitOptionsCalls   []ParamsForConfigureMountUnitOptions
 	ConfigureMountUnitOptionsResults ResultForConfigureMountUnitOptions
 
-	EnsureMountUnitFileWithOptionsCalls  []ParamsForEnsureMountUnitFileWithOptions
-	EnsureMountUnitFileWithOptionsResult ResultForEnsureMountUnitFileWithOptions
+	EnsureMountUnitFileCalls  []ParamsForEnsureMountUnitFile
+	EnsureMountUnitFileResult ResultForEnsureMountUnitFile
 
 	RemoveMountUnitFileCalls  []string
 	RemoveMountUnitFileResult error
@@ -81,13 +81,13 @@ func (s *FakeSystemd) ConfigureMountUnitOptions(o *systemd.MountUnitOptions, fst
 	return nil
 }
 
-func (s *FakeSystemd) EnsureMountUnitFileWithOptions(mountOptions *systemd.MountUnitOptions) (string, error) {
-	s.EnsureMountUnitFileWithOptionsCalls = append(s.EnsureMountUnitFileWithOptionsCalls, ParamsForEnsureMountUnitFileWithOptions{
+func (s *FakeSystemd) EnsureMountUnitFile(mountOptions *systemd.MountUnitOptions) (string, error) {
+	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls, ParamsForEnsureMountUnitFile{
 		mountOptions.Description,
 		mountOptions.Where,
 		mountOptions.Options,
 	})
-	return s.EnsureMountUnitFileWithOptionsResult.path, s.EnsureMountUnitFileWithOptionsResult.err
+	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
 func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
@@ -138,7 +138,7 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 	var sysd *FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
 		sysd = &FakeSystemd{}
-		sysd.EnsureMountUnitFileWithOptionsResult = ResultForEnsureMountUnitFileWithOptions{"", expectedErr}
+		sysd.EnsureMountUnitFileResult = ResultForEnsureMountUnitFile{"", expectedErr}
 		return sysd
 	})
 	defer restore()
@@ -164,12 +164,12 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 		expectedMountUnitParameters,
 	})
 
-	expectedParameters := ParamsForEnsureMountUnitFileWithOptions{
+	expectedParameters := ParamsForEnsureMountUnitFile{
 		description: "Mount unit for foo, revision 13",
 		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
 	}
 
-	c.Check(sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []ParamsForEnsureMountUnitFileWithOptions{
+	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
 		expectedParameters,
 	})
 }

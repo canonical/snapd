@@ -1184,7 +1184,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1394,7 +1394,7 @@ WantedBy=multi-user.target
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 
 	// Should still be the same file
@@ -1476,7 +1476,7 @@ WantedBy=multi-user.target
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 
 	// Should still be the same file
@@ -1527,7 +1527,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1576,7 +1576,7 @@ func (s *SystemdTestSuite) TestAddMountUnitStartBeforeDriversLoad(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", true)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1625,7 +1625,7 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 		Options:     []string{"remount,ro"},
 		Origin:      "bar",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1719,7 +1719,7 @@ func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
 		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
 		Origin:        "",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1767,7 +1767,7 @@ func (s *SystemdTestSuite) TestAddKernelTreeMountUnit(c *C) {
 		Options:       []string{"bind"},
 		Origin:        "",
 	}
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1824,7 +1824,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1882,7 +1882,7 @@ exit 0
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1936,7 +1936,7 @@ exit 0
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -2127,7 +2127,7 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err = sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	close(stopCh)
 	<-stoppedCh
@@ -2260,7 +2260,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -2318,7 +2318,7 @@ WantedBy=multi-user.target
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err = sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 
 	// systemd was not called
@@ -2377,7 +2377,7 @@ WantedBy=multi-user.target
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
@@ -2437,7 +2437,7 @@ WantedBy=multi-user.target
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
@@ -2474,7 +2474,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -2506,7 +2506,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithOptions(c *C) {
 		Fstype:        "squashfs",
 		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
 	}
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountUnitOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(mountUnitOptions)
 
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -2573,7 +2573,7 @@ X-SnapdOrigin=mount-control
 		EnsureStartIfUnchanged: true,
 	}
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
-	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err := sysd.EnsureMountUnitFile(addMountUnitOptions)
 	c.Assert(err, IsNil)
 
 	mountUnit := "var-snaps-mysnap-common-mnt.mount"
@@ -2587,7 +2587,7 @@ X-SnapdOrigin=mount-control
 	s.argses = nil
 
 	// The unit is ensured to have started even if unchanged
-	mountUnitName, err = sysd.EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	mountUnitName, err = sysd.EnsureMountUnitFile(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName),
 		testutil.FileEquals, unitContent)
@@ -2620,7 +2620,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err = sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
 }
 
@@ -2700,7 +2700,7 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 	err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err = sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
 }
 
@@ -3142,6 +3142,6 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 	err = sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", false)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err = sysd.EnsureMountUnitFile(mountOptions)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
 }

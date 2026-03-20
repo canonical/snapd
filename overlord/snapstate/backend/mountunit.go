@@ -52,7 +52,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 		return err
 	}
 
-	_, err := sysd.EnsureMountUnitFileWithOptions(mountOptions)
+	_, err := sysd.EnsureMountUnitFile(mountOptions)
 	return err
 }
 
