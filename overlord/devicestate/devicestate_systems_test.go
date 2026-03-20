@@ -2716,6 +2716,122 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	c.Check(seededSystems[0].SeedRefresh, Equals, false)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRestoreRemovedSeededSystems(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const markDefault = false
+	const keepLabel = "keep"
+	const removeLabel = "remove"
+	s.createSystemForRemoval(c, keepLabel, 0, nil, markDefault)
+	s.createSystemForRemoval(c, removeLabel, 0, nil, markDefault)
+	s.restartRequests = nil
+
+	keepSeededSystem := devicestate.SeededSystem{
+		System:      keepLabel,
+		Model:       s.model.Model(),
+		BrandID:     s.model.BrandID(),
+		Revision:    s.model.Revision(),
+		Timestamp:   s.model.Timestamp(),
+		SeedTime:    time.Now().Add(-2 * time.Hour),
+		SeedRefresh: true,
+	}
+	removeSeededSystem := devicestate.SeededSystem{
+		System:      removeLabel,
+		Model:       s.model.Model(),
+		BrandID:     s.model.BrandID(),
+		Revision:    s.model.Revision(),
+		Timestamp:   s.model.Timestamp(),
+		SeedTime:    time.Now().Add(-time.Hour),
+		SeedRefresh: true,
+	}
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{keepSeededSystem, removeSeededSystem})
+
+	seedTS, err := devicestate.SeedRefreshTasks(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	c.Assert(seedTS.Remove, HasLen, 1)
+
+	create := seedTS.Create
+	finalize := seedTS.Finalize
+	remove := seedTS.Remove[0]
+
+	var removeSetup map[string]any
+	err = remove.Get("remove-recovery-system-setup", &removeSetup)
+	c.Assert(err, IsNil)
+	c.Check(removeSetup["label"], Equals, removeLabel)
+
+	chg := s.state.NewChange("seed-refresh", "refresh the seed and remove old systems")
+	chg.AddTask(create)
+	chg.AddTask(finalize)
+	chg.AddTask(remove)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(remove)
+	chg.AddTask(terr)
+
+	var createSetup devicestate.RecoverySystemSetup
+	err = create.Get("recovery-system-setup", &createSetup)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+	c.Check(remove.Status(), Equals, state.DoStatus)
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{createSetup.Label})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(create.Status(), Equals, state.UndoneStatus)
+	c.Assert(finalize.Status(), Equals, state.UndoneStatus)
+	c.Assert(remove.Status(), Equals, state.DoneStatus)
+
+	verifySystemRemoved(c, removeLabel,
+		"core20_3.snap",
+		"pc-kernel_2.snap",
+		"pc_1.snap",
+		"snapd_4.snap",
+	)
+
+	var seededSystems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystems, HasLen, 1)
+	c.Check(seededSystems[0].System, Equals, keepSeededSystem.System)
+	c.Check(seededSystems[0].Model, Equals, keepSeededSystem.Model)
+	c.Check(seededSystems[0].BrandID, Equals, keepSeededSystem.BrandID)
+	c.Check(seededSystems[0].Revision, Equals, keepSeededSystem.Revision)
+	c.Check(seededSystems[0].Timestamp.Equal(keepSeededSystem.Timestamp), Equals, true)
+	c.Check(seededSystems[0].SeedTime.Equal(keepSeededSystem.SeedTime), Equals, true)
+	c.Check(seededSystems[0].SeedRefresh, Equals, true)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()

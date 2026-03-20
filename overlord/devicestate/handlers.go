@@ -127,9 +127,8 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	return nil
 }
 
-// dropSeededSystemIfSeedRefresh removes an older seed-refresh entry from
-// seeded-systems after its recovery system has been deleted.
-func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
+// dropSeededSystemIf removes matching entries from seeded-systems.
+func dropSeededSystemIf(st *state.State, pred func(sys seededSystem) bool) error {
 	var seeded []seededSystem
 	if err := st.Get("seeded-systems", &seeded); err != nil {
 		if errors.Is(err, state.ErrNoState) {
@@ -140,7 +139,7 @@ func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
 
 	filtered := make([]seededSystem, 0, len(seeded))
 	for _, sys := range seeded {
-		if sys.System == systemLabel && sys.SeedRefresh {
+		if pred(sys) {
 			continue
 		}
 		filtered = append(filtered, sys)
@@ -152,6 +151,26 @@ func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
 
 	st.Set("seeded-systems", filtered)
 	return nil
+}
+
+// dropSeededSystemIfSeedRefresh removes an older seed-refresh entry from
+// seeded-systems after its recovery system has been deleted.
+func dropSeededSystemIfSeedRefresh(st *state.State, systemLabel string) error {
+	return dropSeededSystemIf(st, func(sys seededSystem) bool {
+		return sys.System == systemLabel && sys.SeedRefresh
+	})
+}
+
+// dropExactSeededSystem removes dropped from the list of seeded-systems in the
+// state. This function requires an exact match between the systems, since it is
+// intended to be used to undo an update to the seeded-systems slice.
+func dropExactSeededSystem(st *state.State, dropped seededSystem) error {
+	return dropSeededSystemIf(st, func(sys seededSystem) bool {
+		return sys.sameAs(&dropped) &&
+			sys.Timestamp.Equal(dropped.Timestamp) &&
+			sys.SeedTime.Equal(dropped.SeedTime) &&
+			sys.SeedRefresh == dropped.SeedRefresh
+	})
 }
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
