@@ -203,7 +203,7 @@ var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, db
 // waitForAccess blocks until the access can be processed or until the context
 // was cancelled/timed out, in which case an error is returned. Caller must hold
 // the state lock.
-func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, access accessType) error {
+func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, access accessType) (err error) {
 	account, schema := view.Schema().Account, view.Schema().Name
 	txs, updateTxs, err := getOngoingTxs(st, account, schema)
 	if err != nil {
@@ -224,12 +224,14 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 	updateTxs(txs)
 	st.Unlock()
 
-	defer func() error {
+	defer func() {
 		st.Lock()
-
-		txs, updateTxs, err := getOngoingTxs(st, account, schema)
-		if err != nil {
-			return fmt.Errorf("cannot access %s: cannot check ongoing transactions: %v", view.ID(), err)
+		txs, updateTxs, defErr := getOngoingTxs(st, account, schema)
+		if defErr != nil {
+			if err == nil {
+				err = fmt.Errorf("cannot access %s: cannot check ongoing transactions: %v", view.ID(), defErr)
+			}
+			return
 		}
 
 		accIndex := -1
@@ -246,7 +248,6 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 		}
 
 		updateTxs(txs)
-		return nil
 	}()
 
 	_, set := ctx.Deadline()
