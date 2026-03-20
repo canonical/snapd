@@ -34,7 +34,7 @@ prepare: |
   # shellcheck disable=SC2086
   "$TESTSTOOLS"/mkimage-uc22 --base-dir "$PWD" --snap pc_x1.snap $SNAP_DEB_PARAM "$TESTSLIB"/assertions/classic-model-22.assert
 
-  tests.pkgs install qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx cpu-checker
+  tests.pkgs install qemu qemu-utils genisoimage sshpass qemu-system cloud-image-utils ovmf kpartx cpu-checker
 
   MACHINE_PARAM="-machine ubuntu"
   if kvm-ok; then

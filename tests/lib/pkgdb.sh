@@ -563,12 +563,8 @@ pkg_dependencies_ubuntu_nested(){
         sshpass
         xdelta3
         xz-utils
+        qemu-system
         "
-    if os.query is-ubuntu-lt 26; then
-        echo qemu-kvm
-    else
-        echo qemu-system
-    fi
 }
 
 pkg_dependencies_ubuntu_classic(){
@@ -629,7 +625,7 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-9
                 libvirt-daemon-system
                 packagekit
-                qemu-kvm
+                qemu-system
                 qemu-utils
                 shellcheck
                 "
@@ -647,7 +643,7 @@ pkg_dependencies_ubuntu_classic(){
                 gperf
                 libvirt-daemon-system
                 lz4
-                qemu-kvm
+                qemu-system
                 qemu-utils
                 "
             if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 0 ]; then
@@ -664,7 +660,7 @@ pkg_dependencies_ubuntu_classic(){
                 gperf
                 libvirt-daemon-system
                 lz4
-                qemu-kvm
+                qemu-system
                 qemu-utils
                 systemd-dev
                 "
