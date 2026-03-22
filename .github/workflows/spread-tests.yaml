@@ -592,6 +592,12 @@ jobs:
                   echo "Request failed with status $HTTP_CODE"
                   exit 1
               fi
+              echo "Results sent successfully"
+
+              echo "Getting predictions for failed tests"
+              wget https://github.com/canonical/snapd-testing/blob/master/ai/test-predictor/client/predict
+              chmod +x predict
+              ./predict results.json
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
         fi
