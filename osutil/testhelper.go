@@ -24,7 +24,8 @@ import (
 	"regexp"
 )
 
-var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
+// Support detection of both go test and dlv test binaries.
+var goTestExeRe = regexp.MustCompile(`^.*/(.*go-build.*/.*\.test|debug\.test\d+)$`)
 
 // IsTestBinary checks whether the current process is a go test binary.
 func IsTestBinary() bool {
