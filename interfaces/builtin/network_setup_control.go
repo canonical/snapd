@@ -42,6 +42,9 @@ const networkSetupControlConnectedPlugAppArmor = `
 /usr/share/netplan/ r,
 /usr/share/netplan/** r,
 
+# For UC26+
+/usr/lib/python/python* ixr,
+
 # Netplan uses busctl internally, so allow using that as well
 /usr/bin/busctl ixr,
 
