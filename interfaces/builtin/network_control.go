@@ -103,7 +103,7 @@ dbus (send)
      bus=system
      path="/org/freedesktop/resolve1/link/*"
      interface="org.freedesktop.resolve1.Link"
-     member="Set{DNS,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     member="Set{DefaultRoute,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,DNSOverTLS,Domains,LLMNR,MulticastDNS}"
      peer=(name="org.freedesktop.resolve1", label=unconfined),
 
 dbus (send)
