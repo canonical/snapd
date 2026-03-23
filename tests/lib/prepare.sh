@@ -91,6 +91,7 @@ setup_snapd_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         return
     fi
+    restart=$1
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
@@ -99,10 +100,11 @@ Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_P
 EOF
 
     # We change the service configuration so reload and restart
-    # the units to get them applied
+    # the units to get them applied (if requested)
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)    
-    systemctl restart snapd.service
+    if [ "$restart" = true ]
+    then systemctl restart snapd.service
+    fi
 }
 
 setup_system_proxy() {
@@ -404,7 +406,7 @@ prepare_each_core() {
 
 prepare_classic() {
     # Configure the proxy in the system when it is required
-    setup_system_proxy   
+    setup_system_proxy
 
     # Skip building snapd when REUSE_SNAPD is set to 1
     if [ "$REUSE_SNAPD" != 1 ]; then
@@ -473,17 +475,19 @@ prepare_classic() {
         snap info snapd
         echo "Error: not expecting snapd snap to be installed"
         exit 1
-    else
-        build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
-        rm -rf "$build_dir"
-        mkdir -p "$build_dir"
-        build_snapd_snap "$build_dir"
-        snap install --dangerous "$build_dir/"snapd_*.snap
-        snap wait system seed.loaded
     fi
-    snap list snapd
 
-    setup_snapd_proxy
+    # The installation of the snap will restart the service, no need to restart
+    # it here too. Otherwise we end up hitting systemd restart limit.
+    setup_snapd_proxy false
+
+    build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
+    build_snapd_snap "$build_dir"
+    snap install --dangerous "$build_dir/"snapd_*.snap
+    snap wait system seed.loaded
+    snap list snapd
 
     mount_dir="$(os.paths snap-mount-dir)"
     if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
@@ -1910,7 +1914,7 @@ prepare_ubuntu_core() {
     fi
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
-    setup_snapd_proxy
+    setup_snapd_proxy true
 
     disable_journald_rate_limiting
     disable_journald_start_limiting
