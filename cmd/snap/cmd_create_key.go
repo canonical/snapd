@@ -40,7 +40,8 @@ func init() {
 		i18n.G("Create cryptographic key pair"),
 		i18n.G(`
 The create-key command creates a cryptographic key pair that can be
-used for signing assertions.
+used for signing assertions. You should use "snapcraft create-key"
+instead.
 `),
 		func() flags.Commander {
 			return &cmdCreateKey{}
@@ -50,7 +51,6 @@ used for signing assertions.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Name of key to create; defaults to 'default'"),
 		}})
-	cmd.hidden = true
 	cmd.completeHidden = true
 }
 

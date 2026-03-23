@@ -41,7 +41,7 @@ func init() {
 		i18n.G("Delete cryptographic key pair"),
 		i18n.G(`
 The delete-key command deletes the local cryptographic key pair with
-the given name.
+the given name. You should use snapcraft to manage your signing keys.
 `),
 		func() flags.Commander {
 			return &cmdDeleteKey{}
@@ -51,7 +51,6 @@ the given name.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Name of key to delete"),
 		}})
-	cmd.hidden = true
 	cmd.completeHidden = true
 }
 

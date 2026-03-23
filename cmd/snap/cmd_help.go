@@ -266,7 +266,7 @@ var helpCategories = []helpCategory{
 		Label:           i18n.G("Development"),
 		Description:     i18n.G("developer-oriented features"),
 		Commands:        []string{"download", "pack", "run", "try", "sign"},
-		AllOnlyCommands: []string{"prepare-image", "export-key"},
+		AllOnlyCommands: []string{"prepare-image", "create-key", "delete-key", "export-key", "keys"},
 	}, {
 		Label:       i18n.G("Quota Groups"),
 		Description: i18n.G("Manage quota groups for snaps"),

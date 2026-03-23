@@ -38,7 +38,7 @@ func init() {
 		i18n.G("List cryptographic keys"),
 		i18n.G(`
 The keys command lists cryptographic keys that can be used for signing
-assertions.
+assertions. You should use "snapcraft keys" instead.
 `),
 		func() flags.Commander {
 			return &cmdKeys{}
@@ -46,7 +46,6 @@ assertions.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"json": i18n.G("Output results in JSON format"),
 		}, nil)
-	cmd.hidden = true
 	cmd.completeHidden = true
 }
 
@@ -67,7 +66,7 @@ func outputJSON(keys []Key) error {
 
 func outputText(keys []Key) error {
 	if len(keys) == 0 {
-		fmt.Fprintf(Stderr, "No keys registered, see `snapcraft create-key`\n")
+		fmt.Fprintf(Stderr, "No keys registered, see 'snap create-key'\n")
 		return nil
 	}
 
