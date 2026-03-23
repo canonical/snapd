@@ -3469,6 +3469,11 @@ slots:
 	check(conns, repo.Interfaces().Connections)
 }
 
+// This covers the split setup-profiles flow where one setup-profiles task runs
+// in "prepare-profiles" mode (minimal work before auto-connect) and a later
+// setup-profiles task does full profile generation. The producer's final
+// setup must observe the connection created by the consumer path and regenerate
+// both snaps accordingly.
 func (s *interfaceManagerSuite) TestProducerSetupProfilesWaitsForConsumerSetupProfilesAndConnectionIsMade(c *C) {
 	s.MockModel(c, nil)
 

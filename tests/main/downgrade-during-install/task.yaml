@@ -7,6 +7,11 @@ details: |
     the change to install the snaps will have been created by a newer snapd,
     and exercise backwards compatibility.
 
+    The downgrade occurs in this test due to removing the state. This causes snapd
+    to reinitialize itself by reinstalling the snapd snap from latest/stable. Because
+    the existing snap is the one built through CI, this will initiate a downgrade, and
+    verify any changes done are backwards compatible against the latest release.
+
 # slow in autopkgtest (>4m)
 backends: [-autopkgtest]
 
@@ -22,9 +27,6 @@ prepare: |
 
     tests.systemd stop-unit snapd.service
     rm -f /var/lib/snapd/state.json
-    # clear cache to prevent it from being used in the download, because that core
-    # was modified by the prepare suite and will fail to be validated
-    rm -f /var/lib/snapd/snaps/core_*
     systemctl start snapd
     snap wait system seed.loaded
 

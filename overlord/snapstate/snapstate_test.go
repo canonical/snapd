@@ -8554,7 +8554,6 @@ var nonReLinkKinds = []string{
 	"prepare-kernel-snap",
 	"copy-snap-data",
 	"setup-profiles",
-	"setup-profiles",
 	"auto-connect",
 	"set-auto-aliases",
 	"setup-aliases",
