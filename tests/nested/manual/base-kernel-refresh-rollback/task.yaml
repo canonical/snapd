@@ -1,0 +1,177 @@
+summary: roll back failed simultaneous base and kernel refresh on UC20+
+
+details: |
+  Verify that a failing kernel post-refresh hook rolls back a simultaneous base
+  and kernel refresh on Ubuntu Core.
+
+systems:
+  - -ubuntu-1*
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_BASE_SNAP: true
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+skip:
+  - reason: This test needs test keys to be trusted
+    if: |
+      [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  snap install test-snapd-swtpm --edge
+
+  "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+  version="$(tests.nested show version)"
+  base_snap="core${version}"
+  gendeveloper1 sign-model < "$TESTSLIB/assertions/developer1-${version}-dangerous.json" > base-kernel-refresh.model
+
+  tests.nested prepare-essential-snaps
+
+  snapd_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
+
+  export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+  ubuntu-image snap --image-size 10G ./base-kernel-refresh.model \
+    --snap /tmp/extra-snaps/pc.snap \
+    --snap /tmp/extra-snaps/pc-kernel.snap \
+    --snap "${snapd_snap}" \
+    --snap "/tmp/extra-snaps/${base_snap}.snap"
+
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  cp ./pc.img "${image_dir}/${image_name}"
+  tests.nested configure-default-user
+
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  remote.wait-for device-initialized
+
+  remote.exec 'sudo systemctl stop snapd snapd.socket'
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon" = "fake-session"' > state.json
+  remote.push state.json
+  remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+  remote.exec 'sudo systemctl start snapd snapd.socket'
+
+  remote.refresh disable-refreshes
+
+restore: |
+  systemctl stop fakedevicesvc.service || true
+  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+
+execute: |
+  version="$(tests.nested show version)"
+  base_snap="core${version}"
+  kernel_channel="${version}/stable"
+  base_channel="latest/stable"
+  base_id=""
+
+  case "${version}" in
+    20)
+      base_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+      ;;
+    22)
+      base_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+      ;;
+    24)
+      base_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+      ;;
+    26)
+      kernel_channel="${version}/edge"
+      base_channel="latest/edge"
+      base_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf"
+      ;;
+    *)
+      echo "unsupported nested core version: ${version}" >&2
+      exit 1
+      ;;
+  esac
+
+  make_fake_store_revision() {
+    local source_snap="$1"
+    local output_snap="$2"
+    local snap_id="$3"
+    local revision="$4"
+    local channel="$5"
+    local bad_post_refresh="$6"
+
+    rm -rf squashfs-root
+    unsquashfs -d squashfs-root "${source_snap}"
+
+    # shellcheck disable=SC2016
+    gojq --yaml-input --yaml-output --arg version "v${revision}" '.version = $version' squashfs-root/meta/snap.yaml > snap.yaml.new
+    mv snap.yaml.new squashfs-root/meta/snap.yaml
+
+    if [ "${bad_post_refresh}" = true ]; then
+      mkdir -p squashfs-root/meta/hooks
+      printf '#!/bin/sh\nexit 1\n' > squashfs-root/meta/hooks/post-refresh
+      chmod +x squashfs-root/meta/hooks/post-refresh
+    fi
+
+    snap pack --filename="${output_snap}" ./squashfs-root
+    rm -rf squashfs-root
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack \
+      --revision "${revision}" \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      "${output_snap}" \
+      "${snap_id}"
+    "${TESTSTOOLS}/store-state" add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "${output_snap}" "${channel}"
+  }
+
+  start_base_revision="$(remote.exec "snap list ${base_snap}" | awk 'NR != 1 { print $3 }')"
+  start_kernel_revision="$(remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }')"
+  test -n "${start_base_revision}"
+  test -n "${start_kernel_revision}"
+
+  echo "Publish refreshed base and kernel snaps, with a failing kernel post-refresh hook"
+  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap" "./${base_snap}-rev2.snap" "${base_id}" 2 "${base_channel}" false
+  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap" './pc-kernel-rev2-badhook.snap' 'pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza' 2 "${kernel_channel}" true
+
+  echo "Refresh the base and kernel together"
+  initial_boot_id="$(tests.nested boot-id)"
+  change_id="$(remote.exec "sudo snap refresh --no-wait ${base_snap} pc-kernel")"
+  echo "${change_id}" > change-id
+
+  echo "Wait for the reboot into the refreshed system"
+  remote.wait-for reboot "${initial_boot_id}"
+  rollback_boot_id="$(tests.nested boot-id)"
+
+  echo "Wait for the rollback reboot after the failing kernel post-refresh hook"
+  remote.wait-for reboot "${rollback_boot_id}"
+  remote.wait-for snap-command
+
+  echo "Wait for the refresh change to fail"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+  remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Error"
+  not remote.exec "sudo snap watch ${change_id}"
+  remote.exec "sudo snap change ${change_id}" > "change-${change_id}.log"
+
+  echo "Verify the live system rolled back to the original revisions"
+  remote.exec "snap list ${base_snap}" | awk 'NR != 1 { print $3 }' | MATCH "^${start_base_revision}$"
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }' | MATCH "^${start_kernel_revision}$"
+
+  echo "Verify the kernel boot state was restored"
+  remote.exec 'sudo snap debug boot-vars --uc20' | MATCH '^kernel_status=$'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' | MATCH "^current_kernels=pc-kernel_${start_kernel_revision}.snap$"
+  remote.exec 'readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi' | MATCH "pc-kernel_${start_kernel_revision}.snap/kernel.efi"
+  remote.exec "test -d /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_${start_kernel_revision}.snap"
+
+  if [ "$(remote.exec 'find /run/mnt/ubuntu-boot/EFI/ubuntu -maxdepth 1 -name "pc-kernel_*.snap" -printf "%f\n" | wc -l')" != 1 ]; then
+    echo "extra leftover pc-kernel assets in ubuntu-boot:"
+    remote.exec 'find /run/mnt/ubuntu-boot/EFI/ubuntu -maxdepth 1 -name "pc-kernel_*.snap" -printf "%f\n"'
+    exit 1
+  fi
