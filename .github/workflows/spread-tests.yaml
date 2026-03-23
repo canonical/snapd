@@ -588,16 +588,16 @@ jobs:
               -F "job_id=$JOB_ID" \
               -F "run_id=${{ github.run_id }}")
 
-              if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
-                  echo "Request failed with status $HTTP_CODE"
-                  exit 1
-              fi
-              echo "Results sent successfully"
+            if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
+                echo "Request failed with status $HTTP_CODE"
+                exit 1
+            fi
+            echo "Results sent successfully"
 
-              echo "Getting predictions for failed tests"
-              wget https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/client/predict -O predict
-              chmod +x predict
-              ./predict results.json
+            echo "Getting predictions for failed tests"
+            wget https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/client/predict -O predict
+            chmod +x predict
+            ./predict results.json
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
         fi
