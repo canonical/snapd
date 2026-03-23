@@ -147,6 +147,42 @@ func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, m
 	return kernel.RemoveKernelDriversTree(kernelTree)
 }
 
+func removeInitramfsMount(mountDir string) error {
+	// Stop duplicated mounts created from initramfs, if existing:
+	//
+	// - On UC there is a mount under /writable/system-data, as the "snap"
+	//   directory there is bind mounted later to /. There is a unit file created
+	//   by the initramfs, but it has a "sysroot-" prefix to the real mount path,
+	//   so systemd does not consider it associated with the mount. This unit file
+	//   is inactive therefore. We leave this file as it is, it will disappear in
+	//   next reboot and it would be a waste to remove it and do a daemon-reload.
+	//
+	// - On hybrid the initramfs will create the mount already in /snap,
+	//   however, there will be a mount in /run/mnt/data as / is bind-mounted
+	//   there and that mount is not marked private, so mount events in / will
+	//   leak.
+	extraMountRoot := dirs.WritableUbuntuCoreSystemDataDir
+	if release.OnClassic {
+		extraMountRoot = boot.InitramfsDataDir
+	}
+	mntPoint := filepath.Join(extraMountRoot, dirs.StripRootDir(mountDir))
+	mounted, err := osutil.IsMounted(mntPoint)
+	if err != nil {
+		return err
+	}
+	if !mounted {
+		return nil
+	}
+
+	// TODO we handle (un)mounts in different ways in different places
+	// (direct syscalls or (u)mount commands). We need to unify this eventually.
+	if output, err := exec.Command("umount", "--lazy", mntPoint).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
 // SetupComponent prepares and mounts a component for further processing.
 func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, retErr error) {
 	// This assumes that the component was already verified or --dangerous was used.
@@ -207,6 +243,13 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
 func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	mountDir := s.MountDir()
+	// dev.HasModeenv() identifies UC20+/hybrid systems, where the initramfs can
+	// mount the kernel snap early in the initramfs
+	if typ == snap.TypeKernel && dev.HasModeenv() {
+		if err := removeInitramfsMount(mountDir); err != nil {
+			return err
+		}
+	}
 
 	// this also ensures that the mount unit stops
 	if err := removeMountUnit(mountDir, meter); err != nil {
@@ -249,36 +292,8 @@ type RemoveComponentOpts struct {
 // RemoveComponentFiles unmounts and removes component files from the disk.
 func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, opts RemoveComponentOpts, meter progress.Meter) error {
 	if opts.MaybeInitramfsMounted {
-		// Stop duplicated mounts created from initramfs for kernel-modules components, if
-		// existing (if we have not rebooted after installation these will not be exist):
-		//
-		// - On UC there is a mount under /writable/system-data, as the "snap" directory
-		//   there is bind mounted later to /. There is a unit file created by the
-		//   initramfs, but it has a "sysroot-" prefix to the real mount path, so systemd
-		//   does not consider it associated with the mount. This unit file is inactive
-		//   therefore. We leave this file as it is, it will disappear in next reboot and it
-		//   would be a waste to remove it and do a daemon-reload.
-		//
-		// - On hybrid the initramfs will create the mount already in /snap, however, there
-		//   will be a mount in /run/mnt/data as / is bind-mounted there and that mount is
-		//   not marked private, so mount events in / will leak.
-		extraMountRoot := dirs.WritableUbuntuCoreSystemDataDir
-		if release.OnClassic {
-			extraMountRoot = boot.InitramfsDataDir
-		}
-		mntPoint := filepath.Join(extraMountRoot, dirs.StripRootDir(cpi.MountDir()))
-		isMounted, err := osutil.IsMounted(mntPoint)
-		if err != nil {
+		if err := removeInitramfsMount(cpi.MountDir()); err != nil {
 			return err
-		}
-		if isMounted {
-			// TODO we handle (un)mounts in different ways in different places
-			// (direct syscalls or (u)mount commands). We need to unify this
-			// eventually.
-			if output, err := exec.Command("umount", "--lazy", mntPoint).
-				CombinedOutput(); err != nil {
-				return osutil.OutputErr(output, err)
-			}
 		}
 	}
 

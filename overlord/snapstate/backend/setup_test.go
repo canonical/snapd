@@ -90,6 +90,7 @@ var (
 	mockClassicDev    = boottest.MockDevice("")
 	mockDev           = boottest.MockDevice("boot-snap")
 	mockDevWithKernel = boottest.MockDevice("kernel")
+	mockUC20KernelDev = boottest.MockDevice("kernel@run")
 )
 
 func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
@@ -307,6 +308,55 @@ type: kernel
 	// assets got extracted and then removed again
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(bloader.RemoveKernelAssetsCalls, HasLen, 1)
+}
+
+func (s *setupSuite) TestUndoSetupKernelUnmountsInitramfsMount(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	dirs.SetRootDir(c.MkDir())
+
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// we don't get real mounting
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+
+	testFiles := [][]string{
+		{"kernel.img", "kernel"},
+		{"initrd.img", "initrd"},
+		{"modules/4.4.0-14-generic/foo.ko", "a module"},
+		{"firmware/bar.bin", "some firmware"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	snapPath := snaptest.MakeTestSnapWithFiles(c, `name: kernel
+version: 1.0
+type: kernel
+`, testFiles)
+
+	si := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(140),
+	}
+
+	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockUC20KernelDev, nil, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(installRecord, NotNil)
+
+	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
+	extraMount := filepath.Join(dirs.WritableUbuntuCoreSystemDataDir, dirs.StripRootDir(minInfo.MountDir()))
+	content := fmt.Sprintf("189 102 7:2 / %s ro,nodev,relatime shared:3 - squashfs /dev/loop2 ro,errors=continue,threads=single\n", extraMount)
+	restore = osutil.MockMountInfo(content)
+	defer restore()
+
+	err = s.be.UndoSetupSnap(minInfo, snap.TypeKernel, installRecord, mockUC20KernelDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.umount.Calls(), DeepEquals, [][]string{{"umount", "--lazy", extraMount}})
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Assert(bloader.RemoveKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 }
 
 func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
