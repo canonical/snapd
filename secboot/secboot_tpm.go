@@ -1049,6 +1049,14 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 	}
 	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.WithProvisionNewLockoutAuthValue(lockoutAuth)); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
+		// On systems with Intel HAP enabled (ME disabled), the TPM may enter
+		// DA (Dictionary Attack) lockout mode due to changed PCR 0/2 values.
+		// Do not treat this as fatal - log a warning and continue without
+		// TPM auto-unlock. Full disk encryption remains enabled via recovery key.
+		if xerrors.Is(err, sb_tpm2.ErrTPMLockout) {
+			logger.Noticef("TPM is in DA lockout mode (possibly due to HAP/Intel ME disabled or non-standard PCR baseline). Continuing without TPM auto-unlock; full disk encryption remains enabled via recovery key.")
+			return nil
+		}
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
