@@ -85,6 +85,7 @@ var userDaemonsOverrides = []string{
 	"IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu", // snapd-desktop-integration snap-id
 	"aoc5lfC8aUd2VL8VpvynUJJhGXp5K6Dj", // prompting-client snap-id
 	"gjf3IPXoRiipCu9K0kVu52f0H56fIksg", // snap-store snap-id
+	"ugcYzyawm1QcUPv2E1xI8MdOUmrayPpt", // ubuclaw snap-id
 }
 
 var ErrNothingToDo = errors.New("nothing to do")
