@@ -855,17 +855,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		}
 	}
 
-	activateState, err := SystemState(st)
-	if err != nil {
-		return nil, err
-	}
-	if !RunningWithPlatformKeys(activateState.Status) {
-		// Primary key might be missing from kernel keyring if disk was
-		// unlocked with recovery key during boot.
-		// We need to allow degraded state, as this function might be part of fixing.
-		return nil, fmt.Errorf("cannot replace platform keys if FDE is not active (current state: %v)", activateState.Status)
-	}
-
 	// Note: Checking that there are no ongoing conflicting changes and that the
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
