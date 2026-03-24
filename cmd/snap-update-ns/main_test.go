@@ -337,7 +337,11 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		return nil, nil
+	}, func(chg *update.Change, as *update.Assumptions) error {
+		// This is the doPerform side of the mock that is doing nothing in this test.
 		n++
+		c.Logf("call: %s, n %v", chg, n)
 		switch n {
 		case 0:
 			c.Assert(chg, DeepEquals, &update.Change{
@@ -348,13 +352,10 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 					Options: []string{"rbind", "x-snapd.origin=overname"},
 				},
 			})
-			return nil, fmt.Errorf("testing")
+			return fmt.Errorf("testing")
 		default:
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
-	}, func(chg *update.Change, as *update.Assumptions) error {
-		// This is the doPerform side of the mock that is doing nothing in this test.
-		return nil
 	})
 	defer restore()
 

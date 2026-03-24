@@ -71,13 +71,16 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	var changesMade []*Change
 	changeErr := make([]error, len(changesNeeded))
+	logger.Debugf("1. pass keep/unmount")
 	// In the first pass we fully apply keep and unmount changes
 	for i, change := range changesNeeded {
 		if change.Action == Mount {
 			// This is done in 2nd and 3rd passes.
+			logger.Debugf("skipping %v", change)
 			continue
 		}
 
+		logger.Debugf("apply: %v", change)
 		// Non-mount changes (so unmount or keep) do nothing in
 		// PrepareToPerform so we can safely call DoPerform which does not
 		// return any synthetic changes.
@@ -89,11 +92,36 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	}
 
 	// In the second pass we prepare to perform all mount changes
+	logger.Debugf("2. pass prep")
+	logger.Debugf("2.1. pass prep (overname)")
+	// Keep the invariant that overname (parallel installs mocking) needs to be applied first.
 	for i, change := range changesNeeded {
-		if change.Action != Mount {
-			// This was already done in the first pass.
+		if change.Action != Mount || change.Entry.XSnapdOrigin() != "overname" {
 			continue
 		}
+
+		logger.Debugf("prep overname apply: %v", change)
+		var synthesized []*Change
+		synthesized, changeErr[i] = change.PrepareToPerform(as)
+		changesMade = append(changesMade, synthesized...)
+		if changeErr[i] == nil {
+			changeErr[i] = change.DoPerform(as)
+		}
+		if err := changeErr[i]; err != nil {
+			return err
+		}
+		changesMade = append(changesMade, change)
+	}
+
+	logger.Debugf("2.2. pass prep")
+	for i, change := range changesNeeded {
+		if change.Action != Mount || change.Entry.XSnapdOrigin() == "overname" {
+			// This was already done in pass 2.1.
+			logger.Debugf("skipping %v", change)
+			continue
+		}
+
+		logger.Debugf("prep apply: %v", change)
 		var synthesized []*Change
 		synthesized, changeErr[i] = change.PrepareToPerform(as)
 		// We may have done something even if Perform itself has failed.
@@ -102,18 +130,21 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	}
 
 	// In the third and final pass, we perform all the mount changes
+	logger.Debugf("3. pass mount")
 	for i, change := range changesNeeded {
-		if change.Action != Mount {
-			// This was already done in the first pass.
+		if change.Action != Mount || change.Entry.XSnapdOrigin() == "overname" {
+			// Non mount changes were done earlier.
+			// Overname mount changes are applied in 2.1 pass.
 			continue
 		}
+		logger.Debugf("mount apply: %v", change)
 		if changeErr[i] == nil {
 			// Only perform the change if preparation has not failed.
 			changeErr[i] = change.DoPerform(as)
 		}
 		if err := changeErr[i]; err != nil {
 			origin := change.Entry.XSnapdOrigin()
-			if origin == "layout" || origin == "overname" {
+			if origin == "layout" {
 				// TODO: convert the test to a method over origin.
 				return err
 			} else if err != ErrIgnoredMissingMount {
