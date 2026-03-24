@@ -2444,7 +2444,6 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	for _, lane := range snapLanes {
 		laneFailed := false
 		var seenSnaps []string
-	laneLoop:
 		for _, tsk := range chg.LaneTasks(lane) {
 			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
@@ -2467,7 +2466,10 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				unreadyTasks = true
 			case tsk.Status() != state.DoneStatus:
 				laneFailed = true
-				break laneLoop
+				// keep scanning the lane even after it has failed so restart
+				// detection still sees later wait-for-restart tasks in the same
+				// transactional lane.
+				continue
 			case tsk.Kind() == "link-snap":
 				sup, err := snapstate.TaskSnapSetup(tsk)
 				if err != nil {

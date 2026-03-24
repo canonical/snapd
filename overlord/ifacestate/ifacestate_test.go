@@ -14024,3 +14024,123 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsCore(
 func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsClassic(c *C) {
 	s.testDelayedEffectsHandlingOfRestartRequests(c, onClassic)
 }
+
+func (s *interfaceManagerSuite) TestDelayedEffectsWaitsForRestartAfterFailedTaskInLane(c *C) {
+	defer release.MockOnClassic(false)()
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+	var b interfaces.SecurityBackend
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				name := appSet.InstanceName()
+				if initDone {
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case name == "consumer":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+						}
+						return nil
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				}
+				initSetupCalls++
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			return nil
+		},
+	}
+	s.mockSecBackend(secBackend)
+	b = secBackend
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 2)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+			Revision: prod.Revision,
+		},
+	}
+
+	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
+		useRealLinkSnapTask: true,
+		active:              false,
+		linkSnapRestarts:    true,
+	})
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	var setupProfilesTask, linkSnapTask *state.Task
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "setup-profiles":
+			setupProfilesTask = t
+		case "link-snap":
+			linkSnapTask = t
+		}
+	}
+	c.Assert(setupProfilesTask, NotNil)
+	c.Assert(linkSnapTask, NotNil)
+
+	// this specifically tests noticing a later reboot waiter even after an
+	// earlier task in the same lane has already been undone.
+	restart.MarkTaskAsRestartBoundary(linkSnapTask, restart.RestartBoundaryDirectionDo)
+
+	monitoredLanes := lanesFromChange(chg)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(linkSnapTask.Status(), Equals, state.WaitStatus)
+	c.Check(setupProfilesTask.Status(), Equals, state.DoneStatus)
+
+	// mark the first task as undone, so we're proving that we still consider
+	// later tasks that are waiting on reboots
+	setupProfilesTask.SetStatus(state.UndoneStatus)
+
+	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, monitoredLanes, 0)
+	verifyDelayedEffectsTaskset(c, ts, monitoredLanes, 0)
+	processTask := ts.Tasks()[0]
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(strings.Join(processTask.Log(), "\n"), testutil.Contains,
+		"Task set to wait until a system restart allows to continue")
+}
