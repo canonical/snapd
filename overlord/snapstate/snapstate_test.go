@@ -10193,7 +10193,8 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 		default:
 			// all other updates and installs should at a minimum wait on snapd if
 			// it is part of the change. if the snap uses a base, it should also
-			// wait for that base to link before it starts local modifications.
+			// wait for that base's local-modification phase, and then for the base
+			// to link before it proceeds past its own mount phase.
 			if snapdTS := tasksByName["snapd"]; snapdTS != nil {
 				for _, t := range snapdTS.Tasks() {
 					c.Assert(waitsOnTransitively(sts.begin, t), Equals, true)
@@ -10208,7 +10209,15 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 					break
 				}
 				firstLocal := firstTaskAfterLocalModifications(c, sts.ts)
-				c.Assert(waitsOnTransitively(firstLocal, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+				if baseFirstLocal := firstTaskAfterLocalModifications(c, baseTS); baseFirstLocal != nil {
+					c.Assert(waitsOnTransitively(firstLocal, baseFirstLocal), Equals, true)
+				}
+				if findKindInTaskSet(sts.ts, "mount-snap") != nil {
+					firstPostMount := firstTaskAfterMount(c, sts.ts)
+					c.Assert(waitsOnTransitively(firstPostMount, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+				} else {
+					c.Assert(waitsOnTransitively(firstLocal, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+				}
 			}
 		}
 	}
