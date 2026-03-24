@@ -2023,9 +2023,11 @@ prepare_ubuntu_core() {
         prepare_state_lock "SNAPD PROJECT"
         prepare_tag_features
         setup_experimental_features
-        systemctl stop snapd.service snapd.socket
-        save_snapd_state
-        systemctl start snapd.socket
+        if [ "$SNAPD_SINGLE_TEST_RUN" != "true" ]; then
+            systemctl stop snapd.service snapd.socket
+            save_snapd_state
+            systemctl start snapd.socket
+        fi
     fi
 
     disable_kernel_rate_limiting

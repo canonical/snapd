@@ -137,6 +137,10 @@ environment:
     SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
 
+    # When this is set to true, the test will be executed as a single run and snapd state won't be reset between test cases.
+    # This is useful to speed up debugging when you want to run a single test case or a subset of test cases.
+    SNAPD_SINGLE_TEST_RUN: '$(HOST: echo "${SPREAD_SNAPD_SINGLE_TEST_RUN:-}")'
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'

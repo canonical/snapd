@@ -5,8 +5,8 @@ details: |
 systems: [ubuntu-core-*]
 
 environment:
-  SNAPD_REFRESH_CHANNEL: latest/edge
-  KERNEL_REFRESH_CHANNEL: 24/beta
+  SNAPD_REFRESH_CHANNEL: edge
+  KERNEL_REFRESH_CHANNEL: beta
 
 skip:
   - reason: Secure boot is not enabled in the current system
@@ -18,18 +18,13 @@ prepare: |
     retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
     REBOOT
   fi
-  
-  if [ $SPREAD_REBOOT = 1 ]; then
-    snap refresh pc-kernel
-    REBOOT
-  fi
 
 execute: |
   if [ $SPREAD_REBOOT = 0 ]; then
-    snap refresh snapd --channel="$SNAPD_REFRESH_CHANNEL"
-    snap refresh pc-kernel --channel="$KERNEL_REFRESH_CHANNEL"
-
+    VERSION=$(grep 'VERSION_ID=' /etc/os-release | cut -d '"' -f 2)
+    snap refresh snapd --channel="latest/$SNAPD_REFRESH_CHANNEL"
+    snap refresh pc-kernel --channel="$VERSION/$KERNEL_REFRESH_CHANNEL"
     REBOOT
   fi
 
-  journalctl -b | MATCH "snapd.*re-seal"
+  "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "resealing .* succeeded"

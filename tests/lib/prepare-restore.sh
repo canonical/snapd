@@ -683,6 +683,10 @@ prepare_suite() {
         snap set system journal.persistent=true
     fi
 
+    if [ "$SNAPD_SINGLE_TEST_RUN" = "true" ]; then
+        return
+    fi
+
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -822,8 +826,7 @@ restore_suite_each() {
             systemctl reset-failed snapd.failure.service
         fi
     fi
-
-    if [[ "$variant" = full ]]; then
+    if [[ "$variant" = full ]] && [ "$SNAPD_SINGLE_TEST_RUN" != "true" ]; then
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
     fi
@@ -838,6 +841,10 @@ restore_suite_each() {
 }
 
 restore_suite() {
+    if [ "$SNAPD_SINGLE_TEST_RUN" = "true" ]; then
+        return
+    fi
+
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
         "$TESTSTOOLS"/store-state teardown-staging-store
