@@ -165,7 +165,7 @@ override_dh_auto_build: snapd.defines.mk
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
 	# Prepare the build tree by removing code not used for Debian builds
-	$(MAKE) -f packaging/snapd.mk prepare-build-tree sourcedir=_build/src/$(DH_GOPKG) \
+	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) \
 		SNAPD_DEFINES_DIR=$(CURDIR) builddir=$(CURDIR)/_build/bin
 
 	# and build, we cannot use modules as packaging on Debian requires us to use
