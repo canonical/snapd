@@ -2414,11 +2414,15 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 		s.state.Set("confdb-ongoing-txs", ongoingTxs)
 		s.state.Cache("confdb-accesses-"+ref, nil)
 
-		go accessFunc()
-
 		// testing helper closed when the access is about to block
 		blockingChan := make(chan struct{})
 		confdbstate.SetBlockingSignalChan(blockingChan)
+
+		accDone := make(chan struct{})
+		go func() {
+			accessFunc()
+			close(accDone)
+		}()
 
 		select {
 		case <-blockingChan:
@@ -2446,13 +2450,19 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 		// unblock the access we started
 		close(pending[0].WaitChan)
 
-		// it should fail and the one we mocked should be unblocked
+		// the access we mocked should be unblocked
 		select {
 		case <-waitChan:
 		case <-time.After(2 * time.Second):
 			c.Fatal("expected next access to be unblocked but timed out")
 		}
 
+		// the access failed with the expected error
+		select {
+		case <-accDone:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected failed access to return but timed out")
+		}
 		c.Assert(accErr, ErrorMatches, ".*: no custodian snap connected")
 	}
 }
