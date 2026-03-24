@@ -47,7 +47,7 @@ the standards. They also check the markdown format of documentation files.
 All the existing unit tests are also executed, and the coverage info is
 reported to coveralls.
 
-We use [spread](https://github.com/snapcore/spread) to verify the
+We use [spread](https://github.com/canonical/spread-plus) to verify the
 integrity of the product, exercising it as a whole, both from an end user
 standpoint (eg. all kinds of interactions with the snap tool from the command
 line) and from a more systemic approach (testing upgrades, for instance).

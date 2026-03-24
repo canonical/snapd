@@ -33,17 +33,7 @@ You need to have the following software installed before you can test with sprea
 
 ## Installing spread
 
-You can install spread by simply using ```snap install spread```, however this does not allow for the lxd-backend to be used.
-To use the lxd backend you need to install spread from source, as the LXD profile support has not been upstreamed yet.
-This document will be updated with the upstream version when the PR https://github.com/snapcore/spread/pull/136 merges. To install spread from source you need to do the following.
-
-```
-git clone https://github.com/Meulengracht/spread
-cd spread
-cd cmd/spread
-go build .
-go install .
-```
+You can install spread by simply using ```snap install spread-plus```.
 
 ## QEMU backend
 
