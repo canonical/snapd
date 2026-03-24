@@ -1,8 +1,15 @@
 summary: Check snapd reseals properly after it is refreshed and system rebooted
 
 details: |
+  This test checks that snapd reseals properly after it is refreshed and system rebooted.
+  It is expected that snapd will print "resealing .* succeeded" in the logs after the reboot.
+  This test is intended to be executed in the testflinger backend on real hardware. 
+
+backends: [testflinger]
 
 systems: [ubuntu-core-*]
+
+manual: true
 
 environment:
   SNAPD_REFRESH_CHANNEL: edge
