@@ -69,6 +69,8 @@ func run(args []string) error {
 
 	logger.Debugf("FIPS execution dispatcher for: %s", prog)
 
+	// This is a short list of binaries which execute cryptography related
+	// functions that fall under the FIPS spec.
 	targetMapper := map[string]string{
 		"snap":           "/usr/bin/snap-fips",
 		"snapd":          "/usr/lib/snapd/snapd-fips",
