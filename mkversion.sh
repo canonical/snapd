@@ -65,12 +65,7 @@ fi
 # switch to the real source dir for the changelog parsing
 : "${DPKG_PARSECHANGELOG=$(command -v dpkg-parsechangelog)}"
 if [ -n "$DPKG_PARSECHANGELOG" ]; then
-
-    changelog=debian/changelog
-    if [ ! -e "$changelog" ]; then
-        changelog=packaging/ubuntu-16.04/changelog
-    fi
-    version_from_changelog="$(cd "$PKG_BUILDDIR" && "$DPKG_PARSECHANGELOG" --file "$changelog" --show-field Version)"
+    version_from_changelog="$(cd "$PKG_BUILDDIR"; "$DPKG_PARSECHANGELOG" --file packaging/ubuntu-16.04/changelog --show-field Version)";
 fi
 
 # select version based on priority
