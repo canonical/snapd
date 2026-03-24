@@ -254,7 +254,7 @@ jobs:
               exit 0
           fi
 
-          mapfile -t unskip_tests < <(printf '%s\n' "$unskip_yaml" | yq -r '.unskip[]')
+          mapfile -t unskip_tests < <(printf '%s\n' "$unskip_yaml" | yq -r '.unskip // [] | .[]?')
           UNSKIP_TESTS="${unskip_tests[*]}"
 
           if [ -z "$UNSKIP_TESTS" ]; then
