@@ -297,7 +297,13 @@ jobs:
               backend=$(yq -r '."spread-backend" // ".*"' "$file")
               if [[ "$expire" > "$today" ]] && grep -q "$system" <<<"${{ inputs.systems }}" && grep -q "^$backend$" <<<"$SPREAD_BACKEND"; then
                   task=$(yq -r '."spread-task"' "$file")
-                  for unskip_test in ${UNSKIP_TESTS:-}; do
+                  IFS=' ' read -ra unskip_arr <<< "${UNSKIP_TESTS:-}"
+                  for unskip_test in "${unskip_arr[@]}"; do
+                      # Validate format: must be backend:system:task
+                      if [[ ! "$unskip_test" =~ ^[^:]+:[^:]+:.+$ ]]; then
+                          echo "Ignoring malformed unskip entry: $unskip_test"
+                          continue
+                      fi
                       unskip_backend="${unskip_test%%:*}"
                       unskip_rest="${unskip_test#*:}"
                       unskip_system="${unskip_rest%%:*}"
