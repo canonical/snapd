@@ -399,9 +399,13 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
+		// Serve might return either net.ErrClosed (net.Listener is
+		// closed) or http.ErrServerClosed (Shutdown() called) - see
+		// Daemon.Stop() as this is racy.
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				if err := d.serve.Serve(d.snapListener); !errors.Is(err, http.ErrServerClosed) &&
+					!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -409,7 +413,8 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 			})
 		}
 
-		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := d.serve.Serve(d.snapdListener); !errors.Is(err, http.ErrServerClosed) &&
+			!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 

@@ -714,6 +714,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 		close(snapDone)
 	}()
 
+	// Ensure sockets are now ready to accept connections
 	<-snapdDone
 	<-snapDone
 
