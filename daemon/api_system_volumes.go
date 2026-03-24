@@ -44,7 +44,7 @@ var systemVolumesCmd = &Command{
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "add-recovery-key", "replace-recovery-key",
 		"replace-platform-key", "check-passphrase-quality", "check-pin-quality", "change-passphrase", "change-pin",
-		// deprectated
+		// deprecated
 		"check-passphrase", "check-pin",
 	},
 	// anyone can enumerate key slots.
@@ -54,7 +54,7 @@ var systemVolumesCmd = &Command{
 			// anyone check passphrase/pin quality
 			"check-passphrase-quality": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin-quality":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
-			// deprected
+			// deprecated
 			"check-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			// anyone can change passphrase or PIN given they know the old passphrase
