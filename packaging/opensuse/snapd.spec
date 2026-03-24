@@ -343,12 +343,6 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 # Verify that statically linked binaries are indeed static
 %make_build -f %{indigo_srcdir}/packaging/snapd.mk SNAPD_DEFINES_DIR=%{_builddir} check-static-binaries
 
-if [ -e build-with-static-pie ]; then
-for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-    file %{buildroot}/%{_libexecdir}/snapd/$binary | grep -F pie
-done
-fi
-
 export CFLAGS="$RPM_OPT_FLAGS -fpie"
 export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
 export LDFLAGS="%{?build_ldflags} -zrelro -znow"

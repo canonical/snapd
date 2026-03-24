@@ -155,6 +155,10 @@ check-static-binaries:
 				ldd "$(builddir)/$$binary"; \
 				exit 1; \
 			fi; \
+			if [ "$(with_static_pie)" = 1 ] && ! file $(builddir)/$$binary | grep -q -F pie; then \
+				echo "ERROR: $$binary is not a static PIE"; \
+				exit 1; \
+			fi; \
 			echo "  $$binary: OK (static)"; \
 		fi; \
 	done
