@@ -169,7 +169,7 @@ Requires:       (snapd-selinux = %{version} if selinux-policy-%{selinuxtype})
 %endif
 
 # Old versions of xdg-document-portal can expose data belonging to
-# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# other confined apps.  Older OpenSUSE releases are unlikely to change,
 # so for now limit this to Tumbleweed.
 %if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 Conflicts:      xdg-desktop-portal < 0.11
@@ -279,7 +279,7 @@ popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
-  echo "pkg-confing and rpm macros disagree about the location of systemd system generator directory"
+  echo "pkg-config and rpm macros disagree about the location of systemd system generator directory"
   exit 1
 fi
 
