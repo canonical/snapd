@@ -61,6 +61,8 @@ func findFIPSLibsAndModules(snapRoot string) (opensslLib, module string) {
 	return "", ""
 }
 
+// MaybeCompleteFIPSSetup run completion and cleanup steps if the process was
+// invoked through FIPS execution dispatch mechanism.
 func MaybeCompleteFIPSSetup() {
 	if os.Getenv("SNAPD_FIPS_BOOTSTRAP") == "1" {
 		// we've already been reexeced into FIPS mode and bootstrap was
