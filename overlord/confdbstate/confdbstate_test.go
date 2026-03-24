@@ -62,8 +62,6 @@ type confdbTestSuite struct {
 	dbSchema    *confdb.Schema
 	otherSchema *confdb.Schema
 	devAccID    string
-
-	repo *interfaces.Repository
 }
 
 var _ = Suite(&confdbTestSuite{})
@@ -761,7 +759,8 @@ func (s *confdbTestSuite) TestConfdbTasksDisconnectedCustodianSnap(c *C) {
 	nonCustodians := []string{"test-snap"}
 	s.setupConfdbScenario(c, custodians, nonCustodians)
 
-	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
+	repo := ifacerepo.Get(s.state)
+	repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbTasksNoCustodian(c)
 }
 
@@ -786,7 +785,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 
 	// a non-custodian snap modifies a confdb
 	_, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap installed", s.devAccID, view.Name))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap connected", s.devAccID, view.Name))
 }
 
 type confdbHooks uint8
@@ -821,11 +820,11 @@ const allHooks = observeView | queryView | loadView | saveView | changeView
 const noHooks = confdbHooks(0)
 
 func (s *confdbTestSuite) setupConfdbScenario(c *C, custodians map[string]confdbHooks, nonCustodians []string) {
-	s.repo = interfaces.NewRepository()
-	ifacerepo.Replace(s.state, s.repo)
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	confdbIface := &ifacetest.TestInterface{InterfaceName: "confdb"}
-	err := s.repo.AddInterface(confdbIface)
+	err := repo.AddInterface(confdbIface)
 	c.Assert(err, IsNil)
 
 	// mock the confdb slot
@@ -841,7 +840,7 @@ slots:
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
-	err = s.repo.AddAppSet(coreSet)
+	err = repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
 	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
@@ -877,7 +876,7 @@ plugs:
 
 		appSet, err := interfaces.NewSnapAppSet(info, nil)
 		c.Assert(err, IsNil)
-		err = s.repo.AddAppSet(appSet)
+		err = repo.AddAppSet(appSet)
 		c.Assert(err, IsNil)
 
 		setupRef := &interfaces.ConnRef{
@@ -890,7 +889,7 @@ plugs:
 		}
 
 		for _, ref := range []*interfaces.ConnRef{setupRef, otherRef} {
-			_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
+			_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -1350,7 +1349,8 @@ func (s *confdbTestSuite) TestConfdbLoadDisconnectedCustodianSnap(c *C) {
 	custodians := map[string]confdbHooks{"test-custodian-snap": allHooks}
 	s.setupConfdbScenario(c, custodians, []string{"test-snap"})
 
-	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
+	repo := ifacerepo.Get(s.state)
+	repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbLoadNoCustodian(c)
 }
 
@@ -2385,4 +2385,74 @@ func (s *confdbTestSuite) TestAccessDifferentConfdbIndependently(c *C) {
 	view = s.otherSchema.View("other")
 	_, err = confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"foo": "bar"})
 	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// force the read/writes to fail due to missing custodian
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	view := s.dbSchema.View("setup-wifi")
+	ctx := context.Background()
+
+	var accErr error
+	// mock ongoing read transaction and pending access
+	for _, accessFunc := range []func(){
+		func() { _, accErr = confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0) },
+		func() { _, accErr = confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"}) },
+	} {
+		accErr = nil
+		ref := s.devAccID + "/network"
+
+		ongoingTxs := make(map[string]*confdbstate.ConfdbTransactions)
+		ongoingTxs[ref] = &confdbstate.ConfdbTransactions{
+			WriteTxID: "10",
+		}
+		s.state.Set("confdb-ongoing-txs", ongoingTxs)
+		s.state.Cache("confdb-accesses-"+ref, nil)
+
+		go accessFunc()
+
+		// testing helper closed when the access is about to block
+		blockingChan := make(chan struct{})
+		confdbstate.SetBlockingSignalChan(blockingChan)
+
+		select {
+		case <-blockingChan:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected access to block but timed out")
+		}
+
+		// while the access is blocked mock another one coming in
+		s.state.Lock()
+		accs := s.state.Cached("confdb-accesses-" + ref)
+		c.Assert(accs, NotNil)
+		pending := accs.([]confdbstate.PendingAccess)
+		c.Assert(pending, HasLen, 1)
+
+		// mock another pending access
+		waitChan := make(chan struct{})
+		pending = append(pending, confdbstate.PendingAccess{
+			ID:         "foo",
+			AccessType: confdbstate.AccessType("write"),
+			WaitChan:   waitChan,
+		})
+		s.state.Cache("confdb-accesses-"+ref, pending)
+		s.state.Unlock()
+
+		// unblock the access we started
+		close(pending[0].WaitChan)
+
+		// it should fail and the one we mocked should be unblocked
+		select {
+		case <-waitChan:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected next access to be unblocked but timed out")
+		}
+
+		c.Assert(accErr, ErrorMatches, ".*: no custodian snap connected")
+	}
 }

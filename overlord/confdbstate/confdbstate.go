@@ -219,8 +219,8 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 	wait := make(chan struct{})
 	txs.pending = append(txs.pending, pendingAccess{
 		AccessType: access,
-		waitChan:   wait,
-		id:         id,
+		WaitChan:   wait,
+		ID:         id,
 	})
 	updateTxs(txs)
 	st.Unlock()
@@ -237,7 +237,7 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 
 		accIndex := -1
 		for i, acc := range txs.pending {
-			if acc.id == id {
+			if acc.ID == id {
 				accIndex = i
 			}
 		}
@@ -277,6 +277,15 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 // set the values in specified confdb view and run the appropriate hooks.
 // Returns a change ID.
 func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values map[string]any) (changeID string, err error) {
+	defer func() {
+		if err != nil {
+			uerr := unblockNextAccess(st, view.Schema().Account, view.Schema().Name)
+			if uerr != nil {
+				logger.Noticef("cannot unblock next access after failed write: %v", uerr)
+			}
+		}
+	}()
+
 	err = waitForAccess(ctx, st, view, writeAccess)
 	if err != nil {
 		return "", err
@@ -442,7 +451,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	}
 
 	if len(custodianPlugs) == 0 {
-		return nil, fmt.Errorf("cannot commit changes to confdb made through view %s: no custodian snap installed", view.ID())
+		return nil, fmt.Errorf("cannot commit changes to confdb made through view %s: no custodian snap connected", view.ID())
 	}
 
 	paths := tx.AlteredPaths()
@@ -787,19 +796,28 @@ const (
 )
 
 type pendingAccess struct {
-	// id is a random string identifying this access.
-	id string
+	// ID is a random string identifying this access.
+	ID string
 	// AccessType denotes whether the access is read or write. Exported for
 	// testing purposes.
 	AccessType accessType
-	// waitChan is closed to unblock the pending access.
-	waitChan chan<- struct{}
+	// WaitChan is closed to unblock the pending access.
+	WaitChan chan<- struct{}
 }
 
 // ReadConfdb schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the
 // resulting data in the change's data (so it can be read by the client).
 func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any, userID int) (changeID string, err error) {
+	defer func() {
+		if err != nil {
+			uerr := unblockNextAccess(st, view.Schema().Account, view.Schema().Name)
+			if uerr != nil {
+				logger.Noticef("cannot unblock next access after failed read: %v", uerr)
+			}
+		}
+	}()
+
 	err = waitForAccess(ctx, st, view, readAccess)
 	if err != nil {
 		return "", err

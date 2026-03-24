@@ -337,9 +337,27 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 
 	// unblock any waiting routine
 	if len(txs.pending) > 0 {
-		logger.Debugf("remove pending access %s", txs.pending[0].id)
-		close(txs.pending[0].waitChan)
+		logger.Debugf("remove pending access %s", txs.pending[0].ID)
+		close(txs.pending[0].WaitChan)
 	}
+
+	updateTxStateFunc(txs)
+	return nil
+}
+
+func unblockNextAccess(st *state.State, account, schemaName string) error {
+	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
+	if err != nil {
+		return err
+	}
+
+	if len(txs.pending) == 0 {
+		return nil
+	}
+
+	// unblock any waiting routine
+	logger.Debugf("remove pending access %s", txs.pending[0].ID)
+	close(txs.pending[0].WaitChan)
 
 	updateTxStateFunc(txs)
 	return nil

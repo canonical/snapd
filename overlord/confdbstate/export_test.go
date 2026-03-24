@@ -40,6 +40,7 @@ var (
 type (
 	ConfdbTransactions = confdbTransactions
 	PendingAccess      = pendingAccess
+	AccessType         = accessType
 )
 
 const (
