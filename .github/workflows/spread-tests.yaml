@@ -295,15 +295,14 @@ jobs:
               today=$(date "+%Y-%m-%d")
               system=$(yq -r '."spread-system" // ".*"' "$file")
               backend=$(yq -r '."spread-backend" // ".*"' "$file")
-              if [[ "$expire" > "$today" ]] && grep -Eq "$system" <<<"${{ inputs.systems }}" && grep -Eq "^$backend$" <<<"$SPREAD_BACKEND"; then
+              if [[ "$expire" > "$today" ]] && grep -q "$system" <<<"${{ inputs.systems }}" && grep -q "^$backend$" <<<"$SPREAD_BACKEND"; then
                   task=$(yq -r '."spread-task"' "$file")
                   for unskip_test in ${UNSKIP_TESTS:-}; do
                       unskip_backend="${unskip_test%%:*}"
                       unskip_rest="${unskip_test#*:}"
                       unskip_system="${unskip_rest%%:*}"
                       unskip_task="${unskip_rest#*:}"
-
-                      if [[ "$unskip_task" == "$task" ]] && grep -Eq "$unskip_system" <<<"${{ inputs.systems }}" && grep -Eq "^$unskip_backend$" <<<"$SPREAD_BACKEND"; then
+                      if [[ "$unskip_task" == "$task" ]] && grep -q "$unskip_system" <<<"${{ inputs.systems }}" && grep -q "^$unskip_backend$" <<<"$SPREAD_BACKEND"; then
                           echo "Ignoring skip rule for $task due to unskip entry: $unskip_test"
                           continue 2
                       fi
