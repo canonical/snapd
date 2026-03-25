@@ -51,7 +51,7 @@ var systemVolumesCmd = &Command{
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 	WriteAccess: byActionAccess{
 		ByAction: map[string]accessChecker{
-			// anyone check passphrase/pin quality
+			// anyone can check passphrase/pin quality
 			"check-passphrase-quality": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin-quality":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			// deprecated
