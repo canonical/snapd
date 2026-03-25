@@ -34,6 +34,8 @@ var shortChangesHelp = i18n.G("List system changes")
 var shortTasksHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
 The changes command displays a summary of system changes performed recently.
+
+For more details, see /var/log/snapd/changes.log
 `)
 var longTasksHelp = i18n.G(`
 The tasks command displays a summary of tasks associated with an individual

@@ -1,0 +1,8 @@
+/var/log/snapd/changes.log {
+    rotate 12
+    monthly
+    compress
+    missingok
+    notifempty
+    create 0644 root root
+}

@@ -24,6 +24,8 @@ data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 data/info /usr/lib/snapd/
 # apt hook
 data/apt/20snapd.conf /etc/apt/apt.conf.d/
+# logrotate
+data/logrotate/snapd /etc/logrotate.d/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real

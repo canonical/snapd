@@ -188,7 +188,12 @@ install::
 # Install misc directories: 
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
+	install -m 755 -d $(DESTDIR)$(localstatedir)/log/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
+
+# Install logrotate configuration
+install::
+	install -m 644 -D data/logrotate/snapd $(DESTDIR)/etc/logrotate.d/snapd
 
 # Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
 # for preseeding of ubuntu cloud images due to certain assumptions about

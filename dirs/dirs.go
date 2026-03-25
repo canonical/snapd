@@ -71,6 +71,9 @@ var (
 
 	SnapdMaintenanceFile string
 
+	SnapdLogDir     string
+	SnapdChangesLog string
+
 	SnapdStoreSSLCertsDir string
 	SnapdPKIV1Dir         string
 	SystemCertsDir        string
@@ -631,6 +634,9 @@ func SetRootDir(rootdir string) {
 	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 	SnapIconsPoolDir = filepath.Join(SnapCacheDir, "icons-pool")
 	SnapIconsDir = filepath.Join(SnapCacheDir, "icons")
+
+	SnapdLogDir = filepath.Join(rootdir, "/var/log/snapd")
+	SnapdChangesLog = filepath.Join(SnapdLogDir, "changes.log")
 
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = SnapDeviceDirUnder(rootdir)

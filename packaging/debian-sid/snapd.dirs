@@ -12,4 +12,5 @@ var/lib/snapd/lib/gl32
 var/lib/snapd/lib/vulkan
 var/lib/snapd/snaps/partial
 var/lib/snapd/void
+var/log/snapd
 var/snap
