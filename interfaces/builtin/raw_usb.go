@@ -45,6 +45,8 @@ const rawusbConnectedPlugAppArmor = `
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb[0-9]** r,
 /sys/devices/platform/soc**/*.usb**/usb[0-9]** r,
+# SS USB controller as exposed by dwc3 driver
+/sys/devices/platform/soc**/*.ssusb**/usb[0-9]** r,
 /sys/devices/platform/scb/*.pcie/pci**/usb[0-9]** r,
 /sys/devices/platform/axi/*.pcie/*.usb/xhci-hcd.[0-9]*/usb[0-9]** r,
 /sys/devices/platform/axi/*.usb/usb[0-9]** r,
