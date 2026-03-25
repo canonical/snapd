@@ -2501,7 +2501,6 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	}
 
 	if len(delayed.TriggeringSnaps) == 0 {
-		task.Logf("no delayed backend effects")
 		return nil
 	}
 

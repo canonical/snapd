@@ -1057,7 +1057,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 		"recovery_system_status": "tried",
 	})
 	c.Assert(err, IsNil)
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	modeenv := boot.Modeenv{
@@ -1113,7 +1113,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 		"recovery_system_status": "tried",
 	})
 	c.Assert(err, IsNil)
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	modeenv := boot.Modeenv{
@@ -1152,7 +1152,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 		"recovery_system_status": "try",
 	})
 	c.Assert(err, IsNil)
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	// thus the system is considered bad, bootenv is cleared, and system is
@@ -1208,7 +1208,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 		"recovery_system_status": "tried",
 	})
 	c.Assert(err, IsNil)
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1399,7 +1399,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemConfl
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	for _, chgType := range []string{"create-recovery-system", "remove-recovery-system", "remodel"} {
@@ -1422,7 +1422,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemConfl
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksAndChange(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1454,7 +1454,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksWhenDirExists(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), 0755), IsNil)
@@ -1467,7 +1467,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSeeded(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1480,7 +1480,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoveryRequiredInVsetNotInModel(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1641,7 +1641,7 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1748,7 +1748,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedRefreshRecordsSeededSystem(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -1840,7 +1840,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedR
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelDownloadingSnapsHappy(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
@@ -2031,7 +2031,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	// this test is mainly to make sure that the code that creates a recovery
 	// system is able to properly fetch validation set assertions. both
 	// assertions at an unconstrained sequence and a pinned sequence number.
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2236,7 +2236,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelDownloadingMissingSnap(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
@@ -2330,7 +2330,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoNoTestSystem(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2419,7 +2419,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystem(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2556,7 +2556,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystemSeedRefresh(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2717,7 +2717,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2823,7 +2823,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCleanup(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -2898,7 +2898,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboot(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -3742,7 +3742,7 @@ func fakeSnapID(name string) string {
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSnapInvalid(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
@@ -3791,7 +3791,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflict(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
@@ -3846,7 +3846,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflictWithModel(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -3957,7 +3957,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTes
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTestSystem(c *C, markDefault bool) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -4075,7 +4075,7 @@ type testCreateRecoverySystemValidationSetsOptions struct {
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, opts testCreateRecoverySystemValidationSetsOptions) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -4575,7 +4575,7 @@ type testCreateRecoverySystemValidationSetsComponentsOpts struct {
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsComponents(c *C, opts testCreateRecoverySystemValidationSetsComponentsOpts) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	snapComponents := map[string][]string{
@@ -5110,7 +5110,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		"kmod": snap.R(22),
 	})
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
@@ -5312,7 +5312,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlineWithLocalError(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -5326,7 +5326,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlin
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflinePreinstalled(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -5445,7 +5445,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOffline(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	snapRevisions := map[string]snap.Revision{
@@ -5765,7 +5765,7 @@ type testCreateRecoverySystemValidationSetsOfflineWithComponents struct {
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c *C, opts testCreateRecoverySystemValidationSetsOfflineWithComponents) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	snapRevisions := map[string]snap.Revision{
@@ -5961,7 +5961,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWrongRevisionSnap(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6052,7 +6052,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineMissingRequiredComponent(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6132,7 +6132,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOfflineInvalidComponentRevision(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6252,7 +6252,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOffli
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapIDFromModel(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6322,7 +6322,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapID(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6366,7 +6366,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineMissingSnap(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6457,7 +6457,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMissingPrereqs(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	snapRevisions := map[string]snap.Revision{
@@ -6590,7 +6590,7 @@ plugs:
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMissingPrereqsOffline(c *C) {
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()
@@ -6868,7 +6868,7 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -6978,7 +6978,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -7018,7 +7018,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemDefaultFailure(c *
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -7048,7 +7048,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -7075,7 +7075,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemNoSystemWithName(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -7108,7 +7108,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)

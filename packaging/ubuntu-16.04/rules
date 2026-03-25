@@ -68,8 +68,7 @@ ifneq (${VERSION_ID},"16.04")
 	DH_SYSTEMD_START_OPTS += --restart-after-upgrade
 endif
 
-# this is overridden in the ubuntu/14.04 release branch
-SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
+SYSTEMD_UNITS_DESTDIR:=$(or $(shell pkg-config --variable=systemdsystemunitdir systemd),$(error pkg-config did not return systemdsystemunitdir))
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -374,4 +373,4 @@ override_dh_systemd_start:
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))

@@ -96,3 +96,7 @@ func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container
 func (a *androidboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return nil
 }
+
+func (a *androidboot) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(a, gadgetDir)
+}

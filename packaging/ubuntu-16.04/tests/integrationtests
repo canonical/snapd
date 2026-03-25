@@ -56,7 +56,7 @@ snap install --classic go
 
 # and now run spread against localhost
 export GOPATH=/tmp/go
-/snap/bin/go install github.com/snapcore/spread/cmd/spread@latest
+/snap/bin/go install github.com/canonical/spread/cmd/spread@latest
 
 # the tests need this:
 groupadd --gid 12345 test

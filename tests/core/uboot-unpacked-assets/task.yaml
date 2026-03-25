@@ -4,7 +4,7 @@ details: |
     In Ubuntu Core systems the kernel is unpacked in different locations depending
     on the version.
 
-    This test verifies that in Ubuntu Core 20+ the the kernel snap is extracted
+    This test verifies that in Ubuntu Core 20+ the kernel snap is extracted
     onto ubuntu-seed and in previous systems the kernel snap is extracted onto
     /boot/uboot.
 

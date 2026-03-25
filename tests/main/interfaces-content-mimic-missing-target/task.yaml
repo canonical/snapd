@@ -1,0 +1,48 @@
+summary: Content interface mimic hides content when target directory exists in snap
+
+details: |
+    When a content interface plug targets a directory that doesn't exist in
+    $SNAP, snap-update-ns creates a writable mimic (tmpfs + bind mounts to
+    replicate existing entries). If another plug's target directory DID exist in
+    the original $SNAP, it becomes a bind mount as part of the mimic. When a
+    second content provider is subsequently connected to that plug, the content
+    is not visible because the mimic's bind mount of the original directory
+    interferes with the content mount.
+
+    This is a regression test for LP: #2144666.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-provider-1
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-provider-2
+
+debug: |
+    snap connections test-snapd-consumer || true
+    #shellcheck disable=SC2016
+    snap run --shell test-snapd-consumer.app -c 'ls -la $SNAP/provider-1/ $SNAP/provider-2/' || true
+    cat /var/lib/snapd/mount/snap.test-snapd-consumer.fstab || true
+    cat /run/snapd/ns/snap.test-snapd-consumer.fstab || true
+
+execute: |
+    echo "Connect provider-1 to the plug whose target does NOT exist in the snap"
+    snap connect test-snapd-consumer:provider-1 test-snapd-provider-1:provider
+
+    echo "Verify content from provider-1 is visible"
+    #shellcheck disable=SC2016
+    test-snapd-consumer.app -c 'cat $SNAP/provider-1/content' | MATCH "content of test-snapd-provider-1"
+
+    echo "Connect provider-2 to the plug whose target DOES exist in the snap"
+    snap connect test-snapd-consumer:provider-2 test-snapd-provider-2:provider
+
+    echo "Verify content from provider-2 is NOT visible"
+    #shellcheck disable=SC2016
+    not test-snapd-consumer.app -c 'cat $SNAP/provider-2/content' |& MATCH '/provider-2/content: No such file or directory'
+
+    echo "Discard the snap's mount namespace so that we start from scratch"
+    snapd.tool exec snap-discard-ns test-snapd-consumer
+
+    echo "Both content files are now visible"
+    #shellcheck disable=SC2016
+    test-snapd-consumer.app -c 'cat $SNAP/provider-1/content' | MATCH "content of test-snapd-provider-1"
+    #shellcheck disable=SC2016
+    test-snapd-consumer.app -c 'cat $SNAP/provider-2/content' | MATCH "content of test-snapd-provider-2"

@@ -703,6 +703,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(lastBootID, Equals, "boot-id-1")
 
+	// mimic a snapd restart
+	devicestate.SetEnsureBootOkRan(s.mgr, false)
+
 	// now last reseal boot ID matches current boot id so no reseal
 	// is expected
 	err = devicestate.EnsureBootOk(s.mgr)
@@ -831,7 +834,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	err := devicestate.EnsureBootOk(s.mgr)
@@ -854,7 +857,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 
 	err := s.mgr.Ensure()
@@ -2378,7 +2381,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
@@ -2500,7 +2503,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
@@ -2542,7 +2545,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)

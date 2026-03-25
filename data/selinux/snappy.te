@@ -632,6 +632,10 @@ ifndef(`distro_rhel7',`
 	')
 ')
 
+# /var/snap/<snap>/<rev> can be used as mount targets for layouts
+search_dirs_pattern(snappy_mount_t, snappy_var_t, snappy_var_t)
+allow snappy_mount_t snappy_var_t:dir { mounton };
+
 ########################################
 #
 # snap-confine local policy

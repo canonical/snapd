@@ -431,6 +431,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// "<bl-name>.conf" file indicates precisely which bootloader
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
+
 	var kernelInfo *kernel.Info
 	if kernelSnapRootDir != "" {
 		var err error

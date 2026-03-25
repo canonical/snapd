@@ -1113,23 +1113,6 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
-func currentSeedSnapNames(st *state.State, providedDeviceCtx DeviceContext) (map[string]bool, error) {
-	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make(map[string]bool)
-	for _, sn := range deviceCtx.Model().AllSnaps() {
-		names[sn.SnapName()] = true
-	}
-
-	// some models have an implicit snapd, make sure that we account for it here
-	names["snapd"] = true
-
-	return names, nil
-}
-
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
 // meet the validation set constraints reported in the ValidationSetsValidationError..
 func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {
@@ -1330,17 +1313,28 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 // canSplitRefresh returns whether the refresh is a standard refresh of a mix
 // of essential and non-essential snaps on a hybrid system. If the refresh
 // can be split, it also returns the two split update groups.
-func canSplitRefresh(deviceCtx DeviceContext, updates []update) (essential, nonEssential []update, split bool) {
+func canSplitRefresh(st *state.State, deviceCtx DeviceContext, updates []update) (essential, nonEssential []update, split bool, err error) {
+	seedRefresh, err := seedRefreshEnabled(st)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	// TODO: teach split refresh to keep all seed snaps on the essential
+	// side so seed creation can still happen in one pass.
+	if seedRefresh {
+		return nil, nil, false, nil
+	}
+
 	if !deviceCtx.IsCoreBoot() || !release.OnClassic {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 
 	essential, nonEssential = splitEssentialUpdates(deviceCtx, updates)
 	if len(essential) == 0 || len(nonEssential) == 0 {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
 
-	return essential, nonEssential, true
+	return essential, nonEssential, true, nil
 }
 
 // splitRefresh creates independent refresh task chains for the essential and
@@ -1507,7 +1501,12 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 
 	// if we're on classic with a kernel/gadget, split refreshes with essential
 	// snaps and apps so that the apps don't have to wait for a reboot
-	if essential, nonEssential, ok := canSplitRefresh(opts.DeviceCtx, updates); ok {
+	essential, nonEssential, split, err := canSplitRefresh(st, opts.DeviceCtx, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if split {
 		updateFunc := func(updates []update) ([]string, bool, *UpdateTaskSets, error) {
 			// names are used to determine if the refresh is general, if it was
 			// requested for a snap to update aliases and if it should be
@@ -1543,6 +1542,10 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 func doUpdate(st *state.State, requested []string, updates []update, opts Options) (
 	updatedSnaps []string, snapRevisionsChanged bool, uts *UpdateTaskSets, err error,
 ) {
+	if opts.DeviceCtx == nil {
+		return nil, false, nil, errors.New("internal error: device context is expected at this point")
+	}
+
 	var tss []*state.TaskSet
 	var predownloadTSS []*state.TaskSet
 
@@ -1660,13 +1663,18 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	earlyDownloads, err := seedRefreshEarlyDownloads(st, snapInstallTSS, opts.DeviceCtx)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts.DeviceCtx)
 	if err != nil {
 		return nil, false, nil, err
 	}
 
-	if err := arrangeInstallTasksForSingleReboot(st, snapInstallTSS, earlyDownloads); err != nil {
-		return nil, false, nil, err
+	if seedTS != nil {
+		// note: seed refresh isn't a real task kind, but a specialization of a
+		// normal refresh
+		if err := checkChangeConflictExclusiveKinds(st, "seed refresh", opts.FromChange); err != nil {
+			return nil, false, nil, err
+		}
+		tss = append(tss, seedTS)
 	}
 
 	if len(newAutoAliases) != 0 {
