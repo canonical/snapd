@@ -55,9 +55,11 @@ if [[ "$single" == 0 ]]; then
     tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz \
         --exclude='./vendor/*' --exclude='./c-vendor/*' \
         --exclude='.git' --exclude='.git/*' \
+        --exclude='.image-garden/*' \
         --transform "s#^#snapd-$version/#" .
     tar -cJf "$tmpdir"/snapd_"$version".only-vendor.tar.xz \
         --exclude='.git' --exclude='.git/*' \
+        --exclude='.image-garden/*' \
         --transform "s#^#snapd-$version/#" vendor
 
     mv "$tmpdir"/snapd_"$version".no-vendor.tar.xz "$outdir"/
@@ -65,6 +67,7 @@ if [[ "$single" == 0 ]]; then
 else
     tar -cJf "$tmpdir"/snapd_"$version".vendor.tar.xz \
         --exclude='.git' --exclude='.git/*' \
+        --exclude='.image-garden/*' \
         --transform "s#^#snapd-$version/#" .
     mv "$tmpdir"/snapd_"$version".vendor.tar.xz "$outdir"/
 fi
