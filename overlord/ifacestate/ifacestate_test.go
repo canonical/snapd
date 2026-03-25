@@ -10761,7 +10761,7 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	c.Check(hooktask.ID(), Equals, task2.ID())
 }
 
-func (s *interfaceManagerSuite) TestShouldUndoSetupProfilesWithoutPrepareProfilesLegacyChange(c *C) {
+func (s *interfaceManagerSuite) TestShouldUndoSetupProfiles(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -10808,6 +10808,7 @@ func (s *interfaceManagerSuite) TestShouldUndoSetupProfilesWithoutPrepareProfile
 	// The prepare-profiles task for a different snap must not affect the result
 	// for this snap. For the other snap itself, setup-profiles should not undo
 	// because prepare-profiles exists for that same snap.
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherPrepareProfiles, otherSnapsup.InstanceName()), Equals, true)
 	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName()), Equals, false)
 }
 

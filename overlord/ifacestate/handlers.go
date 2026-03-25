@@ -621,7 +621,8 @@ func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 	// change, we're likely handling either an older change shape or a
 	// component-only change; in those cases undo should run for
 	// setup-profiles tasks.
-	hasPrepareMode := false
+	var isPrepareTask bool
+	var hasPrepareProfiles bool
 	for _, t := range task.Change().Tasks() {
 		if t.Kind() != "setup-profiles" {
 			continue
@@ -635,24 +636,23 @@ func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 		if err := t.Get("prepare-profiles", &prepareProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
 			continue
 		}
+
 		if prepareProfiles {
-			hasPrepareMode = true
+			// We must observe a task with prepare-profiles=true to know the new flow
+			// exists for the task-set of this snap, otherwise this was created using the old
+			// flow, and undo should always run
+			hasPrepareProfiles = true
+			if task == t {
+				// this is the prepare-profiles task for the snap, undo should run for it
+				isPrepareTask = true
+			}
 			break
 		}
 	}
 
-	if !hasPrepareMode {
-		return true
-	}
-
-	var prepareProfiles bool
-	if err := task.Get("prepare-profiles", &prepareProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
-		return false
-	}
-
 	// With the split flow encoded as setup-profiles+flag, only the prepare-mode
 	// setup-profiles task should run undo.
-	return task.Kind() == "setup-profiles" && prepareProfiles
+	return !hasPrepareProfiles || isPrepareTask
 }
 
 func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
