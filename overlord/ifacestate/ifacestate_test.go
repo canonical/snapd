@@ -13985,3 +13985,334 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsCore(
 func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsClassic(c *C) {
 	s.testDelayedEffectsHandlingOfRestartRequests(c, onClassic)
 }
+
+func (s *interfaceManagerSuite) TestDelayedEffectsWaitsForRestartAfterFailedTaskInLane(c *C) {
+	defer release.MockOnClassic(false)()
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+	var b interfaces.SecurityBackend
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				name := appSet.InstanceName()
+				if initDone {
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case name == "consumer":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+						}
+						return nil
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				}
+				initSetupCalls++
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			return nil
+		},
+	}
+	s.mockSecBackend(secBackend)
+	b = secBackend
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 2)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+			Revision: prod.Revision,
+		},
+	}
+
+	chg := s.addSetupSnapSecurityChangeWithOptions(c, snapsup, setupSnapSecurityChangeOptions{
+		useRealLinkSnapTask: true,
+		active:              false,
+		linkSnapRestarts:    true,
+	})
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	var setupProfilesTask, linkSnapTask *state.Task
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "setup-profiles":
+			setupProfilesTask = t
+		case "link-snap":
+			linkSnapTask = t
+		}
+	}
+	c.Assert(setupProfilesTask, NotNil)
+	c.Assert(linkSnapTask, NotNil)
+
+	// this specifically tests noticing a later reboot waiter even after an
+	// earlier task in the same lane has already been undone.
+	restart.MarkTaskAsRestartBoundary(linkSnapTask, restart.RestartBoundaryDirectionDo)
+
+	monitoredLanes := lanesFromChange(chg)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(linkSnapTask.Status(), Equals, state.WaitStatus)
+	c.Check(setupProfilesTask.Status(), Equals, state.DoneStatus)
+
+	// mark the first task as undone, so we're proving that we still consider
+	// later tasks that are waiting on reboots
+	setupProfilesTask.SetStatus(state.UndoneStatus)
+
+	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, monitoredLanes, 0)
+	verifyDelayedEffectsTaskset(c, ts, monitoredLanes, 0)
+	processTask := ts.Tasks()[0]
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(strings.Join(processTask.Log(), "\n"), testutil.Contains,
+		"Task set to wait until a system restart allows to continue")
+}
+
+func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBreakingEarly(c *C) {
+	// This is a more elaborate test which simulates multiple reboots, one
+	// in the do path and one in undo.
+
+	defer release.MockOnClassic(false)()
+
+	s.mockSnap(c, fmt.Sprintf(consumerYamlTemplate, "consumer"))
+	prod := s.mockSnap(c, fmt.Sprintf(producerYamlTemplate, "producer"))
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	initDone := false
+	initSetupCalls := 0
+
+	var b interfaces.SecurityBackend
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, copts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				// bulk of the logic checks
+				// the handler is called in both do and undo paths
+				name := appSet.InstanceName()
+				c.Logf("Setup() for %q init done %v sctx %+v", name, initDone, sctx)
+				if initDone {
+					// past the point of initial Setup() calls, this is
+					// called for each snap that is affected by a connection, producer and consumer
+					switch {
+					case strings.HasPrefix(name, "producer"):
+						return nil
+					case name == "consumer":
+						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
+						// in do path effects are delayed, but not in undo
+						if sctx.CanDelayEffects {
+							c.Assert(sctx.DelayEffect, NotNil)
+							sctx.DelayEffect(b, interfaces.DelayedSideEffect{
+								ID:          interfaces.DelayedEffect("effect"),
+								Description: fmt.Sprintf("mock effect for %s", name),
+							})
+
+						}
+						return nil
+					default:
+						return fmt.Errorf("unexpected call for snap %q", appSet.InstanceName())
+					}
+				} else {
+					initSetupCalls++
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			return nil
+		},
+	}
+	s.mockSecBackend(secBackend)
+	b = secBackend
+
+	_ = s.manager(c)
+	initDone = true
+	c.Check(initSetupCalls, Equals, 2)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+			Revision: prod.Revision,
+		},
+	}
+
+	s.state.Lock()
+
+	chg := s.state.NewChange("test", "")
+
+	name := snapsup.InstanceName()
+	prepare := s.state.NewTask("prepare", fmt.Sprintf("prepare %q", name))
+	prepare.Set("snap-setup", snapsup)
+
+	errInject := s.state.NewTask("error-trigger", fmt.Sprintf("inject error for %q", name))
+
+	unlinkSnap := s.state.NewTask("unlink-current-snap", fmt.Sprintf("unlink current for %q", name))
+	unlinkSnap.Set("snap-setup-task", prepare.ID())
+	unlinkSnap.WaitFor(prepare)
+
+	setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", name))
+	setupProfiles.Set("snap-setup-task", prepare.ID())
+	setupProfiles.WaitFor(unlinkSnap)
+
+	linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
+	linkSnap.Set("snap-setup-task", prepare.ID())
+	linkSnap.WaitFor(setupProfiles)
+
+	autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", name))
+	autoconnect.Set("snap-setup-task", prepare.ID())
+	autoconnect.WaitFor(linkSnap)
+
+	// this is crucial, the task shows up with low ID and early in the tasks
+	// list, but runs very late and triggers complete undo
+	errInject.WaitFor(autoconnect)
+
+	ts := state.NewTaskSet(prepare, errInject, unlinkSnap, setupProfiles, linkSnap, autoconnect)
+
+	ts.JoinLane(s.state.NewLane())
+	chg.AddAll(ts)
+
+	s.state.Set("conns", map[string]any{
+		// all consumers are connected
+		"consumer:plug producer:slot": map[string]any{
+			"interface":   "test",
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	ts = ifacestate.ProcessDelayedSecurityBackendEffects(s.state, lanesFromChange(chg), 0)
+	verifyDelayedEffectsTaskset(c, ts, []int{1}, 0)
+	processTask := ts.Tasks()[0]
+	chg.AddAll(ts)
+
+	// set up handlers that are at least remotely realistic
+	s.o.TaskRunner().AddHandler("link-snap", func(task *state.Task, tomb *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		c.Log("requesting restart in link-snap")
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+	}, func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	})
+
+	s.o.TaskRunner().AddHandler("prepare", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+	s.o.TaskRunner().AddHandler("unlink-current-snap", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, func(task *state.Task, tomb *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		c.Log("requesting restart in undo unlink-current-snap")
+		// undo handler requests a restart in order to reach undo
+		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+	})
+	s.o.TaskRunner().AddHandler("error-trigger", func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("mock error")
+	}, nil)
+
+	// mark restart boundary
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "link-snap":
+			restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
+		case "unlink-current-snap":
+			restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionUndo)
+		}
+	}
+
+	dumpTasks(c, "before", chg.Tasks())
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	defer s.state.Unlock()
+	chg = s.state.Change(chg.ID())
+	c.Assert(chg, NotNil)
+
+	dumpTasks(c, "after restart request", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(strings.Join(processTask.Log(), "\n"), testutil.Contains,
+		"Task set to wait until a system restart allows to continue")
+
+	rt := restart.Pending(s.state)
+	c.Check(rt, Equals, restart.RestartSystem)
+
+	// pretend the restart happened
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	// we now should reach error-trigger task, which will cause undo which triggers another restart
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	dumpTasks(c, "after one restart", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(processTask.Status(), Equals, state.WaitStatus)
+	c.Check(unlinkSnap.Status(), Equals, state.WaitStatus)
+	c.Check(linkSnap.Status(), Equals, state.UndoneStatus)
+
+	rt = restart.Pending(s.state)
+	c.Check(rt, Equals, restart.RestartSystem)
+
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	dumpTasks(c, "after undo restart", chg.Tasks())
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*inject error for "producer".*`)
+	c.Check(processTask.Status(), Equals, state.DoneStatus)
+}
