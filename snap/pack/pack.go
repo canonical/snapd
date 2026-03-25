@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // this could be shipped as a file like "info", and save on the memory and the
@@ -92,6 +94,50 @@ func debArchitecture(info *snap.Info) string {
 	}
 }
 
+// validateContentPlugTargets checks that content interface plug target
+// directories exist in the snap source tree. This check only applies to
+// snaps with base core26 or later.
+func validateContentPlugTargets(container snap.Container, info *snap.Info) error {
+	// An empty base is equivalent to "core".
+	base := info.Base
+	if base == "" {
+		base = "core"
+	}
+	// Content plug target validation does not apply to bases
+	// before core26.
+	excluded := []string{
+		"bare", "core", "core18", "core20", "core22", "core24",
+	}
+	if strutil.ListContains(excluded, base) {
+		return nil
+	}
+
+	for plugName, plug := range info.Plugs {
+		if plug.Interface != "content" {
+			continue
+		}
+		var target string
+		if err := plug.Attr("target", &target); err != nil || target == "" {
+			continue
+		}
+		// Only $SNAP paths (or paths with no variable prefix) can be checked at
+		// pack time; $SNAP_DATA and $SNAP_COMMON are read-write runtime
+		// directories and mount points can be created as needed.
+		if strings.HasPrefix(target, "$SNAP_DATA") || strings.HasPrefix(target, "$SNAP_COMMON") {
+			continue
+		}
+		relPath := strings.TrimPrefix(target, "$SNAP")
+		relPath = strings.TrimPrefix(relPath, "/")
+		if relPath == "" {
+			continue
+		}
+		if _, err := container.Lstat(relPath); err != nil {
+			return fmt.Errorf("content interface plug %q has target %q which does not exist", plugName, target)
+		}
+	}
+	return nil
+}
+
 // CheckSkeleton attempts to validate snap data in source directory
 func CheckSkeleton(w io.Writer, sourceDir string) error {
 	yaml, err := os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
@@ -122,6 +168,9 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 	}
 
 	if err := snap.ValidateSnapContainer(container, info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	if err := validateContentPlugTargets(container, info); err != nil {
 		return nil, err
 	}
 	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
