@@ -2280,6 +2280,30 @@ func (s *confdbTestSuite) TestMultipleConcurrentReads(c *C) {
 	secondChgID, err := confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(secondChgID, Not(Equals), "")
+
+	// mock a pending write
+	waitChan := make(chan struct{})
+	s.state.Cache("confdb-accesses-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{{
+		ID:         "foo",
+		AccessType: confdbstate.AccessType("write"),
+		WaitChan:   waitChan,
+	}})
+
+	s.state.Unlock()
+	err = s.o.Settle(1 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	select {
+	case <-waitChan:
+		// only one read tx close this otherwise the other would panic
+	case <-time.After(2 * time.Second):
+		c.Fatal("expected write to be unblocked but timed out")
+	}
+
+	firstChg, secondChg := s.state.Change(firstChgID), s.state.Change(secondChgID)
+	c.Assert(firstChg.Status(), Equals, state.DoneStatus)
+	c.Assert(secondChg.Status(), Equals, state.DoneStatus)
 }
 
 func (s *confdbTestSuite) TestBlockingAccessIsCancelled(c *C) {

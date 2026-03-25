@@ -323,6 +323,7 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 	if err != nil {
 		return err
 	}
+	defer updateTxStateFunc(txs)
 
 	if txs.WriteTxID == id {
 		txs.WriteTxID = ""
@@ -335,13 +336,18 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 		}
 	}
 
+	if len(txs.ReadTxIDs) > 0 {
+		// there are other transactions running (can only be reads) so skip this.
+		// The last one will unblock the next access
+		return nil
+	}
+
 	// unblock any waiting routine
 	if len(txs.pending) > 0 {
 		logger.Debugf("remove pending access %s", txs.pending[0].ID)
 		close(txs.pending[0].WaitChan)
 	}
 
-	updateTxStateFunc(txs)
 	return nil
 }
 
