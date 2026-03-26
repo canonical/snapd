@@ -571,6 +571,11 @@ prepare_classic() {
                     EFI_PART="$(lsblk -plno NAME,FSTYPE | grep 'vfat' | awk '{print $1}' | head -n 1)"
                     mkdir -p /boot/efi
                     mount "$EFI_PART" /boot/efi
+
+                    if [ ! -d /boot/grub ]; then
+                        mkdir -p /boot/grub
+                        grub-editenv /boot/grub/grubenv create
+                    fi
                 fi
             fi
 
