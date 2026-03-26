@@ -1,4 +1,4 @@
-    #this backend is used for resealing validation
+    #this backend is used for resealing validation with secure boot enabled
     testflinger:
         wait-timeout: 30m
         kill-timeout: 40m
@@ -9,11 +9,13 @@
         systems:
             - ubuntu-core-20-64-nuc:
                   queue: dawson-i-uc20-fde
-                  image: core20-latest-stable
+                  # As the device is oemrecovery the image is not used
+                  #image: core20-latest-stable
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-22-64-fde:
                   queue: uc22-fde
-                  image: core22-latest-stable
+                  # As the device is oemrecovery the image is not used
+                  #image: core22-latest-stable
                   username: ubuntu
                   password: ubuntu
