@@ -2,8 +2,7 @@
 summary: Ensure that the content sharing interface works after a snapd downgrade
 
 details: |
-    Verify backward compatibility of task execution across a snapd downgrade
-    without resetting state.
+    Verify backward compatibility of task execution across a snapd downgrade.
 
     The change is created by the currently running snapd and includes installing
     two snaps at once: an older snapd from stable and test-snapd-content-plug.
