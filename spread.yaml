@@ -66,7 +66,10 @@ environment:
     https_proxy: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
     no_proxy: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
+    # use NEW_CORE_CHANNEL to control the core channel used in refresh tests
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
+    # use NEW_SNAPD_CHANNEL to control the snapd channel used in refresh tests
+    NEW_SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_NEW_SNAPD_CHANNEL:-edge}")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from a public ppa
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
@@ -139,7 +142,7 @@ environment:
 
     # When this is set to true, the test will be executed as a single run and snapd state won't be reset between test cases.
     # This is useful to speed up debugging when you want to run a single test case or a subset of test cases.
-    SNAPD_SINGLE_TEST_RUN: '$(HOST: echo "${SPREAD_SNAPD_SINGLE_TEST_RUN:-}")'
+    SNAPD_SKIP_STATE_RESET: '$(HOST: echo "${SPREAD_SNAPD_SKIP_STATE_RESET:-}")'
 
 backends:
     google:

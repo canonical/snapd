@@ -683,7 +683,7 @@ prepare_suite() {
         snap set system journal.persistent=true
     fi
 
-    if [ "$SNAPD_SINGLE_TEST_RUN" = "true" ]; then
+    if [ "$SNAPD_SKIP_STATE_RESET" = "true" ]; then
         return
     fi
 
@@ -826,7 +826,7 @@ restore_suite_each() {
             systemctl reset-failed snapd.failure.service
         fi
     fi
-    if [[ "$variant" = full ]] && [ "$SNAPD_SINGLE_TEST_RUN" != "true" ]; then
+    if [[ "$variant" = full ]] && [ "$SNAPD_SKIP_STATE_RESET" != "true" ]; then
         # shellcheck source=tests/lib/reset.sh
         "$TESTSLIB"/reset.sh --reuse-core
     fi
@@ -841,7 +841,7 @@ restore_suite_each() {
 }
 
 restore_suite() {
-    if [ "$SNAPD_SINGLE_TEST_RUN" = "true" ]; then
+    if [ "$SNAPD_SKIP_STATE_RESET" = "true" ]; then
         return
     fi
 

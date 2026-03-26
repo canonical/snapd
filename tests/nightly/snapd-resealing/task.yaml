@@ -12,7 +12,7 @@ systems: [ubuntu-core-*]
 manual: true
 
 environment:
-  SNAPD_REFRESH_CHANNEL: edge
+  SNAPD_REFRESH_CHANNEL: ${NEW_SNAPD_CHANNEL:-edge}
   KERNEL_REFRESH_CHANNEL: beta
 
 skip:

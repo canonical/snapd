@@ -4,7 +4,7 @@
         kill-timeout: 40m
         halt-timeout: 1h
         environment:
-            SNAPD_SINGLE_TEST_RUN: true
+            SNAPD_SKIP_STATE_RESET: true
             TRUST_TEST_KEYS: "false"
         systems:
             - ubuntu-core-20-64-nuc:
