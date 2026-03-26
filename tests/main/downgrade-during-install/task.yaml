@@ -2,40 +2,47 @@
 summary: Ensure that the content sharing interface works after a snapd downgrade
 
 details: |
-    Repurpose the content sharing interface test to check that the content sharing
-    interface continues to work after a snapd downgrade. This is relevant because
-    the change to install the snaps will have been created by a newer snapd,
-    and exercise backwards compatibility.
+    Verify backward compatibility of task execution across a snapd downgrade
+    without resetting state.
 
-    The downgrade occurs in this test due to removing the state. This causes snapd
-    to reinitialize itself by reinstalling the snapd snap from latest/stable. Because
-    the existing snap is the one built through CI, this will initiate a downgrade, and
-    verify any changes done are backwards compatible against the latest release.
+    The change is created by the currently running snapd and includes installing
+    two snaps at once: an older snapd from stable and test-snapd-content-plug.
+    This means the first part of the change downgrades snapd while the rest of
+    the same change (including tasks for the content-sharing snap) must continue
+    and complete correctly under the downgraded snapd.
 
 # slow in autopkgtest (>4m)
 backends: [-autopkgtest]
 
-# This test purges the state which causes the device to reinitialize
-# with (potentially) a different core snap. Running this on core will
-# also trigger a reboot in the middle of the tests because the new
-# core will be applied. So skip the test on core 16 devices.
+# Keep this excluded on core 16.
 systems: [-ubuntu-core-16-*]
 
 prepare: |
-    echo "Ensure an empty state so that installing test-snapd-content-plug"
-    echo "will pull in test-snapd-content-slot, core and snapd from latest/stable"
+    echo "Prepare a stable snapd artifact used to force a downgrade inside the same change"
+    snap download --basename=snapd-from-stable snapd --channel=latest/stable
+    snap ack snapd-from-stable.assert
 
-    tests.systemd stop-unit snapd.service
-    rm -f /var/lib/snapd/state.json
-    systemctl start snapd
-    snap wait system seed.loaded
+    echo "Prepare the content-plug snap from edge as a local artifact"
+    snap download --basename=test-snapd-content-plug-from-edge test-snapd-content-plug --channel=edge
+    snap ack test-snapd-content-plug-from-edge.assert
+
+restore: |
+    snap revert snapd
 
 execute: |
-    echo "When a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug
+    echo "When a stable snapd and content-sharing snap are installed in one command"
+    chg_id=$(snap install --no-wait ./snapd-from-stable.snap ./test-snapd-content-plug-from-edge.snap)
+    snap watch "$chg_id"
+
+    echo "Then a single change includes tasks for both snapd and the content snap"
+    snap tasks "$chg_id" | MATCH '"snapd"'
+    snap tasks "$chg_id" | MATCH '"test-snapd-content-plug"'
 
     echo "Then this pulls in the default provider"
-    snap list | MATCH  test-snapd-content-slot
+    snap list | MATCH  test-snapd-content-slot 
+
+    echo "The journal told us we downgraded snapd"
+    "$TESTSTOOLS"/journal-state get-log | MATCH "Downgrading snapd to version"
 
     echo "Then the snap is listed as connected"
     snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
