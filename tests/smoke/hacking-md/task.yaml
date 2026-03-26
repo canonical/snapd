@@ -27,7 +27,7 @@ restore: |
     rm -rf /tmp/build
 
     # Remove extracted scripts
-    rm -f /tmp/deps.sh /tmp/build-*.sh /tmp/c-build.sh
+    rm -f /tmp/deps.sh /tmp/build-*.sh
 
 debug: |
     # Show C build config log if it exists
@@ -38,7 +38,7 @@ debug: |
 
     # Show extracted scripts for debugging
     echo "=== Extracted scripts ==="
-    for script in /tmp/deps.sh /tmp/build-*.sh /tmp/c-build.sh; do
+    for script in /tmp/deps.sh /tmp/build-*.sh; do
         if [ -f "$script" ]; then
             echo "--- $script ---"
             cat "$script"
@@ -74,11 +74,12 @@ execute: |
     sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snapd.sh
 
     echo "Preparing all components build script"
-    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-all > /tmp/build-all.sh
-    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-all.sh
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-go > /tmp/build-go.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-go.sh
 
     echo "Preparing C components build script"
-    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md c-build > /tmp/c-build.sh
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-c > /tmp/build-c.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-c.sh
 
     # Execute all builds as test user
     echo "Building snap from HACKING.md instructions"
@@ -88,9 +89,9 @@ execute: |
     su -c "bash -ex /tmp/build-snapd.sh" test
 
     echo "Building all Go components from HACKING.md instructions"
-    su -c "bash -ex /tmp/build-all.sh" test
+    su -c "bash -ex /tmp/build-go.sh" test
 
     echo "Building C components from HACKING.md instructions"
-    su -c "bash -ex /tmp/c-build.sh" test
+    su -c "bash -ex /tmp/build-c.sh" test
 
     echo "All builds successful - HACKING.md instructions are correct!"

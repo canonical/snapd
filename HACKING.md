@@ -207,7 +207,7 @@ go build -o /tmp/build/snapd ./cmd/snapd
 
 To build all the `snapd` Go components:
 
-<!-- test:build-all -->
+<!-- test:build-go -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -485,8 +485,9 @@ Hey, welcome to the nice, low-level world of snap-confine
 
 To get started from a pristine tree you want to do this:
 
-<!-- test:c-build -->
+<!-- test:build-c -->
 ```bash
+cd ~/snapd
 # overriding the version to 1337, or leave empty to let the script figure
 # the version out automatically (on Ubuntu/Debian)
 ./mkversion.sh 1337
