@@ -157,6 +157,7 @@ type fsIgnoreDiff struct {
 	// can be extended to ignoreChildren, if needed
 }
 
+// TODO:GOVERSION: replace this with slices.Contains() once we're on go 1.21+
 func contains[T comparable](s []T, e T) bool {
 	for _, k := range s {
 		if k == e {
