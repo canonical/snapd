@@ -77,7 +77,6 @@ tar -C /src -c . | tar -C /src-rw -x
 ( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
 
 # Copy packaging files to the build directory.
-ls -lh /build
 tar -Jxf /build/snapd_"$version".no-vendor.tar.xz -C /build
 cp -a /src/packaging/debian-sid /build/snapd-"$version"/debian
 
@@ -91,5 +90,5 @@ useradd -m builder
 chown -R builder /build
 
 # Build the binary package.
-su builder -c 'cd /build/snapd-'"$version"' && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -uc -us'
+su builder -c 'cd /build && BASH_XTRACEFD= rpmbuild -ba /build/SPECS/snapd.spec --define "_topdir /build" --nocheck'
 ```
