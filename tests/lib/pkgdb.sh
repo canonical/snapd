@@ -685,6 +685,7 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-system
                 qemu-utils
                 systemd-dev
+                linux-modules-zfs-generic
                 "
             ;;
         ubuntu-*)
