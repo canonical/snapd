@@ -1,0 +1,44 @@
+summary: Verify tool snap_list_slots via snap mcp
+
+details: |
+    Verify that snap mcp can invoke the snap_list_slots
+    tool and report expected slot details for a known snap.
+    Verify that concise output is returned by default.
+    Verify also that detailed output can be requested and that
+    every detailed slot's attrs field is a JSON object (never
+    null) so the output matches the schema.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-plug
+
+execute: |
+    snap set system experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"tool-snap-list-slots","method":"tools/call","params":{"name":"snap_list_slots","arguments":{"snap_name":"test-snapd-content-slot","interface":"content"}}}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^tool-snap-list-slots$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.isError' < response.json | MATCH '^false$'
+    gojq -r '.result.content[0].type' < response.json | MATCH '^text$'
+    gojq -r '.result.content[0].text | fromjson | .slots | map(.snap_name == "test-snapd-content-slot" and .name == "shared-content-slot" and .interface == "content") | any' < response.json | MATCH '^true$'
+    # By default, detailed fields are omitted.
+    gojq -r '.result.content[0].text | fromjson | [.slots[] | has("attrs") | not] | all' < response.json | MATCH '^true$'
+
+    # List all slots with include_details=true and verify every slot's attrs is
+    # a JSON object, never null. This guards against a regression where nil Attrs
+    # in snap.SlotInfo serialised as JSON null and failed the output schema check.
+    req_all='{"jsonrpc":"2.0","id":"tool-snap-list-slots-all","method":"tools/call","params":{"name":"snap_list_slots","arguments":{"include_details":true}}}'
+    printf '%s\n' "$req_all" | snap mcp > response_all.json
+    NOMATCH "Structured content does not match the tool's output schema" < response_all.json
+
+    gojq -r 'has("error")' < response_all.json | MATCH '^false$'
+    gojq -r '.result.isError' < response_all.json | MATCH '^false$'
+    # At least one slot must be present (we just installed test-snapd-content-slot)
+    gojq -r '.result.content[0].text | fromjson | .slots | length > 0' < response_all.json | MATCH '^true$'
+    # Every slot's attrs must be a JSON object, not null
+    gojq -r '.result.content[0].text | fromjson | [.slots[] | .attrs | type == "object"] | all' < response_all.json | MATCH '^true$'
