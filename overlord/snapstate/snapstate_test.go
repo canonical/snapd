@@ -260,6 +260,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
+	s.o.TaskRunner().AddHandler("update-cert-db", func(_ *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	AddForeignTaskHandlers(s.o.TaskRunner(), s.fakeBackend)
 
@@ -10131,6 +10134,9 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 	for _, ts := range tss {
 		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "enforce-validation-sets" {
 			enforce = ts.Tasks()[0]
+			continue
+		}
+		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "update-cert-db" {
 			continue
 		}
 

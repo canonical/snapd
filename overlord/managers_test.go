@@ -11825,9 +11825,28 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.R
 	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
 	s.serveSnap(p, "2")
 
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0755), IsNil)
+
 	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
+
+	// Regular refresh path should include certificate DB refresh when the
+	// model boot-base (core20) is refreshed.
+	foundUpdateCertDB := false
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "update-cert-db" {
+				foundUpdateCertDB = true
+				break
+			}
+		}
+		if foundUpdateCertDB {
+			break
+		}
+	}
+	c.Assert(foundUpdateCertDB, Equals, true)
+
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)

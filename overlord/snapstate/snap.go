@@ -391,6 +391,22 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 		}
 	}
 
+	// Refreshing the model base may bring updated system certificates.
+	// Regenerate the managed certificate database as part of the post-reboot
+	// refresh stage for that base.
+	// OBS: Remodel handling is a bit special, since we may be switching the model base,
+	// we let the remodel code determine when to add this task.
+	opts := UpdateCertDBForRefreshOptions{
+		DeviceCtx:    ic.DeviceCtx,
+		IsRefresh:    sc.snapst.IsInstalled(),
+		SnapType:     sc.snapsup.Type,
+		InstanceName: sc.snapsup.InstanceName(),
+	}
+	if ShouldScheduleUpdateCertDBForRefresh(opts) {
+		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
+		s.Append(updateCertDB)
+	}
+
 	if sc.snapsup.QuotaGroupName != "" {
 		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName(), sc.snapsup.QuotaGroupName)
 		if err != nil {

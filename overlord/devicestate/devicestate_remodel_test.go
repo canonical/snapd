@@ -80,6 +80,57 @@ func (s *deviceMgrRemodelSuite) SetUpTest(c *C) {
 	devicestate.MockSnapstatePathUpdateGoal(newPathUpdateGoalRecorder)
 }
 
+func (s *deviceMgrRemodelSuite) TestShouldRegenerateCertificateDatabaseOnlyWhenBootBaseChanges(c *C) {
+	modelHeaders := func(base string, baseChannel string, explicitBase bool) map[string]any {
+		snaps := []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20/stable",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20/stable",
+			},
+		}
+		if explicitBase {
+			snaps = append(snaps, map[string]any{
+				"name":            base,
+				"id":              snaptest.AssertedSnapID(base),
+				"type":            "base",
+				"default-channel": baseChannel,
+			})
+		}
+
+		return map[string]any{
+			"architecture": "amd64",
+			"base":         base,
+			"grade":        "dangerous",
+			"snaps":        snaps,
+		}
+	}
+
+	current := s.brands.Model("canonical", "pc-model", modelHeaders("core20", "20/stable", true))
+
+	newSame := s.brands.Model("canonical", "pc-model", modelHeaders("core20", "20/stable", true), map[string]any{
+		"revision": "1",
+	})
+	c.Check(devicestate.ShouldRegenerateCertificateDatabase(current, newSame), Equals, false)
+
+	newTrackChanged := s.brands.Model("canonical", "pc-model", modelHeaders("core20", "22/stable", true), map[string]any{
+		"revision": "2",
+	})
+	c.Check(devicestate.ShouldRegenerateCertificateDatabase(current, newTrackChanged), Equals, true)
+
+	newBaseChanged := s.brands.Model("canonical", "pc-model", modelHeaders("core22", "22/stable", true), map[string]any{
+		"revision": "3",
+	})
+	c.Check(devicestate.ShouldRegenerateCertificateDatabase(current, newBaseChanged), Equals, true)
+}
+
 type storeInstallGoalRecorder struct {
 	snapstate.InstallGoal
 	snaps []snapstate.StoreSnap

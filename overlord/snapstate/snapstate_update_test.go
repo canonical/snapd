@@ -5965,6 +5965,96 @@ func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannel(c *C) {
 	c.Check(switchTask.Kind(), Equals, "switch-snap-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyModelBaseSwitchesChannelUpdateCertDB(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	si := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(1),
+		SnapID:   "core18-snap-id",
+	}
+
+	snaptest.MockSnap(c, "name: core18\ntype: base", &si)
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+		Current:         si.Revision,
+		SnapType:        "base",
+		TrackingChannel: "latest/stable",
+	})
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: "core18",
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "channel-for-1/stable",
+		},
+	})
+
+	names, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(names, DeepEquals, []string{"core18"})
+
+	updateCertDBTasks := 0
+	for _, ts := range uts.Refresh {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "update-cert-db" {
+				updateCertDBTasks++
+			}
+		}
+	}
+	c.Check(updateCertDBTasks, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyNonModelBaseRefreshNoUpdateCertDB(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	siBootBase := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(1),
+		SnapID:   "core18-snap-id",
+	}
+	snaptest.MockSnap(c, "name: core18\ntype: base", &siBootBase)
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siBootBase}),
+		Current:         siBootBase.Revision,
+		SnapType:        "base",
+		TrackingChannel: "latest/stable",
+	})
+
+	siOtherBase := snap.SideInfo{
+		RealName: "some-base",
+		Revision: snap.R(1),
+		SnapID:   "some-base-id",
+	}
+	snaptest.MockSnap(c, "name: some-base\ntype: base", &siOtherBase)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOtherBase}),
+		Current:         siOtherBase.Revision,
+		SnapType:        "base",
+		TrackingChannel: "latest/stable",
+	})
+
+	updates, uts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-base"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updates, DeepEquals, []string{"some-base"})
+
+	for _, ts := range uts {
+		for _, t := range ts.Tasks() {
+			c.Check(t.Kind(), Not(Equals), "update-cert-db")
+		}
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyOneSwitchesChannelWithAutoAlias(c *C) {
 	sideInfos := []snap.SideInfo{
 		{
@@ -10712,7 +10802,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleRebootUndone(c *C) {
 			case state.DoneStatus:
 				// following tasks don't have undo logic
 				switch t.Kind() {
-				case "prerequisites", "validate-snap", "run-hook", "cleanup":
+				case "prerequisites", "validate-snap", "run-hook", "cleanup", "update-cert-db":
 					break
 				default:
 					c.Errorf("unexpected done-status for %s task %s", name, t.Kind())
@@ -10850,12 +10940,15 @@ func (s *snapmgrTestSuite) testUpdateEssentialSnapsOrder(c *C, order []string) {
 		return nil
 	}
 
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
 	// Map all relevant task-sets.
 	tsByName := make(map[string]*state.TaskSet)
 	for _, sn := range order {
 		ts := findTs(sn)
 		c.Assert(ts, NotNil)
-		chg.AddAll(ts)
 		tsByName[sn] = ts
 	}
 
