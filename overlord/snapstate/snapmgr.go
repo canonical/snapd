@@ -917,6 +917,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
+	// Register MCP tools and resources
+	delayedCrossMgrInit()
+
 	return m, nil
 }
 

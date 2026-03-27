@@ -33,6 +33,38 @@ import (
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
+func SnapToMapForTest(info *snap.Info, channel string, installed bool, status string) map[string]any {
+	return snapToMap(&snapResult{info: info, channel: channel, installed: installed, status: status})
+}
+
+type ListSnapsTool = listSnapsTool
+type GetSnapTool = getSnapTool
+type SearchStoreSnapsTool = searchStoreSnapsTool
+type GetStoreSnapTool = getStoreSnapTool
+type ListChangesTool = listChangesTool
+type ListChangeTasksTool = listChangeTasksTool
+type ListServicesTool = listServicesTool
+type GetServiceLogsTool = getServiceLogsTool
+
+type GetSnapResult = getSnapResult
+type ListSnapsResult = listSnapsResult
+type StoreSnapSummary = storeSnapSummary
+type SearchStoreSnapsResult = searchStoreSnapsResult
+type GetStoreSnapResult = getStoreSnapResult
+type ListChangesResult = listChangesResult
+type ListChangeTasksResult = listChangeTasksResult
+type ListServicesResult = listServicesResult
+type GetServiceLogsResult = getServiceLogsResult
+
+var ListSnapsToolDescriptor = listSnapsToolDescriptor
+var GetSnapToolDescriptor = getSnapToolDescriptor
+var SearchStoreSnapsToolDescriptor = searchStoreSnapsToolDescriptor
+var GetStoreSnapToolDescriptor = getStoreSnapToolDescriptor
+var ListChangesToolDescriptor = listChangesToolDescriptor
+var ListChangeTasksToolDescriptor = listChangeTasksToolDescriptor
+var ListServicesToolDescriptor = listServicesToolDescriptor
+var GetServiceLogsToolDescriptor = getServiceLogsToolDescriptor
+
 type (
 	ManagerBackend managerBackend
 
@@ -78,6 +110,16 @@ func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info, csi
 	old := readComponentInfoAt
 	readComponentInfoAt = mock
 	return func() { readComponentInfoAt = old }
+}
+
+func MockReadServiceLogs(mock func(serviceApp *snap.AppInfo, lines int, since, until string, stderrOnly bool) ([]map[string]any, error)) (restore func()) {
+	old := readServiceLogsFromApp
+	readServiceLogsFromApp = mock
+	return func() { readServiceLogsFromApp = old }
+}
+
+func ReadServiceLogsForTest(serviceApp *snap.AppInfo, lines int, since, until string, stderrOnly bool) ([]map[string]any, error) {
+	return readServiceLogs(serviceApp, lines, since, until, stderrOnly)
 }
 
 func MockMountPollInterval(intv time.Duration) (restore func()) {

@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -205,7 +206,7 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 			RateLimit: rate,
 		}
 
-		err = sto.Download(tomb.Context(nil), compRef, target, compsup.DownloadInfo, meter, user, opts)
+		err = sto.Download(tomb.Context(context.TODO()), compRef, target, compsup.DownloadInfo, meter, user, opts)
 	})
 	st.Lock()
 	if err != nil {
