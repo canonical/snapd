@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
@@ -634,38 +635,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	if d.requestedRestart == restart.RestartDaemon {
 		logger.Noticef("restarting daemon after update")
-		if err := restartDaemon(); err != nil {
+		if err := wrappers.RestartSnapd(); err != nil {
 			logger.Noticef("while restarting snapd: %v", err)
 		}
-	}
-
-	return nil
-}
-
-// restartDaemon restarts snapd systemd service units
-func restartDaemon() error {
-	sysd := systemd.New(systemd.SystemMode, nil)
-	if err := sysd.StartNoBlock([]string{"snapd.apparmor.service"}); err != nil {
-		return err
-	}
-
-	// Restart snapd.service (it will stop by itself and gets
-	// started by systemd then).
-	// Because of the file lock held on the snapstate by the Overlord, the new
-	// snapd will block there until we release it. For this reason, we cannot
-	// start the unit in blocking mode.
-	if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
-		return err
-	}
-	if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
-		return err
-	}
-	// we cannot start snapd.autoimport in blocking mode because
-	// it has a "After=snapd.seeded.service" which means that on
-	// seeding a "systemctl start" that blocks would hang forever
-	// and we deadlock.
-	if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
-		return err
 	}
 
 	return nil
