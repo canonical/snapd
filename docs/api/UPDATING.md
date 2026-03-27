@@ -87,8 +87,8 @@ file. The currently documented schema are:
   ensure the user has proper permission for using an operation.
 - RootAuth - Describes which daemon endpoints require root access. The
   distinction between this file and `PeerAuth` is not well documented, and will
-  be addressed in a future PR. Endpoints tagged as `Root` have been carried over
-  from the previous documentation.
+  be addressed in a future PR. Endpoints tagged as `RootAccess` have been
+  carried over from the previous documentation.
 
 ## 6. Theming
 The project utilizes [Redocly](https://redocly.com/) for the documentation

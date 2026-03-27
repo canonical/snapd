@@ -577,13 +577,13 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	return opts, raw, nil
 }
 
-// checkSnapRunInhibitionConflict detects if snap refreshed/removed was started
+// checkSnapRunInhibitionConflict detects if snap refresh/remove/disable was started
 // while not holding the inhibition hint file lock.
 //
 // For context, on snap first install, the inhibition hint lock file is not created
-// so we cannot hold it. It is created after the first refresh/remove. This allows
+// so we cannot hold it. It is created after the first refresh/remove/disable. This allows
 // for a window where we don't hold the lock before the tracking cgroup is created
-// where a snap refresh/removal could start.
+// where a snap refresh/remove/disable could start.
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// Remove hint check takes precedence because we want to exit early
 	snapName := app.Snap.InstanceName()
@@ -592,7 +592,10 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 		return err
 	}
 	if hint == runinhibit.HintInhibitedForRemove {
-		return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapName)
+		return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snap.JoinSnapApp(snapName, app.Name))
+	}
+	if hint == runinhibit.HintInhibitedForDisable {
+		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(snapName, app.Name))
 	}
 
 	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() {
@@ -630,10 +633,13 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 
 		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
 		if errors.Is(err, errOngoingSnapRefresh) {
-			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapName)
+			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapApp)
 		}
 		if errors.Is(err, errInhibitedForRemove) {
-			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapName)
+			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
+		}
+		if errors.Is(err, errInhibitedForDisable) {
+			return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snapApp)
 		}
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.

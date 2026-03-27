@@ -326,10 +326,13 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 		return nil, err
 	}
 
-	return disconnectTasks(st, conn, disconnectOpts{})
+	return disconnectTasks(st, conn, disconnectOpts{
+		// Explicit disconnect shall not be blocked by failing hooks.
+		IgnoreHookError: true,
+	})
 }
 
-// Forget returs a set of tasks for disconnecting and forgetting an interface.
+// Forget returns a set of tasks for disconnecting and forgetting an interface.
 // If the interface is already disconnected, it will be removed from the state
 // (forgotten).
 func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.ConnRef) (*state.TaskSet, error) {
@@ -340,7 +343,13 @@ func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.Co
 	if conn, err := repo.Connection(connRef); err == nil {
 		// connection exists - run regular set of disconnect tasks with forget
 		// flag.
-		opts := disconnectOpts{Forget: true}
+		opts := disconnectOpts{
+			// Drop the connection, but do not record it as undesired.
+			Forget: true,
+			// Similarly to explicit Disconnect(), failing hooks shall not
+			// block disconnecting the interface.
+			IgnoreHookError: true,
+		}
 		ts, err := disconnectTasks(st, conn, opts)
 		return ts, err
 	}
@@ -353,9 +362,16 @@ func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.Co
 }
 
 type disconnectOpts struct {
+	// AutoDisconnect indicates that disconnect is requested as part of snap
+	// removal.
 	AutoDisconnect bool
-	ByHotplug      bool
-	Forget         bool
+	// ByHotplug is true when disconnect is triggered by hotplug.
+	ByHotplug bool
+	// Forget when true, indicates that the connection state shall be
+	// disconnected without recording its state as undesired.
+	Forget bool
+	// IgnoreHookError when true, errors from disconnect hooks shall be ignored.
+	IgnoreHookError bool
 }
 
 // forgetTasks creates a set of tasks for forgetting an inactive connection
@@ -436,13 +452,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 				Snap:        slotSnap,
 				Hook:        hookName,
 				Optional:    true,
-				IgnoreError: flags.AutoDisconnect,
+				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectSlotHookSetup := &hookstate.HookSetup{
 				Snap:        slotSnap,
 				Hook:        "connect-slot-" + slotName,
 				Optional:    true,
-				IgnoreError: flags.AutoDisconnect,
+				IgnoreError: flags.IgnoreHookError,
 			}
 
 			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
@@ -460,13 +476,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 				Snap:        plugSnap,
 				Hook:        hookName,
 				Optional:    true,
-				IgnoreError: flags.AutoDisconnect,
+				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectPlugHookSetup := &hookstate.HookSetup{
 				Snap:        plugSnap,
 				Hook:        "connect-plug-" + plugName,
 				Optional:    true,
-				IgnoreError: flags.AutoDisconnect,
+				IgnoreError: flags.IgnoreHookError,
 			}
 
 			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)

@@ -637,7 +637,7 @@ func NewSnapInstallTaskSetForTest(
 	}
 }
 
-var ArrangeInstallTasksForSingleReboot = arrangeInstallTasksForSingleReboot
+var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)

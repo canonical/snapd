@@ -1,0 +1,10 @@
+name: test-disconnect-provider
+version: 1
+summary: Content provider for testing disconnect hooks
+
+slots:
+  shared-content:
+    interface: content
+    content: test-data
+    read:
+      - /

@@ -224,6 +224,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
+	oldCreateRecoverySystemTasks := snapstate.SeedRefreshTasks
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
 	snapstate.SetupPostRefreshComponentHook = hookstate.SetupPostRefreshComponentHook
@@ -233,6 +234,24 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+		create := st.NewTask("create-recovery-system", "Create recovery system")
+		create.Set("recovery-system-setup", map[string]any{
+			"snap-setup-tasks":      snapSetupTasks,
+			"component-setup-tasks": compSetupTasks,
+		})
+
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
+		finalize.WaitFor(create)
+		finalize.Set("recovery-system-setup-task", create.ID())
+
+		return &snapstate.SeedRefreshTaskSet{
+			Create:   create,
+			Finalize: finalize,
+		}, nil
+	}
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
@@ -276,6 +295,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
+		snapstate.SeedRefreshTasks = oldCreateRecoverySystemTasks
 
 		dirs.SetRootDir("/")
 	})
@@ -629,6 +649,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 	})
 	verifyStopReason(c, ts, "remove")
+	verifyUnlinkSnapReason(c, ts, "remove")
 }
 
 func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
@@ -643,6 +664,7 @@ func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 	})
 	verifyStopReason(c, ts, "remove")
+	verifyUnlinkSnapReason(c, ts, "remove")
 }
 
 func checkIsAutoRefresh(c *C, tasks []*state.Task, expected bool) {
@@ -1096,6 +1118,17 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func verifyUnlinkSnapReason(c *C, ts *state.TaskSet, reason string) {
+	tl := tasksWithKind(ts, "unlink-snap")
+	c.Check(tl, HasLen, 1)
+
+	var unlinkReason string
+	err := tl[0].Get("unlink-reason", &unlinkReason)
+	c.Assert(err, IsNil)
+	c.Check(unlinkReason, Equals, reason)
+
+}
+
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1119,6 +1152,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"remove-profiles",
 	})
 	verifyStopReason(c, ts, "disable")
+	verifyUnlinkSnapReason(c, ts, "disable")
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -1716,6 +1750,7 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			unlinkSkipBinaries: refreshAppAwarenessUX,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1990,8 +2025,9 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				name: "snap-core18-to-core22",
 			},
 			{
-				op:   "unlink-snap",
-				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				op:          "unlink-snap",
+				path:        filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				inhibitHint: "refresh",
 			},
 			{
 				op:    "setup-profiles:Doing",
@@ -2088,6 +2124,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 		{
 			op:             "unlink-snap",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			inhibitHint:    "refresh",
 			otherInstances: true,
 		},
 		{
@@ -2235,8 +2272,9 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2330,8 +2368,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2449,8 +2488,9 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -3242,8 +3282,9 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			inhibitHint: "disable",
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -3412,6 +3453,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 			op:             "unlink-snap",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			otherInstances: true,
+			inhibitHint:    "disable",
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -6831,6 +6873,22 @@ func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 }
 
+func (s *snapmgrTestSuite) TestConflictSeedRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("refresh-snap", "...")
+	chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+}
+
 func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9747,6 +9805,125 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering
 	}
 
 	s.testResolveValidationSetsEnforcementErrorComponents(c, opts)
+}
+
+// Regression test for validation-set enforcement ordering when snapd and app
+// snaps are refreshed together.
+//
+// This test exists because older snapd had a task-set chaining bug where empty
+// intermediate task-set groups could break dependency propagation between
+// non-empty groups. In that case, apps could miss the expected dependency on
+// snapd and run concurrently with a snapd refresh.
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSnapdAndTwoAppsOrdering(c *C) {
+	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
+		panic("unexpected call")
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "snapd" {
+			info.SnapType = snap.TypeSnapd
+		}
+		return nil
+	}
+
+	for _, name := range []string{"snapd", "app-1", "app-2"} {
+		sid := snaptest.AssertedSnapID(name)
+		if name == "snapd" {
+			sid = "snapd-snap-id"
+		}
+		s.fakeStore.registerID(name, sid)
+
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+				RealName: name,
+				SnapID:   sid,
+				Revision: snap.R(1),
+			}}),
+			Current: snap.R(1),
+		})
+	}
+
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []any{
+			// validation-set assertion snap IDs must be assertion-valid IDs.
+			map[string]any{"name": "snapd", "id": snaptest.AssertedSnapID("snapd"), "presence": "required", "revision": "2"},
+			map[string]any{"name": "app-1", "id": snaptest.AssertedSnapID("app-1"), "presence": "required", "revision": "2"},
+			map[string]any{"name": "app-2", "id": snaptest.AssertedSnapID("app-2"), "presence": "required", "revision": "2"},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+
+	installed, _, err := snapstate.InstalledSnaps(s.state)
+	c.Assert(err, IsNil)
+
+	err = vsets.CheckInstalledSnaps(installed, nil)
+	c.Assert(err, NotNil)
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	c.Assert(ok, Equals, true)
+
+	restore := snapstate.MockEnforceValidationSets(func(_ *state.State, _ map[string]*asserts.ValidationSet, _ map[string]int, _ []*snapasserts.InstalledSnap, _ map[string]bool, _ int) error {
+		return nil
+	})
+	defer restore()
+
+	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, nil, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"app-1", "app-2", "snapd"})
+
+	const classic = false
+	validateEnforcementOrder(c, s.state, tss, classic)
+
+	findTaskSetBySnap := func(name string) *state.TaskSet {
+		for _, ts := range tss {
+			if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "enforce-validation-sets" {
+				continue
+			}
+
+			snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+			if err != nil || snapsup.ComponentExclusiveOperation {
+				continue
+			}
+			if snapsup.InstanceName() == name {
+				return ts
+			}
+		}
+		return nil
+	}
+
+	snapdTS := findTaskSetBySnap("snapd")
+	app1TS := findTaskSetBySnap("app-1")
+	app2TS := findTaskSetBySnap("app-2")
+	c.Assert(snapdTS, NotNil)
+	c.Assert(app1TS, NotNil)
+	c.Assert(app2TS, NotNil)
+
+	snapdEnd := snapdTS.MaybeEdge(snapstate.EndEdge)
+	c.Assert(snapdEnd, NotNil)
+
+	for _, appTS := range []*state.TaskSet{app1TS, app2TS} {
+		appBegin := appTS.MaybeEdge(snapstate.BeginEdge)
+		c.Assert(appBegin, NotNil)
+		c.Check(waitsOnTransitively(appBegin, snapdEnd), Equals, true)
+	}
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSplitRefreshClassic(c *C) {

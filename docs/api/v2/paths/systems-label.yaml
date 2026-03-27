@@ -10,7 +10,7 @@ parameters:
       type: string
 get:
   tags:
-    - AuthenticationRequired # Originally tagged as root auth
+    - AuthenticatedAccess # Originally tagged as root auth
     - Systems
     - Synchronous
   summary: Get details for a specific recovery system
@@ -29,7 +29,7 @@ get:
       $ref: '../components/responses/NotFound.yaml'
 post:
   tags:
-    - AuthenticationRequired # Originally tagged as root auth
+    - AuthenticatedAccess # Originally tagged as root auth
     - Systems
   summary: Perform an action on a specific recovery system
   description: Perform an action on the recovery system identified by its label. The required parameters in the request body depend on the specified action.

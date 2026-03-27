@@ -7,3 +7,7 @@ apps:
     plugs:
       - home
       - camera
+  wait-for:
+    command: bin/wait-for
+    plugs:
+      - audio-record

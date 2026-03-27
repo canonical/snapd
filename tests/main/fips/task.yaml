@@ -30,8 +30,14 @@ execute: |
                         # since 22.04 openssl 3.x uses a separate fips.so runtime
                         # module:
                         # 00007fc160532000     96K r---- /usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
-                        MATCH ' /usr/lib/.*/ossl-modules-3/fips.so' < snapd-map.out
+                        #
+                        # since 24.04 the entry looks like this:
+                        # 000074bb31026000      4K rw--- /usr/lib/x86_64-linux-gnu/ossl-modules/fips.so
+                        MATCH ' /usr/lib/.*/ossl-modules(-3)?/fips.so' < snapd-map.out
                     fi
+
+                    # not executing anything from the snapd snap
+                    NOMATCH ' /snap/snapd' < snapd-map.out
                     ;;
                 snap)
                     # 00007f9400c05000    712K r---- /snap/snapd/x1/usr/lib/x86_64-linux-gnu/libcrypto.so.3
@@ -40,6 +46,9 @@ execute: |
                         # 00007f9400aaa000     96K r---- /snap/snapd/x1/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
                         MATCH ' /snap/snapd/.*/usr/lib/.*/ossl-modules-3/fips.so' < snapd-map.out
                     fi
+
+                    # snapd is executing the snapd-fips build binary
+                    MATCH ' /snap/snapd/.*/usr/lib/snapd/snapd-fips' < snapd-map.out
                     ;;
                 *)
                     echo "unexpected test variant on FIPS enabled $SPREAD_SYSTEM"

@@ -23,5 +23,6 @@ properties:
         description: The interface for which to add the rule.
       constraints:
         oneOf:
+          - $ref: './PromptingConstraintsAudioRecord.yaml'
           - $ref: './PromptingConstraintsCamera.yaml'
           - $ref: './PromptingConstraintsHome.yaml'

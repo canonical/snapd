@@ -68,8 +68,7 @@ ifneq (${VERSION_ID},"16.04")
 	DH_SYSTEMD_START_OPTS += --restart-after-upgrade
 endif
 
-# this is overridden in the ubuntu/14.04 release branch
-SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
+SYSTEMD_UNITS_DESTDIR:=$(or $(shell pkg-config --variable=systemdsystemunitdir systemd),$(error pkg-config did not return systemdsystemunitdir))
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -307,6 +306,9 @@ override_dh_install: debian/snapd.install
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# FIPS dispatch is built anyway, but we only use it in the snap, there's no
+	# need for dispatcher in native FIPS deb build
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-fips-dispatch
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \
@@ -374,4 +376,4 @@ override_dh_systemd_start:
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))

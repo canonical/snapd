@@ -47,6 +47,10 @@ var errSnapRefreshConflict = fmt.Errorf("snap refresh conflict detected")
 // it is being removed.
 var errInhibitedForRemove = fmt.Errorf("snap is being removed")
 
+// errInhibitedForDisable indicates that snap is inhibited from running because
+// it is disabled.
+var errInhibitedForDisable = fmt.Errorf("snap is disabled")
+
 // errOngoingSnapRefresh indicates snap cannot run because it is being refreshed
 // and refresh-app-awareness is not enabled.
 var errOngoingSnapRefresh = fmt.Errorf("snap is being refreshed")
@@ -77,6 +81,9 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		if hint == runinhibit.HintInhibitedForRemove {
 			return false, errInhibitedForRemove
+		}
+		if hint == runinhibit.HintInhibitedForDisable {
+			return false, errInhibitedForDisable
 		}
 		if !features.RefreshAppAwareness.IsEnabled() {
 			return true, errOngoingSnapRefresh

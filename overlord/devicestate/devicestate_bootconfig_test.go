@@ -54,7 +54,7 @@ func (s *deviceMgrBootconfigSuite) mockGadget(c *C, yaml string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 	si := &snap.SideInfo{
 		RealName: "pc",
@@ -162,7 +162,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, opts testBootCo
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	// Override the gadget from SetupTest to add allowed arguments
@@ -264,7 +264,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, opts tes
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	// Override the gadget from SetupTest to add allowed arguments
@@ -723,7 +723,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.SetBootOkRan(s.mgr, true)
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	s.state.Lock()

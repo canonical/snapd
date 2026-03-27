@@ -47,7 +47,7 @@ parts:
     glue:
         plugin: dump
         stage-packages:
-            - qemu-kvm
+            - qemu-system
             - libvirt-daemon-system
         source: .
 

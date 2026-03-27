@@ -42,6 +42,7 @@ func findFIPSLibsAndModules(snapRoot string) (opensslLib, module string) {
 	var fipsLibAndModulePathInSnapdSnap = []struct {
 		opensslLib, moduleFile string
 	}{
+		// TODO update paths for core24, which uses: usr/lib/x86_64-linux-gnu/ossl-modules/fips.so
 		{"usr/lib/x86_64-linux-gnu/libcrypto.so.3", "usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so"},
 		{"usr/lib/aarch64-linux-gnu/libcrypto.so.3", "usr/lib/aarch64-linux-gnu/ossl-modules-3/fips.so"},
 		{"usr/lib/arm-linux-gnueabihf/libcrypto.so.3", "usr/lib/arm-linux-gnueabihf/ossl-modules-3/fips.so"},
@@ -60,22 +61,9 @@ func findFIPSLibsAndModules(snapRoot string) (opensslLib, module string) {
 	return "", ""
 }
 
-// MaybeSetupFIPS checks whether a system-wide FIPS mode is enabled and if
-// so sets up an environment such that the current process is able to use
-// libraries that are required for FIPS compliance and reexecs.
-func MaybeSetupFIPS() error {
-	enabled, err := fips.IsEnabled()
-	if err != nil {
-		return fmt.Errorf("cannot obtain FIPS status: %w", err)
-	}
-
-	if !enabled {
-		// FIPS not enabled do nothing
-		return nil
-	}
-
-	logger.Debugf("FIPS mode enabled system wide")
-
+// MaybeCompleteFIPSSetup run completion and cleanup steps if the process was
+// invoked through FIPS execution dispatch mechanism.
+func MaybeCompleteFIPSSetup() {
 	if os.Getenv("SNAPD_FIPS_BOOTSTRAP") == "1" {
 		// we've already been reexeced into FIPS mode and bootstrap was
 		// performed
@@ -89,7 +77,19 @@ func MaybeSetupFIPS() error {
 		os.Unsetenv("SNAPD_FIPS_BOOTSTRAP")
 		os.Unsetenv("OPENSSL_MODULES")
 		os.Unsetenv("GO_OPENSSL_VERSION_OVERRIDE")
-		return nil
+	}
+}
+
+// DispatchWithFIPS checks whether system-wide FIPS mode is enabled,
+// sets up the environment for FIPS compliance, and execs into targetExe.
+func DispatchWithFIPS(targetExe string) error {
+	enabled, err := fips.IsEnabled()
+	if err != nil {
+		return fmt.Errorf("cannot obtain FIPS status: %w", err)
+	}
+
+	if enabled {
+		logger.Debugf("FIPS mode enabled system wide")
 	}
 
 	rootDir, exe, err := exeAndRoot()
@@ -111,28 +111,34 @@ func MaybeSetupFIPS() error {
 		logger.Debugf("snapd snap: %s", currentRevSnapdSnap)
 	}
 
-	env := append(os.Environ(), []string{
-		"SNAPD_FIPS_BOOTSTRAP=1",
-		// make FIPS mode required at runtime, if FIPS support in Go
-		// runtime cannot be completed successfully the startup will
-		// fail in a predictable manner
-		"GOFIPS=1",
-	}...)
+	env := append(os.Environ(), "SNAPD_FIPS_BOOTSTRAP=1")
 
-	// now we need to set up environment such that the FIPS library module
-	// will be picked up at startup, however this is only relevant in the
-	// following cases:
-	// - on classic, when reexecuted from the snapd snap
-	// - on core
-	// in all other cases (eg. a deb package), we've already determined that
-	// system wide FIPS mode is enabled, so simply attempt to reexecute
-	// ourselves, but this time with GO FIPS mode required, hoping that the
-	// Go crypto runtime will be able to complete FIPS setup successfully at
-	// startup
-	if release.OnClassic && rootDir != currentRevSnapdSnap {
-		// reexecute ourselves with Go FIPS support in required mode
-		panic(syscallExec(filepath.Join(rootDir, exe), os.Args, env))
+	if enabled {
+		env = append(env,
+			// make FIPS mode required at runtime, if FIPS support in Go
+			// runtime cannot be completed successfully the startup will
+			// fail in a predictable manner
+			"GOFIPS=1",
+		)
 	}
+
+	execOrErr := func(target string, args, env []string) error {
+		if err := syscallExec(target, args, env); err != nil {
+			return fmt.Errorf("cannot exec %s: %w", target, err)
+		}
+		return nil
+	}
+
+	if release.OnClassic && rootDir != currentRevSnapdSnap {
+		// on classic and NOT reexecuted from the snapd snap, most likely a
+		// native package which should have been built such that the native
+		// OpenSSL libraries will automatically locate the provider module
+		return execOrErr(filepath.Join(rootDir, targetExe), os.Args, env)
+	}
+
+	// on Core or when reexeced from the snapd snap, we need to set up the
+	// environment such that the OpenSSL library will be able to locate a
+	// matching FIPS provider module bundled with the snapd snap.
 
 	lib, mod := findFIPSLibsAndModules(currentRevSnapdSnap)
 
@@ -149,5 +155,5 @@ func MaybeSetupFIPS() error {
 	}
 
 	// TODO how to ensure that we only load the library from the snapd snap?
-	panic(syscallExec(filepath.Join(rootDir, exe), os.Args, env))
+	return execOrErr(filepath.Join(rootDir, targetExe), os.Args, env)
 }

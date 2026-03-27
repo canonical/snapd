@@ -22,6 +22,7 @@ package squashfs
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -97,6 +98,79 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
 
+type linkFunc = func(string, string) error
+
+var errLinkError = errors.New("linking error")
+
+func tryLinkWithIntegrityData(link linkFunc, snapPath, targetPath string, opts *snap.InstallOptions) (retErr error) {
+	if err := link(snapPath, targetPath); err != nil {
+		// Specifically when link(2) is used, it returns EPERM on filesystems that don't
+		// support hard links (like vfat), so checking the error here doesn't
+		// make sense vs just trying to copy it.
+		//
+		// we use a specific error type here to allow the calling code to detect
+		// generic linking errors and ignore them to allow the code to fall-through
+		// and use a different linking or copying method.
+		return errLinkError
+	}
+
+	defer func() {
+		if retErr != nil {
+			// unlink the snap if something below failed
+			if err := os.Remove(targetPath); err != nil {
+				logger.Noticef("cannot remove %q: %v", targetPath, err)
+			}
+		}
+	}()
+
+	if opts != nil && opts.IntegrityDataParams != nil {
+		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
+		if err != nil {
+			return err
+		}
+		destIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(targetPath)
+		if err != nil {
+			return err
+		}
+		if err := link(srcIntegrityFile, destIntegrityFile); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func tryCopyWithIntegrityData(snapPath, targetPath string, opts *snap.InstallOptions) (retErr error) {
+	if err := osutil.CopyFile(snapPath, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+		return err
+	}
+
+	defer func() {
+		if retErr != nil {
+			// remove the copy of the snap if something below failed
+			if err := os.Remove(targetPath); err != nil {
+				logger.Noticef("cannot remove %q: %v", targetPath, err)
+			}
+		}
+	}()
+
+	if opts != nil && opts.IntegrityDataParams != nil {
+		srcIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(snapPath)
+		if err != nil {
+			return err
+		}
+		destIntegrityFile, err := opts.IntegrityDataParams.IntegrityFile(targetPath)
+		if err != nil {
+			return err
+		}
+		if err := osutil.CopyFile(srcIntegrityFile, destIntegrityFile, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Install installs a squashfs snap file through an appropriate method.
 func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
 
@@ -129,18 +203,19 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
 	}
 	// Hard-linking on overlayfs is identical to a full blown
-	// copy.  When we are operating on a overlayfs based system (e.g. live
+	// copy. When we are operating on a overlayfs based system (e.g. live
 	// installer) use symbolic links.
 	// https://bugs.launchpad.net/snapd/+bug/1867415
 	if overlayRoot == "" {
 		// try to (hard)link the file, but go on to trying to copy it
 		// if it fails for whatever reason
-		//
-		// link(2) returns EPERM on filesystems that don't support
-		// hard links (like vfat), so checking the error here doesn't
-		// make sense vs just trying to copy it.
-		if err := osLink(s.path, targetPath); err == nil {
+		err := tryLinkWithIntegrityData(osLink, s.path, targetPath, opts)
+		if err == nil {
+			// Success, no need to do the copy
 			return false, nil
+		}
+		if !errors.Is(err, errLinkError) {
+			return false, err
 		}
 	}
 
@@ -155,13 +230,18 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// so we need to check if it has the prefix of the seed dir
 		cleanSrc := filepath.Clean(s.path)
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
-			if os.Symlink(s.path, targetPath) == nil {
+			err := tryLinkWithIntegrityData(os.Symlink, s.path, targetPath, opts)
+			if err == nil {
+				// Success, no need to do the copy
 				return false, nil
+			}
+			if !errors.Is(err, errLinkError) {
+				return false, err
 			}
 		}
 	}
 
-	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	return false, tryCopyWithIntegrityData(s.path, targetPath, opts)
 }
 
 // unsquashfsStderrWriter is a helper that captures errors from

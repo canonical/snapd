@@ -30,19 +30,6 @@ export PATH:=${PATH}:${CURDIR}
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
 
-include /etc/os-release
-
-# On 18.04 the released version of apt (1.6.1) has a bug that causes
-# problem on "apt purge snapd". To ensure this won't happen add the
-# right dependency on 18.04.
-ifeq (${VERSION_ID},"18.04")
-	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
-endif
-# Same as above for 18.10 just a different version.
-ifeq (${VERSION_ID},"18.10")
-	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.7.0~alpha2)"
-endif
-
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="$(shell pkg-config --variable=systemdsystemunitdir systemd)"
 
@@ -142,9 +129,33 @@ override_dh_clean:
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 
+version_from_changelog := $(shell dpkg-parsechangelog --show-field Version)
+$(info version_from_changelog is $(version_from_changelog))
+
+# Generate version files
+define snapdtool__version_generated.go
+package snapdtool
+func init() {
+	Version = "$(version_from_changelog)"
+}
+endef
+
+define cmd__VERSION
+$(version_from_changelog)
+endef
+
+define data__info
+VERSION=$(version_from_changelog)
+SNAPD_APPARMOR_REEXEC=0
+SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+endef
+
 override_dh_auto_build:
-	# usually done via `go generate` but that is not supported on powerpc
-	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) GO111MODULE=off GOPATH=$$(pwd)/_build ./mkversion.sh
+	# We used to call mkversion.sh, but since it builds and executes go code
+	# from this package it is significantly easier to do by hand.
+	$(file >_build/src/$(DH_GOPKG)/snapdtool/version_generated.go,$(snapdtool__version_generated.go))
+	$(file >cmd/VERSION,$(cmd__VERSION))
+	$(file >data/info,$(data__info))
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
@@ -212,13 +223,6 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 2 ]
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
 	strings _build/bin/snapd|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
-	# same for snap-repair
-	[ $$(strings _build/bin/snap-repair|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 3 ]
-	# common with snapd
-	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
-	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
-	# repair-root
-	strings _build/bin/snap-repair|grep -c "^public-key-sha3-384: nttW6NfBXI_E-00u38W-KH6eiksfQNXuI7IiumoV49_zkbhM0sYTzSnFlwZC-W4t$$"
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# run the snap-confine tests

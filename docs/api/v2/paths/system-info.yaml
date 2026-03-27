@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - OpenAccess
+    - InterfaceOpenAccess
     - Synchronous
     - Systems
   summary: Get system information
@@ -29,7 +29,7 @@ get:
                   - OK
               type:
                 type: string
-                enum: 
+                enum:
                   - sync
               result:
                 $ref: '../components/schemas/SystemInfo.yaml'

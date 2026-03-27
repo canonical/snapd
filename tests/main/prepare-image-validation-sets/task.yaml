@@ -75,7 +75,7 @@ execute: |
         fakestore new-snap-revision --dir "${STORE_DIR}" "$SNAP_PATH" --snap-rev-json snap-"$SNAP_NAME"-rev.json
     }
     
-    echo Download snaps needed for the the model
+    echo Download snaps needed for the model
     snap download core
     snap download pc --channel=20/stable
     snap download pc-kernel --channel=20/stable

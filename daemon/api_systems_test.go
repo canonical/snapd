@@ -1618,7 +1618,7 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
-func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
+func (s *systemsSuite) testSystemActionCheckPassphraseQuality(c *check.C, deprecated bool) {
 	s.daemon(c)
 
 	// just mock values for output matching
@@ -1646,8 +1646,12 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	defer restore()
 
 	body := map[string]string{
-		"action":     "check-passphrase",
+		"action":     "check-passphrase-quality",
 		"passphrase": "this is a good passphrase",
+	}
+
+	if deprecated {
+		body["action"] = "check-passphrase"
 	}
 
 	b, err := json.Marshal(body)
@@ -1663,6 +1667,16 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 		"min-entropy-bits":     uint32(20),
 		"optimal-entropy-bits": uint32(50),
 	})
+}
+
+func (s *systemsSuite) TestSystemActionCheckPassphraseQuality(c *check.C) {
+	const deprecated = false
+	s.testSystemActionCheckPassphraseQuality(c, deprecated)
+}
+
+func (s *systemsSuite) TestSystemActionCheckPassphraseQualityDeprecated(c *check.C) {
+	const deprecated = true
+	s.testSystemActionCheckPassphraseQuality(c, deprecated)
 }
 
 func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
@@ -1682,7 +1696,7 @@ func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
 	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
-func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
+func (s *systemsSuite) TestSystemActionCheckPassphraseQualityError(c *check.C) {
 	s.daemon(c)
 
 	// just mock values for output matching
@@ -1708,7 +1722,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		},
 		{
 			passphrase:     "",
-			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase"`,
+			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase-quality"`,
 		},
 		{
 			passphrase: "this is a good password", unavailable: true,
@@ -1730,7 +1744,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		},
 	} {
 		body := map[string]string{
-			"action":     "check-passphrase",
+			"action":     "check-passphrase-quality",
 			"passphrase": tc.passphrase,
 		}
 
@@ -1776,7 +1790,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	}
 }
 
-func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
+func (s *systemsSuite) testSystemActionCheckPINQuality(c *check.C, deprecated bool) {
 	s.daemon(c)
 
 	// just mock values for output matching
@@ -1805,8 +1819,12 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	defer restore()
 
 	body := map[string]string{
-		"action": "check-pin",
+		"action": "check-pin-quality",
 		"pin":    "20250619",
+	}
+
+	if deprecated {
+		body["action"] = "check-pin"
 	}
 
 	b, err := json.Marshal(body)
@@ -1822,6 +1840,16 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 		"min-entropy-bits":     uint32(20),
 		"optimal-entropy-bits": uint32(50),
 	})
+}
+
+func (s *systemsSuite) TestSystemActionCheckPINQuality(c *check.C) {
+	const deprecated = false
+	s.testSystemActionCheckPINQuality(c, deprecated)
+}
+
+func (s *systemsSuite) TestSystemActionCheckPINQualityDeprecated(c *check.C) {
+	const deprecated = true
+	s.testSystemActionCheckPINQuality(c, deprecated)
 }
 
 func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
@@ -1850,7 +1878,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		},
 		{
 			pin:            "",
-			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin"`,
+			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin-quality"`,
 		},
 		{
 			pin: "123456", unavailable: true,
@@ -1872,7 +1900,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		},
 	} {
 		body := map[string]string{
-			"action": "check-pin",
+			"action": "check-pin-quality",
 			"pin":    tc.pin,
 		}
 

@@ -173,6 +173,7 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
+	ensureBootOkRan           bool
 	ensureInstalledRan        bool
 	ensureFactoryResetRan     bool
 	ensurePostFactoryResetRan bool
@@ -293,6 +294,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("install-preseed", m.doInstallPreseed, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
+	runner.AddBlocked(removeRecoverySystemBlocked)
 
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
@@ -567,6 +569,23 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 		if other.Kind() == "update-gadget-assets" {
 			// no other task can be started when
 			// update-gadget-assets is running
+			return true
+		}
+	}
+
+	return false
+}
+
+func removeRecoverySystemBlocked(cand *state.Task, running []*state.Task) bool {
+	// remove-recovery-system computes task-local cleanup state that depends on
+	// the current set of recovery systems before dropping the state lock, so
+	// always keep these tasks serialized
+	if cand.Kind() != "remove-recovery-system" {
+		return false
+	}
+
+	for _, other := range running {
+		if other.Kind() == "remove-recovery-system" {
 			return true
 		}
 	}
@@ -1249,34 +1268,38 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	currentBootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-
-	bootOkRan, err := bootOkRanForBootID(m.state, currentBootID)
-	if err != nil {
-		return err
-	}
-
-	if !bootOkRan {
-		markBootOkRanForBootID(m.state, currentBootID)
-
-		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+	if !m.ensureBootOkRan {
+		currentBootID, err := osutilBootID()
+		if err != nil {
 			return err
 		}
-		if err == nil && deviceCtx.Model().KernelSnap() != nil {
-			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
-				return err
-			}
+
+		bootOkRanForCurrentBootID, err := bootOkRanForBootID(m.state, currentBootID)
+		if err != nil {
+			return err
 		}
-	} else {
-		// a reseal already ran, nothing to do
-		logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+
+		if !bootOkRanForCurrentBootID {
+			markBootOkRanForBootID(m.state, currentBootID)
+
+			deviceCtx, err := DeviceCtx(m.state, nil, nil)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if err == nil && deviceCtx.Model().KernelSnap() != nil {
+				if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+					return err
+				}
+				if err := secbootMarkSuccessful(); err != nil {
+					return err
+				}
+			}
+		} else {
+			// a reseal already ran, nothing to do
+			logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+		}
+
+		m.ensureBootOkRan = true
 	}
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
@@ -2140,6 +2163,7 @@ func (m *DeviceManager) Ensure() error {
 func (m *DeviceManager) ResetToPostBootState() {
 	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
 	m.state.Set("ensure-boot-ok-boot-id", "")
+	m.ensureBootOkRan = false
 	m.bootRevisionsUpdated = false
 	m.ensureTriedRecoverySystemRan = false
 }

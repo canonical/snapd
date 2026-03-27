@@ -2856,7 +2856,8 @@ apps:
 		},
 	}
 
-	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
+	expected_hash_file, err := info.IntegrityData.IntegrityFile(info.MountFile())
+	c.Assert(err, IsNil)
 
 	digest, err := info.DmVerityDigest()
 	c.Check(err, IsNil)

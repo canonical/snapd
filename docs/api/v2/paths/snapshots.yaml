@@ -41,7 +41,7 @@ get:
 post:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snapshots
   summary: Manipulate or import a snapshot
   description: |-

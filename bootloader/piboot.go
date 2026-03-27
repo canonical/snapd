@@ -473,3 +473,7 @@ func (p *piboot) GetRebootArguments() (string, error) {
 
 	return "", nil
 }
+
+func (p *piboot) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(p, gadgetDir)
+}

@@ -492,10 +492,11 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(42))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	// no mount namespace discard, no inhibition
+	// no mount namespace discard
 	expected := fakeOps{{
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		inhibitHint: "refresh",
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(called, Equals, true)
@@ -586,8 +587,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesModeEndure(c *C) {
 			name:        "pkg",
 			inhibitHint: "refresh",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -606,8 +608,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyServicesAllStopped(c *C) {
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -626,8 +629,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithServicesNothingRunning(c *C) 
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -645,8 +649,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapOnlyAppsNothingRunning(c *C) {
 			op:   "discard-namespace-locked",
 			name: "pkg",
 		}, {
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		}},
 	})
 }
@@ -727,8 +732,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 			name: "pkg",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+			inhibitHint: "refresh",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -808,8 +814,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 		op:   "discard-namespace-locked",
 		name: "pkg",
 	}, {
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		inhibitHint: "refresh",
 	}, {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
@@ -887,8 +894,9 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			name: "foo",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "foo/11"),
+			inhibitHint: "refresh",
 		},
 		{
 			op:           "link-snap",
@@ -1039,6 +1047,7 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	})
 
 	task := s.state.NewTask("unlink-snap", "")
+	task.Set("unlink-reason", "disable")
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
@@ -1062,10 +1071,78 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	// backend was called to unlink the snap
 	expected := fakeOps{{
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "snapd/20"),
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "snapd/20"),
+		inhibitHint: "disable",
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkSnapCleansUpRunInhibitionOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(20),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "unlink-snap" {
+			// first mock the creation of snap inhibition in backend.UnlinkSnap
+			inhibitInfo := runinhibit.InhibitInfo{Previous: si.Revision}
+			err := runinhibit.LockWithHint(si.RealName, runinhibit.HintInhibitedForDisable, inhibitInfo, s.state.Unlocker())
+			c.Assert(err, IsNil)
+			// then actually return an error to test the cleanup of the inhibition
+			return fmt.Errorf("error")
+		}
+		return nil
+	}
+
+	task := s.state.NewTask("unlink-snap", "")
+	task.Set("unlink-reason", "disable")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// task should have errored out due to injected error
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+
+	// snap state should still show the snap as active
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(20))
+
+	// backend was called to unlink the snap
+	expected := fakeOps{{
+		op:          "unlink-snap",
+		path:        filepath.Join(dirs.SnapMountDir, "some-snap/20"),
+		inhibitHint: "disable",
+	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// run inhibition should have been cleaned up
+	hint, inhibitInfo, err := runinhibit.IsLocked("some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
@@ -1131,8 +1208,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	expected := fakeOps{
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "foo/42"),
+			op:          "unlink-snap",
+			path:        filepath.Join(dirs.SnapMountDir, "foo/42"),
+			inhibitHint: "refresh",
 		},
 		// We should see link-snap restoring the snap again as unlink-snap fails
 		{
@@ -3050,6 +3128,48 @@ func (s *linkSnapSuite) TestDoKillSnapApps(c *C) {
 func (s *linkSnapSuite) TestDoKillSnapAppsWithServices(c *C) {
 	const svc = true
 	s.testDoKillSnapApps(c, svc)
+}
+
+func (s *linkSnapSuite) TestDoKillSnapAppsErrorsIfHintNotUpdatedBasedOnReason(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		return info, nil
+	})
+	defer restore()
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.AppKillReason("something-else"))
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// task should error and there should be no run inhibition
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+	c.Check(task.Log(), HasLen, 1)
+	c.Check(task.Log()[0], Matches, `.*ERROR internal error: unexpected kill-reason`)
+	hint, info, err := runinhibit.IsLocked("some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {

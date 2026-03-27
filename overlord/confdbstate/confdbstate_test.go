@@ -19,6 +19,7 @@
 package confdbstate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,10 +59,9 @@ type confdbTestSuite struct {
 	state *state.State
 	o     *overlord.Overlord
 
-	dbSchema *confdb.Schema
-	devAccID string
-
-	repo *interfaces.Repository
+	dbSchema    *confdb.Schema
+	otherSchema *confdb.Schema
+	devAccID    string
 }
 
 var _ = Suite(&confdbTestSuite{})
@@ -160,11 +160,40 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	s.devAccID = devAccKey.AccountID()
 	s.dbSchema = as.(*asserts.ConfdbSchema).Schema()
 
+	// another confdb
+	headers = map[string]any{
+		"authority-id": devAccKey.AccountID(),
+		"account-id":   devAccKey.AccountID(),
+		"name":         "other",
+		"views": map[string]any{
+			"other": map[string]any{
+				"rules": []any{
+					map[string]any{"request": "foo", "storage": "foo"},
+				},
+			},
+		},
+		"timestamp": "2030-11-06T09:16:26Z",
+	}
+	body = []byte(`{
+  "storage": {
+    "schema": {
+      "foo": "any"
+    }
+  }
+}`)
+
+	as, err = signingDB.Sign(asserts.ConfdbSchemaType, headers, body, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(s.state, as), IsNil)
+	s.otherSchema = as.(*asserts.ConfdbSchema).Schema()
+
 	tr := config.NewTransaction(s.state)
 	_, confOption := features.Confdb.ConfigOption()
 	err = tr.Set("core", confOption, true)
 	c.Assert(err, IsNil)
 	tr.Commit()
+
+	confdbstate.SetBlockingSignalChan(nil)
 }
 
 func parsePath(c *C, path string) []confdb.Accessor {
@@ -260,11 +289,22 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
+
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	bag, err := confdbstate.ReadDatabag(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
@@ -276,11 +316,11 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"})
+	_, err = confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"foo": "bar"})
 	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
@@ -294,19 +334,35 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
+
+	bag, err := confdbstate.ReadDatabag(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = bag.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
+
+	err = confdbstate.WriteDatabag(s.state, bag, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	bag, err = confdbstate.ReadDatabag(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	_, err = bag.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
-	c.Assert(val, Equals, nil)
 }
 
 func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
@@ -703,7 +759,8 @@ func (s *confdbTestSuite) TestConfdbTasksDisconnectedCustodianSnap(c *C) {
 	nonCustodians := []string{"test-snap"}
 	s.setupConfdbScenario(c, custodians, nonCustodians)
 
-	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
+	repo := ifacerepo.Get(s.state)
+	repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbTasksNoCustodian(c)
 }
 
@@ -728,7 +785,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 
 	// a non-custodian snap modifies a confdb
 	_, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap installed", s.devAccID, view.Name))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap connected", s.devAccID, view.Name))
 }
 
 type confdbHooks uint8
@@ -763,11 +820,11 @@ const allHooks = observeView | queryView | loadView | saveView | changeView
 const noHooks = confdbHooks(0)
 
 func (s *confdbTestSuite) setupConfdbScenario(c *C, custodians map[string]confdbHooks, nonCustodians []string) {
-	s.repo = interfaces.NewRepository()
-	ifacerepo.Replace(s.state, s.repo)
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	confdbIface := &ifacetest.TestInterface{InterfaceName: "confdb"}
-	err := s.repo.AddInterface(confdbIface)
+	err := repo.AddInterface(confdbIface)
 	c.Assert(err, IsNil)
 
 	// mock the confdb slot
@@ -783,24 +840,31 @@ slots:
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
-	err = s.repo.AddAppSet(coreSet)
+	err = repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
 	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
+		var custodianSnippet string
+		if isCustodian {
+			custodianSnippet = `    role: custodian`
+		}
+
 		snapYaml := fmt.Sprintf(`name: %s
 version: 1
 type: app
 plugs:
   setup:
     interface: confdb
-    account: %s
+    account: %[2]s
     view: network/setup-wifi
-`, snapName, s.devAccID)
+%[3]s
 
-		if isCustodian {
-			snapYaml +=
-				`    role: custodian`
-		}
+  other:
+    interface: confdb
+    account: %[2]s
+    view: other/other
+%[3]s
+`, snapName, s.devAccID, custodianSnippet)
 
 		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
 		for _, hook := range hooks {
@@ -812,15 +876,22 @@ plugs:
 
 		appSet, err := interfaces.NewSnapAppSet(info, nil)
 		c.Assert(err, IsNil)
-		err = s.repo.AddAppSet(appSet)
+		err = repo.AddAppSet(appSet)
 		c.Assert(err, IsNil)
 
-		ref := &interfaces.ConnRef{
+		setupRef := &interfaces.ConnRef{
 			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "setup"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
-		_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
-		c.Assert(err, IsNil)
+		otherRef := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "other"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+		}
+
+		for _, ref := range []*interfaces.ConnRef{setupRef, otherRef} {
+			_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
+			c.Assert(err, IsNil)
+		}
 	}
 
 	// mock custodians
@@ -1278,7 +1349,8 @@ func (s *confdbTestSuite) TestConfdbLoadDisconnectedCustodianSnap(c *C) {
 	custodians := map[string]confdbHooks{"test-custodian-snap": allHooks}
 	s.setupConfdbScenario(c, custodians, []string{"test-snap"})
 
-	s.repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
+	repo := ifacerepo.Get(s.state)
+	repo.Disconnect("test-custodian-snap", "setup", "core", "confdb-slot")
 	s.testConfdbLoadNoCustodian(c)
 }
 
@@ -1728,7 +1800,8 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"private", "ssids"}, map[string]any{"placeholder": "foo"}, 0)
+	val := map[string]any{"placeholder": "foo"}
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private", "ssids"}, val, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1757,8 +1830,8 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
-	val := apiData["values"]
-	c.Assert(val, DeepEquals, map[string]any{
+	vals := apiData["values"]
+	c.Assert(vals, DeepEquals, map[string]any{
 		"private": map[string]any{"foo": "bar"},
 		"ssids":   []any{"abc", "xyz"},
 	})
@@ -1784,7 +1857,8 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 	requests := []string{"private", "ssids"}
 	constraints := map[string]any{"placeholder": "foo"}
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, requests, constraints, 0)
+
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, requests, constraints, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1816,7 +1890,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1851,7 +1925,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	defer restore()
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1875,19 +1949,19 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	c.Assert(errKind, Equals, "option-not-found")
 }
 
+// TODO: replace these tests once the snapctl flow is also blocking
 func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setupConfdbScenario(c, nil, nil)
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
 
 	err := confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", "1")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	// reading from API
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access confdb view %s/network/setup-wifi: ongoing write transaction", s.devAccID))
 
 	// reading from the snap
 	mockHandler := hooktest.NewMockHandler()
@@ -1925,7 +1999,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
 
 	// we can read from the API and the snap concurrently with other reads
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
 	c.Assert(err, IsNil)
 
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"}, nil)
@@ -1987,11 +2061,11 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 	// can't read an ephemeral path w/o a load-view hook
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"eph"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"eph"}, nil, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// but reading a non-ephemeral path succeeds
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
 	c.Assert(err, IsNil)
 }
 
@@ -2011,7 +2085,7 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"foo"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
-	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"foo"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"foo"}, nil, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)
@@ -2046,7 +2120,7 @@ func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.LoadConfdbAsync(s.state, view, []string{"private"}, nil, 1000)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private"}, nil, 1000)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -2085,4 +2159,334 @@ func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
 	log := loadTask.Log()
 	c.Assert(log, HasLen, 1)
 	c.Assert(log[0], Matches, fmt.Sprintf(`.*cannot get "private" through %s/network/setup-wifi: unauthorized access`, s.devAccID))
+}
+
+func (s *confdbTestSuite) TestReadWithOngoingWrite(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	firstAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	secondAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	s.testConcurrentAccess(c, firstAccess, secondAccess)
+}
+
+func (s *confdbTestSuite) TestWriteWithOngoingWrite(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	firstAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	secondAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	s.testConcurrentAccess(c, firstAccess, secondAccess)
+}
+
+func (s *confdbTestSuite) TestWriteWithOngoingRead(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	firstAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	secondAccess := func(ctx context.Context) string {
+		chgID, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+		c.Assert(err, IsNil)
+		return chgID
+	}
+	s.testConcurrentAccess(c, firstAccess, secondAccess)
+}
+
+type accessFunc func(ctx context.Context) string
+
+func (s *confdbTestSuite) testConcurrentAccess(c *C, firstAccess, secondAccess accessFunc) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	firstChgID := firstAccess(ctx)
+
+	// testing helper closed when the access is about to block
+	blockingChan := make(chan struct{})
+	confdbstate.SetBlockingSignalChan(blockingChan)
+
+	doneChan := make(chan struct{})
+	var secondChgID string
+	go func() {
+		secondChgID = secondAccess(ctx)
+		close(doneChan)
+		s.state.Unlock()
+	}()
+
+	select {
+	case <-blockingChan:
+		// signals that the second access is going to block
+		break
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+
+	// the waiting access released the state lock before blocking so we don't
+	// need to release it here
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
+
+	// once the first access completes the pending access should be unblocked
+	select {
+	case <-doneChan:
+		// signals that the second access was unblocked and scheduled the operation
+		break
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+
+	s.state.Lock()
+	writeChg := s.state.Change(firstChgID)
+	c.Assert(writeChg.Err(), IsNil)
+	c.Assert(secondChgID, Not(Equals), "")
+}
+
+func (s *confdbTestSuite) TestMultipleConcurrentReads(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	view := s.dbSchema.View("setup-wifi")
+	firstChgID, err := confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(firstChgID, Not(Equals), "")
+
+	secondChgID, err := confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(secondChgID, Not(Equals), "")
+
+	// mock a pending write
+	waitChan := make(chan struct{})
+	s.state.Cache("confdb-accesses-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{{
+		ID:         "foo",
+		AccessType: confdbstate.AccessType("write"),
+		WaitChan:   waitChan,
+	}})
+
+	s.state.Unlock()
+	err = s.o.Settle(1 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	select {
+	case <-waitChan:
+		// only one read tx close this otherwise the other would panic
+	case <-time.After(2 * time.Second):
+		c.Fatal("expected write to be unblocked but timed out")
+	}
+
+	firstChg, secondChg := s.state.Change(firstChgID), s.state.Change(secondChgID)
+	c.Assert(firstChg.Status(), Equals, state.DoneStatus)
+	c.Assert(secondChg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *confdbTestSuite) TestBlockingAccessIsCancelled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	view := s.dbSchema.View("setup-wifi")
+	_, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	// testing helper closed when the access is about to block
+	blockingChan := make(chan struct{})
+	confdbstate.SetBlockingSignalChan(blockingChan)
+
+	doneChan := make(chan struct{})
+	var readErr error
+	go func() {
+		_, readErr = confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+		close(doneChan)
+	}()
+
+	select {
+	case <-blockingChan:
+		// signals that the timed out read is done
+		break
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+
+	cancel()
+	select {
+	case <-doneChan:
+		break
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+	c.Assert(readErr, ErrorMatches, ".*timed out waiting for access")
+}
+
+func (s *confdbTestSuite) TestBlockingAccessTimedOut(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	view := s.dbSchema.View("setup-wifi")
+	ctx := context.Background()
+	_, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	// testing helper closed when the access is about to block
+	blockingChan := make(chan struct{})
+	confdbstate.SetBlockingSignalChan(blockingChan)
+
+	restore = confdbstate.MockDefaultWaitTimeout(time.Millisecond)
+	defer restore()
+
+	doneChan := make(chan struct{})
+	var readErr error
+	go func() {
+		_, readErr = confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0)
+		close(doneChan)
+	}()
+
+	select {
+	case <-doneChan:
+		break
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+	c.Assert(readErr, ErrorMatches, ".*timed out waiting for access")
+}
+
+func (s *confdbTestSuite) TestAccessDifferentConfdbIndependently(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	view := s.dbSchema.View("setup-wifi")
+	ctx := context.Background()
+	_, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
+	c.Assert(err, IsNil)
+
+	// testing helper closed when the access is about to block
+	blockingChan := make(chan struct{})
+	confdbstate.SetBlockingSignalChan(blockingChan)
+
+	restore = confdbstate.MockDefaultWaitTimeout(time.Millisecond)
+	defer restore()
+
+	view = s.otherSchema.View("other")
+	_, err = confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"foo": "bar"})
+	c.Assert(err, IsNil)
+}
+
+func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// force the read/writes to fail due to missing custodian
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	view := s.dbSchema.View("setup-wifi")
+	ctx := context.Background()
+
+	var accErr error
+	// mock ongoing read transaction and pending access
+	for _, accessFunc := range []func(){
+		func() { _, accErr = confdbstate.ReadConfdb(ctx, s.state, view, []string{"ssid"}, nil, 0) },
+		func() { _, accErr = confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"}) },
+	} {
+		accErr = nil
+		ref := s.devAccID + "/network"
+
+		ongoingTxs := make(map[string]*confdbstate.ConfdbTransactions)
+		ongoingTxs[ref] = &confdbstate.ConfdbTransactions{
+			WriteTxID: "10",
+		}
+		s.state.Set("confdb-ongoing-txs", ongoingTxs)
+		s.state.Cache("confdb-accesses-"+ref, nil)
+
+		// testing helper closed when the access is about to block
+		blockingChan := make(chan struct{})
+		confdbstate.SetBlockingSignalChan(blockingChan)
+
+		accDone := make(chan struct{})
+		go func() {
+			accessFunc()
+			close(accDone)
+		}()
+
+		select {
+		case <-blockingChan:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected access to block but timed out")
+		}
+
+		// while the access is blocked mock another one coming in
+		s.state.Lock()
+		accs := s.state.Cached("confdb-accesses-" + ref)
+		c.Assert(accs, NotNil)
+		pending := accs.([]confdbstate.PendingAccess)
+		c.Assert(pending, HasLen, 1)
+
+		// mock another pending access
+		waitChan := make(chan struct{})
+		pending = append(pending, confdbstate.PendingAccess{
+			ID:         "foo",
+			AccessType: confdbstate.AccessType("write"),
+			WaitChan:   waitChan,
+		})
+		s.state.Cache("confdb-accesses-"+ref, pending)
+		s.state.Unlock()
+
+		// unblock the access we started
+		close(pending[0].WaitChan)
+
+		// the access we mocked should be unblocked
+		select {
+		case <-waitChan:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected next access to be unblocked but timed out")
+		}
+
+		// the access failed with the expected error
+		select {
+		case <-accDone:
+		case <-time.After(2 * time.Second):
+			c.Fatal("expected failed access to return but timed out")
+		}
+		c.Assert(accErr, ErrorMatches, ".*: no custodian snap connected")
+	}
 }

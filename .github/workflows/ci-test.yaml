@@ -78,7 +78,7 @@ jobs:
           echo "$version" > /tmp/pkg/version
 
       - name: Upload vendors
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: vendor-pkgs
           path: /tmp/pkg
@@ -117,6 +117,7 @@ jobs:
         build-config:
           - { system: "opensuse-tumbleweed-64", dockerfile: "opensuse.dockerfile", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
           - { system: "opensuse-15.6-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
+          - { system: "opensuse-16.0-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
           - { system: "amazon-linux-2-64",      dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2",      pkg-dir: "amzn-2"              }
           - { system: "amazon-linux-2023-64",   dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2023",   pkg-dir: "amzn-2023"           }
 
@@ -171,7 +172,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -402,7 +403,7 @@ jobs:
   unit-tests-fuzzing:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
@@ -442,7 +443,7 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v8
       with:
         pattern: coverage-files-*
         path: .coverage/
@@ -676,7 +677,7 @@ jobs:
         run: echo "${{ github.event.pull_request.number }}" > pr_number
       
       - name: Upload PR number
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: pr_number 
           path: pr_number

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -31,8 +32,12 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,6 +63,9 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	// Mock EFI as unavailable by default so that ubootpart.Present()
+	// can call envDevice() without hitting the real mountinfo.
+	s.AddCleanup(efi.MockVars(nil, nil))
 }
 
 type bootenvTestSuite struct {
@@ -330,6 +338,39 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	}
 }
 
+const uboopartGadget string = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-boot-state
+        role: system-boot-state
+        type: 3DE21764-95BD-54BD-A5C3-4ABE786F38A8
+        offset: 1M
+        size: 1M
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: ext4
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 800M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 300M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+`
+
 func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 	for _, tc := range []struct {
 		name       string
@@ -340,6 +381,9 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		{name: "grub", gadgetFile: "grub.conf", expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true}, expName: "grub"},
 		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRecovery}, expName: "grub"},
+		{name: "ubootpart", gadgetFile: "", expName: "ubootpart"},
+		// Choose ubootpart over uboot
+		{name: "ubootpart2", gadgetFile: "uboot.conf", expName: "ubootpart"},
 		{name: "uboot", gadgetFile: "uboot.conf", expName: "uboot"},
 		{name: "androidboot", gadgetFile: "androidboot.conf", expName: "androidboot"},
 		{name: "lk", gadgetFile: "lk.conf", expName: "lk"},
@@ -347,10 +391,18 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		c.Logf("tc: %v", tc.name)
 		gadgetDir := c.MkDir()
 		rootDir := c.MkDir()
-		err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.gadgetFile)), 0755)
-		c.Assert(err, IsNil)
-		err = os.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644)
-		c.Assert(err, IsNil)
+		if strings.HasPrefix(tc.name, "ubootpart") {
+			yamlDir := filepath.Join(gadgetDir, "meta")
+			c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+				[]byte(uboopartGadget), 0644), IsNil)
+		}
+		if tc.gadgetFile != "" {
+			err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.gadgetFile)), 0755)
+			c.Assert(err, IsNil)
+			err = os.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644)
+			c.Assert(err, IsNil)
+		}
 		bl, err := bootloader.ForGadget(gadgetDir, rootDir, tc.opts)
 		c.Assert(err, IsNil)
 		c.Assert(bl, NotNil)
@@ -363,4 +415,127 @@ func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
 	b := a.WithPath("other/path")
 	c.Assert(a.Path, Equals, "some/path")
 	c.Assert(b.Path, Equals, "other/path")
+}
+
+func (s *bootenvTestSuite) TestForGadgetWithSystemBootState(c *C) {
+	// When a gadget has a system-boot-state partition, ForGadget should return ubootpart
+	gadgetDir := c.MkDir()
+	rootDir := c.MkDir()
+
+	yamlDir := filepath.Join(gadgetDir, "meta")
+	c.Assert(os.MkdirAll(yamlDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(yamlDir, "gadget.yaml"),
+		[]byte(uboopartGadget), 0644), IsNil)
+
+	bl, err := bootloader.ForGadget(gadgetDir, rootDir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bl, NotNil)
+	c.Check(bl.Name(), Equals, "ubootpart")
+}
+
+// Shared test helpers for bootloader implementations
+
+// testBootloaderGetSetEnvVar tests that a bootloader can set and get environment variables.
+func testBootloaderGetSetEnvVar(c *C, bl bootloader.Bootloader) {
+	err := bl.SetBootVars(map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
+	c.Assert(err, IsNil)
+
+	m, err := bl.GetBootVars("snap_mode", "snap_core")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"snap_mode": "",
+		"snap_core": "4",
+	})
+}
+
+// testBootloaderSetBootVarFwEnv tests setting and getting a single boot variable.
+func testBootloaderSetBootVarFwEnv(c *C, bl bootloader.Bootloader) {
+	err := bl.SetBootVars(map[string]string{"key": "value"})
+	c.Assert(err, IsNil)
+
+	content, err := bl.GetBootVars("key")
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, map[string]string{"key": "value"})
+}
+
+// testBootloaderExtractKernelAssetsAndRemove tests extracting and removing kernel assets.
+func testBootloaderExtractKernelAssetsAndRemove(c *C, bl bootloader.Bootloader, kernelAssetsDir string) {
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = bl.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+
+	// remove
+	err = bl.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+// testBootloaderExtractRecoveryKernelAssets tests extracting recovery kernel assets.
+func testBootloaderExtractRecoveryKernelAssets(c *C, bl bootloader.ExtractedRecoveryKernelImageBootloader, kernelAssetsDir string) {
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	// try with empty recovery dir first to check the errors
+	err = bl.ExtractRecoveryKernelAssets("", info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+
+	// now the expected behavior
+	err = bl.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
+	c.Assert(err, IsNil)
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
 }

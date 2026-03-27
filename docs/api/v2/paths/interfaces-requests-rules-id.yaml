@@ -4,8 +4,8 @@
 get:
   tags:
     - Experimental
+    - InterfaceOpenAccess
     - Interfaces
-    - OpenAccess
     - Prompting
     - Synchronous
   summary: Retrieve a rule by ID
@@ -27,14 +27,22 @@ get:
         application/json:
           schema:
             $ref: '../components/schemas/PromptingRule.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+    503:
+      $ref: '../components/responses/ServiceUnavailable.yaml'
 
 post:
   tags:
     - Experimental
+    - InterfaceOpenAccess
     - Interfaces
-    - OpenAccess
     - Prompting
     - Synchronous
   summary: Patch or remove a rule by ID
@@ -64,6 +72,15 @@ post:
         application/json:
           schema:
             $ref: '../components/schemas/PromptingRule.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
-
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+    503:
+      $ref: '../components/responses/ServiceUnavailable.yaml'

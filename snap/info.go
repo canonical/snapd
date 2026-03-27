@@ -2178,7 +2178,7 @@ func (s *Info) DmVerityFile() (string, error) {
 		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
 	}
 
-	return integrity.DmVerityHashFileName(s.MountFile(), s.IntegrityData.Digest), nil
+	return s.IntegrityData.IntegrityFile(s.MountFile())
 }
 
 // DmVerityDigest returns the dm-verity digest of the integrity data associated with the snap.

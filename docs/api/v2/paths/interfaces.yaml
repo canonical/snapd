@@ -76,7 +76,7 @@ get:
 post:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Interfaces
   summary: Issue an action to the interface system
   description: |-

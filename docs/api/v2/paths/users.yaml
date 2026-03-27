@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - Root
+    - RootAccess
     - Synchronous
     - Users
   summary: Get user accounts
@@ -29,7 +29,7 @@ get:
 
 post:
   tags:
-    - Root
+    - RootAccess
     - Synchronous
     - Users
   summary: Manage users

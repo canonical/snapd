@@ -30,7 +30,7 @@ parameters:
 get:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Experimental
   summary: Get configurations from confdb
   description: |-
@@ -68,7 +68,7 @@ get:
 put:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Experimental
   summary: Set configurations in confdb
   description: |-

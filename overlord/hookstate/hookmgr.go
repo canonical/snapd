@@ -300,7 +300,8 @@ func (m *HookManager) NumRunningHooks() int {
 	return int(atomic.LoadInt32(&m.runningHooks))
 }
 
-// GracefullyWaitRunningHooks waits for currently running hooks to finish up to the default hook timeout. Returns true if there are no more running hooks on exit.
+// GracefullyWaitRunningHooks waits for currently running hooks to finish up to
+// the default hook timeout. Returns true if there are no more running hooks on exit.
 func (m *HookManager) GracefullyWaitRunningHooks() bool {
 	toutC := time.After(defaultHookTimeout)
 	doWait := true
