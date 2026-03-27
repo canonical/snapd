@@ -4097,23 +4097,33 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	}
 
 	var downloadsToKeep map[string]bool
-	keep := func(name string, rev snap.Revision) {
+
+	keepBlob := func(blobPath string) {
+		if blobPath == "" {
+			return
+		}
+
 		if downloadsToKeep == nil {
 			downloadsToKeep = make(map[string]bool)
 		}
-		downloadsToKeep[fmt.Sprintf("%s_%s.snap", name, rev)] = true
+		downloadsToKeep[filepath.Base(blobPath)] = true
 	}
 
 	// keep revisions in snap's sequence
 	for snapName, snapst := range snapStates {
-		for _, si := range snapst.Sequence.SideInfos() {
-			keep(snapName, si.Revision)
+		for _, rss := range snapst.Sequence.Revisions {
+			keepBlob(snap.MountFile(snapName, rss.Snap.Revision))
+			for _, comp := range rss.Components {
+				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
+					comp.SideInfo.Revision, snapName)
+				keepBlob(cpi.MountFile())
+			}
 		}
 	}
 
 	// keep revisions in refresh hints
 	for snapName, hint := range refreshHints {
-		keep(snapName, hint.Revision())
+		keepBlob(snap.MountFile(snapName, hint.Revision()))
 	}
 
 	// keep revisions pointed to by a download task in an ongoing change
@@ -4122,14 +4132,30 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 			continue
 		}
 		for _, t := range chg.Tasks() {
-			if t.Kind() != "download-snap" {
-				continue
+			switch t.Kind() {
+			case "download-snap":
+				snapsup, err := TaskSnapSetup(t)
+				if err != nil {
+					return nil, err
+				}
+
+				keepBlob(snapsup.BlobPath())
+			case "download-component":
+				compsup, snapsup, err := TaskComponentSetup(t)
+				if err != nil {
+					return nil, err
+				}
+				keepBlob(snapsup.BlobPath())
+				// component download sets CompPath at some point when the
+				// download task runs, which may, or may not have run already.
+				if compsup.CompPath == "" {
+					cpi := snap.MinimalComponentContainerPlaceInfo(compsup.ComponentName(),
+						compsup.Revision(), snapsup.InstanceName())
+					keepBlob(cpi.MountFile())
+				} else {
+					keepBlob(compsup.CompPath)
+				}
 			}
-			snapsup, err := TaskSnapSetup(t)
-			if err != nil {
-				return nil, err
-			}
-			keep(snapsup.InstanceName(), snapsup.Revision())
 		}
 	}
 
@@ -4162,14 +4188,29 @@ var cleanDownloads = func(st *state.State) error {
 		return err
 	}
 
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-	if err != nil {
-		return err
+	var blobs []string
+	for _, pattern := range []string{
+		"*.snap", "*.snap.partial", // snaps
+		"*.comp", "*.comp.partial", // and their components
+	} {
+		matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, pattern))
+		if err != nil {
+			return err
+		}
+		blobs = append(blobs, matches...)
 	}
-	for _, file := range matches {
+
+	for _, file := range blobs {
 		if keep[filepath.Base(file)] {
 			continue
 		}
+
+		if targetFile, _, partial := strings.Cut(file, ".partial"); partial {
+			if keep[filepath.Base(targetFile)] {
+				continue
+			}
+		}
+
 		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
 			// continue deletion, report error in the end
 			err = rmErr
