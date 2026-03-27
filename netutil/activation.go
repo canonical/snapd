@@ -72,20 +72,16 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 
 // ActivationListeners builds a map of addresses to listeners that were passed
 // during systemd activation
-func ActivationListeners() (lns map[string]net.Listener, err error) {
-	socketFds := fdstore.ActivationSocketFds()
-
-	lns = make(map[string]net.Listener, len(socketFds))
-	for name, fds := range socketFds {
-		for _, fd := range fds {
-			f := os.NewFile(uintptr(fd), name)
-			ln, err := net.FileListener(f)
-			if err != nil {
-				return nil, err
-			}
-			addr := ln.Addr().String()
-			lns[addr] = ln
-		}
+func ActivationListeners() (listenerByAddr map[string]net.Listener, err error) {
+	listeners, err := fdstore.ActivationListeners()
+	if err != nil {
+		return nil, err
 	}
-	return lns, nil
+
+	listenerByAddr = make(map[string]net.Listener, len(listeners))
+	for _, listener := range listeners {
+		addr := listener.Addr().String()
+		listenerByAddr[addr] = listener
+	}
+	return listenerByAddr, nil
 }

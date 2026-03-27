@@ -20,6 +20,9 @@
 package fdstore
 
 import (
+	"net"
+	"os"
+
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -39,12 +42,12 @@ func MockOsGetpid(f func() int) (restore func()) {
 	return testutil.Mock(&osGetpid, f)
 }
 
-func MockUnixClose(f func(fd int) (err error)) (restore func()) {
-	return testutil.Mock(&unixClose, f)
-}
-
 func MockUnixCloseOnExec(f func(fd int)) (restore func()) {
 	return testutil.Mock(&unixCloseOnExec, f)
+}
+
+func MockUnixDup(f func(oldfd int) (fd int, err error)) (restore func()) {
+	return testutil.Mock(&unixDup, f)
 }
 
 func MockSdNotify(f func(notifyState string) error) (restore func()) {
@@ -53,6 +56,10 @@ func MockSdNotify(f func(notifyState string) error) (restore func()) {
 
 func MockSdNotifyWithFds(f func(notifyState string, fds ...int) error) (restore func()) {
 	return testutil.Mock(&sdNotifyWithFds, f)
+}
+
+func MockNetFileListener(f func(f *os.File) (ln net.Listener, err error)) (restore func()) {
+	return testutil.Mock(&netFileListener, f)
 }
 
 func KnownFdNames() map[FdName]bool {

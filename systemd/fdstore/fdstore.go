@@ -21,13 +21,13 @@ package fdstore
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"golang.org/x/sys/unix"
 )
@@ -61,14 +61,17 @@ var (
 	osUnsetenv      = os.Unsetenv
 	osLookupEnv     = os.LookupEnv
 	osGetpid        = os.Getpid
-	unixClose       = unix.Close
 	unixCloseOnExec = unix.CloseOnExec
+	unixDup         = unix.Dup
 	sdNotify        = systemd.SdNotify
 	sdNotifyWithFds = systemd.SdNotifyWithFds
+	netFileListener = net.FileListener
 )
 
-var fdstore map[FdName][]int
-var consumed map[FdName]bool
+// Note: os.File is used to wrap raw fds so that the
+// underlying fds are impicitly closed by finalizer
+// for os.File, so no need for extra tracking.
+var fdstore map[FdName][]*os.File
 var mu sync.RWMutex
 
 func initFdstore() {
@@ -89,8 +92,7 @@ func initFdstore() {
 
 	// Initialize fdstore before any processing so
 	// it is only done once.
-	fdstore = make(map[FdName][]int)
-	consumed = make(map[FdName]bool)
+	fdstore = make(map[FdName][]*os.File)
 
 	pid, err := strconv.Atoi(osGetenv("LISTEN_PID"))
 	if err != nil || pid != osGetpid() {
@@ -112,7 +114,7 @@ func initFdstore() {
 		names = make([]string, nfds)
 		for i := 0; i < nfds; i++ {
 			// A generic name with .socket suffix is enough
-			// to be picked up by ActivationSocketFds.
+			// to be picked up by ActivationListeners.
 			names[i] = fmt.Sprintf("activation-fd-%d.socket", i)
 		}
 	}
@@ -125,7 +127,7 @@ func initFdstore() {
 	for i := 0; i < nfds; i++ {
 		fd := sd_LISTEN_FDS_START + i
 		name := FdName(names[i])
-		fdstore[name] = append(fdstore[name], fd)
+		fdstore[name] = append(fdstore[name], os.NewFile(uintptr(fd), string(name)))
 
 		// TODO: Use raw fcntl and check for errors.
 		unixCloseOnExec(fd)
@@ -187,27 +189,22 @@ func remove(name FdName) (err error) {
 		return err
 	}
 
-	// XXX: should consumed fds be closed on removal?
-	var closeErrs []error
-	for _, fd := range fdstore[name] {
-		if err := unixClose(fd); err != nil {
-			// record error and keep going
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
+	// Note: Removing the all references of os.File will impicitly
+	// close opened fds by finalizer for os.File so no need to
+	// explicitly call close.
 	delete(fdstore, name)
-	delete(consumed, name)
-	return strutil.JoinErrors(closeErrs...)
+	return nil
 }
 
-// Get retrieves file descriptor passed from systemd by their name.
+// Get retrieves file descriptor passed from systemd by its name.
 // close-on-exec is set on the returned file descriptor. An error is
 // returned if no matching file descriptor is found, if more than one
 // matching file descriptors are found or if the passed name corresponds
 // to a socket (i.e. ends in ".socket"). To get activation sockets use
-// fdstore.ActivationSocketFds() instead.
-func Get(name FdName) (fd int, err error) {
+// fdstore.ActivationListeners() instead.
+//
+// It is the caller's responsibility to close f when finished.
+func Get(name FdName) (f *os.File, retErr error) {
 	initFdstore()
 
 	mu.RLock()
@@ -215,25 +212,31 @@ func Get(name FdName) (fd int, err error) {
 
 	errPrefix := fmt.Sprintf("cannot get file descriptor named %q", name)
 
-	if consumed[name] {
-		return -1, fmt.Errorf("%s: file descriptor already consumed", errPrefix)
-	}
-
 	if name.isSocket() {
 		// Activation socket file descriptors should be accessed
-		// through ActivationSocketFds.
-		return -1, fmt.Errorf("%s: socket found, use ActivationSocketFds instead", errPrefix)
+		// through ActivationListeners.
+		return nil, fmt.Errorf("internal error: %s: socket found, use ActivationListeners instead", errPrefix)
 	}
 
 	fds := fdstore[name]
 	if len(fds) != 1 {
-		return -1, fmt.Errorf("%s: no matching file descriptor found", errPrefix)
+		return nil, fmt.Errorf("%s: no matching file descriptor found", errPrefix)
 	} else if len(fds) > 1 {
-		return -1, fmt.Errorf("%s: found more than one matching file descriptors", errPrefix)
+		return nil, fmt.Errorf("%s: found more than one matching file descriptors", errPrefix)
 	}
 
-	consumed[name] = true
-	return fds[0], nil
+	duplicatedFd, err := unixDup(int(fds[0].Fd()))
+	if err != nil {
+		return nil, err
+	}
+	unixCloseOnExec(duplicatedFd)
+	// Currently no errors are returned below, but wrapping fd
+	// with os.File is a safety measure in case some error is
+	// returned below in the future so the finalizer would
+	// close the duplicated fd implicitly.
+	f = os.NewFile(uintptr(duplicatedFd), string(name))
+
+	return f, nil
 }
 
 // Add passes a file descriptor to systemd associated with a name
@@ -241,7 +244,9 @@ func Get(name FdName) (fd int, err error) {
 //
 //   - The file descriptors can be retrieved by calling Get().
 //   - Only a single file descriptor can associated with a FdName.
-func Add(name FdName, fd int) error {
+//
+// It is the caller's responsibility to close f when finished.
+func Add(name FdName, f *os.File) (retErr error) {
 	initFdstore()
 
 	// FDNAME=... was added in systemd v233, but for the sake
@@ -268,38 +273,55 @@ func Add(name FdName, fd int) error {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %q already exists", name)
 	}
 
-	// XXX: set O_CLOEXEC on added fd?
+	duplicatedFd, err := unixDup(int(f.Fd()))
+	if err != nil {
+		return err
+	}
+	unixCloseOnExec(duplicatedFd)
+	// Wrapping fd with os.File so that if some error is
+	// returned below, the finalizer for os.File would
+	// close the duplicated fd implicitly.
+	duplicatedFile := os.NewFile(uintptr(duplicatedFd), string(name))
 
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
-	if err := sdNotifyWithFds(state, fd); err != nil {
+	if err := sdNotifyWithFds(state, duplicatedFd); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
 
-	fdstore[name] = []int{fd}
+	fdstore[name] = []*os.File{duplicatedFile}
 	return nil
 }
 
-// ActivationSocketFds returns activation socket file descriptors
-// that were passed from systemd. Only sockets whose name has a
-// ".socket" suffix are returned.
-func ActivationSocketFds() (socketFds map[string][]int) {
+// ActivationListeners returns activation listeners that were passed
+// from systemd. Only sockets whose name has a ".socket" suffix are
+// returned.
+//
+// It is the caller's responsibility to close returned listeners when finished.
+func ActivationListeners() (listeners []net.Listener, retErr error) {
 	initFdstore()
 
 	mu.RLock()
 	defer mu.RUnlock()
 
-	socketFds = make(map[string][]int)
 	// The file descriptor name defaults to the name of the socket
 	// unit (including its .socket suffix), unless it was explicitly
 	// assigned by setting `FileDescriptorName=` on the socket unit.
 	//
 	// `FileDescriptorName=` was added in systemd version 227.
 	for name, fds := range fdstore {
-		if name.isSocket() && !consumed[name] {
-			socketFds[string(name)] = append(socketFds[string(name)], fds...)
-			consumed[name] = true
+		if name.isSocket() {
+			for _, fd := range fds {
+				// net.FileListener duplicates the underlying fd, so the
+				// internally tracked fd is safe even if caller closed
+				// the listener.
+				listener, err := netFileListener(fd)
+				if err != nil {
+					return nil, err
+				}
+				listeners = append(listeners, listener)
+			}
 		}
 	}
 
-	return socketFds
+	return listeners, nil
 }
