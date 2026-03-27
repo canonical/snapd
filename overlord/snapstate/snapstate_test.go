@@ -204,6 +204,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		refreshRevnos:       make(map[string]snap.Revision),
 		idsToNames:          make(map[string]string),
 		namesToAssertedIDs:  make(map[string]string),
+		expectedDefaultDownloadOpts: &store.DownloadOptions{
+			LeavePartialOnError: true,
+		},
 	}
 
 	// make tests work consistently also in containers

@@ -190,6 +190,9 @@ type fakeStore struct {
 
 	mu sync.Mutex
 
+	// download options are normalized to nil if they match the expected default value
+	expectedDefaultDownloadOpts *store.DownloadOptions
+
 	downloads           []fakeDownload
 	iconDownloads       []fakeIconDownload
 	refreshRevnos       map[string]snap.Revision
@@ -944,8 +947,12 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
-	// only add the options if they contain anything interesting
-	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
+	// only add the options if they differ from the defaults
+	dflt := f.expectedDefaultDownloadOpts
+	if dflt == nil {
+		dflt = &store.DownloadOptions{}
+	}
+	if dlOpts != nil && *dlOpts == *dflt {
 		dlOpts = nil
 	}
 	f.appendDownload(&fakeDownload{

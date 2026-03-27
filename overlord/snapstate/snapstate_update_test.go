@@ -12509,7 +12509,25 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskContinuesAutoRefreshIfSoftCheckOk(
 
 	// check that the auto-refresh was completed without asking the store for refresh info
 	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action"), Equals, 0)
-	c.Assert(s.fakeStore.downloads, HasLen, 2)
+	c.Assert(s.fakeBackend.ops.Count("storesvc-download"), Equals, 2)
+	c.Assert(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_2.snap"),
+			opts: &store.DownloadOptions{
+				Scheduled:           true,
+				LeavePartialOnError: true,
+			},
+		},
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_2.snap"),
+			opts: &store.DownloadOptions{
+				Scheduled:           true,
+				LeavePartialOnError: true,
+			},
+		},
+	})
 }
 
 func findChange(st *state.State, kind string) *state.Change {
