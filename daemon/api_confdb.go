@@ -212,7 +212,7 @@ func validateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiErr
 	if !enabled {
 		_, confName := feature.ConfigOption()
 		return BadRequest(
-			fmt.Sprintf(`feature flag %q is disabled: set '%s' to true`, feature, confName),
+			fmt.Sprintf(`feature flag %q is disabled, enable with: snap set system %s=true`, feature, confName),
 		)
 	}
 	return nil
