@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/mcpstate"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -114,6 +115,7 @@ type Overlord struct {
 	serviceMgr    *servicestate.ServiceManager
 	assertMgr     *assertstate.AssertManager
 	ifaceMgr      *ifacestate.InterfaceManager
+	mcpMgr        *mcpstate.MCPManager
 	hookMgr       *hookstate.HookManager
 	deviceMgr     *devicestate.DeviceManager
 	clusterMgr    *clusterstate.ClusterManager
@@ -216,6 +218,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	healthstate.Init(hookMgr)
 
 	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr))
+	o.addManager(mcpstate.Manager(s, nil, nil))
 
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
@@ -244,6 +247,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.assertMgr = x
 	case *ifacestate.InterfaceManager:
 		o.ifaceMgr = x
+	case *mcpstate.MCPManager:
+		o.mcpMgr = x
 	case *devicestate.DeviceManager:
 		o.deviceMgr = x
 	case *clusterstate.ClusterManager:
@@ -715,6 +720,12 @@ func (o *Overlord) AssertManager() *assertstate.AssertManager {
 // interface connections under the overlord.
 func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
+}
+
+// ModelContextProtocolManager returns the MCP manager handling MCP JSON-RPC
+// requests under the overlord.
+func (o *Overlord) ModelContextProtocolManager() *mcpstate.MCPManager {
+	return o.mcpMgr
 }
 
 // HookManager returns the hook manager responsible for running hooks

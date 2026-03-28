@@ -124,6 +124,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.ServiceManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
+	c.Check(o.ModelContextProtocolManager(), NotNil)
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.ClusterManager(), NotNil)
