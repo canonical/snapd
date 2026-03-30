@@ -33,6 +33,17 @@
 #define SC_EXTRA_LIB_DIR "/var/lib/snapd/lib"
 
 /**
+ * Paths for the trust store view that snaps should see.
+ *
+ * snapd generates a bundle plus auxiliary certificate entries under
+ * SC_MANAGED_CA_CERTS_DIR, so snap-confine mounts the directory as a unit to
+ * keep bundle-based and directory-based trust lookups on the same generated
+ * trust store.
+ **/
+#define SC_MANAGED_CA_CERTS_DIR "/var/lib/snapd/pki/v1/merged"
+#define SC_SYSTEM_CA_CERTS_DIR "/etc/ssl/certs"
+
+/**
  * Assuming a new mountspace, populate it accordingly.
  *
  * This function performs many internal tasks:

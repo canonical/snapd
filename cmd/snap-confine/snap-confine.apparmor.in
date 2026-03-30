@@ -211,6 +211,14 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     mount options=(rw rbind) /{,run/}media/ -> /tmp/snap-private-tmp/snap.rootfs_*/{,run/}media/,
     /run/netns/ w,
     mount options=(rw rbind) /run/netns/ -> /tmp/snap-private-tmp/snap.rootfs_*/run/netns/,
+
+    # allow bind mounting the active managed CA certificates generation over
+    # the namespace's default trust store directory and then locking that view
+    # read-only inside the namespace; although the code mounts via the public
+    # merged symlink, AppArmor sees the resolved published/<generation> source
+    mount options=(rw bind) /var/lib/snapd/pki/v1/published/*/ -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
+    mount options=(remount ro bind) -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
+
     # unidirectional mounts (only for classic system)
     mount options=(rw rbind) /dev/ -> /tmp/snap-private-tmp/snap.rootfs_*/dev/,
     mount options=(rw rslave) -> /tmp/snap-private-tmp/snap.rootfs_*/dev/,

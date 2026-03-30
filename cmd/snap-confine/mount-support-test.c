@@ -20,8 +20,26 @@
 #include "mount-support-nvidia.h"
 #include "mount-support.c"
 
+#include <fcntl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+
+static void sc_set_managed_ca_certs_dir(const char *dir) { sc_managed_ca_certs_dir = dir; }
+
+static char *create_directory_under(const char *dir, const char *relpath) {
+    char *path = g_build_filename(dir, relpath, NULL);
+    g_assert_cmpint(g_mkdir_with_parents(path, 0755), ==, 0);
+    return path;
+}
+
+static char *create_symlink_under(const char *dir, const char *relpath, const char *target) {
+    char *path = g_build_filename(dir, relpath, NULL);
+    char *parent = g_path_get_dirname(path);
+    g_assert_cmpint(g_mkdir_with_parents(parent, 0755), ==, 0);
+    g_free(parent);
+    g_assert_cmpint(symlink(target, path), ==, 0);
+    return path;
+}
 
 static void replace_slashes_with_NUL(char *path, size_t len) {
     for (size_t i = 0; i < len; i++) {
@@ -87,8 +105,88 @@ static void test_is_subdir(void) {
     g_assert_false(is_subdir("/", ""));
 }
 
+static void test_resolve_managed_ca_certs_dir__symlink_to_generation(void) {
+    char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
+    g_assert_nonnull(tmpdir);
+
+    char *published = create_directory_under(tmpdir, "published/gen-1");
+    char *merged = create_symlink_under(tmpdir, "merged", "published/gen-1");
+
+    g_test_queue_destroy((GDestroyNotify)sc_set_managed_ca_certs_dir, (gpointer)SC_MANAGED_CA_CERTS_DIR);
+    sc_set_managed_ca_certs_dir(merged);
+
+    char *resolved = sc_resolve_managed_ca_certs_dir();
+    g_assert_cmpstr(resolved, ==, merged);
+
+    g_free(resolved);
+    g_assert_cmpint(g_remove(merged), ==, 0);
+    g_assert_cmpint(g_rmdir(published), ==, 0);
+
+    char *published_parent = g_build_filename(tmpdir, "published", NULL);
+    g_assert_cmpint(g_rmdir(published_parent), ==, 0);
+    g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
+
+    g_free(published_parent);
+    g_free(published);
+    g_free(merged);
+    g_free(tmpdir);
+}
+
+static void test_resolve_managed_ca_certs_dir__legacy_directory(void) {
+    char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
+    g_assert_nonnull(tmpdir);
+
+    char *merged = create_directory_under(tmpdir, "merged");
+
+    g_test_queue_destroy((GDestroyNotify)sc_set_managed_ca_certs_dir, (gpointer)SC_MANAGED_CA_CERTS_DIR);
+    sc_set_managed_ca_certs_dir(merged);
+
+    g_assert_null(sc_resolve_managed_ca_certs_dir());
+
+    g_assert_cmpint(g_rmdir(merged), ==, 0);
+    g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
+
+    g_free(merged);
+    g_free(tmpdir);
+}
+
+static void test_maybe_bind_mount_managed_ca_certs_dir__destination_symlink(void) {
+    if (g_test_subprocess()) {
+        char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
+        g_assert_nonnull(tmpdir);
+
+        char *published = create_directory_under(tmpdir, "published/gen-1");
+        char *merged = create_symlink_under(tmpdir, "merged", "published/gen-1");
+        char *scratch = create_directory_under(tmpdir, "scratch/etc/ssl");
+        char *target = create_symlink_under(tmpdir, "scratch/etc/ssl/certs", "/etc/ssl/certs");
+
+        g_test_queue_destroy((GDestroyNotify)sc_set_managed_ca_certs_dir, (gpointer)SC_MANAGED_CA_CERTS_DIR);
+        sc_set_managed_ca_certs_dir(merged);
+
+        sc_maybe_bind_mount_managed_ca_certs_dir(g_build_filename(tmpdir, "scratch", NULL));
+        g_assert_not_reached();
+
+        g_free(target);
+        g_free(scratch);
+        g_free(merged);
+        g_free(published);
+        g_free(tmpdir);
+        return;
+    }
+
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("*cannot bind mount managed CA certificates over a symlink*");
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/get_nextpath/typical", test_get_nextpath__typical);
     g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
     g_test_add_func("/mount/is_subdir", test_is_subdir);
+    g_test_add_func("/mount/resolve_managed_ca_certs_dir/symlink_to_generation",
+                    test_resolve_managed_ca_certs_dir__symlink_to_generation);
+    g_test_add_func("/mount/resolve_managed_ca_certs_dir/legacy_directory",
+                    test_resolve_managed_ca_certs_dir__legacy_directory);
+    g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/destination_symlink",
+                    test_maybe_bind_mount_managed_ca_certs_dir__destination_symlink);
 }

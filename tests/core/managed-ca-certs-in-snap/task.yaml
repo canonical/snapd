@@ -1,0 +1,74 @@
+summary: Verify snaps use managed CA certificate database
+
+details: |
+    Ensure that a confined snap actually uses the managed certificate
+    database for TLS verification. The test starts a local HTTPS endpoint
+    signed by a custom CA, verifies the request fails before adding the CA,
+    then verifies it succeeds after adding the CA via system options.
+
+systems: [ubuntu-core-*]
+
+environment:
+    CERT_NAME: spread-managed-ca-snap
+
+restore: |
+    snap unset system "pki.certs.custom.${CERT_NAME}" || true
+    snap remove --purge network-consumer-core24 || true
+
+execute: |
+    CERT_PEM="$(mktemp)"
+    CERT_KEY="$(mktemp)"
+    SERVER_LOG="$(mktemp)"
+    HTTPS_PORT=18443
+    HTTPS_PID=""
+    trap 'if [ -n "$HTTPS_PID" ]; then kill "$HTTPS_PID" 2>/dev/null || true; fi' EXIT
+
+    MANAGED_CA_CERTS="/var/lib/snapd/pki/v1/merged/ca-certificates.crt"
+
+    if ! command -v openssl >/dev/null; then
+        echo "openssl is required for certificate generation"
+        exit 1
+    fi
+
+    echo "Install confined core24 network consumer snap"
+    "$TESTSTOOLS"/snaps-state install-local network-consumer-core24
+
+    echo "Create a temporary custom CA certificate (also used as server cert)"
+    openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
+        -subj "/CN=localhost" \
+        -days 2 \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature" \
+        -addext "subjectAltName=DNS:localhost" \
+        -keyout "$CERT_KEY" -out "$CERT_PEM" >/dev/null 2>&1
+
+    echo "Start local HTTPS endpoint"
+    openssl s_server -accept "$HTTPS_PORT" -cert "$CERT_PEM" -key "$CERT_KEY" -www -quiet >"$SERVER_LOG" 2>&1 &
+    HTTPS_PID=$!
+    retry -n 20 --wait 0.5 sh -c "echo | openssl s_client -connect localhost:${HTTPS_PORT} -servername localhost -CAfile ${CERT_PEM} >/dev/null 2>&1"
+
+    echo "Ensure TLS request from confinement fails before CA is trusted"
+    not network-consumer-core24.network-consumer "https://localhost:${HTTPS_PORT}" >before-ca.log 2>&1
+
+    echo "Inject custom CA certificate into managed database"
+    snap unset system "pki.certs.custom.${CERT_NAME}" || true
+    snap set system "pki.certs.custom.${CERT_NAME}.content=$(cat "${CERT_PEM}")"
+
+    test -s "$MANAGED_CA_CERTS"
+
+    echo "Wait for managed CA database to include the custom CA"
+    retry -n 40 --wait 0.5 sh -c "openssl verify -CAfile '$MANAGED_CA_CERTS' '$CERT_PEM' >/dev/null 2>&1"
+
+    echo "Ensure TLS request from confinement succeeds after CA is trusted"
+    retry -n 20 --wait 0.5 sh -c "network-consumer-core24.network-consumer https://localhost:${HTTPS_PORT} >after-ca.log 2>&1"
+    MATCH "s_server" < after-ca.log
+
+    echo "Ensure managed bundle still differs from base bundle after custom cert update"
+    BASE_NAME="$(snap model --verbose | awk '/^base:/ { print $2 }')"
+    test -n "$BASE_NAME"
+    BASE_CA_CERTS="/snap/${BASE_NAME}/current/etc/ssl/certs/ca-certificates.crt"
+    test -s "$BASE_CA_CERTS"
+
+    MANAGED_SHA="$(sha256sum "$MANAGED_CA_CERTS" | awk '{print $1}')"
+    BASE_SHA="$(sha256sum "$BASE_CA_CERTS" | awk '{print $1}')"
+    test "$MANAGED_SHA" != "$BASE_SHA"
