@@ -56,6 +56,51 @@
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
+// Treat the managed trust store as an optional overlay. If either side does
+// not look like a cert directory, keeping the base view is safer than failing
+// namespace construction and preventing the snap from starting.
+static bool sc_should_bind_mount_dir(const char *src, const char *dst) {
+    struct stat src_stat;
+    if (lstat(src, &src_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", src);
+    }
+    if (!S_ISDIR(src_stat.st_mode)) {
+        debug("entry %s is not a directory, skipping mount", src);
+        return false;
+    }
+
+    struct stat dst_stat;
+    if (lstat(dst, &dst_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", dst);
+    }
+    if (!S_ISDIR(dst_stat.st_mode)) {
+        debug("entry %s is not a directory, skipping mount", dst);
+        return false;
+    }
+
+    return true;
+}
+
+// Mount the whole managed trust store so confined processes see the same trust
+// decisions regardless of whether their TLS stack reads the bundle file or
+// resolves certificates through the directory layout under /etc/ssl/certs.
+static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
+    char dst[PATH_MAX] = {0};
+    sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
+
+    if (!sc_should_bind_mount_dir(SC_MANAGED_CA_CERTS_DIR, dst)) {
+        return;
+    }
+
+    sc_do_mount(SC_MANAGED_CA_CERTS_DIR, dst, NULL, MS_BIND, NULL);
+}
+
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_tmp(const char *snap_instance) {
@@ -652,6 +697,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
             sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
         }
     }
+
+    // Prefer the managed CA certificate directory when present so snaps see
+    // the trust store that snapd generated, even when consumers rely on the
+    // directory view instead of reading only the bundle file.
+    sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
+
     // The "core" base snap is special as it contains snapd and friends.
     // Other base snaps do not, so whenever a base snap other than core is
     // in use we need extra provisions for setting up internal tooling to
