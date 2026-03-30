@@ -64,12 +64,34 @@
  **/
 #define SC_NS_DIR "/run/snapd/ns"
 
+/*
+ * Preserved namespaces need enough metadata to tell when their trust store
+ * view no longer matches what new launches should see. Record the immutable
+ * published generation selected by /var/lib/snapd/pki/v1/merged so
+ * namespaces can be discarded when snapd flips merged to a new generation.
+ */
+#define SC_MANAGED_CA_CERTS_GENERATION_KEY "managed-ca-certs-generation"
+
 /**
  * Effective value of SC_NS_DIR.
  *
  * We use 'const char *' so we can update sc_ns_dir in the testsuite
  **/
 static const char *sc_ns_dir = SC_NS_DIR;
+
+/**
+ * Effective value of SC_MANAGED_CA_CERTS_DIR.
+ *
+ * We use 'const char *' so we can update sc_managed_ca_certs_dir in the testsuite
+ **/
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+
+/**
+ * Effective value of SC_SYSTEM_CA_CERTS_DIR.
+ *
+ * We use 'const char *' so we can update sc_system_ca_certs_dir in the testsuite
+ **/
+static const char *sc_system_ca_certs_dir = SC_SYSTEM_CA_CERTS_DIR;
 
 enum {
     HELPER_CMD_EXIT,
@@ -324,7 +346,142 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
     return all_seen;
 }
 
-// Inspect the namespace and check if we should discard it.
+// managed_ca_cert_generation returns the immutable published-generation ID
+// selected by /var/lib/snapd/pki/v1/merged. When merged is absent or is not a
+// symlink to a generation-backed directory, no generation is returned.
+static char *managed_ca_cert_generation(void) {
+    char target[PATH_MAX] = {0};
+    ssize_t nread;
+    struct stat ca_stat;
+
+    if (lstat(sc_managed_ca_certs_dir, &ca_stat) != 0) {
+        // Treat a missing path as no managed trust store, not an error.
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot stat %s", sc_managed_ca_certs_dir);
+    }
+
+    // Prior to the generations implementation, this was simply a plain folder, not
+    // a symlink, but we do not support that configuration. Ignore it until it has
+    // been migrated by snapd.
+    if (!S_ISLNK(ca_stat.st_mode)) {
+        return NULL;
+    }
+
+    nread = readlink(sc_managed_ca_certs_dir, target, sizeof target - 1);
+    if (nread < 0) {
+        die("cannot read %s", sc_managed_ca_certs_dir);
+    }
+
+    // Though we initialized target to NULs and passed one less to
+    // readlink, therefore guaranteeing that target is
+    // zero-terminated, perform an explicit assignment to make
+    // Coverity happy.
+    target[nread] = '\0';
+
+    char *generation = strrchr(target, '/');
+    generation = generation != NULL ? generation + 1 : target;
+    if (generation[0] == '\0') {
+        return NULL;
+    }
+    return sc_strdup(generation);
+}
+
+// namespace_uses_managed_ca_certs returns true when /etc/ssl/certs in the
+// current namespace is the same directory as the managed trust store selected
+// by /var/lib/snapd/pki/v1/merged. Old preserved namespaces created before the
+// overlay was introduced will keep exposing the base snap directory instead.
+static bool namespace_uses_managed_ca_certs(void) {
+    struct stat managed_stat;
+    struct stat namespace_stat;
+
+    if (stat(sc_managed_ca_certs_dir, &managed_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", sc_managed_ca_certs_dir);
+    }
+    if (!S_ISDIR(managed_stat.st_mode)) {
+        return false;
+    }
+
+    if (stat(sc_system_ca_certs_dir, &namespace_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", sc_system_ca_certs_dir);
+    }
+    if (!S_ISDIR(namespace_stat.st_mode)) {
+        return false;
+    }
+
+    return managed_stat.st_dev == namespace_stat.st_dev && managed_stat.st_ino == namespace_stat.st_ino;
+}
+
+/**
+ * managed_ca_cert_db_changed returns true when the managed CA certificate
+ * generation visible on the host no longer matches what was recorded when the
+ * preserved namespace was created.
+ **/
+static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
+    char info_path[PATH_MAX] = {0};
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
+
+    FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+    stream = fopen(info_path, "r");
+    if (stream == NULL && errno != ENOENT) {
+        die("cannot open %s", info_path);
+    }
+
+    char *saved_generation SC_CLEANUP(sc_cleanup_string) = NULL;
+    if (stream != NULL) {
+        sc_error *err = NULL;
+        if (sc_infofile_get_key(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY, &saved_generation, &err) < 0) {
+            sc_die_on_error(err);
+        }
+    }
+
+    char *current_generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
+
+    if (saved_generation == NULL) {
+        // Old namespaces have no recorded generation. Keep reusing them until
+        // snapd starts exposing a generation-backed managed trust store.
+        if (current_generation == NULL) {
+            return false;
+        }
+        debug("managed CA cert generation %s is now available, discarding namespace without recorded generation",
+              current_generation);
+        return true;
+    }
+
+    if (current_generation == NULL) {
+        // The namespace expects a published generation but the host no longer
+        // exposes one, so the preserved namespace is stale.
+        debug("managed CA cert generation %s was recorded but the current host generation is unavailable",
+              saved_generation);
+        return true;
+    }
+
+    if (!sc_streq(saved_generation, current_generation)) {
+        // snapd flipped merged to a different published generation, so the
+        // preserved namespace must be recreated to mount the new trust store.
+        debug("managed CA cert generation changed: %s -> %s", saved_generation, current_generation);
+        return true;
+    }
+
+    if (!namespace_uses_managed_ca_certs()) {
+        debug("managed CA cert generation %s is unchanged but the namespace is missing the managed CA mount",
+              current_generation);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Inspect the namespace and check if we should discard it.
+ */
 static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev) {
     sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
@@ -342,6 +499,11 @@ static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t bas
     // changed: so this code will check that all homedirs are mounted in the
     // namespace.
     if (!homedirs_are_mounted(mi, inv->homedirs, inv->num_homedirs)) {
+        return true;
+    }
+    // Reuse is only safe while the preserved namespace still exposes the same
+    // managed trust store view that new launches would receive.
+    if (managed_ca_cert_db_changed(inv)) {
         return true;
     }
 
@@ -372,7 +534,7 @@ enum sc_discard_vote {
 /**
  * is_base_transition returns true if a base transition is occurring.
  *
- * The function inspects /run/snapd/ns/snap.$SNAP_INSTANCE_NAME.info as well
+ * The function inspects $SC_NS_DIR/snap.$SNAP_INSTANCE_NAME.info as well
  * as the invocation parameters of snap-confine. If the base snap name, as
  * encoded in the info file and as described by the invocation parameters
  * differ then a base transition is occurring. If the info file is absent or
@@ -381,7 +543,7 @@ enum sc_discard_vote {
  **/
 static bool is_base_transition(const sc_invocation *inv) {
     char info_path[PATH_MAX] = {0};
-    sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
 
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     stream = fopen(info_path, "r");
@@ -880,7 +1042,7 @@ void sc_wait_for_helper(struct sc_mount_ns *group) {
 void sc_store_ns_info(const sc_invocation *inv) {
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     char info_path[PATH_MAX] = {0};
-    sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
     int fd = -1;
     fd = open(info_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0) {
@@ -895,6 +1057,14 @@ void sc_store_ns_info(const sc_invocation *inv) {
         die("cannot get stream from file descriptor");
     }
     fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
+
+    // Record the selected published generation so preserved namespaces are
+    // recreated when snapd flips merged to a different trust-store view.
+    char *generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
+    if (generation != NULL) {
+        fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", generation);
+    }
+
     if (ferror(stream) != 0) {
         die("I/O error when writing to %s", info_path);
     }
