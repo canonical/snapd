@@ -2,7 +2,8 @@
 summary: Ensure that the content sharing interface works after a snapd downgrade
 
 details: |
-    Verify backward compatibility of task execution across a snapd downgrade.
+    Verify backward compatibility of task execution across a snapd downgrade
+    without resetting state.
 
     The change is created by the currently running snapd and includes installing
     two snaps at once: an older snapd from stable and test-snapd-content-plug.
@@ -40,8 +41,15 @@ execute: |
     echo "Then this pulls in the default provider"
     snap list | MATCH  test-snapd-content-slot 
 
-    echo "The journal told us we downgraded snapd"
-    "$TESTSTOOLS"/journal-state get-log | MATCH "Downgrading snapd to version"
+    # On arch-linux AppArmor is unsupported, so
+    # maybeRemoveAppArmorProfilesOnSnapdDowngrade returns early and the
+    # "Downgrading snapd to version" log message is never emitted.  The
+    # namespace discard path only fires for snapd < 2.57 which no longer
+    # applies.  The downgrade still happens; it just isn't logged.
+    if ! os.query is-arch-linux; then
+        echo "The journal told us we downgraded snapd"
+        "$TESTSTOOLS"/journal-state get-log | MATCH "Downgrading snapd to version"
+    fi
 
     echo "Then the snap is listed as connected"
     snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
