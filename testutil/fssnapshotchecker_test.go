@@ -107,7 +107,7 @@ func (*fsSnapshotCheckerSuite) TestChangedContent(c *check.C) {
 	after, err := CreateFsSnapshot(d)
 	c.Assert(err, check.IsNil)
 
-	testCheck(c, FsSnapshotsEqual, false, "filesystem snapshots differ:\n  <path>: <difference kinds>\n  file: content\n", after, before, nil)
+	testCheck(c, FsSnapshotsEqual, false, "filesystem snapshots differ:\n  <path>: <difference kinds>\n  file: content (\"aaa\" -> \"bbb\")\n", after, before, nil)
 }
 
 func (*fsSnapshotCheckerSuite) TestChangedSize(c *check.C) {
@@ -122,7 +122,7 @@ func (*fsSnapshotCheckerSuite) TestChangedSize(c *check.C) {
 	after, err := CreateFsSnapshot(d)
 	c.Assert(err, check.IsNil)
 
-	testCheck(c, FsSnapshotsEqual, false, "filesystem snapshots differ:\n  <path>: <difference kinds>\n  file: size (5 -> 19), content\n", after, before, nil)
+	testCheck(c, FsSnapshotsEqual, false, "filesystem snapshots differ:\n  <path>: <difference kinds>\n  file: size (5 -> 19), content (\"short\" -> \"much longer content\")\n", after, before, nil)
 }
 
 func (*fsSnapshotCheckerSuite) TestChangedMode(c *check.C) {
@@ -170,4 +170,30 @@ func (*fsSnapshotCheckerSuite) TestIgnoreParents(c *check.C) {
 		"a/b/file": {Kinds: []FsDiffKind{PresenceDiffKind}, IgnoreParents: true},
 	}
 	testCheck(c, FsSnapshotsEqual, true, "", after, before, ignore)
+}
+
+func (*fsSnapshotCheckerSuite) TestLargeFileContentDiff(c *check.C) {
+	d := c.MkDir()
+	f := filepath.Join(d, "file")
+
+	// Create files larger than maxContentPreviewSize (256 bytes)
+	bigA := make([]byte, 300)
+	bigB := make([]byte, 300)
+	for i := range bigA {
+		bigA[i] = 'a'
+		bigB[i] = 'b'
+	}
+	c.Assert(os.WriteFile(f, bigA, 0644), check.IsNil)
+
+	before, err := CreateFsSnapshot(d)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(os.WriteFile(f, bigB, 0644), check.IsNil)
+	after, err := CreateFsSnapshot(d)
+	c.Assert(err, check.IsNil)
+
+	// Should show just "content" without preview for large files
+	result, errStr := FsSnapshotsEqual.Check([]any{after, before, nil}, []string{"after", "before", "ignoreDiff"})
+	c.Check(result, check.Equals, false)
+	c.Check(errStr, check.Matches, "(?s).*file: content\n.*")
 }

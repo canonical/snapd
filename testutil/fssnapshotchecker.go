@@ -34,10 +34,15 @@ import (
 
 // fsEntry records attributes of a filesystem entry for comparison
 type fsEntry struct {
-	mode        os.FileMode
-	size        int64
-	contentHash string // empty for dirs
+	mode           os.FileMode
+	size           int64
+	contentHash    string // empty for dirs
+	contentPreview []byte // first maxContentPreviewSize bytes; nil for dirs
 }
+
+// maxContentPreviewSize is the maximum number of bytes stored per file
+// for content diff display in error messages.
+const maxContentPreviewSize = 256
 
 // FsSnapshot maps relative paths to filesystem entry
 type FsSnapshot map[string]fsEntry
@@ -105,6 +110,22 @@ func CreateFsSnapshot(rootDir string) (FsSnapshot, error) {
 				return err
 			}
 			entry.contentHash = hash
+
+			previewSize := entry.size
+			if previewSize > maxContentPreviewSize {
+				previewSize = maxContentPreviewSize
+			}
+			preview := make([]byte, previewSize)
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			_, err = io.ReadFull(f, preview)
+			f.Close()
+			if err != nil {
+				return err
+			}
+			entry.contentPreview = preview
 		}
 		entries[rel] = entry
 		return nil
@@ -249,6 +270,8 @@ func (c *fsSnapshotChecker) Check(params []any, names []string) (result bool, er
 				strs[i] = fmt.Sprintf("%s (%04o -> %04o)", dk, bEntry.mode.Perm(), aEntry.mode.Perm())
 			case SizeDiffKind:
 				strs[i] = fmt.Sprintf("%s (%d -> %d)", dk, bEntry.size, aEntry.size)
+			case ContentDiffKind:
+				strs[i] = formatContentDiff(bEntry, aEntry)
 			default:
 				strs[i] = string(dk)
 			}
@@ -256,4 +279,15 @@ func (c *fsSnapshotChecker) Check(params []any, names []string) (result bool, er
 		fmt.Fprintf(&sb, "  %s: %s\n", p, strings.Join(strs, ", "))
 	}
 	return false, sb.String()
+}
+
+// formatContentDiff formats a content diff entry. For small files where the
+// full content was captured, it shows the actual before -> after text.
+func formatContentDiff(bEntry, aEntry fsEntry) string {
+	bFull := int64(len(bEntry.contentPreview)) == bEntry.size
+	aFull := int64(len(aEntry.contentPreview)) == aEntry.size
+	if bFull && aFull {
+		return fmt.Sprintf("%s (%q -> %q)", ContentDiffKind, bEntry.contentPreview, aEntry.contentPreview)
+	}
+	return string(ContentDiffKind)
 }
