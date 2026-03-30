@@ -52,6 +52,7 @@ type opteeClient struct{}
 func (c *opteeClient) Present() bool {
 	// the first time we invoke the PTA without sending a buffer to fill. the
 	// PTA handles this by just returning the size of the buffer it will need.
+	logger.Debugf("looking for FDE TA")
 	bufferSize, err := devicesBufferSize()
 	if err != nil {
 		return false
@@ -94,7 +95,7 @@ func (c *opteeClient) Present() bool {
 		if err != nil {
 			logger.Noticef("FDE TA found")
 		} else {
-			logger.Noticef("FDE TA version %q found", version)
+			logger.Noticef("FDE TA version %d found", version)
 		}
 
 		return true
