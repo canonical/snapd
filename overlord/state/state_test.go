@@ -532,6 +532,11 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	c.Check(task0_1.AtTime().IsZero(), Equals, true)
 	c.Check(task0_2.AtTime().Equal(schedule), Equals, true)
+	select {
+	case <-task0_1.Ready():
+	default:
+		c.Errorf("Task didn't preserve Ready channel closed after deserialization")
+	}
 }
 
 func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
