@@ -53,7 +53,7 @@ prepare: |
   old_shim_sha="$(sha256sum pc/shim.efi.signed | sed "s/ .*//")"
   old_grub_sha="$(sha256sum pc/grubx64.efi | sed "s/ .*//")"
 
-  # This is the the gadget for the initial image
+  # This is the gadget for the initial image
   snap pack pc "$(tests.nested get extra-snaps-path)"
 
   # Add a different vendor certificate

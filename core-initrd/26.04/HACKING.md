@@ -45,11 +45,11 @@ go build .
 go install .
 ```
 
-## QEmu backend
+## QEMU backend
 
-1. Install the dependencies required for the qemu emulation
+1. Install the dependencies required for the QEMU emulation
 ```
-sudo apt update && sudo apt install -y qemu-kvm autopkgtest
+sudo apt update && sudo apt install -y qemu-system autopkgtest
 ```
 2. Create a suitable ubuntu test image (noble) in the following directory where spread locates images. Note that the location is different when using spread installed through snap.
 ```
@@ -61,7 +61,7 @@ autopkgtest-buildvm-ubuntu-cloud -r noble
 ```
 mv autopkgtest-noble-amd64.img ubuntu-24.04-64.img
 ```
-4. Now you are ready to run spread tests with the qemu backend
+4. Now you are ready to run spread tests with the QEMU backend
 ```
 cd ~/core-initrd # or wherever you checked out this repository
 spread qemu-nested
@@ -69,8 +69,8 @@ spread qemu-nested
 
 ## LXD backend
 The LXD backend is the preffered way of testing locally as it uses virtualization and thus runs a lot quicker than
-the qemu backend. This is because the container can use all the resources of the host, and we can support
-qemu-kvm acceleration in the container for the nested instance.
+the QEMU backend. This is because the container can use all the resources of the host, and we can support
+QEMU KVM acceleration in the container for the nested instance.
 
 This backend requires that your host machine supports KVM.
 
@@ -92,7 +92,7 @@ rm ./temp.profile ./lxd-initrd-img.tar.gz
 lxc profile create coreinitrd
 cat tests/spread/core-initrd.lxdprofile | lxc profile edit coreinitrd
 ```
-3. Set environment variable to enable KVM acceleration for the nested qemu instance
+3. Set environment variable to enable KVM acceleration for the nested QEMU instance
 ```
 export SPREAD_ENABLE_KVM=true
 ```

@@ -118,14 +118,33 @@ func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Re
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
-	bs, stderr, err := osutil.RunSplitOutput("systemctl", args...)
-	if err != nil {
-		exitCode, runErr := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr,
-			msg: osutil.CombineStdOutErr(bs, stderr)}
+	complete := systemctlAsyncCmd(args...)
+	return complete()
+}
+
+// systemctlAsyncCmd dispatches a systemctl command asynchronously. The
+// command is started before the function returns. The returned function
+// blocks until the command completes and returns its output and error.
+var systemctlAsyncCmd = func(args ...string) func() ([]byte, error) {
+	cmd := exec.Command("systemctl", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return func() ([]byte, error) {
+			return nil, &Error{cmd: args, runErr: err}
+		}
 	}
 
-	return bs, nil
+	return func() ([]byte, error) {
+		if err := cmd.Wait(); err != nil {
+			exitCode, runErr := osutil.ExitCode(err)
+			return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr,
+				msg: osutil.CombineStdOutErr(stdout.Bytes(), stderr.Bytes())}
+		}
+		return stdout.Bytes(), nil
+	}
 }
 
 func MockSystemdVersion(version int, injectedError error) (restore func()) {
@@ -144,15 +163,26 @@ func MockSystemdVersion(version int, injectedError error) (restore func()) {
 // The function can return the output and an error.
 func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	var mutex sync.Mutex
-	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = func(args ...string) ([]byte, error) {
-		// Thread-safe wrapper to call the locked systemctl
-		mutex.Lock()
-		defer mutex.Unlock()
-		return f(args...)
+	oldSystemctlAsyncCmd := systemctlAsyncCmd
+	// It's sufficient to mock the async helper as it's already used as a base
+	// for systemctlCmd() implementation.
+	systemctlAsyncCmd = func(args ...string) func() ([]byte, error) {
+		// The callback is called synchronously so that the command
+		// is logged before this function returns.
+		var out []byte
+		var err error
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			out, err = f(args...)
+		}()
+		// The wait function returns the cached result immediately.
+		return func() ([]byte, error) {
+			return out, err
+		}
 	}
 	return func() {
-		systemctlCmd = oldSystemctlCmd
+		systemctlAsyncCmd = oldSystemctlAsyncCmd
 	}
 }
 
@@ -163,21 +193,29 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 // mocked invocation.
 func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
 	var mutex sync.Mutex
-	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = func(args ...string) (bs []byte, err error) {
-		// Thread-safe wrapper to call the locked systemctl
+	oldSystemctlAsyncCmd := systemctlAsyncCmd
+	// It's sufficient to mock the async helper as it's already used as a base
+	// for systemctlCmd() implementation.
+	systemctlAsyncCmd = func(args ...string) func() ([]byte, error) {
+		// The callback is called synchronously so that the command
+		// is logged before this function returns.
+		var bs []byte
 		var delay time.Duration
+		var err error
 		func() {
 			mutex.Lock()
 			defer mutex.Unlock()
 			bs, delay, err = f(args...)
 		}()
-		// Emulate the delay outside the lock
-		time.Sleep(delay)
-		return bs, err
+		// The delay moves into the wait function to simulate the
+		// time spent blocking on the actual command execution.
+		return func() ([]byte, error) {
+			time.Sleep(delay)
+			return bs, err
+		}
 	}
 	return func() {
-		systemctlCmd = oldSystemctlCmd
+		systemctlAsyncCmd = oldSystemctlAsyncCmd
 	}
 }
 
@@ -359,18 +397,6 @@ const (
 	MountCreated
 )
 
-// EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
-// TODO should we call directly EnsureMountUnitFileWithOptions and
-// remove this type instead?
-type EnsureMountUnitFlags struct {
-	// PreventRestartIfModified is set if we do not want to restart the
-	// mount unit if even though it was modified
-	PreventRestartIfModified bool
-	// StartBeforeDriversLoad is set if the unit is needed before
-	// udevd starts to run rules
-	StartBeforeDriversLoad bool
-}
-
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -425,10 +451,10 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
-	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
-	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
+	// ConfigureMountUnitOptions configures several options of the mount unit in-place.
+	ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error
+	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
+	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
@@ -580,6 +606,22 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 		panic("unknown InstanceMode")
 	}
 	return systemctlCmd(args...)
+}
+
+// systemctlAsync dispatches a systemctl command asynchronously. The
+// command is dispatched before this method returns, and the returned
+// function blocks until the command completes.
+func (s *systemd) systemctlAsync(args ...string) func() ([]byte, error) {
+	switch s.mode {
+	case SystemMode:
+	case UserMode:
+		args = append([]string{"--user"}, args...)
+	case GlobalUserMode:
+		args = append([]string{"--user", "--global"}, args...)
+	default:
+		panic("unknown InstanceMode")
+	}
+	return systemctlAsyncCmd(args...)
 }
 
 func (s *systemd) Backend() Backend {
@@ -1057,14 +1099,13 @@ func (s *systemd) Stop(serviceNames []string) error {
 		panic("cannot call stop with GlobalUserMode")
 	}
 
-	// Start the real time progress tracking inside a go routine because the
-	// 'systemctl stop' request is blocking (which runs in the parent function).
-	// Note that although the status polling thread is separate, and could start
-	// before the 'systemctl stop' command, the poll ticker will not fire
-	// immediately, allowing the stop command to start first. The ordering is
-	// not assumed, but it helps make existing unit-test code work, because the
-	// systemctl mocking in some modules are implemented very simplistically, and
-	// assumes that the 'stop' argument comes before the 'show'.
+	// Dispatch the stop command asynchronously. Ensures we do not start
+	// pointlessly polling the status before starting the 'systemctl stop'
+	// command.
+	waitStop := s.systemctlAsync(append([]string{"stop"}, serviceNames...)...)
+
+	// Start the real time progress tracking inside a goroutine. The
+	// polling goroutine reports progress while the stop command blocks.
 	errorRet := make(chan error)
 	quit := make(chan any)
 
@@ -1141,8 +1182,8 @@ func (s *systemd) Stop(serviceNames []string) error {
 		}
 	}(serviceNames)
 
-	// This command blocks until the 'systemctl stop' completes
-	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+	// Blocks until the 'systemctl stop' completes
+	_, errStop := waitStop()
 
 	// Notify the progress loop to exit since systemctl completed the request
 	close(quit)
@@ -1508,28 +1549,36 @@ func HostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
-	hostFsType, options := HostFsTypeAndMountOptions(fstype)
-	if osutil.IsDirectory(what) {
-		options = append(options, "bind")
+func (s *systemd) ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error {
+	if o.What == "" {
+		return errors.New(`internal error: cannot configure mount unit options: "What" cannot be unset`)
+	}
+	if o.Fstype != "" {
+		return errors.New(`internal error: cannot configure mount unit options: "Fstype" cannot be set`)
+	}
+	if len(o.Options) > 0 {
+		return errors.New(`internal error: cannot configure mount unit options: "Options" cannot be set`)
+	}
+
+	hostFsType, fsOpts := HostFsTypeAndMountOptions(fstype)
+	if osutil.IsDirectory(o.What) {
+		fsOpts = append(fsOpts, "bind")
 		hostFsType = "none"
 	}
-	mountOptions := &MountUnitOptions{
-		Lifetime:                 Persistent,
-		Description:              description,
-		What:                     what,
-		Where:                    where,
-		Fstype:                   hostFsType,
-		Options:                  options,
-		PreventRestartIfModified: flags.PreventRestartIfModified,
+
+	mountUnitType := RegularMountUnit
+	if startBeforeDrivers {
+		mountUnitType = BeforeDriversLoadMountUnit
 	}
-	if flags.StartBeforeDriversLoad {
-		mountOptions.MountUnitType = BeforeDriversLoadMountUnit
-	}
-	return s.EnsureMountUnitFileWithOptions(mountOptions)
+
+	o.Fstype = hostFsType
+	o.MountUnitType = mountUnitType
+	o.Options = fsOpts
+
+	return nil
 }
 
-func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 

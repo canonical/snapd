@@ -47,5 +47,5 @@ NEWS.md /usr/share/doc/snapd/
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
-# but system generators end up in lib
+# system generators use <systemdutildir>/system-generators (resolved via pkg-config)
 @systemd-lib@/system-generators

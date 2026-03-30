@@ -23,26 +23,10 @@ import (
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 )
 
-func MockVeritysetupFormat(fn func(string, string, *dmverity.DmVerityParams) (string, error)) (restore func()) {
-	origVeritysetupFormat := veritysetupFormat
-	veritysetupFormat = fn
-	return func() {
-		veritysetupFormat = origVeritysetupFormat
-	}
-}
-
 func MockReadDmVeritySuperblock(f func(filename string) (*dmverity.VeritySuperblock, error)) (restore func()) {
 	origReadDmVeritySuperblock := readDmVeritySuperblock
 	readDmVeritySuperblock = f
 	return func() {
 		readDmVeritySuperblock = origReadDmVeritySuperblock
-	}
-}
-
-func MockOsRename(fn func(string, string) error) (restore func()) {
-	origOsRename := osRename
-	osRename = fn
-	return func() {
-		osRename = origOsRename
 	}
 }

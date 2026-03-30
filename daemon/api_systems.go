@@ -66,8 +66,10 @@ var systemsActionCmd = &Command{
 	POST: postSystemsAction,
 	Actions: []string{
 		"do", "reboot", "install",
-		"create", "remove", "check-passphrase",
-		"check-pin", "fix-encryption-support",
+		"create", "remove", "check-passphrase-quality",
+		"check-pin-quality", "fix-encryption-support",
+		// deprecated
+		"check-passphrase", "check-pin",
 	},
 	WriteAccess: rootAccess{},
 }
@@ -313,10 +315,10 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCreate(c, &req)
 	case "remove":
 		return postSystemActionRemove(c, systemLabel)
-	case "check-passphrase":
-		return postSystemActionCheckPassphrase(c, systemLabel, &req)
-	case "check-pin":
-		return postSystemActionCheckPIN(c, systemLabel, &req)
+	case "check-passphrase-quality", "check-passphrase": // "check-passphrase" is deprecated
+		return postSystemActionCheckPassphraseQuality(c, systemLabel, &req)
+	case "check-pin-quality", "check-pin": // "check-pin" is deprecated
+		return postSystemActionCheckPINQuality(c, systemLabel, &req)
 	case "fix-encryption-support":
 		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
 	default:
@@ -704,7 +706,7 @@ func postCheckAuthQuality(mode device.AuthMode, authVal string) Response {
 	})
 }
 
-func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *systemActionRequest) Response {
+func postSystemActionCheckPassphraseQuality(c *Command, systemLabel string, req *systemActionRequest) Response {
 	if systemLabel == "" {
 		return BadRequest("system action requires the system label to be provided")
 	}
@@ -732,7 +734,7 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
-func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionRequest) Response {
+func postSystemActionCheckPINQuality(c *Command, systemLabel string, req *systemActionRequest) Response {
 	if systemLabel == "" {
 		return BadRequest("system action requires the system label to be provided")
 	}

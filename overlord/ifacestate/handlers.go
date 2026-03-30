@@ -1856,7 +1856,11 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		// "auto-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
 		// them so they can be automatically connected if the snap is installed again.
-		ts, err := disconnectTasks(st, conn, disconnectOpts{AutoDisconnect: true})
+		ts, err := disconnectTasks(st, conn, disconnectOpts{
+			AutoDisconnect: true,
+			// Ignore errors from disconnect hooks.
+			IgnoreHookError: true,
+		})
 		if err != nil {
 			return err
 		}
@@ -2440,7 +2444,6 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	for _, lane := range snapLanes {
 		laneFailed := false
 		var seenSnaps []string
-	laneLoop:
 		for _, tsk := range chg.LaneTasks(lane) {
 			considerRestartTriggeringTasks[tsk.ID()] = true
 			switch {
@@ -2463,7 +2466,10 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				unreadyTasks = true
 			case tsk.Status() != state.DoneStatus:
 				laneFailed = true
-				break laneLoop
+				// keep scanning the lane even after it has failed so restart
+				// detection still sees later wait-for-restart tasks in the same
+				// transactional lane.
+				continue
 			case tsk.Kind() == "link-snap":
 				sup, err := snapstate.TaskSnapSetup(tsk)
 				if err != nil {
@@ -2497,7 +2503,6 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	}
 
 	if len(delayed.TriggeringSnaps) == 0 {
-		task.Logf("no delayed backend effects")
 		return nil
 	}
 

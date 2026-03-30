@@ -1,0 +1,8 @@
+#!/bin/sh
+
+touch "$SNAP_COMMON/disconnect-plug-network-done"
+
+if [ -f "$SNAP_COMMON/disconnect-fail" ]; then
+    echo "failure of disconnect hook"
+    exit 1
+fi

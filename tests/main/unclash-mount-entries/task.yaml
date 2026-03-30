@@ -12,9 +12,9 @@ details: |
 # folder (since the kernel is delivered as a snap, there won't be any
 # /boot/config* files, so the interface code will skip adding the mount entry),
 # so this test is pointless there (and partially failing).
-# On Arch and openSUSE tumbleweed, the /boot/config* files are missing, so
+# On Arch and openSUSE tumbleweed and 16.0, the /boot/config* files are missing, so
 # these also are distributions we can't use for this test.
-systems: [-arch-*,-opensuse-tumbleweed-*,-ubuntu-core-*]
+systems: [-arch-*,-opensuse-tumbleweed-*,-opensuse-16*,-ubuntu-core-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local testsnap

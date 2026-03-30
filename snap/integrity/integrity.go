@@ -30,16 +30,15 @@ import (
 )
 
 var (
-	veritysetupFormat      = dmverity.Format
 	readDmVeritySuperblock = dmverity.ReadSuperblock
-	osRename               = os.Rename
 )
 
 // IntegrityDataParams struct includes all the parameters that are necessary
 // to generate or lookup integrity data. Currently only data of type "dm-verity"
-// are supported via the GenerateDmVerityData and LookupDmVerityData functions.
+// is supported via LookupDmVerityData.
 type IntegrityDataParams struct {
 	// Type is the type of integrity data (Currently only "dm-verity" is supported).
+	// TODO: switch to typed value e.g. IntegrityDataType
 	Type string `json:"type"`
 	// Version is the type-specific format type.
 	Version uint `json:"version"`
@@ -82,6 +81,18 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+// IntegrityFile returns the integrity file name corresponding to the integrity
+// type. Currently, only dm-verity is supported.
+func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
+	switch params.Type {
+	case "dm-verity":
+		// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
+		return fmt.Sprintf("%s.dmverity_%s", snapPath, params.Digest), nil
+	default:
+		return "", fmt.Errorf("unexpected integrity data type %q", params.Type)
+	}
+}
+
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
 var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in revision")
 
@@ -113,10 +124,6 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 	}, nil
 }
 
-func DmVerityHashFileName(snapPath string, digest string) string {
-	return fmt.Sprintf("%s.dmverity_%s", snapPath, digest)
-}
-
 // ErrDmVerityDataParamsNotFound is returned when the passed in integrityDataParams object is empty.
 var ErrIntegrityDataParamsNotFound = errors.New("integrity data parameters not found")
 
@@ -142,7 +149,10 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 		return "", fmt.Errorf("%w: expected %q but found %q.", ErrUnexpectedIntegrityDataType, "dm-verity", params.Type)
 	}
 
-	hashFileName := DmVerityHashFileName(snapPath, params.Digest)
+	hashFileName, err := params.IntegrityFile(snapPath)
+	if err != nil {
+		return "", err
+	}
 
 	vsb, err := readDmVeritySuperblock(hashFileName)
 	if os.IsNotExist(err) {
@@ -158,32 +168,4 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 	}
 
 	return hashFileName, nil
-}
-
-// GenerateDmVerityData generates dm-verity data for a snap using the input parameters.
-func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string, string, error) {
-	tmpHashFileName := snapPath + ".dmverity_tmp"
-
-	var opts = dmverity.DmVerityParams{
-		Format:        uint8(dmverity.DefaultVerityFormat),
-		Hash:          params.HashAlg,
-		DataBlocks:    params.DataBlocks,
-		DataBlockSize: params.DataBlockSize,
-		HashBlockSize: params.HashBlockSize,
-		Salt:          params.Salt,
-	}
-
-	rootHash, err := veritysetupFormat(snapPath, tmpHashFileName, &opts)
-	if err != nil {
-		return "", "", err
-	}
-
-	hashFileName := DmVerityHashFileName(snapPath, rootHash)
-
-	err = osRename(tmpHashFileName, hashFileName)
-	if err != nil {
-		return "", "", err
-	}
-
-	return hashFileName, rootHash, nil
 }

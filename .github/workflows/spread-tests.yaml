@@ -128,7 +128,7 @@ jobs:
 
     - name: Download previous test results
       if: ${{ github.run_attempt > 1 }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       continue-on-error: true
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
@@ -155,7 +155,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+      uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
 
     - name: Save changes files
       run: |
@@ -240,6 +240,30 @@ jobs:
               printf "" > "$RUN_TESTS_FILE"
           fi
 
+    - name: Check un-skip tests in PR description
+      if: ${{ github.event.pull_request.number }}
+      run: |
+          body="$(gh pr view ${{ github.event.pull_request.number }} --json body --jq .body)"
+
+          # Grab "unskip:" and the following lines that start with "-".
+          unskip_yaml="$(
+              grep -ozP '(?ms)^[[:space:]]*unskip:[[:space:]]*\n(?:[[:space:]]*-[^\n]*\n?)*' <<<"$body" |
+                  tr '\0' '\n' || true
+          )"
+          if [ -z "$unskip_yaml" ]; then
+              exit 0
+          fi
+
+          mapfile -t unskip_tests < <(printf '%s\n' "$unskip_yaml" | yq -r '.unskip // [] | .[]?')
+          UNSKIP_TESTS="${unskip_tests[*]}"
+
+          if [ -z "$UNSKIP_TESTS" ]; then
+              exit 0
+          fi
+
+          echo "UNSKIP_TESTS=$UNSKIP_TESTS" >> "$GITHUB_ENV"
+          
+
     - name: Checkout snapd-testing-skip
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       uses: actions/checkout@v6
@@ -271,10 +295,27 @@ jobs:
               today=$(date "+%Y-%m-%d")
               system=$(yq -r '."spread-system" // ".*"' "$file")
               backend=$(yq -r '."spread-backend" // ".*"' "$file")
-              if [[ "$expire" > "$today" ]] && grep -Eq "$system" <<<"${{ inputs.systems }}" && grep -Eq "^$backend$" <<<"$SPREAD_BACKEND"; then
+              if [[ "$expire" > "$today" ]] && grep -q "$system" <<<"${{ inputs.systems }}" && grep -q "^$backend$" <<<"$SPREAD_BACKEND"; then
                   task=$(yq -r '."spread-task"' "$file")
-                  SNAPD_TESTS_SKIP="${SNAPD_TESTS_SKIP} $(echo "$spread_list" | tr ' ' '\n' | grep "$task$" | tr '\n' ' ')"
-                  spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$task$" | tr '\n' ' ')
+                  IFS=' ' read -ra unskip_arr <<< "${UNSKIP_TESTS:-}"
+                  for unskip_test in "${unskip_arr[@]}"; do
+                      # Validate format: must be backend:system:task
+                      if [[ ! "$unskip_test" =~ ^[^:]+:[^:]+:.+$ ]]; then
+                          echo "Ignoring malformed unskip entry: $unskip_test"
+                          continue
+                      fi
+                      unskip_backend="${unskip_test%%:*}"
+                      unskip_rest="${unskip_test#*:}"
+                      unskip_system="${unskip_rest%%:*}"
+                      unskip_task="${unskip_rest#*:}"
+                      if [[ "$unskip_task" == "$task" ]] && grep -q "$unskip_system" <<<"${{ inputs.systems }}" && grep -q "^$unskip_backend$" <<<"$SPREAD_BACKEND"; then
+                          echo "Ignoring skip rule for $task due to unskip entry: $unskip_test"
+                          continue 2
+                      fi
+                  done
+
+                  SNAPD_TESTS_SKIP="${SNAPD_TESTS_SKIP} $(echo "$spread_list" | tr ' ' '\n' | grep -E "$task(:.*)?$" | tr '\n' ' ')"
+                  spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$task(:.*)?$" | tr '\n' ' ')
                   echo "$spread_list" > "$RUN_TESTS_FILE"
               fi
           done
@@ -291,7 +332,7 @@ jobs:
           fi
 
     - name: Upload skipped tests list
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: "skipped-tests-list-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "skipped_tests_list.txt"
@@ -472,7 +513,7 @@ jobs:
 
     - name: Upload spread logs
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
@@ -480,7 +521,7 @@ jobs:
   
     - name: Upload spread results file
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
@@ -558,7 +599,7 @@ jobs:
 
     - name: Upload artifacts
       if: always() && fromJSON(inputs.upload-artifacts)
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
@@ -566,7 +607,38 @@ jobs:
 
     - name: Upload failed tests
       if: always() && env.TEST_FAILED == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
+
+    - name: Send results to Test-Predictor
+      if: always()
+      continue-on-error: true
+      run: |
+        if [ -f results.json ]; then
+            echo "Sending results to Test-Predictor"
+
+            # Get the job ID of the current workflow run by matching job name and matrix group
+            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
+
+            echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.canonical.com:5000/ingest \
+              -F "file=@./results.json" \
+              -F "attempt=${{ github.run_attempt }}" \
+              -F "job_id=$JOB_ID" \
+              -F "run_id=${{ github.run_id }}")
+
+            if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
+                echo "Request failed with status $HTTP_CODE"
+                exit 1
+            fi
+            echo "Results sent successfully"
+
+            echo "Getting predictions for failed tests"
+            wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/client/predict
+            chmod +x predict
+            ./predict results.json
+        else
+            echo "No spread results log found, skipping sending results to Test-Predictor"
+        fi

@@ -40,7 +40,7 @@ post:
   tags:
     - Assertions
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
   summary: Replace the model assertion
   description: |-
     Replaces the current model assertion, potentially triggering a remodel of

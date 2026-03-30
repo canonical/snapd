@@ -45,5 +45,6 @@ properties:
     example: 7h30m
   constraints:
     oneOf:    # TODO look into mapping interface name to oneOf instances
+      - $ref: ./PromptingReplyConstraintsAudioRecord.yaml
       - $ref: ./PromptingReplyConstraintsCamera.yaml
       - $ref: ./PromptingReplyConstraintsHome.yaml

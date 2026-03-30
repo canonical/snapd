@@ -2853,6 +2853,25 @@ func (s *SnapOpSuite) TestRefreshOneAmend(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *SnapOpSuite) TestRefreshOneNoTrackingChannelForwardMessage(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+			"action":      "refresh",
+			"channel":     "edge",
+			"transaction": string(client.TransactionPerSnap),
+		})
+		s.srv.channel = "stable"
+		s.srv.trackingChannel = ""
+	}
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel", "edge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Equals, "foo 1.0 from Bar refreshed\n")
+}
+
 func (s *SnapOpSuite) runTryTest(c *check.C, opts *client.SnapOptions) {
 	// pass relative path to cmd
 	tryDir := "some-dir"

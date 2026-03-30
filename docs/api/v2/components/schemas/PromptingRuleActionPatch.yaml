@@ -17,5 +17,6 @@ properties:
     properties:
       constraints:
         oneOf:
+          - $ref: ./PromptingPatchConstraintsAudioRecord.yaml
           - $ref: ./PromptingPatchConstraintsCamera.yaml
           - $ref: ./PromptingPatchConstraintsHome.yaml

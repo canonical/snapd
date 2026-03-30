@@ -90,7 +90,7 @@ post:
   tags:
     - Apps
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
   summary: Modify aliases
   description: |-
     Modify aliases by performing an 'alias', 'unalias', or 'prefer' action.

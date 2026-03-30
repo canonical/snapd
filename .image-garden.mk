@@ -64,8 +64,8 @@ $(CLOUD_INIT_USER_DATA_TEMPLATE)
 # Some systems do not have persistent journal, let's fix that.
 - mkdir -p /var/log/journal
 # Disable upgrades that can lock apt
-- sed -i 's/^Prompt=.*$/Prompt=never/' /etc/update-manager/release-upgrades
-- systemctl disable --now apt-daily{,-upgrade}.{timer,service}
+- sed -i -e 's|^Prompt=.*|Prompt=never|' /etc/update-manager/release-upgrades
+- systemctl disable --now apt-daily.timer apt-daily.service apt-daily-upgrade.service apt-daily-upgrade.timer
 - systemctl disable --now unattended-upgrades.service
 endef
 

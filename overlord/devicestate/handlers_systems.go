@@ -275,6 +275,10 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("cannot remove recovery system %q: %w", setup.Label, err)
 	}
 
+	if err := dropSeededSystemIfSeedRefresh(st, setup.Label); err != nil {
+		return fmt.Errorf("cannot update seeded systems after removing recovery system %q: %w", setup.Label, err)
+	}
+
 	t.SetStatus(state.DoneStatus)
 
 	return nil
@@ -519,16 +523,8 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 		// as the most recently seeded system. during a remodel, this happens
 		// during set-model.
 		if setup.SeedRefresh {
-			var previousSeededSystems []seededSystem
-			err := st.Get("seeded-systems", &previousSeededSystems)
-			if err != nil && !errors.Is(err, state.ErrNoState) {
-				return err
-			}
-
-			t.Set("previous-seeded-systems", previousSeededSystems)
-
 			now := time.Now()
-			if err := m.recordSeededSystem(st, &seededSystem{
+			addedSeededSystem := &seededSystem{
 				System:      label,
 				Model:       model.Model(),
 				BrandID:     model.BrandID(),
@@ -536,7 +532,10 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 				Timestamp:   model.Timestamp(),
 				SeedTime:    now,
 				SeedRefresh: true,
-			}); err != nil {
+			}
+			t.Set("added-seeded-system", addedSeededSystem)
+
+			if err := m.recordSeededSystem(st, addedSeededSystem); err != nil {
 				return fmt.Errorf("cannot record a new seeded system: %v", err)
 			}
 		}
@@ -665,11 +664,18 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 
 		// undo the seeded-systems update done in finalize for seed-refresh mode
 		if setup.SeedRefresh {
-			var previousSeededSystems []seededSystem
-			if err := t.Get("previous-seeded-systems", &previousSeededSystems); err != nil && !errors.Is(err, state.ErrNoState) {
+			var addedSeededSystem seededSystem
+			err := t.Get("added-seeded-system", &addedSeededSystem)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return err
 			}
-			st.Set("seeded-systems", previousSeededSystems)
+
+			// if we never set added-seeded-system, then there is nothing to do
+			if err == nil {
+				if err := dropExactSeededSystem(st, addedSeededSystem); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

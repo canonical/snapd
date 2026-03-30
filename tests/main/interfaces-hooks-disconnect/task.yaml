@@ -1,0 +1,104 @@
+summary: Check that interface disconnect hooks are run and their failure modes
+
+details: |
+    Test disconnect hooks execution. Verify that failures in disconnect hooks
+    are ignored.
+
+environment:
+    PLUG_DATA: /var/snap/test-disconnect/common
+    SLOT_DATA: /var/snap/test-disconnect-provider/common
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-disconnect-provider
+    "$TESTSTOOLS"/snaps-state install-local test-disconnect
+
+execute: |
+    remove_markers() {
+        rm -fv "$PLUG_DATA"/disconnect-plug-*-done
+        rm -fv "$PLUG_DATA"/disconnect-fail
+        rm -fv "$SLOT_DATA"/disconnect-slot-*-done
+    }
+
+    echo "Network is auto-connected"
+    snap connections test-disconnect | MATCH "network .* test-disconnect:network"
+
+    echo "Explicitly connect home and content interfaces"
+    snap connect test-disconnect:home
+    snap connect test-disconnect:shared-content test-disconnect-provider:shared-content
+
+    echo "Disconnect hooks run on explicit snap disconnect for content interface"
+    snap disconnect test-disconnect:shared-content
+    test -f "$PLUG_DATA/disconnect-plug-shared-content-done"
+    test -f "$SLOT_DATA/disconnect-slot-shared-content-done"
+    snap change --last=disconnect > disconnect.out
+    MATCH "Run hook disconnect-plug-shared-content of snap \"test-disconnect\"" < disconnect.out
+    MATCH "Run hook disconnect-slot-shared-content of snap \"test-disconnect-provider\"" < disconnect.out
+
+    remove_markers
+
+    echo "Disconnect hooks run on explicit snap disconnect for home interface"
+    snap disconnect test-disconnect:home
+    test -f "$PLUG_DATA/disconnect-plug-home-done"
+    snap change --last=disconnect | MATCH "Run hook disconnect-plug-home of snap \"test-disconnect\""
+
+    remove_markers
+
+    echo "Disconnect hooks run on explicit snap disconnect for network interface"
+    snap disconnect test-disconnect:network
+    test -f "$PLUG_DATA/disconnect-plug-network-done"
+    snap change --last=disconnect | MATCH "Run hook disconnect-plug-network of snap \"test-disconnect\""
+
+    remove_markers
+
+    echo "Disconnect succeeds despite hook failure"
+    snap connect test-disconnect:shared-content test-disconnect-provider:shared-content
+    snap connect test-disconnect:home
+    snap connect test-disconnect:network
+    touch "$PLUG_DATA/disconnect-fail"
+
+    snap disconnect test-disconnect:shared-content
+    snap connections test-disconnect | NOMATCH "content .* test-disconnect:shared-content .* test-disconnect-provider:shared-content"
+    test -f "$PLUG_DATA/disconnect-plug-shared-content-done"
+    snap change --last=disconnect | MATCH 'ignoring failure in hook "disconnect-plug-shared-content"'
+
+    snap disconnect test-disconnect:home
+    snap connections test-disconnect | NOMATCH "home .* test-disconnect:home .* :home"
+    test -f "$PLUG_DATA/disconnect-plug-home-done"
+    snap change --last=disconnect | MATCH 'ignoring failure in hook "disconnect-plug-home"'
+
+    snap disconnect test-disconnect:network
+    snap connections test-disconnect | NOMATCH "network .* test-disconnect:network .* :network"
+    test -f "$PLUG_DATA/disconnect-plug-network-done"
+    snap change --last=disconnect | MATCH 'ignoring failure in hook "disconnect-plug-network"'
+
+    remove_markers
+
+    echo "Disconnect hooks run on snap remove"
+    snap connect test-disconnect:network
+    snap connect test-disconnect:home
+    snap connect test-disconnect:shared-content test-disconnect-provider:shared-content
+    snap remove --purge test-disconnect
+    # plug snap data is gone after purge, but slot snap marker confirms slot hook ran
+    test -f "$SLOT_DATA/disconnect-slot-shared-content-done"
+    # verify the change log shows all disconnect hooks were executed
+    snap change --last=remove > remove.out
+    MATCH "Run hook disconnect-plug-shared-content of snap \"test-disconnect\"" < remove.out
+    MATCH "Run hook disconnect-slot-shared-content of snap \"test-disconnect-provider\"" < remove.out
+    MATCH "Run hook disconnect-plug-network of snap \"test-disconnect\"" < remove.out
+    MATCH "Run hook disconnect-plug-home of snap \"test-disconnect\"" < remove.out
+
+    remove_markers
+
+    echo "Snap removal succeeds despite failing disconnect hooks"
+    "$TESTSTOOLS"/snaps-state install-local test-disconnect
+    snap connect test-disconnect:network
+    snap connect test-disconnect:home
+    snap connect test-disconnect:shared-content test-disconnect-provider:shared-content
+    touch "$PLUG_DATA/disconnect-fail"
+    snap remove --purge test-disconnect
+    # removal succeeds; verify the change log shows hook errors were ignored
+    test -f "$SLOT_DATA/disconnect-slot-shared-content-done"
+    snap change --last=remove > remove-fail.out
+    MATCH 'ignoring failure in hook "disconnect-plug-shared-content"' < remove-fail.out
+    MATCH 'ignoring failure in hook "disconnect-plug-home"' < remove-fail.out
+    MATCH 'ignoring failure in hook "disconnect-plug-network"' < remove-fail.out

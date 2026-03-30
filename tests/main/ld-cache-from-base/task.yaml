@@ -1,0 +1,25 @@
+summary: Check that the ld cache comes from the base for core26+
+
+details: |
+  This tests that ld cache related files are bind-mounted from the base if the
+  application base is core26.
+
+restore: |
+  rm -f mounts.txt
+
+execute: |
+  # Install test snap and run command to generate persistent namespace
+  base=26
+  test_snap=test-snapd-sh-core"$base"
+  snap install --edge core"$base"
+  snap install --edge "$test_snap"
+  test-snapd-sh-core"$base".sh -c pwd
+
+  # Check ld cache related paths are mounted from the base
+  nsenter --mount=/run/snapd/ns/"$test_snap".mnt mount > mounts.txt
+  SNAP_MOUNT_DIR=$(os.paths snap-mount-dir)
+  currBaseRev=$(readlink "$SNAP_MOUNT_DIR"/core"$base"/current)
+  basePath=/var/lib/snapd/snaps/core"$base"_"$currBaseRev".snap
+  MATCH "$basePath on /etc/ld.so.cache" < mounts.txt
+  MATCH "$basePath on /etc/ld.so.conf" < mounts.txt
+  MATCH "$basePath on /etc/ld.so.conf.d" < mounts.txt

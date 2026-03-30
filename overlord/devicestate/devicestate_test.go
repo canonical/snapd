@@ -703,6 +703,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(lastBootID, Equals, "boot-id-1")
 
+	// mimic a snapd restart
+	devicestate.SetEnsureBootOkRan(s.mgr, false)
+
 	// now last reseal boot ID matches current boot id so no reseal
 	// is expected
 	err = devicestate.EnsureBootOk(s.mgr)
@@ -831,7 +834,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
-	restore := devicestate.SetBootOkRan(s.mgr, true)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
 	err := devicestate.EnsureBootOk(s.mgr)
@@ -854,7 +857,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 
 	err := s.mgr.Ensure()
@@ -2206,6 +2209,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
 	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+	c.Check(seedTS.Remove, HasLen, 0)
 
 	const expectedLabel = "20260227"
 
@@ -2252,6 +2256,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
 	c.Assert(seedTS.Finalize.Kind(), Equals, "finalize-recovery-system")
+	c.Check(seedTS.Remove, HasLen, 0)
 
 	const expectedLabel = labelBase + "-3"
 
@@ -2263,6 +2268,61 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Check(systemSetupData["mark-default"], Equals, true)
 	c.Check(systemSetupData["seed-refresh"], Equals, true)
 	c.Check(systemSetupData["test-system"], Equals, true)
+}
+
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 9, 0, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{System: "current-seed-refresh", SeedRefresh: true},
+		{System: "non-seed-refresh"},
+		{System: "old-seed-refresh-1", SeedRefresh: true},
+		{System: "old-seed-refresh-2", SeedRefresh: true},
+	})
+
+	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{s.state.NewTask("fake-download", "...").ID()}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(seedTS.Remove, HasLen, 2)
+	c.Check(seedTS.Remove[0].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
+	c.Check(seedTS.Remove[1].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
+
+	var labels []string
+	for _, remove := range seedTS.Remove {
+		var setup map[string]any
+		c.Assert(remove.Get("remove-recovery-system-setup", &setup), IsNil)
+		labels = append(labels, setup["label"].(string))
+	}
+
+	c.Check(labels, testutil.DeepUnsortedMatches, []string{"old-seed-refresh-1", "old-seed-refresh-2"})
+}
+
+func (s *deviceMgrSuite) TestRemoveRecoverySystemBlockedWhenAnotherRemovalRunning(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	other := s.state.NewTask("remove-recovery-system", "remove one")
+	otherRemove := s.state.NewTask("remove-recovery-system", "remove two")
+	otherRemove.SetStatus(state.DoingStatus)
+
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(other, []*state.Task{otherRemove}), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestRemoveRecoverySystemDoesNotBlockOtherTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	remove := s.state.NewTask("remove-recovery-system", "remove one")
+	other := s.state.NewTask("other-task", "other")
+	other.SetStatus(state.DoingStatus)
+
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(remove, []*state.Task{other}), Equals, false)
+	c.Assert(devicestate.RemoveRecoverySystemBlocked(other, []*state.Task{remove}), Equals, false)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
@@ -2378,7 +2438,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
@@ -2500,7 +2560,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
@@ -2542,7 +2602,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-	restore := devicestate.SetBootOkRan(s.mgr, false)
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)

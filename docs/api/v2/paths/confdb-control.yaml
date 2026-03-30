@@ -4,7 +4,7 @@
 post:
   tags:
     - Experimental
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
   summary: Delegate remote confdb management to operators
   description: |-

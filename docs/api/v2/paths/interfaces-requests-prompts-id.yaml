@@ -4,8 +4,8 @@
 get:
   tags:
     - Experimental
+    - InterfaceOpenAccess
     - Interfaces
-    - OpenAccess
     - Prompting
     - Synchronous
   summary: Retrieve a prompt by ID
@@ -28,14 +28,22 @@ get:
         application/json:
           schema:
             $ref: '../components/schemas/PromptingPrompt.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+    503:
+      $ref: '../components/responses/ServiceUnavailable.yaml'
 
 post:
   tags:
     - Experimental
+    - InterfaceOpenAccess
     - Interfaces
-    - OpenAccess
     - Prompting
     - Synchronous
   summary: Reply to a prompt
@@ -67,5 +75,15 @@ post:
             type: array
             items:
               type: string
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+    503:
+      $ref: '../components/responses/ServiceUnavailable.yaml'

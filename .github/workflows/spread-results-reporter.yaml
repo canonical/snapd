@@ -162,6 +162,7 @@ jobs:
 
           if find . -name skipped_tests_list.txt | grep -q .; then
             echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)" >> report
+            echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list (without variants) of the below tests you wish to run (unskip plus test list must be valid yaml)*" >> report
             find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sort -u | awk '{print "- "$1}' >> report
           fi
 

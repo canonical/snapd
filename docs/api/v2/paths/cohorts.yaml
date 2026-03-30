@@ -3,7 +3,7 @@
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
   summary: Create cohort keys
   description: |-

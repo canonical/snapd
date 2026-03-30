@@ -514,3 +514,7 @@ func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	}
 	return nil
 }
+
+func (l *lk) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(l, gadgetDir)
+}

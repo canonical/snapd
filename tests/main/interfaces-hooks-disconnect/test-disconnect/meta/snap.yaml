@@ -1,0 +1,12 @@
+name: test-disconnect
+version: 1
+summary: Snap for testing interface disconnect hooks
+
+plugs:
+  network:
+  home:
+  shared-content:
+    interface: content
+    content: test-data
+    target: $SNAP_COMMON/test-content
+    default-provider: test-disconnect-provider

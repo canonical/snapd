@@ -33,9 +33,21 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+type ParamsForConfigureMountUnitOptions struct {
+	what, fstype       string
+	startBeforeDrivers bool
+}
+
+type ResultForConfigureMountUnitOptions struct {
+	fsType        string
+	options       []string
+	mountUnitType systemd.MountUnitType
+}
+
 type ParamsForEnsureMountUnitFile struct {
-	description, what, where, fstype string
-	flags                            systemd.EnsureMountUnitFlags
+	description string
+	where       string
+	options     []string
 }
 
 type ResultForEnsureMountUnitFile struct {
@@ -45,6 +57,9 @@ type ResultForEnsureMountUnitFile struct {
 
 type FakeSystemd struct {
 	systemd.Systemd
+
+	ConfigureMountUnitOptionsCalls   []ParamsForConfigureMountUnitOptions
+	ConfigureMountUnitOptionsResults ResultForConfigureMountUnitOptions
 
 	EnsureMountUnitFileCalls  []ParamsForEnsureMountUnitFile
 	EnsureMountUnitFileResult ResultForEnsureMountUnitFile
@@ -56,9 +71,22 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string, flags systemd.EnsureMountUnitFlags) (string, error) {
-	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
-		ParamsForEnsureMountUnitFile{description, what, where, fstype, flags})
+func (s *FakeSystemd) ConfigureMountUnitOptions(o *systemd.MountUnitOptions, fstype string, startBeforeDrivers bool) error {
+	s.ConfigureMountUnitOptionsCalls = append(s.ConfigureMountUnitOptionsCalls, ParamsForConfigureMountUnitOptions{o.What, fstype, startBeforeDrivers})
+
+	o.Fstype = s.ConfigureMountUnitOptionsResults.fsType
+	o.MountUnitType = s.ConfigureMountUnitOptionsResults.mountUnitType
+	o.Options = s.ConfigureMountUnitOptionsResults.options
+
+	return nil
+}
+
+func (s *FakeSystemd) EnsureMountUnitFile(mountOptions *systemd.MountUnitOptions) (string, error) {
+	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls, ParamsForEnsureMountUnitFile{
+		mountOptions.Description,
+		mountOptions.Where,
+		mountOptions.Options,
+	})
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
@@ -97,14 +125,14 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
-	s.testAddMountUnit(c, systemd.EnsureMountUnitFlags{})
+	s.testAddMountUnit(c, backend.MountUnitFlags{})
 }
 
 func (s *mountunitSuite) TestAddBeforeDriversMountUnit(c *C) {
-	s.testAddMountUnit(c, systemd.EnsureMountUnitFlags{StartBeforeDriversLoad: true})
+	s.testAddMountUnit(c, backend.MountUnitFlags{StartBeforeDriversLoad: true})
 }
 
-func (s *mountunitSuite) testAddMountUnit(c *C, flags systemd.EnsureMountUnitFlags) {
+func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 	expectedErr := errors.New("creation error")
 
 	var sysd *FakeSystemd
@@ -123,17 +151,24 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags systemd.EnsureMountUnitFla
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, flags, systemd.New(systemd.SystemMode, progress.Null))
+	err := backend.AddMountUnit(info, systemd.New(systemd.SystemMode, progress.Null), flags)
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
+	expectedMountUnitParameters := ParamsForConfigureMountUnitOptions{
+		what:               "/var/lib/snapd/snaps/foo_13.snap",
+		fstype:             "squashfs",
+		startBeforeDrivers: flags.StartBeforeDriversLoad,
+	}
+	c.Check(sysd.ConfigureMountUnitOptionsCalls, DeepEquals, []ParamsForConfigureMountUnitOptions{
+		expectedMountUnitParameters,
+	})
+
 	expectedParameters := ParamsForEnsureMountUnitFile{
 		description: "Mount unit for foo, revision 13",
-		what:        "/var/lib/snapd/snaps/foo_13.snap",
 		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
-		fstype:      "squashfs",
-		flags:       flags,
 	}
+
 	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
 		expectedParameters,
 	})

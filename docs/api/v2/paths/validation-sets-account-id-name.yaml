@@ -19,7 +19,7 @@ parameters:
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
     - Validation Sets
   summary: Get a specific validation set
@@ -40,7 +40,7 @@ get:
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
     - Validation Sets
   summary: Manage a specific validation set

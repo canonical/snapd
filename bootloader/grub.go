@@ -213,6 +213,10 @@ func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(g.dir(), s)
 }
 
+func (g *grub) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(g, gadgetDir)
+}
+
 // ExtractedRunKernelImageBootloader helper methods
 
 func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {

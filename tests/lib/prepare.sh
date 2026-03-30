@@ -478,19 +478,7 @@ prepare_classic() {
         rm -rf "$build_dir"
         mkdir -p "$build_dir"
         build_snapd_snap "$build_dir"
-        case "$SPREAD_SYSTEM" in
-            ubuntu-fips-24.04-*)
-                # we're expecting snapd installation to fail due to SNAPDENG-35482
-                not snap install --dangerous "$build_dir/"snapd_*.snap
-                journalctl -u snapd | MATCH "opensslcrypto: can't enable FIPS mode for OpenSSL"
-                echo "this failure is expected"
-                exit 1
-                ;;
-            *)
-                # we're expecting snapd installation to fail due to SNAPDENG-
-                snap install --dangerous "$build_dir/"snapd_*.snap
-                ;;
-        esac
+        snap install --dangerous "$build_dir/"snapd_*.snap
         snap wait system seed.loaded
     fi
     snap list snapd
@@ -562,6 +550,23 @@ prepare_classic() {
 
         # Check bootloader environment output in architectures different to s390x which uses zIPL
         if ! [ "$(uname  -m)" = "s390x" ]; then
+            # On ARM64 the EFI partition may not be mounted by default, and it is needed to be able to read the
+            # bootloader environment correctly, so mount it if needed. On other architectures, just check the
+            # output of bootenv show without mounting anything as it should work out of the box.
+            if os.query is-arm64; then
+                if [ ! -d /boot/efi ]; then
+                    echo "Mounting EFI partition if not already mounted, to ensure bootloader environment can be read correctly"
+                    EFI_PART="$(lsblk -plno NAME,FSTYPE | grep 'vfat' | awk '{print $1}' | head -n 1)"
+                    mkdir -p /boot/efi
+                    mount "$EFI_PART" /boot/efi
+
+                    if [ ! -d /boot/grub ]; then
+                        mkdir -p /boot/grub
+                        grub-editenv /boot/grub/grubenv create
+                    fi
+                fi
+            fi
+
             echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
             # shellcheck disable=SC2119
             output=$("$TESTSTOOLS"/boot-state bootenv show)
