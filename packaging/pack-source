@@ -53,7 +53,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 if [[ "$single" == 0 ]]; then
     tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz \
-        --exclude='./vendor/*' --exclude='./c-vendor/*' \
+        --exclude='./vendor/*' \
+        --exclude='./c-vendor/squashfuse' \
         --exclude='.git' --exclude='.git/*' \
         --exclude='.image-garden/*' \
         --exclude='./packaging/*/.build/*' \
@@ -66,7 +67,7 @@ if [[ "$single" == 0 ]]; then
         --exclude='./packaging/*/.build/*' \
         --exclude='./built-snap/*' \
         --exclude='./*.snap' \
-        --transform "s#^#snapd-$version/#" vendor
+        --transform "s#^#snapd-$version/#" vendor c-vendor
 
     mv "$tmpdir"/snapd_"$version".no-vendor.tar.xz "$outdir"/
     mv "$tmpdir"/snapd_"$version".only-vendor.tar.xz "$outdir"/
