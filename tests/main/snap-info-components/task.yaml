@@ -1,12 +1,12 @@
 summary: Test that snap info command handles components as expected
 
 details: |
-  This test verifies that snap info prints components installed/available
-  counts correctly for various scenarios:
-  - No components installed using test-snap-with-components
-  - Snap installed but no components installed using test-snap-with-components
-  - 2/3 (installed/total) using test-snap-with-components
-  - No components anywhere using test-snapd-sh
+  This test verifies that snap info prints a `components:` section with
+  tabular per-component entries. Scenarios:
+  - No components section when snap is only available in the store.
+  - Components are shown in an abbreviated form `+comp` instead of `snap+comp`.
+  - Version, revision and installed size are only shown when available (when installed).
+  - No components section for a snap that has no components (test-snapd-sh).
 
 prepare: |
   snap install test-snapd-sh
@@ -16,13 +16,29 @@ restore: |
   snap remove --purge test-snap-with-components || true
 
 execute: |
-  # The snap-info command does not print component info if it is not installed
-  snap info test-snap-with-components | NOMATCH 'components: 0/3'
+  # The snap-info command does not print a components section for a store-only snap
+  snap info test-snap-with-components | NOMATCH 'components:'
   snap info test-snapd-sh | NOMATCH 'components:'
 
   snap install test-snap-with-components
-  snap info test-snap-with-components | MATCH 'components: 0/3'
+  snap info test-snap-with-components | MATCH 'components:'
+  # All components show 'not installed' before any are installed
+  snap info test-snap-with-components | MATCH '\+one:[[:space:]]*-- -- -- -- test, not installed'
+  snap info test-snap-with-components | MATCH '\+two:[[:space:]]*-- -- -- -- test, not installed'
+  snap info test-snap-with-components | MATCH '\+three:[[:space:]]*-- -- -- -- test, not installed'
 
   snap install test-snap-with-components+one+two
 
-  snap info test-snap-with-components | MATCH 'components: 2/3'
+  # Installed components show revision and size
+  snap info test-snap-with-components | MATCH '\+one:[[:space:]]*[[:digit:]]+\.[[:digit:]]+ [[:digit:]]+-[[:digit:]]+-[[:digit:]]+ \([[:digit:]]+\) [[:digit:]]+\.[[:digit:]]+kB test$'
+  snap info test-snap-with-components | MATCH '\+two:[[:space:]]*[[:digit:]]+\.[[:digit:]]+ [[:digit:]]+-[[:digit:]]+-[[:digit:]]+ \([[:digit:]]+\) [[:digit:]]+\.[[:digit:]]+kB test$'
+
+  # Exactly two components are installed
+  snap info test-snap-with-components | grep -c -E '[[:space:]]*[+].*\([[:digit:]]+\)' | MATCH '^2$'
+  # Installed components do not show 'not installed'
+  snap info test-snap-with-components | NOMATCH '\+one.*test, not installed'
+  snap info test-snap-with-components | NOMATCH '\+two.*test, not installed'
+  # Uninstalled component still shows 'not installed'
+  snap info test-snap-with-components | MATCH '\+three.*test, not installed'
+  # Exactly one component is not installed
+  snap info test-snap-with-components | grep -c 'not installed' | MATCH '^1$'

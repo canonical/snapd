@@ -186,26 +186,66 @@ func (iw *infoWriter) setupSnap(localSnap, remoteSnap *client.Snap, resInfo *cli
 }
 
 func (iw *infoWriter) maybePrintComponents() {
-	totalCount := 0
-	localCount := 0
-
-	if iw.localSnap != nil {
-		for _, comp := range iw.localSnap.Components {
-			if !comp.Revision.Unset() {
-				localCount++
-			}
-		}
-	}
-
-	if iw.theSnap != nil {
-		totalCount = len(iw.theSnap.Components)
-	}
-
-	if totalCount == 0 && localCount == 0 {
+	if iw.theSnap == nil || len(iw.theSnap.Components) == 0 {
 		return
 	}
 
-	fmt.Fprintf(iw, "components: %d/%d\n", localCount, totalCount)
+	iw.Flush()
+	defer iw.Flush()
+	fmt.Fprintln(iw, "components:")
+
+	sort.Slice(iw.theSnap.Components, componentsByInstallStatusAndSnapName(iw.theSnap.Components))
+
+	releasedfmt := "2006-01-02"
+	if iw.absTime {
+		releasedfmt = time.RFC3339
+	}
+
+	for idx := range iw.theSnap.Components {
+		comp := &iw.theSnap.Components[idx]
+		// This mimics the design of track display, on purpose.
+		fmt.Fprintf(iw, "  +%s:\t", comp.Name)
+		if comp.Version != "" {
+			fmt.Fprintf(iw, "%s\t", comp.Version)
+		} else {
+			fmt.Fprintf(iw, "%s\t", iw.esc.dash)
+		}
+		if comp.InstallDate != nil {
+			fmt.Fprintf(iw, "%s\t", comp.InstallDate.Format(releasedfmt))
+		} else {
+			fmt.Fprintf(iw, "%s\t", iw.esc.dash)
+		}
+		if !comp.Revision.Unset() {
+			// NOTE: Surprisingly component revisions are not unique within a snap, so
+			// for a given snap revision, we may see all the components corresponding
+			// to it share one revision number. This may be confusing to users.
+			// For the moment we DO print the component revision, but over time we
+			// may revise that decision and just omit it in this view.
+			fmt.Fprintf(iw, "%s\t", fmt.Sprintf("(%s)", comp.Revision))
+		} else {
+			fmt.Fprintf(iw, "%s\t", iw.esc.dash)
+		}
+		if comp.InstalledSize != 0 {
+			fmt.Fprintf(iw, "%s\t", fmtSize(comp.InstalledSize))
+		} else {
+			fmt.Fprintf(iw, "%s\t", iw.esc.dash)
+		}
+
+		var notes []string
+
+		if comp.Type != snap.StandardComponent {
+			notes = append(notes, string(comp.Type))
+		}
+		if comp.InstallDate == nil {
+			notes = append(notes, "not installed")
+		}
+		if len(notes) > 0 {
+			fmt.Fprintf(iw, "%s", strings.Join(notes, ", "))
+		} else {
+			fmt.Fprintf(iw, "%s", iw.esc.dash)
+		}
+		fmt.Fprintln(iw)
+	}
 }
 
 func (iw *infoWriter) maybePrintPrice() {
@@ -709,6 +749,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.printDescr()
 		iw.maybePrintCommands()
 		iw.maybePrintServices()
+		iw.maybePrintComponents()
 		iw.maybePrintNotes()
 		// stops the notes etc trying to be aligned with channels
 		iw.Flush()
@@ -720,7 +761,6 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintTrackingChannel()
 		iw.maybePrintRefreshInfo()
 		iw.maybePrintChinfo()
-		iw.maybePrintComponents()
 	}
 	w.Flush()
 
