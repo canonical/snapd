@@ -381,6 +381,7 @@ const (
 type managementCommand struct {
 	operation  managementCommandOp
 	components []string
+	async bool
 }
 
 func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
@@ -420,10 +421,9 @@ func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (t
 			ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }
 
-func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) error {
+func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (id string, err error) {
 	st := hctx.State()
 	var tss []*state.TaskSet
-	var err error
 	var cmdStr, cmdVerb string
 
 	var changeKind string
@@ -442,13 +442,13 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 		err = fmt.Errorf("internal error: %q is not a valid snap management command", cmd.operation)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !hctx.IsEphemeral() {
 		// Differently to service control commands, we always queue the
 		// management tasks if run from a hook.
-		return queueCommand(hctx, tss)
+		return "", queueCommand(hctx, tss)
 	}
 
 	st.Lock()
@@ -462,13 +462,17 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	st.EnsureBefore(0)
 	st.Unlock()
 
+	if cmd.async {
+		return chg.ID(), nil
+	}
+
 	select {
 	case <-chg.Ready():
 		st.Lock()
 		defer st.Unlock()
-		return chg.Err()
+		return "", chg.Err()
 	case <-time.After(10 * time.Minute):
-		return fmt.Errorf("snapctl %s command is taking too long", cmdStr)
+		return "", fmt.Errorf("snapctl %s command is taking too long", cmdStr)
 	}
 }
 

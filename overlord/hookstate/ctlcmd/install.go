@@ -20,6 +20,8 @@
 package ctlcmd
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -39,6 +41,7 @@ type installCommand struct {
 	Positional struct {
 		Names []string `positional-arg-name:"<snap|snap+comp|+comp>" required:"yes" description:"Components to be installed (snap must be the caller snap if specified)."`
 	} `positional-args:"yes"`
+	noWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
 }
 
 func (c *installCommand) Execute([]string) error {
@@ -52,10 +55,13 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	if err := runSnapManagementCommand(ctx, managementCommand{
-		operation: installManagementCommand, components: comps}); err != nil {
+	id, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: c.noWait})
+
+	if err != nil {
 		return err
 	}
+
+	fmt.Fprintf(c.stdout, "%s", id)
 
 	return nil
 }
