@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 type isReadyCommand struct {
@@ -58,13 +57,13 @@ func (c *isReadyCommand) Execute(args []string) error {
 
 	c.changeID = args[0]
 
-	status, err := getChangeStatus(ctx, c.changeID)
+	ready, err := isReady(ctx, c.changeID)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(c.stdout, "%s", status)
+	fmt.Fprintf(c.stdout, "%t", ready)
 
-	if status == state.DoneStatus.String() {
+	if ready {
 		return nil
 	}
 

@@ -452,7 +452,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
 	chg.Set("snapctl-initiated-by", hctx.InstanceName())
-	chg.Set("snapctl-last-accessed", time.Now().Format(time.RFC3339))
+	st.Cache("snapctl-last-accessed", time.Now().Format(time.RFC3339))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -493,9 +493,7 @@ func jsonRaw(v any) *json.RawMessage {
 	return &raw
 }
 
-var timeSleep = time.Sleep
-
-func getChangeStatus(hctx *hookstate.Context, changeID string) (string, error) {
+func isReady(hctx *hookstate.Context, changeID string) (bool, error) {
 	callerSnapName := hctx.InstanceName()
 
 	st := hctx.State()
@@ -505,41 +503,44 @@ func getChangeStatus(hctx *hookstate.Context, changeID string) (string, error) {
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return "", fmt.Errorf("change %q not found", changeID)
+		return false, fmt.Errorf("change %q not found", changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("snapctl-initiated-by", &initiatorSnapName)
 	if err != nil {
-		return "", fmt.Errorf("could not find initiator attribute for change %q", changeID)
+		return false, fmt.Errorf("could not find initiator attribute for change %q", changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return "", fmt.Errorf("change %q was initiated by another snap", changeID)
+		return false, fmt.Errorf("change %q was initiated by another snap", changeID)
+	}
+	
+	lastAccess := st.Cached("snapctl-last-accessed")
+	if lastAccess == nil {
+		return false, fmt.Errorf("could not find last accessed attribute for change %q", changeID)
 	}
 
-	var lastAccess string
-	err = chg.Get("snapctl-last-accessed", &lastAccess) // This may not be the most effective way to handle this
+	accessedTime, err := time.Parse(time.RFC3339, lastAccess.(string))
 	if err != nil {
-		return "", fmt.Errorf("could not find last accessed attribute for change %q", changeID)
-	}
-
-	accessedTime, err := time.Parse(time.RFC3339, lastAccess)
-	if err != nil {
-		return "", fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
+		return false, fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
 	}
 
 	st.Unlock()
 
 	since := time.Since(accessedTime)
 	if since < 200*time.Millisecond {
-		timeSleep(200*time.Millisecond - since)
+		time.Sleep(200*time.Millisecond - since)
 	}
 
-	st.Lock()
+	ready := chg.Ready()
 
-	status := chg.Status()
-	return status.String(), nil
+	select {
+	case <-ready:
+		return true, chg.Err()
+	default:
+		return false, nil
+	}
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.
