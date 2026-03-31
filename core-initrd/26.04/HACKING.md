@@ -29,11 +29,11 @@ TODO: Explain how to modify initrd when there is Secure boot / FDE.
 
 You need to have the following software installed before you can test with spread
  - Go (https://golang.org/doc/install or ```sudo snap install go```)
- - Spread (install from source as per below)
+ - Spread
 
 ## Installing spread
 
-You can install spread by simply using ```snap install spread-plus```.
+You can install spread by using ```snap install spread-plus```.
 
 ## QEMU backend
 

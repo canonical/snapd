@@ -338,7 +338,7 @@ There is more to read about the testing framework on the [website](https://labix
 To run the integration tests locally via QEMU, you need the latest version of
 the [spread](https://github.com/canonical/spread-plus) framework. For local testing
 you can install the `image-garden` snap that comes with pre-built releases of
-upstream spread, qemu and all the support tools. Alternatively you may install
+spread-plus, qemu and all the support tools. Alternatively you may install
 [image-garden](https://gitlab.com/zygoon/image-garden) from source or from a
 distribution package.
 
