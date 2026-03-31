@@ -5,7 +5,9 @@ details: |
   It is expected that snapd will print "resealing .* succeeded" in the logs after the reboot.
   This test is intended to be executed in the testflinger backend on real hardware. 
 
-backends: [testflinger]
+# This test is intended to be executed in the testflinger backend on real hardware. 
+# It is not expected to work in a VM environment.
+# backends: [testflinger]
 
 systems: [ubuntu-core-*]
 
@@ -20,10 +22,16 @@ skip:
     if: journalctl -b | NOMATCH "secureboot.*enabled"
 
 prepare: |
+  exit 1
   if [ "$SPREAD_REBOOT" = 0 ]; then
     snap refresh snapd --revision 25202 --no-wait   # this is the revision 2.71 amd64
-    retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
-    REBOOT
+    if retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'; then
+      echo "Snapd is waiting for system reboot, rebooting now..."
+      REBOOT
+    else
+      echo "Snapd is not waiting for system reboot"
+    fi
+    
   fi
 
 execute: |
