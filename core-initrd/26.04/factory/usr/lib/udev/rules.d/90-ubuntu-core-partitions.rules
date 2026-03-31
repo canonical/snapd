@@ -15,5 +15,6 @@ ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-save", ENV{ID_FS_TYP
 
 LABEL="ubuntu_core_partitions_end"
 
-ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/snapd/ubuntu-data"
-ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/snapd/ubuntu-save"
+# TODO: DM_NAME is ubuntu-{data,save}, without GUID, on first boot, which should be fixed.
+ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data*", SYMLINK+="disk/snapd/ubuntu-data"
+ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save*", SYMLINK+="disk/snapd/ubuntu-save"
