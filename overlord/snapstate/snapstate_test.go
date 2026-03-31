@@ -4003,7 +4003,7 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	}
 
 	// prevent removing snap file
-	defer snapstate.MockEnsuredDownloadsCleaned(s.snapmgr, true)()
+	snapstate.SetEnsuredDownloadsCleanedNext(s.snapmgr, time.Now().Add(time.Hour))
 
 	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
@@ -10712,11 +10712,8 @@ Exec=%s/test-snap
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateDownloadsCleanedBlockedOnSeeding(c *C) {
-	restore := snapstate.MockEnsuredDownloadsCleaned(s.snapmgr, false)
-	defer restore()
-
 	called := 0
-	restore = snapstate.MockCleanDownloads(func(st *state.State) error {
+	restore := snapstate.MockCleanDownloads(func(st *state.State) error {
 		called++
 		return nil
 	})
@@ -10735,7 +10732,17 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateDownloadsCleanedBlockedOnSeeding(c
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateDownloadsCleaned(c *C) {
-	restore := snapstate.MockEnsuredDownloadsCleaned(s.snapmgr, false)
+	start := snapstate.GetEnsuredDownloadsCleanedNext(s.snapmgr)
+	c.Check(start.IsZero(), Equals, true)
+
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	mockedRetention := 4 * time.Hour
+	restore = snapstate.MockMaxUnusedDownloadRetention(mockedRetention)
 	defer restore()
 
 	called := 0
@@ -10745,13 +10752,32 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateDownloadsCleaned(c *C) {
 	})
 	defer restore()
 
+	c.Check(s.snapmgr.Ensure(), Equals, nil)
+
+	// called once
+	c.Check(called, Equals, 1)
+
 	// simulate ensure called many times
 	for i := 0; i < 5; i++ {
 		c.Check(s.snapmgr.Ensure(), Equals, nil)
 	}
 
-	// system-wide snap downloads cleaning should only run once
-	c.Check(called, Equals, 1)
+	// check that next is set reasonably
+	next := snapstate.GetEnsuredDownloadsCleanedNext(s.snapmgr)
+	c.Check(next, Equals, now.Add(mockedRetention/4))
+
+	restore = snapstate.MockTimeNow(func() time.Time {
+		return next.Add(time.Second)
+	})
+	defer restore()
+
+	c.Check(s.snapmgr.Ensure(), Equals, nil)
+
+	// called again
+	c.Check(called, Equals, 2)
+
+	next2 := snapstate.GetEnsuredDownloadsCleanedNext(s.snapmgr)
+	c.Check(next2.Equal(next.Add(time.Second).Add(mockedRetention/4)), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {

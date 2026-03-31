@@ -361,12 +361,12 @@ func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func(
 	}
 }
 
-func MockEnsuredDownloadsCleaned(m *SnapManager, ensured bool) (restore func()) {
-	old := m.ensuredDownloadsCleaned
-	m.ensuredDownloadsCleaned = ensured
-	return func() {
-		m.ensuredDownloadsCleaned = old
-	}
+func SetEnsuredDownloadsCleanedNext(m *SnapManager, next time.Time) {
+	m.ensuredDownloadsCleanedNext = next
+}
+
+func GetEnsuredDownloadsCleanedNext(m *SnapManager) time.Time {
+	return m.ensuredDownloadsCleanedNext
 }
 
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
