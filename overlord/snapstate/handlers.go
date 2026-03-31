@@ -347,11 +347,25 @@ func willWaitOn(graph *state.Task, target *state.Task) bool {
 	return false
 }
 
-// alreadyWaitsOnBaseInChange checks that the given prerequisites task is part
-// of a refresh that has already had the task dependencies established that will
-// result in the snap waiting on the base to be refreshed before this snap
-// progresses with the refresh.
-func alreadyWaitsOnBaseInChange(prereqs *state.Task, baseLink *state.Task) (bool, error) {
+// tasksShareLane reports whether the two tasks share at least one lane.
+func tasksShareLane(t, other *state.Task) bool {
+	lanes := make(map[int]bool, len(t.Lanes()))
+	for _, lane := range t.Lanes() {
+		lanes[lane] = true
+	}
+
+	for _, lane := range other.Lanes() {
+		if lanes[lane] {
+			return true
+		}
+	}
+
+	return false
+}
+
+// snapWaitsForBaseLinkInSameLane reports whether another task for the same snap
+// in the same lane is already ordered behind the base's link-snap task.
+func snapWaitsForBaseLinkInSameLane(prereqs *state.Task, baseLink *state.Task) (bool, error) {
 	// if they don't share a change, then there won't be dependencies already
 	// established
 	if prereqs.Change().ID() != baseLink.Change().ID() {
@@ -365,10 +379,12 @@ func alreadyWaitsOnBaseInChange(prereqs *state.Task, baseLink *state.Task) (bool
 		return false, errors.New("internal error: cannot find instance name on prerequisites task")
 	}
 
-	// collect the tasks that already wait on the base's link-snap task
-	var waiting []*state.Task
 	for _, t := range chg.Tasks() {
 		if t.ID() == prereqs.ID() {
+			continue
+		}
+
+		if !tasksShareLane(prereqs, t) {
 			continue
 		}
 
@@ -377,19 +393,19 @@ func alreadyWaitsOnBaseInChange(prereqs *state.Task, baseLink *state.Task) (bool
 			continue
 		}
 
+		// this check could be made stronger by enforcing that the first local
+		// modification task for the snap waits on the base's link-snap task,
+		// but we don't have a great way to find that task at this point in
+		// time, since we don't have access to edges any more.
+		//
+		// in short, this is somewhat of a heuristic. we'd need to enumerate all
+		// before-local-modification tasks if we want to make this check better.
 		if willWaitOn(t, baseLink) {
-			waiting = append(waiting, t)
+			return true, nil
 		}
 	}
 
-	// this check could be made stronger by enforcing that the first local
-	// modification task for the snap waits on the base's link-snap task, but we
-	// don't have a great way to find that task at this point in time, since we
-	// don't have access to edges any more.
-	//
-	// in short, this is somewhat of a heuristic. we'd need to enumerate all
-	// before-local-modification tasks if we want to make this check better.
-	return len(waiting) > 0, nil
+	return false, nil
 }
 
 func instanceNameFromTask(t *state.Task) (string, bool) {
@@ -423,7 +439,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	inProgress := func(snapName string) (bool, error) {
+	shouldWaitForInFlightInstall := func(snapName string) (bool, error) {
 		linkTask, err := findLinkSnapTaskForSnap(st, snapName)
 		if err != nil {
 			return false, err
@@ -435,15 +451,15 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		}
 
 		if requireTypeBase {
-			// if we're installing the base, and tasks for this snap already
-			// wait on the base's link-snap task, then we can skip considering
-			// the base as a prerequisite for this snap.
-			waiting, err := alreadyWaitsOnBaseInChange(t, linkTask)
+			// if this snap is already ordered behind the in-flight base refresh
+			// prerequisites does not need to wait for that base out-of-band as
+			// well.
+			alreadyOrdered, err := snapWaitsForBaseLinkInSameLane(t, linkTask)
 			if err != nil {
 				return false, err
 			}
 
-			if waiting {
+			if alreadyOrdered {
 				return false, nil
 			}
 		}
@@ -475,7 +491,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		}
 
 		// other kind of dependency, check if it's in progress
-		if ok, err := inProgress(snapName); err != nil {
+		if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
 			return nil, err
 		} else if ok {
 			return nil, onInFlight
@@ -485,7 +501,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// not installed, wait for it if it is. If not, we'll install it
-	if ok, err := inProgress(snapName); err != nil {
+	if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
 		return nil, err
 	} else if ok {
 		return nil, onInFlight
