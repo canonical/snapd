@@ -22,7 +22,6 @@ skip:
     if: journalctl -b | NOMATCH "secureboot.*enabled"
 
 prepare: |
-  exit 1
   if [ "$SPREAD_REBOOT" = 0 ]; then
     snap refresh snapd --revision 25202 --no-wait   # this is the revision 2.71 amd64
     if retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'; then
@@ -30,8 +29,7 @@ prepare: |
       REBOOT
     else
       echo "Snapd is not waiting for system reboot"
-    fi
-    
+    fi    
   fi
 
 execute: |
