@@ -214,8 +214,8 @@ func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, [
 }
 
 // TODO: use time bubbles once project is updated to Go 1.26
-func MockTimeSleep(f func(time.Duration)) (restore func()) {
-	old := timeSleep
-	timeSleep = f
-	return func() { timeSleep = old }
+func MockTimeAfter(f func(time.Duration) <-chan time.Time) (restore func()) {
+	old := timeAfter
+	timeAfter = f
+	return func() { timeAfter = old }
 }

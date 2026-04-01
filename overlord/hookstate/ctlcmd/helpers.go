@@ -48,7 +48,7 @@ var (
 	snapstateRemoveComponents  = snapstate.RemoveComponents
 )
 
-var timeSleep = time.Sleep
+var timeAfter = time.After
 
 var (
 	serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
@@ -531,18 +531,24 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 
 	st.Unlock()
 
-	since := time.Since(accessedTime)
-	if since < 200*time.Millisecond {
-		timeSleep(200*time.Millisecond - since)
-	}
+	toWait := 200*time.Millisecond - time.Since(accessedTime)
 
 	ready := chg.Ready()
+
+	if toWait <= 0 {
+		select {
+		case <-ready:
+		default:
+			st.Lock()
+			return state.DoingStatus, nil
+		}
+	}
 
 	st.Lock()
 	select {
 	case <-ready:
 		return chg.Status(), chg.Err()
-	default:
+	case <-timeAfter(toWait):
 		return state.DoingStatus, nil
 	}
 }

@@ -264,11 +264,12 @@ func (s *isReadySuite) TestIsReady(c *C) {
 			}
 		}
 
-		var sleptFor time.Duration
+		var waitedFor time.Duration
 		var restore func()
 		if tt.checkSleep {
-			restore = ctlcmd.MockTimeSleep(func(d time.Duration) {
-				sleptFor = d
+			restore = ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+				waitedFor = d
+				return make(chan time.Time) // never fires; chg.Ready() wins
 			})
 		}
 
@@ -300,7 +301,7 @@ func (s *isReadySuite) TestIsReady(c *C) {
 		}
 
 		if tt.checkSleep {
-			c.Check(sleptFor > 0, Equals, true)
+			c.Check(waitedFor > 0, Equals, true)
 		}
 	}
 }
