@@ -41,14 +41,9 @@ execute: |
     echo "Then this pulls in the default provider"
     snap list | MATCH  test-snapd-content-slot 
 
-    # On arch-linux, fedora, opensuse and amazon-linux AppArmor is unsupported
-    # (or lacks a vendored snapd-internal parser), so
-    # maybeRemoveAppArmorProfilesOnSnapdDowngrade returns early and the
-    # "Downgrading snapd to version" log message is never emitted.
-    if ! os.query is-arch-linux && ! os.query is-fedora && ! os.query is-opensuse && ! os.query is-amazon-linux; then
-        echo "The journal told us we downgraded snapd"
-        "$TESTSTOOLS"/journal-state get-log | MATCH "Downgrading snapd to version"
-    fi
+    echo "Then the installed snapd revision matches the one from latest/stable"
+    STABLE_REV="$(awk '/^snap-revision: / {print $2}' snapd-from-stable.assert)"
+    snap list snapd | MATCH "snapd .* ${STABLE_REV} "
 
     echo "Then the snap is listed as connected"
     snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
