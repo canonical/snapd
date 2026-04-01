@@ -66,10 +66,10 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, opts
 	chg.AddTask(task)
 
 	if opts.withInitiator {
-		chg.Set("snapctl-initiated-by", opts.initiatorSnap)
+		chg.Set("initiated-by-snap", opts.initiatorSnap)
 	}
 	if opts.withLastAccessed {
-		chg.Set("snapctl-last-accessed", opts.lastAccessedTime)
+		st.Cache("snapctl-test-snap-last-accessed", opts.lastAccessedTime)
 	}
 
 	task.SetStatus(taskStatus)
@@ -86,15 +86,16 @@ func (s *isReadySuite) TestIsReady(c *C) {
 	const changeIDPlaceholder = "<change-id>"
 
 	tests := []struct {
-		desc        string
-		nilContext  bool
-		taskStatus  state.Status
-		setupOpts   changeSetupOpts
-		args        []string // args after "is-ready"; use changeIDPlaceholder for the real change ID
-		errPattern  string   // if set, expect err to match this regexp
-		errValue    error    // if set, expect err to deep equal this value
-		expectedOut string
-		checkSleep  bool
+		desc           string
+		nilContext     bool
+		taskStatus     state.Status
+		setupOpts      changeSetupOpts
+		args           []string // args after "is-ready"; use changeIDPlaceholder for the real change ID
+		errPattern     string   // if set, expect err to match this regexp
+		errValue       error    // if set, expect err to deep equal this value
+		expectedOut    string
+		expectedStderr string // if set, checked as regexp match against stderr
+		checkSleep     bool
 	}{
 		{
 			desc:       "no context",
@@ -127,11 +128,12 @@ func (s *isReadySuite) TestIsReady(c *C) {
 			errPattern: `invalid number of arguments: expected 1, got 2`,
 		},
 		{
-			desc:       "change not found",
-			taskStatus: state.DoneStatus,
-			setupOpts:  changeSetupOpts{},
-			args:       []string{"nonexistent-id"},
-			errPattern: `change "nonexistent-id" not found`,
+			desc:           "change not found",
+			taskStatus:     state.DoneStatus,
+			setupOpts:      changeSetupOpts{},
+			args:           []string{"nonexistent-id"},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `change "nonexistent-id" not found`,
 		},
 		{
 			desc:       "missing initiator attribute",
@@ -140,8 +142,9 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:       []string{changeIDPlaceholder},
-			errPattern: `could not find initiator attribute for change .*`,
+			args:           []string{changeIDPlaceholder},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `could not find initiator attribute for change .*`,
 		},
 		{
 			desc:       "wrong initiator",
@@ -152,8 +155,9 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:       []string{changeIDPlaceholder},
-			errPattern: `change .* was initiated by another snap`,
+			args:           []string{changeIDPlaceholder},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `change .* was initiated by another snap`,
 		},
 		{
 			desc:       "missing last accessed attribute",
@@ -162,8 +166,9 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withInitiator: true,
 				initiatorSnap: "test-snap",
 			},
-			args:       []string{changeIDPlaceholder},
-			errPattern: `could not find last accessed attribute for change .*`,
+			args:           []string{changeIDPlaceholder},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `could not find last accessed attribute for change .*`,
 		},
 		{
 			desc:       "invalid last accessed format",
@@ -174,8 +179,9 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: "not-a-valid-time",
 			},
-			args:       []string{changeIDPlaceholder},
-			errPattern: `invalid last accessed time format for change .*`,
+			args:           []string{changeIDPlaceholder},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `invalid last accessed time format for change .*`,
 		},
 		{
 			desc:       "recent access triggers sleep",
@@ -187,9 +193,8 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				// Use a timestamp in the future to guarantee since < 200ms.
 				lastAccessedTime: time.Now().Add(time.Second).Format(time.RFC3339),
 			},
-			args:        []string{changeIDPlaceholder},
-			expectedOut: "Done",
-			checkSleep:  true,
+			args:       []string{changeIDPlaceholder},
+			checkSleep: true,
 		},
 		{
 			desc:       "done status",
@@ -200,8 +205,7 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:        []string{changeIDPlaceholder},
-			expectedOut: "Done",
+			args: []string{changeIDPlaceholder},
 		},
 		{
 			desc:       "doing status",
@@ -212,9 +216,8 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:        []string{changeIDPlaceholder},
-			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
-			expectedOut: "Doing",
+			args:     []string{changeIDPlaceholder},
+			errValue: &ctlcmd.UnsuccessfulError{ExitCode: 1},
 		},
 		{
 			desc:       "error status",
@@ -225,9 +228,8 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:        []string{changeIDPlaceholder},
-			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
-			expectedOut: "Error",
+			args:     []string{changeIDPlaceholder},
+			errValue: &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 		{
 			desc:       "hold status",
@@ -238,9 +240,8 @@ func (s *isReadySuite) TestIsReady(c *C) {
 				withLastAccessed: true,
 				lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
 			},
-			args:        []string{changeIDPlaceholder},
-			errValue:    &ctlcmd.UnsuccessfulError{ExitCode: 1},
-			expectedOut: "Hold",
+			args:     []string{changeIDPlaceholder},
+			errValue: &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 	}
 
@@ -291,7 +292,11 @@ func (s *isReadySuite) TestIsReady(c *C) {
 			c.Check(stderr, IsNil)
 		} else {
 			c.Check(string(stdout), Equals, tt.expectedOut)
-			c.Check(string(stderr), Equals, "")
+			if tt.expectedStderr != "" {
+				c.Check(string(stderr), Matches, tt.expectedStderr)
+			} else {
+				c.Check(string(stderr), Equals, "")
+			}
 		}
 
 		if tt.checkSleep {

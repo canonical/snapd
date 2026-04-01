@@ -48,6 +48,8 @@ var (
 	snapstateRemoveComponents  = snapstate.RemoveComponents
 )
 
+var timeSleep = time.Sleep
+
 var (
 	serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 	snapctlInstallChangeKind = swfeats.RegisterChangeKind("snapctl-install")
@@ -451,8 +453,8 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
-	chg.Set("snapctl-initiated-by", hctx.InstanceName())
-	st.Cache("snapctl-last-accessed", time.Now().Format(time.RFC3339))
+	chg.Set("initiated-by-snap", hctx.InstanceName())
+	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().Format(time.RFC3339))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -493,7 +495,8 @@ func jsonRaw(v any) *json.RawMessage {
 	return &raw
 }
 
-func isReady(hctx *hookstate.Context, changeID string) (bool, error) {
+// isReady checks if the change is ready, if it is, it returns the status, otherwise st.Doing.
+func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	callerSnapName := hctx.InstanceName()
 
 	st := hctx.State()
@@ -503,43 +506,44 @@ func isReady(hctx *hookstate.Context, changeID string) (bool, error) {
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return false, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
 	}
 
 	var initiatorSnapName string
-	err := chg.Get("snapctl-initiated-by", &initiatorSnapName)
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return false, fmt.Errorf("could not find initiator attribute for change %q", changeID)
+		return state.DefaultStatus, fmt.Errorf("could not find initiator attribute for change %q", changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return false, fmt.Errorf("change %q was initiated by another snap", changeID)
+		return state.DefaultStatus, fmt.Errorf("change %q was initiated by another snap", changeID)
 	}
-	
-	lastAccess := st.Cached("snapctl-last-accessed")
+
+	lastAccess := st.Cached(fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName))
 	if lastAccess == nil {
-		return false, fmt.Errorf("could not find last accessed attribute for change %q", changeID)
+		return state.DefaultStatus, fmt.Errorf("could not find last accessed attribute for change %q", changeID)
 	}
 
 	accessedTime, err := time.Parse(time.RFC3339, lastAccess.(string))
 	if err != nil {
-		return false, fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
+		return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
 	}
 
 	st.Unlock()
 
 	since := time.Since(accessedTime)
 	if since < 200*time.Millisecond {
-		time.Sleep(200*time.Millisecond - since)
+		timeSleep(200*time.Millisecond - since)
 	}
 
 	ready := chg.Ready()
 
+	st.Lock()
 	select {
 	case <-ready:
-		return true, chg.Err()
+		return chg.Status(), chg.Err()
 	default:
-		return false, nil
+		return state.DoingStatus, nil
 	}
 }
 

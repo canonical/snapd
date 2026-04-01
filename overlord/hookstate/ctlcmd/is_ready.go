@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type isReadyCommand struct {
@@ -33,10 +34,16 @@ type isReadyCommand struct {
 var shortIsReadyHelp = i18n.G(`Return the status of the associated change id.`)
 var longIsReadyHelp = i18n.G(`
 The is-ready command is used to query the status of a change id associated with
-snapctl commands running in asynchronous mode. It returns success if the change
-is ready, and failure otherwise.
+snapctl commands running in asynchronous mode.
 
 $ snapctl is-ready <change-id>
+exit-code:
+  0: change completed successfully (Done)
+  1: change is not ready
+  2: change is ready but did not complete successfully (Undone, Error, Hold)
+  3: other errors (invalid change ID, permissions error)
+stdout: empty, exit code conveys change readiness
+stderr: empty for exit codes 0 and 1. Contains relevant errors for exit codes 2 and 3.
 `)
 
 func init() {
@@ -58,14 +65,19 @@ func (c *isReadyCommand) Execute(args []string) error {
 	c.changeID = args[0]
 
 	ready, err := isReady(ctx, c.changeID)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(c.stdout, "%t", ready)
 
-	if ready {
+	switch ready {
+	default:
 		return nil
-	}
 
-	return &UnsuccessfulError{ExitCode: 1}
+	case state.DoingStatus:
+		return &UnsuccessfulError{ExitCode: 1}
+
+	case state.ErrorStatus, state.UndoneStatus, state.HoldStatus:
+		return &UnsuccessfulError{ExitCode: 2}
+
+	case state.DefaultStatus:
+		fmt.Fprintf(c.stderr, "%s", err.Error())
+		return &UnsuccessfulError{ExitCode: 3}
+	}
 }
