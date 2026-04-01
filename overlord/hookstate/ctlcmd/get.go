@@ -462,14 +462,14 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	if err != nil {
 		return err
 	}
-	var confdbUser confdb.Access
+	var userAccess confdb.Access
 	if uid == 0 {
-		confdbUser = confdb.AdminAccess
+		userAccess = confdb.AdminAccess
 	} else {
-		confdbUser = confdb.UnprivilegedAccess
+		userAccess = confdb.UnprivilegedAccess
 	}
 
-	res, err := confdbstate.GetViaView(bag, view, requests, constraints, confdbUser)
+	res, err := confdbstate.GetViaView(bag, view, requests, constraints, userAccess)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

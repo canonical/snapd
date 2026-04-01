@@ -2147,9 +2147,9 @@ func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
 	c.Assert(constraints, IsNil)
 
 	// check the visibility set in the task
-	var user confdb.Access
-	c.Assert(loadTask.Get("user", &user), IsNil)
-	c.Assert(user, Equals, confdb.UnprivilegedAccess)
+	var userAccess confdb.Access
+	c.Assert(loadTask.Get("user-access", &userAccess), IsNil)
+	c.Assert(userAccess, Equals, confdb.UnprivilegedAccess)
 
 	// check that no data got loaded
 	var apiData map[string]any
