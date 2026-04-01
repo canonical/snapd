@@ -1070,3 +1070,57 @@ func (s *confdbSuite) TestForbidWithWithNonConfdbGet(c *check.C) {
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *confdbSuite) TestConfdbGetWaitFor(c *check.C) {
+	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			c.Check(q.Get("access-timeout"), Equals, "5s")
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": "cba"}}}}`)
+		default:
+			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc", "--wait-for", "5s"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Check(s.Stdout(), Equals, "cba\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *confdbSuite) TestForbidWaitForWithNonConfdbGet(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		err := fmt.Errorf("expected to get no requests (%v)", r)
+		w.WriteHeader(500)
+		fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+		c.Error(err)
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", ":foo", "--wait-for", "5s", "bar"})
+	c.Assert(err, ErrorMatches, "cannot use --wait-for in non-confdb read")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
