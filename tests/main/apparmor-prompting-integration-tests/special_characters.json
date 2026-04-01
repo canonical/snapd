@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "prompt-filter": {
+    "snap": "prompting-client",
+    "interface": "home",
+    "constraints": {
+      "path": "$BASE_PATH/.*"
+    }
+  },
+  "prompts": [
+    {
+      "prompt-filter": {
+        "constraints": {
+          "path": "${BASE_PATH}/\\\\\\[アニメ\\\\\\]\\\\\\[ゲーム動画\\\\\\].mkv",
+          "requested-permissions": [ "read" ]
+        }
+      },
+      "reply": {
+        "action": "allow",
+        "lifespan": "single",
+        "constraints": {
+          "path-pattern": "${BASE_PATH}/\\[アニメ\\]\\[ゲーム動画\\].mkv",
+          "permissions": [ "read" ]
+        }
+      }
+    },
+    {
+      "prompt-filter": {
+        "constraints": {
+          "path": "${BASE_PATH}/foo\\\\*\\\\?()\\\\[\\\\]\\\\{\\\\}\\\\\\\\",
+          "requested-permissions": [ "read" ]
+        }
+      },
+      "reply": {
+        "action": "allow",
+        "lifespan": "single",
+        "constraints": {
+          "path-pattern": "${BASE_PATH}/foo\\*\\?()\\[\\]\\{\\}\\\\",
+          "permissions": [ "read" ]
+        }
+      }
+    }
+  ]
+}
