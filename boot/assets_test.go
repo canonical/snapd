@@ -58,6 +58,14 @@ func (s *assetsSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
+	// Most tests use synthetic boot assets (eg plain "C", "D", "shim") that
+	// are not valid signed EFI binaries. Keep signature validation permissive by
+	// default and let dedicated tests override this behavior explicitly.
+	restore = boot.MockCheckBootAssetAgainstSignatureDB(func(assetPath string) error {
+		return nil
+	})
+	s.AddCleanup(restore)
+
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
 
@@ -3143,4 +3151,91 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 	c.Check(foundAsset1, Equals, 1)
 	c.Check(foundAsset2, Equals, 1)
 	c.Check(foundOther, Equals, 0)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateRejectsUntrustedAsset(c *C) {
+	// Test that the observer rejects an update when the new boot asset's
+	// signature is not trusted by the host's UEFI signature database.
+
+	d := c.MkDir()
+	root := c.MkDir()
+
+	data := []byte("shim-with-untrusted-sig")
+	err := os.WriteFile(filepath.Join(d, "shim.efi"), data, 0644)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"shim": []string{"one-hash"},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.bootloaderWithTrustedAssets(map[string]string{
+		"shim.efi": "shim",
+	})
+
+	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+
+	// mock the signature check to fail
+	restore := boot.MockCheckBootAssetAgainstSignatureDB(func(assetPath string) error {
+		c.Check(assetPath, Equals, filepath.Join(d, "shim.efi"))
+		return fmt.Errorf("cannot find an secure-boot signature that is trusted by the current host's authorized signature database")
+	})
+	defer restore()
+
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim.efi",
+		&gadget.ContentChange{After: filepath.Join(d, "shim.efi")})
+	c.Assert(err, ErrorMatches, `cannot use boot asset "shim": cannot find an secure-boot signature.*`)
+	c.Check(res, Equals, gadget.ChangeAbort)
+}
+
+func (s *assetsSuite) TestUpdateObserverUpdateAcceptsTrustedAsset(c *C) {
+	// Test that the observer accepts an update when the new boot asset's
+	// signature is trusted by the host's UEFI signature database.
+
+	d := c.MkDir()
+	root := c.MkDir()
+
+	data := []byte("shim-with-trusted-sig")
+	// SHA3-384
+	dataHash := "0190c0f9c71326fa3583550ba4cbfd0d1321f90f11e0d8b75113f603bb00b957bc8d1f40454cef058cec64f9df4e39f9"
+	err := os.WriteFile(filepath.Join(d, "shim.efi"), data, 0644)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"shim": []string{"one-hash"},
+		},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.bootloaderWithTrustedAssets(map[string]string{
+		"shim.efi": "shim",
+	})
+
+	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+
+	// mock the signature check to pass
+	restore := boot.MockCheckBootAssetAgainstSignatureDB(func(assetPath string) error {
+		c.Check(assetPath, Equals, filepath.Join(d, "shim.efi"))
+		return nil
+	})
+	defer restore()
+
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, root, "shim.efi",
+		&gadget.ContentChange{After: filepath.Join(d, "shim.efi")})
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+
+	// verify the asset was cached and tracked
+	newM, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"shim": []string{"one-hash", dataHash},
+	})
 }

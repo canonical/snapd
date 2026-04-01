@@ -258,3 +258,11 @@ func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
 		return support
 	})
 }
+
+func MockCheckBootAssetAgainstSignatureDB(f func(assetPath string) error) (restore func()) {
+	old := checkBootAssetAgainstSignatureDB
+	checkBootAssetAgainstSignatureDB = f
+	return func() {
+		checkBootAssetAgainstSignatureDB = old
+	}
+}

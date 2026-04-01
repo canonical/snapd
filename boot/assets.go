@@ -41,6 +41,15 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// checkBootAssetAgainstSignatureDB, when set, validates that the boot asset at
+// the given file path has at least one secure-boot signature that chains to a
+// certificate authority in the host's UEFI authorized signature database (db).
+// This prevents installing boot assets (e.g. shim) that the firmware will not
+// be able to verify, which would result in an unbootable system.
+//
+// This is wired to the secboot package when secboot support is available.
+var checkBootAssetAgainstSignatureDB func(assetPath string) error
+
 type trustedAssetsCache struct {
 	cacheDir string
 	hash     crypto.Hash
@@ -674,6 +683,12 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 		taBefore, err = o.cache.Add(change.Before, bl.Name(), trustedAssetName)
 		if err != nil {
 			return gadget.ChangeAbort, err
+		}
+	}
+
+	if checkBootAssetAgainstSignatureDB != nil {
+		if err := checkBootAssetAgainstSignatureDB(change.After); err != nil {
+			return gadget.ChangeAbort, fmt.Errorf("cannot use boot asset %q: %v", trustedAssetName, err)
 		}
 	}
 
