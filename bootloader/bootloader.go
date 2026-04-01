@@ -227,7 +227,7 @@ type TrustedAssetsBootloader interface {
 	DefaultCommandLine(candidate bool) (string, error)
 
 	// TrustedAssets returns a map of relative paths to asset
-	// identifers. The paths are inside the bootloader's rootdir
+	// identifiers. The paths are inside the bootloader's rootdir
 	// that are measured in the boot process. The asset
 	// identifiers correspond to the backward compatible names
 	// recorded in the modeenv (CurrentTrustedBootAssets and
