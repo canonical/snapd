@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
@@ -399,9 +400,13 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
+		// Serve might return either net.ErrClosed (net.Listener is
+		// closed) or http.ErrServerClosed (Shutdown() called) - see
+		// Daemon.Stop() as this is racy.
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				if err := d.serve.Serve(d.snapListener); !errors.Is(err, http.ErrServerClosed) &&
+					!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -409,7 +414,8 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 			})
 		}
 
-		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := d.serve.Serve(d.snapdListener); !errors.Is(err, http.ErrServerClosed) &&
+			!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -625,6 +631,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	if d.restartSocket {
 		return ErrRestartSocket
+	}
+
+	if d.requestedRestart == restart.RestartDaemon {
+		logger.Noticef("restarting daemon after update")
+		if err := wrappers.RestartSnapd(); err != nil {
+			logger.Noticef("while restarting snapd: %v", err)
+		}
 	}
 
 	return nil

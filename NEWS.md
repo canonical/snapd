@@ -1,3 +1,8 @@
+# New in snapd 2.75.2
+* Interfaces: network-setup-*| allow running python binaries from the base on UC26+
+* Cross-distro: modify SELinux policy to allow mounting on /var/snap/<snap>/<rev>
+* Fix potential task deadlock by considering all tasks in a lane that might be waiting for a reboot when processing delayed security backend effects
+
 # New in snapd 2.75.1
 * FDE: limit number of boot check log entries
 * Allow a logged in user to refresh private snaps during a refresh with multiple snaps

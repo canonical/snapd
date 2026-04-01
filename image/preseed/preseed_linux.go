@@ -353,6 +353,7 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 
 	for _, dir := range []string{
 		"etc/udev/rules.d", "etc/systemd/system", "etc/dbus-1/session.d",
+		"etc/modprobe.d", "etc/modules-load.d",
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
 		"var/snap", "snap", "var/lib/extrausers",
 	} {
@@ -387,6 +388,8 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		{"--bind", underWritable("system-data/etc/systemd"), underPreseed("etc/systemd")},
 		{"--bind", underWritable("system-data/etc/dbus-1"), underPreseed("etc/dbus-1")},
 		{"--bind", underWritable("system-data/etc/udev/rules.d"), underPreseed("etc/udev/rules.d")},
+		{"--bind", underWritable("system-data/etc/modules-load.d"), underPreseed("etc/modules-load.d")},
+		{"--bind", underWritable("system-data/etc/modprobe.d"), underPreseed("etc/modprobe.d")},
 		{"--bind", underWritable("system-data/var/lib/extrausers"), underPreseed("var/lib/extrausers")},
 		{"--bind", filepath.Join(snapdMountPath, "/usr/lib/snapd"), underPreseed("/usr/lib/snapd")},
 		{"--bind", snapdMountPath, underPreseed("/snap/snapd/preseeding")},

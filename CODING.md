@@ -178,7 +178,7 @@ We do not have strong policies against repetition in test code, as usual the imp
 
 ## Functional/integration tests
 
-We write them using [spread](https://github.com/snapcore/spread). Generally all externally visible features and behaviour should have spread tests. It's also important to have them for robustness and fallback behaviour as related to system properties.
+We write them using [spread](https://github.com/canonical/spread-plus). Generally all externally visible features and behaviour should have spread tests. It's also important to have them for robustness and fallback behaviour as related to system properties.
 
 In order to keep the integration testing harness easy to read and consistent, there are some rules about the order and the existence of the different spread tests sections.
 
