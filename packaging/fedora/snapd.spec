@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.75.1
+Version:        2.75.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1009,6 +1009,16 @@ fi
 %endif
 
 %changelog
+* Mon Mar 30 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.75.2
+ - Interfaces: network-setup-*| allow running python binaries from
+   the base on UC26+
+ - Cross-distro: modify SELinux policy to allow mounting on
+   /var/snap/<snap>/<rev>
+ - Fix potential task deadlock by considering all tasks in a lane
+   that might be waiting for a reboot when processing delayed
+   security backend effects
+
 * Wed Mar 18 2026 Katie May <katie.may@canonical.com>
 - New upstream release 2.75.1
  - FDE: limit number of boot check log entries

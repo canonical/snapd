@@ -1,7 +1,7 @@
 # Hacking on snapd
 
 Hacking on `snapd` is fun and straightforward. The code is extensively unit
-tested and we use the [spread](https://github.com/snapcore/spread)
+tested and we use the [spread](https://github.com/canonical/spread-plus)
 integration test framework for the integration/system level tests.
 
 For non-technical details on contributing to the project, including how to
@@ -336,9 +336,9 @@ There is more to read about the testing framework on the [website](https://labix
 #### Downloading spread framework
 
 To run the integration tests locally via QEMU, you need the latest version of
-the [spread](https://github.com/snapcore/spread) framework. For local testing
+the [spread](https://github.com/canonical/spread-plus) framework. For local testing
 you can install the `image-garden` snap that comes with pre-built releases of
-upstream spread, qemu and all the support tools. Alternatively you may install
+spread-plus, qemu and all the support tools. Alternatively you may install
 [image-garden](https://gitlab.com/zygoon/image-garden) from source or from a
 distribution package.
 

@@ -309,6 +309,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/systemd"), filepath.Join(preseedTmpDir, "etc/systemd")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/dbus-1"), filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/udev/rules.d"), filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
+		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/modules-load.d"), filepath.Join(preseedTmpDir, "etc/modules-load.d")},
+		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/modprobe.d"), filepath.Join(preseedTmpDir, "etc/modprobe.d")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/var/lib/extrausers"), filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"mount", "--bind", filepath.Join(targetSnapdRoot, "/usr/lib/snapd"), filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"mount", "--bind", targetSnapdRoot, filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
@@ -320,6 +322,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		{"umount", filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
 		{"umount", filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/extrausers")},
+		{"umount", filepath.Join(preseedTmpDir, "etc/modprobe.d")},
+		{"umount", filepath.Join(preseedTmpDir, "etc/modules-load.d")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/systemd")},
@@ -348,7 +352,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 			expectedMountCalls = append(expectedMountCalls[:sysFsMountFirstIndex+i+1], expectedMountCalls[sysFsMountFirstIndex+i:]...)
 			expectedMountCalls[sysFsMountFirstIndex+i] = []string{"mount", "--bind", filepath.Join(sysfsOverlay, "sys", dir), filepath.Join(preseedTmpDir, "sys", dir)}
 			// order of umounts is reversed, prepend
-			const sysFsUmountFirstIndex = 12
+			const sysFsUmountFirstIndex = 14
 			expectedUmountCalls = append(expectedUmountCalls[:sysFsUmountFirstIndex+1], expectedUmountCalls[sysFsUmountFirstIndex:]...)
 			expectedUmountCalls[sysFsUmountFirstIndex] = []string{"umount", filepath.Join(preseedTmpDir, "sys", dir)}
 		}
