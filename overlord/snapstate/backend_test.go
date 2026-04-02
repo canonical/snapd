@@ -1482,7 +1482,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, undoer backend.Undoer, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	meter.Notify("stop-services")
 
 	var svcNames []string
@@ -1502,6 +1502,17 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 			rmSvcNames = append(rmSvcNames, svc.Name)
 		}
 		sort.Strings(rmSvcNames)
+	}
+
+	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
+	if undoer != nil && !skipUndo {
+		undoer.AddUnlocked(func() error {
+			startupOrdered, err := snap.SortServices(svcs)
+			if err != nil {
+				return fmt.Errorf("cannot sort services for undo: %v", err)
+			}
+			return f.StartServices(startupOrdered, disabledSvcs, meter, tm)
+		})
 	}
 
 	f.appendOp(&fakeOp{

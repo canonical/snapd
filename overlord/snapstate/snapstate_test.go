@@ -7996,13 +7996,13 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 
 	expected := fakeOps{
 		{
+			op:               "current-snap-service-states",
+			disabledServices: []string{"svc1"},
+		},
+		{
 			op:       "stop-snap-services:",
 			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
 			services: []string{"svc1", "svc2"},
-		},
-		{
-			op:               "current-snap-service-states",
-			disabledServices: []string{"svc1"},
 		},
 		{
 			op:               "start-snap-services",
@@ -8068,12 +8068,12 @@ func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
 
 	expected := fakeOps{
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:       "stop-snap-services:",
 			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
 			services: []string{"svc1", "svc2"},
-		},
-		{
-			op: "current-snap-service-states",
 		},
 		{
 			// failed after this op
@@ -8083,6 +8083,81 @@ func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) testStopSnapServicesOnStopFailure(c *C, reason snap.ServiceStopReason) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1"}
+
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+	}()
+
+	si := &snap.SideInfo{RealName: "hello-snap", SnapID: "hello-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, servicesSnap, si)
+
+	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	chg := s.state.NewChange("services..", "")
+	t := s.state.NewTask("stop-snap-services", "")
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	t.Set("snap-setup", sup)
+	t.Set("stop-reason", reason)
+	chg.AddTask(t)
+
+	// Mock error in StopServices
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == fmt.Sprintf("stop-snap-services:%s", reason) {
+			return fmt.Errorf("mock stop failure")
+		}
+		return nil
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+
+	expected := fakeOps{
+		{
+			op:               "current-snap-service-states",
+			disabledServices: []string{"svc1"},
+		},
+		{
+			op:       fmt.Sprintf("stop-snap-services:%s", reason),
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			services: []string{"svc1", "svc2"},
+		},
+	}
+	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
+	if !skipUndo {
+		expected = append(expected, fakeOp{
+			// Should be triggered due to mock error in StopServices
+			op:               "start-snap-services",
+			services:         []string{"svc1", "svc2"},
+			disabledServices: []string{"svc1"},
+			path:             filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+		})
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailureForRefresh(c *C) {
+	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonRefresh)
+}
+
+func (s *snapmgrTestSuite) TestStopSnapServicesDoesNotStartStoppedServicesOnStopFailureForRemove(c *C) {
+	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonRemove)
 }
 
 func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {

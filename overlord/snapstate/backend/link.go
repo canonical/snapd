@@ -247,7 +247,22 @@ func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.Disa
 	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, undoer Undoer, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
+	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
+	if undoer != nil && !skipUndo {
+		// Register the undo before stopping so that services are
+		// started again even when StopServices fails partway through
+		// (some services stopped, then an error on a later one).
+		// StartServices filters out disabled services, so only
+		// previously enabled services will be started again.
+		undoer.AddUnlocked(func() error {
+			startupOrdered, err := snap.SortServices(apps)
+			if err != nil {
+				return fmt.Errorf("cannot sort services for undo: %v", err)
+			}
+			return b.StartServices(startupOrdered, disabledSvcs, meter, tm)
+		})
+	}
 	return wrappers.StopServices(apps, removedSvcs, nil, reason, meter, tm)
 }
 
