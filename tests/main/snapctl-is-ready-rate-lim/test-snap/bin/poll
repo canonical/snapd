@@ -1,0 +1,29 @@
+#!/bin/sh
+# poll <change-id> <max-attempts>
+#
+# Calls snapctl is-ready in a tight loop.  Because last-accessed is set when
+# the management command runs, the first call will be within the 200 ms
+# debounce window if the change completes quickly.  The loop verifies that
+# rapid polling does not produce unexpected errors: only exit 0 (Done) or
+# exit 1 (not ready yet) are acceptable; anything else is a test failure.
+#
+# Exits 0 on the first successful is-ready, or 1 after <max-attempts>.
+
+CHANGE_ID="$1"
+MAX="${2:-20}"
+
+i=0
+while [ "$i" -lt "$MAX" ]; do
+    snapctl is-ready "$CHANGE_ID"
+    rc=$?
+    case "$rc" in
+        0) exit 0 ;;
+        1) : ;;  # not ready yet, keep polling
+        *) echo "unexpected exit code $rc from snapctl is-ready" >&2; exit "$rc" ;;
+    esac
+    i=$((i + 1))
+    sleep 0.1
+done
+
+echo "change $CHANGE_ID not done after $MAX attempts" >&2
+exit 1

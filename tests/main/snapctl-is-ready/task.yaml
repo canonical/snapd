@@ -32,15 +32,11 @@ execute: |
     tr -d '"')
   test -n "$CHANGE_ID" && test "$CHANGE_ID" != "null"
 
-  echo "snapctl is-ready returns Done for a completed change"
-  OUT=$(snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $CHANGE_ID")
-  echo "$OUT" | MATCH "Done"
-
-  echo "snapctl is-ready exits 0 for a completed change"
+  echo "snapctl is-ready exits 0 for a completed change (stdout is empty; exit code conveys status)"
   snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $CHANGE_ID"
 
-  echo "snapctl is-ready fails with exit 1 for an invalid change ID"
-  not snap run --shell test-snapctl-is-ready.app -c 'snapctl is-ready nonexistent-id'
+  echo "snapctl is-ready fails with exit 3 for an invalid change ID"
+  snap run --shell test-snapctl-is-ready.app -c 'snapctl is-ready nonexistent-id'; test $? -eq 3
 
   echo "snapctl is-ready fails with too few arguments"
   not snap run --shell test-snapctl-is-ready.app -c 'snapctl is-ready'
@@ -53,5 +49,5 @@ execute: |
     gojq '[.result[] | select(.kind == "install-snap")] | last | .id' | \
     tr -d '"')
   if [ -n "$INSTALL_CHANGE_ID" ] && [ "$INSTALL_CHANGE_ID" != "null" ]; then
-    not snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $INSTALL_CHANGE_ID"
+    snap run --shell test-snapctl-is-ready.app -c "snapctl is-ready $INSTALL_CHANGE_ID"; test $? -eq 3
   fi

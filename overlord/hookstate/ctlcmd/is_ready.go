@@ -31,13 +31,18 @@ type isReadyCommand struct {
 	changeID string
 }
 
+const (
+	changeNotReadyExitCode = 1
+	changeUnsuccessfulExitCode = 2
+	otherErrorExitCode = 3
+)
+
 var shortIsReadyHelp = i18n.G(`Return the status of the associated change id.`)
 var longIsReadyHelp = i18n.G(`
 The is-ready command is used to query the status of a change id associated with
 snapctl commands running in asynchronous mode.
 
 $ snapctl is-ready <change-id>
-exit-code:
   0: change completed successfully (Done)
   1: change is not ready
   2: change is ready but did not complete successfully (Undone, Error, Hold)
@@ -69,15 +74,12 @@ func (c *isReadyCommand) Execute(args []string) error {
 	switch ready {
 	default:
 		return nil
-
 	case state.DoingStatus:
-		return &UnsuccessfulError{ExitCode: 1}
-
+		return &UnsuccessfulError{ExitCode: changeNotReadyExitCode}
 	case state.ErrorStatus, state.UndoneStatus, state.HoldStatus:
-		return &UnsuccessfulError{ExitCode: 2}
-
+		return &UnsuccessfulError{ExitCode: changeUnsuccessfulExitCode}
 	case state.DefaultStatus:
 		fmt.Fprintf(c.stderr, "%s", err.Error())
-		return &UnsuccessfulError{ExitCode: 3}
+		return &UnsuccessfulError{ExitCode: otherErrorExitCode}
 	}
 }

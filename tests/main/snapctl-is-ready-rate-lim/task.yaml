@@ -1,0 +1,70 @@
+summary: Ensure that snapctl is-ready respects the 200 ms debounce window.
+
+details: |
+  Verifies the rate-limiting (debounce) behaviour of snapctl is-ready.
+
+  When a snapctl management command (e.g. snapctl remove +comp) creates a
+  change, it records a last-accessed timestamp in the snapd state cache.
+  If is-ready is called before 200 ms have elapsed since that timestamp, the
+  command sleeps for the remaining window before returning.  This prevents a
+  tight polling loop from hammering snapd.
+
+  The test exercises two scenarios:
+
+  1. Rapid polling loop – is-ready is called in a tight loop immediately after
+     the change is created (potentially within the 200 ms debounce window).
+     Only exit codes 0 (Done) and 1 (not ready yet) are acceptable; any other
+     code signals an unexpected error.  The loop verifies is-ready eventually
+     reports Done (exit 0).
+
+  2. Missing last-accessed after snapd restart – the snapd state cache is
+     in-memory only and is cleared when snapd restarts.  After a restart,
+     calling is-ready against a previously created change must exit with code 3
+     and print a diagnostic to stderr, because the last-accessed entry required
+     by the debounce logic is no longer present.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+
+prepare: |
+  snap pack test-snap/
+  snap pack test-comp/
+  snap install --dangerous test-snapctl-is-ready-rl_1.0_all.snap
+  snap install --dangerous "test-snapctl-is-ready-rl+comp_1.0.comp"
+
+restore: |
+  snap remove --purge test-snapctl-is-ready-rl || true
+
+execute: |
+  # ── Scenario 1: rapid polling stays within acceptable exit codes ────────────
+  echo "Remove component to create a snapctl-initiated change (sets last-accessed)"
+  snap run --shell test-snapctl-is-ready-rl.app -c 'snapctl remove +comp'
+
+  CHANGE_ID=$(snap debug api /v2/changes?select=all | \
+    gojq '[.result[] | select(.kind == "snapctl-remove")] | last | .id' | \
+    tr -d '"')
+  test -n "$CHANGE_ID" && test "$CHANGE_ID" != "null"
+
+  echo "Rapid polling: only exit 0 (Done) or exit 1 (not ready) are acceptable"
+  # The poll app loops up to 20 times with 100 ms sleeps; it exits 0 as soon as
+  # is-ready reports Done and aborts on any unexpected exit code (e.g. 3).
+  snap run test-snapctl-is-ready-rl.poll -- "$CHANGE_ID" 20
+
+  # ── Scenario 2: missing last-accessed attribute after snapd restart ─────────
+  echo "Reinstall component for a fresh change"
+  snap install --dangerous "test-snapctl-is-ready-rl+comp_1.0.comp"
+  snap run --shell test-snapctl-is-ready-rl.app -c 'snapctl remove +comp'
+
+  CHANGE_ID2=$(snap debug api /v2/changes?select=all | \
+    gojq '[.result[] | select(.kind == "snapctl-remove")] | last | .id' | \
+    tr -d '"')
+  test -n "$CHANGE_ID2" && test "$CHANGE_ID2" != "null"
+
+  echo "Restart snapd to clear the in-memory state cache (evicts last-accessed)"
+  systemctl restart snapd
+  snap wait system seed.loaded
+
+  echo "is-ready without last-accessed exits 3 with a diagnostic on stderr"
+  snap run --shell test-snapctl-is-ready-rl.app \
+    -c "snapctl is-ready $CHANGE_ID2" 2>stderr.txt; test $? -eq 3
+  MATCH "could not find last accessed attribute" < stderr.txt
+

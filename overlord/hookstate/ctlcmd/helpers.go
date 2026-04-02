@@ -544,11 +544,12 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		}
 	}
 
-	st.Lock()
 	select {
 	case <-ready:
+		st.Lock()
 		return chg.Status(), chg.Err()
 	case <-timeAfter(toWait):
+		st.Lock()
 		return state.DoingStatus, nil
 	}
 }

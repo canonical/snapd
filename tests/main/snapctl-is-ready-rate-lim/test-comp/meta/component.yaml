@@ -1,0 +1,4 @@
+component: test-snapctl-is-ready-rl+comp
+type: standard
+version: 1.0
+summary: Test component for snapctl is-ready rate-limiting
