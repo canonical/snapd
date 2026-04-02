@@ -17,3 +17,4 @@ execute: |
         ;;
     esac
     test "$(snap debug confinement)" = "$expected"
+

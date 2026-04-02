@@ -28,3 +28,4 @@ execute: |
     grep attach_disconnected /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | NOMATCH complain
     echo "Ensure that the seccomp profile doesn't use the complain mode"
     NOMATCH '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
+

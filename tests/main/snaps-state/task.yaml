@@ -157,3 +157,4 @@ execute: |
     rm snapd-from-core.snap
 
     "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap noexist.snap 2>&1 | MATCH "snaps-state: core snap used to repack not found: noexist.snap"
+

@@ -51,3 +51,4 @@ execute: |
 
     echo "the jailmode snap cannot access other devices"
     test-devmode-cgroup.read-dev test1 2>&1 | MATCH '(Permission denied|Operation not permitted)'
+

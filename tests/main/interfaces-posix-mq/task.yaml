@@ -93,3 +93,4 @@ execute: |
     snap connect test-snapd-posix-mq:posix-mq test-snapd-posix-mq:can-delete
     test-snapd-posix-mq.mqctl unlink /test
     test ! -f /dev/mqueue/test
+

@@ -105,3 +105,4 @@ execute: |
         # this will fail if the seccomp secondary arch handling is broken
         test-snapd-hello-multi-arch.hello-i386 | MATCH Hello
     fi
+

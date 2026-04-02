@@ -21,3 +21,4 @@ execute: |
   snap disable "$SNAP"
   snap enable "$SNAP"
   snap list "$SNAP" | MATCH "$FLAG$"
+
