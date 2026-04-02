@@ -35,7 +35,7 @@ import (
 // fsEntry records attributes of a filesystem entry for comparison
 type fsEntry struct {
 	mode           os.FileMode
-	size           int64
+	size           int64  // 0 for dirs
 	contentHash    string // empty for dirs
 	contentPreview []byte // first maxContentPreviewSize bytes; nil for dirs
 }
@@ -100,11 +100,10 @@ func CreateFsSnapshot(rootDir string) (FsSnapshot, error) {
 		if err != nil {
 			return err
 		}
-		entry := fsEntry{
-			mode: info.Mode(),
-			size: info.Size(),
-		}
+		entry := fsEntry{mode: info.Mode()}
 		if !d.IsDir() {
+			entry.size = info.Size()
+
 			hash, err := getFileHash(path)
 			if err != nil {
 				return err
