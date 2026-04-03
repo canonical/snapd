@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -132,27 +133,17 @@ func CreateFsSnapshot(rootDir string) (FsSnapshot, error) {
 	return entries, err
 }
 
-// TODO:GOVERSION: replace this with slices.Contains() once we're on go 1.21+
-func contains[T comparable](s []T, e T) bool {
-	for _, k := range s {
-		if k == e {
-			return true
-		}
-	}
-	return false
-}
-
 func (fi *FsSnapshotIgnoreDiff) isIgnored(path string, dk FsDiffKind) bool {
 	if fi == nil {
 		return false
 	}
 	for p, diff := range *fi {
-		if p == path && contains(diff.Kinds, dk) {
+		if p == path && slices.Contains(diff.Kinds, dk) {
 			return true
 		}
 		// If IgnoreParents is set, ignore all its parents too
 		if diff.IgnoreParents {
-			if strings.HasPrefix(p, path) && contains(diff.Kinds, dk) {
+			if strings.HasPrefix(p, path) && slices.Contains(diff.Kinds, dk) {
 				return true
 			}
 		}
