@@ -2392,10 +2392,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
-	m.backend.Candidate(cand.Snap)
+	oldCandidateIndex := snapst.LastIndex(snapsup.SideInfo.Revision)
 
-	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)
+	var candidateComponents []*sequence.ComponentState
+	if oldCandidateIndex >= 0 {
+		candidateComponents = snapst.Sequence.Revisions[oldCandidateIndex].Components
+	}
+
+	cand := sequence.NewRevisionSideState(snapsup.SideInfo, candidateComponents)
+	m.backend.Candidate(cand.Snap)
 
 	var oldRevsBeforeCand []snap.Revision
 	if oldCandidateIndex < 0 {
