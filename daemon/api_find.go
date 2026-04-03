@@ -183,7 +183,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	results := make([]*json.RawMessage, 1)
-	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
+	data, err := json.Marshal(webify(mapRemote(snapInfo)))
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -228,13 +228,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse) StructuredResponse {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
-		url, err := route.URL("name", x.InstanceName())
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.InstanceName(), x.Revision, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
+		data, err := json.Marshal(webify(mapRemote(x)))
 		if err != nil {
 			return InternalError("%v", err)
 		}

@@ -121,19 +121,14 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for %q snap", name)
 	}
 
-	url, err := route.URL("name", name)
-	if err != nil {
-		return InternalError("cannot build URL for %q snap: %v", name, err)
-	}
-
 	sd := servicestate.NewStatusDecorator(progress.Null)
 
-	result := webify(mapLocal(about, sd), url.String())
+	result := webify(mapLocal(about, sd))
 
 	return SyncResponse(result)
 }
 
-func webify(result *client.Snap, resource string) *client.Snap {
+func webify(result *client.Snap) *client.Snap {
 	if result.Icon == "" || strings.HasPrefix(result.Icon, "http") {
 		return result
 	}
@@ -1311,13 +1306,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		name := x.info.InstanceName()
 		rev := x.info.Revision
 
-		url, err := route.URL("name", name)
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapLocal(x, sd), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x, sd)))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
