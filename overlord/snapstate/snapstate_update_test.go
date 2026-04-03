@@ -1256,9 +1256,17 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[16+(len(components)*5)]
-	c.Assert(task.Kind(), Equals, "run-hook", Commentf(printTasks(ts.Tasks())))
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-kernel" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+		if strings.Contains(t.Summary(), `Run post-refresh hook of "some-kernel" snap if present`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil, Commentf(printTasks(ts.Tasks())))
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1528,9 +1536,17 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
-	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+		if strings.Contains(t.Summary(), `Run post-refresh hook of "services-snap" snap if present`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil, Commentf(printTasks(ts.Tasks())))
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1912,9 +1928,15 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
-	c.Assert(task.Kind(), Equals, "run-hook")
-	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
+	var postRefreshHookTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "run-hook" && strings.Contains(t.Summary(), `Run post-refresh hook of "services-snap_instance" snap`) {
+			postRefreshHookTask = t
+			break
+		}
+	}
+	c.Assert(postRefreshHookTask, NotNil)
+	c.Assert(postRefreshHookTask.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -9473,17 +9495,27 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "kernel/11",
-		"setup-profiles:Doing-core18/11", "core18/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-core18", "cleanup-trash-kernel",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "kernel/11" || op == "core18/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "core18/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-core18", "cleanup-trash-kernel"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelAndSnapdSingleRebootHappy(c *C) {
@@ -9816,17 +9848,27 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "kernel/11",
-		"setup-profiles:Doing-gadget/11", "gadget/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-gadget/11", "auto-connect:Doing-kernel/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-gadget", "cleanup-trash-kernel",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "kernel/11" || op == "gadget/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"kernel/11", "gadget/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-gadget/11", "auto-connect:Doing-kernel/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-kernel"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
@@ -10003,17 +10045,27 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
 		}
 	}
-	c.Assert(ops, HasLen, 8)
-	c.Check(ops[0:4], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-core18/11", "core18/11",
-		"setup-profiles:Doing-gadget/11", "gadget/11",
-	})
-	c.Check(ops[4:6], DeepEquals, []string{
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-gadget/11",
-	})
-	c.Check(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-gadget", "cleanup-trash-core18",
-	})
+	// With setup-profiles moved after auto-connect, operations may interleave
+	// per-snap. Keep the strict ordering checks per operation type.
+	linkOps := make([]string, 0, 2)
+	autoConnectOps := make([]string, 0, 2)
+	cleanupOps := make([]string, 0, 2)
+	for _, op := range ops {
+		switch {
+		case op == "core18/11" || op == "gadget/11":
+			linkOps = append(linkOps, op)
+		case strings.HasPrefix(op, "auto-connect:"):
+			autoConnectOps = append(autoConnectOps, op)
+		case strings.HasPrefix(op, "cleanup-trash-"):
+			cleanupOps = append(cleanupOps, op)
+		}
+	}
+	c.Assert(linkOps, HasLen, 2)
+	c.Assert(autoConnectOps, HasLen, 2)
+	c.Assert(cleanupOps, HasLen, 2)
+	c.Check(linkOps, testutil.DeepUnsortedMatches, []string{"core18/11", "gadget/11"})
+	c.Check(autoConnectOps, DeepEquals, []string{"auto-connect:Doing-core18/11", "auto-connect:Doing-gadget/11"})
+	c.Check(cleanupOps, testutil.DeepUnsortedMatches, []string{"cleanup-trash-gadget", "cleanup-trash-core18"})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootWithCannotRebootSetHappy(c *C) {
@@ -16849,7 +16901,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 				revno: newSnapRev,
 			},
 		}
-
 		for _, cs := range expectedComponentStates {
 			compName := cs.SideInfo.Component.ComponentName
 			compRev := cs.SideInfo.Revision

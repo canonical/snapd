@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 import concurrent.futures
 from contextlib import closing
+import copy
 import datetime
 import json
 import os
@@ -40,7 +41,7 @@ class TaskId:
         return hash((self.suite, self.task_name))
 
     def __str__(self) -> str:
-        return self.suite + ":" + self.task_name
+        return self.suite + "/" + self.task_name
 
 
 class TaskIdVariant(TaskId):
@@ -328,6 +329,27 @@ def minus(first: dict[str, list], second: dict[str, list]) -> dict:
     return minus
 
 
+def union(first: dict[str, list], second: dict[str, list]) -> dict[str, list]:
+    '''
+    Creates a new dictionary of first U second calculated on values.
+
+    Ex: 
+    >>> first = {'a':['b','c'],'d':['e']}
+    >>> second = {'a':['c'], 'd':['f'], 'q':[]}
+    >>> union(first, second)
+    {'a': ['b', 'c], 'd': ['e','f'], 'q':[]}
+    '''
+    union = copy.deepcopy(first)
+    for feature, feature_list in second.items():
+        if feature not in union:
+            union[feature] = feature_list
+        else:
+            for feat in feature_list:
+                if feat not in union[feature]:
+                    union[feature].append(feat)
+    return union
+
+
 def subtract_features(first: dict[str, list], second: dict[str, list], match_snap_types: bool) -> dict:
     if match_snap_types:
         return minus(first, second)
@@ -388,6 +410,64 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
         system_json2, include_tasks=include_tasks2)
     
     return subtract_features(features1, features2, match_snap_types)
+
+
+def diff_group_by_test(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, system2: str, remove_failed: bool, only_same: bool, match_snap_types: bool = True) -> dict:
+    differences = diff(retriever, timestamp1, system1, timestamp2, system2, remove_failed, only_same, match_snap_types)
+
+    test_dict = {}
+    for feature, feat_list in differences.items():
+        for feat in feat_list:
+            results = find_feat(retriever, timestamp1, feat, remove_failed=remove_failed, system=system1, match_snap_types=match_snap_types)
+            if len(results) == 0:
+                raise RuntimeError(f"Something weird happened. The feature {feat} doesn't exist in {system1} at timestamp {timestamp1}")
+            if len(results) != 1:
+                raise RuntimeError(f'There should only be one system returned in searching for feature')
+            if len(results[system1]) == 0:
+                raise RuntimeError(f"A test was not found that contained feature {feat} for {system1}. This is impossible.")
+            for test in results[system1]:
+                test = str(TaskId(test.suite, test.task_name))
+                if test not in test_dict:
+                    test_dict[test] = {}
+                if feature not in test_dict[test]:
+                    test_dict[test][feature] = []
+                if feat not in test_dict[test][feature]:
+                    test_dict[test][feature].append(feat)
+    return test_dict
+
+
+def dict_to_string(d):
+    stringed = ""
+    for value in d.values():
+        stringed = stringed + "-" + str(value)
+    return stringed[1:]
+
+def diff_group_by_test_csv(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, system2: str, remove_failed: bool, only_same: bool, match_snap_types: bool = True) -> str:
+    differences = diff(retriever, timestamp1, system1, timestamp2, system2, remove_failed, only_same, match_snap_types)
+
+    test_dict = {}
+    for feature, feat_list in differences.items():
+        for feat in feat_list:
+            results = find_feat(retriever, timestamp1, feat, remove_failed=remove_failed, system=system1, match_snap_types=match_snap_types)
+            if len(results) == 0:
+                raise RuntimeError(f"Something weird happened. The feature {feat} doesn't exist in {system1} at timestamp {timestamp1}")
+            if len(results) != 1:
+                raise RuntimeError(f'There should only be one system returned in searching for feature')
+            if len(results[system1]) == 0:
+                raise RuntimeError(f"A test was not found that contained feature {feat} for {system1}. This is impossible.")
+            for test in results[system1]:
+                test = str(TaskId(test.suite, test.task_name))
+                if test not in test_dict:
+                    test_dict[test] = []
+                test_dict[test].append(dict_to_string(feat))
+
+    csv=""
+    for test, features in test_dict.items():
+        csv = f"{csv}\n{test}"
+        for feature in features:
+            csv = f"{csv},{feature}"
+    return csv
+            
 
 
 def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
@@ -647,6 +727,8 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, 
     sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     sys.add_argument('--only-same', help='only compare tasks that were executed on both systems', action='store_true')
     sys.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
+    sys.add_argument('--sort-by-test', help='group features by the tests they are found in', action='store_true')
+    sys.add_argument('--csv', help='output the diff in csv format rather than json', action='store_true')
 
     all = diff_subparsers.add_parser(cmd_all, help='calculate diff between system features and all features',
                                      description=all_description, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -757,7 +839,16 @@ def main():
     with closing(retriever_creator()) as retriever:
         if args.command == diff_cmd:
             if args.diff_cmd == diff_sys_cmd:
-                result = diff(retriever, args.timestamp1, args.system1,
+                if args.sort_by_test:
+                    if args.csv:
+                        result = diff_group_by_test_csv(retriever, args.timestamp1, args.system1,
+                            args.timestamp2, args.system2, args.remove_failed, args.only_same, args.match_snap_types)    
+                        print(result)
+                        exit(0)
+                    result = diff_group_by_test(retriever, args.timestamp1, args.system1,
+                            args.timestamp2, args.system2, args.remove_failed, args.only_same, args.match_snap_types)
+                else:
+                    result = diff(retriever, args.timestamp1, args.system1,
                             args.timestamp2, args.system2, args.remove_failed, args.only_same, args.match_snap_types)
             elif args.diff_cmd == diff_all_cmd:
                 result = diff_all_features(retriever, args.timestamp, args.system, args.remove_failed)

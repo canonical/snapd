@@ -67,6 +67,7 @@ var (
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
 
 	NewDelayedEffectsForSnaps = newDelayedEffectsForSnaps
+	ShouldUndoSetupProfiles   = shouldUndoSetupProfiles
 )
 
 type (

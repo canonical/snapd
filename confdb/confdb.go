@@ -1844,21 +1844,28 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
-func getVisibilitiesToPrune(userID int) []Visibility {
-	if userID == 0 {
+func getVisibilitiesToPrune(userAccess Access) []Visibility {
+	if userAccess == AdminAccess {
 		return nil
 	}
 	return []Visibility{SecretVisibility}
 }
 
+type Access int
+
+const (
+	AdminAccess Access = iota
+	UnprivilegedAccess
+)
+
 // Get returns the view value identified by the request after the constraints
-// have been applied to any matching filter in the storage path. The userID
+// have been applied to any matching filter in the storage path. The userAccess
 // determines whether data with restrictive visibility levels are returned.
 // If the request cannot be matched against any rule, it returns a NoMatchError,
 // and if no data is stored for the request, a NoDataError is returned. If data
 // would have been returned but was removed due to the visibility level, then a
 // UnauthorizedAccessError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]any, userID int) (any, error) {
+func (v *View) Get(databag Databag, request string, constraints map[string]any, userAccess Access) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1878,7 +1885,7 @@ func (v *View) Get(databag Databag, request string, constraints map[string]any, 
 		return nil, err
 	}
 
-	visibilities := getVisibilitiesToPrune(userID)
+	visibilities := getVisibilitiesToPrune(userAccess)
 	allUnauthorized := len(visibilities) > 0
 	var merged any
 	for _, match := range matches {

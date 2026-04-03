@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -125,9 +124,10 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, _ int) (string, error) {
+		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
+			c.Assert(access, Equals, confdb.AdminAccess)
 			return "123", nil
 		})
 
@@ -156,9 +156,10 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, _ int) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Name, Equals, "wifi-setup")
+		c.Assert(access, Equals, confdb.AdminAccess)
 		return "123", nil
 	})
 	defer restore()
@@ -264,7 +265,7 @@ func (s *confdbSuite) TestGetErrorHandling(c *C) {
 		{name: "unconstrained filter params", err: &confdb.UnconstrainedParamsError{}, status: 400},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
-		restore := daemon.MockConfdbstateReadConfdb(func(context.Context, *state.State, *confdb.View, []string, map[string]any, int) (string, error) {
+		restore := daemon.MockConfdbstateReadConfdb(func(context.Context, *state.State, *confdb.View, []string, map[string]any, confdb.Access) (string, error) {
 			return "", t.err
 		})
 
@@ -292,7 +293,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, _ map[string]any, _ int) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
 		c.Check(requests, DeepEquals, []string{"foo.bar", "[1].foo", "foo"})
 		return "123", nil
 	})
@@ -537,7 +538,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, _ map[string]any, _ int) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
 		c.Assert(requests, IsNil)
 		return "123", nil
 	})
@@ -560,7 +561,7 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, constraints map[string]any, _ int) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, requests []string, constraints map[string]any, _ confdb.Access) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid"})
 		c.Assert(constraints, DeepEquals, map[string]any{
 			"foo": "bar",
@@ -594,7 +595,7 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateReadConfdb(func(context.Context, *state.State, *confdb.View, []string, map[string]any, int) (string, error) {
+	restore = daemon.MockConfdbstateReadConfdb(func(context.Context, *state.State, *confdb.View, []string, map[string]any, confdb.Access) (string, error) {
 		c.Error("unexpected call to LoadConfdbAsync")
 		return "", errors.New("unexpected call to LoadConfdbAsync")
 	})
@@ -649,38 +650,6 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400, cmt)
 		c.Check(rspe.Message, Matches, tc.err, cmt)
-	}
-}
-
-func (s *confdbSuite) TestGetViewCheckVisibility(c *C) {
-	s.setFeatureFlag(c)
-
-	type test struct {
-		name string
-		pid  string
-	}
-	restoreGet := daemon.MockConfdbstateGetView(func(_ *state.State, acc, confdbSchema, viewName string) (*confdb.View, error) {
-		return s.schema.View(viewName), nil
-	})
-	defer restoreGet()
-	for _, t := range []test{
-		{name: "non-root", pid: "1000"},
-		{name: "root", pid: "0"},
-	} {
-		cmt := Commentf("%s test", t.name)
-		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, userID int) (string, error) {
-			uid, _ := strconv.Atoi(t.pid)
-			c.Assert(userID, Equals, uid)
-			return "123", nil
-		})
-		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
-		c.Assert(err, IsNil, cmt)
-		req.RemoteAddr = fmt.Sprintf("pid=100;uid=%s;socket=;", t.pid)
-
-		rspe := s.asyncReq(c, req, nil, actionIsExpected)
-		c.Check(rspe.Status, Equals, 202, cmt)
-		c.Check(rspe.Change, Equals, "123", cmt)
-		restoreLoad()
 	}
 }
 

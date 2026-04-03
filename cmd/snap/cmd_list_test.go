@@ -199,8 +199,9 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			fmt.Fprintln(w, `{"type": "sync", "result": [
 {"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":17, "trymode": true}
-,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode"}
-,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict"}
+,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode", "components":[
+{"name":"one", "revision":"1"}]}
+,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict", "components":[{"name":"one", "install-date": "2026-03-02T10:35:42.783664916-06:00", "revision":"1"}, {"name":"two", "revision":"1"}]}
 ,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode", "jailmode": true}
 ,{"name": "br1", "status": "active", "version": "", "revision":2, "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "confinement": "strict", "broken": "snap is broken"}
 ,{"name": "dbr1", "status": "", "version": "", "revision":2, "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "confinement": "strict", "broken": "snap is broken"}
@@ -216,8 +217,8 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?ms)^Name +Version +Rev +Tracking +Publisher +Notes$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^foo +4.2 +17 +- +bar +try$`)
-	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm1 +.* +devmode$`)
-	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm2 +.* +devmode$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm1 +.* +components\[1\],devmode$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm2 +.* +components\[1\/2\],devmode$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^cf1 +.* +jailmode$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^br1 +- +2 +- +bar +broken$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^dbr1 +- +2 +- +bar +disabled,broken$`)

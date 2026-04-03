@@ -51,19 +51,21 @@ func formatPrice(val float64, currency string) string {
 // Notes encapsulate everything that might be interesting about a
 // snap, in order to present a brief summary of it.
 type Notes struct {
-	SnapType         snap.Type
-	Private          bool
-	DevMode          bool
-	JailMode         bool
-	Classic          bool
-	TryMode          bool
-	Disabled         bool
-	Broken           bool
-	IgnoreValidation bool
-	InCohort         bool
-	Health           string
-	Price            string
-	Held             bool
+	SnapType            snap.Type
+	AvailableComponents int
+	InstalledComponents int
+	Private             bool
+	DevMode             bool
+	JailMode            bool
+	Classic             bool
+	TryMode             bool
+	Disabled            bool
+	Broken              bool
+	IgnoreValidation    bool
+	InCohort            bool
+	Health              string
+	Price               string
+	Held                bool
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -92,19 +94,30 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 	if snp.Health != nil {
 		health = snp.Health.Status
 	}
+
+	available := len(snp.Components)
+	var installed int
+	for _, comp := range snp.Components {
+		if comp.InstallDate != nil {
+			installed += 1
+		}
+	}
+
 	return &Notes{
-		SnapType:         snap.Type(snp.Type),
-		Private:          snp.Private,
-		DevMode:          snp.DevMode,
-		Classic:          !snp.JailMode && (snp.Confinement == client.ClassicConfinement),
-		JailMode:         snp.JailMode,
-		TryMode:          snp.TryMode,
-		Disabled:         snp.Status != client.StatusActive,
-		Broken:           snp.Broken != "",
-		IgnoreValidation: snp.IgnoreValidation,
-		InCohort:         snp.CohortKey != "",
-		Health:           health,
-		Held:             snp.Hold != nil && snp.Hold.After(timeNow()),
+		SnapType:            snap.Type(snp.Type),
+		AvailableComponents: available,
+		InstalledComponents: installed,
+		Private:             snp.Private,
+		DevMode:             snp.DevMode,
+		Classic:             !snp.JailMode && (snp.Confinement == client.ClassicConfinement),
+		JailMode:            snp.JailMode,
+		TryMode:             snp.TryMode,
+		Disabled:            snp.Status != client.StatusActive,
+		Broken:              snp.Broken != "",
+		IgnoreValidation:    snp.IgnoreValidation,
+		InCohort:            snp.CohortKey != "",
+		Health:              health,
+		Held:                snp.Hold != nil && snp.Hold.After(timeNow()),
 	}
 }
 
@@ -122,6 +135,13 @@ func (n *Notes) String() string {
 	default:
 		ns = append(ns, string(n.SnapType))
 	}
+
+	if n.InstalledComponents > 0 {
+		ns = append(ns, fmt.Sprintf("components[%d/%d]", n.InstalledComponents, n.AvailableComponents))
+	} else if n.AvailableComponents > 0 {
+		ns = append(ns, fmt.Sprintf("components[%d]", n.AvailableComponents))
+	}
+
 	if n.Disabled {
 		// TRANSLATORS: if possible, a single short word
 		ns = append(ns, i18n.G("disabled"))
