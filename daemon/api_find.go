@@ -183,7 +183,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	results := make([]*json.RawMessage, 1)
-	data, err := json.Marshal(webify(mapRemote(snapInfo)))
+	data, err := json.Marshal(injectSnapIconURL(mapRemote(snapInfo)))
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -228,7 +228,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse) StructuredResponse {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
-		data, err := json.Marshal(webify(mapRemote(x)))
+		data, err := json.Marshal(injectSnapIconURL(mapRemote(x)))
 		if err != nil {
 			return InternalError("%v", err)
 		}
