@@ -77,9 +77,10 @@ execute: |
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/snapd.snap" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"snapd\" \(unset\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"snapd\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \(unset\) security profiles" < tasks.log
+  MATCH "Done .+ setup-profiles +Prepare snap \"snapd\" \(unset\) for security profile setup" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"snapd\" \(unset\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"snapd\"" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \(x1\) security profiles" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"snapd\"" < tasks.log
   MATCH "Done .+ setup-aliases +Setup snap \"snapd\" aliases" < tasks.log
 
@@ -87,9 +88,10 @@ execute: |
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/${LXD_BASE_SNAP}_[0-9]+.snap" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"${LXD_BASE_SNAP}\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"${LXD_BASE_SNAP}\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"${LXD_BASE_SNAP}\" \([0-9]+\) security profiles" < tasks.log
+  MATCH "Done .+ setup-profiles +Prepare snap \"${LXD_BASE_SNAP}\" \([0-9]+\) for security profile setup" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"${LXD_BASE_SNAP}\" \([0-9]+\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"${LXD_BASE_SNAP}\"" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"${LXD_BASE_SNAP}\" \([0-9]+\) security profiles" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"${LXD_BASE_SNAP}\"" < tasks.log
   MATCH "Done .+ setup-aliases +Setup snap \"${LXD_BASE_SNAP}\" aliases" < tasks.log
 
@@ -97,19 +99,19 @@ execute: |
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
+  MATCH "Done .+ setup-profiles +Prepare snap \"lxd\" \([0-9]+\) for security profile setup" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"lxd\" \([0-9]+\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"lxd\"" < tasks.log
   MATCH "Done .+ connect +Connect lxd:network to snapd:network" < tasks.log
   MATCH "Done .+ connect +Connect lxd:lxd-support to snapd:lxd-support" < tasks.log
   MATCH "Done .+ connect +Connect lxd:system-observe to snapd:system-observe" < tasks.log
   MATCH "Done .+ connect +Connect lxd:network-bind to snapd:network-bind" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles for auto-connections" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"lxd\"" < tasks.log
   MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
 
   echo "Checking that there were no other 'Done' tasks when preseeding"
-  [ "$(grep -c ' Done ' tasks.log)" = "32" ]
+  [ "$(grep -c ' Done ' tasks.log)" = "34" ]
 
   # everything below is pending execution on first boot
   MATCH "Do .+ run-hook +Run install hook of \"${LXD_BASE_SNAP}\" snap if present" < tasks.log

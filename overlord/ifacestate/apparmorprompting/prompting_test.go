@@ -63,6 +63,12 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 
 	s.st = state.New(nil)
 	s.defaultUser = 1000
+
+	currSession := prompting.IDType(0x12345)
+	restore := apparmorprompting.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func requestWithReplyChan(req *prompting.Request) (*prompting.Request, chan []string) {

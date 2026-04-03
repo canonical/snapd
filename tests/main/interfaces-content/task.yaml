@@ -11,23 +11,8 @@ details: |
 # slow in autopkgtest (>4m)
 backends: [-autopkgtest]
 
-# This test purges the state which causes the device to reinitialize
-# with (potentially) a different core snap. Running this on core will
-# also trigger a reboot in the middle of the tests because the new
-# core will be applied. So skip the test on core devices.
-systems: [-ubuntu-core-*]
-
-prepare: |
-    echo "Ensure an empty state so that installing test-snapd-content-plug"
-    echo "will pull in test-snapd-content-slot *and* core"
-
-    tests.systemd stop-unit snapd.service
-    rm -f /var/lib/snapd/state.json
-    # clear cache to prevent it from being used in the download, because that core
-    # was modified by the prepare suite and will fail to be validated
-    rm -f /var/lib/snapd/snaps/core_*
-    systemctl start snapd
-    snap wait system seed.loaded
+# Skip this on core 16
+systems: [-ubuntu-core-16-*]
 
 execute: |
     echo "When a snap declaring a content sharing plug is installed"

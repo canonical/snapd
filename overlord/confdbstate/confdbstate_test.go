@@ -215,7 +215,7 @@ func (s *confdbTestSuite) TestGetView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"}, nil, 0)
+	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]any{"ssid": "foo"})
 }
@@ -232,7 +232,7 @@ func (s *confdbTestSuite) TestGetViewUsedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"placeholder": "foo"}, 0)
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"placeholder": "foo"}, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]any{"private": map[string]any{"foo": "bar"}})
 }
@@ -249,7 +249,7 @@ func (s *confdbTestSuite) TestGetViewUnusedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"bla": "foo"}, 0)
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"bla": "foo"}, confdb.AdminAccess)
 	c.Assert(err, FitsTypeOf, &confdb.UnmatchedConstraintsError{})
 	c.Assert(err, ErrorMatches, `.*no placeholder for constraint "bla".*`)
 	c.Check(res, IsNil)
@@ -269,17 +269,17 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 	view, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"}, nil, 0)
+	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, FitsTypeOf, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = confdbstate.GetViaView(bag, view, []string{"ssid", "ssids"}, nil, 0)
+	res, err = confdbstate.GetViaView(bag, view, []string{"ssid", "ssids"}, nil, confdb.AdminAccess)
 	c.Assert(err, FitsTypeOf, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
-	res, err = confdbstate.GetViaView(bag, view, []string{"other-field"}, nil, 0)
+	res, err = confdbstate.GetViaView(bag, view, []string{"other-field"}, nil, confdb.AdminAccess)
 	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 	c.Check(res, IsNil)
@@ -385,7 +385,7 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, nil, nil, 0)
+	res, err := confdbstate.GetViaView(bag, view, nil, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]any{
 		"ssids": []any{"foo", "bar"},
@@ -1801,7 +1801,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 
 	view := s.dbSchema.View("setup-wifi")
 	val := map[string]any{"placeholder": "foo"}
-	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private", "ssids"}, val, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private", "ssids"}, val, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1858,7 +1858,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	requests := []string{"private", "ssids"}
 	constraints := map[string]any{"placeholder": "foo"}
 
-	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, requests, constraints, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, requests, constraints, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1890,7 +1890,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	s.setupConfdbScenario(c, custodians, nonCustodians)
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1925,7 +1925,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	defer restore()
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1999,7 +1999,7 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb through view %s/network/setup-wifi: ongoing transaction", s.devAccID))
 
 	// we can read from the API and the snap concurrently with other reads
-	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"ssid"}, nil)
@@ -2061,11 +2061,11 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 	// can't read an ephemeral path w/o a load-view hook
-	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"eph"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"eph"}, nil, confdb.AdminAccess)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// but reading a non-ephemeral path succeeds
-	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 }
 
@@ -2085,7 +2085,7 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"foo"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
-	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"foo"}, nil, 0)
+	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"foo"}, nil, confdb.AdminAccess)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)
@@ -2120,7 +2120,7 @@ func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private"}, nil, 1000)
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"private"}, nil, confdb.UnprivilegedAccess)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -2147,9 +2147,9 @@ func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
 	c.Assert(constraints, IsNil)
 
 	// check the visibility set in the task
-	var userID int
-	c.Assert(loadTask.Get("userID", &userID), IsNil)
-	c.Assert(userID, Equals, 1000)
+	var userAccess confdb.Access
+	c.Assert(loadTask.Get("user-access", &userAccess), IsNil)
+	c.Assert(userAccess, Equals, confdb.UnprivilegedAccess)
 
 	// check that no data got loaded
 	var apiData map[string]any

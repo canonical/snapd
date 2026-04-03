@@ -264,6 +264,9 @@ func verifyInstallTasksWithComponents(c *C, typ snap.Type, opts, discards int, c
 			c.Check(compsup.CompSideInfo.Component.ComponentName, Equals, components[count])
 			count++
 		case "setup-profiles":
+			var prepareProfiles bool
+			c.Assert(t.Get("prepare-profiles", &prepareProfiles), IsNil)
+			c.Check(prepareProfiles, Equals, true)
 			c.Assert(t.Has("component-setup-task"), Equals, false)
 			c.Assert(t.Has("component-setup"), Equals, false)
 		}
@@ -1516,16 +1519,18 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "channel-for-media"`)
 
 	// check install-record present
-	mountTask := ta[len(ta)-13]
-	c.Check(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(ta, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, false)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (11) services`)
 
 	// verify snap-setup in the task state
@@ -1877,13 +1882,11 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 	c.Check(task.Summary(), Equals, `Download snap "some-snap_instance" (11) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTaskOffset := 10
-	if inputFlags.Prefer {
-		linkTaskOffset = 11
-	}
-	linkTask := ta[len(ta)-linkTaskOffset]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap_instance" (11) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap_instance" (11) services`)
 
 	// verify snap-setup in the task state
@@ -1977,8 +1980,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-13]
-	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(tasks, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, false)
@@ -2249,9 +2252,11 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (666) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (666) available to the system`)
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (666) services`)
 
 	// verify snap-setup in the task state
@@ -2464,9 +2469,11 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-10]
+	linkTask := findLastTaskInTasks(ta, "link-snap")
+	c.Assert(linkTask, NotNil)
 	c.Check(linkTask.Summary(), Equals, fmt.Sprintf(`Make snap "%s" (42) available to the system`, snapName))
-	startTask := ta[len(ta)-4]
+	startTask := findLastTaskInTasks(ta, "start-snap-services")
+	c.Assert(startTask, NotNil)
 	c.Check(startTask.Summary(), Equals, fmt.Sprintf(`Start snap "%s" (42) services`, snapName))
 
 	// verify snap-setup in the task state
@@ -4155,8 +4162,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 	s.settle(c)
 
-	mountTask := tasks[len(tasks)-13]
-	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	mountTask := findLastTaskInTasks(tasks, "mount-snap")
+	c.Assert(mountTask, NotNil)
 	var installRecord backend.InstallRecord
 	c.Assert(mountTask.Get("install-record", &installRecord), testutil.ErrorIs, state.ErrNoState)
 }
@@ -7828,6 +7835,16 @@ func printTasks(ts []*state.Task) string {
 		}
 	}
 	return b.String()
+}
+
+func findLastTaskInTasks(tasks []*state.Task, kind string) *state.Task {
+	var last *state.Task
+	for _, task := range tasks {
+		if task.Kind() == kind {
+			last = task
+		}
+	}
+	return last
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {

@@ -437,7 +437,7 @@ func MockConfdbstateWriteConfdb(f func(context.Context, *state.State, *confdb.Vi
 	return testutil.Mock(&confdbstateWriteConfdb, f)
 }
 
-func MockConfdbstateReadConfdb(f func(context.Context, *state.State, *confdb.View, []string, map[string]any, int) (string, error)) (restore func()) {
+func MockConfdbstateReadConfdb(f func(context.Context, *state.State, *confdb.View, []string, map[string]any, confdb.Access) (string, error)) (restore func()) {
 	return testutil.Mock(&confdbstateReadConfdb, f)
 }
 

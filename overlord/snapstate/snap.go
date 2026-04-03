@@ -248,10 +248,14 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		s.Append(copyData)
 	}
 
-	// security
-	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
-		i18n.G("Setup snap %q%s security profiles"), sc.snapsup.InstanceName(), sc.revisionString()))
-	s.Append(setupSecurity)
+	// Insert the pre-link preparation phase as setup-profiles in
+	// prepare-only mode. This keeps task kinds backward-compatible
+	// for downgrades while preserving the split behavior.
+	prepareSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
+		i18n.G("Prepare snap %q%s for security profile setup"),
+		sc.snapsup.InstanceName(), sc.revisionString()))
+	prepareSecurity.Set("prepare-profiles", true)
+	s.Append(prepareSecurity)
 
 	// finalize (wrappers+current symlink)
 	//

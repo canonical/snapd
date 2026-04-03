@@ -173,3 +173,7 @@ func WaitUntilMutexHeld(ntb *noticeTypeBackend, timeout time.Duration) bool {
 		}
 	}
 }
+
+func MockReadOrAssignUserSessionID(f func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error)) (restore func()) {
+	return testutil.Mock(&requestrules.ReadOrAssignUserSessionID, f)
+}
