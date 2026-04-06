@@ -344,7 +344,7 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 		"LD_LIBRARY_PATH", "${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib/x86_64-linux-gnu",
 		"PATH", "${PATH:+$PATH:}/usr/local/bin",
 		"TMPDIR", "${TMPDIR:-this-wont-be}",
-		"NOEXISTS", "${NOEXITS:-a-new-value}",
+		"NOEXISTS", "${NOEXISTS:-a-new-value}",
 		"A", "${A:+}",
 		"B", "${B:+goodvalue}",
 		"C", "${C:-}",
