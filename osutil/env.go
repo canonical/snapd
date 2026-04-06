@@ -213,28 +213,28 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 var envExpandRegExp = regexp.MustCompile("[a-zA-Z0-9_]+:[+-]")
 
 // Adds support for bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX}
-func (env *Environment) expand(key string) string {
-	return os.Expand(key, func(varName string) string {
+func (env *Environment) expand(value string) string {
+	return os.Expand(value, func(varName string) string {
 		loc := envExpandRegExp.FindStringIndex(varName)
 		if loc == nil {
 			return (*env)[varName]
 		}
-		envvar := string(varName[loc[0]:(loc[1] - 2)])
+		envVar := string(varName[loc[0]:(loc[1] - 2)])
 		operation := string(varName[loc[1]-1])
-		newval := string(varName[loc[1]:])
-		envvar_value := (*env)[envvar]
+		newVal := string(varName[loc[1]:])
+		envVarValue := (*env)[envVar]
 		switch operation {
 		case "-":
-			if envvar_value == "" {
-				return env.expand(newval)
+			if envVarValue == "" {
+				return env.expand(newVal)
 			} else {
-				return envvar_value
+				return envVarValue
 			}
 		case "+":
-			if envvar_value == "" {
+			if envVarValue == "" {
 				return ""
 			} else {
-				return env.expand(newval)
+				return env.expand(newVal)
 			}
 		default: // never can really happen, but the compiler complains without it
 			return (*env)[varName]
