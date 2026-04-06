@@ -210,7 +210,7 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
 
-var envExpandRegExp, _ = regexp.Compile("[a-zA-Z0-9_]+:[+-]")
+var envExpandRegExp = regexp.MustCompile("[a-zA-Z0-9_]+:[+-]")
 
 // Adds support for bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX}
 func (env *Environment) expand(key string) string {
