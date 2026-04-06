@@ -79,6 +79,8 @@ type Store struct {
 	channelRepository *ChannelRepository
 
 	snapsCache map[string]snapCachedInfo
+
+	killAfter map[string]int64
 }
 
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
@@ -105,13 +107,16 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 			rootDir: filepath.Join(topDir, "channels"),
 		},
 		snapsCache: make(map[string]snapCachedInfo),
+		killAfter:  make(map[string]int64),
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
 	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
+
+	fileServer := http.StripPrefix("/download/", http.FileServer(http.Dir(topDir)))
+	mux.Handle("/download/", logRangeHeader(store.applyKillAfter(fileServer.ServeHTTP)))
 
 	mux.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
 	mux.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
@@ -121,6 +126,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
 	mux.HandleFunc("/v2/repairs/", store.repairsEndpoint)
+
+	mux.HandleFunc("/debug", store.debugEndpoint)
 
 	return store
 }
@@ -352,6 +359,117 @@ type detailsReplyJSON struct {
 	Confinement     string   `json:"confinement"`
 	Type            string   `json:"type"`
 	Base            string   `json:"base,omitempty"`
+}
+
+type killAfterWriter struct {
+	http.ResponseWriter
+	killAfter int64
+}
+
+func (kaw *killAfterWriter) Write(p []byte) (int, error) {
+	if kaw.killAfter >= 0 {
+		kaw.killAfter -= int64(len(p))
+	}
+
+	if kaw.killAfter < 0 {
+		// hijack the connection to force a hard drop
+		hj, ok := kaw.ResponseWriter.(http.Hijacker)
+		if ok {
+			conn, _, _ := hj.Hijack()
+			conn.Close() // hard close the TCP connection
+		}
+		return 0, fmt.Errorf("connection killed")
+	}
+
+	return kaw.ResponseWriter.Write(p)
+}
+
+type debugRequestJSON struct {
+	Action string `json:"action"`
+
+	KillPath  string `json:"kill-path"`
+	KillAfter int64  `json:"kill-after"`
+}
+
+type debugResultJSON struct {
+	KillAfter map[string]int64 `json:"kill-after"`
+}
+
+func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodGet {
+		res := debugResultJSON{
+			KillAfter: s.killAfter,
+		}
+		out, err := json.MarshalIndent(res, "", "    ")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", res, err), 500)
+			return
+		}
+		w.Write(out)
+		return
+	}
+
+	if req.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var debugReq *debugRequestJSON
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&debugReq); err != nil {
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
+		return
+	}
+
+	switch debugReq.Action {
+	case "kill-request":
+		s.debugActionKillDownload(debugReq)
+	default:
+		w.WriteHeader(400)
+		fmt.Fprintf(w, "unexpected debug action %q", debugReq.Action)
+	}
+}
+
+func (s *Store) debugActionKillDownload(debugReq *debugRequestJSON) {
+	if debugReq.KillAfter == 0 {
+		delete(s.killAfter, debugReq.KillPath)
+		return
+	}
+	s.killAfter[debugReq.KillPath] = debugReq.KillAfter
+}
+
+func logRangeHeader(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path
+		if len(req.Header["Range"]) > 0 {
+			logger.Noticef(`requested range for %s is %v`, path, req.Header["Range"])
+		}
+		handler(w, req)
+	}
+}
+
+func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path
+		killAfter, exists := s.killAfter[path]
+		if !exists {
+			handler(w, req)
+			return
+		}
+
+		kaw := &killAfterWriter{
+			ResponseWriter: w,
+			killAfter:      killAfter,
+		}
+		handler(kaw, req)
+
+		if kaw.killAfter < 0 {
+			logger.Noticef("%s was force killed, quota exceeded", path)
+		}
+
+		// update killAfter for path after write finishes
+		s.killAfter[path] = kaw.killAfter
+	}
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
