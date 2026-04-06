@@ -373,7 +373,7 @@ func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
 
-func (inst *snapInstruction) DispatchForMany() snapManyActionFunc {
+func (inst *snapInstruction) DispatchForMany() snapActionFunc {
 	return inst.dispatchForMany()
 }
 

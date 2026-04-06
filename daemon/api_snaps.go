@@ -915,9 +915,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	return AsyncResponse(res.Result, chg.ID())
 }
 
-type snapManyActionFunc func(context.Context, *snapInstruction, *state.State) (*snapInstructionResult, error)
-
-func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
+func (inst *snapInstruction) dispatchForMany() (op snapActionFunc) {
 	switch inst.Action {
 	case refreshCmdAction:
 		if len(inst.ValidationSets) > 0 {
